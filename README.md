@@ -19,6 +19,7 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
 - [Advanced](#advanced)
   - [Build packages](#build-packages)
   - [Database](#database)
+  - [DB contribution tracker](#db-contribution-tracker)
   - [Lua project mapping](#lua-project-mapping)
   - [Byte budget for PPU Frame windows](#byte-budget-for-ppu-frame-windows)
   - [Current nametable codec coverage](#current-nametable-codec-coverage)
@@ -134,6 +135,12 @@ DB entries are matched by ROM SHA-1 and can define open windows, relevant CHR ba
 Currently supported games:
 
 < list pending >
+
+### DB contribution tracker
+
+The [DB contribution tracker sheet](https://docs.google.com/spreadsheets/d/1uxwTMG9cmv7juRGnYeg7M8aFsWqMgMWwBduhdpviIm4/edit?gid=1408935396#gid=1408935396) is a shared place to track which games already have DB coverage, which ones are in progress, pending, etc.
+
+Use it to coordinate contributions, avoid duplicate effort, and leave notes about the current status of a game-specific DB entry.
 
 ### Lua project mapping
 
