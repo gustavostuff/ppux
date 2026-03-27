@@ -2,7 +2,7 @@
 
 ## Open Source NES Art Editor
 
-v0.0.3
+Beta v0.0.4
 
 <img src="img/readme_images/app_example.png" alt="">
 
@@ -17,6 +17,7 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
   - [Tile mode](#tile-mode)
   - [Edit mode](#edit-mode)
 - [Advanced](#advanced)
+  - [Build packages](#build-packages)
   - [Database](#database)
   - [Lua project mapping](#lua-project-mapping)
   - [Byte budget for PPU Frame windows](#byte-budget-for-ppu-frame-windows)
@@ -105,6 +106,24 @@ Edit mode is for pixel-level editing.
 - `Alt + 1/2/3/4` to change brush size presets (Or Ctrl + Alt + mouse wheel)
 
 ## Advanced
+
+### Build packages
+
+To build a packaged Windows app from Windows, run:
+
+```bat
+scripts\build_windows.bat
+```
+
+The packaged Windows app will be created in `build\windows\PPUX-win64\`, with the main executable at being `PPUX.exe`.
+
+To build a packaged Linux app from Linux, run:
+
+```bash
+./scripts/build_linux_appimage.sh
+```
+
+The packaged Linux app will be created at `build/linux/PPUX-x86_64.AppImage`. You can also build for Windows and macOS (from Linux) using `./scripts/build_all.sh` (macOS build not tested yet).
 
 ### Database
 

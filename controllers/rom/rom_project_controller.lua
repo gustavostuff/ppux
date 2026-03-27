@@ -680,6 +680,14 @@ local function registerPlannedBanksForLayout(data, opts)
 
 end
 
+local function dbLayoutHasWindows(layout)
+  return type(layout) == "table"
+    and type(layout.windows) == "table"
+    and #layout.windows > 0
+end
+
+M._dbLayoutHasWindows = dbLayoutHasWindows
+
 local function loadFromProject(app, project)
   local state = app.appEditState
   local loadStartedAt = nowSeconds()
@@ -771,6 +779,10 @@ local function loadFromDBLayout(app, sha)
 
   local layout = GameArtController.getLayout(sha)
   if not layout then return false end
+  if not dbLayoutHasWindows(layout) then
+    DebugController.log("info", "ROM", "DB layout is empty for SHA-1 %s; falling back to default layout", tostring(sha))
+    return false
+  end
 
   pulseLoading(app, "Building default windows...")
   local registerStartedAt = nowSeconds()
