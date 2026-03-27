@@ -19,6 +19,13 @@ local function basename(path)
   return path:match("([^/\\]+)$") or path
 end
 
+local function normalizeSha1Key(sha1)
+  if type(sha1) ~= "string" or sha1 == "" then
+    return nil
+  end
+  return sha1:upper()
+end
+
 function M.normalizeRomPatches(romPatches)
   return GameArtRomPatchController.normalizeRomPatches(romPatches)
 end
@@ -31,11 +38,16 @@ end
 -- DB query
 -------------------------------------------------------
 function M.hasLayout(sha1)
-  return DB[sha1] ~= nil
+  local key = normalizeSha1Key(sha1)
+  return key ~= nil and DB[key] ~= nil
 end
 
 function M.getLayout(sha1)
-  return DB[sha1]
+  local key = normalizeSha1Key(sha1)
+  if not key then
+    return nil
+  end
+  return DB[key]
 end
 
 function M.snapshotProject(wm, bankWindow, currentBank, edits, app)
