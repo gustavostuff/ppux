@@ -2,6 +2,8 @@
 
 ## Open Source NES Art Editor
 
+v0.0.2
+
 <img src="img/readme_images/app_example.png" alt="">
 
 Edit NES graphics in game-aware context instead of rebuilding screens by hand.
