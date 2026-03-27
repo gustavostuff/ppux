@@ -1,0 +1,200 @@
+-- app_settings_controller.lua
+-- App settings persistence via LÖVE's save directory.
+
+local AppSettingsController = {}
+AppSettingsController.__index = AppSettingsController
+
+local TableUtils = require("utils.table_utils")
+local SETTINGS_FILE = "settings.lua"
+local DEFAULT_SETTINGS = {
+  skipSplash = false,
+  tooltipsEnabled = true,
+  canvasImageMode = "pixel_perfect",
+  canvasFilter = "sharp",
+  recentProjects = {},
+}
+
+local MAX_RECENT_PROJECTS = 4
+
+local function splitPath(p)
+  local d, b = tostring(p or ""):match("^(.*)[/\\]([^/\\]+)$")
+  if not d then return "", tostring(p or "") end
+  return d, b
+end
+
+local function stripExt(name)
+  return (tostring(name or ""):gsub("%.[^%.]+$", ""))
+end
+
+local function canonicalProjectStem(name)
+  local stem = stripExt(name or "project")
+  stem = stem:gsub("_edited$", "")
+  stem = stem:gsub("_project$", "")
+  return stem
+end
+
+local function joinPath(dir, name)
+  local sep = (package.config:sub(1,1) == "\\" and "\\") or "/"
+  if dir == "" then return name end
+  if dir:sub(-1) == "/" or dir:sub(-1) == "\\" then return dir .. name end
+  return dir .. sep .. name
+end
+
+local function normalizeRecentProjectBasePath(path)
+  if type(path) ~= "string" or path == "" then
+    return nil
+  end
+  local dir, base = splitPath(path)
+  local stem = canonicalProjectStem(base)
+  if stem == "" then
+    return nil
+  end
+  return joinPath(dir, stem)
+end
+
+local function normalizeRecentProjects(list)
+  local out = {}
+  local seen = {}
+  for _, path in ipairs(list or {}) do
+    local normalized = normalizeRecentProjectBasePath(path)
+    if normalized and not seen[normalized] then
+      seen[normalized] = true
+      out[#out + 1] = normalized
+      if #out >= MAX_RECENT_PROJECTS then
+        break
+      end
+    end
+  end
+  return out
+end
+
+local function normalizeCanvasImageModeKey(key)
+  if key == "pixel_perfect" then return "pixel_perfect" end
+  if key == "keep_aspect" then return "keep_aspect" end
+  return "stretch"
+end
+
+local function normalizeCanvasFilterKey(key)
+  if key == "soft" then return "soft" end
+  return "sharp"
+end
+
+local function withDefaults(data)
+  local out = TableUtils.deepcopy(DEFAULT_SETTINGS)
+  out.skipSplash = (data and data.skipSplash == true)
+  out.tooltipsEnabled = not (data and data.tooltipsEnabled == false)
+  out.canvasImageMode = normalizeCanvasImageModeKey(data and data.canvasImageMode)
+  out.canvasFilter = normalizeCanvasFilterKey(data and data.canvasFilter)
+  out.recentProjects = normalizeRecentProjects(data and data.recentProjects)
+  return out
+end
+
+local function loadSettingsChunk(path)
+  if not (love and love.filesystem and love.filesystem.getInfo and love.filesystem.load) then
+    return nil
+  end
+
+  if not love.filesystem.getInfo(path) then
+    return nil
+  end
+
+  local chunk = love.filesystem.load(path)
+  if not chunk then return nil end
+
+  local ok, data = pcall(chunk)
+  if ok and type(data) == "table" then
+    return withDefaults(data)
+  end
+  return nil
+end
+
+local function writeFile(data)
+  local contents = TableUtils.serialize_lua_table(withDefaults(data)) or "return {}"
+  if contents:sub(-1) ~= "\n" then
+    contents = contents .. "\n"
+  end
+
+  if not (love and love.filesystem and love.filesystem.write) then
+    return false, "love.filesystem.write unavailable"
+  end
+
+  local ok, err = love.filesystem.write(SETTINGS_FILE, contents)
+  if ok == true or type(ok) == "number" then
+    return true
+  end
+  return false, err
+end
+
+local function readFile()
+  local data = loadSettingsChunk(SETTINGS_FILE)
+  if data then return data end
+  return withDefaults()
+end
+
+function AppSettingsController.load()
+  return readFile()
+end
+
+function AppSettingsController.defaults()
+  return TableUtils.deepcopy(DEFAULT_SETTINGS)
+end
+
+function AppSettingsController.save(opts)
+  opts = opts or {}
+  local data = readFile()
+  if opts.skipSplash ~= nil then data.skipSplash = (opts.skipSplash == true) end
+  if opts.tooltipsEnabled ~= nil then data.tooltipsEnabled = (opts.tooltipsEnabled ~= false) end
+  if opts.canvasImageMode ~= nil then data.canvasImageMode = opts.canvasImageMode end
+  if opts.canvasFilter ~= nil then data.canvasFilter = opts.canvasFilter end
+  if opts.recentProjects ~= nil then data.recentProjects = normalizeRecentProjects(opts.recentProjects) end
+  return writeFile(data)
+end
+
+function AppSettingsController.normalizeRecentProjects(list)
+  return normalizeRecentProjects(list)
+end
+
+function AppSettingsController.normalizeRecentProjectBasePath(path)
+  return normalizeRecentProjectBasePath(path)
+end
+
+function AppSettingsController.addRecentProject(path, currentList, maxCount)
+  local normalized = normalizeRecentProjectBasePath(path)
+  if not normalized then
+    return normalizeRecentProjects(currentList)
+  end
+
+  local out = { normalized }
+  local seen = {
+    [normalized] = true,
+  }
+  for _, existing in ipairs(currentList or {}) do
+    local candidate = normalizeRecentProjectBasePath(existing)
+    if candidate and not seen[candidate] then
+      seen[candidate] = true
+      out[#out + 1] = candidate
+      if #out >= math.max(1, math.floor(maxCount or MAX_RECENT_PROJECTS)) then
+        break
+      end
+    end
+  end
+  return out
+end
+
+function AppSettingsController.loadDisplaySettings()
+  return AppSettingsController.load()
+end
+
+function AppSettingsController.saveDisplaySettings(opts)
+  return AppSettingsController.save(opts)
+end
+
+function AppSettingsController.saveCurrentState(baseW, baseH)
+  return true
+end
+
+function AppSettingsController.applyWindowSettings(settings, baseW, baseH)
+  return settings
+end
+
+return AppSettingsController

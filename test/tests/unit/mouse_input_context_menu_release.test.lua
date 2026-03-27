@@ -1,0 +1,207 @@
+local MouseInput = require("controllers.input.mouse_input")
+local MouseMoveController = require("controllers.input.mouse_move_controller")
+local MouseTileDropController = require("controllers.input.mouse_tile_drop_controller")
+local MouseWheelController = require("controllers.input.mouse_wheel_controller")
+local MouseWindowChromeController = require("controllers.input.mouse_window_chrome_controller")
+local SpriteController = require("controllers.sprite.sprite_controller")
+local MultiSelectController = require("controllers.input_support.multi_select_controller")
+
+describe("mouse_input.lua - context menus on release", function()
+  local originals
+
+  beforeEach(function()
+    originals = {
+      move = MouseMoveController.handleMouseMoved,
+      tileDrop = MouseTileDropController.handleTileDrop,
+      wheel = MouseWheelController.handleWheel,
+      toolbarRelease = MouseWindowChromeController.handleToolbarRelease,
+      resizeEnd = MouseWindowChromeController.handleResizeEnd,
+      finishSpriteMarquee = SpriteController.finishSpriteMarquee,
+      isDragging = SpriteController.isDragging,
+      finishDrag = SpriteController.finishDrag,
+      endDrag = SpriteController.endDrag,
+      finishTileMarquee = MultiSelectController.finishTileMarquee,
+      reset = MultiSelectController.reset,
+    }
+
+    MouseMoveController.handleMouseMoved = function() end
+    MouseTileDropController.handleTileDrop = function() return false end
+    MouseWheelController.handleWheel = function() return false end
+    MouseWindowChromeController.handleToolbarRelease = function() return false end
+    MouseWindowChromeController.handleResizeEnd = function() return false end
+    SpriteController.finishSpriteMarquee = function() return false end
+    SpriteController.isDragging = function() return false end
+    SpriteController.finishDrag = function() end
+    SpriteController.endDrag = function() end
+    MultiSelectController.finishTileMarquee = function() return false end
+    MultiSelectController.reset = function() end
+
+    if MouseWindowChromeController._resetHeaderDoubleClickState then
+      MouseWindowChromeController._resetHeaderDoubleClickState()
+    end
+  end)
+
+  afterEach(function()
+    MouseMoveController.handleMouseMoved = originals.move
+    MouseTileDropController.handleTileDrop = originals.tileDrop
+    MouseWheelController.handleWheel = originals.wheel
+    MouseWindowChromeController.handleToolbarRelease = originals.toolbarRelease
+    MouseWindowChromeController.handleResizeEnd = originals.resizeEnd
+    SpriteController.finishSpriteMarquee = originals.finishSpriteMarquee
+    SpriteController.isDragging = originals.isDragging
+    SpriteController.finishDrag = originals.finishDrag
+    SpriteController.endDrag = originals.endDrag
+    MultiSelectController.finishTileMarquee = originals.finishTileMarquee
+    MultiSelectController.reset = originals.reset
+  end)
+
+  local function makeHeaderWindow()
+    return {
+      kind = "static_art",
+      _id = "w1",
+      _closed = false,
+      _minimized = false,
+      _collapsed = false,
+      x = 10,
+      y = 40,
+      headerH = 15,
+      dragging = false,
+      isInHeader = function(_, x, y)
+        return x >= 10 and x <= 210 and y >= 25 and y <= 40
+      end,
+      getHeaderRect = function()
+        return 10, 25, 200, 15
+      end,
+      contains = function(_, x, y)
+        return x >= 10 and x <= 210 and y >= 25 and y <= 180
+      end,
+      mousepressed = function(self, x, y, button)
+        if button == 2 or button == 3 then
+          self.dragging = true
+          self.dx = x - self.x
+          self.dy = y - self.y
+        end
+      end,
+      mousereleased = function(self)
+        self.dragging = false
+      end,
+      headerToolbar = {
+        updatePosition = function() end,
+        mousepressed = function() return false end,
+        x = 170,
+        y = 25,
+        w = 40,
+        h = 15,
+      },
+    }
+  end
+
+  it("opens the window header context menu on right-button release without movement", function()
+    local headerMenuCalls = 0
+    local headerMenuWin = nil
+    local focusWin = nil
+    local win = makeHeaderWindow()
+    local wm = {
+      getFocus = function() return focusWin end,
+      setFocus = function(_, next) focusWin = next end,
+      windowAt = function(_, x, y)
+        if win:contains(x, y) then
+          return win
+        end
+        return nil
+      end,
+    }
+
+    MouseInput.setup({
+      wm = function() return wm end,
+      getMode = function() return "tile" end,
+      getPainting = function() return false end,
+      setPainting = function() end,
+      app = {
+        showWindowHeaderContextMenu = function(_, targetWin)
+          headerMenuCalls = headerMenuCalls + 1
+          headerMenuWin = targetWin
+        end,
+      },
+    }, { active = false, pending = false }, { active = false }, {})
+
+    MouseInput.mousepressed(40, 30, 2)
+    expect(win.dragging).toBe(true)
+
+    MouseInput.mousereleased(40, 30, 2)
+
+    expect(headerMenuCalls).toBe(1)
+    expect(headerMenuWin).toBe(win)
+    expect(win.dragging).toBe(false)
+  end)
+
+  it("does not open the window header context menu after a right-button drag", function()
+    local headerMenuCalls = 0
+    local focusWin = nil
+    local win = makeHeaderWindow()
+    local wm = {
+      getFocus = function() return focusWin end,
+      setFocus = function(_, next) focusWin = next end,
+      windowAt = function(_, x, y)
+        if win:contains(x, y) then
+          return win
+        end
+        return nil
+      end,
+    }
+
+    MouseInput.setup({
+      wm = function() return wm end,
+      getMode = function() return "tile" end,
+      getPainting = function() return false end,
+      setPainting = function() end,
+      app = {
+        showWindowHeaderContextMenu = function()
+          headerMenuCalls = headerMenuCalls + 1
+        end,
+      },
+    }, { active = false, pending = false }, { active = false }, {})
+
+    MouseInput.mousepressed(40, 30, 2)
+    MouseInput.mousemoved(50, 30, 10, 0)
+    MouseInput.mousereleased(50, 30, 2)
+
+    expect(headerMenuCalls).toBe(0)
+    expect(win.dragging).toBe(false)
+  end)
+
+  it("opens the empty-space context menu on right-button release without movement", function()
+    local emptyMenuCalls = 0
+    local lastX = nil
+    local lastY = nil
+    local focusWin = nil
+    local wm = {
+      getFocus = function() return focusWin end,
+      setFocus = function(_, next) focusWin = next end,
+      windowAt = function()
+        return nil
+      end,
+    }
+
+    MouseInput.setup({
+      wm = function() return wm end,
+      getMode = function() return "tile" end,
+      getPainting = function() return false end,
+      setPainting = function() end,
+      app = {
+        showEmptySpaceContextMenu = function(_, x, y)
+          emptyMenuCalls = emptyMenuCalls + 1
+          lastX = x
+          lastY = y
+        end,
+      },
+    }, { active = false, pending = false }, { active = false }, {})
+
+    MouseInput.mousepressed(300, 200, 2)
+    MouseInput.mousereleased(300, 200, 2)
+
+    expect(emptyMenuCalls).toBe(1)
+    expect(lastX).toBe(300)
+    expect(lastY).toBe(200)
+  end)
+end)

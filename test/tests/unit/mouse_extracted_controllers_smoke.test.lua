@@ -1,0 +1,141 @@
+local MouseClickController = require("controllers.input.mouse_click_controller")
+local MouseWheelController = require("controllers.input.mouse_wheel_controller")
+local ResolutionController = require("controllers.app.resolution_controller")
+
+describe("mouse extracted controllers (smoke)", function()
+  local originals
+
+  beforeEach(function()
+    originals = {
+      getScaledMouse = ResolutionController.getScaledMouse,
+    }
+  end)
+
+  afterEach(function()
+    ResolutionController.getScaledMouse = originals.getScaledMouse
+  end)
+
+  it("mouse_click_controller gives focused toolbar clicks first priority", function()
+    local calls = {}
+    local focusWin = { _id = "focus" }
+    local winUnderMouse = { _id = "under" }
+    local wm = {
+      getFocus = function() return focusWin end,
+      windowAt = function() return winUnderMouse end,
+    }
+    local env = {
+      ctx = {
+        wm = function() return wm end,
+      },
+      chrome = {
+        handleToolbarClicks = function(button, x, y, win, wmArg)
+          calls[#calls + 1] = { fn = "toolbar", win = win and win._id or "nil" }
+          return win == focusWin
+        end,
+        handleResizeHandle = function()
+          calls[#calls + 1] = { fn = "resize" }
+          return false
+        end,
+        handleHeaderClick = function()
+          calls[#calls + 1] = { fn = "header" }
+          return false
+        end,
+      },
+    }
+
+    local handled = MouseClickController.handleMousePressed(env, 10, 20, 1)
+
+    expect(handled).toBeTruthy()
+    expect(#calls).toBe(1)
+    expect(calls[1].fn).toBe("toolbar")
+    expect(calls[1].win).toBe("focus")
+  end)
+
+  it("mouse_wheel_controller prioritizes ctrl+alt brush size in edit mode before zoom/scroll", function()
+    local calls = { brush = 0, zoom = 0, scroll = 0, focus = 0 }
+
+    ResolutionController.getScaledMouse = function()
+      return { x = 5, y = 6 }
+    end
+
+    local win = {
+      addZoomLevel = function() calls.zoom = calls.zoom + 1 end,
+      scrollBy = function() calls.scroll = calls.scroll + 1 end,
+    }
+    local wm = {
+      getFocus = function() return win end,
+      windowAt = function() return win end,
+      setFocus = function() calls.focus = calls.focus + 1 end,
+    }
+    local app = { brushSize = 2 }
+    local ctx = {
+      wm = function() return wm end,
+      getMode = function() return "edit" end,
+      app = app,
+    }
+
+    MouseWheelController.handleWheel({
+      ctx = ctx,
+      utils = {
+        ctrlDown = function() return true end,
+        altDown = function() return true end,
+        shiftDown = function() return false end,
+        changeBrushSize = function(appArg, newSize)
+          calls.brush = calls.brush + 1
+          calls.brushSize = newSize
+          expect(appArg).toBe(app)
+        end,
+      }
+    }, 0, 1)
+
+    expect(calls.brush).toBe(1)
+    expect(calls.brushSize).toBe(3)
+    expect(calls.zoom).toBe(0)
+    expect(calls.scroll).toBe(0)
+    expect(calls.focus).toBe(0)
+  end)
+
+  it("mouse_wheel_controller consumes wheel on toolbar minimized buttons before window scroll", function()
+    local calls = { toolbarWheel = 0, scroll = 0, focus = 0 }
+
+    ResolutionController.getScaledMouse = function()
+      return { x = 10, y = 10 }
+    end
+
+    local win = {
+      scrollBy = function() calls.scroll = calls.scroll + 1 end,
+    }
+    local wm = {
+      getFocus = function() return win end,
+      windowAt = function() return win end,
+      setFocus = function() calls.focus = calls.focus + 1 end,
+    }
+    local app = {
+      taskbar = {
+        wheelmoved = function(_, dx, dy)
+          calls.toolbarWheel = calls.toolbarWheel + 1
+          return true
+        end,
+      },
+    }
+    local ctx = {
+      wm = function() return wm end,
+      getMode = function() return "tile" end,
+      app = app,
+    }
+
+    local handled = MouseWheelController.handleWheel({
+      ctx = ctx,
+      utils = {
+        ctrlDown = function() return false end,
+        altDown = function() return false end,
+        shiftDown = function() return false end,
+      },
+    }, 0, -1)
+
+    expect(handled).toBeTruthy()
+    expect(calls.toolbarWheel).toBe(1)
+    expect(calls.scroll).toBe(0)
+    expect(calls.focus).toBe(0)
+  end)
+end)
