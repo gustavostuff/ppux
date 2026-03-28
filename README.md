@@ -136,9 +136,11 @@ DB entries are matched by ROM SHA-1 and can define open windows, relevant CHR ba
 
 Current list of games
 
-Contra (Japan) is in progress  - About 20%
-Kirby's Adventure (USA) (Rev 1) - Not started yet
-The Guardian Legend (USA) - Not started yet
+* Contra (Japan) is in progress  - About 20%
+
+* Kirby's Adventure (USA) (Rev 1) - Not started yet
+
+* The Guardian Legend (USA) - Not started yet
 
 NOTE: This is currenly in beta so please be patient while the list is still being expanded
 
@@ -167,11 +169,11 @@ The most important fields are windows and edits. For windows, common fields incl
 
 For edits, the data stores per-bank, per-tile pixel edits applied on top of the source ROM data, using a compact compressed format.
 
-The recommended workflow is to save once from the UI, use the generated Lua as the template, then tweak ROM-backed windows by hand.
+The recommended workflow is to save once from the UI, use the generated project (*.lua or *.ppux) as the template, then create windows, layouts, edits, etc, and keep the project growing as you wish (either for personal use, sharing or even for a new DB entry PR).
 
 Note:
 
-PPUX never overwrites the original ROM. ROM edits are written as `<rom>_edited.nes`. Project files are saved as `<rom>.lua` and `<rom>.ppux`.
+PPUX never overwrites the original ROM. Pixel edits and other byte changes (like patches, palette color changes, etc) are written as `<rom>_edited.nes`. Project files are saved as `<rom>.lua` and `<rom>.ppux`.
 
 Best practice: keep the base ROM, edited ROM, and project files in the same folder.
 
