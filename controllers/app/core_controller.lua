@@ -94,6 +94,7 @@ function AppCoreController.new()
   self.brushSize = 1
   self.syncDuplicateTiles = false
   self.spaceHighlightActive = false
+  self.showDebugInfo = false
 
   -- rom state
   self.appEditState = {

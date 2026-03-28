@@ -154,6 +154,12 @@ local function handleAlwaysAvailableWindowShortcuts(app, key)
 end
 
 function AppCoreController:keypressed(k)
+  if k == "f1" then
+    self.showDebugInfo = not (self.showDebugInfo == true)
+    self:setStatus(self.showDebugInfo and "Debug info enabled" or "Debug info disabled")
+    return
+  end
+
   local debugCtx = self:_buildCtx()
   local debugUtils = {
     ctrlDown = function()

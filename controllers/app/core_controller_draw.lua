@@ -802,9 +802,41 @@ end
 
 local function drawHUD(app)
   love.graphics.setColor(colors.white)
+  local state = app.appEditState or {}
+  local romLoaded = type(state.romRaw) == "string" and #state.romRaw > 0
+  local bankCount = #(state.chrBanksBytes or {})
+  local currentBank = tonumber(state.currentBank) or 1
+  local windows = (app.wm and app.wm.getWindows and app.wm:getWindows()) or {}
+  local visibleWindows = 0
+  for _, win in ipairs(windows) do
+    if win and not win._closed and not win._minimized then
+      visibleWindows = visibleWindows + 1
+    end
+  end
+  local focus = app.wm and app.wm.getFocus and app.wm:getFocus() or nil
+  local focusLabel = "none"
+  if focus then
+    focusLabel = string.format("%s:%s",
+      tostring(focus.kind or "?"),
+      tostring(focus._id or focus.title or "?")
+    )
+  end
+  local romLabel = "none"
+  if romLoaded then
+    local sha = tostring(state.romSha1 or "")
+    if #sha > 8 then
+      sha = sha:sub(1, 8)
+    end
+    romLabel = sha ~= "" and sha or "loaded"
+  end
   local lines = {
     "FPS: " .. love.timer.getFPS(),
     "Mode: " .. app.mode:upper(),
+    "ROM: " .. romLabel,
+    string.format("Bank: %d/%d", currentBank, math.max(1, bankCount)),
+    string.format("Windows: %d/%d", visibleWindows, #windows),
+    "Focus: " .. focusLabel,
+    "Unsaved: " .. ((app.unsavedChanges == true) and "yes" or "no"),
   }
   if DebugController.getHudMode and DebugController.getHudMode() ~= "off" then
     local hudLines = DebugController.getHudSummaryLines()
@@ -833,7 +865,9 @@ function AppCoreController:draw()
   love.graphics.setColor(colors.white)
 
   ResolutionController:renderCanvas(self.canvas)
-  -- drawHUD(self)
+  if self.showDebugInfo then
+    drawHUD(self)
+  end
   DebugController.perfEndFrame()
 end
 
