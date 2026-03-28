@@ -61,9 +61,14 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 | ROM Palette            | <img src="img/readme_images/windows_system_table/icon_rom_palette_window.png" alt="ROM Palette taskbar icon">            | Palette editor tied to ROM addresses                                                                     |
 | PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view for screens assembled closer to how the game actually renders them  |
 
-`CHR Banks` is the normal source browser. `ROM Banks` is the fallback source browser, useful for Games/ROMS that have CHR RAM data (like Megaman 2, for instance)
 
-Note: not all window types can currently be created through the UI. ROM-backed windows that depend on ROM addresses and related metadata still need to be created manually in Lua project files for now, but this will be improved.
+Notes: 
+
+* To be clearer on CHR vs ROM windows: CHR Banks is the normal source browser containing only graphics data.
+
+* ROM Banks is the fallback source browser, useful for Games that use CHR RAM data (like Megaman 2, for instance) and, as mentioned above, it will load the whole ROM, so be careful on unintentional non-graphics pixel edits.
+
+* Not all window types can currently be created through the UI. ROM-backed windows that depend on ROM addresses and related metadata still need to be created manually in Lua project files for now, but this will be improved.
 
 ### Main controls
 
@@ -132,7 +137,7 @@ You can also build for Windows and macOS from Linux using `./scripts/build_all.s
 
 The DB lets PPUX recognize specific ROMs and open a tailored starting workspace automatically.
 
-DB entries are matched by ROM SHA-1 and can define open windows, relevant CHR banks, palette windows, ROM-backed views, and the initial workspace arrangement. If no DB entry exists, PPUX falls back to a default layout. User projects still take priority over DB defaults.
+DB entries are matched by ROM SHA-1 and can define open windows, relevant CHR banks, palette windows, ROM-backed views, and the initial workspace arrangement. If no DB entry exists, PPUX falls back to a default layout. User projects (*.lua and *.ppux) take priority over DB defaults.
 
 Current list of games
 
@@ -171,9 +176,13 @@ For edits, the data stores per-bank, per-tile pixel edits applied on top of the 
 
 The recommended workflow is to save once from the UI, use the generated project (*.lua or *.ppux) as the template, then create windows, layouts, edits, etc, and keep the project growing as you wish (either for personal use, sharing or even for a new DB entry PR).
 
-Note:
+Notes:
 
-PPUX never overwrites the original ROM. Pixel edits and other byte changes (like patches, palette color changes, etc) are written as `<rom>_edited.nes`. Project files are saved as `<rom>.lua` and `<rom>.ppux`.
+* PPUX never overwrites the original ROM. Pixel edits and other byte changes (like patches, palette color changes, etc) are written as `<rom>_edited.nes`.
+
+* Project files are saved either as `<rom>.lua` and `<rom>.ppux`.
+
+* `*.ppux` files are just zlib-compressed versions of Lua project files, useful when you want smaller files or prefer not to keep the project contents easily readable.
 
 Best practice: keep the base ROM, edited ROM, and project files in the same folder.
 
@@ -208,13 +217,13 @@ Example:
 }
 ```
 
-In tile layers, `nametableStartAddr` and `nametableEndAddr` define the ROM byte range used for the nametable data handled by that window. The app reads from that range when loading the screen data, and writes back into the same range when saving changes.
+In tile layers, `nametableStartAddr` and `nametableEndAddr` define the ROM byte range used for the nametable data handled by that window (it's the same bytes read by an emulator when loading a specific nametable). The app reads from that range when loading the screen data, and writes back into the same range when saving changes.
 
-For sprite layers, `startAddr` is the most important field because it links the item to the 4 OAM bytes in ROM. The app uses byte 1 for Y position, byte 3 for attributes/palette/mirroring, and byte 4 for X position directly through the app UI. Byte 2 is the exception: its tile value is interpreted in PPU/VRAM space, not as a direct ROM-bank tile reference. Since the app does not know the final runtime VRAM page layout, bank and tile must also be specified explicitly so the correct source graphics can be resolved in the editor.
+For sprite layers, `startAddr` is the most important field because it links the item to the 4 OAM bytes in ROM. The app uses byte 1 for Y position, byte 3 for attributes/palette/mirroring, and byte 4 for X position directly through the app UI. Byte 2 is the exception: in real hardware or emulators, its tile value is interpreted in PPU/VRAM space, not as a direct ROM-bank tile reference. Since the app does not know the final runtime VRAM page layout, bank and tile must also be specified explicitly so the correct source graphics can be resolved in the editor context.
 
 ### Byte budget for PPU Frame windows
 
-Some `ppu_frame` tile layers use `noOverflowSupported = true`. This means the compressed nametable stream should stay within its original ROM byte budget.
+PPU Frame tile layers support `noOverflowSupported = true`. This means the compressed nametable stream should stay within its original ROM byte budget.
 
 Why it matters: some games leave safe free space after the stream, and some do not.
 
@@ -222,7 +231,7 @@ TMNT II is a good example of this: compressed byte ranges are packed tightly, so
 
 <img src="img/readme_images/nametable_bytes_tmnt.png" alt="Nametable title screen TMNT II">
 
-Contra example, where the byte "buffer" has plenty of space:
+Contra (J) example, where the byte "buffer" has plenty of space:
 
 <img src="img/readme_images/nametable_bytes_contra.png" alt="Nametable title screen Contra">
 
@@ -248,8 +257,10 @@ Example:
       mode = "8x16",
       items = {
         { startAddr = 0x0095FA, bank = 1, tile = 256 },
+        ...
       }
-    }
+    },
+    ...
   }
 }
 ```
@@ -276,7 +287,7 @@ Example:
 }
 ```
 
-`romColors[row][col]` stores ROM addresses for each palette slot. The first column is the universal background color, susually one single "shared" ROM address.
+So each `romColors[row][col]` stores a ROM address for a given palette color. The first column is the universal background color, usually one single "shared" ROM address.
 
 ### Window references between entries
 
@@ -292,7 +303,7 @@ The referenced window must exist elsewhere in the same `windows` array and will 
 
 ### ROM patches
 
-PPUX can apply small ROM patches from project data before windows are built.
+PPUX can apply small ROM patches from project data before windows are built (so the user is already working on top of "patched" ROM).
 
 This is meant for targeted graphics-related setup such as forcing a game state or changing a small byte sequence. It is not a replacement for a full ROM hacking workflow.
 
@@ -308,7 +319,7 @@ PPUX also includes visible end-to-end test scenarios that boot the real app. See
 
 ---
 
-Detailed video tutorials are planned.
+**Detailed video tutorials are planned.**
 
 Dev notes:
 
