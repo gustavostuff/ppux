@@ -62,6 +62,16 @@ function UndoRedoController:startPaintEvent()
   }
 end
 
+local function paintEventHasChanges(event)
+  if not event then return false end
+  if type(event.pixels) == "table" then
+    for _ in pairs(event.pixels) do
+      return true
+    end
+  end
+  return false
+end
+
 -- Record a pixel change during painting
 -- bank: bank index in tilesPool
 -- tileIndex: tile index within the bank
@@ -94,30 +104,45 @@ end
 -- Returns true if the event was stored, false if it was empty
 function UndoRedoController:finishPaintEvent()
   if not self.activeEvent then return false end
-  
-  -- Check if any pixels were actually changed
-  local pixelCount = 0
-  for _ in pairs(self.activeEvent.pixels) do
-    pixelCount = pixelCount + 1
-  end
-  
-  -- If no pixels were changed, discard the event
-  if pixelCount == 0 then
-    self.activeEvent = nil
-    return false
-  end
 
-  local pushed = self:_pushEvent(self.activeEvent)
-  if pushed then
-    self:_notifyUnsaved("pixel_edit")
-  end
+  local event = self.activeEvent
   self.activeEvent = nil
-  return pushed
+  return self:addPaintEvent(event)
 end
 
 -- Cancel the current paint event (e.g., if mouse was released without painting)
 function UndoRedoController:cancelPaintEvent()
   self.activeEvent = nil
+end
+
+function UndoRedoController:takePaintEvent()
+  local event = self.activeEvent
+  self.activeEvent = nil
+  return event
+end
+
+function UndoRedoController:addPaintEvent(event)
+  if not event or event.type ~= "paint" then return false end
+  if not paintEventHasChanges(event) then
+    return false
+  end
+
+  local pushed = self:_pushEvent(event)
+  if pushed then
+    self:_notifyUnsaved("pixel_edit")
+  end
+  return pushed
+end
+
+function UndoRedoController:addCompositeEvent(event)
+  if not event or event.type ~= "composite" then return false end
+  if type(event.events) ~= "table" or #event.events == 0 then return false end
+
+  local pushed = self:_pushEvent(event)
+  if pushed then
+    self:_notifyUnsaved(event.unsavedType or "pixel_edit")
+  end
+  return pushed
 end
 
 -- Add a tile removal event (static, animation, or PPU) to the undo stack.
@@ -292,6 +317,8 @@ local function applyTileDragEvent(event, direction)
     return false
   end
 
+  local batchedPpu = {}
+  local batchedOrder = {}
   local applied = 0
   for _, ch in ipairs(event.changes) do
     local win = ch.win
@@ -303,13 +330,43 @@ local function applyTileDragEvent(event, direction)
       else
         value = ch.after
       end
-      if win.set then
+      if ch.isNametableByte and win.setNametableByteAt then
+        local batchKey = tostring(win) .. ":" .. tostring(li)
+        local batch = batchedPpu[batchKey]
+        if not batch then
+          batch = {
+            win = win,
+            layerIndex = li,
+            tilesPool = ch.tilesPool or event.tilesPool,
+            swaps = {},
+          }
+          batchedPpu[batchKey] = batch
+          batchedOrder[#batchedOrder + 1] = batch
+        end
+        batch.swaps[#batch.swaps + 1] = {
+          col = ch.col,
+          row = ch.row,
+          val = value,
+        }
+      elseif win.set then
         win:set(ch.col, ch.row, value, li)
         applied = applied + 1
       elseif win.layers and win.layers[li] and win.cols then
         local idx = (ch.row * (win.cols or 0) + ch.col) + 1
         win.layers[li].items = win.layers[li].items or {}
         win.layers[li].items[idx] = value
+        applied = applied + 1
+      end
+    end
+  end
+
+  for _, batch in ipairs(batchedOrder) do
+    if batch.win.applyTileSwapsFrom then
+      batch.win:applyTileSwapsFrom(batch.swaps, batch.tilesPool)
+      applied = applied + #batch.swaps
+    else
+      for _, swap in ipairs(batch.swaps) do
+        batch.win:setNametableByteAt(swap.col, swap.row, swap.val, batch.tilesPool, batch.layerIndex)
         applied = applied + 1
       end
     end
@@ -500,6 +557,18 @@ function UndoRedoController:_applyEvent(event, direction, app)
 
   if event.type == "paint" then
     return self:_applyPaintEvent(event, direction, app)
+  elseif event.type == "composite" then
+    local applied = false
+    if direction == "undo" then
+      for i = #event.events, 1, -1 do
+        applied = self:_applyEvent(event.events[i], direction, app) or applied
+      end
+    else
+      for i = 1, #event.events do
+        applied = self:_applyEvent(event.events[i], direction, app) or applied
+      end
+    end
+    return applied
   elseif event.type == "remove_tile" then
     return applyRemovalEvent(event, direction, app)
   elseif event.type == "tile_drag" then

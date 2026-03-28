@@ -243,6 +243,26 @@ local function frameIsTransparent(imgData, frameX, frameY, spriteW, spriteH)
   return true
 end
 
+local function setErrorStatus(app, message)
+  if not (app and message) then return end
+  app:setStatus(message)
+  app:showToast("error", message)
+end
+
+local function captureSpritePositionState(sprite)
+  if not sprite then return nil end
+  return {
+    worldX = sprite.worldX or sprite.x or 0,
+    worldY = sprite.worldY or sprite.y or 0,
+    x = sprite.x or sprite.worldX or 0,
+    y = sprite.y or sprite.worldY or 0,
+    dx = sprite.dx or 0,
+    dy = sprite.dy or 0,
+    hasMoved = sprite.hasMoved == true,
+    removed = sprite.removed == true,
+  }
+end
+
 function M.handleSpritePngDrop(SpriteController, app, file, win)
   if not (SpriteController and app and file and win and win.layers and win.getActiveLayerIndex) then
     DebugController.log("warning", "PNG_DROP", "handleSpritePngDrop: invalid args app=%s file=%s win=%s", tostring(app ~= nil), tostring(file ~= nil), tostring(win ~= nil))
@@ -367,9 +387,9 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
       tonumber(li) or -1
     )
     if useSelectedSprites then
-      app:setStatus("No selected sprites in this layer to import into")
+      setErrorStatus(app, "No selected sprites in this layer to import into")
     else
-      app:setStatus("No sprites in this layer to import into")
+      setErrorStatus(app, "No sprites in this layer to import into")
     end
     return true
   end
@@ -377,7 +397,7 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
   local imgData, readErr = loadImageDataFromDroppedFile(file)
   if not imgData then
     DebugController.log("warning", "PNG_DROP", "Failed to load image data: %s", tostring(readErr))
-    app:setStatus("Failed to read PNG: " .. tostring(readErr))
+    setErrorStatus(app, "Failed to read PNG: " .. tostring(readErr))
     return true
   end
 
@@ -387,13 +407,13 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
   local colorCount = countUniqueColors(imgData)
   if colorCount > 4 then
     DebugController.log("warning", "PNG_DROP", "Rejected PNG: too many colors=%d", colorCount)
-    app:setStatus(string.format("PNG has too many colors (%d). Max 4 incl. transparency.", colorCount))
+    setErrorStatus(app, string.format("PNG has too many colors (%d). Max 4 incl. transparency.", colorCount))
     return true
   end
   local nonTransparentCount = countUniqueNonTransparentColors(imgData)
   if nonTransparentCount > 3 then
     DebugController.log("warning", "PNG_DROP", "Rejected PNG: too many non-transparent colors=%d", nonTransparentCount)
-    app:setStatus(string.format("PNG has too many non-transparent colors (%d). Max 3 for sprites.", nonTransparentCount))
+    setErrorStatus(app, string.format("PNG has too many non-transparent colors (%d). Max allowed is 3", nonTransparentCount))
     return true
   end
 
@@ -405,14 +425,14 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
 
   if (w % spriteW) ~= 0 or (h % spriteH) ~= 0 then
     DebugController.log("warning", "PNG_DROP", "Rejected PNG: grid mismatch spriteSize=%dx%d image=%dx%d", spriteW, spriteH, w, h)
-    app:setStatus(string.format("PNG must align to %dx%d sprites (got %dx%d)", spriteW, spriteH, w, h))
+    setErrorStatus(app, string.format("PNG must align to %dx%d sprites (got %dx%d)", spriteW, spriteH, w, h))
     return true
   end
 
   local frames, frameCols, frameRows = buildFrameList(imgData, spriteW, spriteH)
   if #frames == 0 then
     DebugController.log("warning", "PNG_DROP", "Rejected PNG: no frames")
-    app:setStatus("PNG contains no frames")
+    setErrorStatus(app, "PNG contains no frames")
     return true
   end
   DebugController.log("info", "PNG_DROP", "Frame grid cols=%d rows=%d total=%d spriteSize=%dx%d", frameCols, frameRows, #frames, spriteW, spriteH)
@@ -436,6 +456,7 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
   end
   local paletteRemapByPaletteNumber = {}
   local syncChangedTargets = { list = {}, _set = {} }
+  local spriteMoveActions = {}
 
   local function getPaletteRemapForSprite(sprite)
     local palNum = (sprite and type(sprite.paletteNumber) == "number") and sprite.paletteNumber or 1
@@ -457,13 +478,10 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
   local blockH = (frameRows or 1) * spriteH
   local topLeftContentX = math.max(0, math.floor((contentW - blockW) * 0.5 + 0.5))
   local topLeftContentY = math.max(0, math.floor((contentH - blockH) * 0.5 + 0.5))
-  local originX = layer.originX or 0
-  local originY = layer.originY or 0
   local function moveSpriteToFrame(spriteEntry, frame)
+    local beforeState = captureSpritePositionState(spriteEntry.sprite)
     local targetContentX = topLeftContentX + frame.x
     local targetContentY = topLeftContentY + frame.y
-    local targetWorldX = targetContentX - originX
-    local targetWorldY = targetContentY - originY
 
     local layerIndex = li
     local z    = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
@@ -480,6 +498,26 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
     SpriteController.beginDrag(win, layerIndex, spriteEntry.itemIndex, 0, 0)
     SpriteController.updateDrag(mouseX, mouseY)
     SpriteController.endDrag()
+
+    local afterState = captureSpritePositionState(spriteEntry.sprite)
+    if beforeState and afterState then
+      local changed = false
+      for _, key in ipairs({ "worldX", "worldY", "x", "y", "dx", "dy", "hasMoved", "removed" }) do
+        if beforeState[key] ~= afterState[key] then
+          changed = true
+          break
+        end
+      end
+      if changed then
+        spriteMoveActions[#spriteMoveActions + 1] = {
+          win = win,
+          layerIndex = li,
+          sprite = spriteEntry.sprite,
+          before = beforeState,
+          after = afterState,
+        }
+      end
+    end
   end
 
   local applied = 0
@@ -509,7 +547,7 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
         tostring(why)
       )
       finalizeUndo()
-      app:setStatus("Sprite import failed: " .. tostring(why))
+      setErrorStatus(app, "Sprite import failed: " .. tostring(why))
       return true
     end
     if loggedMappings < 24 then
@@ -559,7 +597,43 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
     skippedTransparent,
     msg
   )
-  finalizeUndo()
+  if trackUndo then
+    local paintEvent = undoRedo.takePaintEvent and undoRedo:takePaintEvent() or undoRedo.activeEvent
+    if not undoRedo.takePaintEvent then
+      undoRedo.activeEvent = nil
+    end
+
+    local hasPaint = paintEvent and next(paintEvent.pixels or {}) ~= nil
+    local hasMoves = #spriteMoveActions > 0
+
+    if hasPaint and hasMoves and undoRedo.addCompositeEvent then
+      undoRedo:addCompositeEvent({
+        type = "composite",
+        unsavedType = "sprite_move",
+        events = {
+          paintEvent,
+          {
+            type = "sprite_drag",
+            mode = "move",
+            actions = spriteMoveActions,
+          },
+        },
+      })
+    elseif hasPaint and undoRedo.addPaintEvent then
+      undoRedo:addPaintEvent(paintEvent)
+    elseif hasPaint then
+      undoRedo.activeEvent = paintEvent
+      finalizeUndo()
+    elseif hasMoves and undoRedo.addDragEvent then
+      undoRedo:addDragEvent({
+        type = "sprite_drag",
+        mode = "move",
+        actions = spriteMoveActions,
+      })
+    end
+  else
+    finalizeUndo()
+  end
   if app and app.appEditState and #syncChangedTargets.list > 0 then
     ChrDuplicateSync.updateTiles(app.appEditState, syncChangedTargets.list)
   end

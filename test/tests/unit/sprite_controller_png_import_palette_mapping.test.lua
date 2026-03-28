@@ -1,5 +1,6 @@
 local SpriteController = require("controllers.sprite.sprite_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
+local UndoRedoController = require("controllers.input_support.undo_redo_controller")
 local chr = require("chr")
 
 describe("sprite_controller.lua - PNG import palette mapping", function()
@@ -276,6 +277,74 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
     end
     expect(pixelCount).toBeGreaterThan(0)
     expect(hasNonZeroAfter).toBe(true)
+  end)
+
+  it("undos sprite PNG import positions and pixel edits together", function()
+    local bankBytes = {}
+    for i = 1, 16 do bankBytes[i] = 0 end
+
+    local tileRef = makeTileRef()
+    tileRef._bankBytesRef = bankBytes
+    tileRef._bankIndex = 1
+    tileRef.index = 0
+    tileRef.loadFromCHR = function(self, sourceBytes, tileIndex)
+      self.pixels = chr.decodeTile(sourceBytes, tileIndex)
+    end
+
+    local layer = {
+      kind = "sprite",
+      mode = "8x8",
+      items = {
+        {
+          removed = false,
+          paletteNumber = 1,
+          topRef = tileRef,
+          x = 0, y = 0, worldX = 0, worldY = 0, baseX = 0, baseY = 0,
+          dx = 0, dy = 0, hasMoved = false,
+        },
+      },
+    }
+    local win = makeWindow(layer)
+    local undoRedo = UndoRedoController.new(10)
+    local app = makeApp({
+      undoRedo = undoRedo,
+      appEditState = {
+        romRaw = "",
+        chrBanksBytes = { [1] = bankBytes },
+        tilesPool = { [1] = { [0] = tileRef } },
+      },
+    })
+
+    SpriteController.beginDrag = function() end
+    SpriteController.updateDrag = function()
+      local sprite = layer.items[1]
+      sprite.worldX, sprite.worldY = 24, 16
+      sprite.x, sprite.y = 24, 16
+      sprite.dx, sprite.dy = 24, 16
+      sprite.hasMoved = true
+    end
+    SpriteController.endDrag = function() end
+
+    local handled = SpriteController.handleSpritePngDrop(app, makeDroppedFile(), win)
+
+    expect(handled).toBe(true)
+    expect(#undoRedo.stack).toBe(1)
+    expect(undoRedo.stack[1].type).toBe("composite")
+    expect(layer.items[1].worldX).toBe(24)
+    expect(layer.items[1].worldY).toBe(16)
+    expect(tileRef.pixels[1]).toNotBe(0)
+
+    expect(undoRedo:undo(app)).toBe(true)
+    expect(layer.items[1].worldX).toBe(0)
+    expect(layer.items[1].worldY).toBe(0)
+    expect(layer.items[1].dx).toBe(0)
+    expect(layer.items[1].dy).toBe(0)
+    expect(tileRef.pixels[1]).toBe(0)
+
+    expect(undoRedo:redo(app)).toBe(true)
+    expect(layer.items[1].worldX).toBe(24)
+    expect(layer.items[1].worldY).toBe(16)
+    expect(tileRef.pixels[1]).toNotBe(0)
   end)
 
   it("uses global palette brightness order when layer has no assigned palette", function()

@@ -189,7 +189,7 @@ local function buildTileCatalog(win, layer, tilesPool)
 end
 
 -- Main unscramble function
-function M.unscrambleFromPNG(win, file, tilesPool, threshold)
+function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
   threshold = threshold or 0  -- Default: zero-error margin
   
   if not WindowCaps.isPpuFrame(win) then
@@ -277,11 +277,13 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold)
   
   -- Extract tiles from PNG and match to catalog
   local newNametableBytes = {}
+  local previousNametableBytes = {}
   local matchedCount = 0
   local unmatchedCount = 0
   
   -- Initialize with original bytes (for unmatched tiles)
   for i = 1, #win.nametableBytes do
+    previousNametableBytes[i] = win.nametableBytes[i]
     newNametableBytes[i] = win.nametableBytes[i]
   end
   
@@ -388,6 +390,27 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold)
     DebugController.log("warning", "UNSCR", "Nametable bytes size mismatch: expected %d, got %d", 
       #win.nametableBytes, #newNametableBytes)
   end
+
+  local undoRedo = app and app.undoRedo or nil
+  local undoChanges = {}
+  if undoRedo and undoRedo.addDragEvent then
+    for i = 1, #newNametableBytes do
+      local beforeByte = previousNametableBytes[i]
+      local afterByte = newNametableBytes[i]
+      if beforeByte ~= afterByte then
+        local z = i - 1
+        undoChanges[#undoChanges + 1] = {
+          win = win,
+          layerIndex = win.activeLayer or 1,
+          col = z % win.cols,
+          row = math.floor(z / win.cols),
+          before = beforeByte,
+          after = afterByte,
+          isNametableByte = true,
+        }
+      end
+    end
+  end
   
   -- Update nametable bytes and record swaps
   if win._originalNametableBytes then
@@ -487,6 +510,15 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold)
   -- Sync layer metadata
   if win.syncNametableLayerMetadata then
     win:syncNametableLayerMetadata()
+  end
+
+  if #undoChanges > 0 then
+    undoRedo:addDragEvent({
+      type = "tile_drag",
+      mode = "move",
+      tilesPool = tilesPool,
+      changes = undoChanges,
+    })
   end
   
   DebugController.log("info", "UNSCR", "Unscrambling complete: %d matched (%d perfect, %d original-tile matches), %d unmatched", matchedCount, perfectMatches, originalTileMatches, unmatchedCount)

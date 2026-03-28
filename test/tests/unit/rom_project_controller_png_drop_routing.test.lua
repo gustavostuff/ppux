@@ -66,6 +66,7 @@ describe("rom_project_controller.lua - PNG drop routing", function()
       _id = id or kind,
       title = id or kind,
       layers = layers,
+      activeLayer = 1,
       getActiveLayerIndex = function() return 1 end,
       getSelected = function() return 0, 0 end,
       orderMode = "normal",
@@ -107,8 +108,8 @@ describe("rom_project_controller.lua - PNG drop routing", function()
       return true, "ok"
     end
 
-    NametableUnscrambleController.unscrambleFromPNG = function(win, file, tilesPool, threshold)
-      calls.ppu[#calls.ppu + 1] = { win = win, file = file, tilesPool = tilesPool, threshold = threshold }
+    NametableUnscrambleController.unscrambleFromPNG = function(win, file, tilesPool, threshold, app)
+      calls.ppu[#calls.ppu + 1] = { win = win, file = file, tilesPool = tilesPool, threshold = threshold, app = app }
       return true, "ok"
     end
 
@@ -172,6 +173,40 @@ describe("rom_project_controller.lua - PNG drop routing", function()
     expect(#calls.ppu).toBe(1)
     expect(calls.ppu[1].win).toBe(ppuWin)
     expect(#calls.sprite).toBe(0)
+    expect(#calls.chr).toBe(0)
+  end)
+
+  it("routes PNG to PPU unscramble for ppu_frame when active layer is tile even if sprite overlay exists", function()
+    local ppuWin = makeWin("ppu_frame", "ppu", {
+      { kind = "tile" },
+      spriteLayer(),
+    })
+    ppuWin.activeLayer = 1
+    ppuWin.getActiveLayerIndex = function() return ppuWin.activeLayer end
+    local app = makeApp(ppuWin, ppuWin)
+
+    RomProjectController.handleFileDropped(app, makeFile("nt.png"))
+
+    expect(#calls.ppu).toBe(1)
+    expect(calls.ppu[1].win).toBe(ppuWin)
+    expect(#calls.sprite).toBe(0)
+    expect(#calls.chr).toBe(0)
+  end)
+
+  it("routes PNG to sprite importer for ppu_frame when active layer is sprite", function()
+    local ppuWin = makeWin("ppu_frame", "ppu", {
+      { kind = "tile" },
+      spriteLayer(),
+    })
+    ppuWin.activeLayer = 2
+    ppuWin.getActiveLayerIndex = function() return ppuWin.activeLayer end
+    local app = makeApp(ppuWin, ppuWin)
+
+    RomProjectController.handleFileDropped(app, makeFile("sheet.png"))
+
+    expect(#calls.sprite).toBe(1)
+    expect(calls.sprite[1].win).toBe(ppuWin)
+    expect(#calls.ppu).toBe(0)
     expect(#calls.chr).toBe(0)
   end)
 

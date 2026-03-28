@@ -1249,6 +1249,21 @@ function M.handleFileDropped(app, file)
 
     local function windowHasSpriteLayer(win)
       if not (win and win.layers) then return false end
+      if WindowCaps.isPpuFrame(win) then
+        local activeIndex = win.getActiveLayerIndex and win:getActiveLayerIndex() or win.activeLayer or 1
+        local activeLayer = win.layers[activeIndex]
+        local hasActiveSpriteLayer = activeLayer and activeLayer.kind == "sprite"
+        DebugController.log(
+          "info",
+          "PNG_DROP",
+          "windowHasSpriteLayer(%s) ppu_frame activeLayer=%s activeKind=%s result=%s",
+          fmtWin(win),
+          tostring(activeIndex),
+          tostring(activeLayer and activeLayer.kind or nil),
+          tostring(hasActiveSpriteLayer)
+        )
+        return hasActiveSpriteLayer
+      end
       for _, L in ipairs(win.layers) do
         if L and L.kind == "sprite" then
           DebugController.log("info", "PNG_DROP", "windowHasSpriteLayer(%s)=true", fmtWin(win))
@@ -1329,7 +1344,8 @@ function M.handleFileDropped(app, file)
         focusedWin,
         file,
         tilesPool,
-        0  -- threshold = 0 for zero-error margin by default
+        0,  -- threshold = 0 for zero-error margin by default
+        app
       )
       
       if success then
