@@ -127,6 +127,26 @@ function Tile.fromCHR(chrBankBuf, tileIndex)
   return self
 end
 
+--- Create a blank scratch tile that is not backed by CHR bytes.
+function Tile.blank(fillValue)
+  local self = BaseItem.new()
+  setmetatable(self, Tile)
+
+  fillValue = math.max(0, math.min(3, math.floor(tonumber(fillValue) or 0)))
+  self.index = nil
+  self.pixels = {}
+  self.imgData = nil
+  self.image = nil
+  self._imageDirty = true
+  self._isScratchTile = true
+
+  for i = 1, TILE_W * TILE_H do
+    self.pixels[i] = fillValue
+  end
+
+  return self
+end
+
 --- (Re)load pixel data from CHR for this tile index.
 function Tile:loadFromCHR(chrBankBuf, tileIndex)
   tileIndex = tileIndex or self.index

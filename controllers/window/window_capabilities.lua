@@ -15,8 +15,12 @@ function M.isStaticArt(win)
   return win and win.kind == "static_art"
 end
 
+function M.isPatternTableBuilder(win)
+  return win and win.kind == "pattern_table_builder"
+end
+
 function M.isStaticOrAnimationArt(win)
-  return M.isStaticArt(win) or M.isAnimationLike(win)
+  return M.isStaticArt(win) or M.isPatternTableBuilder(win) or M.isAnimationLike(win)
 end
 
 function M.isPpuFrame(win)

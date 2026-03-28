@@ -1,6 +1,7 @@
 -- window_controller.lua — z-order, focus, hit-test, borders
 local DebugController    = require("controllers.dev.debug_controller")
 local StaticArtWindow    = require("user_interface.windows_system.static_art_window")
+local PatternTableBuilderWindow = require("user_interface.windows_system.pattern_table_builder_window")
 local AnimationWindow    = require("user_interface.windows_system.animation_window")
 local OAMAnimationWindow = require("user_interface.windows_system.oam_animation_window")
 local SpriteController   = require("controllers.sprite.sprite_controller")
@@ -870,6 +871,34 @@ function WM:createSpriteWindow(opts)
     win.layers[1].items = win.layers[1].items or {}
   end
   win.activeLayer = 1
+
+  return self:finalizeNewWindow(win)
+end
+
+function WM:createPatternTableBuilderWindow(opts)
+  opts = opts or {}
+  local defaults = extractWindowOptions(opts)
+  defaults.title = opts.title or "Pattern Table Builder"
+  defaults.x = opts.x or 80
+  defaults.y = opts.y or 80
+  defaults.cols = opts.cols or 32
+  defaults.rows = opts.rows or 30
+  defaults.cellW = opts.cellW or 8
+  defaults.cellH = opts.cellH or 8
+  defaults.zoom = opts.zoom or 2
+
+  local win = PatternTableBuilderWindow.new(
+    defaults.x, defaults.y,
+    defaults.cellW, defaults.cellH,
+    defaults.cols, defaults.rows,
+    defaults.zoom,
+    {
+      title = defaults.title,
+      visibleCols = opts.visibleCols or defaults.cols,
+      visibleRows = opts.visibleRows or defaults.rows,
+      patternTolerance = opts.patternTolerance or 0,
+    }
+  )
 
   return self:finalizeNewWindow(win)
 end

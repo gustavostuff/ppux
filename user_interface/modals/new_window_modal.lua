@@ -44,6 +44,9 @@ local function compactOptionLabel(option, index)
   if text:find("Animation") and text:find("%(sprites%)") then
     return "Animation Sprites window"
   end
+  if text:find("Pattern Table Builder") then
+    return "Pattern Table Builder"
+  end
 
   return tostring(index or "")
 end

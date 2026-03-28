@@ -260,6 +260,16 @@ function AppCoreController:_buildNewWindowOptions()
         self:setStatus(string.format("Created %s", win.title))
       end
     },
+    {
+      text = "Pattern Table Builder",
+      buttonText = "Pattern Table Builder",
+      callback = function(_, _, _, windowTitle)
+        local win = self.wm:createPatternTableBuilderWindow({
+          title = windowTitle or "Pattern Table Builder",
+        })
+        self:setStatus(string.format("Created %s", win.title))
+      end
+    },
   }
 end
 

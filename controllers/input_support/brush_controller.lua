@@ -414,6 +414,20 @@ local function paintTileLayerCellPixel(app, win, layer, col, row, tx, ty, pickOn
 
   local bankIdx   = item._bankIndex
   local tileIndex = item.index
+
+  if (bankIdx == nil or tileIndex == nil) and item.edit then
+    local beforeValue = item:getPixel(tx, ty) or 0
+    local color = app.currentColor or 0
+    if beforeValue == color then
+      return false
+    end
+
+    if app.undoRedo and app.undoRedo.activeEvent then
+      app.undoRedo:recordDirectPixelChange(item, tx, ty, beforeValue, color)
+    end
+    item:edit(tx, ty, color)
+    return true
+  end
   
   -- Validate bank exists before trying to set pixel
   if not app.appEditState or not app.appEditState.chrBanksBytes or not app.appEditState.chrBanksBytes[bankIdx] then
@@ -506,8 +520,12 @@ local function paintBrushPatternOnTileLayer(app, win, layer, pattern, col, row, 
     ::continue::
   end
 
-  if (not pickOnly) and painted then
-    return commitPixelWriteBatch(batch)
+  if not pickOnly and painted then
+    local committed = false
+    if batch and #batch.writeList > 0 then
+      committed = commitPixelWriteBatch(batch)
+    end
+    return committed or painted
   end
   
   return painted
@@ -655,6 +673,48 @@ local function floodFillTileItem(app, item, tx, ty, targetColor, fillColor, sour
   if target == fill then 
     DebugController.log("info", "BRUSH", "Flood fill: target and fill colors are the same")
     return false 
+  end
+
+  if (item._bankIndex == nil or item.index == nil) and item.edit then
+    local visited = {}
+    local painted = 0
+    local queue = {{tx, ty}}
+
+    local function getKey(x, y)
+      return y * 8 + x
+    end
+
+    local function isValid(x, y)
+      return x >= 0 and x < 8 and y >= 0 and y < 8
+    end
+
+    while #queue > 0 do
+      local current = table.remove(queue, 1)
+      local x, y = current[1], current[2]
+      local key = getKey(x, y)
+
+      if visited[key] then goto continue end
+      if not isValid(x, y) then goto continue end
+
+      local pixelColor = item:getPixel(x, y)
+      if pixelColor ~= target then goto continue end
+
+      visited[key] = true
+      if app.undoRedo and app.undoRedo.activeEvent then
+        app.undoRedo:recordDirectPixelChange(item, x, y, target, fill)
+      end
+      item:edit(x, y, fill)
+      painted = painted + 1
+
+      table.insert(queue, {x - 1, y})
+      table.insert(queue, {x + 1, y})
+      table.insert(queue, {x, y - 1})
+      table.insert(queue, {x, y + 1})
+
+      ::continue::
+    end
+
+    return painted > 0
   end
   
   -- Get bank index and tile index

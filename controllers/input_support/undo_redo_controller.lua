@@ -100,6 +100,24 @@ function UndoRedoController:recordPixelChange(bank, tileIndex, px, py, beforeVal
   end
 end
 
+function UndoRedoController:recordDirectPixelChange(item, px, py, beforeValue, afterValue)
+  if not self.activeEvent or not item then return end
+
+  local key = string.format("direct:%s:%d:%d", tostring(item), px, py)
+  if not self.activeEvent.pixels[key] then
+    self.activeEvent.pixels[key] = {
+      item = item,
+      px = px,
+      py = py,
+      before = beforeValue,
+      after = afterValue,
+      direct = true,
+    }
+  else
+    self.activeEvent.pixels[key].after = afterValue
+  end
+end
+
 -- Finish tracking the current paint operation (called on mouse release)
 -- Returns true if the event was stored, false if it was empty
 function UndoRedoController:finishPaintEvent()
@@ -590,20 +608,25 @@ function UndoRedoController:_applyPaintEvent(event, direction, app)
   local useAfter = direction == "redo"
 
   for _, pixelData in pairs(event.pixels) do
-    local bank = pixelData.bank
-    local tileIndex = pixelData.tileIndex
     local px = pixelData.px
     local py = pixelData.py
     local value = useAfter and pixelData.after or pixelData.before
-    
-    if app.appEditState and 
-       app.appEditState.chrBanksBytes and 
-       app.appEditState.chrBanksBytes[bank] then
-      chr.setTilePixel(app.appEditState.chrBanksBytes[bank], tileIndex, px, py, value)
-      if app.edits then
-        GameArtController.recordEdit(app.edits, bank, tileIndex, px, py, value)
-      end
+
+    if pixelData.item and pixelData.item.edit then
+      pixelData.item:edit(px, py, value)
       applied = applied + 1
+    else
+      local bank = pixelData.bank
+      local tileIndex = pixelData.tileIndex
+      if app.appEditState and 
+         app.appEditState.chrBanksBytes and 
+         app.appEditState.chrBanksBytes[bank] then
+        chr.setTilePixel(app.appEditState.chrBanksBytes[bank], tileIndex, px, py, value)
+        if app.edits then
+          GameArtController.recordEdit(app.edits, bank, tileIndex, px, py, value)
+        end
+        applied = applied + 1
+      end
     end
   end
 
@@ -613,9 +636,11 @@ function UndoRedoController:_applyPaintEvent(event, direction, app)
     local affectedTiles = {}
 
     for _, pixelData in pairs(event.pixels) do
-      local tileKey = string.format("%d:%d", pixelData.bank, pixelData.tileIndex)
-      if not affectedTiles[tileKey] then
-        affectedTiles[tileKey] = {bank = pixelData.bank, tileIndex = pixelData.tileIndex}
+      if pixelData.bank ~= nil and pixelData.tileIndex ~= nil then
+        local tileKey = string.format("%d:%d", pixelData.bank, pixelData.tileIndex)
+        if not affectedTiles[tileKey] then
+          affectedTiles[tileKey] = {bank = pixelData.bank, tileIndex = pixelData.tileIndex}
+        end
       end
     end
 
