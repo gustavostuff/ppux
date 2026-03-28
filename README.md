@@ -111,6 +111,34 @@ Edit mode is for pixel-level editing.
 - `1` to `4` to choose the active color
 - `Alt + 1/2/3/4` to change brush size presets (Or Ctrl + Alt + mouse wheel)
 
+### PNG drops
+
+You can drag and drop a PNG directly into PPUX. What happens depends on the window under the mouse, and sometimes on the focused window.
+
+Sprite windows:
+
+* If the target window has a sprite layer, the PNG is treated as a sprite import.
+* If you have selected sprites, PPUX imports into those sprites in selection order.
+* If no sprites are selected, PPUX imports into the layer's sprites from first to last.
+* The PNG must use at most 4 total colors including transparency, or at most 3 non-transparent colors.
+* The PNG dimensions must align to the current sprite mode: `8x8` sprites require multiples of `8x8`, and `8x16` sprites require multiples of `8x16`.
+* The image is split into sprite-sized frames from left to right, top to bottom.
+* Fully transparent frames are skipped.
+* When importing into an unselected sprite layer, PPUX also repositions sprites to match the frame grid automatically.
+
+PPU Frame windows:
+
+* Dropping a PNG on a `ppu_frame` window runs the nametable unscramble/import flow for that screen (it matches the PNG against the current patterns in CHR/ROM window and tries to automatically build the actual nametable layout)
+
+CHR and ROM bank windows:
+
+* Dropping a PNG on a CHR-like source window imports the image into the selected tile position, or the top-left if nothing is selected.
+
+Notes:
+
+* PNG drops edit the project/app state and are written out when you save, just like normal tile or sprite pixel edits.
+* If the PNG does not meet the color or size rules, PPUX shows a status message explaining why it was rejected.
+
 ## Advanced
 
 ### Build packages
