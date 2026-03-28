@@ -132,9 +132,13 @@ The DB lets PPUX recognize specific ROMs and open a tailored starting workspace 
 
 DB entries are matched by ROM SHA-1 and can define open windows, relevant CHR banks, palette windows, ROM-backed views, and the initial workspace arrangement. If no DB entry exists, PPUX falls back to a default layout. User projects still take priority over DB defaults.
 
-Currently supported games:
+Current list of games
 
-< list pending >
+Contra (Japan) is in progress  - About 20%
+Kirby's Adventure (USA) (Rev 1) - Not started yet
+The Guardian Legend (USA) - Not started yet
+
+NOTE: This is currenly in beta so please be patient while the list is still being expanded
 
 ### DB contribution tracker
 
