@@ -6,11 +6,18 @@ for %%I in ("%SCRIPT_DIR%..") do set "ROOT_DIR=%%~fI"
 
 if not defined APP_NAME set "APP_NAME=PPUX"
 if not defined BUILD_DIR set "BUILD_DIR=%ROOT_DIR%\build"
+if not defined APP_VERSION if exist "%ROOT_DIR%\version.txt" set /p APP_VERSION=<"%ROOT_DIR%\version.txt"
+if defined APP_VERSION (
+  set "VERSION_SUFFIX=-%APP_VERSION%"
+) else (
+  set "VERSION_SUFFIX="
+)
 if not defined BASE_RUNTIME_DIR set "BASE_RUNTIME_DIR=%ROOT_DIR%\base-love2d-images"
 if not defined WIN_RUNTIME_URL set "WIN_RUNTIME_URL=https://github.com/love2d/love/releases/download/11.5/love-11.5-win64.zip"
 if not defined WIN_RUNTIME_ZIP set "WIN_RUNTIME_ZIP=%BASE_RUNTIME_DIR%\love-11.5-win64.zip"
 if not defined WIN_RUNTIME_DIR set "WIN_RUNTIME_DIR=%ROOT_DIR%\base-love2d-images\love-11.5-win64"
-if not defined OUT_DIR set "OUT_DIR=%BUILD_DIR%\windows\%APP_NAME%-win64"
+if not defined PACKAGE_STAGE_DIR set "PACKAGE_STAGE_DIR=%TEMP%\ppux-win64-%RANDOM%%RANDOM%\%APP_NAME%-win64"
+if not defined OUT_ZIP set "OUT_ZIP=%BUILD_DIR%\%APP_NAME%%VERSION_SUFFIX%-win64.zip"
 
 set "LOVE_ARCHIVE=%BUILD_DIR%\%APP_NAME%.love"
 set "LOVE_ARCHIVE_ZIP=%BUILD_DIR%\%APP_NAME%.zip"
@@ -20,6 +27,19 @@ where powershell >nul 2>nul
 if errorlevel 1 (
   echo Missing PowerShell. This script requires Windows PowerShell to create the .love archive.
   exit /b 1
+)
+
+if defined APP_VERSION (
+  powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$ErrorActionPreference = 'Stop';" ^
+    "$readme = Join-Path $env:ROOT_DIR 'README.md';" ^
+    "if (Test-Path -LiteralPath $readme) {" ^
+    "  $content = Get-Content -LiteralPath $readme -Raw;" ^
+    "  $content = [regex]::Replace($content, '(?m)^Version: .*$','Version: ' + $env:APP_VERSION);" ^
+    "  $content = [regex]::Replace($content, '(?m)^Beta v.*$','Version: ' + $env:APP_VERSION);" ^
+    "  Set-Content -LiteralPath $readme -Value $content -NoNewline;" ^
+    "}"
+  if errorlevel 1 exit /b 1
 )
 
 if not exist "%BASE_RUNTIME_DIR%" mkdir "%BASE_RUNTIME_DIR%"
@@ -89,10 +109,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "Move-Item -LiteralPath $archiveZip -Destination $archive -Force;"
 if errorlevel 1 exit /b 1
 
-if exist "%OUT_DIR%" rmdir /s /q "%OUT_DIR%"
-mkdir "%OUT_DIR%"
+if exist "%PACKAGE_STAGE_DIR%" rmdir /s /q "%PACKAGE_STAGE_DIR%"
+mkdir "%PACKAGE_STAGE_DIR%"
+if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 
-copy /b "%WIN_RUNTIME_DIR%\love.exe"+"%LOVE_ARCHIVE%" "%OUT_DIR%\%APP_NAME%.exe" >nul
+copy /b "%WIN_RUNTIME_DIR%\love.exe"+"%LOVE_ARCHIVE%" "%PACKAGE_STAGE_DIR%\%APP_NAME%.exe" >nul
 if errorlevel 1 (
   echo Failed to fuse love.exe with %LOVE_ARCHIVE%.
   exit /b 1
@@ -109,17 +130,27 @@ for %%F in (
   license.txt
 ) do (
   if exist "%WIN_RUNTIME_DIR%\%%F" (
-    copy "%WIN_RUNTIME_DIR%\%%F" "%OUT_DIR%\" >nul
+    copy "%WIN_RUNTIME_DIR%\%%F" "%PACKAGE_STAGE_DIR%\" >nul
   )
 )
 
 if exist "%WIN_RUNTIME_DIR%\game.ico" (
-  copy "%WIN_RUNTIME_DIR%\game.ico" "%OUT_DIR%\" >nul
+  copy "%WIN_RUNTIME_DIR%\game.ico" "%PACKAGE_STAGE_DIR%\" >nul
 )
 
+set "PACKAGE_STAGE_DIR_PS=%PACKAGE_STAGE_DIR%"
+set "OUT_ZIP_PS=%OUT_ZIP%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference = 'Stop';" ^
+  "$outDir = [System.IO.Path]::GetFullPath($env:PACKAGE_STAGE_DIR_PS);" ^
+  "$outZip = [System.IO.Path]::GetFullPath($env:OUT_ZIP_PS);" ^
+  "if (Test-Path -LiteralPath $outZip) { Remove-Item -LiteralPath $outZip -Force };" ^
+  "Compress-Archive -Path $outDir -DestinationPath $outZip -CompressionLevel Optimal -Force;"
+if errorlevel 1 exit /b 1
+
+if exist "%PACKAGE_STAGE_DIR%" rmdir /s /q "%PACKAGE_STAGE_DIR%"
 if exist "%STAGE_DIR%" rmdir /s /q "%STAGE_DIR%"
 
-echo Windows build created at: %OUT_DIR%
-echo Fused executable: %OUT_DIR%\%APP_NAME%.exe
+echo Done: %OUT_ZIP%
 
 endlocal

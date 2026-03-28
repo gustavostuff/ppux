@@ -13,14 +13,16 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="${APP_NAME:-PPUX}"
+source "$ROOT_DIR/scripts/version_utils.sh"
+APP_VERSION="${APP_VERSION:-$(read_app_version "$ROOT_DIR")}"
+VERSION_SUFFIX="${APP_VERSION:+-$APP_VERSION}"
 APP_COMMENT="${APP_COMMENT:-Open Source NES Art Editor}"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
 BASE_RUNTIME_DIR="${BASE_RUNTIME_DIR:-$ROOT_DIR/base-love2d-images}"
 BASE_APPIMAGE="${BASE_APPIMAGE:-$BASE_RUNTIME_DIR/love-linux-11.5-x86_64.AppImage}"
 BASE_APPIMAGE_URL="${BASE_APPIMAGE_URL:-https://github.com/love2d/love/releases/download/11.5/love-11.5-x86_64.AppImage}"
-OUT_DIR="${OUT_DIR:-$BUILD_DIR/linux}"
-WORK_DIR="${WORK_DIR:-$OUT_DIR/appimage-work}"
-OUT_APPIMAGE="${OUT_APPIMAGE:-$OUT_DIR/${APP_NAME}-x86_64.AppImage}"
+WORK_DIR="${WORK_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/ppux-appimage.XXXXXX")}"
+OUT_APPIMAGE="${OUT_APPIMAGE:-$BUILD_DIR/${APP_NAME}${VERSION_SUFFIX}-x86_64.AppImage}"
 
 download_file() {
   local url="$1"
@@ -44,7 +46,7 @@ ensure_base_appimage() {
     return
   fi
 
-  echo "Downloading Linux AppImage runtime: $BASE_APPIMAGE_URL"
+  echo "Downloading runtime..."
   download_file "$BASE_APPIMAGE_URL" "$BASE_APPIMAGE"
   chmod +x "$BASE_APPIMAGE"
 }
@@ -56,11 +58,12 @@ if ! command -v appimagetool >/dev/null 2>&1; then
   exit 1
 fi
 
-LOVE_ARCHIVE="$("$ROOT_DIR/scripts/build_love_archive.sh")"
+update_readme_version "$ROOT_DIR" "$APP_VERSION"
+LOVE_ARCHIVE="$("$ROOT_DIR/scripts/build_love_archive.sh" 2>/dev/null)"
 
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
-mkdir -p "$OUT_DIR"
+mkdir -p "$BUILD_DIR"
 
 cp "$BASE_APPIMAGE" "$WORK_DIR/love.AppImage"
 chmod +x "$WORK_DIR/love.AppImage"
@@ -86,8 +89,9 @@ dd if="$WORK_DIR/love.AppImage" of="$RUNTIME_FILE" bs=1 count="$RUNTIME_OFFSET" 
     fi
   done
 
-  ARCH=x86_64 appimagetool --runtime-file "$RUNTIME_FILE" --comp gzip -n squashfs-root "$OUT_APPIMAGE" >/dev/null
+  ARCH=x86_64 appimagetool --runtime-file "$RUNTIME_FILE" --comp gzip -n squashfs-root "$OUT_APPIMAGE" >/dev/null 2>&1
 )
 
 chmod +x "$OUT_APPIMAGE"
-echo "Linux AppImage created at: $OUT_APPIMAGE"
+rm -rf "$WORK_DIR"
+echo "Done: $OUT_APPIMAGE"

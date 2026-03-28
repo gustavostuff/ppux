@@ -10,13 +10,16 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="${APP_NAME:-PPUX}"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
+source "$ROOT_DIR/scripts/version_utils.sh"
+APP_VERSION="${APP_VERSION:-$(read_app_version "$ROOT_DIR")}"
+VERSION_SUFFIX="${APP_VERSION:+-$APP_VERSION}"
 BASE_RUNTIME_DIR="${BASE_RUNTIME_DIR:-$ROOT_DIR/base-love2d-images}"
 BASE_APP_ZIP="${BASE_APP_ZIP:-$BASE_RUNTIME_DIR/love-11.5-macos.zip}"
 BASE_APP_URL="${BASE_APP_URL:-https://github.com/love2d/love/releases/download/11.5/love-11.5-macos.zip}"
 BASE_APP="${BASE_APP:-$BASE_RUNTIME_DIR/love.app}"
-OUT_DIR="${OUT_DIR:-$BUILD_DIR/macos}"
-APP_BUNDLE="${APP_BUNDLE:-$OUT_DIR/${APP_NAME}.app}"
-OUT_ZIP="${OUT_ZIP:-$OUT_DIR/${APP_NAME}-macos.zip}"
+MAC_STAGE_DIR="${MAC_STAGE_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/ppux-macos.XXXXXX")}"
+APP_BUNDLE="${APP_BUNDLE:-$MAC_STAGE_DIR/${APP_NAME}.app}"
+OUT_ZIP="${OUT_ZIP:-$BUILD_DIR/${APP_NAME}${VERSION_SUFFIX}-macos.zip}"
 
 sanitize_bundle_id() {
   printf '%s' "$1" \
@@ -41,7 +44,6 @@ replace_plist_string() {
 }
 
 APP_BUNDLE_ID="${APP_BUNDLE_ID:-org.ppux.$(sanitize_bundle_id "$APP_NAME")}"
-APP_VERSION="${APP_VERSION:-}"
 
 download_file() {
   local url="$1"
@@ -79,11 +81,11 @@ ensure_base_app() {
   fi
 
   if [[ ! -f "$BASE_APP_ZIP" ]]; then
-    echo "Downloading macOS runtime: $BASE_APP_URL"
+    echo "Downloading runtime..."
     download_file "$BASE_APP_URL" "$BASE_APP_ZIP"
   fi
 
-  echo "Extracting macOS runtime to: $BASE_RUNTIME_DIR"
+  echo "Extracting runtime..."
   extract_zip "$BASE_APP_ZIP" "$BASE_RUNTIME_DIR"
 
   if [[ ! -d "$BASE_APP" ]]; then
@@ -94,12 +96,14 @@ ensure_base_app() {
 
 ensure_base_app
 
-LOVE_ARCHIVE="$("$ROOT_DIR/scripts/build_love_archive.sh")"
+update_readme_version "$ROOT_DIR" "$APP_VERSION"
+LOVE_ARCHIVE="$("$ROOT_DIR/scripts/build_love_archive.sh" 2>/dev/null)"
 INFO_PLIST="$APP_BUNDLE/Contents/Info.plist"
 RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
 
 rm -rf "$APP_BUNDLE"
-mkdir -p "$OUT_DIR"
+mkdir -p "$MAC_STAGE_DIR"
+mkdir -p "$BUILD_DIR"
 cp -a "$BASE_APP" "$APP_BUNDLE"
 
 if [[ ! -f "$INFO_PLIST" ]]; then
@@ -117,9 +121,10 @@ cp "$LOVE_ARCHIVE" "$RESOURCES_DIR/game.love"
 
 rm -f "$OUT_ZIP"
 (
-  cd "$OUT_DIR"
+  cd "$MAC_STAGE_DIR"
   zip -qry -y "$OUT_ZIP" "${APP_NAME}.app"
 )
 
-echo "macOS app bundle created at: $APP_BUNDLE"
-echo "macOS zip created at: $OUT_ZIP"
+rm -rf "$APP_BUNDLE"
+rm -rf "$MAC_STAGE_DIR"
+echo "Done: $OUT_ZIP"

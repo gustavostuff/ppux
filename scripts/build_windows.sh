@@ -4,11 +4,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="${APP_NAME:-PPUX}"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
+source "$ROOT_DIR/scripts/version_utils.sh"
+APP_VERSION="${APP_VERSION:-$(read_app_version "$ROOT_DIR")}"
+VERSION_SUFFIX="${APP_VERSION:+-$APP_VERSION}"
 BASE_RUNTIME_DIR="${BASE_RUNTIME_DIR:-$ROOT_DIR/base-love2d-images}"
 WIN_RUNTIME_ZIP="${WIN_RUNTIME_ZIP:-$BASE_RUNTIME_DIR/love-11.5-win64.zip}"
 WIN_RUNTIME_URL="${WIN_RUNTIME_URL:-https://github.com/love2d/love/releases/download/11.5/love-11.5-win64.zip}"
 WIN_RUNTIME_DIR="${WIN_RUNTIME_DIR:-$ROOT_DIR/base-love2d-images/love-11.5-win64}"
-OUT_DIR="${OUT_DIR:-$BUILD_DIR/windows/${APP_NAME}-win64}"
+PACKAGE_STAGE_DIR="${PACKAGE_STAGE_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/ppux-win64.XXXXXX")/${APP_NAME}-win64}"
+OUT_ZIP="${OUT_ZIP:-$BUILD_DIR/${APP_NAME}${VERSION_SUFFIX}-win64.zip}"
 
 download_file() {
   local url="$1"
@@ -42,16 +46,15 @@ ensure_windows_runtime() {
   mkdir -p "$BASE_RUNTIME_DIR"
 
   if [[ -f "$WIN_RUNTIME_DIR/love.exe" ]]; then
-    echo "Using existing Windows runtime at: $WIN_RUNTIME_DIR"
     return
   fi
 
   if [[ ! -f "$WIN_RUNTIME_ZIP" ]]; then
-    echo "Downloading Windows runtime: $WIN_RUNTIME_URL"
+    echo "Downloading runtime..."
     download_file "$WIN_RUNTIME_URL" "$WIN_RUNTIME_ZIP"
   fi
 
-  echo "Extracting Windows runtime to: $BASE_RUNTIME_DIR"
+  echo "Extracting runtime..."
   extract_zip "$WIN_RUNTIME_ZIP" "$BASE_RUNTIME_DIR"
 
   if [[ ! -f "$WIN_RUNTIME_DIR/love.exe" ]]; then
@@ -60,26 +63,30 @@ ensure_windows_runtime() {
   fi
 }
 
-echo "Ensuring Windows runtime..."
 ensure_windows_runtime
 
-echo "Building LOVE archive..."
-LOVE_ARCHIVE="$("$ROOT_DIR/scripts/build_love_archive.sh")"
+update_readme_version "$ROOT_DIR" "$APP_VERSION"
+LOVE_ARCHIVE="$("$ROOT_DIR/scripts/build_love_archive.sh" 2>/dev/null)"
 
-echo "Preparing Windows output directory: $OUT_DIR"
-rm -rf "$OUT_DIR"
-mkdir -p "$OUT_DIR"
+rm -rf "$PACKAGE_STAGE_DIR"
+mkdir -p "$PACKAGE_STAGE_DIR"
+mkdir -p "$BUILD_DIR"
 
-echo "Fusing executable..."
-cat "$WIN_RUNTIME_DIR/love.exe" "$LOVE_ARCHIVE" > "$OUT_DIR/${APP_NAME}.exe"
+cat "$WIN_RUNTIME_DIR/love.exe" "$LOVE_ARCHIVE" > "$PACKAGE_STAGE_DIR/${APP_NAME}.exe"
 
-echo "Copying runtime DLLs..."
 for dll in OpenAL32.dll SDL2.dll love.dll lua51.dll mpg123.dll msvcp120.dll msvcr120.dll; do
-  cp "$WIN_RUNTIME_DIR/$dll" "$OUT_DIR/"
+  cp "$WIN_RUNTIME_DIR/$dll" "$PACKAGE_STAGE_DIR/"
 done
 
 if [[ -f "$WIN_RUNTIME_DIR/license.txt" ]]; then
-  cp "$WIN_RUNTIME_DIR/license.txt" "$OUT_DIR/"
+  cp "$WIN_RUNTIME_DIR/license.txt" "$PACKAGE_STAGE_DIR/"
 fi
 
-echo "Windows build created at: $OUT_DIR"
+rm -f "$OUT_ZIP"
+(
+  cd "$(dirname "$PACKAGE_STAGE_DIR")"
+  zip -qry "$OUT_ZIP" "$(basename "$PACKAGE_STAGE_DIR")"
+)
+rm -rf "$PACKAGE_STAGE_DIR"
+
+echo "Done: $OUT_ZIP"

@@ -2,7 +2,7 @@
 
 ## Open Source NES Art Editor
 
-Beta v0.0.4
+Version: 0.0.5
 
 <img src="img/readme_images/app_example.png" alt="">
 
@@ -116,7 +116,7 @@ To build a packaged Windows app from Windows, run:
 scripts\build_windows.bat
 ```
 
-The packaged Windows app will be created in `build\windows\PPUX-win64\`, with the main executable at being `PPUX.exe`.
+The packaged Windows app will be created only as `build\PPUX-<version>-win64.zip`.
 
 To build a packaged Linux app from Linux, run:
 
@@ -124,7 +124,9 @@ To build a packaged Linux app from Linux, run:
 ./scripts/build_linux_appimage.sh
 ```
 
-The packaged Linux app will be created at `build/linux/PPUX-x86_64.AppImage`. You can also build for Windows and macOS (from Linux) using `./scripts/build_all.sh` (macOS build not tested yet).
+The packaged Linux app will be created as `build/PPUX-<version>-x86_64.AppImage`.
+
+You can also build for Windows and macOS from Linux using `./scripts/build_all.sh` (macOS build not tested yet).
 
 ### Database
 
