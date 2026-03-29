@@ -128,6 +128,12 @@ local function isHoveringTileOrSprite(app)
     return win:get(col, row, layerIndex) ~= nil
   end
 
+  if layer.kind == "canvas" and layer.canvas then
+    if not win.toGridCoords then return false end
+    local ok = win:toGridCoords(mx, my)
+    return ok == true
+  end
+
   return false
 end
 

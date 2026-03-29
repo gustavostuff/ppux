@@ -261,6 +261,27 @@ local function handleEditModeClick(env, button, x, y, win, wm)
       local tool = win.getBuilderTool and win:getBuilderTool() or "pencil"
       local lastPoint = win.getBuilderLastPoint and win:getBuilderLastPoint() or nil
       local BrushController = require("controllers.input_support.brush_controller")
+      local ctrlDown = utils.ctrlDown and utils.ctrlDown()
+      local shiftDown = utils.shiftDown and utils.shiftDown()
+
+      -- Pattern builder canvas follows the normal edit workflow first:
+      -- Ctrl = color pick, Shift = flood fill. Dedicated tools run unmodified.
+      if ctrlDown then
+        ctx.paintAt(win, col, row, lx, ly, true)
+        ctx.setPainting(false)
+        return true
+      end
+
+      if shiftDown then
+        local success = BrushController.floodFillTile(ctx.app, win, col, row, lx, ly)
+        if success then
+          ctx.setStatus("Flood fill applied")
+        else
+          ctx.setStatus("Flood fill failed")
+        end
+        ctx.setPainting(false)
+        return true
+      end
 
       if tool == "rect" then
         win.builderShapeDrag = {
@@ -274,7 +295,7 @@ local function handleEditModeClick(env, button, x, y, win, wm)
         return true
       end
 
-      if (utils.shiftDown and utils.shiftDown() and lastPoint) or (tool == "line" and lastPoint) then
+      if tool == "line" and lastPoint then
         if ctx.app and ctx.app.undoRedo then
           ctx.app.undoRedo:startPaintEvent()
         end

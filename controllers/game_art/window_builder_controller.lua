@@ -33,6 +33,8 @@ function M.buildWindowsFromLayout(layout, opts)
   local chrBackingMode = opts.chrBackingMode
   local romTileViewMode = (chrBackingMode == "rom_raw") or (opts.romTileViewMode == true)
   local decodeUserDefinedCodes = opts.decodeUserDefinedCodes
+  local decodePatternCanvasSnapshot = opts.decodePatternCanvasSnapshot
+  local onPatternCanvasRestoreError = opts.onPatternCanvasRestoreError
   local lastPaletteWindow = nil
   local builders = {
     palette = function(w)
@@ -59,6 +61,13 @@ function M.buildWindowsFromLayout(layout, opts)
     end,
     animation = function(w)
       return GameArtWindowFactoryController.createAnimationWindow(w, tilesPool, ensureTiles)
+    end,
+    pattern_table_builder = function(w)
+      return GameArtWindowFactoryController.createPatternTableBuilderWindow(
+        w,
+        decodePatternCanvasSnapshot,
+        onPatternCanvasRestoreError
+      )
     end,
     oam_animation = function(w)
       return GameArtWindowFactoryController.createOamAnimationWindow(w, tilesPool, ensureTiles)

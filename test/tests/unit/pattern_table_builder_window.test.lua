@@ -1,6 +1,8 @@
 local WM = require("controllers.window.window_controller")
 local BrushController = require("controllers.input_support.brush_controller")
 local UndoRedoController = require("controllers.input_support.undo_redo_controller")
+local MouseClickController = require("controllers.input.mouse_click_controller")
+local CursorsController = require("controllers.input_support.cursors_controller")
 
 local function makeApp()
   return {
@@ -133,6 +135,153 @@ describe("pattern_table_builder_window.lua", function()
     expect(ok).toBe(true)
     expect(app.undoRedo:finishPaintEvent()).toBe(true)
     expect(canvas:getPixel(4, 5)).toBe(0)
+  end)
+
+  it("uses ctrl-click color pick on the builder canvas even when line or rect tools are selected", function()
+    local wm = WM.new()
+    local win = wm:createPatternTableBuilderWindow()
+    local app = makeApp()
+    local canvas = win.layers[1].canvas
+    canvas:edit(4, 5, 2)
+    win:setBuilderTool("rect")
+    local wmStub
+
+    local painting = false
+    local env = {
+      ctx = {
+        app = app,
+        getMode = function() return "edit" end,
+        wm = function()
+          return wmStub
+        end,
+        setPainting = function(v) painting = not not v end,
+        paintAt = function(_, targetWin, col, row, lx, ly, pickOnly)
+          return BrushController.paintPixel(app, targetWin, col, row, lx, ly, pickOnly)
+        end,
+        setStatus = function(text) app:setStatus(text) end,
+      },
+      chrome = {
+        handleToolbarClicks = function() return false end,
+        handleResizeHandle = function() return false end,
+        handleHeaderClick = function() return false end,
+      },
+      utils = {
+        ctrlDown = function() return true end,
+        shiftDown = function() return false end,
+      },
+    }
+    local focused = nil
+    wmStub = {
+      getFocus = function() return nil end,
+      windowAt = function() return win end,
+      setFocus = function(_, target) focused = target end,
+    }
+
+    local handled = MouseClickController.handleMousePressed(env, 4, 5, 1)
+
+    expect(handled).toBe(true)
+    expect(focused).toBe(win)
+    expect(app.currentColor).toBe(2)
+    expect(painting).toBe(false)
+    expect(win.builderShapeDrag).toBeNil()
+  end)
+
+  it("uses shift-click flood fill on the builder canvas even when line has a last point", function()
+    local wm = WM.new()
+    local win = wm:createPatternTableBuilderWindow()
+    local app = makeApp()
+    local canvas = win.layers[1].canvas
+    canvas:edit(0, 0, 1)
+    canvas:edit(1, 0, 1)
+    canvas:edit(2, 0, 1)
+    app.currentColor = 2
+    win:setBuilderTool("line")
+    win:setBuilderLastPoint(7, 7)
+    local wmStub
+
+    local env = {
+      ctx = {
+        app = app,
+        getMode = function() return "edit" end,
+        wm = function()
+          return wmStub
+        end,
+        setPainting = function() end,
+        paintAt = function(_, targetWin, col, row, lx, ly, pickOnly)
+          return BrushController.paintPixel(app, targetWin, col, row, lx, ly, pickOnly)
+        end,
+        setStatus = function(text) app:setStatus(text) end,
+      },
+      chrome = {
+        handleToolbarClicks = function() return false end,
+        handleResizeHandle = function() return false end,
+        handleHeaderClick = function() return false end,
+      },
+      utils = {
+        ctrlDown = function() return false end,
+        shiftDown = function() return true end,
+      },
+    }
+    wmStub = {
+      getFocus = function() return nil end,
+      windowAt = function() return win end,
+      setFocus = function() end,
+    }
+
+    local handled = MouseClickController.handleMousePressed(env, 0, 0, 1)
+
+    expect(handled).toBe(true)
+    expect(canvas:getPixel(0, 0)).toBe(2)
+    expect(canvas:getPixel(1, 0)).toBe(2)
+    expect(canvas:getPixel(2, 0)).toBe(2)
+    expect(canvas:getPixel(7, 7)).toBe(0)
+    expect(app.statusText).toBe("Flood fill applied")
+  end)
+
+  it("uses pick and fill cursors over builder canvas when ctrl or shift are held", function()
+    local setTo = nil
+    local ctrl = false
+    local shift = false
+    local win = {
+      _closed = false,
+      isPalette = false,
+      layers = {
+        {
+          kind = "canvas",
+          canvas = {},
+        },
+      },
+      getActiveLayerIndex = function() return 1 end,
+      toGridCoords = function() return true, 0, 0, 0, 0 end,
+    }
+
+    love.mouse.setCursor = function(cursor) setTo = cursor end
+    love.keyboard.isDown = function(key)
+      if key == "lctrl" or key == "rctrl" then return ctrl end
+      if key == "lshift" or key == "rshift" then return shift end
+      return false
+    end
+    local ResolutionController = require("controllers.app.resolution_controller")
+    ResolutionController.getScaledMouse = function()
+      return { x = 4, y = 5 }
+    end
+
+    local app = {
+      hardwareCursors = { arrow = "arrow", pencil = "pencil", pick = "pick", fill = "fill" },
+      wm = {
+        windowAt = function() return win end,
+      },
+    }
+
+    ctrl = true
+    shift = false
+    CursorsController.applyModeCursor(app, "edit")
+    expect(setTo).toBe("pick")
+
+    ctrl = false
+    shift = true
+    CursorsController.applyModeCursor(app, "edit")
+    expect(setTo).toBe("fill")
   end)
 
   it("generates an exact packed 8x8 pattern table into layer 2", function()

@@ -6,6 +6,7 @@ local RomWindow = require("user_interface.windows_system.rom_window")
 local PaletteWindow = require("user_interface.windows_system.palette_window")
 local RomPaletteWindow = require("user_interface.windows_system.rom_palette_window")
 local PPUFrameWindow = require("user_interface.windows_system.ppu_frame_window")
+local PatternTableBuilderWindow = require("user_interface.windows_system.pattern_table_builder_window")
 
 local SpriteController = require("controllers.sprite.sprite_controller")
 local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
@@ -469,6 +470,44 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
   addPpuSpriteOverlayLayers(win, w, ensureTiles)
   logPerf("ppu_frame.add_sprite_overlays", overlayStartedAt, string.format("title=%s", tostring(w.title or "")))
   win.activeLayer = w.activeLayer or 1
+  return win
+end
+
+function M.createPatternTableBuilderWindow(w, decodePatternCanvasSnapshot, onPatternCanvasRestoreError)
+  local win = PatternTableBuilderWindow.new(
+    w.x, w.y, w.cellW, w.cellH, w.cols, w.rows, w.zoom, {
+      title = w.title,
+      visibleRows = w.visibleRows or w.rows,
+      visibleCols = w.visibleCols or w.cols,
+      patternTolerance = w.patternTolerance or 0,
+      builderTool = w.builderTool or "pencil",
+    }
+  )
+
+  win._id = w.id
+  win.kind = "pattern_table_builder"
+  win.activeLayer = w.activeLayer or 1
+
+  for li, Lsrc in ipairs(w.layers or {}) do
+    local Ldst = win.layers and win.layers[li] or nil
+    if Ldst and Lsrc.edits and Ldst.canvas and decodePatternCanvasSnapshot then
+      local ok, reason = decodePatternCanvasSnapshot(Ldst.canvas, Lsrc.edits)
+      if not ok and onPatternCanvasRestoreError then
+        onPatternCanvasRestoreError({
+          window = win,
+          windowSpec = w,
+          layerIndex = li,
+          reason = reason,
+          edits = Lsrc.edits,
+        })
+      end
+    end
+  end
+
+  if win.generatePackedPatternTable then
+    win:generatePackedPatternTable()
+  end
+
   return win
 end
 

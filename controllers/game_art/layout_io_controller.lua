@@ -14,6 +14,8 @@ local DEFAULT_ANIMATION_FRAME_DELAY = 0.2
 M.PROJECT_FORMAT_VERSION = 1
 
 local PPUX_COMPRESSION_FORMAT = "zlib"
+local PATTERN_CANVAS_SNAPSHOT_ENCODING = "2bpp_v1"
+local PATTERN_CANVAS_TEXT_ENCODING = "base64"
 
 -------------------------------------------------------
 -- File utilities
@@ -34,6 +36,143 @@ end
 
 M.readFile = read_file
 M.writeFile = write_file
+
+local function packPatternCanvas2bpp(canvas)
+  if not canvas or type(canvas.width) ~= "number" or type(canvas.height) ~= "number" or type(canvas.getPixel) ~= "function" then
+    return nil, "invalid_canvas"
+  end
+
+  local out = {}
+  local width = math.floor(canvas.width)
+  local height = math.floor(canvas.height)
+  for y = 0, height - 1 do
+    for x = 0, width - 1, 4 do
+      local p0 = (canvas:getPixel(x + 0, y) or 0) % 4
+      local p1 = (canvas:getPixel(x + 1, y) or 0) % 4
+      local p2 = (canvas:getPixel(x + 2, y) or 0) % 4
+      local p3 = (canvas:getPixel(x + 3, y) or 0) % 4
+      local byte = p0 + p1 * 4 + p2 * 16 + p3 * 64
+      out[#out + 1] = string.char(byte)
+    end
+  end
+  return table.concat(out)
+end
+
+local function unpackPatternCanvas2bpp(canvas, raw)
+  if not canvas or type(canvas.edit) ~= "function" then
+    return false, "invalid_canvas"
+  end
+  if type(raw) ~= "string" then
+    return false, "invalid_raw"
+  end
+
+  local width = math.floor(canvas.width or 0)
+  local height = math.floor(canvas.height or 0)
+  local expectedBytes = math.floor((width * height) / 4)
+  if #raw ~= expectedBytes then
+    return false, string.format("unexpected_snapshot_size:%d:%d", #raw, expectedBytes)
+  end
+
+  if canvas.clear then
+    canvas:clear(0)
+  end
+
+  local i = 1
+  for y = 0, height - 1 do
+    for x = 0, width - 1, 4 do
+      local byte = string.byte(raw, i) or 0
+      i = i + 1
+      canvas:edit(x + 0, y, byte % 4)
+      canvas:edit(x + 1, y, math.floor(byte / 4) % 4)
+      canvas:edit(x + 2, y, math.floor(byte / 16) % 4)
+      canvas:edit(x + 3, y, math.floor(byte / 64) % 4)
+    end
+  end
+  return true
+end
+
+local function encodePatternCanvasSnapshot(canvas)
+  if not (love and love.data and love.data.compress and love.data.encode) then
+    return nil, "love.data.compress/encode is unavailable"
+  end
+
+  local raw, rawErr = packPatternCanvas2bpp(canvas)
+  if not raw then
+    return nil, rawErr
+  end
+
+  local ok, compressed = pcall(love.data.compress, "string", PPUX_COMPRESSION_FORMAT, raw)
+  if not ok then
+    return nil, tostring(compressed)
+  end
+
+  local encodedOk, encodedCompressed = pcall(love.data.encode, "string", PATTERN_CANVAS_TEXT_ENCODING, compressed)
+  if not encodedOk then
+    return nil, tostring(encodedCompressed)
+  end
+
+  local hash = nil
+  if love.data and love.data.hash then
+    local hashOk, hashed = pcall(love.data.hash, "sha1", raw)
+    if hashOk and hashed then
+      local encodedHashOk, encodedHash = pcall(love.data.encode, "string", PATTERN_CANVAS_TEXT_ENCODING, hashed)
+      if encodedHashOk and encodedHash then
+        hash = encodedHash
+      end
+    end
+  end
+
+  return {
+    kind = "canvas_snapshot",
+    encoding = PATTERN_CANVAS_SNAPSHOT_ENCODING,
+    compression = PPUX_COMPRESSION_FORMAT,
+    textEncoding = PATTERN_CANVAS_TEXT_ENCODING,
+    width = canvas.width,
+    height = canvas.height,
+    data = encodedCompressed,
+    hash = hash,
+  }
+end
+
+function M.decodePatternCanvasSnapshot(canvas, edits)
+  if not edits then return false, "missing_edits" end
+  if type(edits) ~= "table" then return false, "invalid_edits" end
+  if edits.kind ~= "canvas_snapshot" then return false, "unsupported_kind" end
+  if edits.encoding ~= PATTERN_CANVAS_SNAPSHOT_ENCODING then return false, "unsupported_encoding" end
+  if not (love and love.data and love.data.decompress and love.data.decode) then
+    return false, "love.data.decompress/decode is unavailable"
+  end
+
+  local textEncoding = edits.textEncoding or PATTERN_CANVAS_TEXT_ENCODING
+  local decodeOk, compressed = pcall(love.data.decode, "string", textEncoding, edits.data or "")
+  if not decodeOk then
+    return false, tostring(compressed)
+  end
+
+  local ok, raw = pcall(love.data.decompress, "string", edits.compression or PPUX_COMPRESSION_FORMAT, compressed)
+  if not ok then
+    return false, tostring(raw)
+  end
+
+  if edits.hash and love.data and love.data.hash then
+    local hashOk, actualHash = pcall(love.data.hash, "sha1", raw)
+    if hashOk and actualHash then
+      local actualEncodedOk, actualEncodedHash = pcall(love.data.encode, "string", textEncoding, actualHash)
+      if actualEncodedOk and actualEncodedHash and actualEncodedHash ~= edits.hash then
+        return false, "snapshot_hash_mismatch"
+      end
+    end
+  end
+
+  if edits.width and canvas.width and tonumber(edits.width) ~= tonumber(canvas.width) then
+    return false, "snapshot_width_mismatch"
+  end
+  if edits.height and canvas.height and tonumber(edits.height) ~= tonumber(canvas.height) then
+    return false, "snapshot_height_mismatch"
+  end
+
+  return unpackPatternCanvas2bpp(canvas, raw)
+end
 
 -- -------------------------------------------------------------------
 -- Normalize invalid black entries before saving
@@ -410,6 +549,10 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
     else
       entry.activeLayer = w.activeLayer or 1
       entry.layers = {}
+      if WindowCaps.isPatternTableBuilder(w) then
+        entry.patternTolerance = w.patternTolerance or 0
+        entry.builderTool = (w.getBuilderTool and w:getBuilderTool()) or w.builderTool or "pencil"
+      end
 
       for li = 1, #(w.layers or {}) do
         local L = w.layers[li]
@@ -459,6 +602,13 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
                 bank    = L.bank,
               }
 
+              if kind == "canvas" and L.canvas then
+                Lout.edits = encodePatternCanvasSnapshot(L.canvas)
+                Lout.items = nil
+                table.insert(entry.layers, Lout)
+                goto continue_layer
+              end
+
               if L.paletteData ~= nil then
                 Lout.paletteData = TableUtils.deepcopy(L.paletteData)
                 normalizeInvalidBlacksInTable(Lout.paletteData)
@@ -495,6 +645,7 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
             end
           end
         end
+        ::continue_layer::
       end
     end
 

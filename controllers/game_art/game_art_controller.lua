@@ -110,6 +110,7 @@ end
 function M.buildWindowsFromLayout(layout, opts)
   opts = opts or {}
   opts.decodeUserDefinedCodes = opts.decodeUserDefinedCodes or GameArtLayoutIOController.decodeUserDefinedCodes
+  opts.decodePatternCanvasSnapshot = opts.decodePatternCanvasSnapshot or GameArtLayoutIOController.decodePatternCanvasSnapshot
   return GameArtWindowBuilderController.buildWindowsFromLayout(layout, opts)
 end
 

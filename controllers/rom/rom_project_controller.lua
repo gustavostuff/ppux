@@ -706,6 +706,28 @@ local function loadFromProject(app, project)
 
   app.wm = WindowController.new()
   bindWindowManager(app)
+  local function onPatternCanvasRestoreError(info)
+    local title = tostring(
+      (info and info.windowSpec and info.windowSpec.title)
+      or (info and info.window and info.window.title)
+      or "Pattern Table Builder"
+    )
+    local layerIndex = tonumber(info and info.layerIndex) or 0
+    local reason = tostring(info and info.reason or "unknown error")
+    if reason == "snapshot_hash_mismatch" then
+      reason = "integrity check failed"
+    end
+    local message = string.format(
+      "Pattern canvas restore failed for \"%s\" layer %d: %s",
+      title,
+      layerIndex,
+      reason
+    )
+    app:setStatus(message)
+    if app.showToast then
+      app:showToast("error", message)
+    end
+  end
   local buildStartedAt = nowSeconds()
   local built, why = GameArtController.buildWindowsFromLayout(project, {
     wm          = app.wm,
@@ -713,6 +735,7 @@ local function loadFromProject(app, project)
     ensureTiles = function(bankIdx) ensureBankTilesInner(state, bankIdx) end,
     romRaw      = state.romRaw,
     chrBackingMode = ChrBackingController.getMode(state),
+    onPatternCanvasRestoreError = onPatternCanvasRestoreError,
   })
 
   if not built then
@@ -794,6 +817,28 @@ local function loadFromDBLayout(app, sha)
 
   app.wm = WindowController.new()
   bindWindowManager(app)
+  local function onPatternCanvasRestoreError(info)
+    local title = tostring(
+      (info and info.windowSpec and info.windowSpec.title)
+      or (info and info.window and info.window.title)
+      or "Pattern Table Builder"
+    )
+    local layerIndex = tonumber(info and info.layerIndex) or 0
+    local reason = tostring(info and info.reason or "unknown error")
+    if reason == "snapshot_hash_mismatch" then
+      reason = "integrity check failed"
+    end
+    local message = string.format(
+      "Pattern canvas restore failed for \"%s\" layer %d: %s",
+      title,
+      layerIndex,
+      reason
+    )
+    app:setStatus(message)
+    if app.showToast then
+      app:showToast("error", message)
+    end
+  end
   local buildStartedAt = nowSeconds()
   local built, why = GameArtController.buildWindowsFromLayout(layout, {
     wm          = app.wm,
@@ -801,6 +846,7 @@ local function loadFromDBLayout(app, sha)
     ensureTiles = function(bankIdx) ensureBankTilesInner(state, bankIdx) end,
     romRaw      = state.romRaw,
     chrBackingMode = ChrBackingController.getMode(state),
+    onPatternCanvasRestoreError = onPatternCanvasRestoreError,
   })
 
   if not built then
