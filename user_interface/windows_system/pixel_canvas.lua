@@ -35,6 +35,22 @@ function PixelCanvas:clone()
   return other
 end
 
+function PixelCanvas:clear(fillValue)
+  local value = fillValue
+  if value == nil then
+    value = self.fillValue
+  end
+  value = math.max(0, math.min(3, math.floor(tonumber(value) or 0)))
+  self.fillValue = value
+  for i = 1, #self.pixels do
+    self.pixels[i] = value
+  end
+  self._imageDirty = true
+  if self.imgData and self.image then
+    self:refreshImage()
+  end
+end
+
 function PixelCanvas:getPixel(x, y)
   x = math.floor(tonumber(x) or -1)
   y = math.floor(tonumber(y) or -1)

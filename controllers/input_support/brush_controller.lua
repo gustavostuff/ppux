@@ -220,6 +220,10 @@ local function bresenhamPoints(x0, y0, x1, y1)
   return points
 end
 
+function M.getLinePoints(x0, y0, x1, y1)
+  return bresenhamPoints(x0, y0, x1, y1)
+end
+
 ----------------------------------------------------------------
 -- Duplicate sync helpers
 ----------------------------------------------------------------

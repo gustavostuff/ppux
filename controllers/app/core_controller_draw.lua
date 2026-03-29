@@ -631,6 +631,125 @@ local function resolveTransparentPreviewColor(app, win, layer, paletteNum, romRa
     or colors.black
 end
 
+local function drawPatternBuilderRectPreview(win, startX, startY, endX, endY, zoom, color)
+  local minX = math.min(math.floor(startX or 0), math.floor(endX or 0))
+  local maxX = math.max(math.floor(startX or 0), math.floor(endX or 0))
+  local minY = math.min(math.floor(startY or 0), math.floor(endY or 0))
+  local maxY = math.max(math.floor(startY or 0), math.floor(endY or 0))
+
+  local sx = win.x + minX * zoom
+  local sy = win.y + minY * zoom
+  local sw = (maxX - minX + 1) * zoom
+  local sh = (maxY - minY + 1) * zoom
+
+  love.graphics.setColor(color[1] or 1, color[2] or 1, color[3] or 1, 0.35)
+  love.graphics.rectangle("fill", sx, sy, sw, sh)
+  love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 0.85)
+  love.graphics.rectangle("line", sx, sy, sw, sh)
+  love.graphics.setColor(colors.white)
+end
+
+local function drawPatternBuilderPointPreview(win, brushScreenPoints, colorIndex, layer, hoveredItem, romRaw, paletteNum, backgroundColor)
+  if colorIndex == 0 then
+    love.graphics.setColor(backgroundColor[1] or 0, backgroundColor[2] or 0, backgroundColor[3] or 0, 1)
+    for _, pt in ipairs(brushScreenPoints) do
+      love.graphics.rectangle("fill", pt.x, pt.y, pt.size, pt.size)
+    end
+    love.graphics.setColor(colors.white)
+    return
+  end
+
+  if layer and hoveredItem then
+    local layerOpacity = (layer.opacity ~= nil) and layer.opacity or 1.0
+    ShaderPaletteController.applyLayerItemPalette(
+      layer,
+      hoveredItem,
+      true,
+      romRaw,
+      paletteNum,
+      layerOpacity
+    )
+  else
+    ShaderPaletteController.applyShader(true)
+  end
+
+  local brushImg = getPixelBrushImage(colorIndex)
+  for _, pt in ipairs(brushScreenPoints) do
+    love.graphics.draw(brushImg, pt.x, pt.y, 0, pt.size, pt.size)
+  end
+  ShaderPaletteController.releaseShader()
+  love.graphics.setColor(colors.white)
+end
+
+local function tryDrawPatternBuilderToolPreview(app, win, layer, hoveredItem, romRaw, paletteNum, colorIndex, mouse, zoom)
+  if not (win and win.kind == "pattern_table_builder" and layer and layer.kind == "canvas") then
+    return false
+  end
+
+  local tool = win.getBuilderTool and win:getBuilderTool() or "pencil"
+  local BrushController = require("controllers.input_support.brush_controller")
+  local ok, col, row, lx, ly = win:toGridCoords(mouse.x, mouse.y)
+  if not ok then
+    return false
+  end
+
+  local pixelX = col * (win.cellW or 8) + math.floor(lx or 0)
+  local pixelY = row * (win.cellH or 8) + math.floor(ly or 0)
+  local screenX = win.x + pixelX * zoom
+  local screenY = win.y + pixelY * zoom
+  local bgPreviewColor = resolveTransparentPreviewColor(app, win, layer, paletteNum, romRaw)
+
+  if tool == "rect" and win.builderShapeDrag then
+    local shape = win.builderShapeDrag
+    drawPatternBuilderRectPreview(
+      win,
+      shape.startX,
+      shape.startY,
+      shape.currentX or shape.startX,
+      shape.currentY or shape.startY,
+      zoom,
+      (colorIndex == 0) and bgPreviewColor or colors.white
+    )
+    return true
+  end
+
+  if tool == "line" then
+    local lastPoint = win.getBuilderLastPoint and win:getBuilderLastPoint() or nil
+    if lastPoint then
+      local points = BrushController.getLinePoints(lastPoint.x, lastPoint.y, pixelX, pixelY)
+      local pattern = BrushController.getBrushPattern(app.brushSize or 1) or {{0, 0}}
+      local previewPoints = {}
+      local seen = {}
+
+      for _, p in ipairs(points) do
+        for _, offset in ipairs(pattern) do
+          local px = p.x + offset[1]
+          local py = p.y + offset[2]
+          if px >= 0 and py >= 0 then
+            local key = string.format("%d:%d", px, py)
+            if not seen[key] then
+              seen[key] = true
+              previewPoints[#previewPoints + 1] = {
+                x = win.x + px * zoom,
+                y = win.y + py * zoom,
+                size = zoom,
+              }
+            end
+          end
+        end
+      end
+
+      drawPatternBuilderPointPreview(win, previewPoints, colorIndex, layer, hoveredItem, romRaw, paletteNum, bgPreviewColor)
+      love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 0.9)
+      love.graphics.rectangle("line", win.x + lastPoint.x * zoom, win.y + lastPoint.y * zoom, zoom, zoom)
+      love.graphics.setColor(colors.white)
+      return true
+    end
+  end
+
+  return false
+end
+
 local function drawEditModeColorIndicator(app)
   if app.mode ~= "edit" then return end
   
@@ -719,6 +838,10 @@ local function drawEditModeColorIndicator(app)
     colorIndex = 0
   end
   local brushSize = app.brushSize or 1
+
+  if tryDrawPatternBuilderToolPreview(app, win, layer, hoveredItem, romRaw, paletteNum, colorIndex, mouse, z) then
+    return
+  end
   
   -- Get brush pattern from BrushController
   local BrushController = require("controllers.input_support.brush_controller")
@@ -756,7 +879,7 @@ local function drawEditModeColorIndicator(app)
 
   love.graphics.setColor(colors.white)
   if colorIndex == 0 then
-    local bgPreviewColor = resolveTransparentPreviewColor(app, win, layer, paletteNum, romRaw)
+  local bgPreviewColor = resolveTransparentPreviewColor(app, win, layer, paletteNum, romRaw)
     ShaderPaletteController.releaseShader()
     love.graphics.setColor(bgPreviewColor[1] or 0, bgPreviewColor[2] or 0, bgPreviewColor[3] or 0, 1)
     for _, pt in ipairs(brushScreenPoints) do

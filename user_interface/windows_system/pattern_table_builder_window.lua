@@ -12,6 +12,9 @@ local SOURCE_H = 240
 local PACKED_W = 128
 local PACKED_H = 128
 local CELL = 8
+local PACKED_TILE_COLS = math.floor(PACKED_W / CELL)
+local PACKED_TILE_ROWS = math.floor(PACKED_H / CELL)
+local MAX_PACKED_TILES = PACKED_TILE_COLS * PACKED_TILE_ROWS
 
 local function addCanvasLayer(self, name, width, height, fillValue)
   local idx = self:addLayer({
@@ -51,12 +54,74 @@ function PatternTableBuilderWindow.new(x, y, cellW, cellH, cols, rows, zoom, dat
   self.builderTool = data.builderTool or "pencil"
   self.builderLastPoint = nil
   self.builderShapeDrag = nil
+  self.lastGenerationResult = nil
 
   addCanvasLayer(self, "Source Canvas", SOURCE_W, SOURCE_H, 0)
   addCanvasLayer(self, "Packed Pattern Table", PACKED_W, PACKED_H, 0)
   self.activeLayer = 1
 
   return self
+end
+
+local function tilePixelsKey(pixels)
+  local out = {}
+  for i = 1, #pixels do
+    out[i] = string.char((pixels[i] or 0) + 48)
+  end
+  return table.concat(out)
+end
+
+function PatternTableBuilderWindow:generatePackedPatternTable()
+  local sourceLayer = self.layers and self.layers[1] or nil
+  local packedLayer = self.layers and self.layers[2] or nil
+  local sourceCanvas = sourceLayer and sourceLayer.canvas or nil
+  local packedCanvas = packedLayer and packedLayer.canvas or nil
+  if not (sourceCanvas and packedCanvas) then
+    return false, "missing_canvas"
+  end
+
+  packedCanvas:clear(0)
+
+  local seen = {}
+  local uniqueTiles = 0
+  local totalTiles = 0
+  local overflowTiles = 0
+
+  for tileRow = 0, math.floor(sourceCanvas.height / CELL) - 1 do
+    for tileCol = 0, math.floor(sourceCanvas.width / CELL) - 1 do
+      totalTiles = totalTiles + 1
+      local px = tileCol * CELL
+      local py = tileRow * CELL
+      local pixels = sourceCanvas:extractTilePixels(px, py, CELL)
+      local key = tilePixelsKey(pixels)
+
+      if not seen[key] then
+        uniqueTiles = uniqueTiles + 1
+        if uniqueTiles <= MAX_PACKED_TILES then
+          seen[key] = uniqueTiles
+          local packedIndex = uniqueTiles - 1
+          local packedTileCol = packedIndex % PACKED_TILE_COLS
+          local packedTileRow = math.floor(packedIndex / PACKED_TILE_COLS)
+          packedCanvas:loadTilePixels(packedTileCol * CELL, packedTileRow * CELL, pixels, CELL)
+        else
+          overflowTiles = overflowTiles + 1
+        end
+      end
+    end
+  end
+
+  local placedTiles = math.min(uniqueTiles, MAX_PACKED_TILES)
+  local result = {
+    mode = "8x8",
+    totalTiles = totalTiles,
+    uniqueTiles = uniqueTiles,
+    placedTiles = placedTiles,
+    overflowTiles = overflowTiles,
+    capacity = MAX_PACKED_TILES,
+    toleranceUsed = self.patternTolerance or 0,
+  }
+  self.lastGenerationResult = result
+  return true, result
 end
 
 function PatternTableBuilderWindow:getActiveCanvasLayer()

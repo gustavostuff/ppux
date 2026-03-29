@@ -39,15 +39,15 @@ function PatternTableBuilderToolbar.new(window, ctx, windowController)
     self:_onSelectTool("eraser")
   end, "Eraser tool")
 
-  self.lineButton = self:addTextButton("L", function()
-    self:_onSelectTool("line")
-  end, "Line tool")
-
   self.rectButton = self:addTextButton("R", function()
     self:_onSelectTool("rect")
   end, "Filled rectangle tool")
 
-  self:addButton(images.icons.icon_plus, function()
+  self.lineButton = self:addTextButton("L", function()
+    self:_onSelectTool("line")
+  end, "Line tool")
+
+  self.generateButton = self:addTextButton("G", function()
     self:_onGenerate()
   end, "Generate packed layer")
 
@@ -76,11 +76,42 @@ function PatternTableBuilderToolbar:_onNextLayer()
 end
 
 function PatternTableBuilderToolbar:_onGenerate()
+  if not (self.window and self.window.generatePackedPatternTable) then
+    return
+  end
+
+  local ok, result = self.window:generatePackedPatternTable()
+  if not ok then
+    if self.ctx and self.ctx.setStatus then
+      self.ctx.setStatus("Pattern generation failed")
+    end
+    if self.ctx and self.ctx.showToast then
+      self.ctx.showToast("error", "Pattern generation failed")
+    end
+    return
+  end
+
+  local status = string.format(
+    "Generated %d unique 8x8 tiles into packed layer (%d/%d)",
+    result.placedTiles,
+    result.placedTiles,
+    result.capacity
+  )
+  if result.overflowTiles > 0 then
+    status = string.format(
+      "Generated %d/%d unique 8x8 tiles, %d overflow",
+      result.placedTiles,
+      result.uniqueTiles,
+      result.overflowTiles
+    )
+  end
+
   if self.ctx and self.ctx.setStatus then
-    self.ctx.setStatus("Pattern packing is not implemented yet")
+    self.ctx.setStatus(status)
   end
   if self.ctx and self.ctx.showToast then
-    self.ctx.showToast("info", "Pattern packing is not implemented yet")
+    local kind = (result.overflowTiles > 0) and "warning" or "info"
+    self.ctx.showToast(kind, status)
   end
 end
 
