@@ -252,7 +252,76 @@ local function handleEditModeClick(env, button, x, y, win, wm)
 
   local ok, col, row, lx, ly = win:toGridCoords(x, y)
   if ok then
-    if utils.shiftDown and utils.shiftDown() then
+    local layerIndex = win.getActiveLayerIndex and win:getActiveLayerIndex() or 1
+    local layer = win.layers and win.layers[layerIndex] or nil
+    local isPatternCanvas = WindowCaps.isPatternTableBuilder(win) and layer and layer.kind == "canvas" and layer.canvas
+    if isPatternCanvas then
+      local px = col * (win.cellW or 8) + math.floor(lx or 0)
+      local py = row * (win.cellH or 8) + math.floor(ly or 0)
+      local tool = win.getBuilderTool and win:getBuilderTool() or "pencil"
+      local lastPoint = win.getBuilderLastPoint and win:getBuilderLastPoint() or nil
+      local BrushController = require("controllers.input_support.brush_controller")
+
+      if tool == "rect" then
+        win.builderShapeDrag = {
+          kind = "rect",
+          startX = px,
+          startY = py,
+          currentX = px,
+          currentY = py,
+        }
+        ctx.setPainting(false)
+        return true
+      end
+
+      if (utils.shiftDown and utils.shiftDown() and lastPoint) or (tool == "line" and lastPoint) then
+        if ctx.app and ctx.app.undoRedo then
+          ctx.app.undoRedo:startPaintEvent()
+        end
+        local success = BrushController.drawLine(ctx.app, win, lastPoint.x, lastPoint.y, px, py, false)
+        if ctx.app and ctx.app.undoRedo then
+          if success then
+            ctx.app.undoRedo:finishPaintEvent()
+          else
+            ctx.app.undoRedo:cancelPaintEvent()
+          end
+        end
+        if success and win.setBuilderLastPoint then
+          win:setBuilderLastPoint(px, py)
+          ctx.setStatus("Line drawn")
+        else
+          ctx.setStatus("Line draw failed")
+        end
+        ctx.setPainting(false)
+      else
+        if tool == "line" then
+          if ctx.app and ctx.app.undoRedo then
+            ctx.app.undoRedo:startPaintEvent()
+          end
+          local success = ctx.paintAt(win, col, row, lx, ly, false)
+          if ctx.app and ctx.app.undoRedo then
+            if success then
+              ctx.app.undoRedo:finishPaintEvent()
+            else
+              ctx.app.undoRedo:cancelPaintEvent()
+            end
+          end
+          if success and win.setBuilderLastPoint then
+            win:setBuilderLastPoint(px, py)
+          end
+          ctx.setPainting(false)
+        else
+          if ctx.app and ctx.app.undoRedo then
+            ctx.app.undoRedo:startPaintEvent()
+          end
+          local success = ctx.paintAt(win, col, row, lx, ly, false)
+          if success and win.setBuilderLastPoint then
+            win:setBuilderLastPoint(px, py)
+          end
+          ctx.setPainting(true)
+        end
+      end
+    elseif utils.shiftDown and utils.shiftDown() then
       local BrushController = require("controllers.input_support.brush_controller")
       local success = BrushController.floodFillTile(ctx.app, win, col, row, lx, ly)
       if success then

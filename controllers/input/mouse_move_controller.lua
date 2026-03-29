@@ -56,6 +56,14 @@ local function handlePaintingDrag(env, x, y, wm)
 
   local w2 = wm:windowAt(x, y)
   if w2 then
+    if w2.kind == "pattern_table_builder" and w2.getBuilderTool and w2:getBuilderTool() == "rect" then
+      local okRect, colRect, rowRect, lxRect, lyRect = w2:toGridCoords(x, y)
+      if okRect and w2.builderShapeDrag then
+        w2.builderShapeDrag.currentX = colRect * (w2.cellW or 8) + math.floor(lxRect or 0)
+        w2.builderShapeDrag.currentY = rowRect * (w2.cellH or 8) + math.floor(lyRect or 0)
+      end
+      return true
+    end
     local pickOnly = utils.ctrlDown and utils.ctrlDown()
     local function paintInterpolatedSegment(win, x0, y0, x1, y1)
       if not (win and win.toContentCoords) then

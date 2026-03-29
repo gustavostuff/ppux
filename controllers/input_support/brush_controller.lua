@@ -101,6 +101,14 @@ local function resolveTileLayerCellItem(win, layerIndex, col, row)
   return item
 end
 
+local function resolveCanvasLayer(win, layerIndex)
+  local layer = win and win.layers and win.layers[layerIndex] or nil
+  if layer and layer.kind == "canvas" and layer.canvas then
+    return layer, layer.canvas
+  end
+  return nil, nil
+end
+
 local function updatePaletteSelection(app, colorIndex)
   -- Update active palette window's selection when picking color
   local wm = app.wm
@@ -116,6 +124,100 @@ local function updatePaletteSelection(app, colorIndex)
       end
     end
   end
+end
+
+local function getCanvasPaintColor(app, win)
+  if win and win.kind == "pattern_table_builder" and win.getBuilderTool and win:getBuilderTool() == "eraser" then
+    return 0
+  end
+  return app.currentColor or 0
+end
+
+local function recordDirectPaint(app, target, x, y, beforeValue, afterValue)
+  if app.undoRedo and app.undoRedo.activeEvent then
+    app.undoRedo:recordDirectPixelChange(target, x, y, beforeValue, afterValue)
+  end
+end
+
+local function paintCanvasPixelAt(app, win, canvas, px, py, pickOnly)
+  px = math.floor(px or 0)
+  py = math.floor(py or 0)
+  if px < 0 or py < 0 or px >= canvas.width or py >= canvas.height then
+    return false
+  end
+
+  if pickOnly then
+    local colorIndex = canvas:getPixel(px, py) or 0
+    app.currentColor = colorIndex
+    app:setStatus(("Picked color %d"):format(colorIndex))
+    updatePaletteSelection(app, colorIndex)
+    return true
+  end
+
+  local beforeValue = canvas:getPixel(px, py) or 0
+  local color = getCanvasPaintColor(app, win)
+  if beforeValue == color then
+    return false
+  end
+
+  recordDirectPaint(app, canvas, px, py, beforeValue, color)
+  canvas:edit(px, py, color)
+  return true
+end
+
+local function paintBrushPatternOnCanvas(app, win, canvas, pattern, px, py, pickOnly)
+  local painted = false
+  for _, offset in ipairs(pattern) do
+    local dx, dy = offset[1], offset[2]
+    if paintCanvasPixelAt(app, win, canvas, px + dx, py + dy, pickOnly) then
+      painted = true
+      if pickOnly then
+        break
+      end
+    end
+  end
+  return painted
+end
+
+local function withCanvasPixels(app, win, canvas, points, pickOnly)
+  local painted = false
+  for _, pt in ipairs(points) do
+    if paintBrushPatternOnCanvas(app, win, canvas, M.getBrushPattern(app.brushSize or 1), pt.x, pt.y, pickOnly) then
+      painted = true
+    end
+  end
+  return painted
+end
+
+local function bresenhamPoints(x0, y0, x1, y1)
+  local points = {}
+  x0 = math.floor(x0 or 0)
+  y0 = math.floor(y0 or 0)
+  x1 = math.floor(x1 or 0)
+  y1 = math.floor(y1 or 0)
+  local dx = math.abs(x1 - x0)
+  local sx = (x0 < x1) and 1 or -1
+  local dy = -math.abs(y1 - y0)
+  local sy = (y0 < y1) and 1 or -1
+  local err = dx + dy
+
+  while true do
+    points[#points + 1] = { x = x0, y = y0 }
+    if x0 == x1 and y0 == y1 then
+      break
+    end
+    local e2 = 2 * err
+    if e2 >= dy then
+      err = err + dy
+      x0 = x0 + sx
+    end
+    if e2 <= dx then
+      err = err + dx
+      y0 = y0 + sy
+    end
+  end
+
+  return points
 end
 
 ----------------------------------------------------------------
@@ -607,6 +709,10 @@ local function paintWithBrushPattern(app, win, col, row, lx, ly, brushSize, pick
   -- Delegate to specialized functions based on layer type
   if L.kind == "sprite" then
     return paintBrushPatternOnSpriteLayer(app, win, L, pattern, col, row, lx, ly, pickOnly)
+  elseif L.kind == "canvas" and L.canvas then
+    local px = col * (win.cellW or 8) + math.floor(lx or 0)
+    local py = row * (win.cellH or 8) + math.floor(ly or 0)
+    return paintBrushPatternOnCanvas(app, win, L.canvas, pattern, px, py, pickOnly)
   else
     return paintBrushPatternOnTileLayer(app, win, L, pattern, col, row, lx, ly, pickOnly)
   end
@@ -636,6 +742,8 @@ function M.paintPixel(app, win, col, row, lx, ly, pickOnly)
     
     if L.kind == "sprite" then
       ok = paintSpriteLayerPixel(app, win, L, px, py, pickOnly)
+    elseif L.kind == "canvas" and L.canvas then
+      ok = paintCanvasPixelAt(app, win, L.canvas, px, py, pickOnly)
     else
       ok = paintTileLayerPixel(app, win, L, px, py, pickOnly)
     end
@@ -777,6 +885,61 @@ local function floodFillTileItem(app, item, tx, ty, targetColor, fillColor, sour
   return painted > 0
 end
 
+local function floodFillCanvas(app, win, canvas, px, py, targetColor, fillColor)
+  if px < 0 or py < 0 or px >= canvas.width or py >= canvas.height then
+    return false
+  end
+
+  local target = targetColor
+  if target == nil then
+    target = canvas:getPixel(px, py) or 0
+  end
+
+  local fill = fillColor
+  if fill == nil then
+    fill = getCanvasPaintColor(app, win)
+  end
+
+  if target == fill then
+    return false
+  end
+
+  local visited = {}
+  local queue = {{px, py}}
+  local painted = 0
+  local function keyFor(x, y)
+    return y * canvas.width + x
+  end
+
+  while #queue > 0 do
+    local current = table.remove(queue, 1)
+    local x, y = current[1], current[2]
+    if x < 0 or y < 0 or x >= canvas.width or y >= canvas.height then
+      goto continue
+    end
+    local key = keyFor(x, y)
+    if visited[key] then
+      goto continue
+    end
+    if (canvas:getPixel(x, y) or 0) ~= target then
+      goto continue
+    end
+
+    visited[key] = true
+    recordDirectPaint(app, canvas, x, y, target, fill)
+    canvas:edit(x, y, fill)
+    painted = painted + 1
+    queue[#queue + 1] = {x - 1, y}
+    queue[#queue + 1] = {x + 1, y}
+    queue[#queue + 1] = {x, y - 1}
+    queue[#queue + 1] = {x, y + 1}
+
+    ::continue::
+  end
+
+  return painted > 0
+end
+
 -- Flood fill helper for sprite layers (bankIdx and tileIndex passed separately)
 local function floodFillTileItemForSprite(app, item, bankIdx, tileIndex, tx, ty, targetColor, fillColor, sourceWin)
   if not item then return false end
@@ -880,6 +1043,12 @@ function M.floodFillTile(app, win, col, row, lx, ly, targetColor, fillColor)
   if not L then 
     DebugController.log("warning", "BRUSH", "Flood fill: no layer found")
     return finalize(false)
+  end
+
+  if L.kind == "canvas" and L.canvas then
+    local px = col * (win.cellW or 8) + math.floor(lx or 0)
+    local py = row * (win.cellH or 8) + math.floor(ly or 0)
+    return finalize(floodFillCanvas(app, win, L.canvas, px, py, targetColor, fillColor))
   end
   
   -- Handle sprite layers
@@ -1012,6 +1181,35 @@ function M.floodFillTile(app, win, col, row, lx, ly, targetColor, fillColor)
   
   -- Perform flood fill on this tile item using the helper function
   return finalize(floodFillTileItem(app, item, tx, ty, targetColor, fillColor, win))
+end
+
+function M.drawLine(app, win, x0, y0, x1, y1, pickOnly)
+  local layerIndex = win and win.getActiveLayerIndex and win:getActiveLayerIndex() or 1
+  local _, canvas = resolveCanvasLayer(win, layerIndex)
+  if not canvas then
+    return false
+  end
+  return withCanvasPixels(app, win, canvas, bresenhamPoints(x0, y0, x1, y1), pickOnly == true)
+end
+
+function M.fillRect(app, win, x0, y0, x1, y1, pickOnly)
+  local layerIndex = win and win.getActiveLayerIndex and win:getActiveLayerIndex() or 1
+  local _, canvas = resolveCanvasLayer(win, layerIndex)
+  if not canvas then
+    return false
+  end
+
+  local minX = math.min(math.floor(x0 or 0), math.floor(x1 or 0))
+  local maxX = math.max(math.floor(x0 or 0), math.floor(x1 or 0))
+  local minY = math.min(math.floor(y0 or 0), math.floor(y1 or 0))
+  local maxY = math.max(math.floor(y0 or 0), math.floor(y1 or 0))
+  local points = {}
+  for y = minY, maxY do
+    for x = minX, maxX do
+      points[#points + 1] = { x = x, y = y }
+    end
+  end
+  return withCanvasPixels(app, win, canvas, points, pickOnly == true)
 end
 
 return M

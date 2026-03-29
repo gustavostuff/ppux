@@ -93,6 +93,26 @@ function ToolbarBase:addButton(icon, action, tooltip)
   return button
 end
 
+function ToolbarBase:addTextButton(text, action, tooltip, opts)
+  opts = opts or {}
+  local button = Button.new({
+    text = text or "",
+    action = action,
+    tooltip = tooltip or "",
+    x = 0,
+    y = 0,
+    w = opts.w or self.h,
+    h = opts.h or self.h,
+    bgColor = opts.bgColor,
+    bgAlpha = opts.bgAlpha,
+    transparent = opts.transparent,
+  })
+
+  table.insert(self.buttons, button)
+  self:_layoutButtons()
+  return button
+end
+
 -- Add a label to the toolbar
 function ToolbarBase:addLabel(text, width, updateFn)
   local label = {

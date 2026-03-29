@@ -1,28 +1,36 @@
 -- pattern_table_builder_window.lua
--- Scratch workspace for drawing a 256x240 source canvas and future pattern-table packing.
+-- Scratch workspace for drawing source pixel art and generating packed pattern tables.
 
 local Window = require("user_interface.windows_system.window")
-local TileItem = require("user_interface.windows_system.tile_item")
+local PixelCanvas = require("user_interface.windows_system.pixel_canvas")
 
 local PatternTableBuilderWindow = setmetatable({}, { __index = Window })
 PatternTableBuilderWindow.__index = PatternTableBuilderWindow
 
-local function seedBlankCanvasLayer(layer, cols, rows, fillValue)
-  layer.items = {}
-  for row = 0, rows - 1 do
-    for col = 0, cols - 1 do
-      local idx = row * cols + col + 1
-      layer.items[idx] = TileItem.blank(fillValue)
-    end
-  end
+local SOURCE_W = 256
+local SOURCE_H = 240
+local PACKED_W = 128
+local PACKED_H = 128
+local CELL = 8
+
+local function addCanvasLayer(self, name, width, height, fillValue)
+  local idx = self:addLayer({
+    name = name,
+    kind = "canvas",
+  })
+  local layer = self.layers[idx]
+  layer.canvas = PixelCanvas.new(width, height, fillValue or 0)
+  layer.canvasWidth = width
+  layer.canvasHeight = height
+  return idx
 end
 
 function PatternTableBuilderWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
   data = data or {}
-  cols = cols or 32
-  rows = rows or 30
-  cellW = cellW or 8
-  cellH = cellH or 8
+  cols = cols or math.floor(SOURCE_W / CELL)
+  rows = rows or math.floor(SOURCE_H / CELL)
+  cellW = cellW or CELL
+  cellH = cellH or CELL
 
   local self = Window.new(x, y, cellW, cellH, cols, rows, zoom, {
     flags = {
@@ -33,28 +41,107 @@ function PatternTableBuilderWindow.new(x, y, cellW, cellH, cols, rows, zoom, dat
     title = data.title or "Pattern Table Builder",
     visibleRows = data.visibleRows or rows,
     visibleCols = data.visibleCols or cols,
-    resizable = (data.resizable ~= false),
+    resizable = false,
   })
   setmetatable(self, PatternTableBuilderWindow)
 
   self.kind = "pattern_table_builder"
   self.patternTolerance = math.max(0, math.floor(tonumber(data.patternTolerance) or 0))
   self.layers = {}
+  self.builderTool = data.builderTool or "pencil"
+  self.builderLastPoint = nil
+  self.builderShapeDrag = nil
 
-  local sourceIdx = self:addLayer({
-    name = "Source Canvas",
-    kind = "tile",
-  })
-  local packedIdx = self:addLayer({
-    name = "Packed Pattern Table",
-    kind = "tile",
-  })
-
-  seedBlankCanvasLayer(self.layers[sourceIdx], cols, rows, 0)
-  self.layers[packedIdx].items = {}
+  addCanvasLayer(self, "Source Canvas", SOURCE_W, SOURCE_H, 0)
+  addCanvasLayer(self, "Packed Pattern Table", PACKED_W, PACKED_H, 0)
   self.activeLayer = 1
 
   return self
+end
+
+function PatternTableBuilderWindow:getActiveCanvasLayer()
+  local li = self:getActiveLayerIndex() or 1
+  local layer = self.layers and self.layers[li] or nil
+  if layer and layer.kind == "canvas" and layer.canvas then
+    return layer, li
+  end
+  return nil, li
+end
+
+function PatternTableBuilderWindow:getActiveCanvas()
+  local layer = self:getActiveCanvasLayer()
+  return layer and layer.canvas or nil
+end
+
+function PatternTableBuilderWindow:getBuilderTool()
+  return self.builderTool or "pencil"
+end
+
+function PatternTableBuilderWindow:setBuilderTool(tool)
+  if tool ~= "pencil" and tool ~= "eraser" and tool ~= "line" and tool ~= "rect" then
+    return false
+  end
+  self.builderTool = tool
+  return true
+end
+
+function PatternTableBuilderWindow:setBuilderLastPoint(x, y)
+  if type(x) ~= "number" or type(y) ~= "number" then
+    self.builderLastPoint = nil
+    return
+  end
+  self.builderLastPoint = {
+    x = math.floor(x),
+    y = math.floor(y),
+  }
+end
+
+function PatternTableBuilderWindow:getBuilderLastPoint()
+  return self.builderLastPoint
+end
+
+function PatternTableBuilderWindow:getVisibleSize()
+  local canvas = self:getActiveCanvas()
+  if canvas then
+    return canvas.width, canvas.height
+  end
+  return Window.getVisibleSize(self)
+end
+
+function PatternTableBuilderWindow:getRealContentSize()
+  local canvas = self:getActiveCanvas()
+  if canvas then
+    return canvas.width, canvas.height
+  end
+  return Window.getRealContentSize(self)
+end
+
+function PatternTableBuilderWindow:getContentSize()
+  local canvas = self:getActiveCanvas()
+  if canvas then
+    return canvas.width, canvas.height
+  end
+  return Window.getContentSize(self)
+end
+
+function PatternTableBuilderWindow:toGridCoords(px, py)
+  local ok, cx, cy = self:toContentCoords(px, py)
+  if not ok then return false end
+
+  local canvas = self:getActiveCanvas()
+  if not canvas then
+    return Window.toGridCoords(self, px, py)
+  end
+
+  if cx < 0 or cy < 0 or cx >= canvas.width or cy >= canvas.height then
+    return false
+  end
+
+  local col = math.floor(cx / self.cellW)
+  local row = math.floor(cy / self.cellH)
+  local lx = cx - (col * self.cellW)
+  local ly = cy - (row * self.cellH)
+  return true, col, row, lx, ly
 end
 
 return PatternTableBuilderWindow

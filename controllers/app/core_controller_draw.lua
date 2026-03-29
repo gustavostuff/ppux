@@ -361,6 +361,39 @@ local function drawTileLayer(app, w, layerIndex, isFocused)
   end, isFocused, layerIndex)
 end
 
+local function drawCanvasLayer(app, w, layerIndex, isFocused)
+  local layer = w.layers and w.layers[layerIndex]
+  local canvas = layer and layer.canvas or nil
+  if not canvas then
+    return false
+  end
+
+  local layerOpacity = (layer and layer.opacity ~= nil) and layer.opacity or 1.0
+  local sx, sy, sw, sh = w:getScreenRect()
+
+  love.graphics.push()
+  love.graphics.translate(w.x, w.y)
+  local z = (w.getZoomLevel and w:getZoomLevel()) or w.zoom or 1
+  love.graphics.scale(z, z)
+  love.graphics.setScissor(sx, sy, sw, sh)
+
+  ShaderPaletteController.applyLayerItemPalette(
+    layer,
+    canvas,
+    true,
+    app.appEditState and app.appEditState.romRaw,
+    nil,
+    layerOpacity
+  )
+  canvas:draw(0, 0, 1)
+  ShaderPaletteController.releaseShader()
+
+  love.graphics.pop()
+  love.graphics.setScissor()
+  love.graphics.setColor(colors.white)
+  return true
+end
+
 local function drawChrBankLayer(app, w, layerIndex)
   local controller = app and app.chrBankCanvasController
   if not controller then
@@ -463,6 +496,8 @@ local function drawWindows(app)
           if layerOpacity > 0.001 then
             if L.kind == "sprite" then
               w:drawSprites(nil, isFocused, li, app.appEditState.romRaw)
+            elseif L.kind == "canvas" then
+              drawCanvasLayer(app, w, li, isFocused)
             else
               drawTileLayer(app, w, li, isFocused)
             end
@@ -658,6 +693,12 @@ local function drawEditModeColorIndicator(app)
       local idx = row * win.cols + col
       paletteNum = layer.paletteNumbers[idx]
     end
+  elseif layer.kind == "canvas" and layer.canvas then
+    hoveredItem = layer.canvas
+    cw = 1
+    ch = 1
+    scol = 0
+    srow = 0
   else
     return
   end
@@ -674,6 +715,9 @@ local function drawEditModeColorIndicator(app)
   
   local romRaw = app.appEditState and app.appEditState.romRaw
   local colorIndex = app.currentColor or 0
+  if win.kind == "pattern_table_builder" and layer.kind == "canvas" and win.getBuilderTool and win:getBuilderTool() == "eraser" then
+    colorIndex = 0
+  end
   local brushSize = app.brushSize or 1
   
   -- Get brush pattern from BrushController
