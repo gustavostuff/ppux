@@ -363,6 +363,18 @@ local function handleEditModeClick(env, button, x, y, win, wm)
         moved = false,
       }
       ctx.setPainting(false)
+    elseif ctx.app and ctx.app.editTool == "rect_fill" then
+      local px = col * (win.cellW or 8) + math.floor(lx or 0)
+      local py = row * (win.cellH or 8) + math.floor(ly or 0)
+      win.editShapeDrag = {
+        kind = "rect_fill",
+        startX = px,
+        startY = py,
+        currentX = px,
+        currentY = py,
+        moved = false,
+      }
+      ctx.setPainting(false)
     elseif utils.grabDown and utils.grabDown() then
       ctx.paintAt(win, col, row, lx, ly, true)
       ctx.setPainting(false)

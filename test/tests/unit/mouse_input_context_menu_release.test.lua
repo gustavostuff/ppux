@@ -55,6 +55,24 @@ describe("mouse_input.lua - context menus on release", function()
     MultiSelectController.reset = originals.reset
   end)
 
+  local function makeUndoRedo()
+    return {
+      started = 0,
+      finished = 0,
+      canceled = 0,
+      startPaintEvent = function(self)
+        self.started = self.started + 1
+      end,
+      finishPaintEvent = function(self)
+        self.finished = self.finished + 1
+        return true
+      end,
+      cancelPaintEvent = function(self)
+        self.canceled = self.canceled + 1
+      end,
+    }
+  end
+
   local function makeHeaderWindow()
     return {
       kind = "static_art",
@@ -203,5 +221,59 @@ describe("mouse_input.lua - context menus on release", function()
     expect(emptyMenuCalls).toBe(1)
     expect(lastX).toBe(300)
     expect(lastY).toBe(200)
+  end)
+
+  it("finishes rect fill edit shapes on left-button release without crashing", function()
+    local focusWin = {
+      kind = "static_art",
+      editShapeDrag = {
+        kind = "rect_fill",
+        startX = 1,
+        startY = 2,
+        currentX = 4,
+        currentY = 5,
+      },
+      editLastPoint = nil,
+    }
+    local undoRedo = makeUndoRedo()
+    local wm = {
+      getFocus = function() return focusWin end,
+      setFocus = function() end,
+      windowAt = function() return focusWin end,
+    }
+
+    MouseInput.setup({
+      wm = function() return wm end,
+      getMode = function() return "edit" end,
+      getPainting = function() return false end,
+      setPainting = function() end,
+      setStatus = function() end,
+      app = {
+        undoRedo = undoRedo,
+      },
+    }, { active = false, pending = false }, { active = false }, {})
+
+    local originalFillRect = package.loaded["controllers.input_support.brush_controller"].fillRect
+    package.loaded["controllers.input_support.brush_controller"].fillRect = function(app, win, x0, y0, x1, y1, pickOnly)
+      expect(app.undoRedo).toBe(undoRedo)
+      expect(win).toBe(focusWin)
+      expect(x0).toBe(1)
+      expect(y0).toBe(2)
+      expect(x1).toBe(4)
+      expect(y1).toBe(5)
+      expect(pickOnly).toBe(false)
+      return true
+    end
+
+    MouseInput.mousereleased(10, 10, 1)
+
+    package.loaded["controllers.input_support.brush_controller"].fillRect = originalFillRect
+
+    expect(undoRedo.started).toBe(1)
+    expect(undoRedo.finished).toBe(1)
+    expect(undoRedo.canceled).toBe(0)
+    expect(focusWin.editShapeDrag).toBeNil()
+    expect(focusWin.editLastPoint.x).toBe(4)
+    expect(focusWin.editLastPoint.y).toBe(5)
   end)
 end)

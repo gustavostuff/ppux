@@ -1,12 +1,13 @@
 local WindowCaps = require("controllers.window.window_capabilities")
+local CursorsController = require("controllers.input_support.cursors_controller")
 
 local M = {}
 
 function M.handleEditModeKeys(ctx, utils, key)
   if ctx.getMode() ~= "edit" then return false end
+  local app = ctx.app
 
   if utils.altDown() and (key == "1" or key == "2" or key == "3" or key == "4") then
-    local app = ctx.app
     if app and utils.changeBrushSize then
       local size = tonumber(key)
       utils.changeBrushSize(app, size)
@@ -18,6 +19,14 @@ function M.handleEditModeKeys(ctx, utils, key)
     local colorIndex = tonumber(key) - 1
     ctx.setColor(colorIndex)
     ctx.setStatus(string.format("Color: %d", colorIndex))
+    return true
+  end
+
+  if key == "r" and not utils.ctrlDown() and not utils.altDown() then
+    if not app then return false end
+    app.editTool = (app.editTool == "rect_fill") and "pencil" or "rect_fill"
+    CursorsController.applyModeCursor(app, ctx.getMode())
+    ctx.setStatus((app.editTool == "rect_fill") and "Rect fill tool" or "Pencil tool")
     return true
   end
 
@@ -42,8 +51,9 @@ function M.handleAttrModeToggle(ctx, key, focus)
   return true
 end
 
-function M.handleShaderToggle(ctx, key, focus)
+function M.handleShaderToggle(ctx, utils, key, focus)
   if key ~= "r" then return false end
+  if not (utils and utils.ctrlDown and utils.ctrlDown()) then return false end
   if WindowCaps.isAnyPaletteWindow(focus) then return false end
 
   local w = focus

@@ -371,13 +371,33 @@ local function finishEditShape(x, y, button)
 
   local shape = win.editShapeDrag
   win.editShapeDrag = nil
-  if shape.kind ~= "rect_or_line" then
-    return false
-  end
-
   local BrushController = require("controllers.input_support.brush_controller")
   local app = ctx and ctx.app or nil
   if not (app and app.undoRedo) then
+    return false
+  end
+
+  if shape.kind == "rect_fill" then
+    local endX = shape.currentX or shape.startX
+    local endY = shape.currentY or shape.startY
+    app.undoRedo:startPaintEvent()
+    local ok = BrushController.fillRect(app, win, shape.startX, shape.startY, endX, endY, false)
+    if ok then
+      app.undoRedo:finishPaintEvent()
+      win.editLastPoint = { x = endX, y = endY }
+      if ctx.setStatus then
+        ctx.setStatus("Filled rectangle drawn")
+      end
+    else
+      app.undoRedo:cancelPaintEvent()
+      if ctx.setStatus then
+        ctx.setStatus("Rectangle draw failed")
+      end
+    end
+    return true
+  end
+
+  if shape.kind ~= "rect_or_line" then
     return false
   end
 

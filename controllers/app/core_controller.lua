@@ -92,6 +92,7 @@ function AppCoreController.new()
   self.isPainting = false
   self.currentColor = 1
   self.brushSize = 1
+  self.editTool = "pencil"
   self.syncDuplicateTiles = false
   self.spaceHighlightActive = false
   self.showDebugInfo = false

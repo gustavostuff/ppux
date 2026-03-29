@@ -108,10 +108,12 @@ Edit mode is for pixel-level editing.
 - left click to paint
 - `Shift + click` draws a line from the last painted/clicked point
 - `Shift + click drag` paints a filled rectangle
+- `R` toggles the rectangle fill tool
 - hold `G` and left click or drag to grab a color
 - hold `F` and left click to flood fill
 - `1` to `4` to choose the active color
 - `Alt + 1/2/3/4` to change brush size presets (Or Ctrl + Alt + mouse wheel)
+- `Ctrl + R` toggles shader rendering for the focused layer
 - `Ctrl + G` toggles the focused window grid
 
 ### PNG drops

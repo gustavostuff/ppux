@@ -162,6 +162,9 @@ local function getModifierHintText(ctx, utils)
   end
 
   if ctrlDown then
+    if mode == "edit" then
+      return "Ctrl + R = toggle shader"
+    end
     if WindowCaps.isAnimationLike(focus) then
       return "Press + or = to add a new layer"
     end

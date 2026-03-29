@@ -1,4 +1,5 @@
 local KeyboardInput = require("controllers.input.keyboard_input")
+local CursorsController = require("controllers.input_support.cursors_controller")
 local Tile = require("user_interface.windows_system.tile_item")
 local Window = require("user_interface.windows_system.window")
 
@@ -262,6 +263,48 @@ describe("keyboard_input.lua - modifier status hints", function()
     grabDown = false
     KeyboardInput.keyreleased("g", ctx.app)
     expect(status).toBe("Idle")
+  end)
+
+  it("toggles the rect fill tool with R in edit mode", function()
+    local status = "Idle"
+    local app = { editTool = "pencil" }
+    local appliedCursorMode = nil
+    local originalApplyModeCursor = CursorsController.applyModeCursor
+    CursorsController.applyModeCursor = function(_, mode)
+      appliedCursorMode = mode
+    end
+
+    local ctx = {
+      getMode = function() return "edit" end,
+      setMode = function() end,
+      getFocus = function() return nil end,
+      getStatus = function() return status end,
+      setStatus = function(msg) status = msg end,
+      setColor = function() end,
+      wm = function() return nil end,
+      app = app,
+    }
+
+    KeyboardInput.setup(ctx, {
+      ctrlDown = function() return false end,
+      shiftDown = function() return false end,
+      fillDown = function() return false end,
+      grabDown = function() return false end,
+      altDown = function() return false end,
+    })
+
+    KeyboardInput.keypressed("r", ctx.app)
+    expect(app.editTool).toBe("rect_fill")
+    expect(appliedCursorMode).toBe("edit")
+    expect(status).toBe("Rect fill tool")
+
+    appliedCursorMode = nil
+    KeyboardInput.keypressed("r", ctx.app)
+    expect(app.editTool).toBe("pencil")
+    expect(appliedCursorMode).toBe("edit")
+    expect(status).toBe("Pencil tool")
+
+    CursorsController.applyModeCursor = originalApplyModeCursor
   end)
 
   it("routes Ctrl+G to grid toggle outside edit mode", function()

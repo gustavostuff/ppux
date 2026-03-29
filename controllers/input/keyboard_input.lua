@@ -43,7 +43,7 @@ local focusHandlers = {
   { name = "select_all", fn = function(key, focus) return KeyboardSelectionActionsController.handleSelectAll(ctx, utils, key, focus) end },
   { name = "palette_number_assignment", fn = function(key, focus, appCoreControllerRef) return KeyboardArtActionsController.handlePaletteNumberAssignment(ctx, key, focus, appCoreControllerRef.appEditState) end },
   { name = "attr_mode_toggle", fn = function(key, focus) return KeyboardEditToggleController.handleAttrModeToggle(ctx, key, focus) end },
-  { name = "shader_toggle", fn = function(key, focus) return KeyboardEditToggleController.handleShaderToggle(ctx, key, focus) end },
+  { name = "shader_toggle", fn = function(key, focus) return KeyboardEditToggleController.handleShaderToggle(ctx, utils, key, focus) end },
   { name = "sprite_mirror", fn = function(key, focus) return KeyboardSelectionActionsController.handleSpriteMirror(ctx, key, focus) end },
   { name = "delete_key", fn = function(key, focus) return KeyboardSelectionActionsController.handleDeleteKey(ctx, key, focus) end },
   { name = "undo_redo", fn = function(key) return KeyboardEditToggleController.handleUndoRedo(ctx, utils, key) end },

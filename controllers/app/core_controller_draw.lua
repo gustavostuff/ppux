@@ -699,7 +699,9 @@ local function tryDrawGenericEditShapePreview(app, win, layer, hoveredItem, romR
   local pixelY = row * (win.cellH or 8) + math.floor(ly or 0)
   local bgPreviewColor = resolveTransparentPreviewColor(app, win, layer, paletteNum, romRaw)
 
-  if win.editShapeDrag and win.editShapeDrag.kind == "rect_or_line" and win.editShapeDrag.moved then
+  if win.editShapeDrag
+    and (win.editShapeDrag.kind == "rect_or_line" or win.editShapeDrag.kind == "rect_fill")
+    and win.editShapeDrag.moved then
     local shape = win.editShapeDrag
     drawPatternBuilderRectPreview(
       win,
@@ -711,6 +713,10 @@ local function tryDrawGenericEditShapePreview(app, win, layer, hoveredItem, romR
       (colorIndex == 0) and bgPreviewColor or colors.white
     )
     return true
+  end
+
+  if app.editTool == "rect_fill" then
+    return false
   end
 
   local shiftDown = love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")

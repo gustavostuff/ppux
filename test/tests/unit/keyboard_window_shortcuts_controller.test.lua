@@ -166,3 +166,28 @@ describe("keyboard_window_shortcuts_controller.lua - grid toggle shortcut", func
     expect(focus.showGrid).toBe("chess")
   end)
 end)
+
+describe("keyboard_edit_toggle_controller.lua - shader toggle shortcut", function()
+  it("requires Ctrl+R to toggle layer shader rendering", function()
+    local KeyboardEditToggleController = require("controllers.input.keyboard_edit_toggle_controller")
+    local status = nil
+    local focus = {
+      layers = { { kind = "tile", shaderEnabled = true } },
+      getActiveLayerIndex = function() return 1 end,
+    }
+    local ctx = {
+      setStatus = function(text) status = text end,
+    }
+    local utils = {
+      ctrlDown = function() return false end,
+    }
+
+    expect(KeyboardEditToggleController.handleShaderToggle(ctx, utils, "r", focus)).toBe(false)
+    expect(focus.layers[1].shaderEnabled).toBe(true)
+
+    utils.ctrlDown = function() return true end
+    expect(KeyboardEditToggleController.handleShaderToggle(ctx, utils, "r", focus)).toBe(true)
+    expect(focus.layers[1].shaderEnabled).toBe(false)
+    expect(status).toBe("Shader rendering OFF (raw pixels)")
+  end)
+end)

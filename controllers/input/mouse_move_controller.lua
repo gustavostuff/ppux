@@ -88,7 +88,7 @@ local function handleEditShapeDrag(env, x, y, wm)
   end
 
   local shape = win.editShapeDrag
-  if not shape or shape.kind ~= "rect_or_line" then
+  if not shape or (shape.kind ~= "rect_or_line" and shape.kind ~= "rect_fill") then
     return false
   end
 
