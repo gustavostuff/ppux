@@ -480,7 +480,6 @@ function M.createPatternTableBuilderWindow(w, decodePatternCanvasSnapshot, onPat
       visibleRows = w.visibleRows or w.rows,
       visibleCols = w.visibleCols or w.cols,
       patternTolerance = w.patternTolerance or 0,
-      builderTool = w.builderTool or "pencil",
     }
   )
 

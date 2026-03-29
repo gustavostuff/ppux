@@ -551,7 +551,6 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
       entry.layers = {}
       if WindowCaps.isPatternTableBuilder(w) then
         entry.patternTolerance = w.patternTolerance or 0
-        entry.builderTool = (w.getBuilderTool and w:getBuilderTool()) or w.builderTool or "pencil"
       end
 
       for li = 1, #(w.layers or {}) do

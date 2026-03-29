@@ -1,5 +1,5 @@
 -- pattern_table_builder_toolbar.lua
--- Toolbar for pattern table builder windows: layer navigation, tools, generate placeholder.
+-- Toolbar for pattern table builder windows: layer navigation and pattern generation.
 
 local ToolbarBase = require("user_interface.toolbars.toolbar_base")
 local images = require("images")
@@ -30,22 +30,6 @@ function PatternTableBuilderToolbar.new(window, ctx, windowController)
   self:addButton(images.icons.icon_up, function()
     self:_onNextLayer()
   end, "Next layer")
-
-  self.pencilButton = self:addTextButton("P", function()
-    self:_onSelectTool("pencil")
-  end, "Pencil tool")
-
-  self.eraserButton = self:addTextButton("E", function()
-    self:_onSelectTool("eraser")
-  end, "Eraser tool")
-
-  self.rectButton = self:addTextButton("R", function()
-    self:_onSelectTool("rect")
-  end, "Filled rectangle tool")
-
-  self.lineButton = self:addTextButton("L", function()
-    self:_onSelectTool("line")
-  end, "Line tool")
 
   self.generateButton = self:addTextButton("G", function()
     self:_onGenerate()
@@ -115,23 +99,8 @@ function PatternTableBuilderToolbar:_onGenerate()
   end
 end
 
-function PatternTableBuilderToolbar:_onSelectTool(tool)
-  if not (self.window and self.window.setBuilderTool) then return end
-  if not self.window:setBuilderTool(tool) then return end
-  if self.ctx and self.ctx.setStatus then
-    self.ctx.setStatus("Pattern tool: " .. tostring(tool))
-  end
-end
-
 function PatternTableBuilderToolbar:updateIcons()
-  if not self.window then return end
-  local tool = self.window.getBuilderTool and self.window:getBuilderTool() or "pencil"
-  local activeColor = { 0.15, 0.15, 0.15 }
-  local inactiveColor = nil
-  if self.pencilButton then self.pencilButton.bgColor = (tool == "pencil") and activeColor or inactiveColor end
-  if self.eraserButton then self.eraserButton.bgColor = (tool == "eraser") and activeColor or inactiveColor end
-  if self.lineButton then self.lineButton.bgColor = (tool == "line") and activeColor or inactiveColor end
-  if self.rectButton then self.rectButton.bgColor = (tool == "rect") and activeColor or inactiveColor end
+  return
 end
 
 return PatternTableBuilderToolbar

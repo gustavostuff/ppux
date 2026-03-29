@@ -51,9 +51,6 @@ function PatternTableBuilderWindow.new(x, y, cellW, cellH, cols, rows, zoom, dat
   self.kind = "pattern_table_builder"
   self.patternTolerance = math.max(0, math.floor(tonumber(data.patternTolerance) or 0))
   self.layers = {}
-  self.builderTool = data.builderTool or "pencil"
-  self.builderLastPoint = nil
-  self.builderShapeDrag = nil
   self.lastGenerationResult = nil
 
   addCanvasLayer(self, "Source Canvas", SOURCE_W, SOURCE_H, 0)
@@ -136,33 +133,6 @@ end
 function PatternTableBuilderWindow:getActiveCanvas()
   local layer = self:getActiveCanvasLayer()
   return layer and layer.canvas or nil
-end
-
-function PatternTableBuilderWindow:getBuilderTool()
-  return self.builderTool or "pencil"
-end
-
-function PatternTableBuilderWindow:setBuilderTool(tool)
-  if tool ~= "pencil" and tool ~= "eraser" and tool ~= "line" and tool ~= "rect" then
-    return false
-  end
-  self.builderTool = tool
-  return true
-end
-
-function PatternTableBuilderWindow:setBuilderLastPoint(x, y)
-  if type(x) ~= "number" or type(y) ~= "number" then
-    self.builderLastPoint = nil
-    return
-  end
-  self.builderLastPoint = {
-    x = math.floor(x),
-    y = math.floor(y),
-  }
-end
-
-function PatternTableBuilderWindow:getBuilderLastPoint()
-  return self.builderLastPoint
 end
 
 function PatternTableBuilderWindow:getVisibleSize()

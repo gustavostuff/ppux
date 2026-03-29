@@ -161,6 +161,23 @@ describe("brush_controller.lua - generic line and rectangle painting", function(
     expect(tile:getPixel(1, 1)).toBe(0)
     expect(tile:getPixel(2, 3)).toBe(0)
   end)
+
+  it("fills rectangles exactly regardless of brush size", function()
+    local app, tile = makeApp(0)
+    local win = makeWin(tile)
+    app.brushSize = 4
+
+    app.undoRedo:startPaintEvent()
+    local ok = BrushController.fillRect(app, win, 1, 1, 2, 2, false)
+    expect(ok).toBe(true)
+    expect(app.undoRedo:finishPaintEvent()).toBe(true)
+
+    expect(tile:getPixel(1, 1)).toBe(2)
+    expect(tile:getPixel(2, 2)).toBe(2)
+    expect(tile:getPixel(0, 0)).toBe(0)
+    expect(tile:getPixel(4, 1)).toBe(0)
+    expect(tile:getPixel(1, 4)).toBe(0)
+  end)
 end)
 
 describe("brush_controller.lua - batched chr painting", function()

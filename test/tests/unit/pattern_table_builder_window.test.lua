@@ -121,29 +121,12 @@ describe("pattern_table_builder_window.lua", function()
     expect(canvas:getPixel(1, 1)).toBe(0)
   end)
 
-  it("uses color 0 when the eraser tool is active", function()
-    local wm = WM.new()
-    local win = wm:createPatternTableBuilderWindow()
-    local app = makeApp()
-    local canvas = win.layers[1].canvas
-
-    canvas:edit(4, 5, 3)
-    expect(win:setBuilderTool("eraser")).toBe(true)
-
-    app.undoRedo:startPaintEvent()
-    local ok = BrushController.paintPixel(app, win, 0, 0, 4, 5, false)
-    expect(ok).toBe(true)
-    expect(app.undoRedo:finishPaintEvent()).toBe(true)
-    expect(canvas:getPixel(4, 5)).toBe(0)
-  end)
-
-  it("uses G-click color pick on the builder canvas even when line or rect tools are selected", function()
+  it("uses G-click color pick on the builder canvas through the shared edit workflow", function()
     local wm = WM.new()
     local win = wm:createPatternTableBuilderWindow()
     local app = makeApp()
     local canvas = win.layers[1].canvas
     canvas:edit(4, 5, 2)
-    win:setBuilderTool("rect")
     local wmStub
 
     local painting = false
@@ -185,10 +168,10 @@ describe("pattern_table_builder_window.lua", function()
     expect(focused).toBe(win)
     expect(app.currentColor).toBe(2)
     expect(painting).toBe(false)
-    expect(win.builderShapeDrag).toBeNil()
+    expect(win.editShapeDrag).toBeNil()
   end)
 
-  it("uses F-click flood fill on the builder canvas even when line has a last point", function()
+  it("uses F-click flood fill on the builder canvas through the shared edit workflow", function()
     local wm = WM.new()
     local win = wm:createPatternTableBuilderWindow()
     local app = makeApp()
@@ -197,8 +180,7 @@ describe("pattern_table_builder_window.lua", function()
     canvas:edit(1, 0, 1)
     canvas:edit(2, 0, 1)
     app.currentColor = 2
-    win:setBuilderTool("line")
-    win:setBuilderLastPoint(7, 7)
+    win.editLastPoint = { x = 7, y = 7 }
     local wmStub
 
     local env = {
@@ -240,6 +222,53 @@ describe("pattern_table_builder_window.lua", function()
     expect(canvas:getPixel(2, 0)).toBe(2)
     expect(canvas:getPixel(7, 7)).toBe(0)
     expect(app.statusText).toBe("Flood fill applied")
+  end)
+
+  it("starts shared shift shape drag on the builder canvas", function()
+    local wm = WM.new()
+    local win = wm:createPatternTableBuilderWindow()
+    local app = makeApp()
+    local wmStub
+
+    local env = {
+      ctx = {
+        app = app,
+        getMode = function() return "edit" end,
+        wm = function()
+          return wmStub
+        end,
+        setPainting = function() end,
+        paintAt = function(targetWin, col, row, lx, ly, pickOnly)
+          return BrushController.paintPixel(app, targetWin, col, row, lx, ly, pickOnly)
+        end,
+        setStatus = function(text) app:setStatus(text) end,
+      },
+      chrome = {
+        handleToolbarClicks = function() return false end,
+        handleResizeHandle = function() return false end,
+        handleHeaderClick = function() return false end,
+      },
+      utils = {
+        grabDown = function() return false end,
+        fillDown = function() return false end,
+        ctrlDown = function() return false end,
+        shiftDown = function() return true end,
+      },
+    }
+    wmStub = {
+      getFocus = function() return nil end,
+      windowAt = function() return win end,
+      setFocus = function() end,
+    }
+
+    local z = win.zoom or 1
+    local handled = MouseClickController.handleMousePressed(env, (win.x or 0) + (3 * z), (win.y or 0) + (4 * z), 1)
+
+    expect(handled).toBe(true)
+    expect(win.editShapeDrag).toBeTruthy()
+    expect(win.editShapeDrag.kind).toBe("rect_or_line")
+    expect(win.editShapeDrag.startX).toBe(3)
+    expect(win.editShapeDrag.startY).toBe(4)
   end)
 
   it("uses pick and fill cursors over builder canvas when G or F are held", function()

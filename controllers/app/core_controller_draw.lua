@@ -669,6 +669,10 @@ local function drawPatternBuilderPointPreview(win, brushScreenPoints, colorIndex
       paletteNum,
       layerOpacity
     )
+  elseif layer and paletteNum then
+    local layerOpacity = (layer.opacity ~= nil) and layer.opacity or 1.0
+    local codes = ShaderPaletteController.resolveLayerPaletteCodes(layer, paletteNum, romRaw)
+    ShaderPaletteController.applyShader(true, layer, codes, layerOpacity)
   else
     ShaderPaletteController.applyShader(true)
   end
@@ -683,9 +687,6 @@ end
 
 local function tryDrawGenericEditShapePreview(app, win, layer, hoveredItem, romRaw, paletteNum, colorIndex, mouse, zoom)
   if not (app and app.mode == "edit" and win and layer) then
-    return false
-  end
-  if win.kind == "pattern_table_builder" then
     return false
   end
 
@@ -754,75 +755,6 @@ local function tryDrawGenericEditShapePreview(app, win, layer, hoveredItem, romR
   return false
 end
 
-local function tryDrawPatternBuilderToolPreview(app, win, layer, hoveredItem, romRaw, paletteNum, colorIndex, mouse, zoom)
-  if not (win and win.kind == "pattern_table_builder" and layer and layer.kind == "canvas") then
-    return false
-  end
-
-  local tool = win.getBuilderTool and win:getBuilderTool() or "pencil"
-  local BrushController = require("controllers.input_support.brush_controller")
-  local ok, col, row, lx, ly = win:toGridCoords(mouse.x, mouse.y)
-  if not ok then
-    return false
-  end
-
-  local pixelX = col * (win.cellW or 8) + math.floor(lx or 0)
-  local pixelY = row * (win.cellH or 8) + math.floor(ly or 0)
-  local screenX = win.x + pixelX * zoom
-  local screenY = win.y + pixelY * zoom
-  local bgPreviewColor = resolveTransparentPreviewColor(app, win, layer, paletteNum, romRaw)
-
-  if tool == "rect" and win.builderShapeDrag then
-    local shape = win.builderShapeDrag
-    drawPatternBuilderRectPreview(
-      win,
-      shape.startX,
-      shape.startY,
-      shape.currentX or shape.startX,
-      shape.currentY or shape.startY,
-      zoom,
-      (colorIndex == 0) and bgPreviewColor or colors.white
-    )
-    return true
-  end
-
-  if tool == "line" then
-    local lastPoint = win.getBuilderLastPoint and win:getBuilderLastPoint() or nil
-    if lastPoint then
-      local points = BrushController.getLinePoints(lastPoint.x, lastPoint.y, pixelX, pixelY)
-      local pattern = BrushController.getBrushPattern(app.brushSize or 1) or {{0, 0}}
-      local previewPoints = {}
-      local seen = {}
-
-      for _, p in ipairs(points) do
-        for _, offset in ipairs(pattern) do
-          local px = p.x + offset[1]
-          local py = p.y + offset[2]
-          if px >= 0 and py >= 0 then
-            local key = string.format("%d:%d", px, py)
-            if not seen[key] then
-              seen[key] = true
-              previewPoints[#previewPoints + 1] = {
-                x = win.x + px * zoom,
-                y = win.y + py * zoom,
-                size = zoom,
-              }
-            end
-          end
-        end
-      end
-
-      drawPatternBuilderPointPreview(win, previewPoints, colorIndex, layer, hoveredItem, romRaw, paletteNum, bgPreviewColor)
-      love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 0.9)
-      love.graphics.rectangle("line", win.x + lastPoint.x * zoom, win.y + lastPoint.y * zoom, zoom, zoom)
-      love.graphics.setColor(colors.white)
-      return true
-    end
-  end
-
-  return false
-end
-
 local function drawEditModeColorIndicator(app)
   if app.mode ~= "edit" then return end
   
@@ -878,12 +810,11 @@ local function drawEditModeColorIndicator(app)
 
     hoveredItem = (win.getVirtualTileHandle and win:getVirtualTileHandle(col, row, li))
       or (win.get and win:get(col, row, li))
-    if not hoveredItem then
-      return
-    end
     if layer.paletteNumbers and win.cols then
       local idx = row * win.cols + col
       paletteNum = layer.paletteNumbers[idx]
+    elseif WindowCaps.isPpuFrame(win) and win.nametableAttrBytes and win.cols then
+      paletteNum = getPaletteFromAttrBytes(win.nametableAttrBytes, win.cols, col, row)
     end
   elseif layer.kind == "canvas" and layer.canvas then
     hoveredItem = layer.canvas
@@ -907,16 +838,13 @@ local function drawEditModeColorIndicator(app)
   
   local romRaw = app.appEditState and app.appEditState.romRaw
   local colorIndex = app.currentColor or 0
-  if win.kind == "pattern_table_builder" and layer.kind == "canvas" and win.getBuilderTool and win:getBuilderTool() == "eraser" then
-    colorIndex = 0
-  end
   local brushSize = app.brushSize or 1
 
   if tryDrawGenericEditShapePreview(app, win, layer, hoveredItem, romRaw, paletteNum, colorIndex, mouse, z) then
     return
   end
 
-  if tryDrawPatternBuilderToolPreview(app, win, layer, hoveredItem, romRaw, paletteNum, colorIndex, mouse, z) then
+  if layer.kind == "tile" and not hoveredItem then
     return
   end
   

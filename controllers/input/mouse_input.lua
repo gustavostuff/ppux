@@ -324,44 +324,6 @@ local function handleTileDrop(x, y, wm)
   }, x, y, wm)
 end
 
-local function finishPatternBuilderShape(x, y, button)
-  if button ~= 1 then return false end
-  local win = ctx and ctx.wm and ctx.wm():getFocus() or nil
-  if not (win and WindowCaps.isPatternTableBuilder(win) and win.builderShapeDrag) then
-    return false
-  end
-
-  local shape = win.builderShapeDrag
-  win.builderShapeDrag = nil
-  if shape.kind ~= "rect" then
-    return false
-  end
-
-  local BrushController = require("controllers.input_support.brush_controller")
-  local app = ctx and ctx.app or nil
-  if not (app and app.undoRedo) then
-    return false
-  end
-
-  app.undoRedo:startPaintEvent()
-  local ok = BrushController.fillRect(app, win, shape.startX, shape.startY, shape.currentX or shape.startX, shape.currentY or shape.startY, false)
-  if ok then
-    app.undoRedo:finishPaintEvent()
-    if win.setBuilderLastPoint then
-      win:setBuilderLastPoint(shape.currentX or shape.startX, shape.currentY or shape.startY)
-    end
-    if ctx.setStatus then
-      ctx.setStatus("Filled rectangle drawn")
-    end
-  else
-    app.undoRedo:cancelPaintEvent()
-    if ctx.setStatus then
-      ctx.setStatus("Rectangle draw failed")
-    end
-  end
-  return true
-end
-
 local function finishEditShape(x, y, button)
   if button ~= 1 then return false end
   local win = ctx and ctx.wm and ctx.wm():getFocus() or nil
@@ -462,11 +424,6 @@ function M.mousereleased(x, y, button)
     return
   end
 
-  if finishPatternBuilderShape(x, y, button) then
-    logRoute("mousereleased", "pattern_builder_shape", x, y, button, fwin)
-    return
-  end
-
   -- Finish undo/redo paint event if we were painting
   if ctx.getMode() == "edit" and ctx.getPainting() and ctx.app and ctx.app.undoRedo then
     if ctx.app.undoRedo:finishPaintEvent() then
@@ -476,11 +433,7 @@ function M.mousereleased(x, y, button)
         if ok then
           local px = col * (fwin.cellW or 8) + math.floor(lx or 0)
           local py = row * (fwin.cellH or 8) + math.floor(ly or 0)
-          if WindowCaps.isPatternTableBuilder(fwin) and fwin.setBuilderLastPoint then
-            fwin:setBuilderLastPoint(px, py)
-          else
-            fwin.editLastPoint = { x = px, y = py }
-          end
+          fwin.editLastPoint = { x = px, y = py }
         end
       end
       ctx.setPainting(false)

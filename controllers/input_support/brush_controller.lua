@@ -127,9 +127,6 @@ local function updatePaletteSelection(app, colorIndex)
 end
 
 local function getCanvasPaintColor(app, win)
-  if win and win.kind == "pattern_table_builder" and win.getBuilderTool and win:getBuilderTool() == "eraser" then
-    return 0
-  end
   return app.currentColor or 0
 end
 
@@ -256,6 +253,36 @@ local function paintAbsolutePixel(app, win, px, py, pickOnly)
   end
 
   return false
+end
+
+local function paintAbsolutePixelExact(app, win, px, py, pickOnly)
+  if not win then
+    return false
+  end
+
+  local cw = math.max(1, math.floor(win.cellW or 8))
+  local ch = math.max(1, math.floor(win.cellH or 8))
+  px = math.floor(px or 0)
+  py = math.floor(py or 0)
+
+  if px < 0 or py < 0 then
+    return false
+  end
+
+  local col = math.floor(px / cw)
+  local row = math.floor(py / ch)
+  local lx = px - col * cw
+  local ly = py - row * ch
+
+  local brushSize = app and app.brushSize
+  if app then
+    app.brushSize = 1
+  end
+  local ok = M.paintPixel(app, win, col, row, lx, ly, pickOnly == true)
+  if app then
+    app.brushSize = brushSize
+  end
+  return ok
 end
 
 local function paintAbsolutePoints(app, win, points, pickOnly)
@@ -1243,13 +1270,18 @@ function M.fillRect(app, win, x0, y0, x1, y1, pickOnly)
   local maxX = math.max(math.floor(x0 or 0), math.floor(x1 or 0))
   local minY = math.min(math.floor(y0 or 0), math.floor(y1 or 0))
   local maxY = math.max(math.floor(y0 or 0), math.floor(y1 or 0))
-  local points = {}
+  local painted = false
   for y = minY, maxY do
     for x = minX, maxX do
-      points[#points + 1] = { x = x, y = y }
+      if paintAbsolutePixelExact(app, win, x, y, pickOnly == true) then
+        painted = true
+        if pickOnly then
+          return true
+        end
+      end
     end
   end
-  return paintAbsolutePoints(app, win, points, pickOnly == true)
+  return painted
 end
 
 return M
