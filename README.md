@@ -98,6 +98,10 @@ Practical workflow:
 * Use `ROM Palette` windows when editing real in-game screens, sprites, and `ppu_frame` windows that should reflect actual ROM palette bytes.
 * Click a color in a palette window to make it the active paint color.
 * In edit mode, using grab-color on art can also move the selection in the active palette window when applicable.
+* In palette windows, arrow keys move the selected palette cell.
+* In palette windows, `Shift + arrows` adjusts the selected palette color.
+* Mouse wheel over a palette window also adjusts palette colors.
+* `Shift + mouse wheel` adjusts palette colors horizontally in palette windows.
 
 ### Main controls
 
