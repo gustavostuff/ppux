@@ -351,6 +351,18 @@ local function handleEditModeClick(env, button, x, y, win, wm)
         ctx.setStatus("Flood fill failed")
       end
       ctx.setPainting(false)
+    elseif utils.shiftDown and utils.shiftDown() then
+      local px = col * (win.cellW or 8) + math.floor(lx or 0)
+      local py = row * (win.cellH or 8) + math.floor(ly or 0)
+      win.editShapeDrag = {
+        kind = "rect_or_line",
+        startX = px,
+        startY = py,
+        currentX = px,
+        currentY = py,
+        moved = false,
+      }
+      ctx.setPainting(false)
     elseif utils.grabDown and utils.grabDown() then
       ctx.paintAt(win, col, row, lx, ly, true)
       ctx.setPainting(false)

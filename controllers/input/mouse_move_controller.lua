@@ -71,6 +71,45 @@ local function handlePatternBuilderShapeDrag(env, x, y, wm)
   return true
 end
 
+local function handleEditShapeDrag(env, x, y, wm)
+  local ctx = env.ctx
+  local utils = env.utils or {}
+  if not (ctx and ctx.getMode and ctx.getMode() == "edit") then
+    return false
+  end
+  if not love.mouse.isDown(1) then
+    return false
+  end
+
+  local focused = wm:getFocus()
+  local win = (focused and focused.editShapeDrag) and focused or (wm:windowAt(x, y) or focused)
+  if not (win and win.editShapeDrag) then
+    return false
+  end
+
+  local shape = win.editShapeDrag
+  if not shape or shape.kind ~= "rect_or_line" then
+    return false
+  end
+
+  local ok, col, row, lx, ly = win:toGridCoords(x, y)
+  if not ok then
+    return true
+  end
+
+  local px = col * (win.cellW or 8) + math.floor(lx or 0)
+  local py = row * (win.cellH or 8) + math.floor(ly or 0)
+  shape.currentX = px
+  shape.currentY = py
+
+  local tol = utils.DRAG_TOL or 4
+  if math.abs(px - (shape.startX or px)) >= tol or math.abs(py - (shape.startY or py)) >= tol then
+    shape.moved = true
+  end
+
+  return true
+end
+
 local function handlePaintingDrag(env, x, y, wm)
   local ctx = env.ctx
   local utils = env.utils or {}
@@ -278,6 +317,7 @@ function M.handleMouseMoved(env, x, y, dx, dy)
   updateSpriteHover(x, y, wm, fwin)
   if handleWindowResizing(x, y, fwin) then return true end
   forwardMouseMove(x, y, dx, dy, wm)
+  if handleEditShapeDrag(env, x, y, wm) then return true end
   if handlePatternBuilderShapeDrag(env, x, y, wm) then return true end
   if handleTilePaintDrag(env, x, y, wm) then return true end
   if handlePaintingDrag(env, x, y, wm) then return true end

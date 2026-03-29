@@ -224,6 +224,53 @@ function M.getLinePoints(x0, y0, x1, y1)
   return bresenhamPoints(x0, y0, x1, y1)
 end
 
+local function paintAbsolutePixel(app, win, px, py, pickOnly)
+  if not win then
+    return false
+  end
+
+  local cw = math.max(1, math.floor(win.cellW or 8))
+  local ch = math.max(1, math.floor(win.cellH or 8))
+  px = math.floor(px or 0)
+  py = math.floor(py or 0)
+
+  if px < 0 or py < 0 then
+    return false
+  end
+
+  local col = math.floor(px / cw)
+  local row = math.floor(py / ch)
+  local lx = px - col * cw
+  local ly = py - row * ch
+
+  local cols = tonumber(win.cols) or 0
+  local rows = tonumber(win.rows) or 0
+  if cols > 0 and row >= 0 and col >= 0 and row < rows and col < cols then
+    return M.paintPixel(app, win, col, row, lx, ly, pickOnly == true)
+  end
+
+  local layerIndex = win.getActiveLayerIndex and win:getActiveLayerIndex() or 1
+  local _, canvas = resolveCanvasLayer(win, layerIndex)
+  if canvas and px < canvas.width and py < canvas.height then
+    return M.paintPixel(app, win, col, row, lx, ly, pickOnly == true)
+  end
+
+  return false
+end
+
+local function paintAbsolutePoints(app, win, points, pickOnly)
+  local painted = false
+  for _, pt in ipairs(points or {}) do
+    if paintAbsolutePixel(app, win, pt.x, pt.y, pickOnly) then
+      painted = true
+      if pickOnly then
+        break
+      end
+    end
+  end
+  return painted
+end
+
 ----------------------------------------------------------------
 -- Duplicate sync helpers
 ----------------------------------------------------------------
@@ -1188,21 +1235,10 @@ function M.floodFillTile(app, win, col, row, lx, ly, targetColor, fillColor)
 end
 
 function M.drawLine(app, win, x0, y0, x1, y1, pickOnly)
-  local layerIndex = win and win.getActiveLayerIndex and win:getActiveLayerIndex() or 1
-  local _, canvas = resolveCanvasLayer(win, layerIndex)
-  if not canvas then
-    return false
-  end
-  return withCanvasPixels(app, win, canvas, bresenhamPoints(x0, y0, x1, y1), pickOnly == true)
+  return paintAbsolutePoints(app, win, bresenhamPoints(x0, y0, x1, y1), pickOnly == true)
 end
 
 function M.fillRect(app, win, x0, y0, x1, y1, pickOnly)
-  local layerIndex = win and win.getActiveLayerIndex and win:getActiveLayerIndex() or 1
-  local _, canvas = resolveCanvasLayer(win, layerIndex)
-  if not canvas then
-    return false
-  end
-
   local minX = math.min(math.floor(x0 or 0), math.floor(x1 or 0))
   local maxX = math.max(math.floor(x0 or 0), math.floor(x1 or 0))
   local minY = math.min(math.floor(y0 or 0), math.floor(y1 or 0))
@@ -1213,7 +1249,7 @@ function M.fillRect(app, win, x0, y0, x1, y1, pickOnly)
       points[#points + 1] = { x = x, y = y }
     end
   end
-  return withCanvasPixels(app, win, canvas, points, pickOnly == true)
+  return paintAbsolutePoints(app, win, points, pickOnly == true)
 end
 
 return M

@@ -362,6 +362,71 @@ local function finishPatternBuilderShape(x, y, button)
   return true
 end
 
+local function finishEditShape(x, y, button)
+  if button ~= 1 then return false end
+  local win = ctx and ctx.wm and ctx.wm():getFocus() or nil
+  if not (win and win.editShapeDrag) then
+    return false
+  end
+
+  local shape = win.editShapeDrag
+  win.editShapeDrag = nil
+  if shape.kind ~= "rect_or_line" then
+    return false
+  end
+
+  local BrushController = require("controllers.input_support.brush_controller")
+  local app = ctx and ctx.app or nil
+  if not (app and app.undoRedo) then
+    return false
+  end
+
+  local endX = shape.currentX or shape.startX
+  local endY = shape.currentY or shape.startY
+
+  if shape.moved then
+    app.undoRedo:startPaintEvent()
+    local ok = BrushController.fillRect(app, win, shape.startX, shape.startY, endX, endY, false)
+    if ok then
+      app.undoRedo:finishPaintEvent()
+      win.editLastPoint = { x = endX, y = endY }
+      if ctx.setStatus then
+        ctx.setStatus("Filled rectangle drawn")
+      end
+    else
+      app.undoRedo:cancelPaintEvent()
+      if ctx.setStatus then
+        ctx.setStatus("Rectangle draw failed")
+      end
+    end
+    return true
+  end
+
+  if win.editLastPoint then
+    app.undoRedo:startPaintEvent()
+    local ok = BrushController.drawLine(app, win, win.editLastPoint.x, win.editLastPoint.y, endX, endY, false)
+    if ok then
+      app.undoRedo:finishPaintEvent()
+      win.editLastPoint = { x = endX, y = endY }
+      if ctx.setStatus then
+        ctx.setStatus("Line drawn")
+      end
+    else
+      app.undoRedo:cancelPaintEvent()
+      if ctx.setStatus then
+        ctx.setStatus("Line draw failed")
+      end
+    end
+  else
+    win.editLastPoint = { x = endX, y = endY }
+    if ctx.setStatus then
+      ctx.setStatus("Line anchor set")
+    end
+  end
+
+  return true
+end
+
 function M.mousereleased(x, y, button)
   local wm = ctx.wm()
   local fwin = wm:getFocus()
@@ -369,6 +434,11 @@ function M.mousereleased(x, y, button)
   -- Handle toolbar releases first (for the focused window)
   if handleToolbarRelease(button, x, y, wm) then
     logRoute("mousereleased", "toolbar_release", x, y, button, fwin)
+    return
+  end
+
+  if finishEditShape(x, y, button) then
+    logRoute("mousereleased", "edit_shape", x, y, button, fwin)
     return
   end
 
@@ -381,12 +451,16 @@ function M.mousereleased(x, y, button)
   if ctx.getMode() == "edit" and ctx.getPainting() and ctx.app and ctx.app.undoRedo then
     if ctx.app.undoRedo:finishPaintEvent() then
       -- Paint event was stored successfully
-      if fwin and WindowCaps.isPatternTableBuilder(fwin) and fwin.setBuilderLastPoint and fwin.toGridCoords then
+      if fwin and fwin.toGridCoords then
         local ok, col, row, lx, ly = fwin:toGridCoords(x, y)
         if ok then
           local px = col * (fwin.cellW or 8) + math.floor(lx or 0)
           local py = row * (fwin.cellH or 8) + math.floor(ly or 0)
-          fwin:setBuilderLastPoint(px, py)
+          if WindowCaps.isPatternTableBuilder(fwin) and fwin.setBuilderLastPoint then
+            fwin:setBuilderLastPoint(px, py)
+          else
+            fwin.editLastPoint = { x = px, y = py }
+          end
         end
       end
       ctx.setPainting(false)

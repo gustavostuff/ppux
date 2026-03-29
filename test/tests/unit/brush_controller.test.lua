@@ -127,6 +127,42 @@ describe("brush_controller.lua - color picking", function()
   end)
 end)
 
+describe("brush_controller.lua - generic line and rectangle painting", function()
+  it("draws undoable lines on normal tile windows", function()
+    local app, tile = makeApp(0)
+    local win = makeWin(tile)
+
+    app.undoRedo:startPaintEvent()
+    local ok = BrushController.drawLine(app, win, 0, 0, 3, 3, false)
+    expect(ok).toBe(true)
+    expect(app.undoRedo:finishPaintEvent()).toBe(true)
+
+    expect(tile:getPixel(0, 0)).toBe(2)
+    expect(tile:getPixel(1, 1)).toBe(2)
+    expect(tile:getPixel(2, 2)).toBe(2)
+    expect(tile:getPixel(3, 3)).toBe(2)
+    expect(app.undoRedo:undo(app)).toBeTruthy()
+    expect(tile:getPixel(2, 2)).toBe(0)
+  end)
+
+  it("draws undoable filled rectangles on normal tile windows", function()
+    local app, tile = makeApp(0)
+    local win = makeWin(tile)
+
+    app.undoRedo:startPaintEvent()
+    local ok = BrushController.fillRect(app, win, 1, 1, 2, 3, false)
+    expect(ok).toBe(true)
+    expect(app.undoRedo:finishPaintEvent()).toBe(true)
+
+    expect(tile:getPixel(1, 1)).toBe(2)
+    expect(tile:getPixel(2, 3)).toBe(2)
+    expect(tile:getPixel(0, 0)).toBe(0)
+    expect(app.undoRedo:undo(app)).toBeTruthy()
+    expect(tile:getPixel(1, 1)).toBe(0)
+    expect(tile:getPixel(2, 3)).toBe(0)
+  end)
+end)
+
 describe("brush_controller.lua - batched chr painting", function()
   local originals
 

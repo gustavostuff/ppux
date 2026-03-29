@@ -138,4 +138,53 @@ describe("mouse extracted controllers (smoke)", function()
     expect(calls.scroll).toBe(0)
     expect(calls.focus).toBe(0)
   end)
+
+  it("mouse_click_controller starts edit shape drag on shift-click in edit mode", function()
+    local focused = nil
+    local painting = nil
+    local win = {
+      _id = "edit_win",
+      isPalette = false,
+      cellW = 8,
+      cellH = 8,
+      cols = 4,
+      rows = 4,
+      layers = { { kind = "tile" } },
+      getActiveLayerIndex = function() return 1 end,
+      toGridCoords = function() return true, 0, 0, 2, 3 end,
+    }
+    local wm = {
+      getFocus = function() return focused end,
+      setFocus = function(_, next) focused = next end,
+      windowAt = function() return win end,
+    }
+    local env = {
+      ctx = {
+        app = {},
+        wm = function() return wm end,
+        getMode = function() return "edit" end,
+        setPainting = function(v) painting = v end,
+      },
+      chrome = {
+        handleToolbarClicks = function() return false end,
+        handleResizeHandle = function() return false end,
+        handleHeaderClick = function() return false end,
+      },
+      utils = {
+        shiftDown = function() return true end,
+        fillDown = function() return false end,
+        grabDown = function() return false end,
+      },
+    }
+
+    local handled = MouseClickController.handleMousePressed(env, 10, 20, 1)
+
+    expect(handled).toBeTruthy()
+    expect(focused).toBe(win)
+    expect(painting).toBe(false)
+    expect(win.editShapeDrag).toBeTruthy()
+    expect(win.editShapeDrag.kind).toBe("rect_or_line")
+    expect(win.editShapeDrag.startX).toBe(2)
+    expect(win.editShapeDrag.startY).toBe(3)
+  end)
 end)

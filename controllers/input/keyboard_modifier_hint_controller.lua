@@ -149,6 +149,9 @@ local function getModifierHintText(ctx, utils)
   end
 
   if shiftDown then
+    if mode == "edit" then
+      return "Shift + Click = line, Shift + Drag = filled rect"
+    end
     if WindowCaps.isStaticOrAnimationArt(focus) and layer and layer.kind == "tile" and hasSelection then
       return "Shift + Drag = marquee select copy"
     end

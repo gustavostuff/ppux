@@ -681,6 +681,73 @@ local function drawPatternBuilderPointPreview(win, brushScreenPoints, colorIndex
   love.graphics.setColor(colors.white)
 end
 
+local function tryDrawGenericEditShapePreview(app, win, layer, hoveredItem, romRaw, paletteNum, colorIndex, mouse, zoom)
+  if not (app and app.mode == "edit" and win and layer) then
+    return false
+  end
+  if win.kind == "pattern_table_builder" then
+    return false
+  end
+
+  local BrushController = require("controllers.input_support.brush_controller")
+  local ok, col, row, lx, ly = win:toGridCoords(mouse.x, mouse.y)
+  if not ok then
+    return false
+  end
+
+  local pixelX = col * (win.cellW or 8) + math.floor(lx or 0)
+  local pixelY = row * (win.cellH or 8) + math.floor(ly or 0)
+  local bgPreviewColor = resolveTransparentPreviewColor(app, win, layer, paletteNum, romRaw)
+
+  if win.editShapeDrag and win.editShapeDrag.kind == "rect_or_line" and win.editShapeDrag.moved then
+    local shape = win.editShapeDrag
+    drawPatternBuilderRectPreview(
+      win,
+      shape.startX,
+      shape.startY,
+      shape.currentX or shape.startX,
+      shape.currentY or shape.startY,
+      zoom,
+      (colorIndex == 0) and bgPreviewColor or colors.white
+    )
+    return true
+  end
+
+  local shiftDown = love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
+  if shiftDown and win.editLastPoint then
+    local points = BrushController.getLinePoints(win.editLastPoint.x, win.editLastPoint.y, pixelX, pixelY)
+    local pattern = BrushController.getBrushPattern(app.brushSize or 1) or {{0, 0}}
+    local previewPoints = {}
+    local seen = {}
+
+    for _, p in ipairs(points) do
+      for _, offset in ipairs(pattern) do
+        local px = p.x + offset[1]
+        local py = p.y + offset[2]
+        if px >= 0 and py >= 0 then
+          local key = string.format("%d:%d", px, py)
+          if not seen[key] then
+            seen[key] = true
+            previewPoints[#previewPoints + 1] = {
+              x = win.x + px * zoom,
+              y = win.y + py * zoom,
+              size = zoom,
+            }
+          end
+        end
+      end
+    end
+
+    drawPatternBuilderPointPreview(win, previewPoints, colorIndex, layer, hoveredItem, romRaw, paletteNum, bgPreviewColor)
+    love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 0.9)
+    love.graphics.rectangle("line", win.x + win.editLastPoint.x * zoom, win.y + win.editLastPoint.y * zoom, zoom, zoom)
+    love.graphics.setColor(colors.white)
+    return true
+  end
+
+  return false
+end
+
 local function tryDrawPatternBuilderToolPreview(app, win, layer, hoveredItem, romRaw, paletteNum, colorIndex, mouse, zoom)
   if not (win and win.kind == "pattern_table_builder" and layer and layer.kind == "canvas") then
     return false
@@ -838,6 +905,10 @@ local function drawEditModeColorIndicator(app)
     colorIndex = 0
   end
   local brushSize = app.brushSize or 1
+
+  if tryDrawGenericEditShapePreview(app, win, layer, hoveredItem, romRaw, paletteNum, colorIndex, mouse, z) then
+    return
+  end
 
   if tryDrawPatternBuilderToolPreview(app, win, layer, hoveredItem, romRaw, paletteNum, colorIndex, mouse, z) then
     return
