@@ -141,7 +141,6 @@ Edit mode is for pixel-level editing.
 
 - left click to paint
 - `Shift + click` draws a line from the last painted/clicked point
-- `Shift + click drag` paints a filled rectangle
 - `R` toggles the rectangle fill tool
 - hold `G` and left click or drag to grab a color
 - hold `F` and left click to flood fill
