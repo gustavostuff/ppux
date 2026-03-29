@@ -105,8 +105,9 @@ Practical workflow:
 - `Ctrl + N`: open `New Window`
 - `Ctrl + S`: open save options
 - `Tab`: toggle `Tile` / `Edit` mode
-- `G`: change grid mode in the focused window
-- `R`: toggle shader rendering for the active layer
+- `Ctrl + G`: toggle the focused window grid
+- `Ctrl + R`: toggle shader rendering for the focused layer
+- `Ctrl + Z` / `Ctrl + Y`: undo / redo
 - `Right click` or `middle click` drag: move windows
 - taskbar: focus, restore, and manage windows
 
@@ -140,9 +141,11 @@ Edit mode is for pixel-level editing.
 - hold `G` and left click or drag to grab a color
 - hold `F` and left click to flood fill
 - `1` to `4` to choose the active color
-- `Alt + 1/2/3/4` to change brush size presets (Or Ctrl + Alt + mouse wheel)
+- `Alt + 1/2/3/4` to change brush size presets
+- `Ctrl + Alt + mouse wheel` also changes brush size
 - `Ctrl + R` toggles shader rendering for the focused layer
 - `Ctrl + G` toggles the focused window grid
+- `Ctrl + Z` / `Ctrl + Y`: undo / redo
 
 ### PNG drops
 
