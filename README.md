@@ -13,6 +13,7 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
 - [Basic Usage](#basic-usage)
   - [Getting started](#getting-started)
   - [Windows system](#windows-system)
+  - [Palette windows](#palette-windows)
   - [Main controls](#main-controls)
   - [Tile mode](#tile-mode)
   - [Edit mode](#edit-mode)
