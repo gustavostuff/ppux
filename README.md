@@ -70,6 +70,34 @@ Notes:
 
 * Not all window types can currently be created through the UI. ROM-backed windows that depend on ROM addresses and related metadata still need to be created manually in Lua project files for now, but this will be improved.
 
+### Palette windows
+
+Palette windows control how indexed NES colors are shown and edited in the rest of the workspace.
+
+<img src="img/readme_images/palette.png" alt="Global palette">
+
+<img src="img/readme_images/rom_palette.png" alt="ROM palette">
+
+There are 2 palette window types:
+
+* `Palette`: a global palette window. This is the fallback palette source for items and layers that do not point to a specific ROM palette window.
+* `ROM Palette`: a ROM-backed `4x4` palette editor. Each cell is tied to ROM addresses, so changing a color there changes the actual ROM-backed palette data used by linked windows.
+
+How they behave:
+
+* A normal `Palette` window is mainly for viewing and choosing the active editing color in a simple global way.
+* A `ROM Palette` window is for real game palettes. Tile and sprite layers can link to one through `paletteData = { winId = "..." }`.
+* When a layer is linked to a `ROM Palette` window, shader rendering, previews, and palette-numbered tiles/sprites use that palette data.
+* Palette numbers `1` to `4` choose which row/palette set is used on layers that support per-item palette assignment.
+* The first column in a ROM palette is usually the shared background color.
+
+Practical workflow:
+
+* Use a global `Palette` window when you just want a quick working palette for mockups or unlinked content.
+* Use `ROM Palette` windows when editing real in-game screens, sprites, and `ppu_frame` windows that should reflect actual ROM palette bytes.
+* Click a color in a palette window to make it the active paint color.
+* In edit mode, using grab-color on art can also move the selection in the active palette window when applicable.
+
 ### Main controls
 
 - `Ctrl + 1/2/3`: change app scale
