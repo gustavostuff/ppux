@@ -41,6 +41,36 @@ local function forwardMouseMove(x, y, dx, dy, wm)
   end
 end
 
+local function handlePatternBuilderShapeDrag(env, x, y, wm)
+  local ctx = env.ctx
+  if not (ctx and ctx.getMode and ctx.getMode() == "edit") then
+    return false
+  end
+  if not (love.mouse.isDown(1)) then
+    return false
+  end
+
+  local focused = wm:getFocus()
+  local win = wm:windowAt(x, y) or focused
+  if not (win and win.kind == "pattern_table_builder" and win.builderShapeDrag) then
+    return false
+  end
+
+  local shape = win.builderShapeDrag
+  if not shape or shape.kind ~= "rect" then
+    return false
+  end
+
+  local ok, col, row, lx, ly = win:toGridCoords(x, y)
+  if not ok then
+    return true
+  end
+
+  shape.currentX = col * (win.cellW or 8) + math.floor(lx or 0)
+  shape.currentY = row * (win.cellH or 8) + math.floor(ly or 0)
+  return true
+end
+
 local function handlePaintingDrag(env, x, y, wm)
   local ctx = env.ctx
   local utils = env.utils or {}
@@ -56,14 +86,6 @@ local function handlePaintingDrag(env, x, y, wm)
 
   local w2 = wm:windowAt(x, y)
   if w2 then
-    if w2.kind == "pattern_table_builder" and w2.getBuilderTool and w2:getBuilderTool() == "rect" then
-      local okRect, colRect, rowRect, lxRect, lyRect = w2:toGridCoords(x, y)
-      if okRect and w2.builderShapeDrag then
-        w2.builderShapeDrag.currentX = colRect * (w2.cellW or 8) + math.floor(lxRect or 0)
-        w2.builderShapeDrag.currentY = rowRect * (w2.cellH or 8) + math.floor(lyRect or 0)
-      end
-      return true
-    end
     local pickOnly = utils.ctrlDown and utils.ctrlDown()
     local function paintInterpolatedSegment(win, x0, y0, x1, y1)
       if not (win and win.toContentCoords) then
@@ -256,6 +278,7 @@ function M.handleMouseMoved(env, x, y, dx, dy)
   updateSpriteHover(x, y, wm, fwin)
   if handleWindowResizing(x, y, fwin) then return true end
   forwardMouseMove(x, y, dx, dy, wm)
+  if handlePatternBuilderShapeDrag(env, x, y, wm) then return true end
   if handleTilePaintDrag(env, x, y, wm) then return true end
   if handlePaintingDrag(env, x, y, wm) then return true end
   activateTileDrag(env, x, y)
