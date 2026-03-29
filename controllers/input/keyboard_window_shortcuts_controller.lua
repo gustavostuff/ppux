@@ -161,14 +161,17 @@ function M.handleWindowZoom(ctx, utils, key)
   return false
 end
 
-function M.handleGridToggleInWindow(ctx, key, focus)
+function M.handleGridToggleInWindow(ctx, utils, key, focus)
   if not focus then return false end
-  if key == "g" then
-    focus.showGrid = GridModeUtils.next(focus.showGrid)
-    ctx.setStatus(string.format("Grid: %s", focus.showGrid))
-    return true
+  if key ~= "g" then
+    return false
   end
-  return false
+  if not (utils and utils.ctrlDown and utils.ctrlDown()) then
+    return false
+  end
+  focus.showGrid = GridModeUtils.next(focus.showGrid)
+  ctx.setStatus(string.format("Grid: %s", focus.showGrid))
+  return true
 end
 
 return M

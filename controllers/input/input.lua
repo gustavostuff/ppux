@@ -46,6 +46,14 @@ local function shiftDown()
   return love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
 end
 
+local function fillDown()
+  return love.keyboard.isDown("f")
+end
+
+local function grabDown()
+  return love.keyboard.isDown("g")
+end
+
 local function altDown()
   return love.keyboard.isDown("lalt") or love.keyboard.isDown("ralt")
 end
@@ -151,6 +159,8 @@ function M.setup(context)
   KeyboardInput.setup(ctx, {
     ctrlDown = ctrlDown,
     shiftDown = shiftDown,
+    fillDown = fillDown,
+    grabDown = grabDown,
     altDown = altDown,
     changeBrushSize = changeBrushSize,
   })
@@ -158,6 +168,8 @@ function M.setup(context)
   MouseInput.setup(ctx, drag, tilePaintState, {
     ctrlDown = ctrlDown,
     shiftDown = shiftDown,
+    fillDown = fillDown,
+    grabDown = grabDown,
     altDown = altDown,
     screenToContent = screenToContent,
     pickByVisual = pickByVisual,

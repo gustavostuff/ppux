@@ -261,18 +261,18 @@ local function handleEditModeClick(env, button, x, y, win, wm)
       local tool = win.getBuilderTool and win:getBuilderTool() or "pencil"
       local lastPoint = win.getBuilderLastPoint and win:getBuilderLastPoint() or nil
       local BrushController = require("controllers.input_support.brush_controller")
-      local ctrlDown = utils.ctrlDown and utils.ctrlDown()
-      local shiftDown = utils.shiftDown and utils.shiftDown()
+      local grabDown = utils.grabDown and utils.grabDown()
+      local fillDown = utils.fillDown and utils.fillDown()
 
       -- Pattern builder canvas follows the normal edit workflow first:
-      -- Ctrl = color pick, Shift = flood fill. Dedicated tools run unmodified.
-      if ctrlDown then
+      -- G = color pick, F = flood fill. Dedicated tools run unmodified.
+      if grabDown then
         ctx.paintAt(win, col, row, lx, ly, true)
         ctx.setPainting(false)
         return true
       end
 
-      if shiftDown then
+      if fillDown then
         local success = BrushController.floodFillTile(ctx.app, win, col, row, lx, ly)
         if success then
           ctx.setStatus("Flood fill applied")
@@ -342,7 +342,7 @@ local function handleEditModeClick(env, button, x, y, win, wm)
           ctx.setPainting(true)
         end
       end
-    elseif utils.shiftDown and utils.shiftDown() then
+    elseif utils.fillDown and utils.fillDown() then
       local BrushController = require("controllers.input_support.brush_controller")
       local success = BrushController.floodFillTile(ctx.app, win, col, row, lx, ly)
       if success then
@@ -351,7 +351,7 @@ local function handleEditModeClick(env, button, x, y, win, wm)
         ctx.setStatus("Flood fill failed")
       end
       ctx.setPainting(false)
-    elseif utils.ctrlDown and utils.ctrlDown() then
+    elseif utils.grabDown and utils.grabDown() then
       ctx.paintAt(win, col, row, lx, ly, true)
       ctx.setPainting(false)
     else

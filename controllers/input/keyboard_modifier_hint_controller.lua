@@ -15,6 +15,8 @@ local MODIFIER_KEYS = {
   rctrl = true,
   lalt = true,
   ralt = true,
+  f = true,
+  g = true,
 }
 
 function M.reset()
@@ -99,9 +101,11 @@ end
 local function getModifierHintText(ctx, utils)
   local ctrlDown = utils.ctrlDown and utils.ctrlDown()
   local shiftDown = utils.shiftDown and utils.shiftDown()
+  local fillDown = utils.fillDown and utils.fillDown()
+  local grabDown = utils.grabDown and utils.grabDown()
   local altDown = utils.altDown and utils.altDown()
 
-  if not (ctrlDown or shiftDown or altDown) then
+  if not (ctrlDown or shiftDown or altDown or fillDown or grabDown) then
     return nil
   end
 
@@ -130,10 +134,21 @@ local function getModifierHintText(ctx, utils)
     return nil
   end
 
-  if shiftDown then
+  if fillDown then
     if mode == "edit" then
-      return "Shift + Click = flood fill"
+      return "Hold F + Click = flood fill"
     end
+    return nil
+  end
+
+  if grabDown then
+    if mode == "edit" then
+      return "Hold G + Click/Drag = grab color"
+    end
+    return nil
+  end
+
+  if shiftDown then
     if WindowCaps.isStaticOrAnimationArt(focus) and layer and layer.kind == "tile" and hasSelection then
       return "Shift + Drag = marquee select copy"
     end
@@ -144,9 +159,6 @@ local function getModifierHintText(ctx, utils)
   end
 
   if ctrlDown then
-    if mode == "edit" then
-      return "Ctrl + Click/Drag = pick color"
-    end
     if WindowCaps.isAnimationLike(focus) then
       return "Press + or = to add a new layer"
     end

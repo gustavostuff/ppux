@@ -29,7 +29,7 @@ local focusHandlers = {
   { name = "pixel_offset", fn = function(key, focus) return KeyboardArtActionsController.handlePixelOffset(ctx, utils, key, focus) end },
   { name = "inactive_layer_opacity", fn = function(key, focus) return KeyboardNavigationController.handleInactiveLayerOpacity(ctx, utils, key, focus) end },
   { name = "window_zoom", fn = function(key) return KeyboardWindowShortcutsController.handleWindowZoom(ctx, utils, key) end },
-  { name = "grid_toggle", fn = function(key, focus) return KeyboardWindowShortcutsController.handleGridToggleInWindow(ctx, key, focus) end },
+  { name = "grid_toggle", fn = function(key, focus) return KeyboardWindowShortcutsController.handleGridToggleInWindow(ctx, utils, key, focus) end },
   { name = "animation_delay_adjust", fn = function(key, focus) return KeyboardNavigationController.handleAnimationDelayAdjust(ctx, utils, key, focus) end },
   { name = "tile_rotation", fn = function(key, focus) return KeyboardArtActionsController.handleTileRotation(ctx, utils, key, focus) end }, -- before palette keys
   { name = "palette_keys", fn = function(key, focus) return KeyboardNavigationController.handlePaletteKeys(ctx, utils, key, focus) end },
@@ -77,7 +77,11 @@ function M.keypressed(key, AppCoreControllerRef)
   if KeyboardModifierHintController.isModifierKey(key) then
     DebugController.log("debug", "INPUT_ROUTE", "key=%s route=modifier_hint", tostring(key))
     KeyboardModifierHintController.updateStatus(ctx, utils)
-    return
+    local mode = ctx and ctx.getMode and ctx.getMode() or "tile"
+    local isEditToolHoldKey = (key == "f" or key == "g")
+    if (not isEditToolHoldKey) or mode == "edit" then
+      return
+    end
   end
 
   if key == "escape" then

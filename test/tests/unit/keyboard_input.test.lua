@@ -200,6 +200,102 @@ describe("keyboard_input.lua - modifier status hints", function()
     expect(status).toBe("Shift + Drag = marquee select copy")
   end)
 
+  it("shows edit-mode flood fill hint while F is pressed", function()
+    local status = "Idle"
+    local fillDown = false
+
+    local ctx = {
+      getMode = function() return "edit" end,
+      setMode = function() end,
+      getFocus = function() return nil end,
+      getStatus = function() return status end,
+      setStatus = function(msg) status = msg end,
+      setColor = function() end,
+      wm = function() return nil end,
+      app = {},
+    }
+
+    KeyboardInput.setup(ctx, {
+      ctrlDown = function() return false end,
+      shiftDown = function() return false end,
+      fillDown = function() return fillDown end,
+      grabDown = function() return false end,
+      altDown = function() return false end,
+    })
+
+    fillDown = true
+    KeyboardInput.keypressed("f", ctx.app)
+    expect(status).toBe("Hold F + Click = flood fill")
+
+    fillDown = false
+    KeyboardInput.keyreleased("f", ctx.app)
+    expect(status).toBe("Idle")
+  end)
+
+  it("shows edit-mode color grab hint while G is pressed", function()
+    local status = "Idle"
+    local grabDown = false
+
+    local ctx = {
+      getMode = function() return "edit" end,
+      setMode = function() end,
+      getFocus = function() return nil end,
+      getStatus = function() return status end,
+      setStatus = function(msg) status = msg end,
+      setColor = function() end,
+      wm = function() return nil end,
+      app = {},
+    }
+
+    KeyboardInput.setup(ctx, {
+      ctrlDown = function() return false end,
+      shiftDown = function() return false end,
+      fillDown = function() return false end,
+      grabDown = function() return grabDown end,
+      altDown = function() return false end,
+    })
+
+    grabDown = true
+    KeyboardInput.keypressed("g", ctx.app)
+    expect(status).toBe("Hold G + Click/Drag = grab color")
+
+    grabDown = false
+    KeyboardInput.keyreleased("g", ctx.app)
+    expect(status).toBe("Idle")
+  end)
+
+  it("routes Ctrl+G to grid toggle outside edit mode", function()
+    local status = "Idle"
+    local focus = { showGrid = "off" }
+    local ctrlDown = false
+
+    local ctx = {
+      getMode = function() return "tile" end,
+      setMode = function() end,
+      getFocus = function() return focus end,
+      getStatus = function() return status end,
+      setStatus = function(msg) status = msg end,
+      setColor = function() end,
+      wm = function() return nil end,
+      app = {},
+    }
+
+    KeyboardInput.setup(ctx, {
+      ctrlDown = function() return ctrlDown end,
+      shiftDown = function() return false end,
+      fillDown = function() return false end,
+      grabDown = function() return false end,
+      altDown = function() return false end,
+    })
+
+    KeyboardInput.keypressed("g", ctx.app)
+    expect(status).toBe("Idle")
+
+    ctrlDown = true
+    KeyboardInput.keypressed("g", ctx.app)
+    expect(status).toBe("Grid: chess")
+  end)
+
   it("shows offset hint while Alt is pressed with an active selection", function()
     local status = "Idle"
     local altDown = false

@@ -137,7 +137,7 @@ describe("pattern_table_builder_window.lua", function()
     expect(canvas:getPixel(4, 5)).toBe(0)
   end)
 
-  it("uses ctrl-click color pick on the builder canvas even when line or rect tools are selected", function()
+  it("uses G-click color pick on the builder canvas even when line or rect tools are selected", function()
     local wm = WM.new()
     local win = wm:createPatternTableBuilderWindow()
     local app = makeApp()
@@ -166,7 +166,9 @@ describe("pattern_table_builder_window.lua", function()
         handleHeaderClick = function() return false end,
       },
       utils = {
-        ctrlDown = function() return true end,
+        grabDown = function() return true end,
+        fillDown = function() return false end,
+        ctrlDown = function() return false end,
         shiftDown = function() return false end,
       },
     }
@@ -186,7 +188,7 @@ describe("pattern_table_builder_window.lua", function()
     expect(win.builderShapeDrag).toBeNil()
   end)
 
-  it("uses shift-click flood fill on the builder canvas even when line has a last point", function()
+  it("uses F-click flood fill on the builder canvas even when line has a last point", function()
     local wm = WM.new()
     local win = wm:createPatternTableBuilderWindow()
     local app = makeApp()
@@ -218,8 +220,10 @@ describe("pattern_table_builder_window.lua", function()
         handleHeaderClick = function() return false end,
       },
       utils = {
+        grabDown = function() return false end,
+        fillDown = function() return true end,
         ctrlDown = function() return false end,
-        shiftDown = function() return true end,
+        shiftDown = function() return false end,
       },
     }
     wmStub = {
@@ -238,10 +242,10 @@ describe("pattern_table_builder_window.lua", function()
     expect(app.statusText).toBe("Flood fill applied")
   end)
 
-  it("uses pick and fill cursors over builder canvas when ctrl or shift are held", function()
+  it("uses pick and fill cursors over builder canvas when G or F are held", function()
     local setTo = nil
-    local ctrl = false
-    local shift = false
+    local grab = false
+    local fill = false
     local win = {
       _closed = false,
       isPalette = false,
@@ -257,8 +261,8 @@ describe("pattern_table_builder_window.lua", function()
 
     love.mouse.setCursor = function(cursor) setTo = cursor end
     love.keyboard.isDown = function(key)
-      if key == "lctrl" or key == "rctrl" then return ctrl end
-      if key == "lshift" or key == "rshift" then return shift end
+      if key == "g" then return grab end
+      if key == "f" then return fill end
       return false
     end
     local ResolutionController = require("controllers.app.resolution_controller")
@@ -273,13 +277,13 @@ describe("pattern_table_builder_window.lua", function()
       },
     }
 
-    ctrl = true
-    shift = false
+    grab = true
+    fill = false
     CursorsController.applyModeCursor(app, "edit")
     expect(setTo).toBe("pick")
 
-    ctrl = false
-    shift = true
+    grab = false
+    fill = true
     CursorsController.applyModeCursor(app, "edit")
     expect(setTo).toBe("fill")
   end)

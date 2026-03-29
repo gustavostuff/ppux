@@ -80,13 +80,13 @@ local function handlePaintingDrag(env, x, y, wm)
     return false
   end
 
-  if utils.shiftDown and utils.shiftDown() then
+  if utils.fillDown and utils.fillDown() then
     return false
   end
 
   local w2 = wm:windowAt(x, y)
   if w2 then
-    local pickOnly = utils.ctrlDown and utils.ctrlDown()
+    local pickOnly = utils.grabDown and utils.grabDown()
     local function paintInterpolatedSegment(win, x0, y0, x1, y1)
       if not (win and win.toContentCoords) then
         return false

@@ -154,8 +154,8 @@ function CursorsController.applyModeCursor(app, mode)
 
   local cursors = app and app.hardwareCursors or {}
   local resolvedMode = (mode == "edit") and "edit" or "tile"
-  local ctrlDown = love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")
-  local shiftDown = love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
+  local grabDown = love.keyboard.isDown("g")
+  local fillDown = love.keyboard.isDown("f")
 
   local target
   if anyModalVisible(app) then
@@ -164,10 +164,10 @@ function CursorsController.applyModeCursor(app, mode)
     target = cursors.hand or cursors.arrow
   elseif resolvedMode == "edit" then
     if isHoveringTileOrSprite(app) then
-      -- Ctrl has precedence when multiple modifiers are held.
-      if ctrlDown then
+      -- Grab has precedence when multiple tool keys are held.
+      if grabDown then
         target = cursors.pick or cursors.pencil or cursors.arrow
-      elseif shiftDown then
+      elseif fillDown then
         target = cursors.fill or cursors.pencil or cursors.arrow
       else
         target = cursors.pencil or cursors.arrow

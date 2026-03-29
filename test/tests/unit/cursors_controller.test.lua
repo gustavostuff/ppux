@@ -191,14 +191,14 @@ describe("cursors_controller.lua", function()
     expect(setTo).toBe("pencil")
   end)
 
-  it("uses pick/fill in edit mode over layer content when ctrl/shift are held", function()
+  it("uses pick/fill in edit mode over layer content when G/F are held", function()
     local setTo = nil
-    local ctrl = false
-    local shift = false
+    local grab = false
+    local fill = false
     love.mouse.setCursor = function(cursor) setTo = cursor end
     love.keyboard.isDown = function(key)
-      if key == "lctrl" or key == "rctrl" then return ctrl end
-      if key == "lshift" or key == "rshift" then return shift end
+      if key == "g" then return grab end
+      if key == "f" then return fill end
       return false
     end
     ResolutionController.getScaledMouse = function()
@@ -223,13 +223,13 @@ describe("cursors_controller.lua", function()
       },
     }
 
-    ctrl = true
-    shift = false
+    grab = true
+    fill = false
     CursorsController.applyModeCursor(app, "edit")
     expect(setTo).toBe("pick")
 
-    ctrl = false
-    shift = true
+    grab = false
+    fill = true
     CursorsController.applyModeCursor(app, "edit")
     expect(setTo).toBe("fill")
   end)

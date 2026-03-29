@@ -145,3 +145,24 @@ describe("keyboard_window_shortcuts_controller.lua - space highlight toggle", fu
     expect(statuses[#statuses]).toBe("Show all items: off")
   end)
 end)
+
+describe("keyboard_window_shortcuts_controller.lua - grid toggle shortcut", function()
+  it("requires Ctrl+G to toggle the focused window grid", function()
+    local ctx = {
+      setStatus = function() end,
+    }
+    local focus = {
+      showGrid = "off",
+    }
+    local utils = {
+      ctrlDown = function() return false end,
+    }
+
+    expect(KeyboardWindowShortcutsController.handleGridToggleInWindow(ctx, utils, "g", focus)).toBe(false)
+    expect(focus.showGrid).toBe("off")
+
+    utils.ctrlDown = function() return true end
+    expect(KeyboardWindowShortcutsController.handleGridToggleInWindow(ctx, utils, "g", focus)).toBe(true)
+    expect(focus.showGrid).toBe("chess")
+  end)
+end)

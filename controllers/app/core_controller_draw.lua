@@ -860,8 +860,10 @@ local function drawEditModeColorIndicator(app)
   -- show brush only in edit mode and when normal edit mode is set
   local shiftDown = love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
   local ctrlDown = love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")
+  local fillDown = love.keyboard.isDown("f")
+  local grabDown = love.keyboard.isDown("g")
   local altDown = love.keyboard.isDown("lalt") or love.keyboard.isDown("ralt")
-  local nothingDown = not shiftDown and not ctrlDown and not altDown
+  local nothingDown = not shiftDown and not ctrlDown and not altDown and not fillDown and not grabDown
   local showBrushPixels = (ctrlDown and altDown) or nothingDown
 
   if not showBrushPixels then

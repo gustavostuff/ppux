@@ -106,10 +106,11 @@ Tile mode is for selection, drag and drop and tile-level editing in general.
 Edit mode is for pixel-level editing.
 
 - left click to paint
-- `Ctrl + left click` to pick color
-- `Shift + left click` to flood fill
+- hold `G` and left click or drag to grab a color
+- hold `F` and left click to flood fill
 - `1` to `4` to choose the active color
 - `Alt + 1/2/3/4` to change brush size presets (Or Ctrl + Alt + mouse wheel)
+- `Ctrl + G` toggles the focused window grid
 
 ### PNG drops
 
