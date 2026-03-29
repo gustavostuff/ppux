@@ -265,38 +265,7 @@ describe("cursors_controller.lua", function()
     expect(setTo).toBe("rect_fill")
   end)
 
-  it("uses the rect fill cursor over empty tile cells when the rect tool is active", function()
-    local setTo = nil
-    love.mouse.setCursor = function(cursor) setTo = cursor end
-    love.keyboard.isDown = function() return false end
-    ResolutionController.getScaledMouse = function()
-      return { x = 10, y = 10 }
-    end
-
-    local layer = { kind = "tile", removedCells = {} }
-    local win = {
-      isPalette = false,
-      cols = 8,
-      layers = { layer },
-      getActiveLayerIndex = function() return 1 end,
-      toGridCoords = function() return true, 1, 2 end,
-      get = function() return nil end,
-      isInHeader = function() return false end,
-    }
-
-    local app = {
-      editTool = "rect_fill",
-      hardwareCursors = { arrow = "arrow", pencil = "pencil", rect_fill = "rect_fill" },
-      wm = {
-        windowAt = function() return win end,
-      },
-    }
-
-    CursorsController.applyModeCursor(app, "edit")
-    expect(setTo).toBe("rect_fill")
-  end)
-
-  it("uses the rect fill cursor in edit mode when the rect tool is active outside editable content", function()
+  it("uses the rect fill cursor in edit mode even when not hovering content", function()
     local setTo = nil
     love.mouse.setCursor = function(cursor) setTo = cursor end
     love.keyboard.isDown = function() return false end

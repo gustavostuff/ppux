@@ -12,7 +12,7 @@ local CURSOR_FILES = {
   pencil = "cursor_pencil_6_6.png",
   fill = "cursor_fill_2_21.png",
   pick = "cursor_pick_2_27.png",
-  rect_fill = "cursor_rect_fill_14_14.png",
+  rect_fill = "cursor_rect_14_14.png",
 }
 
 local function parseHotspot(path)
@@ -59,13 +59,7 @@ local function loadNamedCursor(name, setName)
   local fileName = CURSOR_FILES[name]
   if not fileName then return nil end
   local path = string.format("%s/%s/%s", CURSOR_ROOT, setName, fileName)
-  local cursor = loadCursorFromPath(path)
-  if cursor or setName == DEFAULT_CURSOR_SET then
-    return cursor
-  end
-
-  local fallbackPath = string.format("%s/%s/%s", CURSOR_ROOT, DEFAULT_CURSOR_SET, fileName)
-  return loadCursorFromPath(fallbackPath)
+  return loadCursorFromPath(path)
 end
 
 local function ensureNamedCursorLoaded(app, name)
@@ -104,18 +98,6 @@ local function getMouseCanvasPosition()
   return nil, nil
 end
 
-local function getHoveredWindow(app)
-  local wm = app and app.wm
-  if not (wm and wm.windowAt) then return nil end
-
-  local mx, my = getMouseCanvasPosition()
-  if type(mx) ~= "number" or type(my) ~= "number" then return nil end
-
-  local win = wm:windowAt(mx, my)
-  if not win or win._closed then return nil end
-  return win
-end
-
 local function anyModalVisible(app)
   return (app and app.quitConfirmModal and app.quitConfirmModal.isVisible and app.quitConfirmModal:isVisible())
     or (app and app.saveOptionsModal and app.saveOptionsModal.isVisible and app.saveOptionsModal:isVisible())
@@ -125,9 +107,7 @@ local function anyModalVisible(app)
     or (app and app.renameWindowModal and app.renameWindowModal.isVisible and app.renameWindowModal:isVisible())
 end
 
-local function isHoveringEditableContent(app, options)
-  options = options or {}
-  local allowEmptyTiles = options.allowEmptyTiles == true
+local function isHoveringEditableContent(app)
   local wm = app and app.wm
   if not (wm and wm.windowAt) then return false end
 
@@ -158,10 +138,6 @@ local function isHoveringEditableContent(app, options)
     if cols <= 0 then return false end
     local idx = (row * cols + col) + 1
     if layer.removedCells and layer.removedCells[idx] then return false end
-
-    if allowEmptyTiles then
-      return true
-    end
 
     if win.getVirtualTileHandle then
       return win:getVirtualTileHandle(col, row, layerIndex) ~= nil
@@ -199,16 +175,12 @@ function CursorsController.applyModeCursor(app, mode)
   local fillDown = love.keyboard.isDown("f")
 
   local target
-  local hoveredWin = getHoveredWindow(app)
-  local hoveringPalette = hoveredWin and hoveredWin.isPalette == true
   if anyModalVisible(app) then
     target = cursors.arrow
   elseif isHoveringInteractiveUI(app) then
     target = cursors.hand or cursors.arrow
   elseif resolvedMode == "edit" then
     local hoveringEditable = isHoveringEditableContent(app)
-    local hoveringRectEditable = hoveringEditable or (app and app.editTool == "rect_fill" and isHoveringEditableContent(app, { allowEmptyTiles = true }))
-    -- Grab/fill still require an actual editable target.
     if grabDown then
       if hoveringEditable then
         target = cursors.pick or cursors.pencil or cursors.arrow
@@ -221,12 +193,12 @@ function CursorsController.applyModeCursor(app, mode)
       else
         target = cursors.arrow or cursors.pencil
       end
-    elseif app and app.editTool == "rect_fill" and not hoveringPalette then
+    elseif app and app.editTool == "rect_fill" then
       if not cursors.rect_fill then
         cursors.rect_fill = ensureNamedCursorLoaded(app, "rect_fill")
       end
       target = cursors.rect_fill or cursors.pencil or cursors.arrow
-    elseif hoveringRectEditable then
+    elseif hoveringEditable then
       target = cursors.pencil or cursors.arrow
     else
       target = cursors.arrow or cursors.pencil
