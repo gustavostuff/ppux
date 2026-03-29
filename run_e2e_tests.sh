@@ -12,7 +12,7 @@ SCENARIOS=(
   "boot_and_drag"
   "animation_playback"
   "tile_edit_roundtrip"
-  "brush_paint_lines"
+  "brush_paint_tools"
   "new_window_variants"
   "palette_shader_preview"
   "palette_edit_roundtrip"

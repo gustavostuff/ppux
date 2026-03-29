@@ -923,25 +923,59 @@ local function buildBrushPaintLinesScenario(harness, app, runner)
   steps[#steps + 1] = keyPress("Set temporary color 1", "2")
   steps[#steps + 1] = pause("Observe temporary color", 0.12)
   steps[#steps + 1] = moveTo("Move to painted box color", chrRegionPixelPoint(25, 25), 0.08)
-  steps[#steps + 1] = pause("Prepare color pick", 0.08)
+  steps[#steps + 1] = pause("Prepare color grab", 0.08)
   steps[#steps + 1] = call("Pick painted box color", function(h)
     local x, y = h:windowPixelCenter(bankWin, regionStartCol + 3, regionStartRow + 3, 1, 1)
-    h:keyDown("lctrl", { "lctrl" })
+    h:keyDown("g", { "g" })
     h:click(x, y, { wait = false })
-    h:keyUp("lctrl", { "lctrl" })
+    h:keyUp("g", { "g" })
   end)
   steps[#steps + 1] = pause("Observe picked color", 0.16)
   steps[#steps + 1] = moveTo("Move inside painted box", chrRegionPixelPoint(27, 27), 0.08)
   steps[#steps + 1] = pause("Prepare flood fill", 0.08)
   steps[#steps + 1] = call("Flood fill inside painted box", function(h)
     local x, y = h:windowPixelCenter(bankWin, regionStartCol + 3, regionStartRow + 3, 3, 3)
+    h:keyDown("f", { "f" })
+    h:click(x, y, { wait = false })
+    h:keyUp("f", { "f" })
+  end)
+  steps[#steps + 1] = pause("Observe flood fill result", 0.45)
+
+  steps[#steps + 1] = keyPress("Choose shift tool color 2", "3")
+  steps[#steps + 1] = keyPress("Set small brush for shift tools", "1", { "alt" })
+  steps[#steps + 1] = pause("Prepare shift line anchor", 0.08)
+  steps[#steps + 1] = call("Set shift line anchor", function(h)
+    local x, y = chrRegionPixelPoint(8, 48)(h)
     h:keyDown("lshift", { "lshift" })
     h:click(x, y, { wait = false })
     h:keyUp("lshift", { "lshift" })
   end)
-  steps[#steps + 1] = pause("Observe flood fill result", 0.45)
+  steps[#steps + 1] = pause("Observe line anchor", 0.16)
+  steps[#steps + 1] = call("Draw shift line from anchor", function(h)
+    local x, y = chrRegionPixelPoint(24, 56)(h)
+    h:keyDown("lshift", { "lshift" })
+    h:click(x, y, { wait = false })
+    h:keyUp("lshift", { "lshift" })
+  end)
+  steps[#steps + 1] = pause("Observe shift line", 0.2)
 
-  steps[#steps + 1] = pause("Observe painted brush lines", 0.8)
+  steps[#steps + 1] = keyPress("Choose rectangle color 3", "4")
+  steps[#steps + 1] = pause("Prepare shift rectangle", 0.08)
+  steps[#steps + 1] = call("Draw shift rectangle fill", function(h)
+    local x1, y1 = chrRegionPixelPoint(40, 40)(h)
+    local x2, y2 = chrRegionPixelPoint(52, 52)(h)
+    h:keyDown("lshift", { "lshift" })
+    h:moveMouse(x1, y1)
+    h:mouseDown(1, x1, y1)
+    h:wait(0.06)
+    h:moveMouse(x2, y2)
+    h:wait(0.08)
+    h:mouseUp(1, x2, y2)
+    h:keyUp("lshift", { "lshift" })
+  end)
+  steps[#steps + 1] = pause("Observe shift rectangle fill", 0.35)
+
+  steps[#steps + 1] = pause("Observe all painted brush tools", 0.8)
   steps[#steps + 1] = keyPress("Return to tile mode", "tab")
   steps[#steps + 1] = pause("Observe tile mode", 0.5)
 
@@ -1404,8 +1438,8 @@ local SCENARIOS = {
     title = "Tile Edit Roundtrip",
     build = buildTileEditRoundtripScenario,
   },
-  brush_paint_lines = {
-    title = "Brush Paint Lines",
+  brush_paint_tools = {
+    title = "Brush Paint Tools",
     build = buildBrushPaintLinesScenario,
   },
   new_window_variants = {
@@ -1447,7 +1481,8 @@ local SCENARIO_ALIASES = {
   tile_drag_demo = "boot_and_drag",
   animation_playback_demo = "animation_playback",
   tile_edit_roundtrip_demo = "tile_edit_roundtrip",
-  brush_paint_lines_demo = "brush_paint_lines",
+  brush_paint_lines = "brush_paint_tools",
+  brush_paint_lines_demo = "brush_paint_tools",
   new_window_variants_demo = "new_window_variants",
   palette_shader_preview_demo = "palette_shader_preview",
   palette_edit_roundtrip_demo = "palette_edit_roundtrip",

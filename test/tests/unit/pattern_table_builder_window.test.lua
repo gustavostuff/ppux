@@ -155,7 +155,7 @@ describe("pattern_table_builder_window.lua", function()
           return wmStub
         end,
         setPainting = function(v) painting = not not v end,
-        paintAt = function(_, targetWin, col, row, lx, ly, pickOnly)
+        paintAt = function(targetWin, col, row, lx, ly, pickOnly)
           return BrushController.paintPixel(app, targetWin, col, row, lx, ly, pickOnly)
         end,
         setStatus = function(text) app:setStatus(text) end,
@@ -179,7 +179,7 @@ describe("pattern_table_builder_window.lua", function()
       setFocus = function(_, target) focused = target end,
     }
 
-    local handled = MouseClickController.handleMousePressed(env, 4, 5, 1)
+    local handled = MouseClickController.handleMousePressed(env, (win.x or 0) + 8, (win.y or 0) + 10, 1)
 
     expect(handled).toBe(true)
     expect(focused).toBe(win)
@@ -209,7 +209,7 @@ describe("pattern_table_builder_window.lua", function()
           return wmStub
         end,
         setPainting = function() end,
-        paintAt = function(_, targetWin, col, row, lx, ly, pickOnly)
+        paintAt = function(targetWin, col, row, lx, ly, pickOnly)
           return BrushController.paintPixel(app, targetWin, col, row, lx, ly, pickOnly)
         end,
         setStatus = function(text) app:setStatus(text) end,
@@ -232,7 +232,7 @@ describe("pattern_table_builder_window.lua", function()
       setFocus = function() end,
     }
 
-    local handled = MouseClickController.handleMousePressed(env, 0, 0, 1)
+    local handled = MouseClickController.handleMousePressed(env, (win.x or 0), (win.y or 0), 1)
 
     expect(handled).toBe(true)
     expect(canvas:getPixel(0, 0)).toBe(2)
