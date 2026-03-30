@@ -32,8 +32,10 @@ describe("mouse extracted controllers (smoke)", function()
     local env = {
       ctx = {
         wm = function() return wm end,
+        getMode = function() return "tile" end,
       },
       chrome = {
+        getTopInteractiveWindowAt = function() return focusWin end,
         handleToolbarClicks = function(button, x, y, win, wmArg)
           calls[#calls + 1] = { fn = "toolbar", win = win and win._id or "nil" }
           return win == focusWin
@@ -68,8 +70,10 @@ describe("mouse extracted controllers (smoke)", function()
     local env = {
       ctx = {
         wm = function() return wm end,
+        getMode = function() return "tile" end,
       },
       chrome = {
+        getTopInteractiveWindowAt = function() return toolbarWin end,
         handleToolbarClicks = function(button, x, y, win, wmArg)
           calls[#calls + 1] = { fn = "toolbar", win = win and win._id or "nil" }
           return win == toolbarWin
@@ -92,11 +96,9 @@ describe("mouse extracted controllers (smoke)", function()
     local handled = MouseClickController.handleMousePressed(env, 10, 20, 1)
 
     expect(handled).toBeTruthy()
-    expect(calls[1].fn).toBe("toolbar")
-    expect(calls[1].win).toBe("focus")
-    expect(calls[2].fn).toBe("findToolbarWindowAt")
-    expect(calls[3].fn).toBe("toolbar")
-    expect(calls[3].win).toBe("rom_palette")
+    expect(calls[1].fn).toBe("findToolbarWindowAt")
+    expect(calls[2].fn).toBe("toolbar")
+    expect(calls[2].win).toBe("rom_palette")
   end)
 
   it("mouse_wheel_controller prioritizes ctrl+alt brush size in edit mode before zoom/scroll", function()

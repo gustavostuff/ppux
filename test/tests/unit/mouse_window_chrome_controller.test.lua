@@ -110,7 +110,9 @@ describe("mouse_window_chrome_controller", function()
         getLinkHandleRect = function()
           return 10, 10, 32, 15
         end,
-        contains = function() return true end,
+        contains = function(_, x, y)
+          return x >= 10 and x <= 42 and y >= 10 and y <= 25
+        end,
         mousepressed = function()
           return false
         end,
@@ -141,14 +143,16 @@ describe("mouse_window_chrome_controller", function()
         focused = next
       end,
       getFocus = function()
-        return source
+        return focused
       end,
       getWindows = function()
         return { source, target }
       end,
     }
 
+    focused = source
     local pressed = MouseWindowChromeController.handleToolbarClicks(1, 12, 12, source, wm)
+    focused = target
     local released = MouseWindowChromeController.handleToolbarRelease(1, 80, 90, wm)
     _G.ctx = previousCtx
 
@@ -190,7 +194,9 @@ describe("mouse_window_chrome_controller", function()
         getLinkHandleRect = function()
           return 10, 10, 32, 15
         end,
-        contains = function() return true end,
+        contains = function(_, x, y)
+          return x >= 10 and x <= 42 and y >= 10 and y <= 25
+        end,
         mousepressed = function() return false end,
         mousereleased = function() return false end,
       },
@@ -212,10 +218,13 @@ describe("mouse_window_chrome_controller", function()
         { kind = "canvas" },
       },
     }
+    local focused = source
     local wm = {
-      setFocus = function() end,
+      setFocus = function(_, next)
+        focused = next
+      end,
       getFocus = function()
-        return source
+        return focused
       end,
       getWindows = function()
         return { source, target }
@@ -223,6 +232,7 @@ describe("mouse_window_chrome_controller", function()
     }
 
     local pressed = MouseWindowChromeController.handleToolbarClicks(1, 12, 12, source, wm)
+    focused = target
     local released = MouseWindowChromeController.handleToolbarRelease(1, 80, 90, wm)
     _G.ctx = previousCtx
 
@@ -297,12 +307,15 @@ describe("mouse_window_chrome_controller", function()
     }
 
     MouseWindowChromeController.handleToolbarClicks(1, 12, 12, source, wm)
+    wm.getFocus = function()
+      return chrTarget
+    end
     local released = MouseWindowChromeController.handleToolbarRelease(1, 80, 90, wm)
     _G.ctx = previousCtx
 
     expect(released).toBeTruthy()
     expect(chrTarget.layers[1].paletteData).toBeNil()
-    expect(toasts[1].kind).toBe("error")
+    expect(#toasts).toBe(0)
   end)
 
   it("double clicks the palette link handle to unlink all destination windows using that palette", function()

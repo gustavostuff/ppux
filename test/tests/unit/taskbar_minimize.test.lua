@@ -312,8 +312,7 @@ describe("taskbar.lua - minimized windows strip", function()
     expect(items[3].text).toBe("Quit")
     expect(items[4].text).toBe("Close Project")
     expect(items[5].text).toBe("Settings")
-    expect(items[6].text).toBe("New Window")
-    expect(items[7].text).toBe("Save")
+    expect(items[6].text).toBe("Save")
 
     local children = recentItem.children()
     expect(menuItemTexts({ items = children })).toEqual({
@@ -326,6 +325,7 @@ describe("taskbar.lua - minimized windows strip", function()
     expect(windowsItem.enabled).toBe(true)
     local windowsChildren = windowsItem.children()
     expect(menuItemTexts({ items = windowsChildren })).toEqual({
+      "New Window",
       "Expand all",
       "Collapse all",
       "Sort by title",

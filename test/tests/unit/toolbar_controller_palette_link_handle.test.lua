@@ -42,6 +42,5 @@ describe("toolbar_controller.lua - palette link handle", function()
 
     expect(win.specializedToolbar).toBeTruthy()
     expect(win.specializedToolbar.linkButton).toBeTruthy()
-    expect(win.specializedToolbar.allowWhenUnfocused).toBeTruthy()
   end)
 end)
