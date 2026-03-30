@@ -210,7 +210,7 @@ end
 
 -- Resolve a palette# (1..4) on a given layer into 4 hex codes "HH".
 -- Supports:
---   layer.paletteData = { winId = "rom_palette_01" }  -- link to ROM palette window
+--   layer.paletteData = { winId = "rom_palette_01" }  -- link to ROM/global palette window
 --   layer.paletteData = { items = { ... } }           -- old inline palettes (back-compat)
 function M.resolveLayerPaletteCodes(layer, paletteNumber, romRaw)
   if not layer or not layer.paletteData then
@@ -225,15 +225,20 @@ function M.resolveLayerPaletteCodes(layer, paletteNumber, romRaw)
   local pd = layer.paletteData
 
   ------------------------------------------------------------------
-  -- 1) Linked ROM palette via window id (runtime lookup)
+  -- 1) Linked palette via window id (runtime lookup)
   ------------------------------------------------------------------
   if pd.winId then
     local ctx = rawget(_G, "ctx")
     local wm  = ctx and ctx.wm and ctx.wm()
     if wm and wm.findWindowById then
       local win = wm:findWindowById(pd.winId)
-      if WindowCaps.isRomPaletteWindow(win) and win.codes2D then
-        local rowIdx = palIdx - 1   -- codes2D rows are 0..3
+      if WindowCaps.isAnyPaletteWindow(win) and win.codes2D then
+        local rowIdx = palIdx - 1
+        if WindowCaps.isGlobalPaletteWindow(win) then
+          if type(win.codes2D[rowIdx]) ~= "table" then
+            rowIdx = 0
+          end
+        end
         local rowTbl = win.codes2D[rowIdx]
         if type(rowTbl) == "table" then
           local out = {}

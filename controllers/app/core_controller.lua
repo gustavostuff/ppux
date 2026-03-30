@@ -102,6 +102,13 @@ function AppCoreController.new()
   self.syncDuplicateTiles = false
   self.spaceHighlightActive = false
   self.showDebugInfo = false
+  self.paletteLinkDrag = {
+    active = false,
+    sourceWin = nil,
+    sourceWinId = nil,
+    currentX = 0,
+    currentY = 0,
+  }
 
   -- rom state
   self.appEditState = {
@@ -180,6 +187,7 @@ function AppCoreController.new()
     palette_color_change = true,
     sprite_remove = true,
     window_close = true,
+    palette_link_change = true,
   }
 
   -- undo/redo

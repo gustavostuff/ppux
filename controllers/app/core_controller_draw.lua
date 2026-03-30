@@ -28,32 +28,44 @@ return function(AppCoreController)
 -- or nil if none is available.
 
 local function getActiveGlobalPaletteBgColor(wm)
+  local paletteWin = nil
   local fallback = nil
 
   for _, win in ipairs(wm:getWindows()) do
-    -- Global palette windows: isPalette true, but NOT rom_palette
-    if WindowCaps.isGlobalPaletteWindow(win) then
-      -- Remember the first one in case none is explicitly active
+    if WindowCaps.isGlobalPaletteWindow(win) and not win._closed and not win._minimized then
       if not fallback then
         fallback = win
       end
-
-      -- Prefer the one flagged as activePalette
       if win.activePalette then
-        if win.getFirstColor then
-          local c = win:getFirstColor()
-          if c then return c end
-        end
+        paletteWin = win
+        break
       end
     end
   end
 
-  -- No explicit activePalette; use first global palette window if present
-  if fallback and fallback.getFirstColor then
-    return fallback:getFirstColor()
+  paletteWin = paletteWin or fallback
+  if paletteWin and paletteWin.getFirstColor then
+    return paletteWin:getFirstColor()
   end
 
   return nil
+end
+
+local function getActiveGlobalPaletteWindow(wm)
+  local fallback = nil
+
+  for _, win in ipairs(wm:getWindows()) do
+    if WindowCaps.isGlobalPaletteWindow(win) and not win._closed and not win._minimized then
+      if not fallback then
+        fallback = win
+      end
+      if win.activePalette then
+        return win
+      end
+    end
+  end
+
+  return fallback
 end
 
 local function getRomPaletteBgColorForWindow(win, wm)
@@ -66,10 +78,9 @@ local function getRomPaletteBgColorForWindow(win, wm)
   for _, L in ipairs(layers) do
     local pd = L.paletteData
     if pd and pd.winId then
-      -- Find the associated ROM palette window by that ID
-      local romWin = wm:findWindowById(pd.winId)
-      if romWin and romWin.getFirstColor then
-        local c = romWin:getFirstColor()
+      local paletteWin = wm:findWindowById(pd.winId)
+      if paletteWin and paletteWin.getFirstColor then
+        local c = paletteWin:getFirstColor()
         -- getFirstColor() already returns a color table consistent with app_colors
         return c
       end
@@ -79,6 +90,183 @@ local function getRomPaletteBgColorForWindow(win, wm)
   end
 
   return nil
+end
+
+local function getPaletteWindowForLayer(layer, wm)
+  if not (layer and layer.paletteData and wm) then
+    return nil
+  end
+
+  local pd = layer.paletteData
+  if pd.winId then
+    local linked = wm:findWindowById(pd.winId)
+    if linked and not linked._closed and not linked._minimized and WindowCaps.isAnyPaletteWindow(linked) then
+      return linked
+    end
+    return nil
+  end
+
+  if pd.items then
+    return getActiveGlobalPaletteWindow(wm)
+  end
+
+  return nil
+end
+
+local function getFocusedPaletteLinks(app)
+  local wm = app and app.wm
+  if not (wm and wm.getFocus) then
+    return {}
+  end
+
+  local focused = wm:getFocus()
+  if not focused or focused._closed or focused._minimized then
+    return {}
+  end
+
+  if not WindowCaps.isAnyPaletteWindow(focused) then
+    local li = (focused.getActiveLayerIndex and focused:getActiveLayerIndex()) or focused.activeLayer or 1
+    local layer = focused.layers and focused.layers[li] or nil
+    if not (layer and layer.paletteData) then
+      return {}
+    end
+
+    local paletteWin = getPaletteWindowForLayer(layer, wm)
+    if not paletteWin or paletteWin == focused then
+      return {}
+    end
+
+    return {
+      { contentWin = focused, paletteWin = paletteWin }
+    }
+  end
+
+  local links = {}
+  local focusedPalette = focused
+  local activeGlobalPalette = WindowCaps.isGlobalPaletteWindow(focusedPalette)
+    and getActiveGlobalPaletteWindow(wm) == focusedPalette
+
+  for _, win in ipairs(wm:getWindows()) do
+    if win ~= focusedPalette and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
+      local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+      local layer = win.layers and win.layers[li] or nil
+      local pd = layer and layer.paletteData or nil
+      if pd then
+        if pd.winId and pd.winId == focusedPalette._id then
+          links[#links + 1] = { contentWin = win, paletteWin = focusedPalette }
+        elseif activeGlobalPalette and pd.items then
+          links[#links + 1] = { contentWin = win, paletteWin = focusedPalette }
+        end
+      end
+    end
+  end
+
+  return links
+end
+
+local function getWindowLinkAnchor(fromWin, toWin)
+  local fx, fy, fw, fh = fromWin:getScreenRect()
+  local tx, ty, tw, th = toWin:getScreenRect()
+  local fcx, fcy = fx + fw / 2, fy + fh / 2
+  local tcx, tcy = tx + tw / 2, ty + th / 2
+  local dx, dy = tcx - fcx, tcy - fcy
+
+  if math.abs(dx) >= math.abs(dy) then
+    if dx >= 0 then
+      return fx + fw, fy + fh / 2, "horizontal"
+    end
+    return fx, fy + fh / 2, "horizontal"
+  end
+
+  if dy >= 0 then
+    return fx + fw / 2, fy + fh, "vertical"
+  end
+  return fx + fw / 2, fy, "vertical"
+end
+
+local function getPaletteHandleAnchor(paletteWin, focusedWin)
+  local toolbar = paletteWin and paletteWin.specializedToolbar
+  if toolbar and toolbar.getLinkHandleRect then
+    local x, y, w, h = toolbar:getLinkHandleRect()
+    if x and y and w and h then
+      return x + w / 2, y + h / 2
+    end
+  end
+  return getWindowLinkAnchor(paletteWin, focusedWin)
+end
+
+local function getPaletteLinkDragAnchor(paletteWin)
+  if not paletteWin then return nil, nil end
+  local toolbar = paletteWin.specializedToolbar
+  if toolbar and toolbar.getLinkHandleRect then
+    local x, y, w, h = toolbar:getLinkHandleRect()
+    if x and y and w and h then
+      return x + w / 2, y + h / 2
+    end
+  end
+  local x, y, w, h = paletteWin:getScreenRect()
+  return x + w / 2, y
+end
+
+local function drawRectConnector(x1, y1, x2, y2, opts)
+  opts = opts or {}
+  local startSquareOffsetX = opts.startSquareOffsetX or 0
+  local startSquareOffsetY = opts.startSquareOffsetY or 0
+  local endSquareOffsetX = opts.endSquareOffsetX or 0
+  local endSquareOffsetY = opts.endSquareOffsetY or 0
+  local points
+  if math.abs(x2 - x1) >= math.abs(y2 - y1) then
+    local mx = math.floor((x1 + x2) / 2 + 0.5)
+    points = { x1, y1, mx, y1, mx, y2, x2, y2 }
+  else
+    local my = math.floor((y1 + y2) / 2 + 0.5)
+    points = { x1, y1, x1, my, x2, my, x2, y2 }
+  end
+
+  love.graphics.push("all")
+  love.graphics.setLineStyle("rough")
+  love.graphics.setLineWidth(3)
+  love.graphics.setColor(0, 0, 0, 0.45)
+  love.graphics.line(points)
+  love.graphics.setLineWidth(1)
+  love.graphics.setColor(colors.blue[1], colors.blue[2], colors.blue[3], 1)
+  love.graphics.line(points)
+  love.graphics.setColor(colors.white)
+  love.graphics.rectangle("fill", x1 - 1 + startSquareOffsetX, y1 - 1 + startSquareOffsetY, 3, 3)
+  love.graphics.rectangle("fill", x2 - 1 + endSquareOffsetX, y2 - 1 + endSquareOffsetY, 3, 3)
+  love.graphics.pop()
+end
+
+local function drawPaletteLinkOverlay(app)
+  local links = getFocusedPaletteLinks(app)
+  for _, link in ipairs(links) do
+    local focused = link.contentWin
+    local paletteWin = link.paletteWin
+    if focused and paletteWin then
+      local sx, sy = getWindowLinkAnchor(focused, paletteWin)
+      local tx, ty = getPaletteHandleAnchor(paletteWin, focused)
+      drawRectConnector(sx, sy, tx, ty, {
+        startSquareOffsetX = -1,
+        startSquareOffsetY = -1,
+      })
+    end
+  end
+end
+
+local function drawActivePaletteLinkDrag(app)
+  local drag = app and app.paletteLinkDrag
+  if not (drag and drag.active and drag.sourceWin) then
+    return
+  end
+
+  local sx, sy = getPaletteLinkDragAnchor(drag.sourceWin)
+  local tx = drag.currentX or sx
+  local ty = drag.currentY or sy
+  if not (sx and sy and tx and ty) then
+    return
+  end
+
+  drawRectConnector(sx, sy, tx, ty)
 end
 
 local function renderWindowChessPattern(window, wm)
@@ -925,6 +1113,8 @@ local function drawOverlays(app)
   ShaderPaletteController.applyShader(true)
   UserInput.drawOverlay()
   ShaderPaletteController.releaseShader()
+  drawActivePaletteLinkDrag(app)
+  drawPaletteLinkOverlay(app)
   drawEditModeColorIndicator(app)
   if app.windowHeaderContextMenu and app.windowHeaderContextMenu.isVisible and app.windowHeaderContextMenu:isVisible() then
     if app.windowHeaderContextMenu.update then

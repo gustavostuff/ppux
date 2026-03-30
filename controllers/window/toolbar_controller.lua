@@ -8,6 +8,7 @@ local StaticArtToolbar = require("user_interface.toolbars.static_art_toolbar")
 local PatternTableBuilderToolbar = require("user_interface.toolbars.pattern_table_builder_toolbar")
 local PPUFrameToolbar = require("user_interface.toolbars.ppu_frame_toolbar")
 local PaletteToolbar = require("user_interface.toolbars.palette_toolbar")
+local RomPaletteToolbar = require("user_interface.toolbars.rom_palette_toolbar")
 local ChrToolbar = require("user_interface.toolbars.chr_toolbar")
 local DebugController = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
@@ -44,19 +45,9 @@ function ToolbarController.createSpecializedToolbar(window, ctx, windowControlle
   elseif WindowCaps.isPpuFrame(window) then
     return PPUFrameToolbar.new(window, ctx, windowController)
   elseif WindowCaps.isGlobalPaletteWindow(window) then
-    -- Only attach palette toolbar when more than one global palette exists
-    local count = 0
-    if windowController and windowController.getWindows then
-      for _, w in ipairs(windowController:getWindows()) do
-        if WindowCaps.isGlobalPaletteWindow(w) and w.isPalette and not w._closed then
-          count = count + 1
-        end
-      end
-    end
-    if count <= 1 then
-      return nil
-    end
     return PaletteToolbar.new(window, ctx, windowController)
+  elseif WindowCaps.isRomPaletteWindow(window) then
+    return RomPaletteToolbar.new(window, ctx, windowController)
   end
   
   -- Other window types don't have specialized toolbars yet
@@ -78,26 +69,6 @@ function ToolbarController.createToolbarsForWindow(window, ctx, windowController
     window.headerToolbar = ToolbarController.createHeaderToolbar(window, ctx, windowController)
   end
   
-  -- Handle palette toolbar creation only when more than one palette exists.
-  if WindowCaps.isGlobalPaletteWindow(window) then
-    local paletteCount = 0
-    for _, w in ipairs(windowController:getWindows()) do
-      if WindowCaps.isGlobalPaletteWindow(w) and w.isPalette and not w._closed then
-        paletteCount = paletteCount + 1
-      end
-    end
-    if paletteCount <= 1 then
-      window.specializedToolbar = nil
-    else
-      -- Ensure every palette window has a toolbar once we have multiple palettes
-      for _, w in ipairs(windowController:getWindows()) do
-        if WindowCaps.isGlobalPaletteWindow(w) and w.isPalette and not w._closed and not w.specializedToolbar then
-          w.specializedToolbar = ToolbarController.createSpecializedToolbar(w, ctx, windowController)
-        end
-      end
-    end
-  end
-
   -- Create specialized toolbar if it doesn't exist
   if not window.specializedToolbar then
     window.specializedToolbar = ToolbarController.createSpecializedToolbar(window, ctx, windowController)

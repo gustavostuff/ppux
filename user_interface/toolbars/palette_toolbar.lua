@@ -19,6 +19,8 @@ function PaletteToolbar.new(window, ctx, windowController)
   -- Get header dimensions
   local hx, hy, hw, hh = window:getHeaderRect()
   self.h = hh  -- Toolbar height matches header height
+
+  self.linkButton = self:addButton(images.icons.icon_pivot or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty, nil, "Palette link handle")
   
   -- Active palette toggle button
   local activeBtn = self:addButton(images.icons.icon_not_selected, function()
@@ -35,6 +37,12 @@ function PaletteToolbar.new(window, ctx, windowController)
   self:updatePosition()
   
   return self
+end
+
+function PaletteToolbar:getLinkHandleRect()
+  if not self.linkButton then return nil end
+  self:updatePosition()
+  return self.linkButton.x, self.linkButton.y, self.linkButton.w, self.linkButton.h
 end
 
 -- Override updateIcons to refresh the active button icon

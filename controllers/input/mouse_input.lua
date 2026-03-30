@@ -82,6 +82,12 @@ function M.resetTransientState()
   tileClick = { active = false }
   spriteClick = { active = false }
   contextClick = { active = false }
+  local app = ctx and ctx.app or nil
+  if app and app.paletteLinkDrag then
+    app.paletteLinkDrag.active = false
+    app.paletteLinkDrag.sourceWin = nil
+    app.paletteLinkDrag.sourceWinId = nil
+  end
   MultiSelectController.reset()
   if SpriteController and SpriteController.endDrag then
     SpriteController.endDrag()

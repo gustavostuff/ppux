@@ -34,6 +34,10 @@ local function hasActiveWindowInteraction(app)
     return true
   end
 
+  if app.paletteLinkDrag and app.paletteLinkDrag.active then
+    return true
+  end
+
   if UserInput.getTilePaintState then
     local tilePaintState = UserInput.getTilePaintState()
     if tilePaintState and tilePaintState.active then

@@ -49,6 +49,38 @@ describe("shader_palette_controller.lua", function()
       }
       expect(ShaderPaletteController.resolveLayerPaletteCodes(layer, 1, nil)).toBeNil()
     end)
+
+    it("resolves linked global palette window codes by winId", function()
+      local previousCtx = rawget(_G, "ctx")
+      _G.ctx = {
+        wm = function()
+          return {
+            findWindowById = function(_, id)
+              if id == "palette_1" then
+                return {
+                  kind = "palette",
+                  codes2D = {
+                    [0] = { [0] = "0F", [1] = "30", [2] = "28", [3] = "16" },
+                  },
+                }
+              end
+              return nil
+            end,
+          }
+        end,
+      }
+
+      local layer = {
+        paletteData = {
+          winId = "palette_1",
+        }
+      }
+
+      local codes = ShaderPaletteController.resolveLayerPaletteCodes(layer, 2, nil)
+      _G.ctx = previousCtx
+
+      expect(codes).toEqual({"0F", "30", "28", "16"})
+    end)
   end)
   
   describe("getPaletteColors", function()
@@ -86,4 +118,3 @@ describe("shader_palette_controller.lua", function()
   end)
   
 end)
-

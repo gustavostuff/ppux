@@ -689,11 +689,35 @@ local function extractWindowOptions(opts)
   }
 end
 
+local function ensureWindowId(self, win)
+  if not win then return nil end
+  if type(win._id) == "string" and win._id ~= "" then
+    return win._id
+  end
+
+  local base = tostring(win.kind or "window"):gsub("[^%w_]+", "_")
+  if base == "" then
+    base = "window"
+  end
+
+  local n = 1
+  local candidate = string.format("%s_%d", base, n)
+  while self:findWindowById(candidate) do
+    n = n + 1
+    candidate = string.format("%s_%d", base, n)
+  end
+
+  win._id = candidate
+  return candidate
+end
+
 -- Add window, set focus, and create toolbars
 function WM:finalizeNewWindow(win)
   if win.showGrid == nil then
     win.showGrid = "chess"
   end
+
+  ensureWindowId(self, win)
 
   self:add(win)
   self:setFocus(win)

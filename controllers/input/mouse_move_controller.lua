@@ -255,8 +255,14 @@ function M.handleMouseMoved(env, x, y, dx, dy)
   local utils = env.utils or {}
   local chrome = env.chrome
   local getSpriteClick = env.getSpriteClick
+  local app = ctx and ctx.app or nil
   env.dx = dx or 0
   env.dy = dy or 0
+
+  if app and app.paletteLinkDrag and app.paletteLinkDrag.active then
+    app.paletteLinkDrag.currentX = x
+    app.paletteLinkDrag.currentY = y
+  end
 
   if SpriteController.isDragging() then
     local spriteClick = getSpriteClick and getSpriteClick() or nil

@@ -73,6 +73,181 @@ describe("mouse_window_chrome_controller", function()
     expect(win.dy).toBe(41)
   end)
 
+  it("starts palette link drag from the toolbar handle and links onto a target layer on release", function()
+    local previousCtx = rawget(_G, "ctx")
+    local statuses = {}
+    local marked = {}
+    _G.ctx = {
+      app = {
+        paletteLinkDrag = {
+          active = false,
+          sourceWin = nil,
+          sourceWinId = nil,
+          currentX = 0,
+          currentY = 0,
+        },
+        setStatus = function(_, text)
+          statuses[#statuses + 1] = text
+        end,
+        markUnsaved = function(_, eventType)
+          marked[#marked + 1] = eventType
+        end,
+        showToast = function() end,
+      },
+    }
+
+    local focused
+    local source = {
+      _id = "palette_1",
+      title = "Sprite Palette",
+      kind = "palette",
+      isPalette = true,
+      _closed = false,
+      _minimized = false,
+      _collapsed = false,
+      specializedToolbar = {
+        updatePosition = function() end,
+        getLinkHandleRect = function()
+          return 10, 10, 32, 15
+        end,
+        contains = function() return true end,
+        mousepressed = function()
+          return false
+        end,
+        mousereleased = function()
+          return false
+        end,
+      },
+    }
+    local target = {
+      _id = "art_1",
+      title = "Target Art",
+      kind = "static_art",
+      _closed = false,
+      _minimized = false,
+      contains = function(_, x, y)
+        return x == 80 and y == 90
+      end,
+      getActiveLayerIndex = function()
+        return 1
+      end,
+      activeLayer = 1,
+      layers = {
+        { kind = "tile" },
+      },
+    }
+    local wm = {
+      setFocus = function(_, next)
+        focused = next
+      end,
+      getFocus = function()
+        return source
+      end,
+      getWindows = function()
+        return { source, target }
+      end,
+    }
+
+    local pressed = MouseWindowChromeController.handleToolbarClicks(1, 12, 12, source, wm)
+    local released = MouseWindowChromeController.handleToolbarRelease(1, 80, 90, wm)
+    _G.ctx = previousCtx
+
+    expect(pressed).toBeTruthy()
+    expect(released).toBeTruthy()
+    expect(target.layers[1].paletteData.winId).toBe("palette_1")
+    expect(focused).toBe(target)
+    expect(marked[1]).toBe("palette_link_change")
+    expect(statuses[#statuses]).toBeTruthy()
+  end)
+
+  it("double clicks the palette link handle to unlink the previously focused destination window", function()
+    local previousCtx = rawget(_G, "ctx")
+    local statuses = {}
+    local marked = {}
+    _G.ctx = {
+      app = {
+        paletteLinkDrag = {
+          active = false,
+          sourceWin = nil,
+          sourceWinId = nil,
+          currentX = 0,
+          currentY = 0,
+        },
+        setStatus = function(_, text)
+          statuses[#statuses + 1] = text
+        end,
+        markUnsaved = function(_, eventType)
+          marked[#marked + 1] = eventType
+        end,
+        showToast = function() end,
+      },
+    }
+
+    local source = {
+      _id = "palette_1",
+      title = "Sprite Palette",
+      kind = "palette",
+      isPalette = true,
+      _closed = false,
+      _minimized = false,
+      _collapsed = false,
+      specializedToolbar = {
+        updatePosition = function() end,
+        getLinkHandleRect = function()
+          return 10, 10, 15, 15
+        end,
+        contains = function() return true end,
+        mousepressed = function()
+          return false
+        end,
+        mousereleased = function()
+          return false
+        end,
+      },
+    }
+    local target = {
+      _id = "art_1",
+      title = "Target Art",
+      kind = "static_art",
+      _closed = false,
+      _minimized = false,
+      contains = function(_, x, y)
+        return x == 80 and y == 90
+      end,
+      getActiveLayerIndex = function()
+        return 1
+      end,
+      activeLayer = 1,
+      layers = {
+        { kind = "tile", paletteData = { winId = "palette_1" } },
+      },
+    }
+
+    local focused = target
+    local wm = {
+      setFocus = function(_, next)
+        focused = next
+      end,
+      getFocus = function()
+        return focused
+      end,
+      getWindows = function()
+        return { source, target }
+      end,
+    }
+
+    MouseWindowChromeController.handleToolbarClicks(1, 12, 12, source, wm)
+    MouseWindowChromeController.handleToolbarRelease(1, 12, 12, wm)
+    MouseWindowChromeController.handleToolbarClicks(1, 12, 12, source, wm)
+
+    _G.ctx = previousCtx
+
+    expect(target.layers[1].paletteData).toBeNil()
+    expect(focused).toBe(target)
+    expect(marked[1]).toBe("palette_link_change")
+    expect(statuses[#statuses]).toBe("Unlinked Sprite Palette from Target Art layer 1")
+  end)
+
   it("triggers callback on double click over window title area", function()
     local renameCalls = 0
     local mousepressedCalls = 0
