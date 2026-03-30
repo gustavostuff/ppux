@@ -2,9 +2,9 @@
 -- Text input field component using love.textinput
 
 local colors = require("app_colors")
-local Selection = require("user_interface.text_field_selection")
-local Editing = require("user_interface.text_field_editing")
-local Rendering = require("user_interface.text_field_rendering")
+local Selection = require("user_interface.text_field.selection")
+local Editing = require("user_interface.text_field.editing")
+local Rendering = require("user_interface.text_field.rendering")
 
 local TextField = {}
 TextField.__index = TextField
