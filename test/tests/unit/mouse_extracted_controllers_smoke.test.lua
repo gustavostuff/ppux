@@ -57,6 +57,48 @@ describe("mouse extracted controllers (smoke)", function()
     expect(calls[1].win).toBe("focus")
   end)
 
+  it("mouse_click_controller can route clicks to an unfocused specialized toolbar window", function()
+    local calls = {}
+    local focusWin = { _id = "focus" }
+    local toolbarWin = { _id = "rom_palette" }
+    local wm = {
+      getFocus = function() return focusWin end,
+      windowAt = function() return nil end,
+    }
+    local env = {
+      ctx = {
+        wm = function() return wm end,
+      },
+      chrome = {
+        handleToolbarClicks = function(button, x, y, win, wmArg)
+          calls[#calls + 1] = { fn = "toolbar", win = win and win._id or "nil" }
+          return win == toolbarWin
+        end,
+        findToolbarWindowAt = function(x, y, wmArg)
+          calls[#calls + 1] = { fn = "findToolbarWindowAt" }
+          return toolbarWin
+        end,
+        handleResizeHandle = function()
+          calls[#calls + 1] = { fn = "resize" }
+          return false
+        end,
+        handleHeaderClick = function()
+          calls[#calls + 1] = { fn = "header" }
+          return false
+        end,
+      },
+    }
+
+    local handled = MouseClickController.handleMousePressed(env, 10, 20, 1)
+
+    expect(handled).toBeTruthy()
+    expect(calls[1].fn).toBe("toolbar")
+    expect(calls[1].win).toBe("focus")
+    expect(calls[2].fn).toBe("findToolbarWindowAt")
+    expect(calls[3].fn).toBe("toolbar")
+    expect(calls[3].win).toBe("rom_palette")
+  end)
+
   it("mouse_wheel_controller prioritizes ctrl+alt brush size in edit mode before zoom/scroll", function()
     local calls = { brush = 0, zoom = 0, scroll = 0, focus = 0 }
 

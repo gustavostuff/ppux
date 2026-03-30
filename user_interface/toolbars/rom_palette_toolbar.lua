@@ -13,6 +13,7 @@ function RomPaletteToolbar.new(window, ctx, windowController)
 
   self.ctx = ctx
   self.windowController = windowController
+  self.allowWhenUnfocused = true
 
   local hx, hy, hw, hh = window:getHeaderRect()
   self.h = hh

@@ -14,6 +14,20 @@ ToolbarBase.__index = ToolbarBase
 
 local _layerLabelId = 0
 
+local function canInteractWhenUnfocused(self)
+  return self and self.allowWhenUnfocused == true
+end
+
+local function isToolbarFocusAllowed(self)
+  if not self or not self.window or not self.windowController then
+    return false
+  end
+  if canInteractWhenUnfocused(self) then
+    return true
+  end
+  return self.window == self.windowController:getFocus()
+end
+
 function ToolbarBase.new(window, data)
   data = data or {}
   _layerLabelId = _layerLabelId + 1
@@ -185,8 +199,7 @@ function ToolbarBase:contains(px, py)
   
   -- For specialized toolbars, check if window is focused
   if not self.window or not self.windowController then return false end
-  local isFocused = (self.window == self.windowController:getFocus())
-  if not isFocused then return false end
+  if not isToolbarFocusAllowed(self) then return false end
   
   -- Check if point is within any button bounds
   for _, button in ipairs(self.buttons) do
@@ -251,8 +264,7 @@ function ToolbarBase:mousepressed(x, y, button)
   
   -- For specialized toolbars, check if window is focused
   if not self.window or not self.windowController then return false end
-  local isFocused = (self.window == self.windowController:getFocus())
-  if not isFocused then return false end
+  if not isToolbarFocusAllowed(self) then return false end
   
   -- Update position before checking (toolbar might have moved)
   self:updatePosition()
@@ -339,8 +351,7 @@ function ToolbarBase:mousemoved(x, y)
   
   -- For specialized toolbars, check if window is focused
   if not self.window or not self.windowController then return false end
-  local isFocused = (self.window == self.windowController:getFocus())
-  if not isFocused then 
+  if not isToolbarFocusAllowed(self) then 
     -- Clear hover states if not focused
     for _, b in ipairs(self.buttons) do
       b.hovered = false
@@ -364,8 +375,7 @@ function ToolbarBase:draw()
   
   -- Check if window is focused (specialized toolbars only show when focused)
   if not self.window or not self.windowController then return end
-  local isFocused = (self.window == self.windowController:getFocus())
-  if not isFocused then return end
+  if not isToolbarFocusAllowed(self) then return end
   
   -- Update position before drawing (this also re-layouts buttons)
   self:updatePosition()

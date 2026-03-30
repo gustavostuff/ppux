@@ -522,6 +522,13 @@ function M.handleMousePressed(env, x, y, button)
     return true
   end
 
+  local toolbarWin = chrome.findToolbarWindowAt and chrome.findToolbarWindowAt(x, y, wm) or nil
+  if toolbarWin and toolbarWin ~= focusedWin then
+    if chrome.handleToolbarClicks(button, x, y, toolbarWin, wm) then
+      return true
+    end
+  end
+
   if chrome.handleResizeHandle(button, x, y, wm) then return true end
 
   local win = wm:windowAt(x, y)

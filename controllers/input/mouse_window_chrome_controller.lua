@@ -43,6 +43,22 @@ function M._resetHeaderDoubleClickState()
   lastPaletteLinkHandleClick = nil
 end
 
+function M.findToolbarWindowAt(x, y, wm)
+  local windows = wm and wm.getWindows and wm:getWindows() or {}
+  for i = #windows, 1, -1 do
+    local win = windows[i]
+    if win and not win._closed and not win._minimized then
+      if not win._collapsed and win.specializedToolbar and win.specializedToolbar.contains and win.specializedToolbar:contains(x, y) then
+        return win
+      end
+      if win.headerToolbar and win.headerToolbar.contains and win.headerToolbar:contains(x, y) then
+        return win
+      end
+    end
+  end
+  return nil
+end
+
 local function isWindowDragMouseButton(button)
   return button == 2 or button == 3
 end
