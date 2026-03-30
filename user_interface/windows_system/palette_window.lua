@@ -354,12 +354,7 @@ end
 -- override parent
 function PaletteWindow:drawGrid()
   local sx, sy, sw, sh = self:getScreenRect()
-  local stripMetrics = self.selected and self:getStripMetrics() or nil
-  if stripMetrics then
-    love.graphics.setScissor(sx, sy, sw + (stripMetrics.extraWidth * self.zoom), sh + (stripMetrics.extraHeight * self.zoom))
-  else
-    love.graphics.setScissor(sx, sy, sw, sh)
-  end
+  love.graphics.setScissor(sx, sy, sw, sh)
   love.graphics.push()
   love.graphics.translate(self.x, self.y)
   love.graphics.scale(self.zoom, self.zoom)
@@ -384,9 +379,8 @@ function PaletteWindow:drawGrid()
     end
   end
 
-  self:drawSelectionStrips()
-  
   love.graphics.setScissor()
+  self:drawSelectionStrips()
   if self.activePalette then
     self:highlightSelected(cw, ch)
   end

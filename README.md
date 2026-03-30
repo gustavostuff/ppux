@@ -58,8 +58,8 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 | Static Art (sprites)   | <img src="img/readme_images/windows_system_table/icon_static_sprite_window.png" alt="Static Art sprites taskbar icon">   | Single-layer sprite composition window with pixel-level placement                                        |
 | Animation (sprites)    | <img src="img/readme_images/windows_system_table/anim_03.gif" alt="Animation sprites taskbar icon">                      | Sprite animation window for frame-by-frame sprite layouts                                                |
 | OAM Animation          | <img src="img/readme_images/windows_system_table/anim_01.gif" alt="OAM Animation taskbar icon">                          | ROM-backed sprite animation view based on OAM data                                                       |
-| Palette                | <img src="img/readme_images/windows_system_table/icon_palette_window.png" alt="Palette taskbar icon">                    | Global palette window for items without an assigned palette                                              |
-| ROM Palette            | <img src="img/readme_images/windows_system_table/icon_rom_palette_window.png" alt="ROM Palette taskbar icon">            | Palette editor tied to ROM addresses                                                                     |
+| Global palette         | <img src="img/readme_images/windows_system_table/icon_palette_window.png" alt="Global palette taskbar icon">             | Global palette window for items without an assigned ROM palette                                          |
+| ROM palette            | <img src="img/readme_images/windows_system_table/icon_rom_palette_window.png" alt="ROM palette taskbar icon">            | ROM palette editor tied to ROM addresses                                                                 |
 | PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view for screens assembled closer to how the game actually renders them  |
 
 
@@ -73,35 +73,31 @@ Notes:
 
 ### Palette windows
 
-Palette windows control how indexed NES colors are shown and edited in the rest of the workspace.
+Palette windows are the palette editors/viewers used by the rest of the app.
 
-<img src="img/readme_images/palette.png" alt="Global palette">
+There are 2 kinds:
 
-<img src="img/readme_images/rom_palette.png" alt="ROM palette">
+* `Global palette`: the fallback palette for content that does not have a ROM palette linked to it. Use this for mockups, freeform art, and anything with no specific in-game palette assigned.
+* `ROM palette`: a real 4x4 palette window backed by ROM data. It can be linked to specific windows and layers, to use the actual in-game palette through palette links.
 
-There are 2 palette window types:
+In practice:
 
-* `Palette`: a global palette window. This is the fallback palette source for items and layers that do not point to a specific ROM palette window.
-* `ROM Palette`: a ROM-backed `4x4` palette editor. Each cell is tied to ROM addresses, so changing a color there changes the actual ROM-backed palette data used by linked windows.
+* If an item or layer has no ROM palette assigned, it uses a `Global palette`.
+* If you want the colors to reflect actual game palette bytes, use a `ROM palette`.
+* Only `ROM palette` windows are meant to be linked to other windows.
+* Palette row numbers `1` to `4` select the row used by layers/items that support palette-number selection.
+* Click a color to select it for editing/painting.
+* In palette windows, arrow keys move the selected cell.
+* In palette windows, `Shift + arrows`, mouse wheel, and `Shift + mouse wheel` adjust colors.
 
-How they behave:
+|                | Normal mode | Compact mode |
+|----------------|-------------|--------------|
+| Global palette | <img src="img/readme_images/global_palette_normal.png" alt="Global palette normal mode"> | <img src="img/readme_images/global_palette_compact.png" alt="Global palette compact mode"> |
+| ROM palette    | <img src="img/readme_images/rom_palette_normal.png" alt="ROM palette normal mode"> | <img src="img/readme_images/rom_palette_compact.png" alt="ROM palette compact mode"> |
 
-* A normal `Palette` window is mainly for viewing and choosing the active editing color in a simple global way.
-* A `ROM Palette` window is for real game palettes. Tile and sprite layers can link to one through `paletteData = { winId = "..." }`.
-* When a layer is linked to a `ROM Palette` window, shader rendering, previews, and palette-numbered tiles/sprites use that palette data.
-* Palette numbers `1` to `4` choose which row/palette set is used on layers that support per-item palette assignment.
-* The first column in a ROM palette is usually the shared background color.
+To link a `ROM palette` to another window, drag from the small pivot button in the ROM palette toolbar into the destination window. This is the UI-driven way to create palette links between a ROM palette and a window/layer.
 
-Practical workflow:
-
-* Use a global `Palette` window when you just want a quick working palette for mockups or unlinked content.
-* Use `ROM Palette` windows when editing real in-game screens, sprites, and `ppu_frame` windows that should reflect actual ROM palette bytes.
-* Click a color in a palette window to make it the active paint color.
-* In edit mode, using grab-color on art can also move the selection in the active palette window when applicable.
-* In palette windows, arrow keys move the selected palette cell.
-* In palette windows, `Shift + arrows` adjusts the selected palette color.
-* Mouse wheel over a palette window also adjusts palette colors.
-* `Shift + mouse wheel` adjusts palette colors horizontally in palette windows.
+<img src="img/readme_images/palette_link_example.png" alt="ROM palette link drag and drop example">
 
 ### Main controls
 
