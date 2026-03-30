@@ -12,7 +12,7 @@ local function normalizeCanvasFilterKey(key)
 end
 
 local function normalizePaletteLinksKey(key)
-  if key == "never" then return "never" end
+  if key == "on_hover" or key == "never" then return "on_hover" end
   if key == "auto_hide" then return "auto_hide" end
   return "always"
 end
@@ -177,7 +177,7 @@ function Dialog:_defaultRows()
   local paletteLinksLabel = ({
     always = "Always",
     auto_hide = "Auto-hide",
-    never = "Never",
+    on_hover = "On-hover",
   })[paletteLinks] or "Always"
 
   return {
@@ -216,8 +216,8 @@ function Dialog:_defaultRows()
         action = function()
           local nextValue = ({
             always = "auto_hide",
-            auto_hide = "never",
-            never = "always",
+            auto_hide = "on_hover",
+            on_hover = "always",
           })[paletteLinks] or "always"
           if self.onSetPaletteLinks then
             self.onSetPaletteLinks(nextValue)

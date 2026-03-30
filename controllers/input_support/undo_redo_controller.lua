@@ -229,6 +229,52 @@ function UndoRedoController:addWindowEvent(event)
   return pushed
 end
 
+function UndoRedoController:addPaletteLinkEvent(event)
+  if not event or event.type ~= "palette_link" then return false end
+  if type(event.actions) ~= "table" or #event.actions == 0 then return false end
+  local pushed = self:_pushEvent(event)
+  if pushed then
+    self:_notifyUnsaved("palette_link_change")
+  end
+  return pushed
+end
+
+local function deepCopy(value, seen)
+  if type(value) ~= "table" then
+    return value
+  end
+  seen = seen or {}
+  if seen[value] then
+    return seen[value]
+  end
+  local copy = {}
+  seen[value] = copy
+  for k, v in pairs(value) do
+    copy[deepCopy(k, seen)] = deepCopy(v, seen)
+  end
+  return copy
+end
+
+local function applyPaletteLinkEvent(event, direction)
+  if not (event and event.type == "palette_link" and event.actions) then
+    return false
+  end
+
+  local applied = 0
+  for _, act in ipairs(event.actions) do
+    local win = act.win
+    local li = act.layerIndex
+    local layer = win and win.layers and li and win.layers[li] or nil
+    if layer then
+      local state = (direction == "undo") and act.beforePaletteData or act.afterPaletteData
+      layer.paletteData = deepCopy(state)
+      applied = applied + 1
+    end
+  end
+
+  return applied > 0
+end
+
 local function applySpriteState(sprite, state)
   if not (sprite and state) then return false end
 
@@ -593,6 +639,8 @@ function UndoRedoController:_applyEvent(event, direction, app)
     return applyTileDragEvent(event, direction)
   elseif event.type == "sprite_drag" then
     return applySpriteDragEvent(event, direction)
+  elseif event.type == "palette_link" then
+    return applyPaletteLinkEvent(event, direction)
   elseif event.type == "window_close" then
     return applyWindowCloseEvent(event, direction, app)
   end

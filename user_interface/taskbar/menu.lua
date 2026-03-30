@@ -202,6 +202,12 @@ function M.install(Taskbar, Helpers)
     local recentItems = self:_buildRecentProjectMenuItems()
     local windowsItems = {
       {
+        icon = self._menuIcons and self._menuIcons.newWindow or nil,
+        text = "New Window",
+        enabled = hasRom,
+        callback = self._menuActions and self._menuActions.newWindow or nil,
+      },
+      {
         icon = self._menuIcons and self._menuIcons.expandAll or nil,
         text = "Expand all",
         enabled = hasRom,
@@ -273,12 +279,6 @@ function M.install(Taskbar, Helpers)
         text = "Settings",
         enabled = true,
         callback = self._menuActions and self._menuActions.settings or nil,
-      },
-      {
-        icon = self._menuIcons and self._menuIcons.newWindow or nil,
-        text = "New Window",
-        enabled = hasRom,
-        callback = self._menuActions and self._menuActions.newWindow or nil,
       },
       {
         icon = self._menuIcons and self._menuIcons.save or nil,

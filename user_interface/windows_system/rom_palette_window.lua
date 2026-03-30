@@ -476,12 +476,7 @@ end
 -- Override drawGrid to show codes even when not active (ROM palettes always show codes)
 function RomPaletteWindow:drawGrid()
   local sx, sy, sw, sh = self:getScreenRect()
-  local stripMetrics = self.selected and self:getStripMetrics() or nil
-  if stripMetrics then
-    love.graphics.setScissor(sx, sy, sw + (stripMetrics.extraWidth * self.zoom), sh + (stripMetrics.extraHeight * self.zoom))
-  else
-    love.graphics.setScissor(sx, sy, sw, sh)
-  end
+  love.graphics.setScissor(sx, sy, sw, sh)
   love.graphics.push()
   love.graphics.translate(self.x, self.y)
   love.graphics.scale(self.zoom, self.zoom)
@@ -515,9 +510,9 @@ function RomPaletteWindow:drawGrid()
     end
   end
 
-  self:drawSelectionStrips()
-  
   love.graphics.setScissor()
+  self:drawSelectionStrips()
+
   if self.selected and self:isCellEditable(self.selected.col, self.selected.row) then
     self:highlightSelected(cw, ch)
   end

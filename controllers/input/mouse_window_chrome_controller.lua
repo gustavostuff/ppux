@@ -43,18 +43,45 @@ function M._resetHeaderDoubleClickState()
   lastPaletteLinkHandleClick = nil
 end
 
-function M.findToolbarWindowAt(x, y, wm)
+local function isPointInWindowInteractiveArea(win, x, y)
+  if not win then
+    return false
+  end
+  if win.contains and win:contains(x, y) then
+    return true
+  end
+  if win.specializedToolbar and win.specializedToolbar.contains and win.specializedToolbar:contains(x, y) then
+    return true
+  end
+  if win.headerToolbar and win.headerToolbar.contains and win.headerToolbar:contains(x, y) then
+    return true
+  end
+  return false
+end
+
+function M.getTopInteractiveWindowAt(x, y, wm)
   local windows = wm and wm.getWindows and wm:getWindows() or {}
   for i = #windows, 1, -1 do
     local win = windows[i]
     if win and not win._closed and not win._minimized then
-      if not win._collapsed and win.specializedToolbar and win.specializedToolbar.contains and win.specializedToolbar:contains(x, y) then
-        return win
-      end
-      if win.headerToolbar and win.headerToolbar.contains and win.headerToolbar:contains(x, y) then
+      if isPointInWindowInteractiveArea(win, x, y) then
         return win
       end
     end
+  end
+  return nil
+end
+
+function M.findToolbarWindowAt(x, y, wm)
+  local win = M.getTopInteractiveWindowAt(x, y, wm)
+  if not win then
+    return nil
+  end
+  if not win._collapsed and win.specializedToolbar and win.specializedToolbar.contains and win.specializedToolbar:contains(x, y) then
+    return win
+  end
+  if win.headerToolbar and win.headerToolbar.contains and win.headerToolbar:contains(x, y) then
+    return win
   end
   return nil
 end
@@ -71,6 +98,29 @@ end
 local function getPaletteLinkDrag()
   local app = getApp()
   return app and app.paletteLinkDrag or nil
+end
+
+local function deepCopy(value, seen)
+  if type(value) ~= "table" then
+    return value
+  end
+  seen = seen or {}
+  if seen[value] then
+    return seen[value]
+  end
+  local copy = {}
+  seen[value] = copy
+  for k, v in pairs(value) do
+    copy[deepCopy(k, seen)] = deepCopy(v, seen)
+  end
+  return copy
+end
+
+local function clonePaletteData(paletteData)
+  if type(paletteData) ~= "table" then
+    return nil
+  end
+  return deepCopy(paletteData)
 end
 
 local function canWindowAcceptPaletteLink(targetWin, sourceWin)
@@ -106,6 +156,10 @@ local function isValidPaletteLinkHandle(toolbar, x, y)
     and y >= by and y <= (by + bh)
 end
 
+local function isPointInWindowDropArea(win, x, y)
+  return isPointInWindowInteractiveArea(win, x, y)
+end
+
 local function getLinkedLayerIndexForPalette(targetWin, paletteWin)
   if not (targetWin and paletteWin and paletteWin._id) then
     return nil
@@ -135,20 +189,6 @@ local function collectLinkedTargetsForPalette(wm, paletteWin)
   return out
 end
 
-local function resolvePaletteUnlinkTarget(wm, paletteWin, previousFocus)
-  local li = getLinkedLayerIndexForPalette(previousFocus, paletteWin)
-  if li then
-    return previousFocus, li
-  end
-
-  local linked = collectLinkedTargetsForPalette(wm, paletteWin)
-  if #linked == 1 then
-    return linked[1].win, linked[1].layerIndex
-  end
-
-  return nil, nil
-end
-
 local function clearPaletteWinIdLink(layer)
   if not (layer and layer.paletteData and layer.paletteData.winId) then
     return false
@@ -160,34 +200,23 @@ local function clearPaletteWinIdLink(layer)
   return true
 end
 
-local function unlinkPaletteTarget(wm, paletteWin, targetWin, layerIndex)
-  local app = getApp()
-  local layer = targetWin and targetWin.layers and targetWin.layers[layerIndex] or nil
-  if not clearPaletteWinIdLink(layer) then
-    return false
-  end
-
-  if wm and wm.setFocus then
-    wm:setFocus(targetWin)
-  end
-  if app and app.markUnsaved then
-    app:markUnsaved("palette_link_change")
-  end
-  if app and app.setStatus then
-    app:setStatus(string.format("Unlinked %s from %s layer %d", paletteWin.title or "Palette", targetWin.title or "window", layerIndex))
-  end
-  return true
-end
-
 local function unlinkAllPaletteTargets(wm, paletteWin)
   local app = getApp()
   local linked = collectLinkedTargetsForPalette(wm, paletteWin)
   local removedCount = 0
+  local undoActions = {}
 
   for _, entry in ipairs(linked) do
     local layer = entry.win and entry.win.layers and entry.win.layers[entry.layerIndex] or nil
+    local beforePaletteData = clonePaletteData(layer and layer.paletteData or nil)
     if clearPaletteWinIdLink(layer) then
       removedCount = removedCount + 1
+      undoActions[#undoActions + 1] = {
+        win = entry.win,
+        layerIndex = entry.layerIndex,
+        beforePaletteData = beforePaletteData,
+        afterPaletteData = clonePaletteData(layer and layer.paletteData or nil),
+      }
     end
   end
 
@@ -195,7 +224,12 @@ local function unlinkAllPaletteTargets(wm, paletteWin)
     return false
   end
 
-  if app and app.markUnsaved then
+  if app and app.undoRedo and app.undoRedo.addPaletteLinkEvent then
+    app.undoRedo:addPaletteLinkEvent({
+      type = "palette_link",
+      actions = undoActions,
+    })
+  elseif app and app.markUnsaved then
     app:markUnsaved("palette_link_change")
   end
   if app and app.setStatus then
@@ -261,13 +295,58 @@ local function beginPaletteLinkDrag(toolbar, button, x, y, win, wm, previousFocu
 end
 
 local function getPaletteLinkDropTarget(wm, sourceWin, x, y)
+  if sourceWin then
+    if (sourceWin.specializedToolbar and sourceWin.specializedToolbar.contains and sourceWin.specializedToolbar:contains(x, y))
+      or (sourceWin.headerToolbar and sourceWin.headerToolbar.contains and sourceWin.headerToolbar:contains(x, y))
+    then
+      return nil
+    end
+  end
+
+  local hoverTarget = nil
   local windows = wm and wm.getWindows and wm:getWindows() or {}
   for i = #windows, 1, -1 do
     local win = windows[i]
-    if win and win ~= sourceWin and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
-      if win.contains and win:contains(x, y) then
-        return win
-      end
+    if win
+      and win ~= sourceWin
+      and not win._closed
+      and not win._minimized
+      and not WindowCaps.isAnyPaletteWindow(win)
+      and isPointInWindowDropArea(win, x, y)
+    then
+      hoverTarget = win
+      break
+    end
+  end
+
+  local focusedWin = wm and wm.getFocus and wm:getFocus() or nil
+  if not focusedWin or focusedWin == sourceWin or focusedWin ~= hoverTarget then
+    return nil
+  end
+  if focusedWin._closed or focusedWin._minimized or WindowCaps.isAnyPaletteWindow(focusedWin) then
+    return nil
+  end
+  if isPointInWindowDropArea(focusedWin, x, y) then
+    return focusedWin
+  end
+
+  return nil
+end
+
+function M.getPaletteLinkHoverTarget(wm, sourceWin, x, y)
+  local windows = wm and wm.getWindows and wm:getWindows() or {}
+  for i = #windows, 1, -1 do
+    local win = windows[i]
+    local ok = canWindowAcceptPaletteLink(win, sourceWin)
+    if win
+      and win ~= sourceWin
+      and not win._closed
+      and not win._minimized
+      and not WindowCaps.isAnyPaletteWindow(win)
+      and ok
+      and isPointInWindowDropArea(win, x, y)
+    then
+      return win
     end
   end
   return nil
@@ -284,9 +363,14 @@ local function applyPaletteLinkToTarget(targetWin, paletteWin)
   end
   local li = result
   local layer = targetWin.layers and targetWin.layers[li] or nil
+  local beforePaletteData = clonePaletteData(layer and layer.paletteData or nil)
 
   layer.paletteData = { winId = paletteWin._id }
-  return true, li
+  return true, {
+    layerIndex = li,
+    beforePaletteData = beforePaletteData,
+    afterPaletteData = clonePaletteData(layer and layer.paletteData or nil),
+  }
 end
 
 function M.getPaletteLinkDropTarget(wm, sourceWin, x, y)
@@ -343,11 +427,23 @@ local function finishPaletteLinkDrag(wm, x, y)
   if wm and wm.setFocus then
     wm:setFocus(targetWin)
   end
-  if app and app.markUnsaved then
+  if app and app.undoRedo and app.undoRedo.addPaletteLinkEvent then
+    app.undoRedo:addPaletteLinkEvent({
+      type = "palette_link",
+      actions = {
+        {
+          win = targetWin,
+          layerIndex = result.layerIndex,
+          beforePaletteData = result.beforePaletteData,
+          afterPaletteData = result.afterPaletteData,
+        },
+      },
+    })
+  elseif app and app.markUnsaved then
     app:markUnsaved("palette_link_change")
   end
   if app and app.setStatus then
-    app:setStatus(string.format("Linked %s to %s layer %d", sourceTitle, targetWin.title or "window", result))
+    app:setStatus(string.format("Linked %s to %s layer %d", sourceTitle, targetWin.title or "window", result.layerIndex))
   end
   drag.sourceWin = nil
   drag.sourceWinId = nil
@@ -361,24 +457,40 @@ local function beginToolbarWindowDragIfNeeded(toolbar, button, x, y, win)
   if not toolbar:contains(x, y) then
     return false
   end
+  if (toolbar.getButtonAt and toolbar:getButtonAt(x, y))
+    or (toolbar.getLabelAt and toolbar:getLabelAt(x, y))
+  then
+    return false
+  end
   win.dragging = true
   win.dx = x - win.x
   win.dy = y - win.y
   return true
 end
 
+local function isOverToolbarControl(toolbar, x, y)
+  if not toolbar then
+    return false
+  end
+  if toolbar.updatePosition then
+    toolbar:updatePosition()
+  end
+  return ((toolbar.getButtonAt and toolbar:getButtonAt(x, y)) ~= nil)
+    or ((toolbar.getLabelAt and toolbar:getLabelAt(x, y)) ~= nil)
+end
+
 function M.handleToolbarClicks(button, x, y, win, wm)
   if not win or win._closed or win._minimized then return false end
 
   local previousFocus = (wm and wm.getFocus and wm:getFocus()) or nil
-  if wm and wm.setFocus then
-    wm:setFocus(win)
-  end
 
   if not win._collapsed and win.specializedToolbar then
     local toolbar = win.specializedToolbar
-    if toolbar.updatePosition then
-      toolbar:updatePosition()
+    if isWindowDragMouseButton(button) and isOverToolbarControl(toolbar, x, y) then
+      return true
+    end
+    if wm and wm.setFocus then
+      wm:setFocus(win)
     end
     if beginPaletteLinkDrag(toolbar, button, x, y, win, wm, previousFocus) then
       return true
@@ -393,8 +505,11 @@ function M.handleToolbarClicks(button, x, y, win, wm)
 
   if win.headerToolbar then
     local toolbar = win.headerToolbar
-    if toolbar.updatePosition then
-      toolbar:updatePosition()
+    if isWindowDragMouseButton(button) and isOverToolbarControl(toolbar, x, y) then
+      return true
+    end
+    if wm and wm.setFocus then
+      wm:setFocus(win)
     end
     if beginToolbarWindowDragIfNeeded(toolbar, button, x, y, win) then
       return true

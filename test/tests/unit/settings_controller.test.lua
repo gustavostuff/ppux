@@ -39,7 +39,7 @@ describe("settings_controller.lua - persistence", function()
     local ok = AppSettingsController.save({
       canvasImageMode = "stretch",
       canvasFilter = "soft",
-      paletteLinks = "never",
+      paletteLinks = "on_hover",
       skipSplash = true,
       tooltipsEnabled = false,
       recentProjects = {
@@ -58,7 +58,7 @@ describe("settings_controller.lua - persistence", function()
       tooltipsEnabled = false,
       canvasImageMode = "stretch",
       canvasFilter = "soft",
-      paletteLinks = "never",
+      paletteLinks = "on_hover",
       recentProjects = {
         "/tmp/foo",
         "/tmp/bar",

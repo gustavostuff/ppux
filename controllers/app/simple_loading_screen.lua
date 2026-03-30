@@ -124,7 +124,7 @@ local function drawLoadingPattern(cw, ch, message, font)
     love.graphics.setFont(font)
   end
   love.graphics.setColor(colors.white)
-  love.graphics.printf(message or "Loading...", 0, cy + 64 + 18, cw, "center")
+  love.graphics.printf(message or "Loading...", 0, cy + 90, cw, "center")
 end
 
 local function renderLoadingPatternToCanvas(canvas, message, font)

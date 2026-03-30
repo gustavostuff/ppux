@@ -262,6 +262,16 @@ function M.handleMouseMoved(env, x, y, dx, dy)
   if app and app.paletteLinkDrag and app.paletteLinkDrag.active then
     app.paletteLinkDrag.currentX = x
     app.paletteLinkDrag.currentY = y
+    local wm = ctx.wm()
+    local hoveredWin = nil
+    if chrome.getPaletteLinkHoverTarget then
+      hoveredWin = chrome.getPaletteLinkHoverTarget(wm, app.paletteLinkDrag.sourceWin, x, y)
+    elseif wm and wm.windowAt then
+      hoveredWin = wm:windowAt(x, y)
+    end
+    if hoveredWin and hoveredWin ~= app.paletteLinkDrag.sourceWin and wm and wm.setFocus then
+      wm:setFocus(hoveredWin)
+    end
   end
 
   if SpriteController.isDragging() then

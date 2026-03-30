@@ -258,7 +258,7 @@ function PaletteWindow:getStripMetrics()
   local selectedRow = self.selected and self.selected.row or 0
   local gridW = (self.cols or 0) * (self.cellW or 0)
   local gridH = (self.rows or 0) * (self.cellH or 0)
-  local gap = 2
+  local gap = 1
   local horizontalCellW = math.max(4, math.floor((self.cellW or 0) / 4 + 0.5))
   local horizontalCellH = math.max(4, math.floor((self.cellH or 0) / 4 + 0.5))
   local verticalCellW = horizontalCellW
@@ -280,6 +280,12 @@ function PaletteWindow:getStripMetrics()
 end
 
 function PaletteWindow:drawSelectionStrips()
+  local gctx = rawget(_G, "ctx")
+  local wm = gctx and gctx.wm and gctx.wm() or nil
+  if wm and wm.getFocus and wm:getFocus() ~= self then
+    return nil
+  end
+
   local strips = self:getSelectedStripCodes()
   if not strips then
     return nil
@@ -313,6 +319,25 @@ function PaletteWindow:drawSelectionStrips()
   local verticalMarkerY = metrics.verticalY + (strips.rowIndex * metrics.verticalCellH)
   self.stripSelection:draw(horizontalMarkerX, horizontalMarkerY)
   self.stripSelection:draw(verticalMarkerX, verticalMarkerY)
+
+  local horizontalStripW = #strips.rowCodes * metrics.horizontalCellW
+  local horizontalStripH = metrics.horizontalCellH
+  local verticalStripW = metrics.verticalCellW
+  local verticalStripH = #strips.colCodes * metrics.verticalCellH
+
+  love.graphics.setColor(colors.blue)
+  love.graphics.rectangle("line",
+    metrics.horizontalX,
+    metrics.horizontalY,
+    horizontalStripW + 1,
+    horizontalStripH + 1
+  )
+  love.graphics.rectangle("line",
+    metrics.verticalX,
+    metrics.verticalY,
+    verticalStripW + 1,
+    verticalStripH + 1
+  )
 
   return metrics
 end

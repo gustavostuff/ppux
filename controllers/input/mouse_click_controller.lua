@@ -213,8 +213,24 @@ local function handleSpriteClick(env, button, x, y, win, wm)
 end
 
 local function handleRightButton(env, button, x, y, win, wm)
+  local function isOverToolbarControl(toolbar)
+    if not toolbar then return false end
+    if toolbar.updatePosition then
+      toolbar:updatePosition()
+    end
+    if (toolbar.getButtonAt and toolbar:getButtonAt(x, y))
+      or (toolbar.getLabelAt and toolbar:getLabelAt(x, y))
+    then
+      return true
+    end
+    return false
+  end
+
   if button == 2 or button == 3 then
     if win then
+      if isOverToolbarControl(win.specializedToolbar) or isOverToolbarControl(win.headerToolbar) then
+        return true
+      end
       wm:setFocus(win)
       win:mousepressed(x, y, button)
     else
@@ -516,9 +532,10 @@ function M.handleMousePressed(env, x, y, button)
   local ctx = env.ctx
   local wm = ctx.wm()
   local chrome = env.chrome
+  local topInteractiveWin = chrome.getTopInteractiveWindowAt and chrome.getTopInteractiveWindowAt(x, y, wm) or nil
 
   local focusedWin = wm:getFocus()
-  if chrome.handleToolbarClicks(button, x, y, focusedWin, wm) then
+  if focusedWin and focusedWin == topInteractiveWin and chrome.handleToolbarClicks(button, x, y, focusedWin, wm) then
     return true
   end
 
@@ -531,7 +548,7 @@ function M.handleMousePressed(env, x, y, button)
 
   if chrome.handleResizeHandle(button, x, y, wm) then return true end
 
-  local win = wm:windowAt(x, y)
+  local win = topInteractiveWin or wm:windowAt(x, y)
   if chrome.handleHeaderClick(button, x, y, win, wm, {
     onWindowTitleDoubleClick = function(targetWindow)
       local app = env.ctx and env.ctx.app or nil

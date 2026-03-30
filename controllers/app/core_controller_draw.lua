@@ -268,7 +268,7 @@ local function getHoveredPaletteHandleLinks(app)
 end
 
 local function normalizePaletteLinksMode(mode)
-  if mode == "never" then return "never" end
+  if mode == "on_hover" or mode == "never" then return "on_hover" end
   if mode == "auto_hide" then return "auto_hide" end
   return "always"
 end
@@ -301,8 +301,8 @@ local function getPersistentPaletteLinkVisual(app, contentWin, paletteWin)
   if mode == "always" then
     return true, 1
   end
-  if mode == "never" then
-    return false, 1
+  if mode == "on_hover" then
+    return isMouseHoveringPaletteHandle(paletteWin), 1
   end
 
   if isMouseHoveringPaletteHandle(paletteWin) then
