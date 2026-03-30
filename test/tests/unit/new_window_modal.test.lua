@@ -18,7 +18,7 @@ describe("new_window_modal.lua", function()
     modal:toggleSpriteMode()
     expect(modal:getSpriteMode()).toBe("8x16")
 
-    local optionCell = modal.panel:getCell(1, 5)
+    local optionCell = modal.panel:getCell(1, 6)
     expect(optionCell).toBeTruthy()
     local clickX = optionCell.x + 4
     local clickY = optionCell.y + 4
@@ -51,7 +51,7 @@ describe("new_window_modal.lua", function()
     })
 
     modal.nameField:setText("  Custom Name  ")
-    local optionCell = modal.panel:getCell(1, 5)
+    local optionCell = modal.panel:getCell(1, 6)
     expect(optionCell).toBeTruthy()
     local clickX = optionCell.x + 4
     local clickY = optionCell.y + 4
@@ -68,7 +68,7 @@ describe("new_window_modal.lua", function()
   it("toggles sprite mode when mode button is clicked", function()
     local modal = NewWindowModal.new()
     modal:show("New Window", {})
-    local modeCell = modal.panel:getCell(4, 1)
+    local modeCell = modal.panel:getCell(4, 3)
     expect(modeCell).toBeTruthy()
 
     expect(modal:getSpriteMode()).toBe("8x8")

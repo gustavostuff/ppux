@@ -185,7 +185,7 @@ local function newWindowOptionCenter(optionIndex)
   return function(_, currentApp)
     local cell = currentApp.newWindowModal
       and currentApp.newWindowModal.panel
-      and currentApp.newWindowModal.panel:getCell(1, 4 + optionIndex)
+      and currentApp.newWindowModal.panel:getCell(1, 5 + optionIndex)
     assert(cell, "expected new window option cell")
     return cell.x + math.floor(cell.w * 0.5), cell.y + math.floor(cell.h * 0.5)
   end
@@ -195,7 +195,7 @@ local function newWindowModeToggleCenter()
   return function(_, currentApp)
     local cell = currentApp.newWindowModal
       and currentApp.newWindowModal.panel
-      and currentApp.newWindowModal.panel:getCell(4, 1)
+      and currentApp.newWindowModal.panel:getCell(4, 3)
     assert(cell, "expected new window mode toggle cell")
     return cell.x + math.floor(cell.w * 0.5), cell.y + math.floor(cell.h * 0.5)
   end

@@ -262,6 +262,16 @@ function AppCoreController:_buildNewWindowOptions()
       end
     },
     {
+      text = "Palette window",
+      buttonText = "Palette window",
+      callback = function(_, _, _, windowTitle)
+        local win = self.wm:createPaletteWindow({
+          title = windowTitle or "Palette",
+        })
+        self:setStatus(string.format("Created %s", win.title))
+      end
+    },
+    {
       text = "Pattern Table Builder",
       buttonText = "Pattern Table Builder",
       callback = function(_, _, _, windowTitle)

@@ -69,7 +69,7 @@ end
 local function rebuildPanel(self)
   local optionCount = #(self.options or {})
   local buttonRows = math.max(1, optionCount)
-  local rows = 4 + buttonRows + 1
+  local rows = 5 + buttonRows + 1
   local leftInset = math.floor((self.cellH or 0) / 2)
   self.panel = Panel.new({
     cols = 4,
@@ -88,7 +88,13 @@ local function rebuildPanel(self)
     textOffsetY = self.textOffsetY,
   })
 
-  self.panel:setCell(4, 1, {
+  self.panel:setCell(1, 3, {
+    text = "Sprite mode:",
+    colspan = 3,
+    preserveTrailingColon = true,
+  })
+
+  self.panel:setCell(4, 3, {
     component = self.modeButton,
   })
 
@@ -98,17 +104,17 @@ local function rebuildPanel(self)
   self.panel:setCell(1, 2, { text = "Rows:" })
   self.panel:setCell(2, 2, { component = self.rowsSpinner, colspan = 2 })
 
-  self.panel:setCell(1, 3, { text = "Name:" })
-  self.panel:setCell(2, 3, { component = self.nameField, colspan = 3 })
+  self.panel:setCell(1, 4, { text = "Name:" })
+  self.panel:setCell(2, 4, { component = self.nameField, colspan = 3 })
 
-  self.panel:setCell(1, 4, {
+  self.panel:setCell(1, 5, {
     text = "Create:",
     colspan = 4,
     preserveTrailingColon = true,
   })
 
   for i, option in ipairs(self.options or {}) do
-    local row = 4 + i
+    local row = 5 + i
     self.panel:setCell(1, row, {
       kind = "button",
       text = compactOptionLabel(option, i),

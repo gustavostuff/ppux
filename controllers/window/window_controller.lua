@@ -4,6 +4,7 @@ local StaticArtWindow    = require("user_interface.windows_system.static_art_win
 local PatternTableBuilderWindow = require("user_interface.windows_system.pattern_table_builder_window")
 local AnimationWindow    = require("user_interface.windows_system.animation_window")
 local OAMAnimationWindow = require("user_interface.windows_system.oam_animation_window")
+local PaletteWindow      = require("user_interface.windows_system.palette_window")
 local SpriteController   = require("controllers.sprite.sprite_controller")
 local ToolbarController  = require("controllers.window.toolbar_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
@@ -897,6 +898,33 @@ function WM:createPatternTableBuilderWindow(opts)
       visibleCols = opts.visibleCols or defaults.cols,
       visibleRows = opts.visibleRows or defaults.rows,
       patternTolerance = opts.patternTolerance or 0,
+    }
+  )
+
+  return self:finalizeNewWindow(win)
+end
+
+function WM:createPaletteWindow(opts)
+  opts = opts or {}
+  local defaults = extractWindowOptions(opts)
+  defaults.title = opts.title or "Palette"
+  defaults.x = opts.x or 60
+  defaults.y = opts.y or 60
+  defaults.cols = opts.cols or 4
+  defaults.rows = opts.rows or 1
+  defaults.zoom = opts.zoom or 1
+
+  local win = PaletteWindow.new(
+    defaults.x,
+    defaults.y,
+    defaults.zoom,
+    opts.paletteName or "smooth_fbx",
+    defaults.rows,
+    defaults.cols,
+    {
+      title = defaults.title,
+      activePalette = (opts.activePalette ~= false),
+      initCodes = opts.initCodes,
     }
   )
 

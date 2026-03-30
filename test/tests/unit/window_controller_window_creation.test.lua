@@ -95,6 +95,22 @@ describe("window_controller.lua - new window creation variants", function()
     expect(wm:getFocus()).toBe(win)
   end)
 
+  it("creates global palette windows as palette", function()
+    local wm = WM.new()
+    local win = wm:createPaletteWindow({
+      title = "Global Palette",
+    })
+
+    expect(win.kind).toBe("palette")
+    expect(win.isPalette).toBe(true)
+    expect(win.title).toBe("Global Palette")
+    expect(win.rows).toBe(1)
+    expect(win.cols).toBe(4)
+    expect(win.activePalette).toBe(true)
+    expect(win.showGrid).toBe("chess")
+    expect(wm:getFocus()).toBe(win)
+  end)
+
   it("creates OAM animated sprite windows as oam_animation with sprite frames", function()
     local wm = WM.new()
     local win = wm:createSpriteWindow({
