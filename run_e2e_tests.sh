@@ -16,6 +16,7 @@ SCENARIOS=(
   "new_window_variants"
   "palette_shader_preview"
   "palette_edit_roundtrip"
+  # "rom_palette_links"
   "save_reload_persistence"
   "submenu_positions"
   "context_menus_and_submenus"

@@ -57,6 +57,29 @@ local function getPaletteLinkDrag()
   return app and app.paletteLinkDrag or nil
 end
 
+local function canWindowAcceptPaletteLink(targetWin, sourceWin)
+  if not targetWin or targetWin == sourceWin then
+    return false, "Palette link failed"
+  end
+  if targetWin._closed or targetWin._minimized then
+    return false, "Palette link failed"
+  end
+  if WindowCaps.isAnyPaletteWindow(targetWin) then
+    return false, "Cannot link a palette to another palette window"
+  end
+  if WindowCaps.isChrLike(targetWin) then
+    return false, "Cannot link a palette to CHR/ROM bank windows"
+  end
+
+  local li = (targetWin.getActiveLayerIndex and targetWin:getActiveLayerIndex()) or targetWin.activeLayer or 1
+  local layer = targetWin.layers and targetWin.layers[li] or nil
+  if not layer then
+    return false, "Target window has no active layer"
+  end
+
+  return true, li
+end
+
 local function isValidPaletteLinkHandle(toolbar, x, y)
   if not (toolbar and toolbar.getLinkHandleRect) then
     return false
@@ -239,17 +262,23 @@ local function applyPaletteLinkToTarget(targetWin, paletteWin)
     return false, "Palette link failed"
   end
 
-  local li = (targetWin.getActiveLayerIndex and targetWin:getActiveLayerIndex()) or targetWin.activeLayer or 1
+  local ok, result = canWindowAcceptPaletteLink(targetWin, paletteWin)
+  if not ok then
+    return false, result
+  end
+  local li = result
   local layer = targetWin.layers and targetWin.layers[li] or nil
-  if not layer then
-    return false, "Target window has no active layer"
-  end
-  if layer.kind ~= "tile" and layer.kind ~= "sprite" then
-    return false, "Target layer cannot use palettes"
-  end
 
   layer.paletteData = { winId = paletteWin._id }
   return true, li
+end
+
+function M.getPaletteLinkDropTarget(wm, sourceWin, x, y)
+  return getPaletteLinkDropTarget(wm, sourceWin, x, y)
+end
+
+function M.canApplyPaletteLinkToTarget(targetWin, paletteWin)
+  return canWindowAcceptPaletteLink(targetWin, paletteWin)
 end
 
 local function finishPaletteLinkDrag(wm, x, y)

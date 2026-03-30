@@ -224,6 +224,29 @@ local function textFieldDemoFieldTextPoint(fieldKey, prefix)
   end
 end
 
+local function toolbarLinkHandleCenter(winResolver)
+  return function(_, currentApp, currentRunner)
+    local win = assert(winResolver(currentApp, currentRunner), "expected palette window for link handle")
+    local toolbar = assert(win.specializedToolbar, "expected specialized toolbar")
+    assert(toolbar.getLinkHandleRect, "expected link handle accessor")
+    local x, y, w, h = toolbar:getLinkHandleRect()
+    assert(type(x) == "number" and type(y) == "number" and type(w) == "number" and type(h) == "number",
+      "expected link handle rect")
+    return x + math.floor(w * 0.5), y + math.floor(h * 0.5)
+  end
+end
+
+local function windowHeaderCenter(winResolver)
+  return function(_, currentApp, currentRunner)
+    local win = assert(winResolver(currentApp, currentRunner), "expected window for header center")
+    assert(win.getHeaderRect, "expected header rect accessor")
+    local x, y, w, h = win:getHeaderRect()
+    assert(type(x) == "number" and type(y) == "number" and type(w) == "number" and type(h) == "number",
+      "expected header rect")
+    return x + math.floor(w * 0.5), y + math.floor(h * 0.5)
+  end
+end
+
 local function saveOptionCenter(optionIndex)
   return function(_, currentApp)
     local cell = currentApp.saveOptionsModal
@@ -1294,6 +1317,197 @@ local function buildPaletteEditRoundtripScenario(harness, app, runner)
   return steps
 end
 
+local function buildRomPaletteLinkScenario(harness, app, runner)
+  harness:loadROM(BubbleExample.getLoadPath())
+  local staticWin = assert(BubbleExample.findStaticWindow(app), "expected static art window")
+
+  local steps = {
+    pause("Start", 0.35),
+    call("Create ROM palette link windows", function(_, currentApp, currentRunner)
+      local win = currentApp.wm:createRomPaletteWindow({
+        title = "ROM Link Palette",
+        x = 470,
+        y = 220,
+      })
+      assert(win, "expected ROM palette window to be created")
+      currentRunner.romLinkPaletteWin = win
+      for row = 0, 3 do
+        for col = 0, 3 do
+          local addr = row * 4 + col
+          local ok = win:setCellAddress(col, row, addr)
+          assert(ok == true, string.format("expected ROM palette address assignment for %d,%d", col, row))
+        end
+      end
+      win:setSelected(2, 1)
+      currentApp.wm:setFocus(win)
+      local spriteWin = currentApp.wm:createSpriteWindow({
+        animated = false,
+        title = "ROM Link Sprite Window",
+        x = 620,
+        y = 110,
+        cols = 4,
+        rows = 4,
+        zoom = 2,
+      })
+      assert(spriteWin, "expected runtime sprite link window to be created")
+      currentRunner.romLinkSpriteWin = spriteWin
+      currentApp.wm:setFocus(win)
+    end),
+    pause("Observe created ROM palette and sprite windows", 0.7),
+  }
+
+  appendDrag(steps, "Link ROM palette to static art window", toolbarLinkHandleCenter(function(_, currentRunner)
+    return currentRunner.romLinkPaletteWin
+  end), function(h)
+    return h:windowCellCenter(staticWin, 1, 1)
+  end, {
+    dragDuration = 0.18,
+    postPause = 0.45,
+  })
+
+  steps[#steps + 1] = call("Assert static art palette link applied", function(_, _, currentRunner)
+    local layer = staticWin.layers and staticWin.layers[1]
+    assert(layer and layer.paletteData and layer.paletteData.winId == currentRunner.romLinkPaletteWin._id,
+      "expected static art layer to link to runtime ROM palette window")
+  end)
+  steps[#steps + 1] = call("Bring ROM palette window to front for next link", function(_, currentApp, currentRunner)
+    assert(currentRunner.romLinkPaletteWin, "expected runtime ROM palette window")
+    currentApp.wm:setFocus(currentRunner.romLinkPaletteWin)
+  end)
+  steps[#steps + 1] = pause("Observe ROM palette brought to front", 0.18)
+  steps[#steps + 1] = call("Normalize sprite window active layer before link", function(_, currentApp)
+    local spriteWin = assert(runner.romLinkSpriteWin, "expected runtime sprite link window")
+    if spriteWin.setActiveLayerIndex then
+      spriteWin:setActiveLayerIndex(1)
+    else
+      spriteWin.activeLayer = 1
+    end
+    currentApp.wm:setFocus(spriteWin)
+  end)
+  steps[#steps + 1] = pause("Observe sprite window ready for link", 0.12)
+  steps[#steps + 1] = call("Bring ROM palette back to front after sprite normalization", function(_, currentApp, currentRunner)
+    assert(currentRunner.romLinkPaletteWin, "expected runtime ROM palette window")
+    currentApp.wm:setFocus(currentRunner.romLinkPaletteWin)
+  end)
+  steps[#steps + 1] = pause("Observe ROM palette ready for sprite link", 0.12)
+  steps[#steps + 1] = call("Verify sprite link drop point resolves to sprite window", function(_, currentApp)
+    local x, y = windowHeaderCenter(function()
+      return assert(runner.romLinkSpriteWin, "expected runtime sprite link window")
+    end)(nil, currentApp, runner)
+    local target = currentApp.wm:windowAt(x, y)
+    assert(target == runner.romLinkSpriteWin, "expected sprite window to be topmost at link drop point")
+  end)
+
+  appendDrag(steps, "Link ROM palette to animation sprite window", toolbarLinkHandleCenter(function(_, currentRunner)
+    return currentRunner.romLinkPaletteWin
+  end), function(_, currentApp)
+    return windowHeaderCenter(function()
+      return assert(runner.romLinkSpriteWin, "expected runtime sprite link window")
+    end)(nil, currentApp, runner)
+  end, {
+    dragDuration = 0.18,
+    postPause = 0.45,
+  })
+
+  steps[#steps + 1] = call("Assert sprite window palette link applied", function(_, _, currentRunner)
+    local spriteWin = assert(currentRunner.romLinkSpriteWin, "expected runtime sprite link window")
+    local linkedLayerIndex = nil
+    for i, layer in ipairs(spriteWin.layers or {}) do
+      if layer and layer.kind == "sprite" and layer.paletteData and layer.paletteData.winId == currentRunner.romLinkPaletteWin._id then
+        linkedLayerIndex = i
+        break
+      end
+    end
+    currentRunner.linkedSpriteLayerIndex = linkedLayerIndex
+    assert(linkedLayerIndex, "expected sprite layer to link to runtime ROM palette window")
+  end)
+
+  steps[#steps + 1] = call("Set palette links to auto-hide and focus sprite target", function(_, currentApp)
+    local spriteWin = assert(runner.romLinkSpriteWin, "expected runtime sprite link window")
+    currentApp:_applyPaletteLinksSetting("auto_hide", false)
+    currentApp.wm:setFocus(spriteWin)
+  end)
+  steps[#steps + 1] = pause("Observe auto-hide with palette unfocused", 0.45)
+  steps[#steps + 1] = moveTo("Hover ROM palette link handle while unfocused", toolbarLinkHandleCenter(function(_, currentRunner)
+    return currentRunner.romLinkPaletteWin
+  end), 0.12)
+  steps[#steps + 1] = pause("Observe handle hover reveal", 0.65)
+  steps[#steps + 1] = moveTo("Move away from ROM palette handle", function(h)
+    local spriteWin = assert(runner.romLinkSpriteWin, "expected runtime sprite link window")
+    return h:windowCellCenter(spriteWin, 0, 0)
+  end, 0.12)
+  steps[#steps + 1] = pause("Observe hidden connector after moving away", 0.45)
+
+  appendDrag(steps, "Drag linked static art window", windowHeaderCenter(function()
+    return staticWin
+  end), function(_, _, currentRunner)
+    local win = staticWin
+    return win.x + 70, win.y - 2
+  end, {
+    dragDuration = 0.18,
+    postPause = 0.22,
+  })
+
+  steps[#steps + 1] = call("Assert drag reveal timer was set", function(currentHarness)
+    assert(staticWin._paletteLinkRevealUntil and staticWin._paletteLinkRevealUntil > currentHarness._timerNow,
+      "expected palette link reveal timer after linked window drag")
+  end)
+  steps[#steps + 1] = pause("Observe post-drag connector fade", 1.1)
+  steps[#steps + 1] = call("Assert drag reveal faded", function(currentHarness)
+    assert((staticWin._paletteLinkRevealUntil or 0) <= currentHarness._timerNow,
+      "expected drag reveal timer to expire")
+  end)
+
+  steps[#steps + 1] = call("Set palette links to never", function(_, currentApp)
+    currentApp:_applyPaletteLinksSetting("never", false)
+  end)
+  steps[#steps + 1] = pause("Observe squares-only palette link mode", 0.6)
+  steps[#steps + 1] = call("Restore palette links to always", function(_, currentApp)
+    currentApp:_applyPaletteLinksSetting("always", false)
+  end)
+  steps[#steps + 1] = pause("Observe full connector restore", 0.6)
+
+  steps[#steps + 1] = call("Bring ROM palette window to front for unlink", function(_, currentApp, currentRunner)
+    assert(currentRunner.romLinkPaletteWin, "expected runtime ROM palette window")
+    currentApp.wm:setFocus(currentRunner.romLinkPaletteWin)
+  end)
+  steps[#steps + 1] = pause("Observe ROM palette before unlink", 0.18)
+  steps[#steps + 1] = moveTo("Prepare ROM palette unlink double click", toolbarLinkHandleCenter(function(_, currentRunner)
+    return currentRunner.romLinkPaletteWin
+  end), 0.08)
+  steps[#steps + 1] = pause("Settle before unlink double click", 0.06)
+  steps[#steps + 1] = mouseDown("Unlink double click first down", toolbarLinkHandleCenter(function(_, currentRunner)
+    return currentRunner.romLinkPaletteWin
+  end), 1)
+  steps[#steps + 1] = pause("Hold first unlink click", 0.05)
+  steps[#steps + 1] = mouseUp("Unlink double click first up", toolbarLinkHandleCenter(function(_, currentRunner)
+    return currentRunner.romLinkPaletteWin
+  end), 1)
+  steps[#steps + 1] = pause("Between unlink clicks", 0.12)
+  steps[#steps + 1] = mouseDown("Unlink double click second down", toolbarLinkHandleCenter(function(_, currentRunner)
+    return currentRunner.romLinkPaletteWin
+  end), 1)
+  steps[#steps + 1] = pause("Hold second unlink click", 0.05)
+  steps[#steps + 1] = mouseUp("Unlink double click second up", toolbarLinkHandleCenter(function(_, currentRunner)
+    return currentRunner.romLinkPaletteWin
+  end), 1)
+  steps[#steps + 1] = pause("Observe unlink all result", 0.65)
+  steps[#steps + 1] = call("Assert both palette links were removed", function(_, _, currentRunner)
+    local staticLayer = staticWin.layers and staticWin.layers[1]
+    local spriteWin = assert(currentRunner.romLinkSpriteWin, "expected runtime sprite link window")
+    local spriteLayer = nil
+    if currentRunner.linkedSpriteLayerIndex then
+      spriteLayer = spriteWin.layers and spriteWin.layers[currentRunner.linkedSpriteLayerIndex]
+    end
+    assert(not (staticLayer and staticLayer.paletteData), "expected static art palette link to be removed")
+    assert(not (spriteLayer and spriteLayer.paletteData), "expected sprite palette link to be removed")
+    assert(currentRunner.romLinkPaletteWin and currentRunner.romLinkPaletteWin._id, "expected ROM palette window to remain")
+  end)
+  steps[#steps + 1] = pause("Scenario complete", 0.5)
+
+  return steps
+end
+
 local function buildSaveReloadPersistenceScenario(harness, app, runner)
   local tempSuffix = tostring(os.time()) .. "_" .. tostring(math.random(1000, 9999))
   local tempRomPath = "/tmp/ppux_e2e_visible_persist_" .. tempSuffix .. ".nes"
@@ -1573,6 +1787,10 @@ local SCENARIOS = {
     title = "Palette Edit Roundtrip",
     build = buildPaletteEditRoundtripScenario,
   },
+  rom_palette_links = {
+    title = "ROM Palette Links",
+    build = buildRomPaletteLinkScenario,
+  },
   save_reload_persistence = {
     title = "Save Reload Persistence",
     build = buildSaveReloadPersistenceScenario,
@@ -1609,6 +1827,7 @@ local SCENARIO_ALIASES = {
   new_window_variants_demo = "new_window_variants",
   palette_shader_preview_demo = "palette_shader_preview",
   palette_edit_roundtrip_demo = "palette_edit_roundtrip",
+  rom_palette_links_demo = "rom_palette_links",
   save_reload_persistence_demo = "save_reload_persistence",
   submenu_positions_demo = "submenu_positions",
   context_menus_and_submenus_demo = "context_menus_and_submenus",

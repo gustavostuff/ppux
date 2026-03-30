@@ -5,6 +5,7 @@ local SpriteController = require("controllers.sprite.sprite_controller")
 local BrushController = require("controllers.input_support.brush_controller")
 local GridModeUtils = require("controllers.grid_mode_utils")
 local WindowCaps = require("controllers.window.window_capabilities")
+local MouseWindowChromeController = require("controllers.input.mouse_window_chrome_controller")
 local UserInput = require("controllers.input")
 local Text = require("utils.text_utils")
 local Timer = require("utils.timer_utils")
@@ -325,6 +326,7 @@ local function drawRectConnector(x1, y1, x2, y2, opts)
   local autoAlignEndSquare = (opts.autoAlignEndSquare == true)
   local showLine = (opts.showLine ~= false)
   local alpha = math.max(0, math.min(1, tonumber(opts.alpha) or 1))
+  local lineColor = opts.lineColor or colors.blue
   local points
   local lastSegmentOrientation
   if math.abs(x2 - x1) >= math.abs(y2 - y1) then
@@ -352,7 +354,7 @@ local function drawRectConnector(x1, y1, x2, y2, opts)
     love.graphics.setColor(0, 0, 0, alpha)
     love.graphics.line(points)
     love.graphics.setLineWidth(1)
-    love.graphics.setColor(colors.blue[1], colors.blue[2], colors.blue[3], alpha)
+    love.graphics.setColor(lineColor[1], lineColor[2], lineColor[3], alpha)
     love.graphics.line(points)
   end
   love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], alpha)
@@ -408,8 +410,21 @@ local function drawActivePaletteLinkDrag(app)
     return
   end
 
+  local lineColor = colors.red
+  if app and app.wm then
+    local targetWin = MouseWindowChromeController.getPaletteLinkDropTarget
+      and MouseWindowChromeController.getPaletteLinkDropTarget(app.wm, drag.sourceWin, tx, ty)
+      or nil
+    local ok = MouseWindowChromeController.canApplyPaletteLinkToTarget
+      and MouseWindowChromeController.canApplyPaletteLinkToTarget(targetWin, drag.sourceWin)
+    if ok then
+      lineColor = colors.green
+    end
+  end
+
   drawRectConnector(sx, sy, tx, ty, {
     autoAlignEndSquare = true,
+    lineColor = lineColor,
   })
 end
 

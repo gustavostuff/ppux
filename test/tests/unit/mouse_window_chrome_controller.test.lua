@@ -160,6 +160,151 @@ describe("mouse_window_chrome_controller", function()
     expect(statuses[#statuses]).toBeTruthy()
   end)
 
+  it("allows linking to non-CHR non-palette windows with non-tile active layers", function()
+    local previousCtx = rawget(_G, "ctx")
+    _G.ctx = {
+      app = {
+        paletteLinkDrag = {
+          active = false,
+          sourceWin = nil,
+          sourceWinId = nil,
+          currentX = 0,
+          currentY = 0,
+        },
+        setStatus = function() end,
+        markUnsaved = function() end,
+        showToast = function() end,
+      },
+    }
+
+    local source = {
+      _id = "palette_1",
+      title = "Sprite Palette",
+      kind = "rom_palette",
+      isPalette = true,
+      _closed = false,
+      _minimized = false,
+      _collapsed = false,
+      specializedToolbar = {
+        updatePosition = function() end,
+        getLinkHandleRect = function()
+          return 10, 10, 32, 15
+        end,
+        contains = function() return true end,
+        mousepressed = function() return false end,
+        mousereleased = function() return false end,
+      },
+    }
+    local target = {
+      _id = "builder_1",
+      title = "Pattern Builder",
+      kind = "pattern_table_builder",
+      _closed = false,
+      _minimized = false,
+      contains = function(_, x, y)
+        return x == 80 and y == 90
+      end,
+      getActiveLayerIndex = function()
+        return 1
+      end,
+      activeLayer = 1,
+      layers = {
+        { kind = "canvas" },
+      },
+    }
+    local wm = {
+      setFocus = function() end,
+      getFocus = function()
+        return source
+      end,
+      getWindows = function()
+        return { source, target }
+      end,
+    }
+
+    local pressed = MouseWindowChromeController.handleToolbarClicks(1, 12, 12, source, wm)
+    local released = MouseWindowChromeController.handleToolbarRelease(1, 80, 90, wm)
+    _G.ctx = previousCtx
+
+    expect(pressed).toBeTruthy()
+    expect(released).toBeTruthy()
+    expect(target.layers[1].paletteData.winId).toBe("palette_1")
+  end)
+
+  it("does not allow linking onto chr windows", function()
+    local previousCtx = rawget(_G, "ctx")
+    local toasts = {}
+    _G.ctx = {
+      app = {
+        paletteLinkDrag = {
+          active = false,
+          sourceWin = nil,
+          sourceWinId = nil,
+          currentX = 0,
+          currentY = 0,
+        },
+        setStatus = function() end,
+        markUnsaved = function() end,
+        showToast = function(_, kind, message)
+          toasts[#toasts + 1] = { kind = kind, message = message }
+        end,
+      },
+    }
+
+    local source = {
+      _id = "palette_1",
+      title = "Sprite Palette",
+      kind = "rom_palette",
+      isPalette = true,
+      _closed = false,
+      _minimized = false,
+      _collapsed = false,
+      specializedToolbar = {
+        updatePosition = function() end,
+        getLinkHandleRect = function()
+          return 10, 10, 32, 15
+        end,
+        contains = function() return true end,
+        mousepressed = function() return false end,
+        mousereleased = function() return false end,
+      },
+    }
+    local chrTarget = {
+      _id = "chr_1",
+      title = "CHR Banks",
+      kind = "chr",
+      _closed = false,
+      _minimized = false,
+      contains = function(_, x, y)
+        return x == 80 and y == 90
+      end,
+      getActiveLayerIndex = function()
+        return 1
+      end,
+      activeLayer = 1,
+      layers = {
+        { kind = "tile" },
+      },
+    }
+    local wm = {
+      setFocus = function() end,
+      getFocus = function()
+        return source
+      end,
+      getWindows = function()
+        return { source, chrTarget }
+      end,
+    }
+
+    MouseWindowChromeController.handleToolbarClicks(1, 12, 12, source, wm)
+    local released = MouseWindowChromeController.handleToolbarRelease(1, 80, 90, wm)
+    _G.ctx = previousCtx
+
+    expect(released).toBeTruthy()
+    expect(chrTarget.layers[1].paletteData).toBeNil()
+    expect(toasts[1].kind).toBe("error")
+  end)
+
   it("double clicks the palette link handle to unlink all destination windows using that palette", function()
     local previousCtx = rawget(_G, "ctx")
     local statuses = {}
