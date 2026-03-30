@@ -11,6 +11,12 @@ local function normalizeCanvasFilterKey(key)
   return "sharp"
 end
 
+local function normalizePaletteLinksKey(key)
+  if key == "never" then return "never" end
+  if key == "auto_hide" then return "auto_hide" end
+  return "always"
+end
+
 local function makeButtonWidget(text)
   return Button.new({
     text = text,
@@ -85,12 +91,14 @@ function Dialog.new()
     onSetCanvasImageMode = nil,
     onSetCanvasFilter = nil,
     onSetTooltipsEnabled = nil,
+    onSetPaletteLinks = nil,
     getScale = nil,
     getFullscreen = nil,
     getResizable = nil,
     getCanvasImageMode = nil,
     getCanvasFilter = nil,
     getTooltipsEnabled = nil,
+    getPaletteLinks = nil,
     extraRows = nil,
     bgColor = nil,
     cellPaddingX = nil,
@@ -141,12 +149,14 @@ function Dialog:show(opts)
   self.onSetCanvasImageMode = opts.onSetCanvasImageMode
   self.onSetCanvasFilter = opts.onSetCanvasFilter
   self.onSetTooltipsEnabled = opts.onSetTooltipsEnabled
+  self.onSetPaletteLinks = opts.onSetPaletteLinks
   self.getScale = opts.getScale
   self.getFullscreen = opts.getFullscreen
   self.getResizable = opts.getResizable
   self.getCanvasImageMode = opts.getCanvasImageMode
   self.getCanvasFilter = opts.getCanvasFilter
   self.getTooltipsEnabled = opts.getTooltipsEnabled
+  self.getPaletteLinks = opts.getPaletteLinks
   self.extraRows = opts.extraRows
   self.visible = true
   self.pressedButton = nil
@@ -163,6 +173,12 @@ end
 function Dialog:_defaultRows()
   local canvasFilter = normalizeCanvasFilterKey(self.getCanvasFilter and self.getCanvasFilter() or nil)
   local tooltipsEnabled = not (self.getTooltipsEnabled and self.getTooltipsEnabled() == false)
+  local paletteLinks = normalizePaletteLinksKey(self.getPaletteLinks and self.getPaletteLinks() or nil)
+  local paletteLinksLabel = ({
+    always = "Always",
+    auto_hide = "Auto-hide",
+    never = "Never",
+  })[paletteLinks] or "Always"
 
   return {
     {
@@ -187,6 +203,24 @@ function Dialog:_defaultRows()
         action = function()
           if self.onSetCanvasFilter then
             self.onSetCanvasFilter((canvasFilter == "soft") and "sharp" or "soft")
+          end
+        end,
+      },
+    },
+    {
+      id = "palette_links",
+      label = "Palette links",
+      buttonSpec = {
+        id = "palette_links_toggle",
+        text = paletteLinksLabel,
+        action = function()
+          local nextValue = ({
+            always = "auto_hide",
+            auto_hide = "never",
+            never = "always",
+          })[paletteLinks] or "always"
+          if self.onSetPaletteLinks then
+            self.onSetPaletteLinks(nextValue)
           end
         end,
       },

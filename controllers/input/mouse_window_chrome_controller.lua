@@ -140,27 +140,46 @@ local function unlinkPaletteTarget(wm, paletteWin, targetWin, layerIndex)
   return true
 end
 
+local function unlinkAllPaletteTargets(wm, paletteWin)
+  local app = getApp()
+  local linked = collectLinkedTargetsForPalette(wm, paletteWin)
+  local removedCount = 0
+
+  for _, entry in ipairs(linked) do
+    local layer = entry.win and entry.win.layers and entry.win.layers[entry.layerIndex] or nil
+    if clearPaletteWinIdLink(layer) then
+      removedCount = removedCount + 1
+    end
+  end
+
+  if removedCount <= 0 then
+    return false
+  end
+
+  if app and app.markUnsaved then
+    app:markUnsaved("palette_link_change")
+  end
+  if app and app.setStatus then
+    app:setStatus(string.format("Unlinked %d palette connection%s from %s", removedCount, removedCount == 1 and "" or "s", paletteWin.title or "Palette"))
+  end
+  return true
+end
+
 local function maybeHandlePaletteLinkDoubleClick(toolbar, x, y, win, wm, previousFocus)
   if not isValidPaletteLinkHandle(toolbar, x, y) then
     return false
   end
 
-  local targetWin, targetLayerIndex = resolvePaletteUnlinkTarget(wm, win, previousFocus)
   local t = nowSeconds()
   local prev = lastPaletteLinkHandleClick
   local sameClick = prev
     and prev.paletteWin == win
-    and prev.targetWin == targetWin
-    and prev.targetLayerIndex == targetLayerIndex
-    and targetWin ~= nil
     and (t - (prev.time or 0)) <= DOUBLE_CLICK_SECONDS
     and math.abs((prev.x or 0) - x) <= DOUBLE_CLICK_MOVE_TOLERANCE
     and math.abs((prev.y or 0) - y) <= DOUBLE_CLICK_MOVE_TOLERANCE
 
   lastPaletteLinkHandleClick = {
     paletteWin = win,
-    targetWin = targetWin,
-    targetLayerIndex = targetLayerIndex,
     time = t,
     x = x,
     y = y,
@@ -171,7 +190,7 @@ local function maybeHandlePaletteLinkDoubleClick(toolbar, x, y, win, wm, previou
   end
 
   lastPaletteLinkHandleClick = nil
-  return unlinkPaletteTarget(wm, win, targetWin, targetLayerIndex)
+  return unlinkAllPaletteTargets(wm, win)
 end
 
 local function beginPaletteLinkDrag(toolbar, button, x, y, win, wm, previousFocus)

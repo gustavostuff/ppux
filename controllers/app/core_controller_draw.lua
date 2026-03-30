@@ -208,6 +208,119 @@ local function getPaletteLinkDragAnchor(paletteWin)
   return x + w / 2, y
 end
 
+local function isMouseHoveringPaletteHandle(paletteWin)
+  if not paletteWin then
+    return false
+  end
+  local toolbar = paletteWin.specializedToolbar
+  if not (toolbar and toolbar.getLinkHandleRect) then
+    return false
+  end
+  local x, y, w, h = toolbar:getLinkHandleRect()
+  if not (x and y and w and h) then
+    return false
+  end
+  local mouse = ResolutionController:getScaledMouse(true)
+  local mx = mouse and mouse.x or nil
+  local my = mouse and mouse.y or nil
+  if type(mx) ~= "number" or type(my) ~= "number" then
+    mx, my = love.mouse.getPosition()
+  end
+  return mx >= x and mx <= x + w and my >= y and my <= y + h
+end
+
+local function getHoveredPaletteHandleLinks(app)
+  local wm = app and app.wm
+  if not (wm and wm.getWindows) then
+    return {}
+  end
+
+  local hoveredPalette = nil
+  for _, win in ipairs(wm:getWindows()) do
+    if win and not win._closed and not win._minimized and WindowCaps.isAnyPaletteWindow(win) then
+      if isMouseHoveringPaletteHandle(win) then
+        hoveredPalette = win
+        break
+      end
+    end
+  end
+
+  if not hoveredPalette then
+    return {}
+  end
+
+  local links = {}
+  local activeGlobalPalette = WindowCaps.isGlobalPaletteWindow(hoveredPalette)
+    and getActiveGlobalPaletteWindow(wm) == hoveredPalette
+
+  for _, win in ipairs(wm:getWindows()) do
+    if win ~= hoveredPalette and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
+      local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+      local layer = win.layers and win.layers[li] or nil
+      local pd = layer and layer.paletteData or nil
+      if pd then
+        if pd.winId and pd.winId == hoveredPalette._id then
+          links[#links + 1] = { contentWin = win, paletteWin = hoveredPalette }
+        elseif activeGlobalPalette and pd.items then
+          links[#links + 1] = { contentWin = win, paletteWin = hoveredPalette }
+        end
+      end
+    end
+  end
+
+  return links
+end
+
+local function normalizePaletteLinksMode(mode)
+  if mode == "never" then return "never" end
+  if mode == "auto_hide" then return "auto_hide" end
+  return "always"
+end
+
+local function nowSeconds()
+  if love and love.timer and love.timer.getTime then
+    return love.timer.getTime()
+  end
+  return os.clock()
+end
+
+local function getPaletteLinkRevealAlpha(contentWin, paletteWin)
+  if (contentWin and contentWin.dragging) or (paletteWin and paletteWin.dragging) then
+    return 1
+  end
+
+  local now = nowSeconds()
+  local revealUntil = math.max(
+    tonumber(contentWin and contentWin._paletteLinkRevealUntil) or 0,
+    tonumber(paletteWin and paletteWin._paletteLinkRevealUntil) or 0
+  )
+  if revealUntil <= now then
+    return 0
+  end
+  return math.max(0, math.min(1, revealUntil - now))
+end
+
+local function getPersistentPaletteLinkVisual(app, contentWin, paletteWin)
+  local mode = normalizePaletteLinksMode(app and app.paletteLinksMode)
+  if mode == "always" then
+    return true, 1
+  end
+  if mode == "never" then
+    return false, 1
+  end
+
+  if isMouseHoveringPaletteHandle(paletteWin) then
+    return true, 1
+  end
+
+  local revealAlpha = getPaletteLinkRevealAlpha(contentWin, paletteWin)
+  if revealAlpha > 0 then
+    return true, revealAlpha
+  end
+
+  return false, 1
+end
+
 local function drawRectConnector(x1, y1, x2, y2, opts)
   opts = opts or {}
   local startSquareOffsetX = opts.startSquareOffsetX or 0
@@ -215,6 +328,8 @@ local function drawRectConnector(x1, y1, x2, y2, opts)
   local endSquareOffsetX = opts.endSquareOffsetX or 0
   local endSquareOffsetY = opts.endSquareOffsetY or 0
   local autoAlignEndSquare = (opts.autoAlignEndSquare == true)
+  local showLine = (opts.showLine ~= false)
+  local alpha = math.max(0, math.min(1, tonumber(opts.alpha) or 1))
   local points
   local lastSegmentOrientation
   if math.abs(x2 - x1) >= math.abs(y2 - y1) then
@@ -236,30 +351,50 @@ local function drawRectConnector(x1, y1, x2, y2, opts)
   end
 
   love.graphics.push("all")
-  love.graphics.setLineStyle("rough")
-  love.graphics.setLineWidth(3)
-  love.graphics.setColor(0, 0, 0, 1)
-  love.graphics.line(points)
-  love.graphics.setLineWidth(1)
-  love.graphics.setColor(colors.blue[1], colors.blue[2], colors.blue[3], 1)
-  love.graphics.line(points)
-  love.graphics.setColor(colors.white)
+  if showLine then
+    love.graphics.setLineStyle("rough")
+    love.graphics.setLineWidth(3)
+    love.graphics.setColor(0, 0, 0, alpha)
+    love.graphics.line(points)
+    love.graphics.setLineWidth(1)
+    love.graphics.setColor(colors.blue[1], colors.blue[2], colors.blue[3], alpha)
+    love.graphics.line(points)
+  end
+  love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], alpha)
   love.graphics.rectangle("fill", x1 - 1 + startSquareOffsetX, y1 - 1 + startSquareOffsetY, 3, 3)
   love.graphics.rectangle("fill", x2 - 1 + endSquareOffsetX, y2 - 1 + endSquareOffsetY, 3, 3)
   love.graphics.pop()
 end
 
 local function drawPaletteLinkOverlay(app)
-  local links = getFocusedPaletteLinks(app)
+  local links = {}
+  local seen = {}
+  local function appendLinks(list)
+    for _, link in ipairs(list or {}) do
+      local contentId = link.contentWin and (link.contentWin._id or tostring(link.contentWin)) or "?"
+      local paletteId = link.paletteWin and (link.paletteWin._id or tostring(link.paletteWin)) or "?"
+      local key = contentId .. "->" .. paletteId
+      if not seen[key] then
+        seen[key] = true
+        links[#links + 1] = link
+      end
+    end
+  end
+  appendLinks(getFocusedPaletteLinks(app))
+  appendLinks(getHoveredPaletteHandleLinks(app))
+
   for _, link in ipairs(links) do
     local focused = link.contentWin
     local paletteWin = link.paletteWin
     if focused and paletteWin then
       local sx, sy = getWindowLinkAnchor(focused, paletteWin)
       local tx, ty = getPaletteHandleAnchor(paletteWin, focused)
+      local showLine, alpha = getPersistentPaletteLinkVisual(app, focused, paletteWin)
       drawRectConnector(sx, sy, tx, ty, {
         startSquareOffsetX = -1,
         startSquareOffsetY = -1,
+        showLine = showLine,
+        alpha = alpha,
       })
     end
   end

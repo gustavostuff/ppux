@@ -515,6 +515,29 @@ function AppCoreController:_applyCanvasFilterSetting(filterKey, saveSetting)
   return key
 end
 
+local function normalizePaletteLinksKey(key)
+  if key == "never" then return "never" end
+  if key == "auto_hide" then return "auto_hide" end
+  return "always"
+end
+
+function AppCoreController:_getPaletteLinksForSettings()
+  if self.paletteLinksMode then
+    return normalizePaletteLinksKey(self.paletteLinksMode)
+  end
+  local settings = AppSettingsController.load()
+  return normalizePaletteLinksKey(settings and settings.paletteLinks)
+end
+
+function AppCoreController:_applyPaletteLinksSetting(modeKey, saveSetting)
+  local key = normalizePaletteLinksKey(modeKey)
+  self.paletteLinksMode = key
+  if saveSetting ~= false then
+    AppSettingsController.save({ paletteLinks = key })
+  end
+  return key
+end
+
 function AppCoreController:_applyTooltipsEnabledSetting(enabled, saveSetting)
   self.tooltipsEnabled = (enabled ~= false)
   if self.tooltipController and self.tooltipsEnabled == false then
@@ -547,6 +570,9 @@ function AppCoreController:showSettingsModal()
     getTooltipsEnabled = function()
       return appRef:_getTooltipsEnabledForSettings()
     end,
+    getPaletteLinks = function()
+      return appRef:_getPaletteLinksForSettings()
+    end,
     onSetCanvasImageMode = function(modeKey)
       local key = appRef:_applyCanvasImageModeSetting(modeKey, true)
       local labels = {
@@ -563,6 +589,15 @@ function AppCoreController:showSettingsModal()
     onSetTooltipsEnabled = function(enabled)
       local applied = appRef:_applyTooltipsEnabledSetting(enabled, true)
       appRef:setStatus(string.format("Tooltips: %s", applied and "On" or "Off"))
+    end,
+    onSetPaletteLinks = function(modeKey)
+      local applied = appRef:_applyPaletteLinksSetting(modeKey, true)
+      local labels = {
+        always = "Always",
+        auto_hide = "Auto-hide",
+        never = "Never",
+      }
+      appRef:setStatus(string.format("Palette links: %s", labels[applied] or applied))
     end,
   })
 end

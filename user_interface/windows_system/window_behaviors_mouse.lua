@@ -6,6 +6,13 @@ local MIN_WINDOW_SIZE = 64
 local DRAG_VISIBLE_MARGIN = 15
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
+local function nowSeconds()
+  if love and love.timer and love.timer.getTime then
+    return love.timer.getTime()
+  end
+  return os.clock()
+end
+
 local function getMinWindowSize(self)
   local value = tonumber(self and self.minWindowSize)
   if value and value >= 0 then
@@ -74,6 +81,7 @@ function Window:mousereleased(_, _, button)
   end
 
   if self.dragging then
+    self._paletteLinkRevealUntil = nowSeconds() + 1.0
     self.dragging = false
   end
 end

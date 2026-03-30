@@ -11,6 +11,7 @@ local DEFAULT_SETTINGS = {
   tooltipsEnabled = true,
   canvasImageMode = "pixel_perfect",
   canvasFilter = "sharp",
+  paletteLinks = "always",
   recentProjects = {},
 }
 
@@ -79,12 +80,19 @@ local function normalizeCanvasFilterKey(key)
   return "sharp"
 end
 
+local function normalizePaletteLinksKey(key)
+  if key == "never" then return "never" end
+  if key == "auto_hide" then return "auto_hide" end
+  return "always"
+end
+
 local function withDefaults(data)
   local out = TableUtils.deepcopy(DEFAULT_SETTINGS)
   out.skipSplash = (data and data.skipSplash == true)
   out.tooltipsEnabled = not (data and data.tooltipsEnabled == false)
   out.canvasImageMode = normalizeCanvasImageModeKey(data and data.canvasImageMode)
   out.canvasFilter = normalizeCanvasFilterKey(data and data.canvasFilter)
+  out.paletteLinks = normalizePaletteLinksKey(data and data.paletteLinks)
   out.recentProjects = normalizeRecentProjects(data and data.recentProjects)
   return out
 end
@@ -146,6 +154,7 @@ function AppSettingsController.save(opts)
   if opts.tooltipsEnabled ~= nil then data.tooltipsEnabled = (opts.tooltipsEnabled ~= false) end
   if opts.canvasImageMode ~= nil then data.canvasImageMode = opts.canvasImageMode end
   if opts.canvasFilter ~= nil then data.canvasFilter = opts.canvasFilter end
+  if opts.paletteLinks ~= nil then data.paletteLinks = normalizePaletteLinksKey(opts.paletteLinks) end
   if opts.recentProjects ~= nil then data.recentProjects = normalizeRecentProjects(opts.recentProjects) end
   return writeFile(data)
 end

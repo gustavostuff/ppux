@@ -160,7 +160,7 @@ describe("mouse_window_chrome_controller", function()
     expect(statuses[#statuses]).toBeTruthy()
   end)
 
-  it("double clicks the palette link handle to unlink the previously focused destination window", function()
+  it("double clicks the palette link handle to unlink all destination windows using that palette", function()
     local previousCtx = rawget(_G, "ctx")
     local statuses = {}
     local marked = {}
@@ -223,6 +223,24 @@ describe("mouse_window_chrome_controller", function()
       },
     }
 
+    local target2 = {
+      _id = "art_2",
+      title = "Target Art 2",
+      kind = "static_art",
+      _closed = false,
+      _minimized = false,
+      contains = function()
+        return false
+      end,
+      getActiveLayerIndex = function()
+        return 1
+      end,
+      activeLayer = 1,
+      layers = {
+        { kind = "tile", paletteData = { winId = "palette_1" } },
+      },
+    }
+
     local focused = target
     local wm = {
       setFocus = function(_, next)
@@ -232,7 +250,7 @@ describe("mouse_window_chrome_controller", function()
         return focused
       end,
       getWindows = function()
-        return { source, target }
+        return { source, target, target2 }
       end,
     }
 
@@ -243,9 +261,10 @@ describe("mouse_window_chrome_controller", function()
     _G.ctx = previousCtx
 
     expect(target.layers[1].paletteData).toBeNil()
+    expect(target2.layers[1].paletteData).toBeNil()
     expect(focused).toBe(target)
     expect(marked[1]).toBe("palette_link_change")
-    expect(statuses[#statuses]).toBe("Unlinked Sprite Palette from Target Art layer 1")
+    expect(statuses[#statuses]).toBe("Unlinked 2 palette connections from Sprite Palette")
   end)
 
   it("triggers callback on double click over window title area", function()

@@ -343,6 +343,7 @@ function AppCoreController:load()
   if settings and settings.canvasFilter ~= nil then
     self:_applyCanvasFilterSetting(settings.canvasFilter, false)
   end
+  self:_applyPaletteLinksSetting((settings and settings.paletteLinks) or "always", false)
   self:_applyTooltipsEnabledSetting((settings and settings.tooltipsEnabled) ~= false, false)
   ResolutionController:recalculate()
   local splashConfig = {}
