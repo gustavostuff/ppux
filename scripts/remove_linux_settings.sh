@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_IDENTITY="ppux_0.0.1"
+APP_IDENTITY="ppux"
 APP_NAME="PPUX"
 SETTINGS_FILE="settings.lua"
 

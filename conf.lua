@@ -4,7 +4,7 @@ function love.conf(t)
   local windowW = baseW * 2
   local windowH = baseH * 2
 
-  t.identity = "ppux_0.0.1"           -- The name of the save directory (string)
+  t.identity = "ppux"           -- The name of the save directory (string)
   t.appendidentity = false            -- Search files in source directory before save directory (boolean)
   t.version = "11.4"                  -- The LÖVE version this game was made for (string)
   t.console = false                   -- Attach a console (boolean, Windows only)
