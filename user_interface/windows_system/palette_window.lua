@@ -11,7 +11,7 @@ local katsudo = require("lib.katsudo")
 local DebugController = require("controllers.dev.debug_controller")
 
 local NORMAL_CELL_W, NORMAL_CELL_H = 32, 24
-local COMPACT_CELL_W, COMPACT_CELL_H = 24, 16
+local COMPACT_CELL_W, COMPACT_CELL_H = 20, 13
 
 local function buildSelectionAnim()
   if images and images.palette_selection then
@@ -21,8 +21,16 @@ local function buildSelectionAnim()
   return { draw = function() end }
 end
 
+local function buildStripSelectionAnim()
+  if images and images.strip_palette_selection then
+    return katsudo.new(images.strip_palette_selection, 8, 6, 4, 0.1)
+  end
+  return { draw = function() end }
+end
+
 local PaletteWindow = {
-  selection = buildSelectionAnim()
+  selection = buildSelectionAnim(),
+  stripSelection = buildStripSelectionAnim(),
 }
 PaletteWindow.__index = PaletteWindow
 setmetatable(PaletteWindow, { __index = Window })
@@ -57,9 +65,16 @@ local function markPaletteUnsaved()
   end
 end
 
+local function buildCodeFromNibbles(hi, lo)
+  hi = clamp(tonumber(hi) or 0, 0, 3)
+  lo = clamp(tonumber(lo) or 0, 0, 15)
+  return hex2(hi * 16 + lo)
+end
+
 function PaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
   data = data or {}
   data.resizable = false -- palette windows can't be resized
+  data.minWindowSize = 0
   rows, cols = rows or 1, cols or 4
   local cellW, cellH = NORMAL_CELL_W, NORMAL_CELL_H
   local self = Window.new(x, y, cellW, cellH, cols, rows, zoom or 1.0, data)
@@ -199,6 +214,109 @@ function PaletteWindow:getFirstColor()
   return self.palette[self.codes2D[0][0]]
 end
 
+function PaletteWindow:getSelectedStripCodes()
+  local selected = self.selected
+  local row = selected and selected.row or nil
+  local col = selected and selected.col or nil
+  local code = row ~= nil and col ~= nil and self.codes2D and self.codes2D[row] and self.codes2D[row][col] or nil
+  if type(code) ~= "string" then
+    return nil
+  end
+
+  local value = tonumber(code, 16)
+  if not value then
+    return nil
+  end
+
+  local highNibble = math.floor(value / 16)
+  local lowNibble = value % 16
+  local rowCodes = {}
+  local colCodes = {}
+
+  for i = 0, 15 do
+    rowCodes[#rowCodes + 1] = buildCodeFromNibbles(highNibble, i)
+  end
+
+  for i = 0, 3 do
+    colCodes[#colCodes + 1] = buildCodeFromNibbles(i, lowNibble)
+  end
+
+  return {
+    code = code,
+    rowIndex = highNibble,
+    colIndex = lowNibble,
+    rowCodes = rowCodes,
+    colCodes = colCodes,
+  }
+end
+
+function PaletteWindow:getStripMetrics()
+  if self.compactView then
+    return nil
+  end
+
+  local selectedRow = self.selected and self.selected.row or 0
+  local gridW = (self.cols or 0) * (self.cellW or 0)
+  local gridH = (self.rows or 0) * (self.cellH or 0)
+  local gap = 2
+  local horizontalCellW = math.max(4, math.floor((self.cellW or 0) / 4 + 0.5))
+  local horizontalCellH = math.max(4, math.floor((self.cellH or 0) / 4 + 0.5))
+  local verticalCellW = horizontalCellW
+  local verticalCellH = horizontalCellH
+
+  return {
+    gap = gap,
+    horizontalX = 0,
+    horizontalY = gridH + gap,
+    horizontalCellW = horizontalCellW,
+    horizontalCellH = horizontalCellH,
+    verticalX = gridW + gap,
+    verticalY = (selectedRow or 0) * (self.cellH or 0),
+    verticalCellW = verticalCellW,
+    verticalCellH = verticalCellH,
+    extraWidth = gap + verticalCellW,
+    extraHeight = gap + horizontalCellH,
+  }
+end
+
+function PaletteWindow:drawSelectionStrips()
+  local strips = self:getSelectedStripCodes()
+  if not strips then
+    return nil
+  end
+
+  local metrics = self:getStripMetrics()
+  if not metrics then
+    return nil
+  end
+
+  for i, code in ipairs(strips.rowCodes) do
+    local rgb = self.palette[code] or colors.black
+    local x = metrics.horizontalX + ((i - 1) * metrics.horizontalCellW)
+    local y = metrics.horizontalY
+    love.graphics.setColor(rgb[1], rgb[2], rgb[3], 1)
+    love.graphics.rectangle("fill", x, y, metrics.horizontalCellW, metrics.horizontalCellH)
+  end
+
+  for i, code in ipairs(strips.colCodes) do
+    local rgb = self.palette[code] or colors.black
+    local x = metrics.verticalX
+    local y = metrics.verticalY + ((i - 1) * metrics.verticalCellH)
+    love.graphics.setColor(rgb[1], rgb[2], rgb[3], 1)
+    love.graphics.rectangle("fill", x, y, metrics.verticalCellW, metrics.verticalCellH)
+  end
+
+  love.graphics.setColor(colors.white)
+  local horizontalMarkerX = metrics.horizontalX + (strips.colIndex * metrics.horizontalCellW)
+  local horizontalMarkerY = metrics.horizontalY
+  local verticalMarkerX = metrics.verticalX
+  local verticalMarkerY = metrics.verticalY + (strips.rowIndex * metrics.verticalCellH)
+  self.stripSelection:draw(horizontalMarkerX, horizontalMarkerY)
+  self.stripSelection:draw(verticalMarkerX, verticalMarkerY)
+
+  return metrics
+end
+
 -- override parent
 function PaletteWindow:highlightSelected(cw, ch)
   if self.selected and not self.compactView then
@@ -211,7 +329,12 @@ end
 -- override parent
 function PaletteWindow:drawGrid()
   local sx, sy, sw, sh = self:getScreenRect()
-  love.graphics.setScissor(sx, sy, sw, sh)
+  local stripMetrics = self.selected and self:getStripMetrics() or nil
+  if stripMetrics then
+    love.graphics.setScissor(sx, sy, sw + (stripMetrics.extraWidth * self.zoom), sh + (stripMetrics.extraHeight * self.zoom))
+  else
+    love.graphics.setScissor(sx, sy, sw, sh)
+  end
   love.graphics.push()
   love.graphics.translate(self.x, self.y)
   love.graphics.scale(self.zoom, self.zoom)
@@ -235,6 +358,8 @@ function PaletteWindow:drawGrid()
       love.graphics.setColor(colors.white)
     end
   end
+
+  self:drawSelectionStrips()
   
   love.graphics.setScissor()
   if self.activePalette then

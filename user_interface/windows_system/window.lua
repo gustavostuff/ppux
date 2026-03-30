@@ -16,6 +16,7 @@ function Window.new(x, y, cellW, cellH, cols, rows, zoom, data)
     cols = cols, rows = rows,
     zoom = zoom or 1.0,
     resizable = data.resizable,
+    minWindowSize = data.minWindowSize,
 
     -- Scrolling viewport
     visibleCols = math.max(1, math.floor(data.visibleCols or cols)),

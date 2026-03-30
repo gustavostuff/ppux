@@ -6,6 +6,13 @@ local MIN_WINDOW_SIZE = 64
 local ZOOM_STEPS = { 1, 2, 3, 4, 8, 12, 20 }
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
+local function getMinWindowSize(self)
+  local value = tonumber(self and self.minWindowSize)
+  if value and value >= 0 then
+    return value
+  end
+  return MIN_WINDOW_SIZE
+end
 
 return function(Window)
 -- ==== Size helpers (viewport vs full content) ====
@@ -52,10 +59,11 @@ function Window:setZoomLevel(level, pivotX, pivotY)
   local vRows = self.visibleRows or 1
   local newWidthPixels  = vCols * self.cellW * newZ
   local newHeightPixels = vRows * self.cellH * newZ
+  local minWindowSize = getMinWindowSize(self)
 
   -- If zooming out would make the content smaller than 128x128, reject it
-  if newWidthPixels < MIN_WINDOW_SIZE or newHeightPixels < MIN_WINDOW_SIZE then
-    DebugController.log("info", "WIN", "Window '%s' zoom rejected: would be too small (%.0fx%.0f < %d)", self.title or "untitled", newWidthPixels, newHeightPixels, MIN_WINDOW_SIZE)
+  if newWidthPixels < minWindowSize or newHeightPixels < minWindowSize then
+    DebugController.log("info", "WIN", "Window '%s' zoom rejected: would be too small (%.0fx%.0f < %d)", self.title or "untitled", newWidthPixels, newHeightPixels, minWindowSize)
     return
   end
 
@@ -188,9 +196,10 @@ function Window:resizeToMinimum()
   local rows = self.rows or 1
   local cw = self.cellW or 1
   local ch = self.cellH or 1
+  local minWindowSize = getMinWindowSize(self)
 
-  local minVisibleCols = math.max(1, math.ceil(MIN_WINDOW_SIZE / math.max(1, cw * z)))
-  local minVisibleRows = math.max(1, math.ceil(MIN_WINDOW_SIZE / math.max(1, ch * z)))
+  local minVisibleCols = math.max(1, math.ceil(minWindowSize / math.max(1, cw * z)))
+  local minVisibleRows = math.max(1, math.ceil(minWindowSize / math.max(1, ch * z)))
 
   self.visibleCols = math.min(cols, minVisibleCols)
   self.visibleRows = math.min(rows, minVisibleRows)

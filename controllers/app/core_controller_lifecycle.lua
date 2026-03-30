@@ -357,8 +357,8 @@ function AppCoreController:load()
 
   -- Initialize debug manager
   local DebugController = require("controllers.dev.debug_controller")
-  DebugController.init(true)
-  DebugController.setCategoryFilter({"PERF", "LOAD_PERF"})
+  DebugController.init(false)
+  -- DebugController.setCategoryFilter({"PERF", "LOAD_PERF"})
 
   local ctx = self:_buildCtx()
   ctx.app = self  -- Add app reference to context

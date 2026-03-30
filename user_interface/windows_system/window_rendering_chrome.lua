@@ -8,6 +8,14 @@ local MIN_WINDOW_SIZE = 64
 local ITEM_COUNT_LABEL_SHOW_DURATION = 0.0
 local ITEM_COUNT_LABEL_FADE_DURATION = 1.0
 
+local function getMinWindowSize(self)
+  local value = tonumber(self and self.minWindowSize)
+  if value and value >= 0 then
+    return value
+  end
+  return MIN_WINDOW_SIZE
+end
+
 return function(Window)
 function Window:getHeaderRect()
   local x, y, w, _ = self:getScreenRect()
@@ -149,9 +157,10 @@ local function getResizeHandleCapabilities(self)
   local visibleRows = self.visibleRows or 1
   local totalCols = self.cols or visibleCols
   local totalRows = self.rows or visibleRows
+  local minWindowSize = getMinWindowSize(self)
 
-  local minVisibleCols = math.max(1, math.ceil(MIN_WINDOW_SIZE / math.max(1, cw * z)))
-  local minVisibleRows = math.max(1, math.ceil(MIN_WINDOW_SIZE / math.max(1, ch * z)))
+  local minVisibleCols = math.max(1, math.ceil(minWindowSize / math.max(1, cw * z)))
+  local minVisibleRows = math.max(1, math.ceil(minWindowSize / math.max(1, ch * z)))
 
   local canResizeLess = (visibleCols > minVisibleCols) or (visibleRows > minVisibleRows)
   -- "More" means growing the viewport could reveal hidden/scrolled content.

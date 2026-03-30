@@ -453,8 +453,6 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
       kind  = entryKind,
       x     = w.x,
       y     = w.y,
-      cellW = w.cellW,
-      cellH = w.cellH,
       cols  = w.cols,
       rows  = w.rows,
       visibleRows = w.visibleRows or w.rows,
@@ -468,6 +466,11 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
       showGrid = GridModeUtils.normalize(w.showGrid),
       nonActiveLayerOpacity = w.nonActiveLayerOpacity,
     }
+
+    if not isPalette then
+      entry.cellW = w.cellW
+      entry.cellH = w.cellH
+    end
 
     if entry.kind == "palette" then
       entry.paletteName = w.paletteName

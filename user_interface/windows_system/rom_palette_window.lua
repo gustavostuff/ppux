@@ -15,7 +15,7 @@ RomPaletteWindow.__index = RomPaletteWindow
 setmetatable(RomPaletteWindow, { __index = PaletteWindow })
 
 local NORMAL_CELL_W, NORMAL_CELL_H = 32, 24
-local COMPACT_CELL_W, COMPACT_CELL_H = 20, 16
+local COMPACT_CELL_W, COMPACT_CELL_H = 20, 13
 
 local function clamp(n,a,b) if n<a then return a elseif n>b then return b else return n end end
 local function hex2(n) return string.format("%02X", n) end
@@ -476,7 +476,12 @@ end
 -- Override drawGrid to show codes even when not active (ROM palettes always show codes)
 function RomPaletteWindow:drawGrid()
   local sx, sy, sw, sh = self:getScreenRect()
-  love.graphics.setScissor(sx, sy, sw, sh)
+  local stripMetrics = self.selected and self:getStripMetrics() or nil
+  if stripMetrics then
+    love.graphics.setScissor(sx, sy, sw + (stripMetrics.extraWidth * self.zoom), sh + (stripMetrics.extraHeight * self.zoom))
+  else
+    love.graphics.setScissor(sx, sy, sw, sh)
+  end
   love.graphics.push()
   love.graphics.translate(self.x, self.y)
   love.graphics.scale(self.zoom, self.zoom)
@@ -509,6 +514,8 @@ function RomPaletteWindow:drawGrid()
       love.graphics.setColor(colors.white)
     end
   end
+
+  self:drawSelectionStrips()
   
   love.graphics.setScissor()
   if self.selected and self:isCellEditable(self.selected.col, self.selected.row) then

@@ -6,6 +6,13 @@ local MIN_WINDOW_SIZE = 64
 local DRAG_VISIBLE_MARGIN = 15
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
+local function getMinWindowSize(self)
+  local value = tonumber(self and self.minWindowSize)
+  if value and value >= 0 then
+    return value
+  end
+  return MIN_WINDOW_SIZE
+end
 
 local function getCanvasBounds()
   local canvasW = ResolutionController.canvasWidth or love.graphics.getWidth()
@@ -91,11 +98,12 @@ function Window:mousemoved(mx, my)
     -- Enforce minimum visual size (content only), in screen pixels
     local newWidthPixels  = newVisibleCols * self.cellW * self.zoom
     local newHeightPixels = newVisibleRows * self.cellH * self.zoom
+    local minWindowSize = getMinWindowSize(self)
 
-    if newWidthPixels < MIN_WINDOW_SIZE then
+    if newWidthPixels < minWindowSize then
       newVisibleCols = oldVisibleCols
     end
-    if newHeightPixels < MIN_WINDOW_SIZE then
+    if newHeightPixels < minWindowSize then
       newVisibleRows = oldVisibleRows
     end
 
