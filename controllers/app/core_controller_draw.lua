@@ -100,14 +100,10 @@ local function getPaletteWindowForLayer(layer, wm)
   local pd = layer.paletteData
   if pd.winId then
     local linked = wm:findWindowById(pd.winId)
-    if linked and not linked._closed and not linked._minimized and WindowCaps.isAnyPaletteWindow(linked) then
+    if linked and not linked._closed and not linked._minimized and WindowCaps.isRomPaletteWindow(linked) then
       return linked
     end
     return nil
-  end
-
-  if pd.items then
-    return getActiveGlobalPaletteWindow(wm)
   end
 
   return nil
@@ -143,8 +139,9 @@ local function getFocusedPaletteLinks(app)
 
   local links = {}
   local focusedPalette = focused
-  local activeGlobalPalette = WindowCaps.isGlobalPaletteWindow(focusedPalette)
-    and getActiveGlobalPaletteWindow(wm) == focusedPalette
+  if not WindowCaps.isRomPaletteWindow(focusedPalette) then
+    return {}
+  end
 
   for _, win in ipairs(wm:getWindows()) do
     if win ~= focusedPalette and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
@@ -153,8 +150,6 @@ local function getFocusedPaletteLinks(app)
       local pd = layer and layer.paletteData or nil
       if pd then
         if pd.winId and pd.winId == focusedPalette._id then
-          links[#links + 1] = { contentWin = win, paletteWin = focusedPalette }
-        elseif activeGlobalPalette and pd.items then
           links[#links + 1] = { contentWin = win, paletteWin = focusedPalette }
         end
       end
@@ -249,9 +244,11 @@ local function getHoveredPaletteHandleLinks(app)
     return {}
   end
 
+  if not WindowCaps.isRomPaletteWindow(hoveredPalette) then
+    return {}
+  end
+
   local links = {}
-  local activeGlobalPalette = WindowCaps.isGlobalPaletteWindow(hoveredPalette)
-    and getActiveGlobalPaletteWindow(wm) == hoveredPalette
 
   for _, win in ipairs(wm:getWindows()) do
     if win ~= hoveredPalette and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
@@ -260,8 +257,6 @@ local function getHoveredPaletteHandleLinks(app)
       local pd = layer and layer.paletteData or nil
       if pd then
         if pd.winId and pd.winId == hoveredPalette._id then
-          links[#links + 1] = { contentWin = win, paletteWin = hoveredPalette }
-        elseif activeGlobalPalette and pd.items then
           links[#links + 1] = { contentWin = win, paletteWin = hoveredPalette }
         end
       end

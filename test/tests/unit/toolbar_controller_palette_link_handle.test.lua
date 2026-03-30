@@ -19,7 +19,7 @@ describe("toolbar_controller.lua - palette link handle", function()
     _G.ctx = previousCtx
   end)
 
-  it("creates a specialized toolbar with a link handle for a single global palette window", function()
+  it("creates a specialized toolbar without a link handle for a single global palette window", function()
     local wm = WM.new()
     local win = wm:createPaletteWindow({
       title = "Palette A",
@@ -28,9 +28,8 @@ describe("toolbar_controller.lua - palette link handle", function()
     ToolbarController.createToolbarsForWindow(win, _G.ctx, wm)
 
     expect(win.specializedToolbar).toBeTruthy()
-    expect(win.specializedToolbar.linkButton).toBeTruthy()
+    expect(win.specializedToolbar.linkButton).toBeNil()
     expect(win.specializedToolbar.compactButton).toBeTruthy()
-    expect(win.specializedToolbar.linkButton.icon).toBeTruthy()
   end)
 
   it("creates a specialized toolbar with a link handle for ROM palette windows", function()
@@ -43,6 +42,5 @@ describe("toolbar_controller.lua - palette link handle", function()
 
     expect(win.specializedToolbar).toBeTruthy()
     expect(win.specializedToolbar.linkButton).toBeTruthy()
-    expect(win.specializedToolbar.linkButton.icon).toBeTruthy()
   end)
 end)

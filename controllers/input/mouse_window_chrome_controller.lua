@@ -197,7 +197,7 @@ local function beginPaletteLinkDrag(toolbar, button, x, y, win, wm, previousFocu
   if button ~= 1 then
     return false
   end
-  if not (win and win._id and WindowCaps.isAnyPaletteWindow(win)) then
+  if not (win and win._id and WindowCaps.isRomPaletteWindow(win)) then
     return false
   end
   if not isValidPaletteLinkHandle(toolbar, x, y) then
@@ -325,8 +325,10 @@ end
 function M.handleToolbarClicks(button, x, y, win, wm)
   if not win or win._closed or win._minimized then return false end
 
-  local previousFocus = wm:getFocus()
-  wm:setFocus(win)
+  local previousFocus = (wm and wm.getFocus and wm:getFocus()) or nil
+  if wm and wm.setFocus then
+    wm:setFocus(win)
+  end
 
   if not win._collapsed and win.specializedToolbar then
     local toolbar = win.specializedToolbar
@@ -365,7 +367,7 @@ function M.handleToolbarRelease(button, x, y, wm)
     return true
   end
 
-  local focusedWin = wm:getFocus()
+  local focusedWin = (wm and wm.getFocus and wm:getFocus()) or nil
   if not focusedWin or focusedWin._closed or focusedWin._minimized then return false end
 
   if not focusedWin._collapsed and focusedWin.specializedToolbar then
@@ -408,7 +410,9 @@ end
 function M.handleHeaderClick(button, x, y, win, wm, opts)
   opts = opts or {}
   if isWindowDragMouseButton(button) and win and isInHeaderTitleArea(win, x, y) then
-    wm:setFocus(win)
+    if wm and wm.setFocus then
+      wm:setFocus(win)
+    end
     lastHeaderTitleClick = nil
     if type(opts.onWindowTitleContextMenu) == "function" then
       opts.onWindowTitleContextMenu(win, x, y, button)
@@ -417,7 +421,9 @@ function M.handleHeaderClick(button, x, y, win, wm, opts)
   end
 
   if button == 1 and win and win:isInHeader(x, y) then
-    wm:setFocus(win)
+    if wm and wm.setFocus then
+      wm:setFocus(win)
+    end
     if M.handleToolbarClicks(button, x, y, win, wm) then
       return true
     end
@@ -461,9 +467,9 @@ end
 function M.handleResizeHandle(button, x, y, wm)
   if button ~= 1 then return false end
 
-  local windows = wm:getWindows()
+  local windows = wm and wm.getWindows and wm:getWindows()
   if not windows then return false end
-  local focused = wm:getFocus()
+  local focused = (wm and wm.getFocus and wm:getFocus()) or nil
 
   for i = #windows, 1, -1 do
     local w = windows[i]

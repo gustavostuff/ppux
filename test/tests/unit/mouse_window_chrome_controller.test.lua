@@ -100,7 +100,7 @@ describe("mouse_window_chrome_controller", function()
     local source = {
       _id = "palette_1",
       title = "Sprite Palette",
-      kind = "palette",
+      kind = "rom_palette",
       isPalette = true,
       _closed = false,
       _minimized = false,
@@ -186,7 +186,7 @@ describe("mouse_window_chrome_controller", function()
     local source = {
       _id = "palette_1",
       title = "Sprite Palette",
-      kind = "palette",
+      kind = "rom_palette",
       isPalette = true,
       _closed = false,
       _minimized = false,
@@ -262,7 +262,7 @@ describe("mouse_window_chrome_controller", function()
 
     expect(target.layers[1].paletteData).toBeNil()
     expect(target2.layers[1].paletteData).toBeNil()
-    expect(focused).toBe(target)
+    expect(focused).toBe(source)
     expect(marked[1]).toBe("palette_link_change")
     expect(statuses[#statuses]).toBe("Unlinked 2 palette connections from Sprite Palette")
   end)
