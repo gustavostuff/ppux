@@ -1,4 +1,8 @@
 local function install(TextField, utils)
+  function TextField:_getVisualCursorPos()
+    return self.cursorPos
+  end
+
   function TextField:_updateScroll()
     if not self.focused then
       self.scrollOffset = 0
@@ -17,17 +21,17 @@ local function install(TextField, utils)
     local cursorPixelPos = 0
     if self:_hasMask() then
       if self.cursorPos > 1 and self.cursorPos <= #self.text then
-        local textBeforeCursor = table.concat(self.text, "", 1, self.cursorPos - 1)
+        local textBeforeCursor = utils.concatTextRange(self.text, 1, self.cursorPos - 1)
         cursorPixelPos = font:getWidth(textBeforeCursor)
       end
     elseif self.cursorPos > 1 and self.cursorPos <= #self.text + 1 then
-      local textBeforeCursor = table.concat(self.text, "", 1, self.cursorPos - 1)
+      local textBeforeCursor = utils.concatTextRange(self.text, 1, self.cursorPos - 1)
       cursorPixelPos = font:getWidth(textBeforeCursor)
     end
 
     local scrollPixelPos = 0
     if self.scrollOffset > 0 and self.scrollOffset <= #self.text then
-      local textBeforeScroll = table.concat(self.text, "", 1, self.scrollOffset)
+      local textBeforeScroll = utils.concatTextRange(self.text, 1, self.scrollOffset)
       scrollPixelPos = font:getWidth(textBeforeScroll)
     end
 
@@ -35,7 +39,7 @@ local function install(TextField, utils)
       self.scrollOffset = 0
       if self.cursorPos > 1 then
         for i = 1, self.cursorPos - 1 do
-          local testText = table.concat(self.text, "", 1, i - 1)
+          local testText = utils.concatTextRange(self.text, 1, i - 1)
           local testPixel = font:getWidth(testText)
           if testPixel <= cursorPixelPos then
             self.scrollOffset = i
@@ -48,7 +52,7 @@ local function install(TextField, utils)
       local targetPixelPos = cursorPixelPos - visibleWidth
       self.scrollOffset = 1
       for i = 1, #self.text do
-        local testText = table.concat(self.text, "", 1, i - 1)
+        local testText = utils.concatTextRange(self.text, 1, i - 1)
         local testPixel = font:getWidth(testText)
         if testPixel < targetPixelPos then
           self.scrollOffset = i
@@ -83,18 +87,14 @@ local function install(TextField, utils)
     end
 
     local visibleStart = math.max(1, self.scrollOffset + 1)
-    local visibleText = {}
-    for i = visibleStart, #self.text do
-      visibleText[#visibleText + 1] = self.text[i]
-    end
-    local textStr = table.concat(visibleText, "")
+    local textStr = utils.concatTextRange(self.text, visibleStart, #self.text)
 
     if textStr ~= "" then
       local selectionStart, selectionEnd = self:_selectionDisplayRange()
       if selectionStart and selectionEnd then
         local scrollPixelPos = self:_currentScrollPixelPos(font)
-        local startPixel = font:getWidth(table.concat(self.text, "", 1, selectionStart - 1)) - scrollPixelPos
-        local endPixel = font:getWidth(table.concat(self.text, "", 1, selectionEnd)) - scrollPixelPos
+        local startPixel = font:getWidth(utils.concatTextRange(self.text, 1, selectionStart - 1)) - scrollPixelPos
+        local endPixel = font:getWidth(utils.concatTextRange(self.text, 1, selectionEnd)) - scrollPixelPos
         local sel = utils.SELECTION_BG_COLOR
         love.graphics.setColor(sel[1], sel[2], sel[3], 0.75)
         love.graphics.rectangle("fill", textX + startPixel, textY, math.max(1, endPixel - startPixel), font:getHeight())
@@ -108,20 +108,21 @@ local function install(TextField, utils)
       local time = utils.getNowSeconds()
       local blinkOn = math.floor(time * utils.CURSOR_BLINK_HZ) % 2 == 0
       if blinkOn then
+        local cursorPos = self:_getVisualCursorPos()
         local cursorX = textX
-        if self.cursorPos > 1 then
-          local textBeforeCursor = table.concat(self.text, "", 1, math.max(0, self.cursorPos - 1))
+        if cursorPos > 1 then
+          local textBeforeCursor = utils.concatTextRange(self.text, 1, math.max(0, cursorPos - 1))
           local cursorPixelPos = font:getWidth(textBeforeCursor)
           local scrollPixelPos = 0
           if self.scrollOffset > 0 then
-            local textBeforeScroll = table.concat(self.text, "", 1, self.scrollOffset)
+            local textBeforeScroll = utils.concatTextRange(self.text, 1, self.scrollOffset)
             scrollPixelPos = font:getWidth(textBeforeScroll)
           end
           cursorX = textX + (cursorPixelPos - scrollPixelPos)
         end
 
-        if self:_hasMask() and self:_isMaskEditableIndex(self.cursorPos) then
-          local symbol = self.text[self.cursorPos] or "0"
+        if self:_hasMask() and self:_isMaskEditableIndex(cursorPos) then
+          local symbol = self.text[cursorPos] or "0"
           local symbolW = math.max(4, font:getWidth(symbol))
           love.graphics.setColor(utils.colors.white)
           love.graphics.rectangle("fill", cursorX, textY, symbolW, font:getHeight())

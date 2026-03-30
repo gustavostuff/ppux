@@ -38,12 +38,38 @@ local function uppercaseOrNil(ch)
   return string.upper(ch)
 end
 
+local function concatTextRange(chars, startIndex, endIndex)
+  if type(chars) ~= "table" then
+    return ""
+  end
+
+  local startPos = math.max(1, math.floor(tonumber(startIndex) or 1))
+  local endPos = tonumber(endIndex)
+  if endPos == nil then
+    endPos = #chars
+  else
+    endPos = math.floor(endPos)
+  end
+
+  if endPos < startPos then
+    return ""
+  end
+
+  local out = {}
+  for i = startPos, endPos do
+    local ch = chars[i]
+    out[#out + 1] = (type(ch) == "string") and ch or ""
+  end
+  return table.concat(out, "")
+end
+
 local shared = {
   colors = colors,
   getNowSeconds = getNowSeconds,
   isKeyDown = isKeyDown,
   isHexChar = isHexChar,
   uppercaseOrNil = uppercaseOrNil,
+  concatTextRange = concatTextRange,
   KEY_REPEAT_EPSILON = KEY_REPEAT_EPSILON,
   CURSOR_BLINK_HZ = CURSOR_BLINK_HZ,
   SELECTION_BG_COLOR = SELECTION_BG_COLOR,
@@ -78,6 +104,7 @@ function TextField.new(opts)
     selectionEnd = nil,
     _selectionAnchor = nil,
     _dragSelecting = false,
+    _keyboardSelectionAnchor = nil,
   }, TextField)
 
   self:setText(opts.text or "")
@@ -99,6 +126,8 @@ end
 
 function TextField:_isMaskEditableIndex(index)
   if not self:_hasMask() then return false end
+  if type(index) ~= "number" then return false end
+  index = math.floor(index)
   local mask = self.mask or ""
   if index < 1 or index > #mask then return false end
   local ch = mask:sub(index, index)
@@ -179,7 +208,7 @@ function TextField:_buildMaskedText(str)
 end
 
 function TextField:getText()
-  return table.concat(self.text, "")
+  return concatTextRange(self.text)
 end
 
 function TextField:setText(str)

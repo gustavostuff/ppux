@@ -958,6 +958,9 @@ local function drawOverlays(app)
   if app.romPaletteAddressModal then
     app.romPaletteAddressModal:draw(app.canvas)
   end
+  if app.textFieldDemoModal then
+    app.textFieldDemoModal:draw(app.canvas)
+  end
   if app.toastController and app.canvas then
     app.toastController:draw(app.canvas:getWidth(), app.canvas:getHeight())
   end

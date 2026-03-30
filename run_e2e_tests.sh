@@ -21,6 +21,7 @@ SCENARIOS=(
   "context_menus_and_submenus"
   "window_resize_and_hover_priority"
   "modal_navigation_keyboard_only"
+  "text_field_variants"
 )
 pass_count=0
 fail_count=0

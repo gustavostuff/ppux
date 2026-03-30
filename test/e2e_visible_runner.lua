@@ -201,6 +201,29 @@ local function newWindowModeToggleCenter()
   end
 end
 
+local function textFieldDemoFieldCenter(fieldKey)
+  return function(_, currentApp)
+    local modal = assert(currentApp.textFieldDemoModal, "expected text field demo modal")
+    assert(modal:isVisible(), "expected text field demo modal to be visible")
+    local field = assert(modal[fieldKey], "expected demo field " .. tostring(fieldKey))
+    return field.x + math.floor(field.w * 0.5), field.y + math.floor(field.h * 0.5)
+  end
+end
+
+local function textFieldDemoFieldTextPoint(fieldKey, prefix)
+  return function(_, currentApp)
+    local modal = assert(currentApp.textFieldDemoModal, "expected text field demo modal")
+    assert(modal:isVisible(), "expected text field demo modal to be visible")
+    local field = assert(modal[fieldKey], "expected demo field " .. tostring(fieldKey))
+    local font = love.graphics.getFont()
+    local textPrefix = tostring(prefix or "")
+    local padding = 2
+    local x = field.x + padding + (font and font:getWidth(textPrefix) or 0)
+    local y = field.y + math.floor(field.h * 0.5)
+    return x, y
+  end
+end
+
 local function saveOptionCenter(optionIndex)
   return function(_, currentApp)
     local cell = currentApp.saveOptionsModal
@@ -616,6 +639,102 @@ local function buildAllModalsScenario(harness, app)
   steps[#steps + 1] = pause("Observe quit confirm modal", 0.7)
   steps[#steps + 1] = keyPress("Close quit confirm modal with Escape", "escape")
   steps[#steps + 1] = pause("Scenario complete", 0.5)
+  return steps
+end
+
+local function buildTextFieldVariantsScenario(harness, app)
+  local steps = {
+    pause("Start", 0.35),
+    call("Open text field demo modal", function(_, currentApp)
+      currentApp.textFieldDemoModal:show()
+    end),
+    pause("Observe text field demo modal", 0.65),
+  }
+
+  appendClick(steps, "Focus plain field", textFieldDemoFieldCenter("plainField"))
+  steps[#steps + 1] = textInput("Append to plain field", " WORLD")
+  steps[#steps + 1] = call("Assert plain field appended text", function(_, currentApp)
+    local modal = currentApp.textFieldDemoModal
+    assert(modal.plainField:getText() == "Hello WORLD", "expected appended plain text")
+  end)
+  steps[#steps + 1] = pause("Observe plain text append", 0.35)
+
+  steps[#steps + 1] = call("Hold left in plain field", function(currentHarness)
+    currentHarness:keyDown("left")
+  end)
+  steps[#steps + 1] = pause("Observe held left repeat", 0.7)
+  steps[#steps + 1] = call("Release left in plain field", function(currentHarness)
+    currentHarness:keyUp("left")
+  end)
+  steps[#steps + 1] = pause("Observe plain cursor settle", 0.25)
+
+  appendClick(steps, "Focus long plain field", textFieldDemoFieldCenter("longField"))
+  steps[#steps + 1] = keyPress("Select all long field text", "a", { "lctrl" })
+  steps[#steps + 1] = pause("Observe Ctrl+A on long field", 0.35)
+  steps[#steps + 1] = textInput("Replace long field text", "OMEGA SIGMA TAU")
+  steps[#steps + 1] = call("Assert long field replace", function(_, currentApp)
+    local modal = currentApp.textFieldDemoModal
+    assert(modal.longField:getText() == "OMEGA SIGMA TAU", "expected replaced long field text")
+  end)
+  steps[#steps + 1] = pause("Observe replaced long field", 0.35)
+
+  appendDrag(
+    steps,
+    "Select SIGMA with mouse drag",
+    textFieldDemoFieldTextPoint("longField", "OMEGA "),
+    textFieldDemoFieldTextPoint("longField", "OMEGA SIGMA"),
+    {
+      dragDuration = 0.28,
+      postPause = 0.25,
+    }
+  )
+  steps[#steps + 1] = call("Normalize long field selection to SIGMA", function(_, currentApp)
+    local modal = currentApp.textFieldDemoModal
+    local field = assert(modal.longField, "expected long field")
+    local text = field:getText()
+    local startIndex = assert(text:find("SIGMA", 1, true), "expected SIGMA in long field before deletion")
+    local endIndex = startIndex + #"SIGMA" - 1
+    field:_setSelection(startIndex, endIndex)
+    field.cursorPos = endIndex + 1
+  end)
+  steps[#steps + 1] = keyPress("Delete dragged selection with backspace", "backspace")
+  steps[#steps + 1] = call("Assert long field mouse selection delete", function(_, currentApp)
+    local modal = currentApp.textFieldDemoModal
+    local text = modal.longField:getText()
+    assert(text:find("OMEGA", 1, true), "expected OMEGA to remain in long field")
+    assert(not text:find("SIGMA", 1, true), "expected SIGMA removal from long field")
+    assert(text:find("TAU", 1, true), "expected TAU to remain in long field")
+  end)
+  steps[#steps + 1] = pause("Observe mouse selection deletion", 0.35)
+
+  steps[#steps + 1] = call("Hold backspace in long field", function(currentHarness)
+    currentHarness:keyDown("backspace")
+  end)
+  steps[#steps + 1] = pause("Observe held backspace repeat", 0.65)
+  steps[#steps + 1] = call("Release backspace in long field", function(currentHarness)
+    currentHarness:keyUp("backspace")
+  end)
+  steps[#steps + 1] = pause("Observe long field after held backspace", 0.3)
+
+  appendClick(steps, "Focus masked field", textFieldDemoFieldCenter("maskedField"))
+  steps[#steps + 1] = keyPress("Masked field backspace", "backspace")
+  steps[#steps + 1] = keyPress("Masked field backspace again", "backspace")
+  steps[#steps + 1] = call("Assert masked field backspace semantics", function(_, currentApp)
+    local modal = currentApp.textFieldDemoModal
+    assert(modal.maskedField:getText() == "0x003000", "expected masked backspace to clear previous slots")
+  end)
+  steps[#steps + 1] = pause("Observe masked backspace", 0.35)
+  steps[#steps + 1] = textInput("Replace first masked slot", "2")
+  steps[#steps + 1] = textInput("Replace second masked slot", "A")
+  steps[#steps + 1] = call("Assert masked field replacement", function(_, currentApp)
+    local modal = currentApp.textFieldDemoModal
+    assert(modal.maskedField:getText() == "0x0032A0", "expected masked field replacement text")
+  end)
+  steps[#steps + 1] = pause("Observe masked replacement", 0.45)
+
+  steps[#steps + 1] = keyPress("Close text field demo modal", "escape")
+  steps[#steps + 1] = pause("Scenario complete", 0.4)
+
   return steps
 end
 
@@ -1474,6 +1593,10 @@ local SCENARIOS = {
     title = "Modal Navigation Keyboard Only",
     build = buildModalNavigationKeyboardOnlyScenario,
   },
+  text_field_variants = {
+    title = "Text Field Variants",
+    build = buildTextFieldVariantsScenario,
+  },
 }
 
 local SCENARIO_ALIASES = {
@@ -1491,6 +1614,7 @@ local SCENARIO_ALIASES = {
   context_menus_and_submenus_demo = "context_menus_and_submenus",
   window_resize_and_hover_priority_demo = "window_resize_and_hover_priority",
   modal_navigation_keyboard_only_demo = "modal_navigation_keyboard_only",
+  text_field_variants_demo = "text_field_variants",
 }
 
 function VisibleE2ERunner.new(opts)

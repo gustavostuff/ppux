@@ -158,13 +158,17 @@ describe("text_field.lua", function()
     expect(field.cursorPos).toBe(3)
 
     expect(field:onKeyPressed("backspace")).toBe(true)
-    expect(field:getText()).toBe("0x000000")
+    expect(field:getText()).toBe("0xA00000")
     expect(field.cursorPos).toBe(3)
 
     field:onTextInput("b")
     field:onTextInput("c")
     expect(field:getText()).toBe("0xBC0000")
     expect(field.cursorPos).toBe(5)
+
+    expect(field:onKeyPressed("backspace")).toBe(true)
+    expect(field:getText()).toBe("0xB00000")
+    expect(field.cursorPos).toBe(4)
 
     field.cursorPos = 4
     expect(field:onKeyPressed("delete")).toBe(true)

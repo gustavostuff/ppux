@@ -10,6 +10,7 @@ local RomPaletteAddressModal = require("user_interface.modals.rom_palette_addres
 local SaveOptionsModal = require("user_interface.modals.save_options_modal")
 local QuitConfirmModal = require("user_interface.modals.quit_confirm_modal")
 local SettingsModal = require("user_interface.modals.settings_modal")
+local TextFieldDemoModal = require("user_interface.modals.text_field_demo_modal")
 local SimpleLoadingScreen = require("controllers.app.simple_loading_screen")
 local TooltipController = require("controllers.ui.tooltip_controller")
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
@@ -26,6 +27,7 @@ local function anyModalVisible(app)
     or (app.newWindowModal and app.newWindowModal:isVisible())
     or (app.renameWindowModal and app.renameWindowModal:isVisible())
     or (app.romPaletteAddressModal and app.romPaletteAddressModal:isVisible())
+    or (app.textFieldDemoModal and app.textFieldDemoModal:isVisible())
 end
 
 local function getTopWindowTooltipCandidate(app, x, y)
@@ -71,6 +73,7 @@ local function getTopModalTooltipCandidate(app, x, y)
     app.newWindowModal,
     app.renameWindowModal,
     app.romPaletteAddressModal,
+    app.textFieldDemoModal,
   }
 
   for _, modal in ipairs(modals) do
@@ -131,6 +134,7 @@ function AppCoreController.new()
   self.saveOptionsModal = SaveOptionsModal.new()
   self.quitConfirmModal = QuitConfirmModal.new()
   self.settingsModal = SettingsModal.new()
+  self.textFieldDemoModal = TextFieldDemoModal.new()
   self.taskbar = nil
   self.windowHeaderContextMenu = ContextualMenuController.new({
     getBounds = function()

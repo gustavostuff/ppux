@@ -93,7 +93,7 @@ local function install(TextField, utils)
 
   function TextField:_currentScrollPixelPos(font)
     if self.scrollOffset > 0 then
-      local textBeforeScroll = table.concat(self.text, "", 1, self.scrollOffset)
+      local textBeforeScroll = utils.concatTextRange(self.text, 1, self.scrollOffset)
       return font:getWidth(textBeforeScroll)
     end
     return 0
@@ -110,7 +110,7 @@ local function install(TextField, utils)
         return self:_firstEditableIndex()
       end
       for i = 1, #self.text do
-        local before = font:getWidth(table.concat(self.text, "", 1, i - 1))
+        local before = font:getWidth(utils.concatTextRange(self.text, 1, i - 1))
         local width = font:getWidth(self.text[i] or "")
         local mid = before + (width * 0.5)
         if absoluteX <= mid then
@@ -121,8 +121,8 @@ local function install(TextField, utils)
     end
 
     for i = 1, #self.text do
-      local before = font:getWidth(table.concat(self.text, "", 1, i - 1))
-      local after = font:getWidth(table.concat(self.text, "", 1, i))
+      local before = font:getWidth(utils.concatTextRange(self.text, 1, i - 1))
+      local after = font:getWidth(utils.concatTextRange(self.text, 1, i))
       local mid = before + ((after - before) * 0.5)
       if absoluteX <= mid then
         return i

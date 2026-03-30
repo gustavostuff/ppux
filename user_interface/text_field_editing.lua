@@ -1,4 +1,30 @@
 local function install(TextField, utils)
+  function TextField:_clearKeyboardSelectionAnchor()
+    self._keyboardSelectionAnchor = nil
+  end
+
+  function TextField:_cursorLeftStepFrom(pos)
+    pos = math.floor(tonumber(pos) or self.cursorPos or 1)
+    if self:_hasMask() then
+      return self:_prevEditableIndex(pos)
+    end
+    if pos > 1 then
+      return pos - 1
+    end
+    return nil
+  end
+
+  function TextField:_cursorRightStepFrom(pos)
+    pos = math.floor(tonumber(pos) or self.cursorPos or 1)
+    if self:_hasMask() then
+      return self:_nextEditableIndex(pos)
+    end
+    if pos <= #self.text then
+      return pos + 1
+    end
+    return nil
+  end
+
   function TextField:_setRepeatKey(key)
     if key ~= "left" and key ~= "right" and key ~= "backspace" then
       self._repeatKey = nil
@@ -18,9 +44,31 @@ local function install(TextField, utils)
     self._repeatKey = nil
     self._repeatStartedAt = nil
     self._repeatLastAt = nil
+    self:_clearKeyboardSelectionAnchor()
+  end
+
+  function TextField:_moveCursorLeftStep()
+    local prev = self:_cursorLeftStepFrom(self.cursorPos)
+    if prev then
+      self.cursorPos = prev
+      self:_updateScroll()
+      return true
+    end
+    return false
+  end
+
+  function TextField:_moveCursorRightStep()
+    local nextIndex = self:_cursorRightStepFrom(self.cursorPos)
+    if nextIndex then
+      self.cursorPos = nextIndex
+      self:_updateScroll()
+      return true
+    end
+    return false
   end
 
   function TextField:_replaceSelectionWithText(text)
+    self:_clearKeyboardSelectionAnchor()
     if self:_hasMask() then
       local targets = {}
       if self:_hasSelection() then
@@ -79,6 +127,7 @@ local function install(TextField, utils)
   end
 
   function TextField:_deleteSelection()
+    self:_clearKeyboardSelectionAnchor()
     local startIndex, endIndex = self:_getSelectionBounds()
     if not (startIndex and endIndex) then
       return false
@@ -104,12 +153,13 @@ local function install(TextField, utils)
   end
 
   function TextField:_deleteBackward()
+    self:_clearKeyboardSelectionAnchor()
     if self:_hasSelection() then
       return self:_deleteSelection()
     end
 
     if self:_hasMask() then
-      local prev = self:_prevEditableIndex(self.cursorPos + 1) or self.cursorPos
+      local prev = self:_prevEditableIndex(self.cursorPos)
       if self:_isMaskEditableIndex(prev) then
         self.cursorPos = prev
         self.text[self.cursorPos] = "0"
@@ -129,6 +179,7 @@ local function install(TextField, utils)
   end
 
   function TextField:_deleteForward()
+    self:_clearKeyboardSelectionAnchor()
     if self:_hasSelection() then
       return self:_deleteSelection()
     end
@@ -151,6 +202,7 @@ local function install(TextField, utils)
   end
 
   function TextField:_moveCursorLeft()
+    self:_clearKeyboardSelectionAnchor()
     if self:_hasSelection() then
       local startIndex = self.selectionStart
       self:_clearSelection()
@@ -163,25 +215,11 @@ local function install(TextField, utils)
       return true
     end
 
-    if self:_hasMask() then
-      local prev = self:_prevEditableIndex(self.cursorPos)
-      if prev then
-        self.cursorPos = prev
-        self:_updateScroll()
-        return true
-      end
-      return false
-    end
-
-    if self.cursorPos > 1 then
-      self.cursorPos = self.cursorPos - 1
-      self:_updateScroll()
-      return true
-    end
-    return false
+    return self:_moveCursorLeftStep()
   end
 
   function TextField:_moveCursorRight()
+    self:_clearKeyboardSelectionAnchor()
     if self:_hasSelection() then
       local endIndex = self.selectionEnd
       self:_clearSelection()
@@ -195,22 +233,7 @@ local function install(TextField, utils)
       return true
     end
 
-    if self:_hasMask() then
-      local nextIndex = self:_nextEditableIndex(self.cursorPos)
-      if nextIndex then
-        self.cursorPos = nextIndex
-        self:_updateScroll()
-        return true
-      end
-      return false
-    end
-
-    if self.cursorPos <= #self.text then
-      self.cursorPos = self.cursorPos + 1
-      self:_updateScroll()
-      return true
-    end
-    return false
+    return self:_moveCursorRightStep()
   end
 
   function TextField:_processHeldKeyRepeat()
