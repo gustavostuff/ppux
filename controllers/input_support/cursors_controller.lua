@@ -105,6 +105,7 @@ local function anyModalVisible(app)
     or (app and app.settingsModal and app.settingsModal.isVisible and app.settingsModal:isVisible())
     or (app and app.newWindowModal and app.newWindowModal.isVisible and app.newWindowModal:isVisible())
     or (app and app.renameWindowModal and app.renameWindowModal.isVisible and app.renameWindowModal:isVisible())
+    or (app and app.romPaletteAddressModal and app.romPaletteAddressModal.isVisible and app.romPaletteAddressModal:isVisible())
 end
 
 local function isHoveringEditableContent(app)

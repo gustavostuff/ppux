@@ -5,6 +5,7 @@ local PatternTableBuilderWindow = require("user_interface.windows_system.pattern
 local AnimationWindow    = require("user_interface.windows_system.animation_window")
 local OAMAnimationWindow = require("user_interface.windows_system.oam_animation_window")
 local PaletteWindow      = require("user_interface.windows_system.palette_window")
+local RomPaletteWindow   = require("user_interface.windows_system.rom_palette_window")
 local SpriteController   = require("controllers.sprite.sprite_controller")
 local ToolbarController  = require("controllers.window.toolbar_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
@@ -927,6 +928,58 @@ function WM:createPaletteWindow(opts)
       initCodes = opts.initCodes,
     }
   )
+
+  return self:finalizeNewWindow(win)
+end
+
+function WM:createRomPaletteWindow(opts)
+  opts = opts or {}
+  local defaults = extractWindowOptions(opts)
+  defaults.title = opts.title or "ROM Palette"
+  defaults.x = opts.x or 60
+  defaults.y = opts.y or 90
+  defaults.cols = 4
+  defaults.rows = 4
+  defaults.zoom = opts.zoom or 1
+
+  local romColors = {}
+  for row = 1, defaults.rows do
+    romColors[row] = {}
+    for col = 1, defaults.cols do
+      romColors[row][col] = false
+    end
+  end
+
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app or nil
+  local romRaw = opts.romRaw
+  if type(romRaw) ~= "string" then
+    romRaw = app and app.appEditState and app.appEditState.romRaw or ""
+  end
+
+  local win = RomPaletteWindow.new(
+    defaults.x,
+    defaults.y,
+    defaults.zoom,
+    opts.paletteName or "smooth_fbx",
+    defaults.rows,
+    defaults.cols,
+    {
+      title = defaults.title,
+      paletteData = {
+        romColors = romColors,
+        userDefinedCode = {},
+      },
+      romRaw = romRaw,
+      activePalette = false,
+    }
+  )
+
+  if app and app.appEditState then
+    win._updateRomRawCallback = function(newRom)
+      app.appEditState.romRaw = newRom
+    end
+  end
 
   return self:finalizeNewWindow(win)
 end

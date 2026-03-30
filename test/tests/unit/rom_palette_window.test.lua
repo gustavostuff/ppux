@@ -224,4 +224,35 @@ describe("rom_palette_window.lua - locked cells", function()
     expect(win.paletteData.userDefinedCode[3].row).toBe(3)
     expect(win.paletteData.userDefinedCode[3].col).toBe(2)
   end)
+
+  it("assigns a ROM address to a locked cell and loads its current code", function()
+    local win = makeWindow()
+    win.paletteData.userDefinedCode = {
+      { row = 0, col = 0, code = "2A" },
+    }
+
+    local ok, codeOrErr = win:setCellAddress(0, 0, 5)
+
+    expect(ok).toBe(true)
+    expect(codeOrErr).toBe("07")
+    expect(win:isCellEditable(0, 0)).toBe(true)
+    expect(win.paletteData.romColors[1][1]).toBe(5)
+    expect(win.codes2D[0][0]).toBe("07")
+    expect(#win.paletteData.userDefinedCode).toBe(0)
+
+    local col, row = win:getSelected()
+    expect(col).toBe(0)
+    expect(row).toBe(0)
+  end)
+
+  it("rejects assigning an out-of-range ROM address", function()
+    local win = makeWindow()
+
+    local ok, err = win:setCellAddress(0, 0, 9999)
+
+    expect(ok).toBe(false)
+    expect(type(err)).toBe("string")
+    expect(string.find(err, "invalid", 1, true)).toNotBe(nil)
+    expect(win:isCellEditable(0, 0)).toBe(false)
+  end)
 end)

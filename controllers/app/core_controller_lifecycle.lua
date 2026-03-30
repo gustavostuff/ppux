@@ -206,6 +206,7 @@ anyModalVisible = function(app)
     or (app.settingsModal and app.settingsModal:isVisible())
     or (app.newWindowModal and app.newWindowModal:isVisible())
     or (app.renameWindowModal and app.renameWindowModal:isVisible())
+    or (app.romPaletteAddressModal and app.romPaletteAddressModal:isVisible())
 end
 
 local function updateModalCursorLock(app)

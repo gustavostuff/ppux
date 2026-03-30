@@ -9,10 +9,16 @@ describe("mouse extracted controllers (smoke)", function()
     originals = {
       getScaledMouse = ResolutionController.getScaledMouse,
     }
+    if MouseClickController._resetRomPaletteDoubleClickState then
+      MouseClickController._resetRomPaletteDoubleClickState()
+    end
   end)
 
   afterEach(function()
     ResolutionController.getScaledMouse = originals.getScaledMouse
+    if MouseClickController._resetRomPaletteDoubleClickState then
+      MouseClickController._resetRomPaletteDoubleClickState()
+    end
   end)
 
   it("mouse_click_controller gives focused toolbar clicks first priority", function()
@@ -233,5 +239,61 @@ describe("mouse extracted controllers (smoke)", function()
     expect(painting).toBe(false)
     expect(win.editShapeDrag).toBeTruthy()
     expect(win.editShapeDrag.kind).toBe("rect_fill")
+  end)
+
+  it("mouse_click_controller opens ROM palette address modal on double click of a locked cell", function()
+    local modalCalls = {}
+    local selected = nil
+    local win = {
+      _id = "rom_palette",
+      isPalette = true,
+      kind = "rom_palette",
+      cols = 4,
+      rows = 4,
+      toGridCoords = function() return true, 0, 0 end,
+      isCellEditable = function() return false end,
+      setSelected = function(_, col, row)
+        selected = { col = col, row = row }
+      end,
+    }
+    local wm = {
+      getFocus = function() return nil end,
+      setFocus = function() end,
+      windowAt = function() return win end,
+    }
+    local env = {
+      nowSeconds = (function()
+        local times = { 1.0, 1.2 }
+        local idx = 0
+        return function()
+          idx = idx + 1
+          return times[idx] or 2.0
+        end
+      end)(),
+      ctx = {
+        app = {
+          showRomPaletteAddressModal = function(_, modalWin, col, row)
+            modalCalls[#modalCalls + 1] = { win = modalWin, col = col, row = row }
+          end,
+        },
+        wm = function() return wm end,
+        setStatus = function() end,
+      },
+      chrome = {
+        handleToolbarClicks = function() return false end,
+        handleResizeHandle = function() return false end,
+        handleHeaderClick = function() return false end,
+      },
+    }
+
+    expect(MouseClickController.handleMousePressed(env, 10, 10, 1)).toBe(true)
+    expect(#modalCalls).toBe(0)
+    expect(selected).toBeNil()
+
+    expect(MouseClickController.handleMousePressed(env, 10, 10, 1)).toBe(true)
+    expect(#modalCalls).toBe(1)
+    expect(modalCalls[1].win).toBe(win)
+    expect(modalCalls[1].col).toBe(0)
+    expect(modalCalls[1].row).toBe(0)
   end)
 end)

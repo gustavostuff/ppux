@@ -3,6 +3,34 @@ local MultiSelectController = require("controllers.input_support.multi_select_co
 local WindowCaps = require("controllers.window.window_capabilities")
 
 local M = {}
+local romPaletteCellDoubleClick = {
+  win = nil,
+  col = nil,
+  row = nil,
+  at = -math.huge,
+}
+local ROM_PALETTE_DOUBLE_CLICK_SECONDS = 0.35
+
+local function nowSeconds(env)
+  if env and type(env.nowSeconds) == "function" then
+    return env.nowSeconds()
+  end
+  if love and love.timer and love.timer.getTime then
+    return love.timer.getTime()
+  end
+  return os.clock()
+end
+
+local function rememberRomPaletteCellClick(win, col, row, at)
+  romPaletteCellDoubleClick.win = win
+  romPaletteCellDoubleClick.col = col
+  romPaletteCellDoubleClick.row = row
+  romPaletteCellDoubleClick.at = at or -math.huge
+end
+
+local function clearRomPaletteCellClick()
+  rememberRomPaletteCellClick(nil, nil, nil, -math.huge)
+end
 
 local function clearSpriteSelection(env, win)
   if not win or not win.layers then return end
@@ -214,9 +242,27 @@ local function handlePaletteClick(env, button, x, y, win, wm)
   local ok, col, row = win:toGridCoords(x, y)
   if ok and col >= 0 and col < win.cols and row >= 0 and row < win.rows then
     if WindowCaps.isRomPaletteWindow(win) and win.isCellEditable and not win:isCellEditable(col, row) then
-      ctx.setStatus("Locked ROM palette color")
+      local at = nowSeconds(env)
+      local sameCell = romPaletteCellDoubleClick.win == win
+        and romPaletteCellDoubleClick.col == col
+        and romPaletteCellDoubleClick.row == row
+      local isDoubleClick = sameCell and ((at - (romPaletteCellDoubleClick.at or -math.huge)) <= ROM_PALETTE_DOUBLE_CLICK_SECONDS)
+      if isDoubleClick then
+        clearRomPaletteCellClick()
+        local app = ctx and ctx.app or nil
+        if app and app.showRomPaletteAddressModal then
+          app:showRomPaletteAddressModal(win, col, row)
+        else
+          ctx.setStatus("ROM address entry is unavailable")
+        end
+        return true
+      end
+      rememberRomPaletteCellClick(win, col, row, at)
+      ctx.setStatus("Double-click to assign ROM palette address")
       return true
     end
+
+    clearRomPaletteCellClick()
 
     win:setSelected(col, row)
 
@@ -460,6 +506,10 @@ local function handleTileSelection(env, button, x, y, win, wm)
     clearSpriteSelection(env, win)
   end
   return true
+end
+
+function M._resetRomPaletteDoubleClickState()
+  clearRomPaletteCellClick()
 end
 
 function M.handleMousePressed(env, x, y, button)

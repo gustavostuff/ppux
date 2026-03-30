@@ -6,6 +6,7 @@ local UndoRedoController = require("controllers.input_support.undo_redo_controll
 local GenericActionsModal = require("user_interface.modals.generic_actions_modal")
 local NewWindowModal = require("user_interface.modals.new_window_modal")
 local RenameWindowModal = require("user_interface.modals.rename_window_modal")
+local RomPaletteAddressModal = require("user_interface.modals.rom_palette_address_modal")
 local SaveOptionsModal = require("user_interface.modals.save_options_modal")
 local QuitConfirmModal = require("user_interface.modals.quit_confirm_modal")
 local SettingsModal = require("user_interface.modals.settings_modal")
@@ -24,6 +25,7 @@ local function anyModalVisible(app)
     or (app.settingsModal and app.settingsModal:isVisible())
     or (app.newWindowModal and app.newWindowModal:isVisible())
     or (app.renameWindowModal and app.renameWindowModal:isVisible())
+    or (app.romPaletteAddressModal and app.romPaletteAddressModal:isVisible())
 end
 
 local function getTopWindowTooltipCandidate(app, x, y)
@@ -68,6 +70,7 @@ local function getTopModalTooltipCandidate(app, x, y)
     app.settingsModal,
     app.newWindowModal,
     app.renameWindowModal,
+    app.romPaletteAddressModal,
   }
 
   for _, modal in ipairs(modals) do
@@ -124,6 +127,7 @@ function AppCoreController.new()
   self.genericActionsModal = GenericActionsModal.new()
   self.newWindowModal = NewWindowModal.new()
   self.renameWindowModal = RenameWindowModal.new()
+  self.romPaletteAddressModal = RomPaletteAddressModal.new()
   self.saveOptionsModal = SaveOptionsModal.new()
   self.quitConfirmModal = QuitConfirmModal.new()
   self.settingsModal = SettingsModal.new()
@@ -267,6 +271,16 @@ function AppCoreController:_buildNewWindowOptions()
       callback = function(_, _, _, windowTitle)
         local win = self.wm:createPaletteWindow({
           title = windowTitle or "Palette",
+        })
+        self:setStatus(string.format("Created %s", win.title))
+      end
+    },
+    {
+      text = "ROM Palette window",
+      buttonText = "ROM Palette window",
+      callback = function(_, _, _, windowTitle)
+        local win = self.wm:createRomPaletteWindow({
+          title = windowTitle or "ROM Palette",
         })
         self:setStatus(string.format("Created %s", win.title))
       end
@@ -509,6 +523,25 @@ function AppCoreController:getTooltipCandidateAt(x, y)
   return getTopWindowTooltipCandidate(self, x, y)
 end
 
+local function parseHexAddress(text)
+  local trimmed = tostring(text or ""):match("^%s*(.-)%s*$")
+  if trimmed == "" then
+    return nil, "Address is required"
+  end
+
+  local normalized = trimmed:upper():gsub("^0X", "")
+  if not normalized:match("^[0-9A-F]+$") then
+    return nil, "Address must be hexadecimal"
+  end
+
+  local value = tonumber(normalized, 16)
+  if type(value) ~= "number" then
+    return nil, "Address must be hexadecimal"
+  end
+
+  return math.floor(value)
+end
+
 function AppCoreController:showRenameWindowModal(win)
   if not (self.renameWindowModal and win and type(win) == "table") then
     return false
@@ -521,6 +554,45 @@ function AppCoreController:showRenameWindowModal(win)
       if not targetWindow then return end
       targetWindow.title = newTitle
       self:setStatus(string.format("Renamed window to \"%s\"", newTitle))
+    end,
+  })
+
+  return true
+end
+
+function AppCoreController:showRomPaletteAddressModal(win, col, row)
+  if not (self.romPaletteAddressModal and win and type(win) == "table") then
+    return false
+  end
+
+  local rowColors = win.paletteData and win.paletteData.romColors and win.paletteData.romColors[(row or 0) + 1] or nil
+  local existingAddr = rowColors and rowColors[(col or 0) + 1] or nil
+  local initialAddress = type(existingAddr) == "number" and string.format("%X", existingAddr) or ""
+
+  self.romPaletteAddressModal:show({
+    title = "Set ROM Address",
+    window = win,
+    col = col,
+    row = row,
+    initialAddress = initialAddress,
+    onConfirm = function(addressText, targetWindow, targetCol, targetRow)
+      local addr, parseErr = parseHexAddress(addressText)
+      if not addr then
+        self:setStatus(parseErr)
+        self:showToast("error", parseErr)
+        return false
+      end
+
+      local ok, err = targetWindow:setCellAddress(targetCol, targetRow, addr)
+      if not ok then
+        local message = err or "Failed to assign ROM palette address"
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+
+      self:setStatus(string.format("Assigned ROM palette cell (%d,%d) to 0x%X", targetCol, targetRow, addr))
+      return true
     end,
   })
 

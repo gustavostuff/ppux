@@ -381,6 +381,62 @@ function RomPaletteWindow:saveUserDefinedCode(row, col, hexCode)
   end)
 end
 
+function RomPaletteWindow:removeUserDefinedCode(row, col)
+  if not (self.paletteData and type(self.paletteData.userDefinedCode) == "table") then
+    return false
+  end
+
+  local removed = false
+  for i = #self.paletteData.userDefinedCode, 1, -1 do
+    local item = self.paletteData.userDefinedCode[i]
+    if item and item.row == row and item.col == col then
+      table.remove(self.paletteData.userDefinedCode, i)
+      removed = true
+    end
+  end
+
+  return removed
+end
+
+function RomPaletteWindow:setCellAddress(col, row, romAddr)
+  if type(col) ~= "number" or type(row) ~= "number" then
+    return false, "Invalid ROM palette cell"
+  end
+  if type(romAddr) ~= "number" then
+    return false, "ROM address must be a number"
+  end
+  if col < 0 or row < 0 or col >= (self.cols or 0) or row >= (self.rows or 0) then
+    return false, "ROM palette cell is out of range"
+  end
+
+  local code = "0F"
+  if type(self.romRaw) == "string" and #self.romRaw > 0 then
+    local byte, err = chr.readByteFromAddress(self.romRaw, romAddr)
+    if not byte then
+      return false, string.format("ROM address 0x%X is invalid: %s", romAddr, tostring(err))
+    end
+    code = hex2(byte)
+  end
+
+  self.paletteData = self.paletteData or {}
+  self.paletteData.romColors = self.paletteData.romColors or {}
+  local rowIndex = row + 1
+  local colIndex = col + 1
+  self.paletteData.romColors[rowIndex] = self.paletteData.romColors[rowIndex] or {}
+  self.paletteData.romColors[rowIndex][colIndex] = math.floor(romAddr)
+
+  self:removeUserDefinedCode(row, col)
+
+  self.codes2D = self.codes2D or {}
+  self.codes2D[row] = self.codes2D[row] or {}
+  self.codes2D[row][col] = code
+  self:set(col, row, code)
+  self:setSelected(col, row)
+
+  markPaletteUnsaved()
+  return true, code
+end
+
 -- Override drawGrid to show codes even when not active (ROM palettes always show codes)
 function RomPaletteWindow:drawGrid()
   local sx, sy, sw, sh = self:getScreenRect()

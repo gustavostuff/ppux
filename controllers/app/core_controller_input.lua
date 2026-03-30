@@ -202,6 +202,10 @@ function AppCoreController:keypressed(k)
     modalHandleKey(self.renameWindowModal, k)
     return
   end
+  if modalVisible(self.romPaletteAddressModal) then
+    modalHandleKey(self.romPaletteAddressModal, k)
+    return
+  end
   if self.splash and self.splash.isVisible and self.splash:isVisible() then
     if self.splash.keypressed then
       self.splash:keypressed(k)
@@ -235,6 +239,7 @@ function AppCoreController:keyreleased(k)
       or modalVisible(self.settingsModal)
       or modalVisible(self.newWindowModal)
       or modalVisible(self.renameWindowModal)
+      or modalVisible(self.romPaletteAddressModal)
       or (self.splash and self.splash.isVisible and self.splash:isVisible()) then
     return
   end
@@ -278,6 +283,10 @@ function AppCoreController:mousepressed(x, y, b)
   end
   if self.renameWindowModal and self.renameWindowModal:isVisible() then
     self.renameWindowModal:mousepressed(mouse.x, mouse.y, b)
+    return
+  end
+  if self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible() then
+    self.romPaletteAddressModal:mousepressed(mouse.x, mouse.y, b)
     return
   end
 
@@ -338,6 +347,10 @@ function AppCoreController:mousereleased(x, y, b)
   end
   if self.renameWindowModal and self.renameWindowModal:isVisible() then
     self.renameWindowModal:mousereleased(mouse.x, mouse.y, b)
+    return
+  end
+  if self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible() then
+    self.romPaletteAddressModal:mousereleased(mouse.x, mouse.y, b)
     return
   end
 
@@ -409,6 +422,10 @@ function AppCoreController:mousemoved(x, y, dx, dy)
     self.renameWindowModal:mousemoved(mouse.x, mouse.y)
     return
   end
+  if self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible() then
+    self.romPaletteAddressModal:mousemoved(mouse.x, mouse.y)
+    return
+  end
 
   if self.toastController then
     self.toastController:mousemoved(mouse.x, mouse.y)
@@ -438,7 +455,8 @@ function AppCoreController:wheelmoved(dx, dy)
       or self.genericActionsModal:isVisible()
       or (self.settingsModal and self.settingsModal:isVisible())
       or self.newWindowModal:isVisible()
-      or (self.renameWindowModal and self.renameWindowModal:isVisible()) then
+      or (self.renameWindowModal and self.renameWindowModal:isVisible())
+      or (self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible()) then
     return
   end
   if self.taskbar and self.taskbar.wheelmoved and self.taskbar:wheelmoved(dx, dy) then
@@ -454,6 +472,10 @@ function AppCoreController:textinput(text)
   end
   if self.renameWindowModal and self.renameWindowModal:isVisible() then
     self.renameWindowModal:textinput(text)
+    return
+  end
+  if self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible() then
+    self.romPaletteAddressModal:textinput(text)
     return
   end
 end

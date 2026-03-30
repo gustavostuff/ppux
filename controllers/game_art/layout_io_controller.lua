@@ -502,7 +502,7 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
           for row = 0, (w.rows or 4) - 1 do
             for col = 0, (w.cols or 4) - 1 do
               local code = w.codes2D[row] and w.codes2D[row][col]
-              if code then
+              if code and w.isCellEditable and w:isCellEditable(col, row) then
                 code = normalizeInvalidBlack(code)
                 table.insert(entry.paletteData.userDefinedCode, {
                   code = code,

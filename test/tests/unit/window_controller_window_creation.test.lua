@@ -111,6 +111,35 @@ describe("window_controller.lua - new window creation variants", function()
     expect(wm:getFocus()).toBe(win)
   end)
 
+  it("creates ROM palette windows with unassigned cells by default", function()
+    local previousCtx = rawget(_G, "ctx")
+    _G.ctx = {
+      app = {
+        appEditState = {
+          romRaw = string.rep(string.char(0x0F), 64),
+        },
+      },
+    }
+
+    local wm = WM.new()
+    local win = wm:createRomPaletteWindow({
+      title = "ROM Palette",
+    })
+
+    _G.ctx = previousCtx
+
+    expect(win.kind).toBe("rom_palette")
+    expect(win.isPalette).toBe(true)
+    expect(win.title).toBe("ROM Palette")
+    expect(win.rows).toBe(4)
+    expect(win.cols).toBe(4)
+    expect(win.activePalette).toBe(false)
+    expect(win:isCellEditable(0, 0)).toBe(false)
+    expect(win.paletteData.romColors[1][1]).toBe(false)
+    expect(win.codes2D[0][0]).toBe("0F")
+    expect(wm:getFocus()).toBe(win)
+  end)
+
   it("creates OAM animated sprite windows as oam_animation with sprite frames", function()
     local wm = WM.new()
     local win = wm:createSpriteWindow({
