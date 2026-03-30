@@ -44,7 +44,7 @@ end
 function Dialog.new()
   local self = setmetatable({
     visible = false,
-    title = "Set ROM Address",
+    title = "Enter color address",
     padding = nil,
     rowGap = nil,
     buttonGap = nil,
@@ -68,6 +68,7 @@ function Dialog.new()
   self.textField = TextField.new({
     width = 140,
     height = self.fieldH,
+    mask = "0x000000",
   })
   self.setButton = Button.new({
     text = "Set",
@@ -102,7 +103,7 @@ end
 
 function Dialog:show(opts)
   opts = opts or {}
-  self.title = opts.title or "Set ROM Address"
+  self.title = opts.title or "Enter color address"
   self.targetWindow = opts.window
   self.targetCol = opts.col
   self.targetRow = opts.row

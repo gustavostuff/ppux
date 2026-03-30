@@ -567,10 +567,10 @@ function AppCoreController:showRomPaletteAddressModal(win, col, row)
 
   local rowColors = win.paletteData and win.paletteData.romColors and win.paletteData.romColors[(row or 0) + 1] or nil
   local existingAddr = rowColors and rowColors[(col or 0) + 1] or nil
-  local initialAddress = type(existingAddr) == "number" and string.format("%X", existingAddr) or ""
+  local initialAddress = type(existingAddr) == "number" and string.format("0x%06X", existingAddr) or ""
 
   self.romPaletteAddressModal:show({
-    title = "Set ROM Address",
+    title = "Enter color address",
     window = win,
     col = col,
     row = row,
