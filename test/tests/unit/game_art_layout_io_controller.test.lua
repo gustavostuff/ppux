@@ -265,4 +265,29 @@ describe("game_art_layout_io_controller.lua", function()
     expect(restoreError.reason).toBe("snapshot_hash_mismatch")
     expect(restoreError.windowSpec.title).toBe("PTB Hash")
   end)
+
+  it("persists ROM palette compact mode through layout snapshot and rebuild", function()
+    local wm = require("controllers.window.window_controller").new()
+    local win = wm:createRomPaletteWindow({ title = "ROM Palette Compact", compactView = true })
+    win._id = "rom_palette_compact"
+
+    local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1)
+    local entry = snapshot.windows[1]
+    expect(entry.kind).toBe("rom_palette")
+    expect(entry.compactView).toBe(true)
+
+    local built = GameArtWindowBuilderController.buildWindowsFromLayout(snapshot, {
+      wm = require("controllers.window.window_controller").new(),
+      tilesPool = {},
+      ensureTiles = function() end,
+      romRaw = string.rep(string.char(0x0F), 64),
+      decodeUserDefinedCodes = GameArtLayoutIOController.decodeUserDefinedCodes,
+    })
+
+    local restored = built.windowsById["rom_palette_compact"]
+    expect(restored).toBeTruthy()
+    expect(restored.compactView).toBe(true)
+    expect(restored.cellW).toBe(24)
+    expect(restored.cellH).toBe(16)
+  end)
 end)

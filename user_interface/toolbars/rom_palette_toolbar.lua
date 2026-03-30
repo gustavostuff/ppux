@@ -48,11 +48,11 @@ function RomPaletteToolbar:updateCompactIcon()
   if not supported then return end
 
   if self.window.compactView then
-    self.compactButton.icon = images.icons.icon_minus or self.compactButton.icon
-    self.compactButton.tooltip = "Compact view (click for full)"
+    self.compactButton.icon = images.icons.icon_normal_mode or self.compactButton.icon
+    self.compactButton.tooltip = "Switch to normal view"
   else
-    self.compactButton.icon = images.icons.icon_plus or images.icons.icon_down or self.compactButton.icon
-    self.compactButton.tooltip = "Full view (click for compact)"
+    self.compactButton.icon = images.icons.icon_compact_mode or self.compactButton.icon
+    self.compactButton.tooltip = "Switch to compact view"
   end
 end
 

@@ -214,19 +214,31 @@ local function drawRectConnector(x1, y1, x2, y2, opts)
   local startSquareOffsetY = opts.startSquareOffsetY or 0
   local endSquareOffsetX = opts.endSquareOffsetX or 0
   local endSquareOffsetY = opts.endSquareOffsetY or 0
+  local autoAlignEndSquare = (opts.autoAlignEndSquare == true)
   local points
+  local lastSegmentOrientation
   if math.abs(x2 - x1) >= math.abs(y2 - y1) then
     local mx = math.floor((x1 + x2) / 2 + 0.5)
     points = { x1, y1, mx, y1, mx, y2, x2, y2 }
+    lastSegmentOrientation = "horizontal"
   else
     local my = math.floor((y1 + y2) / 2 + 0.5)
     points = { x1, y1, x1, my, x2, my, x2, y2 }
+    lastSegmentOrientation = "vertical"
+  end
+
+  if autoAlignEndSquare then
+    if lastSegmentOrientation == "horizontal" then
+      endSquareOffsetY = endSquareOffsetY - 1
+    elseif lastSegmentOrientation == "vertical" then
+      endSquareOffsetX = endSquareOffsetX - 1
+    end
   end
 
   love.graphics.push("all")
   love.graphics.setLineStyle("rough")
   love.graphics.setLineWidth(3)
-  love.graphics.setColor(0, 0, 0, 0.45)
+  love.graphics.setColor(0, 0, 0, 1)
   love.graphics.line(points)
   love.graphics.setLineWidth(1)
   love.graphics.setColor(colors.blue[1], colors.blue[2], colors.blue[3], 1)
@@ -266,7 +278,9 @@ local function drawActivePaletteLinkDrag(app)
     return
   end
 
-  drawRectConnector(sx, sy, tx, ty)
+  drawRectConnector(sx, sy, tx, ty, {
+    autoAlignEndSquare = true,
+  })
 end
 
 local function renderWindowChessPattern(window, wm)

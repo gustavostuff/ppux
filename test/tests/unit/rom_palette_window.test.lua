@@ -255,4 +255,23 @@ describe("rom_palette_window.lua - locked cells", function()
     expect(string.find(err, "invalid", 1, true)).toNotBe(nil)
     expect(win:isCellEditable(0, 0)).toBe(false)
   end)
+
+  it("supports compact mode and switches cell size to 24x16", function()
+    local win = makeWindow()
+
+    expect(win:supportsCompactMode()).toBe(true)
+    expect(win.compactView).toBe(false)
+    expect(win.cellW).toBe(32)
+    expect(win.cellH).toBe(24)
+
+    win:setCompactMode(true)
+    expect(win.compactView).toBe(true)
+    expect(win.cellW).toBe(24)
+    expect(win.cellH).toBe(16)
+
+    win:setCompactMode(false)
+    expect(win.compactView).toBe(false)
+    expect(win.cellW).toBe(32)
+    expect(win.cellH).toBe(24)
+  end)
 end)

@@ -14,8 +14,21 @@ local RomPaletteWindow = {}
 RomPaletteWindow.__index = RomPaletteWindow
 setmetatable(RomPaletteWindow, { __index = PaletteWindow })
 
+local NORMAL_CELL_W, NORMAL_CELL_H = 32, 24
+local COMPACT_CELL_W, COMPACT_CELL_H = 20, 16
+
 local function clamp(n,a,b) if n<a then return a elseif n>b then return b else return n end end
 local function hex2(n) return string.format("%02X", n) end
+
+local function getLabelTextColor(rgb)
+  rgb = rgb or colors.black
+  local r, g, b = rgb[1] or 0, rgb[2] or 0, rgb[3] or 0
+  local luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+  if luminance >= 0.5 then
+    return colors.black
+  end
+  return colors.white
+end
 
 local function nibbleAdjust(code, dx, dy)
   local v  = tonumber(code,16) or 0
@@ -86,6 +99,11 @@ function RomPaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
   self.kind = "rom_palette"
   self.isPalette = true  -- Inherit palette behavior
   self.romRaw = data.romRaw  -- Store ROM reference
+  self.compactView = (data.compactView == true)
+  self.normalCellW = NORMAL_CELL_W
+  self.normalCellH = NORMAL_CELL_H
+  self.compactCellW = COMPACT_CELL_W
+  self.compactCellH = COMPACT_CELL_H
   
   -- Store paletteData structure (contains romColors addresses and userDefinedCode)
   self.paletteData = data.paletteData or {}
@@ -98,8 +116,26 @@ function RomPaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
   if not self.codes2D or not self.codes2D[0] or not self.codes2D[0][0] then
     DebugController.log("error", "ROM_PAL", "codes2D not properly initialized after initializeFromROMOrUserCodes")
   end
+
+  self:setCompactMode(self.compactView)
   
   return self
+end
+
+function RomPaletteWindow:supportsCompactMode()
+  return true
+end
+
+function RomPaletteWindow:setCompactMode(enabled)
+  self.compactView = (enabled == true)
+  if self.compactView then
+    self.cellW = self.compactCellW
+    self.cellH = self.compactCellH
+  else
+    self.cellW = self.normalCellW
+    self.cellH = self.normalCellH
+  end
+  return self.compactView
 end
 
 -- Initialize codes2D from ROM bytes (if available) or userDefinedCode
@@ -453,9 +489,10 @@ function RomPaletteWindow:drawGrid()
       local x, y = c*cw, r*ch
       local code = self.codes2D[r][c]
       local editable = self:isCellEditable(c, r)
+      local fillColor = colors.gray50
       if editable then
-        local rgb  = (self.palette[code] or colors.black)
-        love.graphics.setColor(rgb[1], rgb[2], rgb[3], 1)
+        fillColor = (self.palette[code] or colors.black)
+        love.graphics.setColor(fillColor[1], fillColor[2], fillColor[3], 1)
       else
         love.graphics.setColor(colors.gray50[1], colors.gray50[2], colors.gray50[3], 1)
       end
@@ -463,7 +500,10 @@ function RomPaletteWindow:drawGrid()
 
       -- Always show codes for ROM palettes
       if editable then
-        Text.print(code, x + 3, y + 3, { outline = true })
+        Text.print(code, x + 3, y + 2, {
+          color = getLabelTextColor(fillColor),
+          shadowColor = colors.transparent,
+        })
       end
 
       love.graphics.setColor(colors.white)

@@ -472,6 +472,7 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
     if entry.kind == "palette" then
       entry.paletteName = w.paletteName
       entry.activePalette = w.activePalette or false
+      entry.compactView = (w.compactView == true)
       entry.items = {}
       for row = 0, w.rows - 1 do
         for col = 0, w.cols - 1 do
@@ -491,6 +492,7 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
     elseif entry.kind == "rom_palette" then
       entry.paletteName = w.paletteName
       entry.activePalette = false
+      entry.compactView = (w.compactView == true)
 
       if w.paletteData then
         entry.paletteData = {

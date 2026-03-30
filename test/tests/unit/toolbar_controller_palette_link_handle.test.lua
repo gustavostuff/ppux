@@ -29,6 +29,7 @@ describe("toolbar_controller.lua - palette link handle", function()
 
     expect(win.specializedToolbar).toBeTruthy()
     expect(win.specializedToolbar.linkButton).toBeTruthy()
+    expect(win.specializedToolbar.compactButton).toBeTruthy()
     expect(win.specializedToolbar.linkButton.icon).toBeTruthy()
   end)
 

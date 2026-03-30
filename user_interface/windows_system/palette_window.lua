@@ -10,6 +10,9 @@ local images = require("images")
 local katsudo = require("lib.katsudo")
 local DebugController = require("controllers.dev.debug_controller")
 
+local NORMAL_CELL_W, NORMAL_CELL_H = 32, 24
+local COMPACT_CELL_W, COMPACT_CELL_H = 24, 16
+
 local function buildSelectionAnim()
   if images and images.palette_selection then
     return katsudo.new(images.palette_selection, 32, 24, 4, 0.1)
@@ -26,6 +29,16 @@ setmetatable(PaletteWindow, { __index = Window })
 
 local function clamp(n,a,b) if n<a then return a elseif n>b then return b else return n end end
 local function hex2(n) return string.format("%02X", n) end
+
+local function getLabelTextColor(rgb)
+  rgb = rgb or colors.black
+  local r, g, b = rgb[1] or 0, rgb[2] or 0, rgb[3] or 0
+  local luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+  if luminance >= 0.5 then
+    return colors.black
+  end
+  return colors.white
+end
 
 local function nibbleAdjust(code, dx, dy)
   local v  = tonumber(code,16) or 0
@@ -48,13 +61,18 @@ function PaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
   data = data or {}
   data.resizable = false -- palette windows can't be resized
   rows, cols = rows or 1, cols or 4
-  cellW, cellH = 32, 24
+  local cellW, cellH = NORMAL_CELL_W, NORMAL_CELL_H
   local self = Window.new(x, y, cellW, cellH, cols, rows, zoom or 1.0, data)
   setmetatable(self, PaletteWindow)
   self.isPalette   = true
   self.paletteName = paletteName or "smooth_fbx"
   self.palette     = Palettes[self.paletteName] or Palettes.smooth_fbx
   self.kind        = "palette"
+  self.compactView = (data.compactView == true)
+  self.normalCellW = NORMAL_CELL_W
+  self.normalCellH = NORMAL_CELL_H
+  self.compactCellW = COMPACT_CELL_W
+  self.compactCellH = COMPACT_CELL_H
   -- activePalette: true if this is the active palette (only one should be active at a time)
   self.activePalette = (data.activePalette ~= nil) and data.activePalette or false
 
@@ -77,7 +95,25 @@ function PaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
     self:syncToGlobalPalette()
   end
 
+  self:setCompactMode(self.compactView)
+
   return self
+end
+
+function PaletteWindow:supportsCompactMode()
+  return true
+end
+
+function PaletteWindow:setCompactMode(enabled)
+  self.compactView = (enabled == true)
+  if self.compactView then
+    self.cellW = self.compactCellW
+    self.cellH = self.compactCellH
+  else
+    self.cellW = self.normalCellW
+    self.cellH = self.normalCellH
+  end
+  return self.compactView
 end
 
 -- Items cannot be removed
@@ -165,7 +201,7 @@ end
 
 -- override parent
 function PaletteWindow:highlightSelected(cw, ch)
-  if self.selected  then
+  if self.selected and not self.compactView then
     local scx, scy = self.selected.col * cw, self.selected.row * ch
     love.graphics.setColor(colors.white)
     self.selection:draw(scx, scy)
@@ -190,7 +226,10 @@ function PaletteWindow:drawGrid()
       love.graphics.rectangle("fill", x, y, cw, ch)
 
       if self.activePalette then
-        Text.print(code, x + 3, y + 3, { outline = true })
+        Text.print(code, x + 3, y + 2, {
+          color = getLabelTextColor(rgb),
+          shadowColor = colors.transparent,
+        })
       end
 
       love.graphics.setColor(colors.white)

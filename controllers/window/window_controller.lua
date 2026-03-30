@@ -950,6 +950,7 @@ function WM:createPaletteWindow(opts)
       title = defaults.title,
       activePalette = (opts.activePalette ~= false),
       initCodes = opts.initCodes,
+      compactView = (opts.compactView == true),
     }
   )
 
@@ -996,6 +997,7 @@ function WM:createRomPaletteWindow(opts)
       },
       romRaw = romRaw,
       activePalette = false,
+      compactView = (opts.compactView == true),
     }
   )
 

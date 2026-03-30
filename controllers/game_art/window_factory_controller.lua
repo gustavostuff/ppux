@@ -76,6 +76,7 @@ function M.createPaletteWindow(w)
     rows, cols, {
       initCodes = initCodes,
       activePalette = (w.activePalette == true) or false,
+      compactView = (w.compactView == true),
     }
   )
 
@@ -106,6 +107,7 @@ function M.createRomPaletteWindow(w, romRaw, decodeUserDefinedCodes)
       paletteData = w.paletteData or {},
       romRaw = romRaw,
       activePalette = false,
+      compactView = (w.compactView == true),
     }
   )
 

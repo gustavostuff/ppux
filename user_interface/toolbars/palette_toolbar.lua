@@ -21,6 +21,10 @@ function PaletteToolbar.new(window, ctx, windowController)
   self.h = hh  -- Toolbar height matches header height
 
   self.linkButton = self:addButton(images.icons.icon_pivot or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty, nil, "Palette link handle")
+
+  self.compactButton = self:addButton(images.icons.icon_minus or images.icons.icon_down, function()
+    self:_onToggleCompact()
+  end, "Toggle compact palette view")
   
   -- Active palette toggle button
   local activeBtn = self:addButton(images.icons.icon_not_selected, function()
@@ -48,7 +52,24 @@ end
 -- Override updateIcons to refresh the active button icon
 function PaletteToolbar:updateIcons()
   ToolbarBase.updateIcons(self)
+  self:updateCompactIcon()
   self:updateActiveIcon()
+end
+
+function PaletteToolbar:updateCompactIcon()
+  if not self.compactButton or not self.window then return end
+  local supported = self.window.supportsCompactMode and self.window:supportsCompactMode()
+  self.compactButton.visible = supported
+  self.compactButton.enabled = supported
+  if not supported then return end
+
+  if self.window.compactView then
+    self.compactButton.icon = images.icons.icon_normal_mode or self.compactButton.icon
+    self.compactButton.tooltip = "Switch to normal view"
+  else
+    self.compactButton.icon = images.icons.icon_compact_mode or self.compactButton.icon
+    self.compactButton.tooltip = "Switch to compact view"
+  end
 end
 
 -- Update the active button icon based on window's activePalette state
@@ -57,7 +78,7 @@ function PaletteToolbar:updateActiveIcon()
   
   if self.window.activePalette then
     self.activeButton.icon = images.icons.icon_selected
-    self.activeButton.tooltip = "Active palette (click to deactivate)"
+    self.activeButton.tooltip = "Active palette"
   else
     self.activeButton.icon = images.icons.icon_not_selected
     self.activeButton.tooltip = "Set as active palette"
@@ -101,6 +122,16 @@ function PaletteToolbar:_onToggleActive()
     if win.isPalette and win.specializedToolbar and win.specializedToolbar.updateActiveIcon then
       win.specializedToolbar:updateActiveIcon()
     end
+  end
+end
+
+function PaletteToolbar:_onToggleCompact()
+  if not self.window or not self.window.setCompactMode then return end
+  local newVal = not self.window.compactView
+  self.window:setCompactMode(newVal)
+  self:updateCompactIcon()
+  if self.ctx and self.ctx.setStatus then
+    self.ctx.setStatus(newVal and "Palette compact view" or "Palette full view")
   end
 end
 
