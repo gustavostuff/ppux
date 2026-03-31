@@ -160,24 +160,31 @@ local function getFocusedPaletteLinks(app)
   return links
 end
 
+local function getWindowLinkRect(win)
+  if win and win._collapsed and win.getHeaderRect then
+    return win:getHeaderRect()
+  end
+  return win:getScreenRect()
+end
+
 local function getWindowLinkAnchor(fromWin, toWin)
-  local fx, fy, fw, fh = fromWin:getScreenRect()
-  local tx, ty, tw, th = toWin:getScreenRect()
+  local fx, fy, fw, fh = getWindowLinkRect(fromWin)
+  local tx, ty, tw, th = getWindowLinkRect(toWin)
   local fcx, fcy = fx + fw / 2, fy + fh / 2
   local tcx, tcy = tx + tw / 2, ty + th / 2
   local dx, dy = tcx - fcx, tcy - fcy
 
   if math.abs(dx) >= math.abs(dy) then
     if dx >= 0 then
-      return fx + fw, fy + fh / 2, "horizontal"
+      return fx + fw, fy + fh / 2, "horizontal", "right"
     end
-    return fx, fy + fh / 2, "horizontal"
+    return fx, fy + fh / 2, "horizontal", "left"
   end
 
   if dy >= 0 then
-    return fx + fw / 2, fy + fh, "vertical"
+    return fx + fw / 2, fy + fh, "vertical", "bottom"
   end
-  return fx + fw / 2, fy, "vertical"
+  return fx + fw / 2, fy, "vertical", "top"
 end
 
 local function getPaletteHandleAnchor(paletteWin, focusedWin)
@@ -200,7 +207,7 @@ local function getPaletteLinkDragAnchor(paletteWin)
       return x + w / 2, y + h / 2
     end
   end
-  local x, y, w, h = paletteWin:getScreenRect()
+  local x, y, w, h = getWindowLinkRect(paletteWin)
   return x + w / 2, y
 end
 
@@ -384,12 +391,16 @@ local function drawPaletteLinkOverlay(app)
     local focused = link.contentWin
     local paletteWin = link.paletteWin
     if focused and paletteWin then
-      local sx, sy = getWindowLinkAnchor(focused, paletteWin)
+      local sx, sy, _, startSide = getWindowLinkAnchor(focused, paletteWin)
       local tx, ty = getPaletteHandleAnchor(paletteWin, focused)
       local showLine, alpha = getPersistentPaletteLinkVisual(app, focused, paletteWin)
+      local startSquareOffsetY = -1
+      if focused._collapsed and (startSide == "left" or startSide == "right") then
+        startSquareOffsetY = startSquareOffsetY + 1
+      end
       drawRectConnector(sx, sy, tx, ty, {
         startSquareOffsetX = -1,
-        startSquareOffsetY = -1,
+        startSquareOffsetY = startSquareOffsetY,
         showLine = showLine,
         alpha = alpha,
       })

@@ -42,10 +42,11 @@ local function getLabelTextColor(rgb)
   rgb = rgb or colors.black
   local r, g, b = rgb[1] or 0, rgb[2] or 0, rgb[3] or 0
   local luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+  local base = (luminance >= 0.5) and colors.black or colors.white
   if luminance >= 0.5 then
-    return colors.black
+    return { base[1], base[2], base[3], 0.75 }
   end
-  return colors.white
+  return { base[1], base[2], base[3], 0.75 }
 end
 
 local function nibbleAdjust(code, dx, dy)

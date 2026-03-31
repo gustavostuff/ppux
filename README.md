@@ -10,6 +10,8 @@ Edit NES graphics in game-aware context instead of rebuilding screens by hand.
 
 PPUX uses an in-app [database](#database) plus project files to understand banks, palettes, sprite layouts, animations, and other ROM-specific structures.
 
+:information_source: If you wish to support the project, you can do so [here](https://tavuntu.itch.io/ppux).
+
 - [Basic Usage](#basic-usage)
   - [Getting started](#getting-started)
   - [Windows system](#windows-system)
