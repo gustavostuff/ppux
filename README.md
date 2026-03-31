@@ -2,7 +2,7 @@
 
 ## Open Source NES Art Editor
 
-Version: 0.0.8 (beta)
+Version: 0.0.9
 
 <img src="img/readme_images/app_example.png" alt="">
 
