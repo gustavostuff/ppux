@@ -109,6 +109,10 @@ function AppCoreController.new()
     currentX = 0,
     currentY = 0,
   }
+  self.appCloseButton = {
+    hovered = false,
+    pressed = false,
+  }
 
   -- rom state
   self.appEditState = {
@@ -624,6 +628,34 @@ function AppCoreController:invalidateChrBankTileCanvas(bankIdx, tileIndex)
     return false
   end
   self.chrBankCanvasController:invalidateTile(bankIdx, tileIndex)
+  return true
+end
+
+function AppCoreController:getAppCloseButtonRect()
+  local canvas = self.canvas
+  if not (canvas and canvas.getWidth and canvas.getHeight) then
+    return nil
+  end
+
+  local w, h = 16, 16
+  local x = canvas:getWidth() - w - 2
+  local y = 2
+  return x, y, w, h
+end
+
+function AppCoreController:isPointInAppCloseButton(x, y)
+  local bx, by, bw, bh = self:getAppCloseButtonRect()
+  if not bx then
+    return false
+  end
+  return x >= bx and x <= (bx + bw) and y >= by and y <= (by + bh)
+end
+
+function AppCoreController:requestAppClose()
+  if self.handleQuitRequest and self:handleQuitRequest() then
+    return true
+  end
+  love.event.quit()
   return true
 end
 

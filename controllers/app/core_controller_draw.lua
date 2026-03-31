@@ -946,7 +946,48 @@ local function drawEditModeColorIndicator(app)
   love.graphics.setColor(colors.white)
 end
 
-local function drawOverlays(app)
+local function drawAppCloseButton(app)
+  if not (app and app.appCloseButton and app.getAppCloseButtonRect) then
+    return
+  end
+
+  local x, y, w, h = app:getAppCloseButtonRect()
+  if not x then
+    return
+  end
+
+  local hovered = app.appCloseButton.hovered == true
+  local pressed = app.appCloseButton.pressed == true
+  local fill = colors.red
+  if pressed then
+    fill = colors:withBrightness("red", 0.8)
+  elseif hovered then
+    fill = colors:withBrightness("red", 1.1)
+  end
+
+  love.graphics.setColor(colors.black)
+  love.graphics.rectangle("fill", x - 1, y - 1, w + 2, h + 2)
+  love.graphics.setColor(fill)
+  love.graphics.rectangle("fill", x, y, w, h)
+
+  local icon = images and images.icons and images.icons.icon_c or nil
+  if icon then
+    love.graphics.setColor(colors.white)
+    local ix = x + math.floor((w - icon:getWidth()) / 2)
+    local iy = y + math.floor((h - icon:getHeight()) / 2)
+    love.graphics.draw(icon, ix, iy)
+  else
+    local label = "C"
+    local font = love.graphics.getFont()
+    local tx = x + math.floor((w - font:getWidth(label)) / 2)
+    local ty = y + math.floor((h - font:getHeight()) / 2)
+    love.graphics.setColor(colors.white)
+    love.graphics.print(label, tx, ty)
+  end
+  love.graphics.setColor(colors.white)
+end
+
+local function drawNonModalOverlays(app)
   ShaderPaletteController.applyShader(true)
   UserInput.drawOverlay()
   ShaderPaletteController.releaseShader()
@@ -969,6 +1010,15 @@ local function drawOverlays(app)
     end
     app.e2eOverlayMenu:draw()
   end
+  if app.toastController and app.canvas then
+    app.toastController:draw(app.canvas:getWidth(), app.canvas:getHeight())
+  end
+  if app.tooltipController and app.canvas then
+    app.tooltipController:draw(app.canvas:getWidth(), app.canvas:getHeight())
+  end
+end
+
+local function drawOverlays(app)
   app.newWindowModal:draw(app.canvas)
   if app.saveOptionsModal then
     app.saveOptionsModal:draw(app.canvas)
@@ -985,12 +1035,6 @@ local function drawOverlays(app)
   end
   if app.textFieldDemoModal then
     app.textFieldDemoModal:draw(app.canvas)
-  end
-  if app.toastController and app.canvas then
-    app.toastController:draw(app.canvas:getWidth(), app.canvas:getHeight())
-  end
-  if app.tooltipController and app.canvas then
-    app.tooltipController:draw(app.canvas:getWidth(), app.canvas:getHeight())
   end
 end
 
@@ -1061,6 +1105,8 @@ function AppCoreController:draw()
   drawPaletteLinks(self)
   drawEmptyStatePrompt(self)
   drawStatus(self)
+  drawNonModalOverlays(self)
+  drawAppCloseButton(self)
   drawOverlays(self)
   if self.splash and self.splash:isVisible() then
     self.splash:draw(self.canvas)
