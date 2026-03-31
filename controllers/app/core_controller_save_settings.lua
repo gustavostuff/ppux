@@ -518,7 +518,7 @@ end
 local function normalizePaletteLinksKey(key)
   if key == "on_hover" or key == "never" then return "on_hover" end
   if key == "auto_hide" then return "auto_hide" end
-  return "always"
+  return "auto_hide"
 end
 
 function AppCoreController:_getPaletteLinksForSettings()
