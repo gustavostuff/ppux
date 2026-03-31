@@ -1,11 +1,11 @@
 local ResolutionController = require("controllers.app.resolution_controller")
 local DebugController = require("controllers.dev.debug_controller")
+local PaletteLinkRenderController = require("controllers.palette.palette_link_render_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 local SpriteController = require("controllers.sprite.sprite_controller")
 local BrushController = require("controllers.input_support.brush_controller")
 local GridModeUtils = require("controllers.grid_mode_utils")
 local WindowCaps = require("controllers.window.window_capabilities")
-local MouseWindowChromeController = require("controllers.input.mouse_window_chrome_controller")
 local UserInput = require("controllers.input")
 local Text = require("utils.text_utils")
 local Timer = require("utils.timer_utils")
@@ -93,350 +93,17 @@ local function getRomPaletteBgColorForWindow(win, wm)
   return nil
 end
 
-local function getPaletteWindowForLayer(layer, wm)
-  if not (layer and layer.paletteData and wm) then
-    return nil
-  end
-
-  local pd = layer.paletteData
-  if pd.winId then
-    local linked = wm:findWindowById(pd.winId)
-    if linked and not linked._closed and not linked._minimized and WindowCaps.isRomPaletteWindow(linked) then
-      return linked
-    end
-    return nil
-  end
-
-  return nil
-end
-
-local function getFocusedPaletteLinks(app)
-  local wm = app and app.wm
-  if not (wm and wm.getFocus) then
-    return {}
-  end
-
-  local focused = wm:getFocus()
-  if not focused or focused._closed or focused._minimized then
-    return {}
-  end
-
-  if not WindowCaps.isAnyPaletteWindow(focused) then
-    local li = (focused.getActiveLayerIndex and focused:getActiveLayerIndex()) or focused.activeLayer or 1
-    local layer = focused.layers and focused.layers[li] or nil
-    if not (layer and layer.paletteData) then
-      return {}
-    end
-
-    local paletteWin = getPaletteWindowForLayer(layer, wm)
-    if not paletteWin or paletteWin == focused then
-      return {}
-    end
-
-    return {
-      { contentWin = focused, paletteWin = paletteWin }
-    }
-  end
-
-  local links = {}
-  local focusedPalette = focused
-  if not WindowCaps.isRomPaletteWindow(focusedPalette) then
-    return {}
-  end
-
-  for _, win in ipairs(wm:getWindows()) do
-    if win ~= focusedPalette and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
-      local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
-      local layer = win.layers and win.layers[li] or nil
-      local pd = layer and layer.paletteData or nil
-      if pd then
-        if pd.winId and pd.winId == focusedPalette._id then
-          links[#links + 1] = { contentWin = win, paletteWin = focusedPalette }
-        end
-      end
-    end
-  end
-
-  return links
-end
-
-local function getWindowLinkRect(win)
-  if win and win._collapsed and win.getHeaderRect then
-    return win:getHeaderRect()
-  end
-  return win:getScreenRect()
-end
-
-local function getWindowLinkAnchor(fromWin, toWin)
-  local fx, fy, fw, fh = getWindowLinkRect(fromWin)
-  local tx, ty, tw, th = getWindowLinkRect(toWin)
-  local fcx, fcy = fx + fw / 2, fy + fh / 2
-  local tcx, tcy = tx + tw / 2, ty + th / 2
-  local dx, dy = tcx - fcx, tcy - fcy
-
-  if math.abs(dx) >= math.abs(dy) then
-    if dx >= 0 then
-      return fx + fw, fy + fh / 2, "horizontal", "right"
-    end
-    return fx, fy + fh / 2, "horizontal", "left"
-  end
-
-  if dy >= 0 then
-    return fx + fw / 2, fy + fh, "vertical", "bottom"
-  end
-  return fx + fw / 2, fy, "vertical", "top"
-end
-
-local function getPaletteHandleAnchor(paletteWin, focusedWin)
-  local toolbar = paletteWin and paletteWin.specializedToolbar
-  if toolbar and toolbar.getLinkHandleRect then
-    local x, y, w, h = toolbar:getLinkHandleRect()
-    if x and y and w and h then
-      return x + w / 2, y + h / 2
-    end
-  end
-  return getWindowLinkAnchor(paletteWin, focusedWin)
-end
-
-local function getPaletteLinkDragAnchor(paletteWin)
-  if not paletteWin then return nil, nil end
-  local toolbar = paletteWin.specializedToolbar
-  if toolbar and toolbar.getLinkHandleRect then
-    local x, y, w, h = toolbar:getLinkHandleRect()
-    if x and y and w and h then
-      return x + w / 2, y + h / 2
-    end
-  end
-  local x, y, w, h = getWindowLinkRect(paletteWin)
-  return x + w / 2, y
-end
-
-local function isMouseHoveringPaletteHandle(paletteWin)
-  if not paletteWin then
-    return false
-  end
-  local toolbar = paletteWin.specializedToolbar
-  if not (toolbar and toolbar.getLinkHandleRect) then
-    return false
-  end
-  local x, y, w, h = toolbar:getLinkHandleRect()
-  if not (x and y and w and h) then
-    return false
-  end
-  local mouse = ResolutionController:getScaledMouse(true)
-  local mx = mouse and mouse.x or nil
-  local my = mouse and mouse.y or nil
-  if type(mx) ~= "number" or type(my) ~= "number" then
-    mx, my = love.mouse.getPosition()
-  end
-  return mx >= x and mx <= x + w and my >= y and my <= y + h
-end
-
-local function getHoveredPaletteHandleLinks(app)
-  local wm = app and app.wm
-  if not (wm and wm.getWindows) then
-    return {}
-  end
-
-  local hoveredPalette = nil
-  for _, win in ipairs(wm:getWindows()) do
-    if win and not win._closed and not win._minimized and WindowCaps.isAnyPaletteWindow(win) then
-      if isMouseHoveringPaletteHandle(win) then
-        hoveredPalette = win
-        break
-      end
-    end
-  end
-
-  if not hoveredPalette then
-    return {}
-  end
-
-  if not WindowCaps.isRomPaletteWindow(hoveredPalette) then
-    return {}
-  end
-
-  local links = {}
-
-  for _, win in ipairs(wm:getWindows()) do
-    if win ~= hoveredPalette and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
-      local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
-      local layer = win.layers and win.layers[li] or nil
-      local pd = layer and layer.paletteData or nil
-      if pd then
-        if pd.winId and pd.winId == hoveredPalette._id then
-          links[#links + 1] = { contentWin = win, paletteWin = hoveredPalette }
-        end
-      end
-    end
-  end
-
-  return links
-end
-
-local function normalizePaletteLinksMode(mode)
-  if mode == "on_hover" or mode == "never" then return "on_hover" end
-  if mode == "auto_hide" then return "auto_hide" end
-  return "always"
-end
-
-local function nowSeconds()
-  if love and love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return os.clock()
-end
-
-local function getPaletteLinkRevealAlpha(contentWin, paletteWin)
-  if (contentWin and contentWin.dragging) or (paletteWin and paletteWin.dragging) then
-    return 1
-  end
-
-  local now = nowSeconds()
-  local revealUntil = math.max(
-    tonumber(contentWin and contentWin._paletteLinkRevealUntil) or 0,
-    tonumber(paletteWin and paletteWin._paletteLinkRevealUntil) or 0
-  )
-  if revealUntil <= now then
-    return 0
-  end
-  return math.max(0, math.min(1, revealUntil - now))
-end
-
-local function getPersistentPaletteLinkVisual(app, contentWin, paletteWin)
-  local mode = normalizePaletteLinksMode(app and app.paletteLinksMode)
-  if mode == "always" then
-    return true, 1
-  end
-  if mode == "on_hover" then
-    return isMouseHoveringPaletteHandle(paletteWin), 1
-  end
-
-  if isMouseHoveringPaletteHandle(paletteWin) then
-    return true, 1
-  end
-
-  local revealAlpha = getPaletteLinkRevealAlpha(contentWin, paletteWin)
-  if revealAlpha > 0 then
-    return true, revealAlpha
-  end
-
-  return false, 1
-end
-
-local function drawRectConnector(x1, y1, x2, y2, opts)
-  opts = opts or {}
-  local startSquareOffsetX = opts.startSquareOffsetX or 0
-  local startSquareOffsetY = opts.startSquareOffsetY or 0
-  local endSquareOffsetX = opts.endSquareOffsetX or 0
-  local endSquareOffsetY = opts.endSquareOffsetY or 0
-  local autoAlignEndSquare = (opts.autoAlignEndSquare == true)
-  local showLine = (opts.showLine ~= false)
-  local alpha = math.max(0, math.min(1, tonumber(opts.alpha) or 1))
-  local lineColor = opts.lineColor or colors.blue
-  local points
-  local lastSegmentOrientation
-  if math.abs(x2 - x1) >= math.abs(y2 - y1) then
-    local mx = math.floor((x1 + x2) / 2 + 0.5)
-    points = { x1, y1, mx, y1, mx, y2, x2, y2 }
-    lastSegmentOrientation = "horizontal"
-  else
-    local my = math.floor((y1 + y2) / 2 + 0.5)
-    points = { x1, y1, x1, my, x2, my, x2, y2 }
-    lastSegmentOrientation = "vertical"
-  end
-
-  if autoAlignEndSquare then
-    if lastSegmentOrientation == "horizontal" then
-      endSquareOffsetY = endSquareOffsetY - 1
-    elseif lastSegmentOrientation == "vertical" then
-      endSquareOffsetX = endSquareOffsetX - 1
-    end
-  end
-
-  love.graphics.push("all")
-  if showLine then
-    love.graphics.setLineStyle("rough")
-    love.graphics.setLineWidth(3)
-    love.graphics.setColor(0, 0, 0, alpha)
-    love.graphics.line(points)
-    love.graphics.setLineWidth(1)
-    love.graphics.setColor(lineColor[1], lineColor[2], lineColor[3], alpha)
-    love.graphics.line(points)
-  end
-  love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], alpha)
-  love.graphics.rectangle("fill", x1 - 1 + startSquareOffsetX, y1 - 1 + startSquareOffsetY, 3, 3)
-  love.graphics.rectangle("fill", x2 - 1 + endSquareOffsetX, y2 - 1 + endSquareOffsetY, 3, 3)
-  love.graphics.pop()
-end
-
 local function drawPaletteLinkOverlay(app)
-  local links = {}
-  local seen = {}
-  local function appendLinks(list)
-    for _, link in ipairs(list or {}) do
-      local contentId = link.contentWin and (link.contentWin._id or tostring(link.contentWin)) or "?"
-      local paletteId = link.paletteWin and (link.paletteWin._id or tostring(link.paletteWin)) or "?"
-      local key = contentId .. "->" .. paletteId
-      if not seen[key] then
-        seen[key] = true
-        links[#links + 1] = link
-      end
-    end
-  end
-  appendLinks(getFocusedPaletteLinks(app))
-  appendLinks(getHoveredPaletteHandleLinks(app))
-
-  for _, link in ipairs(links) do
-    local focused = link.contentWin
-    local paletteWin = link.paletteWin
-    if focused and paletteWin then
-      local sx, sy, _, startSide = getWindowLinkAnchor(focused, paletteWin)
-      local tx, ty = getPaletteHandleAnchor(paletteWin, focused)
-      local showLine, alpha = getPersistentPaletteLinkVisual(app, focused, paletteWin)
-      local startSquareOffsetY = -1
-      if focused._collapsed and (startSide == "left" or startSide == "right") then
-        startSquareOffsetY = startSquareOffsetY + 1
-      end
-      drawRectConnector(sx, sy, tx, ty, {
-        startSquareOffsetX = -1,
-        startSquareOffsetY = startSquareOffsetY,
-        showLine = showLine,
-        alpha = alpha,
-      })
-    end
-  end
+  PaletteLinkRenderController.drawOverlay(app)
 end
 
 local function drawActivePaletteLinkDrag(app)
-  local drag = app and app.paletteLinkDrag
-  if not (drag and drag.active and drag.sourceWin) then
-    return
-  end
+  PaletteLinkRenderController.drawActiveDrag(app)
+end
 
-  local sx, sy = getPaletteLinkDragAnchor(drag.sourceWin)
-  local tx = drag.currentX or sx
-  local ty = drag.currentY or sy
-  if not (sx and sy and tx and ty) then
-    return
-  end
-
-  local lineColor = colors.red
-  if app and app.wm then
-    local targetWin = MouseWindowChromeController.getPaletteLinkDropTarget
-      and MouseWindowChromeController.getPaletteLinkDropTarget(app.wm, drag.sourceWin, tx, ty)
-      or nil
-    local ok = MouseWindowChromeController.canApplyPaletteLinkToTarget
-      and MouseWindowChromeController.canApplyPaletteLinkToTarget(targetWin, drag.sourceWin)
-    if ok then
-      lineColor = colors.green
-    end
-  end
-
-  drawRectConnector(sx, sy, tx, ty, {
-    autoAlignEndSquare = true,
-    lineColor = lineColor,
-  })
+local function drawPaletteLinks(app)
+  drawActivePaletteLinkDrag(app)
+  drawPaletteLinkOverlay(app)
 end
 
 local function renderWindowChessPattern(window, wm)
@@ -1283,8 +950,6 @@ local function drawOverlays(app)
   ShaderPaletteController.applyShader(true)
   UserInput.drawOverlay()
   ShaderPaletteController.releaseShader()
-  drawActivePaletteLinkDrag(app)
-  drawPaletteLinkOverlay(app)
   drawEditModeColorIndicator(app)
   if app.windowHeaderContextMenu and app.windowHeaderContextMenu.isVisible and app.windowHeaderContextMenu:isVisible() then
     if app.windowHeaderContextMenu.update then
@@ -1393,6 +1058,7 @@ function AppCoreController:draw()
   love.graphics.clear(colors.gray10)
 
   drawWindows(self)
+  drawPaletteLinks(self)
   drawEmptyStatePrompt(self)
   drawStatus(self)
   drawOverlays(self)

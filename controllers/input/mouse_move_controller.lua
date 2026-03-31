@@ -1,5 +1,6 @@
 local SpriteController = require("controllers.sprite.sprite_controller")
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
+local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 
 local M = {}
@@ -260,18 +261,8 @@ function M.handleMouseMoved(env, x, y, dx, dy)
   env.dy = dy or 0
 
   if app and app.paletteLinkDrag and app.paletteLinkDrag.active then
-    app.paletteLinkDrag.currentX = x
-    app.paletteLinkDrag.currentY = y
     local wm = ctx.wm()
-    local hoveredWin = nil
-    if chrome.getPaletteLinkHoverTarget then
-      hoveredWin = chrome.getPaletteLinkHoverTarget(wm, app.paletteLinkDrag.sourceWin, x, y)
-    elseif wm and wm.windowAt then
-      hoveredWin = wm:windowAt(x, y)
-    end
-    if hoveredWin and hoveredWin ~= app.paletteLinkDrag.sourceWin and wm and wm.setFocus then
-      wm:setFocus(hoveredWin)
-    end
+    PaletteLinkController.updateDragHover(wm, x, y)
   end
 
   if SpriteController.isDragging() then

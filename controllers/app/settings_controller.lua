@@ -81,6 +81,7 @@ local function normalizeCanvasFilterKey(key)
 end
 
 local function normalizePaletteLinksKey(key)
+  if key == "always" then return "always" end
   if key == "on_hover" or key == "never" then return "on_hover" end
   if key == "auto_hide" then return "auto_hide" end
   return "auto_hide"
