@@ -612,9 +612,9 @@ function M.drawConnectorSquares(geometry)
   if not geometry then
     return
   end
-  love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], geometry.alpha)
-  love.graphics.rectangle("fill", geometry.x1 - 1, geometry.y1 - 1, 3, 3)
-  love.graphics.rectangle("fill", geometry.x2 - 1, geometry.y2 - 1, 3, 3)
+  -- love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], geometry.alpha)
+  -- love.graphics.rectangle("fill", geometry.x1 - 1, geometry.y1 - 1, 3, 3)
+  -- love.graphics.rectangle("fill", geometry.x2 - 1, geometry.y2 - 1, 3, 3)
 end
 
 function M.drawRectConnector(x1, y1, x2, y2, opts)
