@@ -181,13 +181,34 @@ local function appendDrag(steps, label, fromResolver, toResolver, opts)
   steps[#steps + 1] = pause(label, opts.postPause or 0.12)
 end
 
+local function getNewWindowOptionCell(panel, optionIndex)
+  local row = 6 + math.floor(((optionIndex or 1) - 1) / 2)
+  local col = (((optionIndex or 1) - 1) % 2 == 0) and 1 or 3
+  return panel and panel:getCell(col, row)
+end
+
 local function newWindowOptionCenter(optionIndex)
   return function(_, currentApp)
     local cell = currentApp.newWindowModal
       and currentApp.newWindowModal.panel
-      and currentApp.newWindowModal.panel:getCell(1, 5 + optionIndex)
+      and getNewWindowOptionCell(currentApp.newWindowModal.panel, optionIndex)
     assert(cell, "expected new window option cell")
     return cell.x + math.floor(cell.w * 0.5), cell.y + math.floor(cell.h * 0.5)
+  end
+end
+
+local function newWindowOptionCenterByText(text)
+  return function(_, currentApp)
+    local panel = currentApp.newWindowModal and currentApp.newWindowModal.panel or nil
+    assert(panel and panel.cells, "expected new window panel")
+    for _, rowCells in pairs(panel.cells or {}) do
+      for _, cell in pairs(rowCells or {}) do
+        if cell and cell.text == text then
+          return cell.x + math.floor(cell.w * 0.5), cell.y + math.floor(cell.h * 0.5)
+        end
+      end
+    end
+    error("expected new window option cell for text: " .. tostring(text))
   end
 end
 
@@ -195,7 +216,7 @@ local function newWindowModeToggleCenter()
   return function(_, currentApp)
     local cell = currentApp.newWindowModal
       and currentApp.newWindowModal.panel
-      and currentApp.newWindowModal.panel:getCell(4, 3)
+      and currentApp.newWindowModal.panel:getCell(2, 2)
     assert(cell, "expected new window mode toggle cell")
     return cell.x + math.floor(cell.w * 0.5), cell.y + math.floor(cell.h * 0.5)
   end
@@ -221,6 +242,23 @@ local function textFieldDemoFieldTextPoint(fieldKey, prefix)
     local x = field.x + padding + (font and font:getWidth(textPrefix) or 0)
     local y = field.y + math.floor(field.h * 0.5)
     return x, y
+  end
+end
+
+local function spriteItemCenter(winResolver, itemResolver, layerResolver)
+  return function(_, _, currentRunner)
+    local win = assert(winResolver(currentRunner), "expected sprite window")
+    local layerIndex = layerResolver and layerResolver(currentRunner) or (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+    local layer = assert(win.layers and win.layers[layerIndex], "expected sprite layer")
+    local itemIndex = itemResolver(currentRunner)
+    local sprite = assert(layer.items and layer.items[itemIndex], "expected sprite item")
+    local zoom = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
+    local worldX = sprite.worldX or sprite.baseX or sprite.x or 0
+    local worldY = sprite.worldY or sprite.baseY or sprite.y or 0
+    local cellW = win.cellW or 8
+    local cellH = win.cellH or 8
+    return win.x + (worldX + (cellW * 0.5)) * zoom,
+      win.y + (worldY + (cellH * 0.5)) * zoom
   end
 end
 
@@ -1244,6 +1282,181 @@ local function buildPaletteShaderPreviewScenario(harness, app, runner)
   return steps
 end
 
+local function buildStaticSpriteOpsScenario(harness, app, runner)
+  harness:loadROM(BubbleExample.getLoadPath())
+  local srcWin = BubbleExample.prepareBankWindow(
+    assert(BubbleExample.findBankWindow(app), "expected CHR bank window")
+  )
+  local spriteWindowName = "Sprite Ops"
+  local placements = {
+    { tile = 6, col = 1, row = 1 },
+    { tile = 7, col = 3, row = 1 },
+    { tile = 22, col = 1, row = 3 },
+    { tile = 23, col = 3, row = 3 },
+  }
+
+  local steps = {
+    pause("Start", 0.35),
+    keyPress("Open new window modal", "n", { "lctrl" }),
+    pause("Observe new window modal", 0.55),
+    call("Configure sprite ops window", function(_, currentApp)
+      local modal = currentApp.newWindowModal
+      assert(modal and modal.nameField and modal.colsSpinner and modal.rowsSpinner, "expected new window modal controls")
+      modal.nameField:setText(spriteWindowName)
+      modal.colsSpinner:setValue(12)
+      modal.rowsSpinner:setValue(10)
+    end),
+    pause("Observe sprite ops settings", 0.3),
+    moveTo("Move to static sprite option", newWindowOptionCenterByText("Static Sprites window"), 0.12),
+    pause("Prepare static sprite option click", 0.08),
+    mouseDown("Create static sprite window", newWindowOptionCenterByText("Static Sprites window"), 1),
+    pause("Hold static sprite option click", 0.08),
+    mouseUp("Release static sprite option click", newWindowOptionCenterByText("Static Sprites window"), 1),
+    pause("Resolve sprite ops window", 0.35),
+    call("Focus sprite ops window", function(currentHarness, currentApp, currentRunner)
+      currentRunner.spriteOpsWin = assert(currentHarness:findWindow({
+        kind = "static_art",
+        title = spriteWindowName,
+      }), "expected sprite ops window")
+      assert(
+        currentRunner.spriteOpsWin.layers
+          and currentRunner.spriteOpsWin.layers[1]
+          and currentRunner.spriteOpsWin.layers[1].kind == "sprite",
+        "expected Sprite Ops window to use a sprite layer"
+      )
+      currentRunner.spriteOpsWin.x = 320
+      currentRunner.spriteOpsWin.y = 72
+      currentApp.wm:setFocus(currentRunner.spriteOpsWin)
+    end),
+    pause("Observe sprite ops window", 0.45),
+  }
+
+  for i, placement in ipairs(placements) do
+    local srcCol, srcRow = BubbleExample.bankCellForTile(srcWin, placement.tile)
+    appendDrag(steps, string.format("Place sprite tile %d", placement.tile), function(h)
+      return h:windowCellCenter(srcWin, srcCol, srcRow)
+    end, function(h, _, currentRunner)
+      return h:windowCellCenter(currentRunner.spriteOpsWin, placement.col, placement.row)
+    end, {
+      dragDuration = 0.12,
+      postPause = 0.18,
+    })
+  end
+
+  steps[#steps + 1] = call("Assert initial sprite placements", function(_, currentApp, currentRunner)
+    local win = assert(currentRunner.spriteOpsWin, "expected sprite ops window")
+    local layer = assert(win.layers and win.layers[1], "expected sprite layer")
+    assert(#(layer.items or {}) == 4, string.format("expected 4 initial sprites, got %d", #(layer.items or {})))
+    currentApp.wm:setFocus(win)
+  end)
+  steps[#steps + 1] = pause("Observe initial sprite placements", 0.5)
+
+  appendClick(steps, "Select first sprite", function(h, _, currentRunner)
+    return h:windowCellCenter(currentRunner.spriteOpsWin, 1, 1)
+  end, {
+    moveDuration = 0.08,
+    postPause = 0.18,
+  })
+
+  steps[#steps + 1] = keyPress("Copy selected sprite", "c", { "lctrl" })
+  steps[#steps + 1] = pause("Observe copied sprite status", 0.2)
+  steps[#steps + 1] = keyPress("Paste selected sprite", "v", { "lctrl" })
+  steps[#steps + 1] = pause("Observe pasted sprite at center", 0.55)
+  steps[#steps + 1] = call("Assert single sprite paste", function(_, _, currentRunner)
+    local layer = assert(currentRunner.spriteOpsWin.layers and currentRunner.spriteOpsWin.layers[1], "expected sprite layer")
+    assert(#(layer.items or {}) == 5, string.format("expected 5 sprites after single paste, got %d", #(layer.items or {})))
+    currentRunner.spriteOpsPastedSingleIndex = #layer.items
+  end)
+
+  steps[#steps + 1] = call("Ctrl-drag copy centered sprite", function(currentHarness, currentApp, currentRunner)
+    local fromX, fromY = spriteItemCenter(function(r) return r.spriteOpsWin end, function(r) return r.spriteOpsPastedSingleIndex end)(nil, currentApp, currentRunner)
+    local toX, toY = currentHarness:windowCellCenter(currentRunner.spriteOpsWin, 8, 1)
+    currentHarness:keyDown("lctrl", { "lctrl" })
+    currentHarness:drag(fromX, fromY, toX, toY, {
+      wait = false,
+      steps = 6,
+      dt = currentHarness.stepDt,
+    })
+    currentHarness:keyUp("lctrl", { "lctrl" })
+  end)
+  steps[#steps + 1] = pause("Observe ctrl-drag copy", 0.55)
+  steps[#steps + 1] = call("Assert ctrl-drag copy count", function(_, _, currentRunner)
+    local layer = assert(currentRunner.spriteOpsWin.layers and currentRunner.spriteOpsWin.layers[1], "expected sprite layer")
+    assert(#(layer.items or {}) == 6, string.format("expected 6 sprites after ctrl-drag copy, got %d", #(layer.items or {})))
+  end)
+
+  steps[#steps + 1] = call("Marquee select original sprite group", function(currentHarness, _, currentRunner)
+    local win = assert(currentRunner.spriteOpsWin, "expected sprite ops window")
+    local x1, y1 = currentHarness:windowPixelCenter(win, 0, 0, 4, 4)
+    local x2, y2 = currentHarness:windowPixelCenter(win, 4, 4, 4, 4)
+    currentHarness:keyDown("lshift", { "lshift" })
+    currentHarness:drag(x1, y1, x2, y2, {
+      wait = false,
+      steps = 6,
+      dt = currentHarness.stepDt,
+    })
+    currentHarness:keyUp("lshift", { "lshift" })
+  end)
+  steps[#steps + 1] = pause("Observe marquee selection", 0.45)
+  steps[#steps + 1] = call("Assert marquee group selection", function(_, _, currentRunner)
+    local layer = assert(currentRunner.spriteOpsWin.layers and currentRunner.spriteOpsWin.layers[1], "expected sprite layer")
+    local selected = {}
+    for idx, on in pairs(layer.multiSpriteSelection or {}) do
+      if on then
+        selected[#selected + 1] = idx
+      end
+    end
+    assert(#selected == 4, string.format("expected 4 marquee-selected sprites, got %d", #selected))
+  end)
+
+  steps[#steps + 1] = keyPress("Copy selected sprite group", "c", { "lctrl" })
+  steps[#steps + 1] = pause("Observe copied group status", 0.2)
+  steps[#steps + 1] = keyPress("Paste selected sprite group", "v", { "lctrl" })
+  steps[#steps + 1] = pause("Observe pasted sprite group", 0.65)
+  steps[#steps + 1] = call("Assert group paste and selection", function(_, _, currentRunner)
+    local layer = assert(currentRunner.spriteOpsWin.layers and currentRunner.spriteOpsWin.layers[1], "expected sprite layer")
+    assert(#(layer.items or {}) == 10, string.format("expected 10 sprites after group paste, got %d", #(layer.items or {})))
+    local selected = {}
+    for idx, on in pairs(layer.multiSpriteSelection or {}) do
+      if on then
+        selected[#selected + 1] = idx
+      end
+    end
+    assert(#selected == 4, string.format("expected pasted group selection of 4 sprites, got %d", #selected))
+  end)
+
+  steps[#steps + 1] = keyPress("Mirror pasted group horizontally", "h")
+  steps[#steps + 1] = pause("Observe horizontal mirror", 0.45)
+  steps[#steps + 1] = call("Assert horizontal mirror on selected group", function(_, _, currentRunner)
+    local layer = assert(currentRunner.spriteOpsWin.layers and currentRunner.spriteOpsWin.layers[1], "expected sprite layer")
+    local mirrored = 0
+    for idx, on in pairs(layer.multiSpriteSelection or {}) do
+      local sprite = layer.items and layer.items[idx]
+      if on and sprite and sprite.mirrorX == true then
+        mirrored = mirrored + 1
+      end
+    end
+    assert(mirrored == 4, string.format("expected 4 horizontally mirrored sprites, got %d", mirrored))
+  end)
+
+  steps[#steps + 1] = keyPress("Mirror pasted group vertically", "v")
+  steps[#steps + 1] = pause("Observe vertical mirror", 0.55)
+  steps[#steps + 1] = call("Assert vertical mirror on selected group", function(_, _, currentRunner)
+    local layer = assert(currentRunner.spriteOpsWin.layers and currentRunner.spriteOpsWin.layers[1], "expected sprite layer")
+    local mirrored = 0
+    for idx, on in pairs(layer.multiSpriteSelection or {}) do
+      local sprite = layer.items and layer.items[idx]
+      if on and sprite and sprite.mirrorY == true then
+        mirrored = mirrored + 1
+      end
+    end
+    assert(mirrored == 4, string.format("expected 4 vertically mirrored sprites, got %d", mirrored))
+  end)
+  steps[#steps + 1] = pause("Observe final sprite operations", 0.8)
+
+  return steps
+end
+
 local function buildPaletteEditRoundtripScenario(harness, app, runner)
   harness:loadROM(BubbleExample.getLoadPath())
   local srcWin = BubbleExample.prepareBankWindow(
@@ -1783,6 +1996,10 @@ local SCENARIOS = {
     title = "Palette + Shader Preview",
     build = buildPaletteShaderPreviewScenario,
   },
+  static_sprite_ops = {
+    title = "Static Sprite Ops",
+    build = buildStaticSpriteOpsScenario,
+  },
   palette_edit_roundtrip = {
     title = "Palette Edit Roundtrip",
     build = buildPaletteEditRoundtripScenario,
@@ -1826,6 +2043,7 @@ local SCENARIO_ALIASES = {
   brush_paint_lines_demo = "brush_paint_tools",
   new_window_variants_demo = "new_window_variants",
   palette_shader_preview_demo = "palette_shader_preview",
+  static_sprite_ops_demo = "static_sprite_ops",
   palette_edit_roundtrip_demo = "palette_edit_roundtrip",
   rom_palette_links_demo = "rom_palette_links",
   save_reload_persistence_demo = "save_reload_persistence",

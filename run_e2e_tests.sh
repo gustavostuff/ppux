@@ -15,6 +15,7 @@ SCENARIOS=(
   "brush_paint_tools"
   "new_window_variants"
   "palette_shader_preview"
+  "static_sprite_ops"
   "palette_edit_roundtrip"
   # "rom_palette_links"
   "save_reload_persistence"
