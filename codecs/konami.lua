@@ -135,12 +135,16 @@ function M.decode_nametable(data, debug)
   local PAGE_BASE, PAGE_END = 0x2000, 0x23FF
   local page = {}
   for i = 0, (PAGE_END - PAGE_BASE) do page[i] = 0 end
+  local touched = {}
+  local totalPageWrites = 0
 
   local i = 1
   local addr = 0
 
   local function write_byte(b)
     if addr >= PAGE_BASE and addr <= PAGE_END then
+      totalPageWrites = totalPageWrites + 1
+      touched[addr - PAGE_BASE] = true
       page[addr - PAGE_BASE] = u8(b)
     end
     addr = wrap14(addr + 1)
@@ -197,7 +201,16 @@ function M.decode_nametable(data, debug)
   local nt, at = {}, {}
   for k = 0, 959 do nt[#nt+1] = page[k] end
   for k = 960, 1023 do at[#at+1] = page[k] end
-  return nt, at
+  local uniquePageWrites = 0
+  for _ in pairs(touched) do
+    uniquePageWrites = uniquePageWrites + 1
+  end
+  return nt, at, {
+    expectedPageBytes = 1024,
+    totalPageWrites = totalPageWrites,
+    uniquePageWrites = uniquePageWrites,
+    complete = (uniquePageWrites == 1024),
+  }
 end
 
 -- Optional aliases used by some callers.

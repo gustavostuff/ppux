@@ -23,6 +23,7 @@ return function(AppCoreController)
 function AppCoreController:_buildCtx()
   local selfRef = self
   return {
+    app          = selfRef,
     getMode      = function() return selfRef.mode end,
     setMode      = function(m)
       selfRef.mode = (m == "edit") and "edit" or "tile"

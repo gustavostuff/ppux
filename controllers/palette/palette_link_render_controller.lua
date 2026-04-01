@@ -586,14 +586,14 @@ function M.drawConnector(geometry)
 end
 
 function M.drawConnectorShadowLine(geometry)
-  if not (geometry and geometry.showLine) then
-    return
-  end
-  local alpha = geometry.alpha or 1
-  love.graphics.setLineStyle("rough")
-  love.graphics.setLineWidth(3)
-  love.graphics.setColor(0, 0, 0, alpha)
-  love.graphics.line(geometry.points)
+  -- if not (geometry and geometry.showLine) then
+  --   return
+  -- end
+  -- local alpha = geometry.alpha or 1
+  -- love.graphics.setLineStyle("rough")
+  -- love.graphics.setLineWidth(3)
+  -- love.graphics.setColor(0, 0, 0, alpha)
+  -- love.graphics.line(geometry.points)
 end
 
 function M.drawConnectorLine(geometry)

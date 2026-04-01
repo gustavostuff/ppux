@@ -43,6 +43,9 @@ local function compactOptionLabel(option, index)
   if text:find("Pattern Table Builder") then
     return "Pattern Table Builder"
   end
+  if text:find("PPU Frame") then
+    return "PPU Frame window"
+  end
 
   return tostring(index or "")
 end

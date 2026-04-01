@@ -994,6 +994,9 @@ local function drawOverlays(app)
   if app.romPaletteAddressModal then
     app.romPaletteAddressModal:draw(app.canvas)
   end
+  if app.ppuFrameRangeModal then
+    app.ppuFrameRangeModal:draw(app.canvas)
+  end
   if app.textFieldDemoModal then
     app.textFieldDemoModal:draw(app.canvas)
   end

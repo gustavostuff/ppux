@@ -66,6 +66,7 @@ function Button.new(opts)
     textOffsetY = opts.textOffsetY or 0,
     bgColor = opts.bgColor,
     bgAlpha = (opts.bgAlpha ~= nil) and opts.bgAlpha or 1,
+    contentColor = opts.contentColor,
     -- Additional properties can be stored here
     isCloseButton = opts.isCloseButton,
   }, Button)
@@ -101,6 +102,11 @@ function Button:draw()
     return (self.hovered or self.pressed or self.focused) and 1.0 or idleAlpha
   end
 
+  local function contentColorWithAlpha(alpha)
+    local c = self.contentColor or colors.white
+    return c[1], c[2], c[3], alpha
+  end
+
   local function drawHoverFocusUnderlay()
     if self.enabled == false then return end
     if not (self.hovered or self.focused) then return end
@@ -123,7 +129,8 @@ function Button:draw()
     local textY = self.y + (self.h - textH) / 2
     textY = textY + (self.textOffsetY or 0)
     local a = contentAlpha()
-    love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], a)
+    local r, g, b, aa = contentColorWithAlpha(a)
+    love.graphics.setColor(r, g, b, aa)
     love.graphics.print(self.text, math.floor(textX), math.floor(textY))
     love.graphics.setColor(colors.white)
     return
@@ -155,11 +162,11 @@ function Button:draw()
     textY = textY + (self.textOffsetY or 0)
 
     local iconAlpha = contentAlpha()
-    local c = colors.white
-    love.graphics.setColor(c[1], c[2], c[3], iconAlpha)
+    local r, g, b, a = contentColorWithAlpha(iconAlpha)
+    love.graphics.setColor(r, g, b, a)
     drawIcon(self.icon, iconX, iconY)
 
-    love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], iconAlpha)
+    love.graphics.setColor(r, g, b, a)
     love.graphics.print(self.text, math.floor(textX), math.floor(textY))
     love.graphics.setColor(colors.white)
     return
@@ -171,8 +178,8 @@ function Button:draw()
   
   -- Calculate icon alpha based on hover/press state
   local iconAlpha = contentAlpha()
-  local c = colors.white
-  love.graphics.setColor(c[1], c[2], c[3], iconAlpha)
+  local r, g, b, a = contentColorWithAlpha(iconAlpha)
+  love.graphics.setColor(r, g, b, a)
   
   local iconW, iconH = iconSize(self.icon)
   local iconX = self.x + (self.w - iconW) / 2  -- Center horizontally

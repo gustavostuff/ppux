@@ -363,6 +363,7 @@ function PPUFrameWindow.new(x, y, zoom, data)
         name    = "Layer 1",
         kind    = "tile",  -- grid / nametable layer
         mode    = "8x8",
+        codec   = data.codec or "konami",
       }
     }
     self.activeLayer = 1
@@ -371,6 +372,9 @@ function PPUFrameWindow.new(x, y, zoom, data)
     local L = self.layers[self.activeLayer or 1] or self.layers[1]
     if L and not L.kind then
       L.kind = "tile"
+    end
+    if L and not L.codec then
+      L.codec = data.codec or "konami"
     end
   end
 

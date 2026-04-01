@@ -210,6 +210,10 @@ function AppCoreController:keypressed(k)
     modalHandleKey(self.romPaletteAddressModal, k)
     return
   end
+  if modalVisible(self.ppuFrameRangeModal) then
+    modalHandleKey(self.ppuFrameRangeModal, k)
+    return
+  end
   if modalVisible(self.textFieldDemoModal) then
     modalHandleKey(self.textFieldDemoModal, k)
     return
@@ -248,6 +252,7 @@ function AppCoreController:keyreleased(k)
       or modalVisible(self.newWindowModal)
       or modalVisible(self.renameWindowModal)
       or modalVisible(self.romPaletteAddressModal)
+      or modalVisible(self.ppuFrameRangeModal)
       or modalVisible(self.textFieldDemoModal)
       or (self.splash and self.splash.isVisible and self.splash:isVisible()) then
     return
@@ -296,6 +301,10 @@ function AppCoreController:mousepressed(x, y, b)
   end
   if self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible() then
     self.romPaletteAddressModal:mousepressed(mouse.x, mouse.y, b)
+    return
+  end
+  if self.ppuFrameRangeModal and self.ppuFrameRangeModal:isVisible() then
+    self.ppuFrameRangeModal:mousepressed(mouse.x, mouse.y, b)
     return
   end
   if self.textFieldDemoModal and self.textFieldDemoModal:isVisible() then
@@ -364,6 +373,10 @@ function AppCoreController:mousereleased(x, y, b)
   end
   if self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible() then
     self.romPaletteAddressModal:mousereleased(mouse.x, mouse.y, b)
+    return
+  end
+  if self.ppuFrameRangeModal and self.ppuFrameRangeModal:isVisible() then
+    self.ppuFrameRangeModal:mousereleased(mouse.x, mouse.y, b)
     return
   end
   if self.textFieldDemoModal and self.textFieldDemoModal:isVisible() then
@@ -443,6 +456,10 @@ function AppCoreController:mousemoved(x, y, dx, dy)
     self.romPaletteAddressModal:mousemoved(mouse.x, mouse.y)
     return
   end
+  if self.ppuFrameRangeModal and self.ppuFrameRangeModal:isVisible() then
+    self.ppuFrameRangeModal:mousemoved(mouse.x, mouse.y)
+    return
+  end
   if self.textFieldDemoModal and self.textFieldDemoModal:isVisible() then
     self.textFieldDemoModal:mousemoved(mouse.x, mouse.y)
     return
@@ -478,6 +495,7 @@ function AppCoreController:wheelmoved(dx, dy)
       or self.newWindowModal:isVisible()
       or (self.renameWindowModal and self.renameWindowModal:isVisible())
       or (self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible())
+      or (self.ppuFrameRangeModal and self.ppuFrameRangeModal:isVisible())
       or (self.textFieldDemoModal and self.textFieldDemoModal:isVisible()) then
     return
   end
@@ -498,6 +516,10 @@ function AppCoreController:textinput(text)
   end
   if self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible() then
     self.romPaletteAddressModal:textinput(text)
+    return
+  end
+  if self.ppuFrameRangeModal and self.ppuFrameRangeModal:isVisible() then
+    self.ppuFrameRangeModal:textinput(text)
     return
   end
   if self.textFieldDemoModal and self.textFieldDemoModal:isVisible() then

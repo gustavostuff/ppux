@@ -447,6 +447,7 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
       ensureTiles = ensureTiles,
       nametableStartAddr = nametableStart,
       nametableEndAddr = nametableEnd,
+      codec = (ntLayer and ntLayer.codec) or "konami",
       noOverflowSupported = ntLayer and ntLayer.noOverflowSupported == true,
       bankIndex = bankIdx,
       pageIndex = pageIdx,
@@ -521,6 +522,7 @@ local function applyLayerMetadataFromLayout(win, layoutLayers)
       if Lsrc.originX ~= nil then Ldst.originX = Lsrc.originX end
       if Lsrc.originY ~= nil then Ldst.originY = Lsrc.originY end
       if Lsrc.mode ~= nil and Ldst.mode == nil then Ldst.mode = Lsrc.mode end
+      if Lsrc.codec ~= nil then Ldst.codec = Lsrc.codec end
       if Lsrc.noOverflowSupported ~= nil then
         Ldst.noOverflowSupported = (Lsrc.noOverflowSupported == true)
       end

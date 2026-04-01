@@ -128,6 +128,20 @@ local function copyBytes(src)
   return out
 end
 
+local function reportDecodeCoverageError(message, opts)
+  if opts and opts.reportErrors == false then
+    return
+  end
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app or nil
+  if app and app.setStatus then
+    app:setStatus(message)
+  end
+  if app and app.showToast then
+    app:showToast("error", message)
+  end
+end
+
 local function bytesEqual(a, b)
   if type(a) ~= "table" or type(b) ~= "table" then
     return false
@@ -412,9 +426,15 @@ function M.hydrateWindowNametable(win, layer, opts)
   local codec = opts.codec or layer.codec or "konami"
   
   local decodeStartedAt = nowSeconds()
-  local ntBytes, attrBytes = NametableUtils.decode_compressed_nametable(compressed, false, codec)
+  local ntBytes, attrBytes, decodeMeta = NametableUtils.decode_compressed_nametable(compressed, false, codec)
   if not ntBytes or not attrBytes then
     return nil, "[NametableTilesController] decode_compressed_nametable failed"
+  end
+  local totalPageWrites = decodeMeta and decodeMeta.totalPageWrites or nil
+  if type(totalPageWrites) == "number" and totalPageWrites > 1024 then
+    local message = string.format("PPU frame range expands to %d bytes, which exceeds 1024", totalPageWrites)
+    reportDecodeCoverageError(message, opts)
+    return nil, message
   end
   logPerf("ntm.decode_compressed", decodeStartedAt, string.format("title=%s", tostring(win.title or "")))
 
@@ -489,6 +509,7 @@ function M.hydrateWindowNametable(win, layer, opts)
   -- Update layer metadata
   layer.kind  = layer.kind or "tile"
   layer.mode  = layer.mode or "8x8"
+  layer.codec = layer.codec or codec or "konami"
   layer.bank  = bankIndex
   layer.page  = pageIndex
   layer.nametableStartAddr = startAddr

@@ -2,6 +2,7 @@
 local DebugController    = require("controllers.dev.debug_controller")
 local StaticArtWindow    = require("user_interface.windows_system.static_art_window")
 local PatternTableBuilderWindow = require("user_interface.windows_system.pattern_table_builder_window")
+local PPUFrameWindow   = require("user_interface.windows_system.ppu_frame_window")
 local AnimationWindow    = require("user_interface.windows_system.animation_window")
 local OAMAnimationWindow = require("user_interface.windows_system.oam_animation_window")
 local PaletteWindow      = require("user_interface.windows_system.palette_window")
@@ -925,6 +926,38 @@ function WM:createPatternTableBuilderWindow(opts)
       patternTolerance = opts.patternTolerance or 0,
     }
   )
+
+  return self:finalizeNewWindow(win)
+end
+
+function WM:createPPUFrameWindow(opts)
+  opts = opts or {}
+  local defaults = extractWindowOptions(opts)
+  defaults.title = opts.title or "PPU Frame"
+  defaults.x = opts.x or 90
+  defaults.y = opts.y or 90
+  defaults.zoom = opts.zoom or 2
+
+  local win = PPUFrameWindow.new(
+    defaults.x,
+    defaults.y,
+    defaults.zoom,
+    {
+      title = defaults.title,
+      romRaw = opts.romRaw,
+      nonActiveLayerOpacity = 1.0,
+    }
+  )
+
+  local layer = win.layers and win.layers[1] or nil
+  if layer then
+    layer.kind = "tile"
+    layer.mode = "8x8"
+    layer.codec = opts.codec or "konami"
+    layer.bank = opts.bankIndex or 1
+    layer.page = opts.pageIndex or 1
+  end
+  win.activeLayer = 1
 
   return self:finalizeNewWindow(win)
 end

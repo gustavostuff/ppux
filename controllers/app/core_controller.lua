@@ -5,12 +5,14 @@ local UndoRedoController = require("controllers.input_support.undo_redo_controll
 
 local GenericActionsModal = require("user_interface.modals.generic_actions_modal")
 local NewWindowModal = require("user_interface.modals.new_window_modal")
+local PPUFrameRangeModal = require("user_interface.modals.ppu_frame_range_modal")
 local RenameWindowModal = require("user_interface.modals.rename_window_modal")
 local RomPaletteAddressModal = require("user_interface.modals.rom_palette_address_modal")
 local SaveOptionsModal = require("user_interface.modals.save_options_modal")
 local QuitConfirmModal = require("user_interface.modals.quit_confirm_modal")
 local SettingsModal = require("user_interface.modals.settings_modal")
 local TextFieldDemoModal = require("user_interface.modals.text_field_demo_modal")
+local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
 local SimpleLoadingScreen = require("controllers.app.simple_loading_screen")
 local TooltipController = require("controllers.ui.tooltip_controller")
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
@@ -27,6 +29,7 @@ local function anyModalVisible(app)
     or (app.newWindowModal and app.newWindowModal:isVisible())
     or (app.renameWindowModal and app.renameWindowModal:isVisible())
     or (app.romPaletteAddressModal and app.romPaletteAddressModal:isVisible())
+    or (app.ppuFrameRangeModal and app.ppuFrameRangeModal:isVisible())
     or (app.textFieldDemoModal and app.textFieldDemoModal:isVisible())
 end
 
@@ -73,6 +76,7 @@ local function getTopModalTooltipCandidate(app, x, y)
     app.newWindowModal,
     app.renameWindowModal,
     app.romPaletteAddressModal,
+    app.ppuFrameRangeModal,
     app.textFieldDemoModal,
   }
 
@@ -138,6 +142,7 @@ function AppCoreController.new()
   self.newWindowModal = NewWindowModal.new()
   self.renameWindowModal = RenameWindowModal.new()
   self.romPaletteAddressModal = RomPaletteAddressModal.new()
+  self.ppuFrameRangeModal = PPUFrameRangeModal.new()
   self.saveOptionsModal = SaveOptionsModal.new()
   self.quitConfirmModal = QuitConfirmModal.new()
   self.settingsModal = SettingsModal.new()
@@ -293,6 +298,21 @@ function AppCoreController:_buildNewWindowOptions()
       callback = function(_, _, _, windowTitle)
         local win = self.wm:createRomPaletteWindow({
           title = windowTitle or "ROM Palette",
+        })
+        self:setStatus(string.format("Created %s", win.title))
+      end
+    },
+    {
+      text = "PPU Frame window",
+      buttonText = "PPU Frame window",
+      callback = function(_, _, _, windowTitle)
+        local currentBank = self.appEditState and self.appEditState.currentBank or 1
+        local win = self.wm:createPPUFrameWindow({
+          title = windowTitle or "PPU Frame",
+          romRaw = self.appEditState and self.appEditState.romRaw or nil,
+          bankIndex = currentBank,
+          pageIndex = 1,
+          codec = "konami",
         })
         self:setStatus(string.format("Created %s", win.title))
       end
@@ -604,6 +624,116 @@ function AppCoreController:showRomPaletteAddressModal(win, col, row)
       end
 
       self:setStatus(string.format("Assigned ROM palette cell (%d,%d) to 0x%X", targetCol, targetRow, addr))
+      return true
+    end,
+  })
+
+  return true
+end
+
+local function getPpuNametableLayer(win)
+  if not (win and win.layers) then return nil end
+  for _, layer in ipairs(win.layers) do
+    if layer and layer.kind ~= "sprite" then
+      return layer
+    end
+  end
+  return nil
+end
+
+function AppCoreController:showPpuFrameRangeModal(win)
+  if not (self.ppuFrameRangeModal and win and win.kind == "ppu_frame") then
+    return false
+  end
+
+  local layer = getPpuNametableLayer(win)
+  local initialStart = (layer and type(layer.nametableStartAddr) == "number")
+    and string.format("0x%06X", layer.nametableStartAddr) or ""
+  local initialEnd = (layer and type(layer.nametableEndAddr) == "number")
+    and string.format("0x%06X", layer.nametableEndAddr) or ""
+
+  self.ppuFrameRangeModal:show({
+    title = "Set tile range",
+    window = win,
+    initialStartAddress = initialStart,
+    initialEndAddress = initialEnd,
+    onConfirm = function(startText, endText, targetWindow)
+      local startAddr, startErr = parseHexAddress(startText)
+      if not startAddr then
+        self:setStatus(startErr)
+        self:showToast("error", startErr)
+        return false
+      end
+
+      local endAddr, endErr = parseHexAddress(endText)
+      if not endAddr then
+        self:setStatus(endErr)
+        self:showToast("error", endErr)
+        return false
+      end
+
+      if endAddr < startAddr then
+        local message = "End address must be greater than or equal to start address"
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+
+      local targetLayer = getPpuNametableLayer(targetWindow)
+      if not targetLayer then
+        local message = "PPU frame window is missing a tile layer"
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+
+      local state = self.appEditState or {}
+      local tilesPool = state.tilesPool
+      local romRaw = state.romRaw
+      if type(romRaw) ~= "string" or romRaw == "" then
+        local message = "Open a ROM before loading a PPU frame range"
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+
+      local bankIndex = targetLayer.bank or state.currentBank or 1
+      local pageIndex = targetLayer.page or 1
+      targetLayer.codec = targetLayer.codec or "konami"
+      local ok, err = NametableTilesController.hydrateWindowNametable(targetWindow, targetLayer, {
+        romRaw = romRaw,
+        tilesPool = tilesPool,
+        ensureTiles = function(bank)
+          local pool = state.tilesPool
+          if pool and pool[bank] then
+            return true
+          end
+          return false
+        end,
+        nametableStartAddr = startAddr,
+        nametableEndAddr = endAddr,
+        bankIndex = bankIndex,
+        pageIndex = pageIndex,
+        codec = targetLayer.codec,
+        reportErrors = false,
+      })
+      if not ok then
+        local message = err or "Failed to load PPU frame range"
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+
+      targetLayer.nametableStartAddr = startAddr
+      targetLayer.nametableEndAddr = endAddr
+      if targetWindow.syncNametableLayerMetadata then
+        targetWindow:syncNametableLayerMetadata()
+      end
+      if targetWindow.specializedToolbar and targetWindow.specializedToolbar.updateIcons then
+        targetWindow.specializedToolbar:updateIcons()
+      end
+
+      self:setStatus(string.format("Loaded tile range 0x%06X-0x%06X", startAddr, endAddr))
       return true
     end,
   })

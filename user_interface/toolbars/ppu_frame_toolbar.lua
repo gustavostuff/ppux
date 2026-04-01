@@ -10,6 +10,23 @@ local PPUFrameToolbar = {}
 PPUFrameToolbar.__index = PPUFrameToolbar
 setmetatable(PPUFrameToolbar, { __index = ToolbarBase })
 
+local function getNametableLayer(window)
+  if not (window and window.layers) then return nil end
+  for _, layer in ipairs(window.layers) do
+    if layer and layer.kind ~= "sprite" then
+      return layer
+    end
+  end
+  return nil
+end
+
+local function hasConfiguredRange(window)
+  local layer = getNametableLayer(window)
+  return layer
+    and type(layer.nametableStartAddr) == "number"
+    and type(layer.nametableEndAddr) == "number"
+end
+
 function PPUFrameToolbar.new(window, ctx, windowController)
   local self = setmetatable(ToolbarBase.new(window, {}), PPUFrameToolbar)
   
@@ -38,6 +55,11 @@ function PPUFrameToolbar.new(window, ctx, windowController)
   self:addButton(images.icons.icon_up, function()
     self:_onNextLayer()
   end, "Next layer")
+
+  self.rangeButton = self:addButton(images.icons.icon_not_selected, function()
+    self:_onConfigureRange()
+  end, "Set tile range")
+  self:updateRangeButton()
   
   -- Update position
   self:updatePosition()
@@ -70,6 +92,13 @@ function PPUFrameToolbar:_onNextLayer()
     local current = self.window:getActiveLayerIndex()
     local total = self.window:getLayerCount()
     self.ctx.setStatus(string.format("Layer %d/%d", current, total))
+  end
+end
+
+function PPUFrameToolbar:_onConfigureRange()
+  local app = self.ctx and self.ctx.app or nil
+  if app and app.showPpuFrameRangeModal then
+    app:showPpuFrameRangeModal(self.window)
   end
 end
 
@@ -122,7 +151,22 @@ end
 
 -- Empty updateIcons method
 function PPUFrameToolbar:updateIcons()
-  -- No icons to update for PPU frame toolbar
+  self:updateRangeButton()
+end
+
+function PPUFrameToolbar:updateRangeButton()
+  if not self.rangeButton then return end
+  if hasConfiguredRange(self.window) then
+    self.rangeButton.icon = images.icons.icon_selected or self.rangeButton.icon
+    self.rangeButton.bgColor = nil
+    self.rangeButton.contentColor = colors.white
+    self.rangeButton.tooltip = "Edit tile range"
+  else
+    self.rangeButton.icon = images.icons.icon_not_selected or self.rangeButton.icon
+    self.rangeButton.bgColor = colors.yellow
+    self.rangeButton.contentColor = colors.black
+    self.rangeButton.tooltip = "Set tile range"
+  end
 end
 
 return PPUFrameToolbar
