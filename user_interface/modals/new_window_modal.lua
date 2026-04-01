@@ -3,7 +3,6 @@ local Button = require("user_interface.button")
 local TextField = require("user_interface.text_field")
 local Panel = require("user_interface.panel")
 local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
-local images = require("images")
 
 local Dialog = {}
 Dialog.__index = Dialog
@@ -14,11 +13,8 @@ local function normalizeSpriteMode(mode)
   return (mode == "8x16") and "8x16" or "8x8"
 end
 
-local function modeIcon(mode)
-  if mode == "8x16" then
-    return images and images.icons and images.icons.icon_8x16
-  end
-  return images and images.icons and images.icons.icon_8x8
+local function modeLabel(mode)
+  return normalizeSpriteMode(mode)
 end
 
 local function trim(text)
@@ -68,7 +64,7 @@ end
 
 local function rebuildPanel(self)
   local optionCount = #(self.options or {})
-  local buttonRows = math.max(1, optionCount)
+  local buttonRows = math.max(1, math.ceil(optionCount / 2))
   local rows = 5 + buttonRows + 1
   local leftInset = math.floor((self.cellH or 0) / 2)
   self.panel = Panel.new({
@@ -88,24 +84,23 @@ local function rebuildPanel(self)
     textOffsetY = self.textOffsetY,
   })
 
-  self.panel:setCell(1, 3, {
+  self.panel:setCell(1, 1, { text = "Name:" })
+  self.panel:setCell(2, 1, { component = self.nameField, colspan = 3 })
+
+  self.panel:setCell(1, 2, {
     text = "Sprite mode:",
-    colspan = 3,
     preserveTrailingColon = true,
   })
 
-  self.panel:setCell(4, 3, {
+  self.panel:setCell(2, 2, {
     component = self.modeButton,
   })
 
-  self.panel:setCell(1, 1, { text = "Cols:" })
-  self.panel:setCell(2, 1, { component = self.colsSpinner, colspan = 2 })
+  self.panel:setCell(1, 3, { text = "Cols:" })
+  self.panel:setCell(2, 3, { component = self.colsSpinner, colspan = 2 })
 
-  self.panel:setCell(1, 2, { text = "Rows:" })
-  self.panel:setCell(2, 2, { component = self.rowsSpinner, colspan = 2 })
-
-  self.panel:setCell(1, 4, { text = "Name:" })
-  self.panel:setCell(2, 4, { component = self.nameField, colspan = 3 })
+  self.panel:setCell(1, 4, { text = "Rows:" })
+  self.panel:setCell(2, 4, { component = self.rowsSpinner, colspan = 2 })
 
   self.panel:setCell(1, 5, {
     text = "Create:",
@@ -114,11 +109,12 @@ local function rebuildPanel(self)
   })
 
   for i, option in ipairs(self.options or {}) do
-    local row = 5 + i
-    self.panel:setCell(1, row, {
+    local row = 6 + math.floor((i - 1) / 2)
+    local col = ((i - 1) % 2 == 0) and 1 or 3
+    self.panel:setCell(col, row, {
       kind = "button",
       text = compactOptionLabel(option, i),
-      colspan = 4,
+      colspan = 2,
       transparent = true,
       textAlign = "left",
       contentPaddingX = leftInset,
@@ -140,7 +136,7 @@ function Dialog.new()
     min = 4,
     max = 32,
     step = 1,
-    labelWidth = 24,
+    valueWidth = 32,
   }
 
   local self = setmetatable({
@@ -155,7 +151,6 @@ function Dialog.new()
     }),
     spriteMode = "8x8",
     pressedModeButton = false,
-    modeButtonSize = ModalPanelUtils.MODAL_ICON_BUTTON_SIZE,
     padding = nil,
     colGap = nil,
     rowGap = nil,
@@ -168,10 +163,12 @@ function Dialog.new()
   }, Dialog)
 
   self.modeButton = Button.new({
-    icon = modeIcon("8x8"),
+    text = "8x8",
     tooltip = "Sprite mode: 8x8",
-    w = self.modeButtonSize,
-    h = self.modeButtonSize,
+    h = ModalPanelUtils.MODAL_BUTTON_H,
+    transparent = true,
+    textAlign = "left",
+    contentPaddingX = 4,
     action = function()
       self:toggleSpriteMode()
     end,
@@ -187,7 +184,7 @@ function Dialog:getSpriteMode()
 end
 
 function Dialog:_updateModeButtonVisual()
-  self.modeButton.icon = modeIcon(self:getSpriteMode())
+  self.modeButton.text = modeLabel(self:getSpriteMode())
   self.modeButton.tooltip = "Sprite mode: " .. self:getSpriteMode()
 end
 

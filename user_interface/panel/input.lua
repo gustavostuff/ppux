@@ -52,6 +52,9 @@ local function install(Panel, utils)
       if cell.button then
         cell.button.pressed = false
       end
+      if cell.component and cell.component.action then
+        cell.component.pressed = false
+      end
     end
     self.pressedButton = nil
     self.pressedComponent = nil
@@ -65,6 +68,9 @@ local function install(Panel, utils)
     for _, cell in ipairs(self:_iterCells()) do
       if cell.button then
         cell.button.hovered = (cell.button == hovered)
+      end
+      if cell.component and cell.component.action then
+        cell.component.hovered = (cell.component == hovered)
       end
       if cell.component and type(cell.component.mousemoved) == "function" then
         cell.component:mousemoved(x, y)
