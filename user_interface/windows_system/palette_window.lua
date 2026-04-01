@@ -66,6 +66,19 @@ local function markPaletteUnsaved()
   end
 end
 
+local function recordPaletteColorUndo(win, actions, paletteStates)
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app
+  if not (app and app.undoRedo and app.undoRedo.addPaletteColorEvent) then
+    return false
+  end
+  return app.undoRedo:addPaletteColorEvent({
+    type = "palette_color",
+    actions = actions,
+    paletteStates = paletteStates,
+  })
+end
+
 local function buildCodeFromNibbles(hi, lo)
   hi = clamp(tonumber(hi) or 0, 0, 3)
   lo = clamp(tonumber(lo) or 0, 0, 15)
@@ -188,6 +201,16 @@ function PaletteWindow:adjustSelectedByArrows(dx,dy)
       ShaderPaletteController.setCodes(flat)
     end
   end
+
+  recordPaletteColorUndo(self, {
+    {
+      win = self,
+      row = sr,
+      col = sc,
+      beforeCode = old,
+      afterCode = new,
+    }
+  })
 
   markPaletteUnsaved()
 end

@@ -17,6 +17,7 @@ local SimpleLoadingScreen = require("controllers.app.simple_loading_screen")
 local TooltipController = require("controllers.ui.tooltip_controller")
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
 local UserInput = require("controllers.input")
+local TableUtils = require("utils.table_utils")
 
 local AppCoreController = {}
 AppCoreController.__index = AppCoreController
@@ -90,6 +91,28 @@ local function getTopModalTooltipCandidate(app, x, y)
   end
 
   return nil
+end
+
+local function recordWindowCreateUndo(app, win, prevFocusedWin)
+  if not (app and app.undoRedo and app.undoRedo.addWindowCreateEvent and win) then
+    return false
+  end
+  return app.undoRedo:addWindowCreateEvent({
+    type = "window_create",
+    win = win,
+    wm = app.wm,
+    prevFocusedWin = prevFocusedWin,
+  })
+end
+
+local function captureRomPaletteAddressUndoState(win)
+  return {
+    paletteData = TableUtils.deepcopy((win and win.paletteData) or {}),
+    selected = {
+      col = win and win.selected and win.selected.col or nil,
+      row = win and win.selected and win.selected.row or nil,
+    },
+  }
 end
 
 function AppCoreController.new()
@@ -190,8 +213,11 @@ function AppCoreController.new()
     tile_move = true,
     sprite_move = true,
     palette_color_change = true,
+    rom_palette_address_change = true,
     sprite_remove = true,
+    window_create = true,
     window_close = true,
+    window_rename = true,
     palette_link_change = true,
   }
 
@@ -233,18 +259,21 @@ function AppCoreController:_buildNewWindowOptions()
     {
       text = "Static Art window (tiles)",
       callback = function(cols, rows, _, windowTitle)
+        local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createTileWindow({
           animated = false,
           title    = windowTitle or "Static Art (tiles)",
           cols     = cols,
           rows     = rows,
         })
+        recordWindowCreateUndo(self, win, prevFocusedWin)
         self:setStatus(string.format("Created %s", win.title))
       end
     },
     {
       text = "Static Art window (sprites)",
       callback = function(cols, rows, spriteMode, windowTitle)
+        local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createSpriteWindow({
           animated = false,
           title = windowTitle or "Static Art (sprites)",
@@ -252,12 +281,14 @@ function AppCoreController:_buildNewWindowOptions()
           cols = cols,
           rows = rows,
         })
+        recordWindowCreateUndo(self, win, prevFocusedWin)
         self:setStatus(string.format("Created %s", win.title))
       end
     },
     {
       text = "Animation window  (tiles)",
       callback = function(cols, rows, _, windowTitle)
+        local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createTileWindow({
           animated = true,
           title = windowTitle or "Animation (tiles)",
@@ -265,12 +296,14 @@ function AppCoreController:_buildNewWindowOptions()
           cols = cols,
           rows = rows,
         })
+        recordWindowCreateUndo(self, win, prevFocusedWin)
         self:setStatus(string.format("Created %s", win.title))
       end
     },
     {
       text = "Animation window  (sprites)",
       callback = function(cols, rows, spriteMode, windowTitle)
+        local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createSpriteWindow({
           animated = true,
           title = windowTitle or "Animation (sprites)",
@@ -279,6 +312,7 @@ function AppCoreController:_buildNewWindowOptions()
           cols = cols,
           rows = rows,
         })
+        recordWindowCreateUndo(self, win, prevFocusedWin)
         self:setStatus(string.format("Created %s", win.title))
       end
     },
@@ -286,9 +320,11 @@ function AppCoreController:_buildNewWindowOptions()
       text = "Palette window",
       buttonText = "Palette window",
       callback = function(_, _, _, windowTitle)
+        local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createPaletteWindow({
           title = windowTitle or "Palette",
         })
+        recordWindowCreateUndo(self, win, prevFocusedWin)
         self:setStatus(string.format("Created %s", win.title))
       end
     },
@@ -296,9 +332,11 @@ function AppCoreController:_buildNewWindowOptions()
       text = "ROM Palette window",
       buttonText = "ROM Palette window",
       callback = function(_, _, _, windowTitle)
+        local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createRomPaletteWindow({
           title = windowTitle or "ROM Palette",
         })
+        recordWindowCreateUndo(self, win, prevFocusedWin)
         self:setStatus(string.format("Created %s", win.title))
       end
     },
@@ -306,6 +344,7 @@ function AppCoreController:_buildNewWindowOptions()
       text = "PPU Frame window",
       buttonText = "PPU Frame window",
       callback = function(_, _, _, windowTitle)
+        local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local currentBank = self.appEditState and self.appEditState.currentBank or 1
         local win = self.wm:createPPUFrameWindow({
           title = windowTitle or "PPU Frame",
@@ -314,6 +353,7 @@ function AppCoreController:_buildNewWindowOptions()
           pageIndex = 1,
           codec = "konami",
         })
+        recordWindowCreateUndo(self, win, prevFocusedWin)
         self:setStatus(string.format("Created %s", win.title))
       end
     },
@@ -321,9 +361,11 @@ function AppCoreController:_buildNewWindowOptions()
       text = "Pattern Table Builder",
       buttonText = "Pattern Table Builder",
       callback = function(_, _, _, windowTitle)
+        local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createPatternTableBuilderWindow({
           title = windowTitle or "Pattern Table Builder",
         })
+        recordWindowCreateUndo(self, win, prevFocusedWin)
         self:setStatus(string.format("Created %s", win.title))
       end
     },
@@ -584,7 +626,16 @@ function AppCoreController:showRenameWindowModal(win)
     initialTitle = win.title or "",
     onConfirm = function(newTitle, targetWindow)
       if not targetWindow then return end
+      local beforeTitle = targetWindow.title or ""
       targetWindow.title = newTitle
+      if beforeTitle ~= newTitle and self.undoRedo and self.undoRedo.addWindowRenameEvent then
+        self.undoRedo:addWindowRenameEvent({
+          type = "window_rename",
+          win = targetWindow,
+          beforeTitle = beforeTitle,
+          afterTitle = newTitle,
+        })
+      end
       self:setStatus(string.format("Renamed window to \"%s\"", newTitle))
     end,
   })
@@ -608,6 +659,7 @@ function AppCoreController:showRomPaletteAddressModal(win, col, row)
     row = row,
     initialAddress = initialAddress,
     onConfirm = function(addressText, targetWindow, targetCol, targetRow)
+      local beforeState = captureRomPaletteAddressUndoState(targetWindow)
       local addr, parseErr = parseHexAddress(addressText)
       if not addr then
         self:setStatus(parseErr)
@@ -624,6 +676,14 @@ function AppCoreController:showRomPaletteAddressModal(win, col, row)
       end
 
       self:setStatus(string.format("Assigned ROM palette cell (%d,%d) to 0x%X", targetCol, targetRow, addr))
+      if self.undoRedo and self.undoRedo.addRomPaletteAddressEvent then
+        self.undoRedo:addRomPaletteAddressEvent({
+          type = "rom_palette_address",
+          win = targetWindow,
+          beforeState = beforeState,
+          afterState = captureRomPaletteAddressUndoState(targetWindow),
+        })
+      end
       return true
     end,
   })

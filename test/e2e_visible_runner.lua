@@ -1457,6 +1457,417 @@ local function buildStaticSpriteOpsScenario(harness, app, runner)
   return steps
 end
 
+local function buildUndoRedoEventsScenario(harness, app, runner)
+  harness:loadROM(BubbleExample.getLoadPath())
+  local srcWin = BubbleExample.prepareBankWindow(
+    assert(BubbleExample.findBankWindow(app), "expected CHR bank window")
+  )
+  local staticWin = assert(BubbleExample.findStaticWindow(app), "expected static art window")
+  local globalPaletteWin = assert(harness:findWindow({
+    kind = "palette",
+    title = "Global palette",
+  }), "expected global palette window")
+  local createdSpriteWindowName = "Undo Sprite Window"
+  local renamedSpriteWindowName = "Undo Sprite Renamed"
+
+  BubbleExample.clearStaticWindow(staticWin)
+  if staticWin.layers and staticWin.layers[1] then
+    staticWin.layers[1].paletteData = nil
+  end
+
+  local steps = {
+    pause("Start", 0.35),
+    call("Create runtime ROM palette window", function(_, currentApp, currentRunner)
+      local win = currentApp.wm:createRomPaletteWindow({
+        title = "Undo ROM Palette",
+        x = 520,
+        y = 210,
+      })
+      assert(win, "expected runtime ROM palette window")
+      currentRunner.undoRomPaletteWin = win
+      currentApp.wm:setFocus(win)
+    end),
+    pause("Observe runtime ROM palette window", 0.35),
+    call("Plan paint target on CHR bank", function(_, _, currentRunner)
+      local tile = assert(srcWin:get(0, 0, 1), "expected source bank tile")
+      local pixels = tile.pixels or {}
+      local target = nil
+      for y = 0, 7 do
+        for x = 0, 7 do
+          local value = pixels[y * 8 + x + 1] or 0
+          if value ~= 3 then
+            target = { x = x, y = y, before = value }
+            break
+          end
+        end
+        if target then
+          break
+        end
+      end
+      assert(target, "expected paint target on source tile")
+      currentRunner.undoPaintTarget = target
+    end),
+    pause("Observe planned undo targets", 0.15),
+
+    keyPress("Open new window modal", "n", { "lctrl" }),
+    pause("Observe new window modal", 0.5),
+    call("Configure undo sprite window", function(_, currentApp)
+      local modal = currentApp.newWindowModal
+      assert(modal and modal.nameField, "expected new window modal")
+      modal.nameField:setText(createdSpriteWindowName)
+    end),
+    pause("Observe undo sprite window name", 0.2),
+  }
+
+  appendClick(steps, "Create undo sprite window", newWindowOptionCenterByText("Static Sprites window"), {
+    moveDuration = 0.08,
+    postPause = 0.3,
+  })
+
+  steps[#steps + 1] = call("Resolve created undo sprite window", function(currentHarness, currentApp, currentRunner)
+    local win = assert(currentHarness:findWindow({
+      kind = "static_art",
+      title = createdSpriteWindowName,
+    }), "expected created undo sprite window")
+    assert(win.layers and win.layers[1] and win.layers[1].kind == "sprite", "expected created sprite layer")
+    win.x = 560
+    win.y = 120
+    currentRunner.undoSpriteWin = win
+    currentApp.wm:setFocus(win)
+  end)
+  steps[#steps + 1] = pause("Observe created undo sprite window", 0.35)
+  steps[#steps + 1] = keyPress("Undo window create", "z", { "lctrl" })
+  steps[#steps + 1] = pause("Observe window create undo", 0.35)
+  steps[#steps + 1] = call("Assert window create undo", function(_, _, currentRunner)
+    local win = assert(currentRunner.undoSpriteWin, "expected undo sprite window ref")
+    assert(win._closed == true, "expected created sprite window to be closed after undo")
+  end)
+  steps[#steps + 1] = keyPress("Redo window create", "y", { "lctrl" })
+  steps[#steps + 1] = pause("Observe window create redo", 0.35)
+  steps[#steps + 1] = call("Assert window create redo", function(_, currentApp, currentRunner)
+    local win = assert(currentRunner.undoSpriteWin, "expected undo sprite window ref")
+    assert(not win._closed, "expected created sprite window to reopen on redo")
+    currentApp.wm:setFocus(win)
+  end)
+
+  steps[#steps + 1] = call("Rename created sprite window", function(_, currentApp, currentRunner)
+    local win = assert(currentRunner.undoSpriteWin, "expected undo sprite window")
+    assert(currentApp:showRenameWindowModal(win), "expected rename modal to open")
+    assert(currentApp.renameWindowModal and currentApp.renameWindowModal.textField, "expected rename window modal")
+    currentApp.renameWindowModal.textField:setText(renamedSpriteWindowName)
+    assert(currentApp.renameWindowModal:_confirm(), "expected rename confirm")
+  end)
+  steps[#steps + 1] = pause("Observe renamed sprite window", 0.3)
+  steps[#steps + 1] = call("Assert window rename applied", function(_, _, currentRunner)
+    assert(currentRunner.undoSpriteWin.title == renamedSpriteWindowName,
+      string.format("expected renamed title %s, got %s", renamedSpriteWindowName, tostring(currentRunner.undoSpriteWin.title)))
+  end)
+  steps[#steps + 1] = keyPress("Undo window rename", "z", { "lctrl" })
+  steps[#steps + 1] = pause("Observe window rename undo", 0.25)
+  steps[#steps + 1] = call("Assert window rename undo", function(_, _, currentRunner)
+    assert(currentRunner.undoSpriteWin.title == createdSpriteWindowName,
+      string.format("expected reverted title %s, got %s", createdSpriteWindowName, tostring(currentRunner.undoSpriteWin.title)))
+  end)
+  steps[#steps + 1] = keyPress("Redo window rename", "y", { "lctrl" })
+  steps[#steps + 1] = pause("Observe window rename redo", 0.25)
+  steps[#steps + 1] = call("Assert window rename redo", function(_, currentApp, currentRunner)
+    assert(currentRunner.undoSpriteWin.title == renamedSpriteWindowName,
+      string.format("expected redone title %s, got %s", renamedSpriteWindowName, tostring(currentRunner.undoSpriteWin.title)))
+    currentApp.wm:setFocus(currentRunner.undoSpriteWin)
+  end)
+
+  appendDrag(steps, "Place tile into static window", function(h)
+    return h:windowCellCenter(srcWin, 0, 0)
+  end, function(h)
+    return h:windowCellCenter(staticWin, 1, 1)
+  end, {
+    dragDuration = 0.12,
+    postPause = 0.22,
+  })
+  steps[#steps + 1] = call("Assert tile drag applied", function()
+    assert(staticWin:get(1, 1, 1) ~= nil, "expected tile at 1,1 after tile drag")
+  end)
+  steps[#steps + 1] = keyPress("Undo tile drag", "z", { "lctrl" })
+  steps[#steps + 1] = pause("Observe tile drag undo", 0.25)
+  steps[#steps + 1] = call("Assert tile drag undo", function()
+    assert(staticWin:get(1, 1, 1) == nil, "expected tile drag undo to clear 1,1")
+  end)
+  steps[#steps + 1] = keyPress("Redo tile drag", "y", { "lctrl" })
+  steps[#steps + 1] = pause("Observe tile drag redo", 0.25)
+  steps[#steps + 1] = call("Assert tile drag redo", function(_, currentApp)
+    assert(staticWin:get(1, 1, 1) ~= nil, "expected tile drag redo to restore 1,1")
+    currentApp.wm:setFocus(srcWin)
+  end)
+
+  steps[#steps + 1] = keyPress("Switch to edit mode", "tab")
+  steps[#steps + 1] = pause("Observe edit mode", 0.2)
+  steps[#steps + 1] = keyPress("Choose color 3", "4")
+  steps[#steps + 1] = pause("Observe selected edit color", 0.15)
+  appendClick(steps, "Paint source bank pixel", function(h, _, currentRunner)
+    local target = assert(currentRunner.undoPaintTarget, "expected paint target")
+    return h:windowPixelCenter(srcWin, 0, 0, target.x, target.y)
+  end, {
+    moveDuration = 0.08,
+    postPause = 0.2,
+  })
+  steps[#steps + 1] = call("Assert paint applied", function(_, _, currentRunner)
+    local target = assert(currentRunner.undoPaintTarget, "expected paint target")
+    local tile = assert(srcWin:get(0, 0, 1), "expected source bank tile")
+    local after = tile.pixels and tile.pixels[target.y * 8 + target.x + 1]
+    currentRunner.undoPaintAfter = after
+    assert(after == 3, string.format("expected painted pixel to be 3, got %s", tostring(after)))
+  end)
+  steps[#steps + 1] = keyPress("Undo paint", "z", { "lctrl" })
+  steps[#steps + 1] = pause("Observe paint undo", 0.25)
+  steps[#steps + 1] = call("Assert paint undo", function(_, _, currentRunner)
+    local target = assert(currentRunner.undoPaintTarget, "expected paint target")
+    local tile = assert(srcWin:get(0, 0, 1), "expected source bank tile")
+    local value = tile.pixels and tile.pixels[target.y * 8 + target.x + 1]
+    assert(value == target.before,
+      string.format("expected paint undo value %s, got %s", tostring(target.before), tostring(value)))
+  end)
+  steps[#steps + 1] = keyPress("Redo paint", "y", { "lctrl" })
+  steps[#steps + 1] = pause("Observe paint redo", 0.25)
+  steps[#steps + 1] = call("Assert paint redo", function(_, currentApp, currentRunner)
+    local target = assert(currentRunner.undoPaintTarget, "expected paint target")
+    local tile = assert(srcWin:get(0, 0, 1), "expected source bank tile")
+    local value = tile.pixels and tile.pixels[target.y * 8 + target.x + 1]
+    assert(value == 3, string.format("expected paint redo value 3, got %s", tostring(value)))
+    currentApp.wm:setFocus(globalPaletteWin)
+  end)
+  steps[#steps + 1] = keyPress("Return to tile mode", "tab")
+  steps[#steps + 1] = pause("Observe tile mode", 0.2)
+
+  steps[#steps + 1] = call("Store palette code before edit", function(_, currentApp, currentRunner)
+    currentRunner.undoPaletteBefore = assert(
+      globalPaletteWin.codes2D and globalPaletteWin.codes2D[0] and globalPaletteWin.codes2D[0][2],
+      "expected original global palette code"
+    )
+    currentApp.wm:setFocus(globalPaletteWin)
+  end)
+  appendClick(steps, "Select editable global palette color", function(h)
+    return h:windowCellCenter(globalPaletteWin, 2, 0)
+  end, {
+    moveDuration = 0.08,
+    postPause = 0.16,
+  })
+  steps[#steps + 1] = keyPress("Change global palette color", "right", { "lshift" })
+  steps[#steps + 1] = pause("Observe palette color change", 0.3)
+  steps[#steps + 1] = call("Assert palette color change applied", function(_, _, currentRunner)
+    local code = globalPaletteWin.codes2D and globalPaletteWin.codes2D[0] and globalPaletteWin.codes2D[0][2]
+    currentRunner.undoPaletteAfter = code
+    assert(code ~= currentRunner.undoPaletteBefore, "expected palette code to change")
+  end)
+  steps[#steps + 1] = keyPress("Undo palette color change", "z", { "lctrl" })
+  steps[#steps + 1] = pause("Observe palette color undo", 0.25)
+  steps[#steps + 1] = call("Assert palette color undo", function(_, _, currentRunner)
+    local code = globalPaletteWin.codes2D and globalPaletteWin.codes2D[0] and globalPaletteWin.codes2D[0][2]
+    assert(code == currentRunner.undoPaletteBefore,
+      string.format("expected palette undo %s, got %s", tostring(currentRunner.undoPaletteBefore), tostring(code)))
+  end)
+  steps[#steps + 1] = keyPress("Redo palette color change", "y", { "lctrl" })
+  steps[#steps + 1] = pause("Observe palette color redo", 0.25)
+  steps[#steps + 1] = call("Assert palette color redo", function(_, currentApp, currentRunner)
+    local code = globalPaletteWin.codes2D and globalPaletteWin.codes2D[0] and globalPaletteWin.codes2D[0][2]
+    assert(code == currentRunner.undoPaletteAfter,
+      string.format("expected palette redo %s, got %s", tostring(currentRunner.undoPaletteAfter), tostring(code)))
+    currentApp.wm:setFocus(currentRunner.undoRomPaletteWin)
+  end)
+
+  steps[#steps + 1] = call("Assign ROM palette address through modal", function(_, currentApp, currentRunner)
+    local win = assert(currentRunner.undoRomPaletteWin, "expected runtime ROM palette window")
+    local beforeAddr = win.paletteData and win.paletteData.romColors and win.paletteData.romColors[1] and win.paletteData.romColors[1][1]
+    currentRunner.undoRomPaletteBeforeAddr = beforeAddr
+    local romRaw = currentApp.appEditState and currentApp.appEditState.romRaw or ""
+    local maxAddr = math.max(0, #tostring(romRaw) - 1)
+    local addr = math.min(0x10, maxAddr)
+    currentRunner.undoRomPaletteAddr = addr
+    assert(currentApp:showRomPaletteAddressModal(win, 0, 0), "expected ROM palette address modal")
+    assert(currentApp.romPaletteAddressModal and currentApp.romPaletteAddressModal.textField, "expected ROM palette modal text field")
+    currentApp.romPaletteAddressModal.textField:setText(string.format("%06X", addr))
+    assert(currentApp.romPaletteAddressModal:_confirm(), "expected ROM palette address confirm")
+  end)
+  steps[#steps + 1] = pause("Observe ROM palette address assignment", 0.35)
+  steps[#steps + 1] = call("Assert ROM palette address applied", function(_, _, currentRunner)
+    local win = assert(currentRunner.undoRomPaletteWin, "expected runtime ROM palette window")
+    local addr = win.paletteData and win.paletteData.romColors and win.paletteData.romColors[1] and win.paletteData.romColors[1][1]
+    assert(addr == currentRunner.undoRomPaletteAddr,
+      string.format("expected ROM palette address %s, got %s", tostring(currentRunner.undoRomPaletteAddr), tostring(addr)))
+  end)
+  steps[#steps + 1] = keyPress("Undo ROM palette address", "z", { "lctrl" })
+  steps[#steps + 1] = pause("Observe ROM palette address undo", 0.25)
+  steps[#steps + 1] = call("Assert ROM palette address undo", function(_, _, currentRunner)
+    local win = assert(currentRunner.undoRomPaletteWin, "expected runtime ROM palette window")
+    local addr = win.paletteData and win.paletteData.romColors and win.paletteData.romColors[1] and win.paletteData.romColors[1][1]
+    assert(addr == currentRunner.undoRomPaletteBeforeAddr,
+      string.format("expected ROM palette address undo to restore %s, got %s",
+        tostring(currentRunner.undoRomPaletteBeforeAddr), tostring(addr)))
+  end)
+  steps[#steps + 1] = keyPress("Redo ROM palette address", "y", { "lctrl" })
+  steps[#steps + 1] = pause("Observe ROM palette address redo", 0.25)
+  steps[#steps + 1] = call("Assert ROM palette address redo", function(_, currentApp, currentRunner)
+    local win = assert(currentRunner.undoRomPaletteWin, "expected runtime ROM palette window")
+    local addr = win.paletteData and win.paletteData.romColors and win.paletteData.romColors[1] and win.paletteData.romColors[1][1]
+    assert(addr == currentRunner.undoRomPaletteAddr,
+      string.format("expected ROM palette address redo %s, got %s", tostring(currentRunner.undoRomPaletteAddr), tostring(addr)))
+    currentApp.wm:setFocus(win)
+  end)
+  steps[#steps + 1] = call("Normalize static layer palette link before link test", function(_, _, currentRunner)
+    local layer = staticWin.layers and staticWin.layers[1]
+    assert(layer, "expected static layer")
+    currentRunner.undoPaletteLinkPreviousWinId = "__e2e_prev_link__"
+    layer.paletteData = { winId = currentRunner.undoPaletteLinkPreviousWinId }
+  end)
+
+  appendDrag(steps, "Link ROM palette to static window", toolbarLinkHandleCenter(function(_, currentRunner)
+    return currentRunner.undoRomPaletteWin
+  end), function(h)
+    return h:windowCellCenter(staticWin, 1, 1)
+  end, {
+    dragDuration = 0.18,
+    postPause = 0.35,
+  })
+  steps[#steps + 1] = call("Assert palette link applied", function(_, _, currentRunner)
+    local layer = staticWin.layers and staticWin.layers[1]
+    assert(layer and layer.paletteData and layer.paletteData.winId == currentRunner.undoRomPaletteWin._id,
+      "expected static window to link to runtime ROM palette")
+  end)
+  steps[#steps + 1] = keyPress("Undo palette link", "z", { "lctrl" })
+  steps[#steps + 1] = pause("Observe palette link undo", 0.25)
+  steps[#steps + 1] = call("Assert palette link undo", function(_, _, currentRunner)
+    local layer = staticWin.layers and staticWin.layers[1]
+    local winId = layer and layer.paletteData and layer.paletteData.winId or nil
+    assert(
+      winId == currentRunner.undoPaletteLinkPreviousWinId,
+      string.format(
+        "expected palette link undo to restore previous winId %s, got %s",
+        tostring(currentRunner.undoPaletteLinkPreviousWinId),
+        tostring(winId)
+      )
+    )
+  end)
+  steps[#steps + 1] = keyPress("Redo palette link", "y", { "lctrl" })
+  steps[#steps + 1] = pause("Observe palette link redo", 0.25)
+  steps[#steps + 1] = call("Assert palette link redo", function(_, currentApp, currentRunner)
+    local layer = staticWin.layers and staticWin.layers[1]
+    assert(layer and layer.paletteData and layer.paletteData.winId == currentRunner.undoRomPaletteWin._id,
+      "expected palette link redo to restore paletteData")
+    currentApp.wm:setFocus(currentRunner.undoSpriteWin)
+  end)
+
+  appendDrag(steps, "Place sprite into undo sprite window", function(h)
+    local srcCol, srcRow = BubbleExample.bankCellForTile(srcWin, 6)
+    return h:windowCellCenter(srcWin, srcCol, srcRow)
+  end, function(h, _, currentRunner)
+    return h:windowCellCenter(currentRunner.undoSpriteWin, 1, 1)
+  end, {
+    dragDuration = 0.12,
+    postPause = 0.22,
+  })
+  steps[#steps + 1] = call("Resolve placed sprite index", function(_, currentApp, currentRunner)
+    local layer = assert(currentRunner.undoSpriteWin.layers and currentRunner.undoSpriteWin.layers[1], "expected sprite layer")
+    assert(#(layer.items or {}) >= 1, "expected placed sprite in undo sprite window")
+    currentRunner.undoSpriteItemIndex = #layer.items
+    local sprite = assert(layer.items[currentRunner.undoSpriteItemIndex], "expected placed sprite item")
+    currentRunner.undoSpriteDragBefore = {
+      worldX = sprite.worldX,
+      worldY = sprite.worldY,
+    }
+    currentApp.wm:setFocus(currentRunner.undoSpriteWin)
+  end)
+
+  appendDrag(steps, "Move sprite inside undo sprite window", function(_, currentApp, currentRunner)
+    return spriteItemCenter(function(r) return r.undoSpriteWin end, function(r) return r.undoSpriteItemIndex end)(nil, currentApp, currentRunner)
+  end, function(h, _, currentRunner)
+    return h:windowCellCenter(currentRunner.undoSpriteWin, 4, 2)
+  end, {
+    dragDuration = 0.15,
+    postPause = 0.28,
+  })
+  steps[#steps + 1] = call("Assert sprite drag applied", function(_, _, currentRunner)
+    local layer = assert(currentRunner.undoSpriteWin.layers and currentRunner.undoSpriteWin.layers[1], "expected sprite layer")
+    local sprite = assert(layer.items and layer.items[currentRunner.undoSpriteItemIndex], "expected moved sprite")
+    currentRunner.undoSpriteDragAfter = {
+      worldX = sprite.worldX,
+      worldY = sprite.worldY,
+    }
+    assert(
+      sprite.worldX ~= currentRunner.undoSpriteDragBefore.worldX
+        or sprite.worldY ~= currentRunner.undoSpriteDragBefore.worldY,
+      "expected sprite drag to change sprite position"
+    )
+  end)
+  steps[#steps + 1] = keyPress("Undo sprite drag", "z", { "lctrl" })
+  steps[#steps + 1] = pause("Observe sprite drag undo", 0.25)
+  steps[#steps + 1] = call("Assert sprite drag undo", function(_, _, currentRunner)
+    local layer = assert(currentRunner.undoSpriteWin.layers and currentRunner.undoSpriteWin.layers[1], "expected sprite layer")
+    local sprite = assert(layer.items and layer.items[currentRunner.undoSpriteItemIndex], "expected moved sprite")
+    assert(sprite.worldX == currentRunner.undoSpriteDragBefore.worldX, "expected sprite drag undo worldX")
+    assert(sprite.worldY == currentRunner.undoSpriteDragBefore.worldY, "expected sprite drag undo worldY")
+  end)
+  steps[#steps + 1] = keyPress("Redo sprite drag", "y", { "lctrl" })
+  steps[#steps + 1] = pause("Observe sprite drag redo", 0.25)
+  steps[#steps + 1] = call("Assert sprite drag redo", function(_, currentApp, currentRunner)
+    local layer = assert(currentRunner.undoSpriteWin.layers and currentRunner.undoSpriteWin.layers[1], "expected sprite layer")
+    local sprite = assert(layer.items and layer.items[currentRunner.undoSpriteItemIndex], "expected moved sprite")
+    assert(sprite.worldX == currentRunner.undoSpriteDragAfter.worldX, "expected sprite drag redo worldX")
+    assert(sprite.worldY == currentRunner.undoSpriteDragAfter.worldY, "expected sprite drag redo worldY")
+    currentApp.wm:setFocus(currentRunner.undoSpriteWin)
+  end)
+
+  appendClick(steps, "Select moved sprite for delete", function(_, currentApp, currentRunner)
+    return spriteItemCenter(function(r) return r.undoSpriteWin end, function(r) return r.undoSpriteItemIndex end)(nil, currentApp, currentRunner)
+  end, {
+    moveDuration = 0.08,
+    postPause = 0.16,
+  })
+  steps[#steps + 1] = keyPress("Delete selected sprite", "delete")
+  steps[#steps + 1] = pause("Observe sprite delete", 0.25)
+  steps[#steps + 1] = call("Assert sprite remove applied", function(_, _, currentRunner)
+    local layer = assert(currentRunner.undoSpriteWin.layers and currentRunner.undoSpriteWin.layers[1], "expected sprite layer")
+    local sprite = assert(layer.items and layer.items[currentRunner.undoSpriteItemIndex], "expected sprite item")
+    assert(sprite.removed == true, "expected sprite to be marked removed")
+  end)
+  steps[#steps + 1] = keyPress("Undo sprite delete", "z", { "lctrl" })
+  steps[#steps + 1] = pause("Observe sprite delete undo", 0.25)
+  steps[#steps + 1] = call("Assert sprite remove undo", function(_, _, currentRunner)
+    local layer = assert(currentRunner.undoSpriteWin.layers and currentRunner.undoSpriteWin.layers[1], "expected sprite layer")
+    local sprite = assert(layer.items and layer.items[currentRunner.undoSpriteItemIndex], "expected sprite item")
+    assert(sprite.removed ~= true, "expected sprite delete undo to restore sprite")
+  end)
+  steps[#steps + 1] = keyPress("Redo sprite delete", "y", { "lctrl" })
+  steps[#steps + 1] = pause("Observe sprite delete redo", 0.25)
+  steps[#steps + 1] = call("Assert sprite remove redo", function(_, currentApp, currentRunner)
+    local layer = assert(currentRunner.undoSpriteWin.layers and currentRunner.undoSpriteWin.layers[1], "expected sprite layer")
+    local sprite = assert(layer.items and layer.items[currentRunner.undoSpriteItemIndex], "expected sprite item")
+    assert(sprite.removed == true, "expected sprite delete redo to remove sprite")
+    currentApp.wm:setFocus(currentRunner.undoSpriteWin)
+  end)
+
+  steps[#steps + 1] = call("Close undo sprite window", function(_, _, currentRunner)
+    local win = assert(currentRunner.undoSpriteWin, "expected undo sprite window")
+    assert(win.headerToolbar and win.headerToolbar._onClose, "expected closable header toolbar")
+    win.headerToolbar:_onClose()
+  end)
+  steps[#steps + 1] = pause("Observe window close", 0.35)
+  steps[#steps + 1] = call("Assert window close applied", function(_, _, currentRunner)
+    assert(currentRunner.undoSpriteWin._closed == true, "expected undo sprite window to close")
+  end)
+  steps[#steps + 1] = keyPress("Undo window close", "z", { "lctrl" })
+  steps[#steps + 1] = pause("Observe window close undo", 0.35)
+  steps[#steps + 1] = call("Assert window close undo", function(_, _, currentRunner)
+    assert(not currentRunner.undoSpriteWin._closed, "expected undo window close to reopen window")
+  end)
+  steps[#steps + 1] = keyPress("Redo window close", "y", { "lctrl" })
+  steps[#steps + 1] = pause("Observe window close redo", 0.35)
+  steps[#steps + 1] = call("Assert window close redo", function(_, _, currentRunner)
+    assert(currentRunner.undoSpriteWin._closed == true, "expected redo window close to close window again")
+  end)
+  steps[#steps + 1] = pause("Observe final undo/redo coverage", 0.8)
+
+  return steps
+end
+
 local function buildPaletteEditRoundtripScenario(harness, app, runner)
   harness:loadROM(BubbleExample.getLoadPath())
   local srcWin = BubbleExample.prepareBankWindow(
@@ -2000,6 +2411,10 @@ local SCENARIOS = {
     title = "Static Sprite Ops",
     build = buildStaticSpriteOpsScenario,
   },
+  undo_redo_events = {
+    title = "Undo Redo Events",
+    build = buildUndoRedoEventsScenario,
+  },
   palette_edit_roundtrip = {
     title = "Palette Edit Roundtrip",
     build = buildPaletteEditRoundtripScenario,
@@ -2044,6 +2459,7 @@ local SCENARIO_ALIASES = {
   new_window_variants_demo = "new_window_variants",
   palette_shader_preview_demo = "palette_shader_preview",
   static_sprite_ops_demo = "static_sprite_ops",
+  undo_redo_events_demo = "undo_redo_events",
   palette_edit_roundtrip_demo = "palette_edit_roundtrip",
   rom_palette_links_demo = "rom_palette_links",
   save_reload_persistence_demo = "save_reload_persistence",

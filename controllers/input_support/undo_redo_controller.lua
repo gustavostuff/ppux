@@ -239,6 +239,44 @@ function UndoRedoController:addPaletteLinkEvent(event)
   return pushed
 end
 
+function UndoRedoController:addPaletteColorEvent(event)
+  if not event or event.type ~= "palette_color" then return false end
+  if type(event.actions) ~= "table" or #event.actions == 0 then return false end
+  local pushed = self:_pushEvent(event)
+  if pushed then
+    self:_notifyUnsaved("palette_color_change")
+  end
+  return pushed
+end
+
+function UndoRedoController:addWindowRenameEvent(event)
+  if not event or event.type ~= "window_rename" or not event.win then return false end
+  if event.beforeTitle == event.afterTitle then return false end
+  local pushed = self:_pushEvent(event)
+  if pushed then
+    self:_notifyUnsaved("window_rename")
+  end
+  return pushed
+end
+
+function UndoRedoController:addRomPaletteAddressEvent(event)
+  if not event or event.type ~= "rom_palette_address" or not event.win then return false end
+  local pushed = self:_pushEvent(event)
+  if pushed then
+    self:_notifyUnsaved("rom_palette_address_change")
+  end
+  return pushed
+end
+
+function UndoRedoController:addWindowCreateEvent(event)
+  if not event or event.type ~= "window_create" or not event.win then return false end
+  local pushed = self:_pushEvent(event)
+  if pushed then
+    self:_notifyUnsaved("window_create")
+  end
+  return pushed
+end
+
 local function deepCopy(value, seen)
   if type(value) ~= "table" then
     return value
@@ -273,6 +311,140 @@ local function applyPaletteLinkEvent(event, direction)
   end
 
   return applied > 0
+end
+
+local function paletteStateForWin(event, win, direction)
+  local states = event and event.paletteStates
+  if type(states) ~= "table" then
+    return nil
+  end
+  for _, entry in ipairs(states) do
+    if entry and entry.win == win then
+      if direction == "undo" then
+        return entry.beforePaletteData
+      end
+      return entry.afterPaletteData
+    end
+  end
+  return nil
+end
+
+local function applyPaletteColorEvent(event, direction)
+  if not (event and event.type == "palette_color" and event.actions) then
+    return false
+  end
+
+  local touchedWins = {}
+  local applied = 0
+  for _, act in ipairs(event.actions) do
+    local win = act.win
+    local row = act.row
+    local col = act.col
+    local code = (direction == "undo") and act.beforeCode or act.afterCode
+    if win and type(row) == "number" and type(col) == "number" and type(code) == "string" then
+      win.codes2D = win.codes2D or {}
+      win.codes2D[row] = win.codes2D[row] or {}
+      win.codes2D[row][col] = code
+      if win.set then
+        win:set(col, row, code)
+      end
+      if win.kind == "rom_palette" and win.writeColorToROM then
+        win:writeColorToROM(row, col, code)
+      end
+      touchedWins[win] = true
+      applied = applied + 1
+    end
+  end
+
+  for win in pairs(touchedWins) do
+    if win.kind == "rom_palette" then
+      local paletteData = paletteStateForWin(event, win, direction)
+      if paletteData ~= nil then
+        win.paletteData = deepCopy(paletteData)
+      end
+      if win.initializeFromROMOrUserCodes then
+        win:initializeFromROMOrUserCodes()
+      end
+    elseif win.activePalette and win.syncToGlobalPalette then
+      win:syncToGlobalPalette()
+    end
+  end
+
+  return applied > 0
+end
+
+local function applyWindowRenameEvent(event, direction)
+  if not (event and event.type == "window_rename" and event.win) then
+    return false
+  end
+
+  local title = (direction == "undo") and event.beforeTitle or event.afterTitle
+  event.win.title = title
+  return true
+end
+
+local function applyRomPaletteAddressEvent(event, direction)
+  if not (event and event.type == "rom_palette_address" and event.win) then
+    return false
+  end
+
+  local state = (direction == "undo") and event.beforeState or event.afterState
+  if not state then
+    return false
+  end
+
+  local win = event.win
+  win.paletteData = deepCopy(state.paletteData or {})
+  if win.initializeFromROMOrUserCodes then
+    win:initializeFromROMOrUserCodes()
+  end
+  if state.selected
+    and type(state.selected.col) == "number"
+    and type(state.selected.row) == "number"
+    and win.setSelected
+  then
+    win:setSelected(state.selected.col, state.selected.row)
+  elseif win.clearSelected then
+    win:clearSelected()
+  end
+  return true
+end
+
+local function applyWindowCreateEvent(event, direction, app)
+  if not (event and event.type == "window_create" and event.win) then
+    return false
+  end
+
+  local win = event.win
+  local wm = event.wm or (app and app.wm) or nil
+  if not wm then
+    return false
+  end
+
+  if direction == "undo" then
+    local closed = wm.closeWindow and wm:closeWindow(win) or false
+    if closed and event.prevFocusedWin and wm.setFocus then
+      local prev = event.prevFocusedWin
+      if prev and not prev._closed and not prev._minimized then
+        wm:setFocus(prev)
+      end
+    end
+    return closed
+  end
+
+  if wm.reopenWindow then
+    return wm:reopenWindow(win, {
+      minimized = false,
+      focus = true,
+    })
+  end
+
+  win._closed = false
+  win._minimized = false
+  if wm.setFocus then
+    wm:setFocus(win)
+  end
+  return true
 end
 
 local function applySpriteState(sprite, state)
@@ -639,8 +811,16 @@ function UndoRedoController:_applyEvent(event, direction, app)
     return applyTileDragEvent(event, direction)
   elseif event.type == "sprite_drag" then
     return applySpriteDragEvent(event, direction)
+  elseif event.type == "palette_color" then
+    return applyPaletteColorEvent(event, direction)
+  elseif event.type == "window_rename" then
+    return applyWindowRenameEvent(event, direction)
+  elseif event.type == "rom_palette_address" then
+    return applyRomPaletteAddressEvent(event, direction)
   elseif event.type == "palette_link" then
     return applyPaletteLinkEvent(event, direction)
+  elseif event.type == "window_create" then
+    return applyWindowCreateEvent(event, direction, app)
   elseif event.type == "window_close" then
     return applyWindowCloseEvent(event, direction, app)
   end

@@ -16,6 +16,7 @@ SCENARIOS=(
   "new_window_variants"
   "palette_shader_preview"
   "static_sprite_ops"
+  "undo_redo_events"
   "palette_edit_roundtrip"
   # "rom_palette_links"
   "save_reload_persistence"

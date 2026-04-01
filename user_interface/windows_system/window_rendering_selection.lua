@@ -401,7 +401,7 @@ function Window:drawTileSelectionOverlays(isFocused)
       end
     else
       local sel = self:getLayerSelection(self.activeLayer or 1)
-      if mode ~= "edit" and sel then
+      if mode ~= "edit" and sel and type(sel.col) == "number" and type(sel.row) == "number" then
         local rx, ry, rw, rh, topRow = getTileSelectionRect(self, sel.col, sel.row, overlayCtx)
         local item = getSelectionTileRef(self, L, sel.col, topRow, self.activeLayer or 1)
         setOverlayColor(SpaceHighlightController.resolveMappedOverlayColor(self, item, spaceHighlightModel) or colors.white)

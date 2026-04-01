@@ -9,6 +9,7 @@ local Window = require("user_interface.windows_system.window")
 local chr = require("chr")
 local DebugController = require("controllers.dev.debug_controller")
 local colors = require("app_colors")
+local TableUtils = require("utils.table_utils")
 
 local RomPaletteWindow = {}
 RomPaletteWindow.__index = RomPaletteWindow
@@ -66,6 +67,25 @@ local function markPaletteUnsaved()
   if app and app.markUnsaved then
     app:markUnsaved("palette_color_change")
   end
+end
+
+local function recordPaletteColorUndo(win, actions, beforePaletteData, afterPaletteData)
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app
+  if not (app and app.undoRedo and app.undoRedo.addPaletteColorEvent) then
+    return false
+  end
+  return app.undoRedo:addPaletteColorEvent({
+    type = "palette_color",
+    actions = actions,
+    paletteStates = {
+      {
+        win = win,
+        beforePaletteData = beforePaletteData,
+        afterPaletteData = afterPaletteData,
+      }
+    },
+  })
 end
 
 function RomPaletteWindow:isCellEditable(col, row)
@@ -299,6 +319,8 @@ function RomPaletteWindow:adjustSelectedByArrows(dx, dy)
   if new == old then
     return
   end
+  local beforePaletteData = TableUtils.deepcopy(self.paletteData or {})
+  local undoActions = {}
 
   DebugController.log("info", "ROM_PAL", "ROM Palette '%s' color adjusted at (%d,%d): %s -> %s", 
     self.title or "untitled", sc, sr, old, new)
@@ -312,6 +334,8 @@ function RomPaletteWindow:adjustSelectedByArrows(dx, dy)
         goto continue
       end
 
+      local oldRowCode = self.codes2D[row] and self.codes2D[row][0] or old
+
       -- Make sure the row exists
       self.codes2D[row] = self.codes2D[row] or {}
 
@@ -321,6 +345,13 @@ function RomPaletteWindow:adjustSelectedByArrows(dx, dy)
       -- Write to ROM and save user-defined code for each row's first color
       self:writeColorToROM(row, 0, new)
       self:saveUserDefinedCode(row, 0, new)
+      undoActions[#undoActions + 1] = {
+        win = self,
+        row = row,
+        col = 0,
+        beforeCode = oldRowCode,
+        afterCode = new,
+      }
       ::continue::
     end
   else
@@ -333,8 +364,16 @@ function RomPaletteWindow:adjustSelectedByArrows(dx, dy)
 
     -- Save to userDefinedCode
     self:saveUserDefinedCode(sr, sc, new)
+    undoActions[#undoActions + 1] = {
+      win = self,
+      row = sr,
+      col = sc,
+      beforeCode = old,
+      afterCode = new,
+    }
   end
 
+  recordPaletteColorUndo(self, undoActions, beforePaletteData, TableUtils.deepcopy(self.paletteData or {}))
   markPaletteUnsaved()
 end
 
