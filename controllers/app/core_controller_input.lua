@@ -303,14 +303,6 @@ function AppCoreController:mousepressed(x, y, b)
     return
   end
 
-  if self.appCloseButton then
-    self.appCloseButton.hovered = self:isPointInAppCloseButton(mouse.x, mouse.y)
-    if b == 1 and self.appCloseButton.hovered then
-      self.appCloseButton.pressed = true
-      return
-    end
-  end
-
   if self.toastController and self.toastController:mousepressed(mouse.x, mouse.y, b) then
     return
   end
@@ -379,18 +371,6 @@ function AppCoreController:mousereleased(x, y, b)
     return
   end
 
-  if self.appCloseButton and self.appCloseButton.pressed and b == 1 then
-    local activate = self:isPointInAppCloseButton(mouse.x, mouse.y)
-    self.appCloseButton.pressed = false
-    self.appCloseButton.hovered = self:isPointInAppCloseButton(mouse.x, mouse.y)
-    if activate then
-      self:requestAppClose()
-      return
-    end
-  elseif self.appCloseButton and b == 1 then
-    self.appCloseButton.pressed = false
-  end
-
   if self.toastController and self.toastController:mousereleased(mouse.x, mouse.y, b) then
     return
   end
@@ -413,24 +393,12 @@ function AppCoreController:mousemoved(x, y, dx, dy)
   dx = dx or 0
   dy = dy or 0
 
-  if self.appCloseButton then
-    self.appCloseButton.hovered = self:isPointInAppCloseButton(mouse.x, mouse.y)
-  end
-
   if self.quitConfirmModal:isVisible() then
-    if self.appCloseButton then
-      self.appCloseButton.hovered = false
-      self.appCloseButton.pressed = false
-    end
     self.quitConfirmModal:mousemoved(mouse.x, mouse.y)
     return
   end
 
   if self.splash and self.splash:isVisible() then
-    if self.appCloseButton then
-      self.appCloseButton.hovered = false
-      self.appCloseButton.pressed = false
-    end
     local bx, by = nil, nil
     if self.splash.button then
       local sw, sh = self.canvas:getWidth(), self.canvas:getHeight()
@@ -446,27 +414,15 @@ function AppCoreController:mousemoved(x, y, dx, dy)
   end
 
   if self.saveOptionsModal and self.saveOptionsModal:isVisible() then
-    if self.appCloseButton then
-      self.appCloseButton.hovered = false
-      self.appCloseButton.pressed = false
-    end
     return
   end
 
   if self.genericActionsModal:isVisible() then
-    if self.appCloseButton then
-      self.appCloseButton.hovered = false
-      self.appCloseButton.pressed = false
-    end
     self.genericActionsModal:mousemoved(mouse.x, mouse.y)
     return
   end
 
   if self.settingsModal and self.settingsModal:isVisible() then
-    if self.appCloseButton then
-      self.appCloseButton.hovered = false
-      self.appCloseButton.pressed = false
-    end
     self.settingsModal:mousemoved(mouse.x, mouse.y)
     return
   end
@@ -476,34 +432,18 @@ function AppCoreController:mousemoved(x, y, dx, dy)
   end
 
   if self.newWindowModal:isVisible() then
-    if self.appCloseButton then
-      self.appCloseButton.hovered = false
-      self.appCloseButton.pressed = false
-    end
     self.newWindowModal:mousemoved(mouse.x, mouse.y)
     return
   end
   if self.renameWindowModal and self.renameWindowModal:isVisible() then
-    if self.appCloseButton then
-      self.appCloseButton.hovered = false
-      self.appCloseButton.pressed = false
-    end
     self.renameWindowModal:mousemoved(mouse.x, mouse.y)
     return
   end
   if self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible() then
-    if self.appCloseButton then
-      self.appCloseButton.hovered = false
-      self.appCloseButton.pressed = false
-    end
     self.romPaletteAddressModal:mousemoved(mouse.x, mouse.y)
     return
   end
   if self.textFieldDemoModal and self.textFieldDemoModal:isVisible() then
-    if self.appCloseButton then
-      self.appCloseButton.hovered = false
-      self.appCloseButton.pressed = false
-    end
     self.textFieldDemoModal:mousemoved(mouse.x, mouse.y)
     return
   end

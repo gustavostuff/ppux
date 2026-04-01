@@ -4,6 +4,7 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local colors = require("app_colors")
 
 local M = {}
+local isMouseInsideSquareHoverArea
 
 local function eachLayer(layers, fn)
   if type(layers) ~= "table" or type(fn) ~= "function" then
@@ -50,6 +51,42 @@ local function windowHasPaletteLinkTo(win, paletteWin, wm)
   for _, linkedPaletteWin in ipairs(collectLinkedPaletteWindowsForWindow(win, wm)) do
     if linkedPaletteWin == paletteWin then
       return true
+    end
+  end
+
+  return false
+end
+
+local function paletteHasLinkedTargets(paletteWin, wm)
+  if not (paletteWin and wm and wm.getWindows and WindowCaps.isRomPaletteWindow(paletteWin)) then
+    return false
+  end
+
+  for _, win in ipairs(wm:getWindows()) do
+    if win ~= paletteWin and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
+      if windowHasPaletteLinkTo(win, paletteWin, wm) then
+        return true
+      end
+    end
+  end
+
+  return false
+end
+
+local function paletteHasVisibleLinks(app, paletteWin)
+  local wm = app and app.wm
+  if not (paletteWin and wm and wm.getWindows and WindowCaps.isRomPaletteWindow(paletteWin)) then
+    return false
+  end
+
+  for _, win in ipairs(wm:getWindows()) do
+    if win ~= paletteWin and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
+      if windowHasPaletteLinkTo(win, paletteWin, wm) then
+        local showLine = M.getPersistentVisual(app, win, paletteWin)
+        if showLine then
+          return true
+        end
+      end
     end
   end
 
@@ -144,6 +181,9 @@ function M.getWindowLinkAnchor(fromWin, toWin)
 end
 
 function M.getPaletteHandleAnchor(paletteWin, focusedWin)
+  if paletteWin and paletteWin._collapsed then
+    return M.getWindowLinkAnchor(paletteWin, focusedWin)
+  end
   local toolbar = paletteWin and paletteWin.specializedToolbar
   if toolbar and toolbar.getLinkHandleRect then
     local x, y, w, h = toolbar:getLinkHandleRect()
@@ -156,39 +196,82 @@ end
 
 function M.getPaletteLinkDragAnchor(paletteWin)
   if not paletteWin then return nil, nil end
+  if paletteWin._collapsed then
+    local x, y, orientation, side = M.getWindowLinkAnchor(paletteWin, {
+      getScreenRect = function()
+        return 0, 0, 0, 0
+      end,
+      _collapsed = false,
+    })
+    return x, y, orientation, side
+  end
   local toolbar = paletteWin.specializedToolbar
   if toolbar and toolbar.getLinkHandleRect then
     local x, y, w, h = toolbar:getLinkHandleRect()
     if x and y and w and h then
-      return x + w / 2, y + h / 2
+      return x + w / 2, y + h / 2, nil, nil
     end
   end
   local x, y, w, _ = M.getWindowLinkRect(paletteWin)
-  return x + w / 2, y
+  return x + w / 2, y, nil, nil
 end
 
-function M.isMouseHoveringPaletteHandle(paletteWin)
-  if not paletteWin then
-    return false
+function M.getSourcePaletteProxyRect(paletteWin, app)
+  local wm = app and app.wm or nil
+  local focusedWin = wm and wm.getFocus and wm:getFocus() or nil
+  if not paletteWin or paletteWin._collapsed or paletteWin._closed or paletteWin._minimized then
+    return nil
   end
+  if focusedWin == paletteWin then
+    return nil
+  end
+  if not paletteHasLinkedTargets(paletteWin, wm) then
+    return nil
+  end
+  if not paletteHasVisibleLinks(app, paletteWin) then
+    return nil
+  end
+
   local toolbar = paletteWin.specializedToolbar
   if not (toolbar and toolbar.getLinkHandleRect) then
-    return false
+    return nil
   end
   local x, y, w, h = toolbar:getLinkHandleRect()
   if not (x and y and w and h) then
-    return false
+    return nil
   end
-  local mouse = ResolutionController:getScaledMouse(true)
-  local mx = mouse and mouse.x or nil
-  local my = mouse and mouse.y or nil
-  if type(mx) ~= "number" or type(my) ~= "number" then
-    mx, my = love.mouse.getPosition()
-  end
-  return mx >= x and mx <= x + w and my >= y and my <= y + h
+  return x, y, w, h
 end
 
-function M.getHoveredHandleLinks(app)
+function M.getSourcePaletteProxyWindowAt(app, x, y)
+  local wm = app and app.wm
+  if not (wm and wm.getWindows) then
+    return nil
+  end
+
+  local windows = wm:getWindows() or {}
+  for i = #windows, 1, -1 do
+    local win = windows[i]
+    local px, py, pw, ph = M.getSourcePaletteProxyRect(win, app)
+    if px and x >= px and x <= (px + pw) and y >= py and y <= (py + ph) then
+      return win
+    end
+  end
+  return nil
+end
+
+function M.isMouseHoveringPaletteSourceSquare(paletteWin)
+  if not paletteWin then
+    return false
+  end
+  local sx, sy = M.getPaletteLinkDragAnchor(paletteWin)
+  if not (sx and sy) then
+    return false
+  end
+  return isMouseInsideSquareHoverArea(sx, sy, 15)
+end
+
+function M.getHoveredSourceSquareLinks(app)
   local wm = app and app.wm
   if not (wm and wm.getWindows) then
     return {}
@@ -197,7 +280,7 @@ function M.getHoveredHandleLinks(app)
   local hoveredPalette = nil
   for _, win in ipairs(wm:getWindows()) do
     if win and not win._closed and not win._minimized and WindowCaps.isAnyPaletteWindow(win) then
-      if M.isMouseHoveringPaletteHandle(win) then
+      if M.isMouseHoveringPaletteSourceSquare(win) then
         hoveredPalette = win
         break
       end
@@ -220,7 +303,7 @@ function M.getHoveredHandleLinks(app)
   return links
 end
 
-local function isMouseInsideSquareHoverArea(cx, cy, size)
+isMouseInsideSquareHoverArea = function(cx, cy, size)
   local mouse = ResolutionController:getScaledMouse(true)
   local mx = mouse and mouse.x or nil
   local my = mouse and mouse.y or nil
@@ -237,16 +320,8 @@ function M.isMouseHoveringDestinationSquare(contentWin, paletteWin)
     return false
   end
 
-  local sx, sy, _, startSide = M.getWindowLinkAnchor(contentWin, paletteWin)
-  local startSquareOffsetX = -1
-  local startSquareOffsetY = -1
-  if contentWin._collapsed and (startSide == "left" or startSide == "right") then
-    startSquareOffsetY = startSquareOffsetY + 1
-  end
-
-  local squareCenterX = sx + startSquareOffsetX
-  local squareCenterY = sy + startSquareOffsetY
-  return isMouseInsideSquareHoverArea(squareCenterX, squareCenterY, 15)
+  local sx, sy = M.getWindowLinkAnchor(contentWin, paletteWin)
+  return isMouseInsideSquareHoverArea(sx, sy, 15)
 end
 
 function M.getHoveredDestinationLinks(app)
@@ -298,22 +373,13 @@ function M.getRevealAlpha(contentWin, paletteWin)
 end
 
 function M.getPersistentVisual(app, contentWin, paletteWin)
-  local wm = app and app.wm
-  local focusedWin = wm and wm.getFocus and wm:getFocus() or nil
-  if focusedWin and (focusedWin == paletteWin or focusedWin == contentWin) then
-    return true, 1
-  end
-
+  local focusedWin = app and app.wm and app.wm.getFocus and app.wm:getFocus() or nil
   local mode = M.normalizeLinksMode(app and app.paletteLinksMode)
   if mode == "always" then
-    return true, 1
+    return (focusedWin == paletteWin or focusedWin == contentWin), 1
   end
   if mode == "on_hover" then
-    return M.isMouseHoveringPaletteHandle(paletteWin) or M.isMouseHoveringDestinationSquare(contentWin, paletteWin), 1
-  end
-
-  if M.isMouseHoveringPaletteHandle(paletteWin) or M.isMouseHoveringDestinationSquare(contentWin, paletteWin) then
-    return true, 1
+    return M.isMouseHoveringPaletteSourceSquare(paletteWin) or M.isMouseHoveringDestinationSquare(contentWin, paletteWin), 1
   end
 
   local revealAlpha = M.getRevealAlpha(contentWin, paletteWin)
@@ -327,10 +393,6 @@ end
 function M.buildConnectorGeometry(x1, y1, x2, y2, opts)
   opts = opts or {}
   local geometry = {
-    startSquareOffsetX = opts.startSquareOffsetX or 0,
-    startSquareOffsetY = opts.startSquareOffsetY or 0,
-    endSquareOffsetX = opts.endSquareOffsetX or 0,
-    endSquareOffsetY = opts.endSquareOffsetY or 0,
     showLine = (opts.showLine ~= false),
     alpha = math.max(0, math.min(1, tonumber(opts.alpha) or 1)),
     lineColor = opts.lineColor or colors.blue,
@@ -343,9 +405,7 @@ function M.buildConnectorGeometry(x1, y1, x2, y2, opts)
   local startVerticalLead = tonumber(opts.startVerticalLead) or 0
   local endHorizontalLead = tonumber(opts.endHorizontalLead) or 0
   local endVerticalLead = tonumber(opts.endVerticalLead) or 0
-  local autoAlignEndSquare = (opts.autoAlignEndSquare == true)
   local points
-  local lastSegmentOrientation
 
   local routeStartX, routeStartY = x1, y1
   local routeEndX, routeEndY = x2, y2
@@ -409,7 +469,6 @@ function M.buildConnectorGeometry(x1, y1, x2, y2, opts)
 
   local function buildMergedPoints(currentPrefix, currentRouteStartX, currentRouteStartY)
     local corePoints
-    local coreLastSegmentOrientation
 
     if math.abs(routeEndX - currentRouteStartX) >= math.abs(routeEndY - currentRouteStartY) then
       local mx = math.floor((currentRouteStartX + routeEndX) / 2 + 0.5)
@@ -419,7 +478,6 @@ function M.buildConnectorGeometry(x1, y1, x2, y2, opts)
         mx, routeEndY,
         routeEndX, routeEndY,
       }
-      coreLastSegmentOrientation = "horizontal"
     else
       local my = math.floor((currentRouteStartY + routeEndY) / 2 + 0.5)
       corePoints = {
@@ -428,7 +486,6 @@ function M.buildConnectorGeometry(x1, y1, x2, y2, opts)
         routeEndX, my,
         routeEndX, routeEndY,
       }
-      coreLastSegmentOrientation = "vertical"
     end
 
     local merged = {}
@@ -451,7 +508,7 @@ function M.buildConnectorGeometry(x1, y1, x2, y2, opts)
       end
     end
 
-    return merged, coreLastSegmentOrientation
+    return merged
   end
 
   local function getPoint(list, pointIndex)
@@ -498,7 +555,7 @@ function M.buildConnectorGeometry(x1, y1, x2, y2, opts)
     end
   end
 
-  points, lastSegmentOrientation = buildMergedPoints(prefix, routeStartX, routeStartY)
+  points = buildMergedPoints(prefix, routeStartX, routeStartY)
 
   if hadStartVerticalLead then
     local firstVerticalDelta = firstVerticalSegmentDeltaAfterLead(points)
@@ -506,22 +563,13 @@ function M.buildConnectorGeometry(x1, y1, x2, y2, opts)
       prefix = { x1, y1, routeStartX, y1 }
       routeStartY = y1
       hadStartVerticalLead = false
-      points, lastSegmentOrientation = buildMergedPoints(prefix, routeStartX, routeStartY)
+      points = buildMergedPoints(prefix, routeStartX, routeStartY)
     end
   end
 
   simplifyEndLeadIfThirdSegmentComesBackDown(points)
 
-  if autoAlignEndSquare then
-    if lastSegmentOrientation == "horizontal" then
-      geometry.endSquareOffsetY = geometry.endSquareOffsetY - 1
-    elseif lastSegmentOrientation == "vertical" then
-      geometry.endSquareOffsetX = geometry.endSquareOffsetX - 1
-    end
-  end
-
   geometry.points = points
-  geometry.lastSegmentOrientation = lastSegmentOrientation
   return geometry
 end
 
@@ -565,8 +613,8 @@ function M.drawConnectorSquares(geometry)
     return
   end
   love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], geometry.alpha)
-  love.graphics.rectangle("fill", geometry.x1 - 1 + geometry.startSquareOffsetX, geometry.y1 - 1 + geometry.startSquareOffsetY, 3, 3)
-  love.graphics.rectangle("fill", geometry.x2 - 1 + geometry.endSquareOffsetX, geometry.y2 - 1 + geometry.endSquareOffsetY, 3, 3)
+  love.graphics.rectangle("fill", geometry.x1 - 1, geometry.y1 - 1, 3, 3)
+  love.graphics.rectangle("fill", geometry.x2 - 1, geometry.y2 - 1, 3, 3)
 end
 
 function M.drawRectConnector(x1, y1, x2, y2, opts)
@@ -590,6 +638,7 @@ local function sortLinksStable(links)
 end
 
 function M.drawOverlay(app)
+  local mode = M.normalizeLinksMode(app and app.paletteLinksMode)
   local links = {}
   local seen = {}
   local function appendLinks(list)
@@ -605,8 +654,10 @@ function M.drawOverlay(app)
   end
 
   appendLinks(M.getFocusedLinks(app))
-  appendLinks(M.getHoveredHandleLinks(app))
-  appendLinks(M.getHoveredDestinationLinks(app))
+  if mode == "on_hover" then
+    appendLinks(M.getHoveredSourceSquareLinks(app))
+    appendLinks(M.getHoveredDestinationLinks(app))
+  end
   sortLinksStable(links)
 
   local geometries = {}
@@ -615,18 +666,14 @@ function M.drawOverlay(app)
     local contentWin = link.contentWin
     local paletteWin = link.paletteWin
     if contentWin and paletteWin then
-      local sx, sy, _, startSide = M.getWindowLinkAnchor(contentWin, paletteWin)
+      local sx, sy = M.getWindowLinkAnchor(contentWin, paletteWin)
       local tx, ty = M.getPaletteHandleAnchor(paletteWin, contentWin)
       local showLine, alpha = M.getPersistentVisual(app, contentWin, paletteWin)
-      local startSquareOffsetY = -1
-      if contentWin._collapsed and (startSide == "left" or startSide == "right") then
-        startSquareOffsetY = startSquareOffsetY + 1
-      end
+      local endHorizontalLead = paletteWin._collapsed and 0 or -15
+      local endVerticalLead = paletteWin._collapsed and 0 or -15
       geometries[#geometries + 1] = M.buildConnectorGeometry(sx, sy, tx, ty, {
-        startSquareOffsetX = -1,
-        startSquareOffsetY = startSquareOffsetY,
-        endHorizontalLead = -15,
-        endVerticalLead = -15,
+        endHorizontalLead = endHorizontalLead,
+        endVerticalLead = endVerticalLead,
         showLine = showLine,
         alpha = alpha,
       })
@@ -643,6 +690,18 @@ function M.drawOverlay(app)
   for _, geometry in ipairs(geometries) do
     M.drawConnectorSquares(geometry)
   end
+  love.graphics.pop()
+end
+
+function M.drawSourcePaletteProxyForWindow(app, win)
+  local px, py, pw, ph = M.getSourcePaletteProxyRect(win, app)
+  if not px then
+    return
+  end
+
+  love.graphics.push("all")
+  love.graphics.setColor(colors.gray20)
+  love.graphics.rectangle("fill", px, py, pw, ph)
   love.graphics.pop()
 end
 
@@ -668,10 +727,11 @@ function M.drawActiveDrag(app)
     end
   end
 
+  local startHorizontalLead = (drag.sourceWin and drag.sourceWin._collapsed) and 0 or -15
+  local startVerticalLead = (drag.sourceWin and drag.sourceWin._collapsed) and 0 or -15
   M.drawRectConnector(sx, sy, tx, ty, {
-    autoAlignEndSquare = true,
-    startHorizontalLead = -15,
-    startVerticalLead = -15,
+    startHorizontalLead = startHorizontalLead,
+    startVerticalLead = startVerticalLead,
     lineColor = lineColor,
   })
 end

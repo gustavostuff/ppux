@@ -1,5 +1,6 @@
 local SpriteController = require("controllers.sprite.sprite_controller")
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
+local PaletteLinkRenderController = require("controllers.palette.palette_link_render_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 
 local M = {}
@@ -532,6 +533,16 @@ function M.handleMousePressed(env, x, y, button)
   local ctx = env.ctx
   local wm = ctx.wm()
   local chrome = env.chrome
+
+  if button == 1 then
+    local app = ctx and ctx.app or nil
+    local proxyWin = PaletteLinkRenderController.getSourcePaletteProxyWindowAt(app, x, y)
+    if proxyWin then
+      wm:setFocus(proxyWin)
+      return true
+    end
+  end
+
   local topInteractiveWin = chrome.getTopInteractiveWindowAt and chrome.getTopInteractiveWindowAt(x, y, wm) or nil
 
   local focusedWin = wm:getFocus()
