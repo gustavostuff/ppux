@@ -297,6 +297,10 @@ local function migrateProjectTable(project)
   end
 
   project.projectVersion = loadedVersion
+  -- Legacy optional metadata fields are intentionally ignored.
+  -- Project/ROM association is now convention-based by sibling filenames.
+  project.sourceRomPath = nil
+  project.sourceRomFilename = nil
 
   if originalVersion ~= loadedVersion then
     DebugController.log(

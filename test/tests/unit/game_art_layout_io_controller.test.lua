@@ -119,8 +119,6 @@ describe("game_art_layout_io_controller.lua", function()
         { id = "bank", kind = "chr", currentBank = 2, layers = { { items = {} } } },
       },
       edits = { banks = {} },
-      sourceRomPath = "/tmp/test_rom.nes",
-      sourceRomFilename = "test_rom.nes",
     }
 
     local ok, err = GameArtLayoutIOController.saveProjectPpux(path, project)

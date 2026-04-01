@@ -8,8 +8,6 @@ return {
   focusedWindowId = "palette_01",
   kind = "project",
   projectVersion = 1,
-  sourceRomFilename = "test_rom.nes",
-  sourceRomPath = "/home/g/Repos/nes-art-editor-v3/test/test_rom.nes",
   syncDuplicateTiles = false,
   windows = {
     [1] = {

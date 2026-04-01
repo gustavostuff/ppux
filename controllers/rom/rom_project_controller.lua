@@ -70,11 +70,6 @@ local function fileExists(path)
   return true
 end
 
-local function baseName(path)
-  if type(path) ~= "string" or path == "" then return nil end
-  return path:match("([^/\\]+)$") or path
-end
-
 local function joinPath(dir, name)
   local sep = (package.config:sub(1,1) == "\\" and "\\") or "/"
   if dir == "" then return name end
@@ -424,20 +419,16 @@ local function pushCandidate(candidates, seen, path)
   candidates[#candidates + 1] = path
 end
 
-local function resolveRomPathForProject(projectPath, project)
+local function resolveRomPathForProject(projectPath)
   local dir, base = splitPath(projectPath or "")
   local stem = canonicalProjectStem(base or "")
 
   local candidates = {}
   local seen = {}
-  local sourceRomPath = project and project.sourceRomPath or nil
-  local sourceRomFilename = project and project.sourceRomFilename or nil
 
-  pushCandidate(candidates, seen, sourceRomPath)
-  pushCandidate(candidates, seen, sourceRomPath and joinPath(dir, baseName(sourceRomPath)))
-  pushCandidate(candidates, seen, sourceRomFilename and joinPath(dir, sourceRomFilename))
   if stem ~= "" then
     pushCandidate(candidates, seen, joinPath(dir, stem .. ".nes"))
+    pushCandidate(candidates, seen, joinPath(dir, stem .. "_edited.nes"))
   end
 
   for _, candidate in ipairs(candidates) do
@@ -446,7 +437,11 @@ local function resolveRomPathForProject(projectPath, project)
     end
   end
 
-  return nil, string.format("Could not locate base ROM for project: %s", tostring(projectPath))
+  return nil, string.format(
+    "Could not locate ROM for project: %s (expected %s.nes)",
+    tostring(projectPath),
+    tostring(stem ~= "" and stem or "project")
+  )
 end
 
 -- Read ROM from either a LÖVE File object or a file path string
@@ -1038,7 +1033,7 @@ function M.loadROM(app, fileOrPath)
   end
 
   if project and isEditedRomPath(sourcePath) then
-    local baseRomPath = resolveRomPathForProject(detectedProjectPath, project)
+    local baseRomPath = resolveRomPathForProject(detectedProjectPath)
     if type(baseRomPath) == "string" and baseRomPath ~= "" and baseRomPath ~= state.romOriginalPath then
       pulseLoading(app, "Switching to base ROM...")
       local rereadStartedAt = nowSeconds()
@@ -1155,7 +1150,7 @@ function M.loadProjectFile(app, fileOrPath)
   end
 
   pulseLoading(app, "Resolving base ROM...")
-  local romPath, romErr = resolveRomPathForProject(projectPath, project)
+  local romPath, romErr = resolveRomPathForProject(projectPath)
   if not romPath then
     app:setStatus(romErr or "Could not locate base ROM for project")
     return finish(false)

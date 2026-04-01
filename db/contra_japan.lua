@@ -8,8 +8,6 @@ return {
   focusedWindowId = "bank",
   kind = "project",
   projectVersion = 1,
-  sourceRomFilename = "contra_japan.nes",
-  sourceRomPath = "/home/g/Downloads/Games_stuff/NES/initial_ppux_db/contra_japan/contra_japan.nes",
   syncDuplicateTiles = true,
   windows = {
     [1] = {

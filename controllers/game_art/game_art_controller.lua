@@ -12,13 +12,6 @@ local DB = require("db.index")
 
 local M = {}
 
-local function basename(path)
-  if type(path) ~= "string" or path == "" then
-    return nil
-  end
-  return path:match("([^/\\]+)$") or path
-end
-
 local function normalizeSha1Key(sha1)
   if type(sha1) ~= "string" or sha1 == "" then
     return nil
@@ -68,10 +61,6 @@ function M.snapshotProject(wm, bankWindow, currentBank, edits, app)
     layout.currentColor = app.currentColor or 1
     layout.syncDuplicateTiles = app.syncDuplicateTiles
     layout.romPatches = M.normalizeRomPatches(app.appEditState and app.appEditState.romPatches)
-    if app.appEditState and app.appEditState.romOriginalPath then
-      layout.sourceRomPath = app.appEditState.romOriginalPath
-      layout.sourceRomFilename = basename(app.appEditState.romOriginalPath)
-    end
   end
 
   layout.kind = "project"
