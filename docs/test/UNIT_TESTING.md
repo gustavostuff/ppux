@@ -7,7 +7,13 @@ PPUX includes a small Jest-like test framework built on top of LÖVE.
 From the repo root:
 
 ```bash
-./run_unit_tests.sh
+./scripts/unix/run_unit_tests.sh
+```
+
+On Windows:
+
+```bat
+scripts\windows\run_unit_tests.bat
 ```
 
 Or manually:
@@ -67,7 +73,7 @@ end)
 1. Create a file under `test/tests/unit/`.
 2. Write `describe(...)` / `it(...)` blocks.
 3. Add it to `test/main.lua`.
-4. Run `./run_unit_tests.sh`.
+4. Run `./scripts/unix/run_unit_tests.sh` (or `scripts\windows\run_unit_tests.bat`).
 
 ## Good patterns
 

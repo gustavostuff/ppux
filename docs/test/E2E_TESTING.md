@@ -7,13 +7,25 @@ In PPUX, E2E means visual tests that run the real app and let you watch a full w
 Run the visual scenario suite:
 
 ```bash
-./run_e2e_tests.sh
+./scripts/unix/run_e2e_tests.sh
+```
+
+On Windows:
+
+```bat
+scripts\windows\run_e2e_tests.bat
 ```
 
 Run one scenario directly:
 
 ```bash
-./run_e2e_demo.sh modals
+./scripts/unix/run_e2e_demo.sh modals
+```
+
+On Windows:
+
+```bat
+scripts\windows\run_e2e_demo.bat modals
 ```
 
 While a visual E2E scenario is running, press `Esc` to pause it and open an `Abort:` modal with `Current`, `All`, and `Continue`.
@@ -21,13 +33,13 @@ While a visual E2E scenario is running, press `Esc` to pause it and open an `Abo
 You can also pass an optional speed multiplier:
 
 ```bash
-./run_e2e_demo.sh modals 2
+./scripts/unix/run_e2e_demo.sh modals 2
 ```
 
 ## Where E2E tests live
 
-- scenario list: `run_e2e_tests.sh`
-- single-scenario launcher: `run_e2e_demo.sh`
+- scenario list: `scripts/unix/run_e2e_tests.sh` and `scripts/windows/run_e2e_tests.bat`
+- single-scenario launcher: `scripts/unix/run_e2e_demo.sh` and `scripts/windows/run_e2e_demo.bat`
 - visual scenario definitions: `test/e2e_visible_runner.lua`
 - visual timing config: `test/e2e_visual_config.lua`
 
@@ -48,8 +60,8 @@ The real app is booted, the scenario runs on top of it, and an overlay shows the
 
 1. Add a scenario to `test/e2e_visible_runner.lua`.
 2. Compose it from small visual steps.
-3. Run it with `./run_e2e_demo.sh <scenario>`.
-4. If it should be part of the standard suite, add it to `run_e2e_tests.sh`.
+3. Run it with `./scripts/unix/run_e2e_demo.sh <scenario>` (or `scripts\windows\run_e2e_demo.bat <scenario>`).
+4. If it should be part of the standard suite, add it to `scripts/unix/run_e2e_tests.sh` and `scripts/windows/run_e2e_tests.bat`.
 
 ## Good patterns
 

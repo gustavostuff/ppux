@@ -1,5 +1,4 @@
 base-love2d-images/
 build/
 scripts/__pycache__
-scripts/find_oam_patterns.py
 todos.lua
