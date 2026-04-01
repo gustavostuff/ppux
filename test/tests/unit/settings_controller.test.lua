@@ -7,7 +7,7 @@ describe("settings_controller.lua - defaults", function()
       tooltipsEnabled = true,
       canvasImageMode = "pixel_perfect",
       canvasFilter = "sharp",
-      paletteLinks = "always",
+      paletteLinks = "auto_hide",
       recentProjects = {},
     })
   end)

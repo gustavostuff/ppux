@@ -48,8 +48,19 @@ function M.hydrateSpriteLayer(layer, opts)
         local mirrorYFromLayout = s.mirrorY
         local mirrorXFromAttr = (math.floor(attr / 64) % 2) == 1
         local mirrorYFromAttr = (math.floor(attr / 128) % 2) == 1
-        local mirrorX = (mirrorXFromLayout ~= nil) and (mirrorXFromLayout == true) or mirrorXFromAttr
-        local mirrorY = (mirrorYFromLayout ~= nil) and (mirrorYFromLayout == true) or mirrorYFromAttr
+        local mirrorX
+        if mirrorXFromLayout ~= nil then
+          mirrorX = (mirrorXFromLayout == true)
+        else
+          mirrorX = mirrorXFromAttr
+        end
+
+        local mirrorY
+        if mirrorYFromLayout ~= nil then
+          mirrorY = (mirrorYFromLayout == true)
+        else
+          mirrorY = mirrorYFromAttr
+        end
 
         s.baseX = baseX
         s.baseY = baseY

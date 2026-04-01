@@ -91,8 +91,9 @@ local function install(TextField, utils)
 
       local inserted = false
       local writeIndex = 1
-      for i = 1, #(text or "") do
-        local ch = utils.uppercaseOrNil((text or ""):sub(i, i))
+      local values = self:_normalizeMaskedInputCharacters(text or "")
+      for i = 1, #values do
+        local ch = values[i]
         if utils.isHexChar(ch) and targets[writeIndex] then
           local idx = targets[writeIndex]
           self.text[idx] = ch
