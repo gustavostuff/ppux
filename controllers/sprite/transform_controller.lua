@@ -143,27 +143,76 @@ local function syncSharedOAMFieldsIntoTarget(target, source, opts)
   end
 end
 
+local function collectCandidateOamWindows(sourceWin, opts)
+  local out = {}
+  local seen = {}
+
+  local function add(win)
+    if not win or seen[win] then
+      return
+    end
+    seen[win] = true
+    out[#out + 1] = win
+  end
+
+  opts = opts or {}
+  if type(opts.windows) == "table" then
+    for _, win in ipairs(opts.windows) do
+      add(win)
+    end
+  else
+    local ctx = rawget(_G, "ctx")
+    local app = ctx and ctx.app or nil
+    local wm = opts.wm
+      or (sourceWin and sourceWin._wm)
+      or (app and app.wm)
+      or nil
+    if wm and wm.getWindows then
+      for _, win in ipairs(wm:getWindows() or {}) do
+        add(win)
+      end
+    end
+  end
+
+  if #out == 0 then
+    add(sourceWin)
+  end
+
+  local filtered = {}
+  for _, win in ipairs(out) do
+    if WindowCaps.isOamAnimation(win) and not win._closed and not win._minimized then
+      filtered[#filtered + 1] = win
+    end
+  end
+  return filtered
+end
+
 function SpriteTransformController.syncSharedOAMSpriteState(win, sourceSprite, opts)
   if not WindowCaps.isOamAnimation(win) then return 0 end
-  if not (win.layers and sourceSprite) then return 0 end
+  if not sourceSprite then return 0 end
   if type(sourceSprite.startAddr) ~= "number" then return 0 end
 
   opts = opts or {}
   local startAddr = sourceSprite.startAddr
   local updated = 0
+  local seenSprites = {}
 
   syncSharedOAMFieldsIntoTarget(sourceSprite, sourceSprite, opts)
+  seenSprites[sourceSprite] = true
   updated = 1
 
-  for _, layer in ipairs(win.layers or {}) do
-    if layer and layer.kind == "sprite" then
-      for _, item in ipairs(layer.items or {}) do
-        if item ~= sourceSprite
-          and type(item.startAddr) == "number"
-          and item.startAddr == startAddr
-        then
-          syncSharedOAMFieldsIntoTarget(item, sourceSprite, opts)
-          updated = updated + 1
+  for _, candidateWin in ipairs(collectCandidateOamWindows(win, opts)) do
+    for _, layer in ipairs(candidateWin.layers or {}) do
+      if layer and layer.kind == "sprite" then
+        for _, item in ipairs(layer.items or {}) do
+          if not seenSprites[item]
+            and type(item.startAddr) == "number"
+            and item.startAddr == startAddr
+          then
+            seenSprites[item] = true
+            syncSharedOAMFieldsIntoTarget(item, sourceSprite, opts)
+            updated = updated + 1
+          end
         end
       end
     end

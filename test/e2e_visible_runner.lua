@@ -2384,7 +2384,7 @@ local SCENARIOS = {
     build = buildAllModalsScenario,
   },
   boot_and_drag = {
-    title = "Bubble Assembly",
+    title = "Building pretty girl",
     build = buildTileDragScenario,
   },
   animation_playback = {

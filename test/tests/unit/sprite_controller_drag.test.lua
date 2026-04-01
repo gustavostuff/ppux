@@ -444,6 +444,64 @@ describe("sprite_controller.lua - shared OAM item sync", function()
     expect(s3.mirrorY).toBe(true)
     expect(s3.attr).toBe(0xE3) -- 0x20 + mirror bits (0xC0) + palette bits (0x03)
   end)
+
+  it("syncs shared OAM state across different oam_animation windows", function()
+    local winA, _, _, sA, sAOther = makeOAMWinWithSharedSprite()
+    local sB = {
+      bank = 0, tile = 3, startAddr = 0x1234,
+      baseX = 20, baseY = 30, worldX = 20, worldY = 30, x = 20, y = 30,
+      dx = 0, dy = 0, attr = 0x00, paletteNumber = 1, mirrorX = false, mirrorY = false,
+    }
+    local winB = {
+      kind = "oam_animation",
+      layers = {
+        { kind = "sprite", mode = "8x8", items = { sB } },
+      },
+      _closed = false,
+      _minimized = false,
+    }
+    local wm = {
+      getWindows = function()
+        return { winA, winB }
+      end,
+    }
+    winA._wm = wm
+    winB._wm = wm
+
+    sA.worldX = 25
+    sA.worldY = 28
+    sA.x = 25
+    sA.y = 28
+    sA.dx = 5
+    sA.dy = -2
+    sA.paletteNumber = 4
+    sA.mirrorX = true
+    sA.mirrorY = false
+    sA.attr = 0x20
+
+    local count = SpriteController.syncSharedOAMSpriteState(winA, sA, {
+      syncPosition = true,
+      syncVisual = true,
+      syncAttr = true,
+    })
+
+    expect(count).toBe(3)
+
+    expect(sAOther.worldX).toBe(25)
+    expect(sAOther.worldY).toBe(28)
+    expect(sB.worldX).toBe(25)
+    expect(sB.worldY).toBe(28)
+
+    expect(sAOther.paletteNumber).toBe(4)
+    expect(sAOther.mirrorX).toBe(true)
+    expect(sAOther.mirrorY).toBe(false)
+    expect(sB.paletteNumber).toBe(4)
+    expect(sB.mirrorX).toBe(true)
+    expect(sB.mirrorY).toBe(false)
+
+    expect(sAOther.attr).toBe(sA.attr)
+    expect(sB.attr).toBe(sA.attr)
+  end)
 end)
 
 describe("sprite_controller.lua - oam animation restrictions", function()

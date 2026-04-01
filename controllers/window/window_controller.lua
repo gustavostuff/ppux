@@ -48,6 +48,9 @@ local function findTopVisibleWindow(self)
 end
 
 function WM:add(win)
+  if win then
+    win._wm = self
+  end
   table.insert(self.windows, win)
   DebugController.log(
     "info", "WM",
