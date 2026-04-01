@@ -29,6 +29,13 @@ local function isKeyDown(key)
     and love.keyboard.isDown(key)
 end
 
+local function getClipboardText()
+  if love and love.system and love.system.getClipboardText then
+    return love.system.getClipboardText()
+  end
+  return nil
+end
+
 local function isHexChar(ch)
   return type(ch) == "string" and ch:match("^[0-9A-Fa-f]$") ~= nil
 end
@@ -67,6 +74,7 @@ local shared = {
   colors = colors,
   getNowSeconds = getNowSeconds,
   isKeyDown = isKeyDown,
+  getClipboardText = getClipboardText,
   isHexChar = isHexChar,
   uppercaseOrNil = uppercaseOrNil,
   concatTextRange = concatTextRange,
@@ -183,7 +191,8 @@ end
 
 function TextField:_normalizeMaskedInputCharacters(str)
   local chars = {}
-  str = tostring(str or "")
+  str = tostring(str or ""):match("^%s*(.-)%s*$")
+  str = str:gsub("^0[xX]", "")
   for i = 1, #str do
     local ch = str:sub(i, i)
     if isHexChar(ch) then

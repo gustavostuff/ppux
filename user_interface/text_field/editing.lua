@@ -77,7 +77,11 @@ local function install(TextField, utils)
           self.text[idx] = "0"
         end
       elseif self:_isMaskEditableIndex(self.cursorPos) then
-        targets[1] = self.cursorPos
+        local idx = self.cursorPos
+        while idx do
+          targets[#targets + 1] = idx
+          idx = self:_nextEditableIndex(idx)
+        end
       end
 
       if #targets == 0 then
@@ -290,6 +294,10 @@ local function install(TextField, utils)
   function TextField:onKeyPressed(key)
     if not self.focused or not self.enabled then return false end
 
+    local ctrlDown = utils.isKeyDown("lctrl") or utils.isKeyDown("rctrl")
+    local guiDown = utils.isKeyDown("lgui") or utils.isKeyDown("rgui")
+    local shortcutDown = ctrlDown or guiDown
+
     if key == "left" then
       self:_moveCursorLeft()
       self:_setRepeatKey(key)
@@ -306,9 +314,16 @@ local function install(TextField, utils)
       self:_clearRepeatKey()
       self:_deleteForward()
       return true
-    elseif key == "a" and (utils.isKeyDown("lctrl") or utils.isKeyDown("rctrl")) then
+    elseif key == "a" and shortcutDown then
       self:_clearRepeatKey()
       return self:selectAll()
+    elseif key == "v" and shortcutDown then
+      self:_clearRepeatKey()
+      local text = utils.getClipboardText and utils.getClipboardText() or nil
+      if type(text) ~= "string" or text == "" then
+        return false
+      end
+      return self:_replaceSelectionWithText(text)
     end
 
     self:_clearRepeatKey()

@@ -3,12 +3,14 @@ local TextField = require("user_interface.text_field")
 describe("text_field.lua", function()
   local originalGetTime
   local originalIsDown
+  local originalGetClipboardText
   local now
   local keysDown
 
   beforeEach(function()
     originalGetTime = love.timer.getTime
     originalIsDown = love.keyboard.isDown
+    originalGetClipboardText = love.system.getClipboardText
     now = 0
     keysDown = {}
     love.timer.getTime = function()
@@ -17,11 +19,15 @@ describe("text_field.lua", function()
     love.keyboard.isDown = function(key)
       return keysDown[key] == true
     end
+    love.system.getClipboardText = function()
+      return ""
+    end
   end)
 
   afterEach(function()
     love.timer.getTime = originalGetTime
     love.keyboard.isDown = originalIsDown
+    love.system.getClipboardText = originalGetClipboardText
   end)
 
   it("repeats left and right cursor movement after a short hold delay", function()
@@ -174,5 +180,42 @@ describe("text_field.lua", function()
     expect(field:onKeyPressed("delete")).toBe(true)
     expect(field:getText()).toBe("0xB00000")
     expect(field.cursorPos).toBe(4)
+  end)
+
+  it("pastes clipboard text into normal and masked fields", function()
+    local field = TextField.new()
+    field:setFocused(true)
+    field:setText("HE")
+    love.system.getClipboardText = function()
+      return "LLO"
+    end
+
+    keysDown.lctrl = true
+    expect(field:onKeyPressed("v")).toBe(true)
+    keysDown.lctrl = false
+    expect(field:getText()).toBe("HELLO")
+
+    local masked = TextField.new({
+      mask = "0x000000",
+    })
+    masked:setFocused(true)
+    love.system.getClipboardText = function()
+      return "0x013110"
+    end
+
+    keysDown.lctrl = true
+    expect(masked:onKeyPressed("v")).toBe(true)
+    keysDown.lctrl = false
+    expect(masked:getText()).toBe("0x013110")
+
+    masked:setText("")
+    love.system.getClipboardText = function()
+      return "3f10"
+    end
+
+    keysDown.lctrl = true
+    expect(masked:onKeyPressed("v")).toBe(true)
+    keysDown.lctrl = false
+    expect(masked:getText()).toBe("0x3F1000")
   end)
 end)
