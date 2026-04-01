@@ -130,6 +130,7 @@ describe("pattern_table_builder_window.lua", function()
     local wmStub
 
     local painting = false
+    local focused = win
     local env = {
       ctx = {
         app = app,
@@ -155,9 +156,8 @@ describe("pattern_table_builder_window.lua", function()
         shiftDown = function() return false end,
       },
     }
-    local focused = nil
     wmStub = {
-      getFocus = function() return nil end,
+      getFocus = function() return focused end,
       windowAt = function() return win end,
       setFocus = function(_, target) focused = target end,
     }
@@ -182,6 +182,7 @@ describe("pattern_table_builder_window.lua", function()
     app.currentColor = 2
     win.editLastPoint = { x = 7, y = 7 }
     local wmStub
+    local focused = win
 
     local env = {
       ctx = {
@@ -209,9 +210,9 @@ describe("pattern_table_builder_window.lua", function()
       },
     }
     wmStub = {
-      getFocus = function() return nil end,
+      getFocus = function() return focused end,
       windowAt = function() return win end,
-      setFocus = function() end,
+      setFocus = function(_, target) focused = target end,
     }
 
     local handled = MouseClickController.handleMousePressed(env, (win.x or 0), (win.y or 0), 1)
@@ -229,6 +230,7 @@ describe("pattern_table_builder_window.lua", function()
     local win = wm:createPatternTableBuilderWindow()
     local app = makeApp()
     local wmStub
+    local focused = win
 
     local env = {
       ctx = {
@@ -256,9 +258,9 @@ describe("pattern_table_builder_window.lua", function()
       },
     }
     wmStub = {
-      getFocus = function() return nil end,
+      getFocus = function() return focused end,
       windowAt = function() return win end,
-      setFocus = function() end,
+      setFocus = function(_, target) focused = target end,
     }
 
     local z = win.zoom or 1

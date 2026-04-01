@@ -229,6 +229,17 @@ function UndoRedoController:addWindowEvent(event)
   return pushed
 end
 
+function UndoRedoController:addWindowMinimizeEvent(event)
+  if not event or event.type ~= "window_minimize" or not event.win then
+    return false
+  end
+  local pushed = self:_pushEvent(event)
+  if pushed then
+    self:_notifyUnsaved("window_minimize")
+  end
+  return pushed
+end
+
 function UndoRedoController:addPaletteLinkEvent(event)
   if not event or event.type ~= "palette_link" then return false end
   if type(event.actions) ~= "table" or #event.actions == 0 then return false end
@@ -743,6 +754,73 @@ local function applyWindowCloseEvent(event, direction, app)
   return true
 end
 
+local function applyWindowMinimizeEvent(event, direction, app)
+  if not (event and event.type == "window_minimize" and event.win) then
+    return false
+  end
+
+  local win = event.win
+  local wm = event.wm or (app and app.wm) or nil
+  local targetMinimized
+  local targetFocusedWin
+  if direction == "undo" then
+    targetMinimized = (event.beforeMinimized == true)
+    targetFocusedWin = event.beforeFocusedWin
+  else
+    targetMinimized = (event.afterMinimized == true)
+    targetFocusedWin = event.afterFocusedWin
+  end
+  local applied = false
+
+  if wm then
+    if targetMinimized then
+      if not win._closed and not win._minimized then
+        if wm.minimizeWindow then
+          applied = wm:minimizeWindow(win, { recordUndo = false }) or applied
+        else
+          win._minimized = true
+          applied = true
+        end
+      end
+    else
+      if not win._closed and win._minimized then
+        if wm.restoreMinimizedWindow then
+          applied = wm:restoreMinimizedWindow(win, {
+            recordUndo = false,
+            focus = false,
+          }) or applied
+        else
+          win._minimized = false
+          applied = true
+        end
+      end
+    end
+
+    if wm.setFocus then
+      if targetFocusedWin and not targetFocusedWin._closed and not targetFocusedWin._minimized then
+        wm:setFocus(targetFocusedWin)
+        applied = true
+      elseif targetFocusedWin == nil then
+        local focused = wm.getFocus and wm:getFocus() or wm.focused
+        if focused == win and targetMinimized then
+          wm:setFocus(nil)
+          applied = true
+        end
+      end
+    end
+  else
+    if win._closed then
+      return false
+    end
+    if win._minimized ~= targetMinimized then
+      win._minimized = targetMinimized
+      applied = true
+    end
+  end
+
+  return applied
+end
+
 -- Apply an undo operation
 -- app: AppCoreController instance (needs appEditState.chrBanksBytes)
 -- Returns true if undo was applied, false if no undo available
@@ -821,6 +899,8 @@ function UndoRedoController:_applyEvent(event, direction, app)
     return applyPaletteLinkEvent(event, direction)
   elseif event.type == "window_create" then
     return applyWindowCreateEvent(event, direction, app)
+  elseif event.type == "window_minimize" then
+    return applyWindowMinimizeEvent(event, direction, app)
   elseif event.type == "window_close" then
     return applyWindowCloseEvent(event, direction, app)
   end

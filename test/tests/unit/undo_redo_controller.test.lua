@@ -396,3 +396,64 @@ describe("UndoRedoController - window close", function()
     expect(win._closed).toBe(true)
   end)
 end)
+
+describe("UndoRedoController - window minimize", function()
+  it("undos/redos window minimize transitions and restores focus snapshot", function()
+    local ur = UndoRedoController.new(10)
+
+    local winA = { title = "A", _closed = false, _minimized = false }
+    local winB = { title = "B", _closed = false, _minimized = false }
+    local wm = {
+      focused = winB,
+      getFocus = function(self)
+        return self.focused
+      end,
+      minimizeWindow = function(self, win)
+        if not win or win._closed or win._minimized then
+          return false
+        end
+        win._minimized = true
+        if self.focused == win then
+          self.focused = winA
+        end
+        return true
+      end,
+      restoreMinimizedWindow = function(self, win, opts)
+        opts = opts or {}
+        if not win or win._closed or not win._minimized then
+          return false
+        end
+        win._minimized = false
+        if opts.focus ~= false then
+          self.focused = win
+        end
+        return true
+      end,
+      setFocus = function(self, win)
+        self.focused = win
+      end,
+    }
+
+    expect(wm:minimizeWindow(winB)).toBe(true)
+    expect(winB._minimized).toBe(true)
+    expect(wm:getFocus()).toBe(winA)
+
+    expect(ur:addWindowMinimizeEvent({
+      type = "window_minimize",
+      win = winB,
+      wm = wm,
+      beforeMinimized = false,
+      afterMinimized = true,
+      beforeFocusedWin = winB,
+      afterFocusedWin = winA,
+    })).toBe(true)
+
+    expect(ur:undo({ wm = wm })).toBe(true)
+    expect(winB._minimized).toBe(false)
+    expect(wm:getFocus()).toBe(winB)
+
+    expect(ur:redo({ wm = wm })).toBe(true)
+    expect(winB._minimized).toBe(true)
+    expect(wm:getFocus()).toBe(winA)
+  end)
+end)

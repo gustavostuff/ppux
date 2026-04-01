@@ -226,6 +226,7 @@ describe("mouse extracted controllers (smoke)", function()
         grabDown = function() return false end,
       },
     }
+    focused = win
 
     local handled = MouseClickController.handleMousePressed(env, 10, 20, 1)
 
@@ -275,6 +276,7 @@ describe("mouse extracted controllers (smoke)", function()
         grabDown = function() return false end,
       },
     }
+    focused = win
 
     local handled = MouseClickController.handleMousePressed(env, 10, 20, 1)
 

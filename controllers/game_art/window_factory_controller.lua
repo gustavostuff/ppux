@@ -578,7 +578,7 @@ function M.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool)
   if wm then
     wm:add(win)
     if shouldMinimize and wm.minimizeWindow then
-      wm:minimizeWindow(win)
+      wm:minimizeWindow(win, { recordUndo = false })
     end
   end
   logPerf("window_finalize.register_window", registerStartedAt, string.format("title=%s", tostring(w.title or "")))

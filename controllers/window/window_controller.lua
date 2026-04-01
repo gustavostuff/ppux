@@ -113,6 +113,31 @@ local function isPaletteWindow(win)
   return WindowCaps.isAnyPaletteWindow(win)
 end
 
+local function getUndoRedoFromCtx()
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app or nil
+  return app and app.undoRedo or nil
+end
+
+local function recordWindowMinimizeUndo(self, win, beforeMinimized, afterMinimized, beforeFocusedWin, afterFocusedWin)
+  if not win or beforeMinimized == afterMinimized then
+    return
+  end
+  local undoRedo = getUndoRedoFromCtx()
+  if not (undoRedo and undoRedo.addWindowMinimizeEvent) then
+    return
+  end
+  undoRedo:addWindowMinimizeEvent({
+    type = "window_minimize",
+    win = win,
+    wm = self,
+    beforeMinimized = (beforeMinimized == true),
+    afterMinimized = (afterMinimized == true),
+    beforeFocusedWin = beforeFocusedWin,
+    afterFocusedWin = afterFocusedWin,
+  })
+end
+
 local function syncCollapseIcon(win)
   if not (win and win.headerToolbar) then return end
   if win.headerToolbar.updateCollapseIcon then
@@ -575,8 +600,12 @@ function WM:reopenWindow(win, opts)
   return true
 end
 
-function WM:minimizeWindow(win)
+function WM:minimizeWindow(win, opts)
+  opts = opts or {}
   if not isWindowVisibleForInteraction(win) then return false end
+  local recordUndo = (opts.recordUndo ~= false)
+  local beforeFocusedWin = self.focused
+  local beforeMinimized = (win._minimized == true)
 
   win._minimized = true
   win.dragging = false
@@ -590,11 +619,20 @@ function WM:minimizeWindow(win)
     self.taskbar:addMinimizedWindow(win)
   end
 
+  if recordUndo then
+    recordWindowMinimizeUndo(self, win, beforeMinimized, true, beforeFocusedWin, self.focused)
+  end
+
   return true
 end
 
-function WM:restoreMinimizedWindow(win)
+function WM:restoreMinimizedWindow(win, opts)
+  opts = opts or {}
   if not win or win._closed or not win._minimized then return false end
+  local recordUndo = (opts.recordUndo ~= false)
+  local shouldFocus = (opts.focus ~= false)
+  local beforeFocusedWin = self.focused
+  local beforeMinimized = (win._minimized == true)
 
   win._minimized = false
 
@@ -602,7 +640,14 @@ function WM:restoreMinimizedWindow(win)
     self.taskbar:removeMinimizedWindow(win)
   end
 
-  self:setFocus(win)
+  if shouldFocus then
+    self:setFocus(win)
+  end
+
+  if recordUndo then
+    recordWindowMinimizeUndo(self, win, beforeMinimized, false, beforeFocusedWin, self.focused)
+  end
+
   return true
 end
 
