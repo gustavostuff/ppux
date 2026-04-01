@@ -7,10 +7,10 @@
 #   "Right Click -> Open" the first time, or remove quarantine attributes.
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 APP_NAME="${APP_NAME:-PPUX}"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
-source "$ROOT_DIR/scripts/version_utils.sh"
+source "$ROOT_DIR/scripts/unix/version_utils.sh"
 APP_VERSION="${APP_VERSION:-$(read_app_version "$ROOT_DIR")}"
 VERSION_SUFFIX="${APP_VERSION:+-$APP_VERSION}"
 BASE_RUNTIME_DIR="${BASE_RUNTIME_DIR:-$ROOT_DIR/base-love2d-images}"
@@ -97,7 +97,7 @@ ensure_base_app() {
 ensure_base_app
 
 update_readme_version "$ROOT_DIR" "$APP_VERSION"
-LOVE_ARCHIVE="$("$ROOT_DIR/scripts/build_love_archive.sh" 2>/dev/null)"
+LOVE_ARCHIVE="$("$ROOT_DIR/scripts/unix/build_love_archive.sh" 2>/dev/null)"
 INFO_PLIST="$APP_BUNDLE/Contents/Info.plist"
 RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
 

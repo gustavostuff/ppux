@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Linux AppImage build notes:
 # - Required tool: appimagetool
-# - Required tool: zip (used by scripts/build_love_archive.sh)
+# - Required tool: zip (used by scripts/unix/build_love_archive.sh)
 # - Required core utils: cat, cp, chmod, dd, mv, rm, sed
 # - Input base image expected at: base-love2d-images/love-linux-11.5-x86_64.AppImage
 # - This script rebuilds the AppImage fully offline by extracting the runtime
@@ -11,9 +11,9 @@
 #     ./PPUX-x86_64.AppImage --appimage-extract-and-run
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 APP_NAME="${APP_NAME:-PPUX}"
-source "$ROOT_DIR/scripts/version_utils.sh"
+source "$ROOT_DIR/scripts/unix/version_utils.sh"
 APP_VERSION="${APP_VERSION:-$(read_app_version "$ROOT_DIR")}"
 VERSION_SUFFIX="${APP_VERSION:+-$APP_VERSION}"
 APP_COMMENT="${APP_COMMENT:-Open Source NES Art Editor}"
@@ -59,7 +59,7 @@ if ! command -v appimagetool >/dev/null 2>&1; then
 fi
 
 update_readme_version "$ROOT_DIR" "$APP_VERSION"
-LOVE_ARCHIVE="$("$ROOT_DIR/scripts/build_love_archive.sh" 2>/dev/null)"
+LOVE_ARCHIVE="$("$ROOT_DIR/scripts/unix/build_love_archive.sh" 2>/dev/null)"
 
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"

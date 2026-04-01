@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 APP_NAME="${APP_NAME:-PPUX}"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
 LOVE_ARCHIVE="${LOVE_ARCHIVE:-$BUILD_DIR/${APP_NAME}.love}"

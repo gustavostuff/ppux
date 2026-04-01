@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 APP_NAME="${APP_NAME:-PPUX}"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
-source "$ROOT_DIR/scripts/version_utils.sh"
+source "$ROOT_DIR/scripts/unix/version_utils.sh"
 APP_VERSION="${APP_VERSION:-$(read_app_version "$ROOT_DIR")}"
 VERSION_SUFFIX="${APP_VERSION:+-$APP_VERSION}"
 BASE_RUNTIME_DIR="${BASE_RUNTIME_DIR:-$ROOT_DIR/base-love2d-images}"
@@ -66,7 +66,7 @@ ensure_windows_runtime() {
 ensure_windows_runtime
 
 update_readme_version "$ROOT_DIR" "$APP_VERSION"
-LOVE_ARCHIVE="$("$ROOT_DIR/scripts/build_love_archive.sh" 2>/dev/null)"
+LOVE_ARCHIVE="$("$ROOT_DIR/scripts/unix/build_love_archive.sh" 2>/dev/null)"
 
 rm -rf "$PACKAGE_STAGE_DIR"
 mkdir -p "$PACKAGE_STAGE_DIR"

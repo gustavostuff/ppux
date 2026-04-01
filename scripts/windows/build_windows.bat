@@ -2,7 +2,7 @@
 setlocal EnableExtensions
 
 set "SCRIPT_DIR=%~dp0"
-for %%I in ("%SCRIPT_DIR%..") do set "ROOT_DIR=%%~fI"
+for %%I in ("%SCRIPT_DIR%..\..") do set "ROOT_DIR=%%~fI"
 
 if not defined APP_NAME set "APP_NAME=PPUX"
 if not defined BUILD_DIR set "BUILD_DIR=%ROOT_DIR%\build"

@@ -184,7 +184,7 @@ Notes:
 To build a packaged Windows app from Windows, run:
 
 ```bat
-scripts\build_windows.bat
+scripts\windows\build_windows.bat
 ```
 
 The packaged Windows app will be created only as `build\PPUX-<version>-win64.zip`.
@@ -192,12 +192,12 @@ The packaged Windows app will be created only as `build\PPUX-<version>-win64.zip
 To build a packaged Linux app from Linux, run:
 
 ```bash
-./scripts/build_linux_appimage.sh
+./scripts/unix/build_linux_appimage.sh
 ```
 
 The packaged Linux app will be created as `build/PPUX-<version>-x86_64.AppImage`.
 
-You can also build for Windows and macOS from Linux using `./scripts/build_all.sh` (macOS build not tested yet).
+You can also build for Windows and macOS from Linux using `./scripts/unix/build_all.sh` (macOS build not tested yet).
 
 ### Database
 
