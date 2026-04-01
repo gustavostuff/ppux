@@ -160,38 +160,61 @@ function M.getWindowLinkRect(win)
   return win:getScreenRect()
 end
 
-function M.getWindowLinkAnchor(fromWin, toWin)
-  local fx, fy, fw, fh = M.getWindowLinkRect(fromWin)
-  local tx, ty, tw, th = M.getWindowLinkRect(toWin)
-  local fcx, fcy = fx + fw / 2, fy + fh / 2
-  local tcx, tcy = tx + tw / 2, ty + th / 2
-  local dx, dy = tcx - fcx, tcy - fcy
+local function getWindowCorners(win)
+  local x, y, w, h = M.getWindowLinkRect(win)
+  return {
+    { x = x,     y = y },
+    { x = x + w, y = y },
+    { x = x,     y = y + h },
+    { x = x + w, y = y + h },
+  }
+end
 
-  if math.abs(dx) >= math.abs(dy) then
-    if dx >= 0 then
-      return fx + fw, fy + fh / 2, "horizontal", "right"
+function M.getClosestCornerPair(winA, winB)
+  if not (winA and winB) then
+    return nil, nil, nil, nil
+  end
+
+  local cornersA = getWindowCorners(winA)
+  local cornersB = getWindowCorners(winB)
+  local bestA, bestB = nil, nil
+  local bestDist2 = math.huge
+
+  for _, a in ipairs(cornersA) do
+    for _, b in ipairs(cornersB) do
+      local dx = (b.x - a.x)
+      local dy = (b.y - a.y)
+      local dist2 = dx * dx + dy * dy
+      if dist2 < bestDist2 then
+        bestDist2 = dist2
+        bestA = a
+        bestB = b
+      end
     end
-    return fx, fy + fh / 2, "horizontal", "left"
   end
 
-  if dy >= 0 then
-    return fx + fw / 2, fy + fh, "vertical", "bottom"
+  if not (bestA and bestB) then
+    return nil, nil, nil, nil
   end
-  return fx + fw / 2, fy, "vertical", "top"
+
+  return bestA.x, bestA.y, bestB.x, bestB.y
+end
+
+function M.getWindowLinkAnchor(fromWin, toWin)
+  local fx, fy = M.getClosestCornerPair(fromWin, toWin)
+  if fx and fy then
+    return fx, fy
+  end
+  local x, y, w, h = M.getWindowLinkRect(fromWin)
+  return x + math.floor(w / 2), y + math.floor(h / 2)
 end
 
 function M.getPaletteHandleAnchor(paletteWin, focusedWin)
-  if paletteWin and paletteWin._collapsed then
+  if paletteWin and focusedWin then
     return M.getWindowLinkAnchor(paletteWin, focusedWin)
   end
-  local toolbar = paletteWin and paletteWin.specializedToolbar
-  if toolbar and toolbar.getLinkHandleRect then
-    local x, y, w, h = toolbar:getLinkHandleRect()
-    if x and y and w and h then
-      return x + w / 2, y + h / 2
-    end
-  end
-  return M.getWindowLinkAnchor(paletteWin, focusedWin)
+  local x, y, w, h = M.getWindowLinkRect(paletteWin)
+  return x + math.floor(w / 2), y + math.floor(h / 2)
 end
 
 function M.getPaletteLinkDragAnchor(paletteWin)
@@ -401,175 +424,10 @@ function M.buildConnectorGeometry(x1, y1, x2, y2, opts)
     x2 = x2,
     y2 = y2,
   }
-  local startHorizontalLead = tonumber(opts.startHorizontalLead) or 0
-  local startVerticalLead = tonumber(opts.startVerticalLead) or 0
-  local endHorizontalLead = tonumber(opts.endHorizontalLead) or 0
-  local endVerticalLead = tonumber(opts.endVerticalLead) or 0
-  local points
-
-  local routeStartX, routeStartY = x1, y1
-  local routeEndX, routeEndY = x2, y2
-  local prefix = {}
-  local suffix = {}
-  local hadStartHorizontalLead = false
-  local hadStartVerticalLead = false
-  local startVerticalLeadSign = 0
-
-  local function sign(value)
-    if value > 0 then return 1 end
-    if value < 0 then return -1 end
-    return 0
-  end
-
-  if startHorizontalLead ~= 0 then
-    local leadX = x1 + startHorizontalLead
-    prefix[#prefix + 1] = x1
-    prefix[#prefix + 1] = y1
-    prefix[#prefix + 1] = leadX
-    prefix[#prefix + 1] = y1
-    routeStartX = leadX
-    hadStartHorizontalLead = true
-  else
-    prefix[#prefix + 1] = x1
-    prefix[#prefix + 1] = y1
-  end
-
-  if startVerticalLead ~= 0 then
-    routeStartY = y1 + startVerticalLead
-    prefix[#prefix + 1] = routeStartX
-    prefix[#prefix + 1] = routeStartY
-    hadStartVerticalLead = true
-    startVerticalLeadSign = sign(startVerticalLead)
-  end
-
-  if endHorizontalLead ~= 0 then
-    routeEndX = x2 + endHorizontalLead
-  end
-  if endVerticalLead ~= 0 then
-    routeEndY = y2 + endVerticalLead
-  end
-
-  if endHorizontalLead ~= 0 and endVerticalLead ~= 0 then
-    suffix = {
-      routeEndX, routeEndY,
-      x2 + endHorizontalLead, y2,
-      x2, y2,
-    }
-  elseif endHorizontalLead ~= 0 then
-    suffix = {
-      routeEndX, routeEndY,
-      x2, y2,
-    }
-  elseif endVerticalLead ~= 0 then
-    suffix = {
-      routeEndX, routeEndY,
-      x2, y2,
-    }
-  end
-
-  local function buildMergedPoints(currentPrefix, currentRouteStartX, currentRouteStartY)
-    local corePoints
-
-    if math.abs(routeEndX - currentRouteStartX) >= math.abs(routeEndY - currentRouteStartY) then
-      local mx = math.floor((currentRouteStartX + routeEndX) / 2 + 0.5)
-      corePoints = {
-        currentRouteStartX, currentRouteStartY,
-        mx, currentRouteStartY,
-        mx, routeEndY,
-        routeEndX, routeEndY,
-      }
-    else
-      local my = math.floor((currentRouteStartY + routeEndY) / 2 + 0.5)
-      corePoints = {
-        currentRouteStartX, currentRouteStartY,
-        currentRouteStartX, my,
-        routeEndX, my,
-        routeEndX, routeEndY,
-      }
-    end
-
-    local merged = {}
-    if #currentPrefix > 2 then
-      for i = 1, #currentPrefix do
-        merged[#merged + 1] = currentPrefix[i]
-      end
-      for i = 3, #corePoints do
-        merged[#merged + 1] = corePoints[i]
-      end
-    else
-      for i = 1, #corePoints do
-        merged[#merged + 1] = corePoints[i]
-      end
-    end
-
-    if #suffix > 0 then
-      for i = 3, #suffix do
-        merged[#merged + 1] = suffix[i]
-      end
-    end
-
-    return merged
-  end
-
-  local function getPoint(list, pointIndex)
-    local base = (pointIndex - 1) * 2
-    return list[base + 1], list[base + 2]
-  end
-
-  local function removePoint(list, pointIndex)
-    local base = (pointIndex - 1) * 2
-    table.remove(list, base + 2)
-    table.remove(list, base + 1)
-  end
-
-  local function firstVerticalSegmentDeltaAfterLead(list)
-    local pointCount = math.floor(#list / 2)
-    local startPointIndex = (hadStartHorizontalLead and hadStartVerticalLead) and 3 or ((hadStartHorizontalLead or hadStartVerticalLead) and 2 or 1)
-    for i = startPointIndex, pointCount - 1 do
-      local ax, ay = getPoint(list, i)
-      local bx, by = getPoint(list, i + 1)
-      if ax == bx and ay ~= by then
-        return by - ay
-      end
-    end
-    return nil
-  end
-
-  local function simplifyEndLeadIfThirdSegmentComesBackDown(list)
-    if not (endHorizontalLead ~= 0 and endVerticalLead ~= 0) then
-      return
-    end
-    local count = math.floor(#list / 2)
-    if count < 4 then
-      return
-    end
-    local ax, ay = getPoint(list, count)
-    local bx, by = getPoint(list, count - 1)
-    local cx, cy = getPoint(list, count - 2)
-    local dx, dy = getPoint(list, count - 3)
-    local seg1Horizontal = (ay == by) and (ax ~= bx)
-    local seg2Vertical = (bx == cx) and (by ~= cy)
-    local seg3VerticalDown = (cx == dx) and (dy > cy)
-    if seg1Horizontal and seg2Vertical and seg3VerticalDown then
-      removePoint(list, count - 2)
-    end
-  end
-
-  points = buildMergedPoints(prefix, routeStartX, routeStartY)
-
-  if hadStartVerticalLead then
-    local firstVerticalDelta = firstVerticalSegmentDeltaAfterLead(points)
-    if firstVerticalDelta and sign(firstVerticalDelta) == -startVerticalLeadSign then
-      prefix = { x1, y1, routeStartX, y1 }
-      routeStartY = y1
-      hadStartVerticalLead = false
-      points = buildMergedPoints(prefix, routeStartX, routeStartY)
-    end
-  end
-
-  simplifyEndLeadIfThirdSegmentComesBackDown(points)
-
-  geometry.points = points
+  geometry.points = {
+    math.floor((x1 or 0) + 0.5), math.floor((y1 or 0) + 0.5),
+    math.floor((x2 or 0) + 0.5), math.floor((y2 or 0) + 0.5),
+  }
   return geometry
 end
 
@@ -586,14 +444,14 @@ function M.drawConnector(geometry)
 end
 
 function M.drawConnectorShadowLine(geometry)
-  -- if not (geometry and geometry.showLine) then
-  --   return
-  -- end
-  -- local alpha = geometry.alpha or 1
-  -- love.graphics.setLineStyle("rough")
-  -- love.graphics.setLineWidth(3)
-  -- love.graphics.setColor(0, 0, 0, alpha)
-  -- love.graphics.line(geometry.points)
+  if not (geometry and geometry.showLine) then
+    return
+  end
+  local alpha = geometry.alpha or 1
+  love.graphics.setLineStyle("rough")
+  love.graphics.setLineWidth(3)
+  love.graphics.setColor(0, 0, 0, alpha)
+  love.graphics.line(geometry.points)
 end
 
 function M.drawConnectorLine(geometry)
@@ -669,11 +527,7 @@ function M.drawOverlay(app)
       local sx, sy = M.getWindowLinkAnchor(contentWin, paletteWin)
       local tx, ty = M.getPaletteHandleAnchor(paletteWin, contentWin)
       local showLine, alpha = M.getPersistentVisual(app, contentWin, paletteWin)
-      local endHorizontalLead = paletteWin._collapsed and 0 or -15
-      local endVerticalLead = paletteWin._collapsed and 0 or -15
       geometries[#geometries + 1] = M.buildConnectorGeometry(sx, sy, tx, ty, {
-        endHorizontalLead = endHorizontalLead,
-        endVerticalLead = endVerticalLead,
         showLine = showLine,
         alpha = alpha,
       })
@@ -727,11 +581,7 @@ function M.drawActiveDrag(app)
     end
   end
 
-  local startHorizontalLead = (drag.sourceWin and drag.sourceWin._collapsed) and 0 or -15
-  local startVerticalLead = (drag.sourceWin and drag.sourceWin._collapsed) and 0 or -15
   M.drawRectConnector(sx, sy, tx, ty, {
-    startHorizontalLead = startHorizontalLead,
-    startVerticalLead = startVerticalLead,
     lineColor = lineColor,
   })
 end
