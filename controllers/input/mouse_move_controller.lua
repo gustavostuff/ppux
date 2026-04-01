@@ -53,7 +53,7 @@ local function handleEditShapeDrag(env, x, y, wm)
   end
 
   local focused = wm:getFocus()
-  local win = (focused and focused.editShapeDrag) and focused or (wm:windowAt(x, y) or focused)
+  local win = (focused and focused.editShapeDrag) and focused or nil
   if not (win and win.editShapeDrag) then
     return false
   end
@@ -94,7 +94,7 @@ local function handlePaintingDrag(env, x, y, wm)
     return false
   end
 
-  local w2 = wm:windowAt(x, y)
+  local w2 = wm:getFocus()
   if w2 then
     local pickOnly = utils.grabDown and utils.grabDown()
     local function paintInterpolatedSegment(win, x0, y0, x1, y1)

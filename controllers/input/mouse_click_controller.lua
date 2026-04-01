@@ -304,10 +304,17 @@ local function handleEditModeClick(env, button, x, y, win, wm)
   local utils = env.utils or {}
   if button ~= 1 or ctx.getMode() ~= "edit" then return false end
 
+  local focused = wm:getFocus()
+
   if win then
-    wm:setFocus(win)
+    if win ~= focused then
+      wm:setFocus(win)
+      ctx.setPainting(false)
+      return true
+    end
   else
     wm:setFocus(nil)
+    ctx.setPainting(false)
     return true
   end
 
