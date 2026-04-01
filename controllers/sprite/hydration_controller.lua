@@ -44,6 +44,12 @@ function M.hydrateSpriteLayer(layer, opts)
         local palNumFromLayout = s.paletteNumber
         local palNumFromAttr = (attr % 4) + 1
         local palNum = palNumFromLayout or palNumFromAttr
+        local mirrorXFromLayout = s.mirrorX
+        local mirrorYFromLayout = s.mirrorY
+        local mirrorXFromAttr = (math.floor(attr / 64) % 2) == 1
+        local mirrorYFromAttr = (math.floor(attr / 128) % 2) == 1
+        local mirrorX = (mirrorXFromLayout ~= nil) and (mirrorXFromLayout == true) or mirrorXFromAttr
+        local mirrorY = (mirrorYFromLayout ~= nil) and (mirrorYFromLayout == true) or mirrorYFromAttr
 
         s.baseX = baseX
         s.baseY = baseY
@@ -56,6 +62,8 @@ function M.hydrateSpriteLayer(layer, opts)
         end
         s.attr = attr
         s.paletteNumber = palNum
+        s.mirrorX = mirrorX
+        s.mirrorY = mirrorY
 
         local dx = s.dx or 0
         local dy = s.dy or 0

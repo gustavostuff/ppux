@@ -136,7 +136,7 @@ describe("game_art_controller.lua - oam_animation hydration", function()
     local romRaw = makeRom(128, {
       [startAddr + 0] = 10,   -- Y
       [startAddr + 1] = 99,   -- tile
-      [startAddr + 2] = 0x42, -- attr low bits=2 -> palette #3
+      [startAddr + 2] = 0xC2, -- attr low bits=2 -> palette #3, mirrorX=true, mirrorY=true
       [startAddr + 3] = 20,   -- X
     })
 
@@ -189,7 +189,73 @@ describe("game_art_controller.lua - oam_animation hydration", function()
 
     local s = wm:getWindows()[1].layers[1].items[1]
     expect(s.paletteNumber).toBe(3)
-    expect(s.attr).toBe(0x42)
+    expect(s.attr).toBe(0xC2)
+    expect(s.mirrorX).toBe(true)
+    expect(s.mirrorY).toBe(true)
+  end)
+
+  it("preserves explicit project mirror flags over attr bits during hydration", function()
+    local startAddr = 60
+    local romRaw = makeRom(128, {
+      [startAddr + 0] = 18,
+      [startAddr + 1] = 12,
+      [startAddr + 2] = 0xC1, -- mirrorX=true, mirrorY=true in attr
+      [startAddr + 3] = 24,
+    })
+
+    local layout = {
+      currentBank = 1,
+      windows = {
+        {
+          id = "oam_anim_03",
+          title = "OAM Anim 03",
+          kind = "oam_animation",
+          x = 20, y = 20,
+          cellW = 8, cellH = 8,
+          cols = 32, rows = 30,
+          visibleCols = 16, visibleRows = 16,
+          scrollCol = 0, scrollRow = 0,
+          zoom = 2,
+          activeLayer = 1,
+          layers = {
+            {
+              kind = "sprite",
+              name = "Frame 1",
+              mode = "8x8",
+              items = {
+                {
+                  startAddr = startAddr,
+                  bank = 1,
+                  mirrorX = false,
+                  mirrorY = false,
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    local wm = WM.new()
+    local tilesPool = { [1] = { [12] = { _bankIndex = 1, index = 12, pixels = {} } } }
+    local function ensureTiles(bankIdx)
+      tilesPool[bankIdx] = tilesPool[bankIdx] or {}
+    end
+
+    local result, err = GameArtController.buildWindowsFromLayout(layout, {
+      wm = wm,
+      tilesPool = tilesPool,
+      ensureTiles = ensureTiles,
+      romRaw = romRaw,
+    })
+
+    expect(err).toBeNil()
+    expect(result).toBeTruthy()
+
+    local s = wm:getWindows()[1].layers[1].items[1]
+    expect(s.attr).toBe(0xC1)
+    expect(s.mirrorX).toBe(false)
+    expect(s.mirrorY).toBe(false)
   end)
 
   it("snapshots oam_animation layers with sprite metadata and frame delays", function()

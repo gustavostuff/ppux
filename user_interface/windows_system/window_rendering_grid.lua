@@ -2,6 +2,76 @@ local colors = require("app_colors")
 local SpriteController = require("controllers.sprite.sprite_controller")
 
 return function(Window)
+local function intersectsRange(startPos, size, minPos, maxPos)
+  local a0 = startPos
+  local a1 = startPos + size
+  return a0 < maxPos and a1 > minPos
+end
+
+local function collectWrappedPositions(basePos, size, range, viewMin, viewMax)
+  local positions = {}
+  local seen = {}
+  for _, candidate in ipairs({ basePos - range, basePos, basePos + range }) do
+    if not seen[candidate] and intersectsRange(candidate, size, viewMin, viewMax) then
+      positions[#positions + 1] = candidate
+      seen[candidate] = true
+    end
+  end
+  if #positions == 0 then
+    positions[1] = basePos
+  end
+  table.sort(positions)
+  return positions
+end
+
+local function drawDefaultSpriteBody(L, s, isActiveLayer, cw, ch, mode, layerOpacity, romRaw)
+  local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
+
+  local alpha = (L.opacity ~= nil) and L.opacity or layerOpacity or 1.0
+  love.graphics.setColor(1.0, 1.0, 1.0, alpha)
+
+  local layerOpacityOverride = (L and L.opacity ~= nil) and L.opacity or nil
+  ShaderPaletteController.applyLayerItemPalette(
+    L,
+    s,
+    isActiveLayer,
+    romRaw,
+    nil,
+    layerOpacityOverride
+  )
+
+  local top = s.topRef
+  local mirrorX = s.mirrorX or false
+  local mirrorY = s.mirrorY or false
+  local scaleX = mirrorX and -1 or 1
+  local scaleY = mirrorY and -1 or 1
+
+  love.graphics.push()
+  local offsetX = mirrorX and cw or 0
+  local offsetY = 0
+  if mirrorY then
+    offsetY = (mode == "8x16") and (2 * ch) or ch
+  end
+  if offsetX ~= 0 or offsetY ~= 0 then
+    love.graphics.translate(offsetX, offsetY)
+  end
+
+  if mode == "8x16" and mirrorY then
+    if s.botRef and s.botRef.draw then
+      s.botRef:draw(0, -ch, scaleX, scaleY)
+    end
+    top:draw(0, 0, scaleX, scaleY)
+  else
+    top:draw(0, 0, scaleX, scaleY)
+    if mode == "8x16" and s.botRef and s.botRef.draw then
+      s.botRef:draw(0, ch, scaleX, scaleY)
+    end
+  end
+
+  love.graphics.pop()
+  ShaderPaletteController.releaseShader()
+end
+
 function Window:drawLinesGrid()
   -- grid with horizontal and vertical lines
   love.graphics.push()
@@ -115,6 +185,11 @@ function Window:drawSprites(renderSprite, isFocused, layerIndex, romRaw)
   local isActiveLayer = (self.activeLayer == li)
   local layerOpacity = (L.opacity ~= nil) and L.opacity or 1.0
   local ctx = _G.ctx
+  local viewMinX = scol * cw
+  local viewMinY = srow * ch
+  local viewMaxX = viewMinX + (self.visibleCols or self.cols or 0) * cw
+  local viewMaxY = viewMinY + (self.visibleRows or self.rows or 0) * ch
+  local wrapPreview = (self.kind == "oam_animation")
 
   -- Draw sprites
   for idx, s in ipairs(items) do
@@ -130,76 +205,27 @@ function Window:drawSprites(renderSprite, isFocused, layerIndex, romRaw)
       local drawX = (originX + worldX) % NES_W
       local drawY = (originY + worldY) % NES_H
 
-      -- Sprite positions are in absolute world coordinates
-      -- The scroll offset is already applied via the graphics transformation above,
-      -- so we don't subtract it from the sprite positions
-      local screenX = drawX
-      local screenY = drawY
+      local drawXs = wrapPreview
+        and collectWrappedPositions(drawX, spriteW, NES_W, viewMinX, viewMaxX)
+        or { drawX }
+      local drawYs = wrapPreview
+        and collectWrappedPositions(drawY, spriteH, NES_H, viewMinY, viewMaxY)
+        or { drawY }
 
-      love.graphics.push()
-      love.graphics.translate(screenX, screenY)
+      for _, screenY in ipairs(drawYs) do
+        for _, screenX in ipairs(drawXs) do
+          love.graphics.push()
+          love.graphics.translate(screenX, screenY)
 
-      if renderSprite then
-        renderSprite(L, s, isActiveLayer, ch, mode, idx, spriteW, spriteH, layerOpacity, romRaw)
-      else
-        -- Default drawing if no callback - apply palette and draw
-        local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
-        
-        -- Apply layer opacity to the color (alpha component)
-        local alpha = (L.opacity ~= nil) and L.opacity or layerOpacity or 1.0
-        love.graphics.setColor(1.0, 1.0, 1.0, alpha)
-        
-        -- Pass the layer's actual opacity to the palette shader
-        local layerOpacityOverride = (L and L.opacity ~= nil) and L.opacity or nil
-        
-        ShaderPaletteController.applyLayerItemPalette(
-          L,
-          s,
-          isActiveLayer,
-          romRaw,
-          nil,  -- paletteNumberOverride
-          layerOpacityOverride
-        )
-        
-        -- Apply mirroring: negative scale for X and/or Y
-        local mirrorX = s.mirrorX or false
-        local mirrorY = s.mirrorY or false
-        local scaleX = mirrorX and -1 or 1
-        local scaleY = mirrorY and -1 or 1
-        
-        -- Apply transform for mirroring
-        love.graphics.push()
-        local offsetX = mirrorX and cw or 0
-        local offsetY = 0
-        if mirrorY then
-          offsetY = (mode == "8x16") and (2 * ch) or ch
-        end
-        if offsetX ~= 0 or offsetY ~= 0 then
-          love.graphics.translate(offsetX, offsetY)
-        end
-        
-        if mode == "8x16" and mirrorY then
-          -- For vertical mirroring in 8x16, swap top and bottom tiles
-          -- Bottom tile goes on top (draw at negative offset)
-          if s.botRef and s.botRef.draw then
-            s.botRef:draw(0, -ch, scaleX, scaleY)
+          if renderSprite then
+            renderSprite(L, s, isActiveLayer, ch, mode, idx, spriteW, spriteH, layerOpacity, romRaw)
+          else
+            drawDefaultSpriteBody(L, s, isActiveLayer, cw, ch, mode, layerOpacity, romRaw)
           end
-          -- Top tile goes on bottom (draw at 0)
-          top:draw(0, 0, scaleX, scaleY)
-        else
-          -- Normal drawing (or horizontal mirror only)
-          top:draw(0, 0, scaleX, scaleY)
-          if mode == "8x16" and s.botRef and s.botRef.draw then
-            s.botRef:draw(0, ch, scaleX, scaleY)
-          end
+
+          love.graphics.pop()
         end
-        
-        love.graphics.pop()
-        
-        ShaderPaletteController.releaseShader()
       end
-
-      love.graphics.pop()
     end
     ::continue::
   end
