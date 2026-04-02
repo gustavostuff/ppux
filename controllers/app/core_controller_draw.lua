@@ -4,6 +4,7 @@ local PaletteLinkRenderController = require("controllers.palette.palette_link_re
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 local SpriteController = require("controllers.sprite.sprite_controller")
 local BrushController = require("controllers.input_support.brush_controller")
+local CursorsController = require("controllers.input_support.cursors_controller")
 local GridModeUtils = require("controllers.grid_mode_utils")
 local WindowCaps = require("controllers.window.window_capabilities")
 local UserInput = require("controllers.input")
@@ -1075,6 +1076,7 @@ function AppCoreController:draw()
     self.splash:draw(self.canvas)
   end
   self.quitConfirmModal:draw(self.canvas)
+  CursorsController.draw(self)
 
   love.graphics.setCanvas()
   love.graphics.setColor(colors.white)

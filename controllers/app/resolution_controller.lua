@@ -1,5 +1,23 @@
 local DebugController = require("controllers.dev.debug_controller")
 
+local crtShaderLoadAttempted = false
+local cachedCrtShader = nil
+
+local function resolveCrtShader()
+  if cachedCrtShader ~= nil or crtShaderLoadAttempted then
+    return cachedCrtShader
+  end
+
+  crtShaderLoadAttempted = true
+  local ok = pcall(require, "shaders")
+  if not ok then
+    return nil
+  end
+
+  cachedCrtShader = rawget(_G, "crtShader")
+  return cachedCrtShader
+end
+
 local ResolutionController = {
   modes = {
     KEEP_ASPECT = 1,
@@ -15,6 +33,9 @@ function ResolutionController:init(canvas)
   self.canvasScaleX = 1
   self.canvasScaleY = 1
   self.defaultMode = self.modes.STRETCH
+  self.canvasCrtShaderEnabled = (rawget(_G, "__PPUX_ENABLE_CRT_SHADER__") == true)
+  self.canvasCrtFlat = (rawget(_G, "__PPUX_CRT_FLAT__") == true)
+  self.canvasCrtDistortion = tonumber(rawget(_G, "__PPUX_CRT_DISTORTION__")) or 0.15
   self:setMode(self.defaultMode)
 
   self:recalculate()
@@ -61,6 +82,22 @@ function ResolutionController:recalculate()
 end
 
 function ResolutionController:renderCanvas()
+  local shaderApplied = false
+  if self.canvasCrtShaderEnabled == true then
+    local crtShader = resolveCrtShader()
+    if crtShader then
+      local canvasW = self.canvasWidth or self.canvas:getWidth()
+      local canvasH = self.canvasHeight or self.canvas:getHeight()
+      crtShader:send("inputSize", { canvasW, canvasH })
+      crtShader:send("outputSize", { love.graphics.getWidth(), love.graphics.getHeight() })
+      crtShader:send("textureSize", { canvasW, canvasH })
+      local curve = self.canvasCrtFlat and 0 or (self.canvasCrtDistortion or 0.15)
+      crtShader:send("distortion", curve)
+      love.graphics.setShader(crtShader)
+      shaderApplied = true
+    end
+  end
+
   love.graphics.draw(
     self.canvas,
     self.canvasX,
@@ -69,6 +106,31 @@ function ResolutionController:renderCanvas()
     self.canvasScaleX,
     self.canvasScaleY
   )
+
+  if shaderApplied then
+    love.graphics.setShader()
+  end
+end
+
+function ResolutionController:setCanvasCrtShaderEnabled(enabled)
+  self.canvasCrtShaderEnabled = (enabled == true)
+end
+
+function ResolutionController:isCanvasCrtShaderEnabled()
+  return self.canvasCrtShaderEnabled == true
+end
+
+function ResolutionController:setCanvasCrtFlat(flat)
+  self.canvasCrtFlat = (flat == true)
+end
+
+function ResolutionController:setCanvasCrtDistortion(value)
+  local n = tonumber(value)
+  if not n then
+    return false
+  end
+  self.canvasCrtDistortion = n
+  return true
 end
 
 function ResolutionController:getScaledMouse(asInteger, touchX, touchY)

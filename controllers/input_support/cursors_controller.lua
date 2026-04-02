@@ -15,6 +15,12 @@ local CURSOR_FILES = {
   rect_fill = "cursor_rect_14_14.png",
 }
 
+local function cursorPathForName(name, setName)
+  local fileName = CURSOR_FILES[name]
+  if not fileName then return nil end
+  return string.format("%s/%s/%s", CURSOR_ROOT, setName, fileName)
+end
+
 local function parseHotspot(path)
   local hx, hy = tostring(path or ""):match("_(%d+)_(%d+)%.png$")
   return tonumber(hx) or 0, tonumber(hy) or 0
@@ -56,9 +62,8 @@ local function resolveCursorSetName(requested)
 end
 
 local function loadNamedCursor(name, setName)
-  local fileName = CURSOR_FILES[name]
-  if not fileName then return nil end
-  local path = string.format("%s/%s/%s", CURSOR_ROOT, setName, fileName)
+  local path = cursorPathForName(name, setName)
+  if not path then return nil end
   return loadCursorFromPath(path)
 end
 
@@ -78,10 +83,52 @@ local function ensureNamedCursorLoaded(app, name)
   return cursor
 end
 
-local function getMouseCanvasPosition()
+local function loadSoftwareCursorFromPath(path)
+  if not (love and love.graphics and love.graphics.newImage) then
+    return nil, 0, 0
+  end
+
+  local okImage, image = pcall(love.graphics.newImage, path)
+  if not okImage or not image then
+    return nil, 0, 0
+  end
+
+  image:setFilter("nearest", "nearest")
+  local hotX, hotY = parseHotspot(path)
+  return image, hotX, hotY
+end
+
+local function ensureNamedSoftwareCursorLoaded(app, name)
+  if not app then return nil end
+  app.softwareCursors = app.softwareCursors or {}
+  if app.softwareCursors[name] then
+    return app.softwareCursors[name]
+  end
+
+  local cursorSet = resolveCursorSetName(app.cursorSetName)
+  app.cursorSetName = cursorSet
+  local path = cursorPathForName(name, cursorSet)
+  if not path then return nil end
+
+  local image, hotX, hotY = loadSoftwareCursorFromPath(path)
+  if not image then
+    return nil
+  end
+
+  local entry = {
+    image = image,
+    hotX = hotX or 0,
+    hotY = hotY or 0,
+  }
+  app.softwareCursors[name] = entry
+  return entry
+end
+
+local function getMouseCanvasPosition(asInteger)
+  local useInteger = (asInteger ~= false)
   if ResolutionController and ResolutionController.getScaledMouse then
     local ok, mouse = pcall(function()
-      return ResolutionController:getScaledMouse(true)
+      return ResolutionController:getScaledMouse(useInteger)
     end)
     if ok and mouse and type(mouse.x) == "number" and type(mouse.y) == "number" then
       return mouse.x, mouse.y
@@ -96,6 +143,32 @@ local function getMouseCanvasPosition()
   end
 
   return nil, nil
+end
+
+local function shouldUseSoftwareCursor(app)
+  if not app then
+    return false
+  end
+  if not (ResolutionController and ResolutionController.isCanvasCrtShaderEnabled) then
+    return false
+  end
+  local ok, enabled = pcall(function()
+    return ResolutionController:isCanvasCrtShaderEnabled()
+  end)
+  return ok and enabled == true
+end
+
+local function setMouseVisibility(app, visible)
+  if not (love and love.mouse and love.mouse.setVisible) then
+    return
+  end
+  if app and app._cursorVisible == visible then
+    return
+  end
+  love.mouse.setVisible(visible)
+  if app then
+    app._cursorVisible = visible
+  end
 end
 
 local function anyModalVisible(app)
@@ -167,62 +240,98 @@ local function isHoveringInteractiveUI(app)
   return false
 end
 
-function CursorsController.applyModeCursor(app, mode)
-  if not (love and love.mouse and love.mouse.setCursor) then return end
-
-  local cursors = app and app.hardwareCursors or {}
+local function resolveTargetCursorName(app, mode)
   local resolvedMode = (mode == "edit") and "edit" or "tile"
   local grabDown = love.keyboard.isDown("g")
   local fillDown = love.keyboard.isDown("f")
 
-  local target
   if anyModalVisible(app) then
-    target = cursors.arrow
-  elseif isHoveringInteractiveUI(app) then
-    target = cursors.hand or cursors.arrow
-  elseif resolvedMode == "edit" then
-    local hoveringEditable = isHoveringEditableContent(app)
-    if grabDown then
-      if hoveringEditable then
-        target = cursors.pick or cursors.pencil or cursors.arrow
-      else
-        target = cursors.arrow or cursors.pencil
-      end
-    elseif fillDown then
-      if hoveringEditable then
-        target = cursors.fill or cursors.pencil or cursors.arrow
-      else
-        target = cursors.arrow or cursors.pencil
-      end
-    elseif app and app.editTool == "rect_fill" then
-      if not cursors.rect_fill then
-        cursors.rect_fill = ensureNamedCursorLoaded(app, "rect_fill")
-      end
-      target = cursors.rect_fill or cursors.pencil or cursors.arrow
-    elseif hoveringEditable then
-      target = cursors.pencil or cursors.arrow
-    else
-      target = cursors.arrow or cursors.pencil
-    end
-  else
-    if isHoveringEditableContent(app) then
-      target = cursors.hand or cursors.arrow
-    else
-      target = cursors.arrow or cursors.hand
-    end
+    return "arrow"
   end
 
-  if app and app.activeHardwareCursor == target then
+  if isHoveringInteractiveUI(app) then
+    return "hand"
+  end
+
+  if resolvedMode == "edit" then
+    local hoveringEditable = isHoveringEditableContent(app)
+    if grabDown then
+      return hoveringEditable and "pick" or "arrow"
+    end
+    if fillDown then
+      return hoveringEditable and "fill" or "arrow"
+    end
+    if app and app.editTool == "rect_fill" then
+      return "rect_fill"
+    end
+    return hoveringEditable and "pencil" or "arrow"
+  end
+
+  if isHoveringEditableContent(app) then
+    return "hand"
+  end
+  return "arrow"
+end
+
+function CursorsController.applyModeCursor(app, mode)
+  if not (love and love.mouse) then return end
+
+  local cursors = app and app.hardwareCursors or {}
+  local targetName = resolveTargetCursorName(app, mode)
+
+  if app and targetName == "rect_fill" and not cursors.rect_fill then
+    cursors.rect_fill = ensureNamedCursorLoaded(app, "rect_fill")
+  end
+
+  local useSoftwareCursor = shouldUseSoftwareCursor(app)
+  if useSoftwareCursor then
+    if app and targetName == "rect_fill" then
+      ensureNamedSoftwareCursorLoaded(app, "rect_fill")
+    end
+    setMouseVisibility(app, false)
+    if love.mouse.setCursor then
+      love.mouse.setCursor()
+    end
+    if app then
+      app._softwareCursorModeActive = true
+      app.activeCursorName = targetName
+      app.activeHardwareCursor = nil
+    end
+    return
+  end
+
+  if app then
+    app._softwareCursorModeActive = false
+  end
+  setMouseVisibility(app, true)
+
+  local target = cursors[targetName]
+  if not target and targetName ~= "arrow" then
+    target = cursors.arrow
+    targetName = "arrow"
+  end
+
+  if app and app.activeHardwareCursor == target and app.activeCursorName == targetName then
     return
   end
 
   if target then
-    love.mouse.setCursor(target)
-    if app then app.activeHardwareCursor = target end
+    if love.mouse.setCursor then
+      love.mouse.setCursor(target)
+    end
+    if app then
+      app.activeHardwareCursor = target
+      app.activeCursorName = targetName
+    end
   else
     -- Fallback to OS default cursor.
-    love.mouse.setCursor()
-    if app then app.activeHardwareCursor = nil end
+    if love.mouse.setCursor then
+      love.mouse.setCursor()
+    end
+    if app then
+      app.activeHardwareCursor = nil
+      app.activeCursorName = nil
+    end
   end
 end
 
@@ -239,10 +348,18 @@ function CursorsController.init(app)
     pick = loadNamedCursor("pick", cursorSet),
     rect_fill = loadNamedCursor("rect_fill", cursorSet),
   }
+  app.softwareCursors = {
+    arrow = ensureNamedSoftwareCursorLoaded(app, "arrow"),
+    hand = ensureNamedSoftwareCursorLoaded(app, "hand"),
+    pencil = ensureNamedSoftwareCursorLoaded(app, "pencil"),
+    fill = ensureNamedSoftwareCursorLoaded(app, "fill"),
+    pick = ensureNamedSoftwareCursorLoaded(app, "pick"),
+    rect_fill = ensureNamedSoftwareCursorLoaded(app, "rect_fill"),
+  }
+  app._softwareCursorModeActive = false
+  app._cursorVisible = nil
 
-  if love and love.mouse and love.mouse.setVisible then
-    love.mouse.setVisible(true)
-  end
+  setMouseVisibility(app, true)
 
   CursorsController.applyModeCursor(app, app.mode)
 end
@@ -250,6 +367,35 @@ end
 function CursorsController.update(app)
   if not app then return end
   CursorsController.applyModeCursor(app, app.mode)
+end
+
+function CursorsController.isUsingSoftwareCursor(app)
+  return app and app._softwareCursorModeActive == true
+end
+
+function CursorsController.draw(app)
+  if not (app and CursorsController.isUsingSoftwareCursor(app)) then
+    return
+  end
+
+  local name = app.activeCursorName or "arrow"
+  local entry = app.softwareCursors and app.softwareCursors[name] or nil
+  if not entry then
+    entry = app.softwareCursors and app.softwareCursors.arrow or nil
+  end
+  if not (entry and entry.image) then
+    return
+  end
+
+  local mx, my = getMouseCanvasPosition(false)
+  if type(mx) ~= "number" or type(my) ~= "number" then
+    return
+  end
+
+  local drawX = math.floor(mx - (entry.hotX or 0))
+  local drawY = math.floor(my - (entry.hotY or 0))
+  love.graphics.setColor(1, 1, 1, 1)
+  love.graphics.draw(entry.image, drawX, drawY)
 end
 
 return CursorsController

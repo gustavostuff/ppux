@@ -154,8 +154,8 @@ end
 ------------------------------------------------------------
 
 local function initGraphics(self)
-  self.canvas = love.graphics.newCanvas(640, 360)
-  -- self.canvas = love.graphics.newCanvas(320, 180)
+  -- self.canvas = love.graphics.newCanvas(640, 360)
+  self.canvas = love.graphics.newCanvas(320, 180)
   self.canvas:setFilter("nearest", "nearest")
   self.canvasFilterMode = "sharp"
   ResolutionController:init(self.canvas)
@@ -213,6 +213,11 @@ end
 
 local function updateModalCursorLock(app)
   if not (love and love.mouse and love.mouse.setCursor) then return end
+  if CursorsController.isUsingSoftwareCursor and CursorsController.isUsingSoftwareCursor(app) then
+    app._modalCursorLockActive = false
+    app._modalCursorRestore = nil
+    return
+  end
 
   local modalOpen = anyModalVisible(app)
   if modalOpen then
