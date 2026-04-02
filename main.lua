@@ -6,6 +6,7 @@ local highSpeedPaintMode = true
 local highSpeedToggleLatched = false
 local AppCoreController
 local RomProjectController
+local LoveRunLoop = require("controllers.app.love_run_loop")
 
 local function parseCommandLineArgs(argv)
   local out = {
@@ -243,73 +244,20 @@ function love.quit()
   return false
 end
 
-function love.run()
-  -- We override LÖVE's default main loop so painting can run in a lower-latency
-  -- mode when needed. The key differences are:
-  -- 1. we can poll mouse movement every frame for smoother drag painting
-  -- 2. we can choose a more aggressive sleep strategy while interacting
-  -- 3. we can toggle that behavior at runtime instead of committing globally
-  --
-  -- When high-speed paint mode is disabled, this loop still runs, but it falls
-  -- back to calmer pacing and vsync so the app behaves more like normal LÖVE.
-  if love.load then
-    love.load(love.arg.parseGameArguments(arg), arg)
-  end
-
-  if love.timer then
-    love.timer.step()
-  end
-
-  return function()
-    if love.event then
-      love.event.pump()
-      for name, a, b, c, d, e, f, g, h in love.event.poll() do
-        if name == "quit" then
-          if not love.quit or not love.quit() then
-            return a or 0
-          end
-        end
-        love.handlers[name](a, b, c, d, e, f, g, h)
-      end
-    end
-
-    local dt = 0
-    if love.timer then
-      dt = love.timer.step()
-    end
-
-    if love.update then
-      love.update(dt)
-    end
-
-    if love.graphics and love.graphics.isActive() then
-      love.graphics.origin()
-      love.graphics.clear(love.graphics.getBackgroundColor())
-
-      if love.draw then
-        love.draw()
-      end
-
-      love.graphics.present()
-    end
-
-    if love.timer then
-      if highSpeedPaintMode then
-        -- High-speed paint mode favors input latency over idle efficiency.
-        -- While a mouse button is held we do not sleep at all; otherwise we use
-        -- tiny sleeps so the app stays responsive without going completely wild.
-        if isInteractiveFrame() then
-          love.timer.sleep(0)
-        elseif not love.window.hasFocus() then
-          love.timer.sleep(0.01)
-        else
-          love.timer.sleep(0.001)
-        end
-      else
-        -- Normal mode keeps the custom loop but uses calmer pacing and vsync,
-        -- which is closer to the default LÖVE feel and easier on weaker systems.
-        love.timer.sleep(0.001)
-      end
-    end
-  end
-end
+-- We override LÖVE's default main loop so painting can run in a lower-latency
+-- mode when needed. The key differences are:
+-- 1. we can poll mouse movement every frame for smoother drag painting
+-- 2. we can choose a more aggressive sleep strategy while interacting
+-- 3. we can toggle that behavior at runtime instead of committing globally
+--
+-- When high-speed paint mode is disabled, this loop still runs, but it falls
+-- back to calmer pacing and vsync so the app behaves more like normal LÖVE.
+love.run = LoveRunLoop.create({
+  isHighSpeedMode = function()
+    return highSpeedPaintMode
+  end,
+  isInteractiveFrame = isInteractiveFrame,
+  backgroundSleepSeconds = 0.01,
+  focusedSleepSeconds = 0.001,
+  normalSleepSeconds = 0.001,
+})
