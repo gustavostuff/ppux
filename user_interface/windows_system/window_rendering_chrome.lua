@@ -3,6 +3,7 @@ local TU = require("utils.text_utils")
 local colors = require("app_colors")
 local Timer = require("utils.timer_utils")
 local SpaceHighlightController = require("controllers.window.space_highlight_controller")
+local UiScale = require("user_interface.ui_scale")
 
 local MIN_WINDOW_SIZE = 64
 local ITEM_COUNT_LABEL_SHOW_DURATION = 0.0
@@ -67,7 +68,7 @@ function Window:drawLayerLabelInContent(isFocused)
   if spaceDown then
     self.itemCountLabelSpaceDown = true
     local sx, sy = self:getScreenRect()
-    TU.print(text, sx + 4, sy + 4, {
+    TU.print(text, sx + 4, sy + 4 + UiScale.textOffsetY(), {
       outline = true,
       color = { colors.white[1], colors.white[2], colors.white[3], 1.0 },
     })
@@ -93,7 +94,7 @@ function Window:drawLayerLabelInContent(isFocused)
   if alpha <= 0 then return end
 
   local sx, sy = self:getScreenRect()
-  TU.print(text, sx + 4, sy + 4, {
+  TU.print(text, sx + 4, sy + 4 + UiScale.textOffsetY(), {
     outline = true,
     color = { colors.white[1], colors.white[2], colors.white[3], alpha },
   })
@@ -123,7 +124,7 @@ function Window:drawHeader(isFocused)
   local startIdx, endIdx = TU.drawScrollingText(
     text,
     math.floor(textX),
-    math.floor(ty) + 1,
+    math.floor(ty) + UiScale.textOffsetY(),
     math.max(0, textWidth),  -- Ensure width is not negative
     {
       speed = 8,

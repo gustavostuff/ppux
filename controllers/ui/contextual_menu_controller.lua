@@ -216,7 +216,7 @@ local function rebuildPanel(menu)
         tooltip = item.tooltip,
         textAlign = "left",
         contentPaddingX = leftInset,
-        textOffsetY = 1,
+        textOffsetY = UiScale.textOffsetY(),
         action = action,
       })
       local iconCell = panel:getCell(1, i)
@@ -239,7 +239,7 @@ local function rebuildPanel(menu)
         textAlign = "left",
         contentPaddingX = leftInset,
         alignTextToContentPadding = true,
-        textOffsetY = 1,
+        textOffsetY = UiScale.textOffsetY(),
         action = action,
       })
       local cell = panel:getCell(1, i)

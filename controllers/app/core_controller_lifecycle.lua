@@ -183,30 +183,31 @@ local function loadAppFont(size, useTinyFont)
   local candidates = nil
   if useTinyFont == true then
     candidates = {
-      "user_interface/fonts/Tiny5-Regular.ttf",
-      "user_interface/fonts/proggy-tiny.ttf",
-      "../user_interface/fonts/proggy-tiny.ttf",
-      "user_interface/fonts/proggy-clean-sz.ttf",
-      "../user_interface/fonts/proggy-clean-sz.ttf",
+      { path = "user_interface/fonts/Tiny5-Regular.ttf", profile = UiScale.FONT_PROFILE_TINY5 },
+      { path = "user_interface/fonts/proggy-tiny.ttf", profile = UiScale.FONT_PROFILE_PROGGY_TINY },
+      { path = "../user_interface/fonts/proggy-tiny.ttf", profile = UiScale.FONT_PROFILE_PROGGY_TINY },
+      { path = "user_interface/fonts/proggy-clean-sz.ttf", profile = UiScale.FONT_PROFILE_PROGGY_TINY },
+      { path = "../user_interface/fonts/proggy-clean-sz.ttf", profile = UiScale.FONT_PROFILE_PROGGY_TINY },
     }
   else
     candidates = {
-      "user_interface/fonts/proggy-tiny.ttf",
-      "../user_interface/fonts/proggy-tiny.ttf",
-      "user_interface/fonts/proggy-clean-sz.ttf",
-      "../user_interface/fonts/proggy-clean-sz.ttf",
-      "user_interface/fonts/Tiny5-Regular.ttf",
+      { path = "user_interface/fonts/proggy-tiny.ttf", profile = UiScale.FONT_PROFILE_PROGGY_TINY },
+      { path = "../user_interface/fonts/proggy-tiny.ttf", profile = UiScale.FONT_PROFILE_PROGGY_TINY },
+      { path = "user_interface/fonts/proggy-clean-sz.ttf", profile = UiScale.FONT_PROFILE_PROGGY_TINY },
+      { path = "../user_interface/fonts/proggy-clean-sz.ttf", profile = UiScale.FONT_PROFILE_PROGGY_TINY },
+      { path = "user_interface/fonts/Tiny5-Regular.ttf", profile = UiScale.FONT_PROFILE_TINY5 },
     }
   end
 
-  for _, path in ipairs(candidates) do
-    local ok, font = pcall(love.graphics.newFont, path, size)
+  for _, candidate in ipairs(candidates) do
+    local ok, font = pcall(love.graphics.newFont, candidate.path, size)
     if ok and font then
-      return font
+      return font, candidate.profile
     end
   end
 
-  return love.graphics.newFont(size)
+  local fallbackProfile = useTinyFont == true and UiScale.FONT_PROFILE_TINY5 or UiScale.FONT_PROFILE_PROGGY_TINY
+  return love.graphics.newFont(size), fallbackProfile
 end
 
 local function initGraphics(self, opts)
@@ -220,6 +221,12 @@ local function initGraphics(self, opts)
   self.canvas:setFilter("nearest", "nearest")
   self.canvasFilterMode = self.canvasFilterMode or "sharp"
   self.crtModeEnabled = crtMode
+  self.font, self.fontProfile = loadAppFont(uiFontSize, crtMode)
+  self.font:setFilter("nearest", "nearest")
+  self.emptyStateFont = loadAppFont(emptyFontSize, crtMode)
+  self.emptyStateFont:setFilter("nearest", "nearest")
+  love.graphics.setFont(self.font)
+  UiScale.setFontProfile(self.fontProfile)
   UiScaleController.applyForCrtMode(self, crtMode)
 
   ResolutionController:init(self.canvas)
@@ -235,14 +242,7 @@ local function initGraphics(self, opts)
   if ResolutionController.setCanvasCrtDistortion then
     ResolutionController:setCanvasCrtDistortion(tonumber(rawget(_G, "__PPUX_CRT_DISTORTION__")) or 0.15)
   end
-
   -- ResolutionController:setMode(ResolutionController.PIXEL_PERFECT)
-
-  self.font = loadAppFont(uiFontSize, crtMode)
-  self.font:setFilter("nearest", "nearest")
-  self.emptyStateFont = loadAppFont(emptyFontSize, crtMode)
-  self.emptyStateFont:setFilter("nearest", "nearest")
-  love.graphics.setFont(self.font)
 
   love.graphics.setBackgroundColor(0.10, 0.11, 0.12)
   love.graphics.setDefaultFilter("nearest", "nearest")

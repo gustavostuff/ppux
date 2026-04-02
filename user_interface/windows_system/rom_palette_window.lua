@@ -9,6 +9,7 @@ local Window = require("user_interface.windows_system.window")
 local chr = require("chr")
 local DebugController = require("controllers.dev.debug_controller")
 local colors = require("app_colors")
+local UiScale = require("user_interface.ui_scale")
 local TableUtils = require("utils.table_utils")
 
 local RomPaletteWindow = {}
@@ -540,7 +541,7 @@ function RomPaletteWindow:drawGrid()
 
       -- Always show codes for ROM palettes
       if editable then
-        Text.print(code, x + 3, y + 2, {
+        Text.print(code, x + 3, y + 2 + UiScale.textOffsetY(), {
           color = getLabelTextColor(fillColor),
           shadowColor = colors.transparent,
         })

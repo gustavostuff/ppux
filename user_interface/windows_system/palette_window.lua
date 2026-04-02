@@ -6,6 +6,7 @@ local Palettes = require("palettes")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 local Text = require("utils.text_utils")
 local colors = require("app_colors")
+local UiScale = require("user_interface.ui_scale")
 local images = require("images")
 local katsudo = require("lib.katsudo")
 local DebugController = require("controllers.dev.debug_controller")
@@ -393,7 +394,7 @@ function PaletteWindow:drawGrid()
       love.graphics.rectangle("fill", x, y, cw, ch)
 
       if self.activePalette then
-        Text.print(code, x + 3, y + 2, {
+        Text.print(code, x + 3, y + 2 + UiScale.textOffsetY(), {
           color = getLabelTextColor(rgb),
           shadowColor = colors.transparent,
         })

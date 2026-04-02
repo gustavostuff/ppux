@@ -94,6 +94,11 @@ function TextField.new(opts)
   local defaultHeight = opts.height or defaultButtonSize
   local mask = opts.mask
 
+  local resolvedTextOffsetY = opts.textOffsetY
+  if resolvedTextOffsetY == nil then
+    resolvedTextOffsetY = UiScale.textOffsetY()
+  end
+
   local self = setmetatable({
     x = opts.x or 0,
     y = opts.y or 0,
@@ -118,6 +123,7 @@ function TextField.new(opts)
     _keyboardSelectionAnchor = nil,
     _explicitWidth = hasExplicitWidth,
     _explicitHeight = hasExplicitHeight,
+    textOffsetY = resolvedTextOffsetY,
   }, TextField)
 
   self:setText(opts.text or "")

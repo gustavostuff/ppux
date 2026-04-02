@@ -2,6 +2,7 @@ local Draw = require("utils.draw_utils")
 local colors = require("app_colors")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 local ResolutionController = require("controllers.app.resolution_controller")
+local UiScale = require("user_interface.ui_scale")
 
 local M = {}
 
@@ -175,7 +176,7 @@ function M.install(Taskbar, Helpers)
 
     local tc = data.textColor
     local textX = math.floor(layout.badgeX + (layout.badgeW - layout.textW) * 0.5)
-    local textY = math.floor(layout.badgeY + (layout.badgeH - layout.textH) * 0.5) + 1
+    local textY = math.floor(layout.badgeY + (layout.badgeH - layout.textH) * 0.5) + UiScale.textOffsetY()
     love.graphics.setColor(tc[1], tc[2], tc[3], 1)
     love.graphics.print(data.label, textX, textY)
 
@@ -241,7 +242,7 @@ function M.install(Taskbar, Helpers)
 
     if drawStatusText then
       love.graphics.setColor(colors.white)
-      love.graphics.print(statusDisplay, drawX, self.y + 3)
+      love.graphics.print(statusDisplay, drawX, self.y + 3 + UiScale.textOffsetY())
     end
   end
 end

@@ -13,6 +13,7 @@ local function install(Panel, utils)
       local titleX = self.x + math.floor((self.w - titleW) * 0.5)
       love.graphics.setColor(utils.colors.white[1], utils.colors.white[2], utils.colors.white[3], 1)
       local titleY = self.y + self.padding + math.floor((titleRowH - (font and font:getHeight() or 0)) * 0.5)
+      titleY = titleY + (self.textOffsetY or 0)
       utils.Text.print(
         self.title,
         titleX,
