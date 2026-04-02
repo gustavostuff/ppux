@@ -121,6 +121,7 @@ function AppCoreController.new()
   -- app state
   self.statusText = "Drop an .nes ROM with CHR data"
   self.lastEventText = self.statusText
+  self.crtModeEnabled = false
   self.mode = "tile"
   self.isPainting = false
   self.currentColor = 1

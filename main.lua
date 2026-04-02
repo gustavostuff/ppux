@@ -4,6 +4,7 @@ local lastPolledMouseX
 local lastPolledMouseY
 local highSpeedPaintMode = true
 local highSpeedToggleLatched = false
+local crtModeToggleLatched = false
 local AppCoreController
 local RomProjectController
 local LoveRunLoop = require("controllers.app.love_run_loop")
@@ -83,6 +84,14 @@ local function digitSixDown()
   return love.keyboard.isDown("6") or love.keyboard.isDown("kp6")
 end
 
+local function digitSevenDown()
+  return love.keyboard.isDown("7") or love.keyboard.isDown("kp7")
+end
+
+local function digitEightDown()
+  return love.keyboard.isDown("8") or love.keyboard.isDown("kp8")
+end
+
 local function applyHighSpeedPaintMode(enabled)
   highSpeedPaintMode = not not enabled
 
@@ -111,6 +120,20 @@ local function shouldToggleHighSpeedMode(key, isrepeat)
   end
 
   return digitFiveDown() and digitSixDown()
+end
+
+local function shouldToggleCrtMode(key, isrepeat)
+  if isrepeat or not ctrlDown() then
+    return false
+  end
+
+  local keyIsSeven = (key == "7" or key == "kp7")
+  local keyIsEight = (key == "8" or key == "kp8")
+  if not (keyIsSeven or keyIsEight) then
+    return false
+  end
+
+  return digitSevenDown() and digitEightDown()
 end
 
 local function isInteractiveFrame()
@@ -184,6 +207,13 @@ function love.keypressed(k, scancode, isrepeat)
     highSpeedToggleLatched = true
     return
   end
+  if shouldToggleCrtMode(k, isrepeat) and not crtModeToggleLatched then
+    if app and app.toggleCrtMode then
+      app:toggleCrtMode()
+    end
+    crtModeToggleLatched = true
+    return
+  end
   app:keypressed(k)
 end
 
@@ -192,6 +222,11 @@ function love.keyreleased(k)
   if k == "lctrl" or k == "rctrl" or k == "5" or k == "6" or k == "kp5" or k == "kp6" then
     if not (ctrlDown() and digitFiveDown() and digitSixDown()) then
       highSpeedToggleLatched = false
+    end
+  end
+  if k == "lctrl" or k == "rctrl" or k == "7" or k == "8" or k == "kp7" or k == "kp8" then
+    if not (ctrlDown() and digitSevenDown() and digitEightDown()) then
+      crtModeToggleLatched = false
     end
   end
   app:keyreleased(k)

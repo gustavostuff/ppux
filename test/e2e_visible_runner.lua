@@ -29,14 +29,14 @@ local function getOverlayFont()
   }
 
   for _, path in ipairs(paths) do
-    local ok, font = pcall(love.graphics.newFont, path, 32)
+    local ok, font = pcall(love.graphics.newFont, path, 16)
     if ok and font then
       cachedOverlayFont = font
       return cachedOverlayFont
     end
   end
 
-  cachedOverlayFont = love.graphics.newFont(32)
+  cachedOverlayFont = love.graphics.newFont(16)
   return cachedOverlayFont
 end
 

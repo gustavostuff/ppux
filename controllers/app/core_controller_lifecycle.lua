@@ -153,33 +153,87 @@ end
 -- LOVE lifecycle
 ------------------------------------------------------------
 
-local function initGraphics(self)
-  -- self.canvas = love.graphics.newCanvas(640, 360)
-  self.canvas = love.graphics.newCanvas(320, 180)
-  self.canvas:setFilter("nearest", "nearest")
-  self.canvasFilterMode = "sharp"
-  ResolutionController:init(self.canvas)
-  -- ResolutionController:setMode(ResolutionController.PIXEL_PERFECT)
+local STANDARD_CANVAS_W = 640
+local STANDARD_CANVAS_H = 360
+local CRT_CANVAS_W = 320
+local CRT_CANVAS_H = 180
 
-  local function loadAppFont(size)
-    local candidates = {
+local STANDARD_FONT_SIZE = 16
+local STANDARD_EMPTY_FONT_SIZE = 32
+local CRT_FONT_SIZE = 8
+local CRT_EMPTY_FONT_SIZE = 16
+
+local function resolveCanvasSize(crtMode)
+  if crtMode == true then
+    return CRT_CANVAS_W, CRT_CANVAS_H
+  end
+  return STANDARD_CANVAS_W, STANDARD_CANVAS_H
+end
+
+local function resolveFontSizes(crtMode)
+  if crtMode == true then
+    return CRT_FONT_SIZE, CRT_EMPTY_FONT_SIZE
+  end
+  return STANDARD_FONT_SIZE, STANDARD_EMPTY_FONT_SIZE
+end
+
+local function loadAppFont(size, useTinyFont)
+  local candidates = nil
+  if useTinyFont == true then
+    candidates = {
+      "user_interface/fonts/Tiny5-Regular.ttf",
       "user_interface/fonts/proggy-tiny.ttf",
       "../user_interface/fonts/proggy-tiny.ttf",
     }
-
-    for _, path in ipairs(candidates) do
-      local ok, font = pcall(love.graphics.newFont, path, size)
-      if ok and font then
-        return font
-      end
-    end
-
-    return love.graphics.newFont(size)
+  else
+    candidates = {
+      "user_interface/fonts/proggy-tiny.ttf",
+      "../user_interface/fonts/proggy-tiny.ttf",
+      "user_interface/fonts/Tiny5-Regular.ttf",
+    }
   end
 
-  self.font = loadAppFont(16)
+  for _, path in ipairs(candidates) do
+    local ok, font = pcall(love.graphics.newFont, path, size)
+    if ok and font then
+      return font
+    end
+  end
+
+  return love.graphics.newFont(size)
+end
+
+local function initGraphics(self, opts)
+  opts = opts or {}
+  local crtMode = (opts.crtMode == true)
+  local previousResolutionMode = ResolutionController.mode
+  local canvasW, canvasH = resolveCanvasSize(crtMode)
+  local uiFontSize, emptyFontSize = resolveFontSizes(crtMode)
+
+  self.canvas = love.graphics.newCanvas(canvasW, canvasH)
+  self.canvas:setFilter("nearest", "nearest")
+  self.canvasFilterMode = self.canvasFilterMode or "sharp"
+  self.crtModeEnabled = crtMode
+
+  ResolutionController:init(self.canvas)
+  if previousResolutionMode ~= nil then
+    ResolutionController:setMode(previousResolutionMode)
+  end
+  if ResolutionController.setCanvasCrtShaderEnabled then
+    ResolutionController:setCanvasCrtShaderEnabled(crtMode)
+  end
+  if ResolutionController.setCanvasCrtFlat then
+    ResolutionController:setCanvasCrtFlat(rawget(_G, "__PPUX_CRT_FLAT__") == true)
+  end
+  if ResolutionController.setCanvasCrtDistortion then
+    ResolutionController:setCanvasCrtDistortion(tonumber(rawget(_G, "__PPUX_CRT_DISTORTION__")) or 0.15)
+  end
+
+  -- ResolutionController:setMode(ResolutionController.PIXEL_PERFECT)
+
+  self.font = loadAppFont(uiFontSize, crtMode)
   self.font:setFilter("nearest", "nearest")
-  self.emptyStateFont = loadAppFont(32)
+  self.emptyStateFont = loadAppFont(emptyFontSize, crtMode)
   self.emptyStateFont:setFilter("nearest", "nearest")
   love.graphics.setFont(self.font)
 
@@ -340,7 +394,8 @@ firstSelectedTargetForWindow = function(win)
 end
 
 function AppCoreController:load()
-  initGraphics(self)
+  local initialCrtMode = (rawget(_G, "__PPUX_ENABLE_CRT_SHADER__") == true)
+  initGraphics(self, { crtMode = initialCrtMode })
   self.chrBankCanvasController = BankCanvasController.new()
 
   local settings = AppSettingsController.load()
@@ -378,6 +433,54 @@ function AppCoreController:load()
   self.taskbar:updateLayout(self.canvas:getWidth(), self.canvas:getHeight())
   self.toastController = ToastController.new(self)
   self.toastController:updateLayout(self.canvas:getWidth(), self.canvas:getHeight())
+end
+
+function AppCoreController:setCrtModeEnabled(enabled)
+  local target = (enabled == true)
+  if self.crtModeEnabled == target then
+    return self.crtModeEnabled
+  end
+
+  local imageModeKey = nil
+  if self._getCanvasImageModeForSettings then
+    imageModeKey = self:_getCanvasImageModeForSettings()
+  end
+  local filterKey = nil
+  if self._getCanvasFilterForSettings then
+    filterKey = self:_getCanvasFilterForSettings()
+  end
+
+  initGraphics(self, { crtMode = target })
+
+  if imageModeKey and self._applyCanvasImageModeSetting then
+    self:_applyCanvasImageModeSetting(imageModeKey, false)
+  else
+    ResolutionController:recalculate()
+  end
+  if filterKey and self._applyCanvasFilterSetting then
+    self:_applyCanvasFilterSetting(filterKey, false)
+  end
+
+  if self.taskbar and self.canvas then
+    self.taskbar:updateLayout(self.canvas:getWidth(), self.canvas:getHeight())
+  end
+  if self.toastController and self.canvas then
+    self.toastController:updateLayout(self.canvas:getWidth(), self.canvas:getHeight())
+  end
+  if self.tooltipController then
+    self.tooltipController.visible = false
+  end
+
+  CursorsController.applyModeCursor(self, self.mode)
+  return self.crtModeEnabled
+end
+
+function AppCoreController:toggleCrtMode()
+  local enabled = self:setCrtModeEnabled(not (self.crtModeEnabled == true))
+  if self.setStatus then
+    self:setStatus(enabled and "CRT mode enabled" or "CRT mode disabled")
+  end
+  return enabled
 end
 
 local function collectWindowSnapshot(app)

@@ -1,12 +1,12 @@
 function love.conf(t)
-  _G.__PPUX_ENABLE_CRT_SHADER__ = true
+  _G.__PPUX_ENABLE_CRT_SHADER__ = false
   _G.__PPUX_CRT_FLAT__ = false
   _G.__PPUX_CRT_DISTORTION__ = 0.15
 
   local baseW = 320
   local baseH = 180
-  local windowW = baseW * 2
-  local windowH = baseH * 2
+  local windowW = baseW * 4
+  local windowH = baseH * 4
 
   t.identity = "ppux"           -- The name of the save directory (string)
   t.appendidentity = false            -- Search files in source directory before save directory (boolean)
