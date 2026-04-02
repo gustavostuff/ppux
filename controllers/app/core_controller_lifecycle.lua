@@ -186,11 +186,15 @@ local function loadAppFont(size, useTinyFont)
       "user_interface/fonts/Tiny5-Regular.ttf",
       "user_interface/fonts/proggy-tiny.ttf",
       "../user_interface/fonts/proggy-tiny.ttf",
+      "user_interface/fonts/proggy-clean-sz.ttf",
+      "../user_interface/fonts/proggy-clean-sz.ttf",
     }
   else
     candidates = {
       "user_interface/fonts/proggy-tiny.ttf",
       "../user_interface/fonts/proggy-tiny.ttf",
+      "user_interface/fonts/proggy-clean-sz.ttf",
+      "../user_interface/fonts/proggy-clean-sz.ttf",
       "user_interface/fonts/Tiny5-Regular.ttf",
     }
   end

@@ -1,7 +1,7 @@
 function love.conf(t)
   _G.__PPUX_ENABLE_CRT_SHADER__ = false
   _G.__PPUX_CRT_FLAT__ = false
-  _G.__PPUX_CRT_DISTORTION__ = 0.15
+  _G.__PPUX_CRT_DISTORTION__ = 0.1
 
   local baseW = 320
   local baseH = 180

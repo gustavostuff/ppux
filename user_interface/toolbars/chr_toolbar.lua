@@ -45,7 +45,7 @@ function ChrToolbar.new(window, ctx, windowController)
   -- Mode toggle
   self.modeButton = self:addButton(images.icons.icon_8x8, function()
     self:_onToggleMode()
-  end, "Toggle 8x8 / 8x16")
+  end, "Sprite mode (height)")
   self:updateModeIcon()
 
   if not (window and window.isRomWindow == true) then
