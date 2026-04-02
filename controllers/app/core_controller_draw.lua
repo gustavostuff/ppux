@@ -966,6 +966,12 @@ local function drawNonModalOverlays(app)
     end
     app.emptySpaceContextMenu:draw()
   end
+  if app.ppuTileContextMenu and app.ppuTileContextMenu.isVisible and app.ppuTileContextMenu:isVisible() then
+    if app.ppuTileContextMenu.update then
+      app.ppuTileContextMenu:update()
+    end
+    app.ppuTileContextMenu:draw()
+  end
   if app.e2eOverlayMenu and app.e2eOverlayMenu.isVisible and app.e2eOverlayMenu:isVisible() then
     if app.e2eOverlayMenu.update then
       app.e2eOverlayMenu:update()

@@ -18,7 +18,7 @@ SCENARIOS=(
   "static_sprite_ops"
   "undo_redo_events"
   "palette_edit_roundtrip"
-  # "rom_palette_links"
+  "rom_palette_link_interactions"
   "save_reload_persistence"
   "submenu_positions"
   "context_menus_and_submenus"

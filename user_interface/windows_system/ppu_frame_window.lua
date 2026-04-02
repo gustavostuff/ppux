@@ -777,6 +777,55 @@ function PPUFrameWindow:setNametableByteAt(col, row, byteVal, tilesPool, layerIn
   end
 end
 
+function PPUFrameWindow:refreshNametableVisuals(tilesPool, layerIndex)
+  local li = layerIndex or select(2, getNametableLayer(self)) or self.activeLayer or 1
+  local layer = self:getLayer(li)
+  if not layer then
+    return false
+  end
+
+  layer.items = {}
+
+  for i = 1, #(self.nametableBytes or {}) do
+    local z = i - 1
+    local col = z % (self.cols or 1)
+    local row = math.floor(z / (self.cols or 1))
+    local byteVal = self.nametableBytes[i]
+    self:syncNametableVisualCell(col, row, byteVal, tilesPool, li)
+  end
+
+  if self.setScroll then
+    self:setScroll(self.scrollCol or 0, self.scrollRow or 0)
+  end
+
+  self:syncNametableLayerMetadata()
+  return true
+end
+
+function PPUFrameWindow:setGlassTileByte(byteVal, tilesPool, layerIndex)
+  local li = layerIndex or select(2, getNametableLayer(self)) or self.activeLayer or 1
+  local layer = self:getLayer(li)
+  if not layer then
+    return false
+  end
+
+  layer.glassTileByte = clampByte(byteVal)
+  layer.transparentTileByte = nil
+  return self:refreshNametableVisuals(tilesPool, li)
+end
+
+function PPUFrameWindow:clearGlassTileByte(tilesPool, layerIndex)
+  local li = layerIndex or select(2, getNametableLayer(self)) or self.activeLayer or 1
+  local layer = self:getLayer(li)
+  if not layer then
+    return false
+  end
+
+  layer.glassTileByte = nil
+  layer.transparentTileByte = nil
+  return self:refreshNametableVisuals(tilesPool, li)
+end
+
 function PPUFrameWindow:updateCompressedBytesInROM()
   if type(self.romRaw) ~= "string" or #self.romRaw == 0 then
     DebugController.log("info", "PPU", "romRaw is empty; aborting write")

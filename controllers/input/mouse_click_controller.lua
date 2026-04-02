@@ -228,12 +228,44 @@ local function handleRightButton(env, button, x, y, win, wm)
     return false
   end
 
+  local function beginPpuTileContextClick()
+    if not (win and WindowCaps.isPpuFrame(win) and env.beginContextMenuClick) then
+      return false
+    end
+
+    local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+    local layer = win.layers and win.layers[li] or nil
+    if not (layer and layer.kind == "tile") then
+      return false
+    end
+
+    local pickByVisual = env.utils and env.utils.pickByVisual or nil
+    if type(pickByVisual) ~= "function" then
+      return false
+    end
+
+    local hit, col, row, item = pickByVisual(win, x, y, li)
+    if not (hit and item and type(col) == "number" and type(row) == "number") then
+      return false
+    end
+
+    env.beginContextMenuClick("ppu_tile", x, y, button, win, {
+      layerIndex = li,
+      col = col,
+      row = row,
+    })
+    return true
+  end
+
   if button == 2 or button == 3 then
     if win then
       if isOverToolbarControl(win.specializedToolbar) or isOverToolbarControl(win.headerToolbar) then
         return true
       end
       wm:setFocus(win)
+      if beginPpuTileContextClick() then
+        return true
+      end
       win:mousepressed(x, y, button)
     else
       wm:setFocus(nil)

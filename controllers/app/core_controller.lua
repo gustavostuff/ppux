@@ -116,6 +116,68 @@ local function captureRomPaletteAddressUndoState(win)
   }
 end
 
+local function clampByte(byteVal)
+  local v = math.floor(tonumber(byteVal) or 0)
+  if v < 0 then return 0 end
+  if v > 255 then return 255 end
+  return v
+end
+
+local function ppuTileLinearIndex(win, col, row)
+  return row * (win.cols or 0) + col + 1
+end
+
+local function normalizeTileIndex(item)
+  local tileIndex = item and tonumber(item.index) or nil
+  if type(tileIndex) ~= "number" then
+    return nil
+  end
+  tileIndex = math.floor(tileIndex)
+  if tileIndex < 0 then
+    return nil
+  end
+  if tileIndex >= 512 then
+    tileIndex = tileIndex % 512
+  end
+  return tileIndex
+end
+
+local function findChrWindowCellForTile(winBank, layerIndex, tileIndex)
+  if not (winBank and winBank.getVirtualTileHandle and type(tileIndex) == "number") then
+    return nil, nil
+  end
+
+  for row = 0, (winBank.rows or 0) - 1 do
+    for col = 0, (winBank.cols or 0) - 1 do
+      local handle = winBank:getVirtualTileHandle(col, row, layerIndex)
+      if handle and tonumber(handle.index) == tileIndex then
+        return col, row
+      end
+    end
+  end
+
+  return nil, nil
+end
+
+local function scrollChrWindowToCell(winBank, col, row)
+  if not (winBank and type(col) == "number" and type(row) == "number") then
+    return
+  end
+
+  local maxScrollCol = math.max(0, (winBank.cols or 0) - (winBank.visibleCols or winBank.cols or 1))
+  local maxScrollRow = math.max(0, (winBank.rows or 0) - (winBank.visibleRows or winBank.rows or 1))
+  local scrollCol = math.max(0, math.min(col, maxScrollCol))
+  local scrollRow = math.max(0, math.min(row, maxScrollRow))
+
+  if winBank.setScroll then
+    winBank:setScroll(scrollCol, scrollRow)
+    return
+  end
+
+  winBank.scrollCol = scrollCol
+  winBank.scrollRow = scrollRow
+end
+
 function AppCoreController.new()
   UiScale.setCompactMode(false)
   local self = setmetatable({}, AppCoreController)
@@ -205,6 +267,20 @@ function AppCoreController.new()
     rowGap = 1,
     splitIconCell = false,
   })
+  self.ppuTileContextMenu = ContextualMenuController.new({
+    getBounds = function()
+      local canvas = self.canvas
+      return {
+        w = canvas and canvas.getWidth and canvas:getWidth() or 0,
+        h = canvas and canvas.getHeight and canvas:getHeight() or 0,
+      }
+    end,
+    cellH = UiScale.menuCellSize(),
+    padding = 0,
+    colGap = 0,
+    rowGap = 1,
+    splitIconCell = false,
+  })
   self.tooltipsEnabled = true
   self.tooltipController = TooltipController.new({
     delaySeconds = 0.7,
@@ -251,6 +327,9 @@ function AppCoreController:hideAppContextMenus()
   end
   if self.emptySpaceContextMenu then
     self.emptySpaceContextMenu:hide()
+  end
+  if self.ppuTileContextMenu then
+    self.ppuTileContextMenu:hide()
   end
 end
 
@@ -513,6 +592,177 @@ function AppCoreController:showEmptySpaceContextMenu(x, y)
   self:_hideAllContextMenus()
   self.emptySpaceContextMenu:showAt(x, y, self:_buildEmptySpaceContextMenuItems())
   return self.emptySpaceContextMenu:isVisible()
+end
+
+function AppCoreController:_buildPpuTileContext(win, layerIndex, col, row)
+  if not (win and win.kind == "ppu_frame" and type(col) == "number" and type(row) == "number") then
+    return nil
+  end
+
+  local layer = win.getLayer and win:getLayer(layerIndex) or (win.layers and win.layers[layerIndex])
+  if not (layer and layer.kind == "tile") then
+    return nil
+  end
+
+  local idx = ppuTileLinearIndex(win, col, row)
+  local byteVal = win.nametableBytes and win.nametableBytes[idx] or nil
+  local item = win.get and win:get(col, row, layerIndex) or nil
+  if type(byteVal) ~= "number" or not item then
+    return nil
+  end
+
+  local sourceBank = tonumber(layer.bank) or tonumber(item._bankIndex) or 1
+
+  return {
+    win = win,
+    layerIndex = layerIndex,
+    layer = layer,
+    col = col,
+    row = row,
+    item = item,
+    byteVal = clampByte(byteVal),
+    tileIndex = normalizeTileIndex(item),
+    sourceBank = sourceBank,
+  }
+end
+
+function AppCoreController:_markPpuTileByteAsGlass(context)
+  if not context then
+    return false
+  end
+
+  local tilesPool = self.appEditState and self.appEditState.tilesPool or nil
+  local win = context.win
+  if win and win.setGlassTileByte then
+    win:setGlassTileByte(context.byteVal, tilesPool, context.layerIndex)
+  else
+    context.layer.glassTileByte = context.byteVal
+    context.layer.transparentTileByte = nil
+  end
+
+  self:setStatus(string.format("Marked nametable byte 0x%02X as glass tile", context.byteVal))
+  return true
+end
+
+function AppCoreController:_clearPpuTileGlassByte(context)
+  if not context then
+    return false
+  end
+
+  local tilesPool = self.appEditState and self.appEditState.tilesPool or nil
+  local win = context.win
+  if win and win.clearGlassTileByte then
+    win:clearGlassTileByte(tilesPool, context.layerIndex)
+  else
+    context.layer.glassTileByte = nil
+    context.layer.transparentTileByte = nil
+  end
+
+  self:setStatus("Cleared glass tile byte")
+  return true
+end
+
+function AppCoreController:_selectPpuTileInChrWindow(context)
+  if not context then
+    return false
+  end
+
+  if type(context.tileIndex) ~= "number" then
+    self:setStatus("This PPU tile has no CHR source selection to jump to")
+    return false
+  end
+
+  local winBank = self.winBank
+  if not (winBank and winBank.kind == "chr") then
+    self:setStatus("No CHR/ROM bank window is available")
+    return false
+  end
+
+  local sourceBank = tonumber(context.sourceBank) or 1
+  if self.appEditState then
+    self.appEditState.currentBank = sourceBank
+  end
+
+  if not (winBank.layers and winBank.layers[sourceBank]) and self.rebuildBankWindowItems then
+    self:rebuildBankWindowItems()
+  end
+
+  if winBank.setCurrentBank then
+    winBank:setCurrentBank(sourceBank)
+  end
+
+  local col, row = findChrWindowCellForTile(winBank, sourceBank, context.tileIndex)
+  if (col == nil or row == nil) and self.rebuildBankWindowItems then
+    self:rebuildBankWindowItems()
+    if winBank.setCurrentBank then
+      winBank:setCurrentBank(sourceBank)
+    end
+    col, row = findChrWindowCellForTile(winBank, sourceBank, context.tileIndex)
+  end
+
+  if col == nil or row == nil then
+    self:setStatus(string.format("Tile %d was not found in CHR bank %d", context.tileIndex, sourceBank))
+    return false
+  end
+
+  scrollChrWindowToCell(winBank, col, row)
+  winBank:setSelected(col, row, sourceBank)
+  if self.wm and self.wm.setFocus then
+    self.wm:setFocus(winBank)
+  end
+
+  self:setStatus(string.format("Selected CHR tile %d in bank %d", context.tileIndex, sourceBank))
+  return true
+end
+
+function AppCoreController:_buildPpuTileContextMenuItems(context)
+  local currentGlassByte = nil
+  if context and context.layer then
+    if context.layer.glassTileByte ~= nil then
+      currentGlassByte = clampByte(context.layer.glassTileByte)
+    elseif context.layer.transparentTileByte ~= nil then
+      currentGlassByte = clampByte(context.layer.transparentTileByte)
+    end
+  end
+
+  return {
+    {
+      text = string.format("Mark 0x%02X as glass tile", context.byteVal or 0),
+      enabled = context ~= nil,
+      callback = function()
+        self:_markPpuTileByteAsGlass(context)
+      end,
+    },
+    {
+      text = currentGlassByte and string.format("Clear glass tile (0x%02X)", currentGlassByte) or "Clear glass tile",
+      enabled = currentGlassByte ~= nil,
+      callback = function()
+        self:_clearPpuTileGlassByte(context)
+      end,
+    },
+    {
+      text = "Select in CHR/ROM window",
+      enabled = context and context.tileIndex ~= nil,
+      callback = function()
+        self:_selectPpuTileInChrWindow(context)
+      end,
+    },
+  }
+end
+
+function AppCoreController:showPpuTileContextMenu(win, layerIndex, col, row, x, y)
+  if not (self.ppuTileContextMenu and type(x) == "number" and type(y) == "number") then
+    return false
+  end
+
+  local context = self:_buildPpuTileContext(win, layerIndex, col, row)
+  if not context then
+    return false
+  end
+
+  self:_hideAllContextMenus()
+  self.ppuTileContextMenu:showAt(x, y, self:_buildPpuTileContextMenuItems(context))
+  return self.ppuTileContextMenu:isVisible()
 end
 
 function AppCoreController:rebuildBankWindowItems()

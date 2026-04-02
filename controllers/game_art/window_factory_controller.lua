@@ -460,6 +460,8 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
       bankIndex = bankIdx,
       pageIndex = pageIdx,
       tileSwaps = ntLayer and ntLayer.tileSwaps,
+      glassTileByte = ntLayer and ntLayer.glassTileByte,
+      transparentTileByte = ntLayer and ntLayer.transparentTileByte,
       userDefinedAttrs = ntLayer and ntLayer.userDefinedAttrs,
     })
     if not ok then
@@ -533,6 +535,12 @@ local function applyLayerMetadataFromLayout(win, layoutLayers)
       if Lsrc.codec ~= nil then Ldst.codec = Lsrc.codec end
       if Lsrc.noOverflowSupported ~= nil then
         Ldst.noOverflowSupported = (Lsrc.noOverflowSupported == true)
+      end
+      if Lsrc.glassTileByte ~= nil then
+        Ldst.glassTileByte = Lsrc.glassTileByte
+      end
+      if Lsrc.transparentTileByte ~= nil then
+        Ldst.transparentTileByte = Lsrc.transparentTileByte
       end
       if Lsrc.paletteData ~= nil then
         Ldst.paletteData = TableUtils.deepcopy(Lsrc.paletteData)

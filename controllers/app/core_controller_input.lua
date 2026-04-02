@@ -64,6 +64,7 @@ local function eachAppContextMenu(app, fn)
   local menus = {
     app.windowHeaderContextMenu,
     app.emptySpaceContextMenu,
+    app.ppuTileContextMenu,
   }
   for _, menu in ipairs(menus) do
     if menu then

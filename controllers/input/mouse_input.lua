@@ -130,7 +130,7 @@ local function handleResizeHandle(button, x, y, wm)
   return MouseWindowChromeController.handleResizeHandle(button, x, y, wm)
 end
 
-local function beginContextMenuClick(kind, x, y, button, win)
+local function beginContextMenuClick(kind, x, y, button, win, extra)
   contextClick = {
     active = true,
     kind = kind,
@@ -140,6 +140,11 @@ local function beginContextMenuClick(kind, x, y, button, win)
     moved = false,
     win = win,
   }
+  if type(extra) == "table" then
+    for k, v in pairs(extra) do
+      contextClick[k] = v
+    end
+  end
 end
 
 local function updateContextMenuDragState(x, y)
@@ -184,6 +189,14 @@ local function handleContextMenuRelease(button, x, y)
   if pending.kind == "empty_space" then
     if app.showEmptySpaceContextMenu then
       app:showEmptySpaceContextMenu(x, y)
+      return true
+    end
+    return false
+  end
+
+  if pending.kind == "ppu_tile" then
+    if app.showPpuTileContextMenu and pending.win then
+      app:showPpuTileContextMenu(pending.win, pending.layerIndex, pending.col, pending.row, x, y)
       return true
     end
     return false

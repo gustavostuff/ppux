@@ -271,7 +271,7 @@ function M.getDestinationLayerAnchor(contentWin)
   if contentWin.getScreenRect then
     local x, y = contentWin:getScreenRect()
     if x and y then
-      return x - 4, y + 4
+      return x - 4, y - 8
     end
   end
   local x, y = M.getWindowLinkRect(contentWin)

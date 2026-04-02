@@ -406,6 +406,14 @@ function M.hydrateWindowNametable(win, layer, opts)
   local pageIndex   = opts.pageIndex or layer.page
   local tileSwaps   = opts.tileSwaps or layer.tileSwaps
   local noOverflowSupported = (opts.noOverflowSupported == true) or (layer.noOverflowSupported == true)
+  local glassTileByte = opts.glassTileByte
+  if glassTileByte == nil then
+    glassTileByte = layer.glassTileByte
+  end
+  local transparentTileByte = opts.transparentTileByte
+  if transparentTileByte == nil then
+    transparentTileByte = layer.transparentTileByte
+  end
 
   if type(startAddr) ~= "number" or type(endAddr) ~= "number" then
     return nil, "missing_nametable_range"
@@ -518,6 +526,13 @@ function M.hydrateWindowNametable(win, layer, opts)
 
   -- Fill visual grid from nametableBytes
   local li = findLayerIndex(win, layer) or 1
+
+  if glassTileByte ~= nil then
+    layer.glassTileByte = math.max(0, math.min(255, math.floor(tonumber(glassTileByte) or 0)))
+  end
+  if transparentTileByte ~= nil then
+    layer.transparentTileByte = math.max(0, math.min(255, math.floor(tonumber(transparentTileByte) or 0)))
+  end
 
   if ensureTiles then ensureTiles(bankIndex) end
   local bank = tilesPool and tilesPool[bankIndex] or nil
@@ -695,6 +710,12 @@ function M.snapshotNametableLayer(win, layer)
   }
   if layer.noOverflowSupported ~= nil then
     out.noOverflowSupported = (layer.noOverflowSupported == true)
+  end
+  if layer.glassTileByte ~= nil then
+    out.glassTileByte = math.max(0, math.min(255, math.floor(tonumber(layer.glassTileByte) or 0)))
+  end
+  if layer.transparentTileByte ~= nil then
+    out.transparentTileByte = math.max(0, math.min(255, math.floor(tonumber(layer.transparentTileByte) or 0)))
   end
 
   -- Swaps as pretty list { {col,row,val}, ... }
