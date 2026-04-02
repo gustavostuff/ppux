@@ -27,6 +27,13 @@ local function drawIcon(icon, x, y)
   love.graphics.draw(icon, dx, dy)
 end
 
+local function textLiftOffsetY()
+  if UiScale.isCompactMode() then
+    return -1
+  end
+  return 0
+end
+
 function Button.new(opts)
   opts = opts or {}
   local hasExplicitW = (opts.w ~= nil)
@@ -128,7 +135,7 @@ function Button:draw()
       textX = self.x + (self.w - textW) / 2
     end
     local textY = self.y + (self.h - textH) / 2
-    textY = textY + (self.textOffsetY or 0)
+    textY = textY + (self.textOffsetY or 0) + textLiftOffsetY()
     local a = contentAlpha()
     local r, g, b, aa = contentColorWithAlpha(a)
     love.graphics.setColor(r, g, b, aa)
@@ -160,7 +167,7 @@ function Button:draw()
       iconX = self.x
     end
     local textY = self.y + (self.h - textH) / 2
-    textY = textY + (self.textOffsetY or 0)
+    textY = textY + (self.textOffsetY or 0) + textLiftOffsetY()
 
     local iconAlpha = contentAlpha()
     local r, g, b, a = contentColorWithAlpha(iconAlpha)
