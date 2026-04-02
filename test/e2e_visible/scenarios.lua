@@ -1,6 +1,8 @@
 local BubbleExample = require("test.e2e_bubble_example")
 local Steps = require("test.e2e_visible.steps")
 local Points = require("test.e2e_visible.points")
+local PaletteLinkController = require("controllers.palette.palette_link_controller")
+local PaletteLinkRenderController = require("controllers.palette.palette_link_render_controller")
 local images = require("images")
 
 local normalizeSpeedMultiplier = Steps.normalizeSpeedMultiplier
@@ -1789,6 +1791,322 @@ local function buildRomPaletteLinkScenario(harness, app, runner)
   return steps
 end
 
+local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
+  harness:loadROM(BubbleExample.getLoadPath())
+
+  local function activeLayerLinkWinId(win)
+    local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+    local layer = win.layers and win.layers[li] or nil
+    return layer and layer.paletteData and layer.paletteData.winId or nil
+  end
+
+  local function requireRunnerWindow(currentRunner, key)
+    local win = currentRunner and currentRunner[key] or nil
+    assert(win, "expected runner window: " .. tostring(key))
+    return win
+  end
+
+  local function paletteHandleCenterByKey(key)
+    return toolbarLinkHandleCenter(function(_, currentRunner)
+      return requireRunnerWindow(currentRunner, key)
+    end)
+  end
+
+  local function windowHeaderCenterByKey(key)
+    return windowHeaderCenter(function(_, currentRunner)
+      return requireRunnerWindow(currentRunner, key)
+    end)
+  end
+
+  local function windowContentCenterByKey(key)
+    return function(_, _, currentRunner)
+      local win = requireRunnerWindow(currentRunner, key)
+      assert(win.getScreenRect, "expected screen rect accessor")
+      local x, y, w, h = win:getScreenRect()
+      assert(type(x) == "number" and type(y) == "number" and type(w) == "number" and type(h) == "number",
+        "expected screen rect")
+      return x + math.floor(w * 0.5), y + math.floor(h * 0.5)
+    end
+  end
+
+  local function paletteContentCenterByKey(key)
+    return function(_, _, currentRunner)
+      local win = requireRunnerWindow(currentRunner, key)
+      assert(win.getScreenRect, "expected screen rect accessor")
+      local x, y, w, h = win:getScreenRect()
+      assert(type(x) == "number" and type(y) == "number" and type(w) == "number" and type(h) == "number",
+        "expected screen rect")
+      return x + math.floor(w * 0.5), y + math.floor(h * 0.5)
+    end
+  end
+
+  local function destinationAnchorCenterByKey(key)
+    return function(_, _, currentRunner)
+      local win = requireRunnerWindow(currentRunner, key)
+      local x, y = PaletteLinkRenderController.getDestinationLayerAnchor(win)
+      assert(type(x) == "number" and type(y) == "number", "expected destination link anchor")
+      return x, y
+    end
+  end
+
+  local function appendFocusWindow(steps, label, key)
+    steps[#steps + 1] = call(label, function(_, currentApp, currentRunner)
+      currentApp.wm:setFocus(requireRunnerWindow(currentRunner, key))
+    end)
+    steps[#steps + 1] = pause("Observe focus: " .. tostring(key), 0.12)
+  end
+
+  local function appendLinkFromPalette(steps, paletteKey, targetKey)
+    steps[#steps + 1] = call("Reset palette link double-click state", function()
+      if PaletteLinkController and PaletteLinkController.resetDoubleClickState then
+        PaletteLinkController.resetDoubleClickState()
+      end
+    end)
+    appendFocusWindow(steps, "Focus source palette " .. tostring(paletteKey), paletteKey)
+    appendDrag(
+      steps,
+      string.format("Link %s to %s", tostring(paletteKey), tostring(targetKey)),
+      paletteHandleCenterByKey(paletteKey),
+      windowContentCenterByKey(targetKey),
+      {
+        prePressPause = 0.12,
+        holdDuration = 0.12,
+        dragDuration = 0.34,
+        preReleasePause = 0.1,
+        postPause = 0.32,
+      }
+    )
+  end
+
+  local function assertLinks(expectedPaletteKeyByTargetKey)
+    return function(_, _, currentRunner)
+      for targetKey, expectedPaletteKey in pairs(expectedPaletteKeyByTargetKey) do
+        local targetWin = requireRunnerWindow(currentRunner, targetKey)
+        local actualWinId = activeLayerLinkWinId(targetWin)
+        local expectedWinId = nil
+        if expectedPaletteKey ~= nil then
+          expectedWinId = requireRunnerWindow(currentRunner, expectedPaletteKey)._id
+        end
+        assert(
+          actualWinId == expectedWinId,
+          string.format(
+            "expected %s linked to %s (winId=%s), got %s",
+            tostring(targetKey),
+            tostring(expectedPaletteKey),
+            tostring(expectedWinId),
+            tostring(actualWinId)
+          )
+        )
+      end
+    end
+  end
+
+  local function doubleClickAt(resolver)
+    return function(currentHarness, currentApp, currentRunner)
+      local x, y = resolver(currentHarness, currentApp, currentRunner)
+      currentHarness:click(x, y, { wait = false })
+      currentHarness:click(x, y, { wait = false })
+    end
+  end
+
+  local steps = {
+    pause("Start", 0.35),
+    call("Create palette link interaction windows", function(_, currentApp, currentRunner)
+      if currentApp and currentApp._applyPaletteLinksSetting then
+        currentApp:_applyPaletteLinksSetting("always", false)
+      end
+
+      currentRunner.romLinkPaletteAWin = assert(currentApp.wm:createRomPaletteWindow({
+        title = "ROM Link Palette A",
+        x = 44,
+        y = 86,
+      }), "expected ROM palette A")
+      currentRunner.romLinkPaletteBWin = assert(currentApp.wm:createRomPaletteWindow({
+        title = "ROM Link Palette B",
+        x = 44,
+        y = 220,
+      }), "expected ROM palette B")
+
+      currentRunner.linkTarget1 = assert(currentApp.wm:createTileWindow({
+        animated = false,
+        title = "Link Target 1",
+        x = 230,
+        y = 64,
+        cols = 8,
+        rows = 8,
+        zoom = 2,
+      }), "expected link target 1")
+
+      currentRunner.linkTarget2 = assert(currentApp.wm:createSpriteWindow({
+        animated = false,
+        title = "Link Target 2",
+        x = 420,
+        y = 64,
+        cols = 8,
+        rows = 8,
+        zoom = 2,
+      }), "expected link target 2")
+
+      currentRunner.linkTarget3 = assert(currentApp.wm:createTileWindow({
+        animated = true,
+        numFrames = 1,
+        title = "Link Target 3",
+        x = 230,
+        y = 212,
+        cols = 8,
+        rows = 8,
+        zoom = 2,
+      }), "expected link target 3")
+
+      currentRunner.linkTarget4 = assert(currentApp.wm:createTileWindow({
+        animated = false,
+        title = "Link Target 4",
+        x = 420,
+        y = 212,
+        cols = 8,
+        rows = 8,
+        zoom = 2,
+      }), "expected link target 4")
+
+      currentApp.wm:setFocus(currentRunner.romLinkPaletteAWin)
+    end),
+    pause("Observe two palettes and four link targets", 0.75),
+  }
+
+  appendLinkFromPalette(steps, "romLinkPaletteAWin", "linkTarget1")
+  appendLinkFromPalette(steps, "romLinkPaletteAWin", "linkTarget2")
+  appendLinkFromPalette(steps, "romLinkPaletteAWin", "linkTarget3")
+  steps[#steps + 1] = call("Assert initial links A->(1,2,3)", assertLinks({
+    linkTarget1 = "romLinkPaletteAWin",
+    linkTarget2 = "romLinkPaletteAWin",
+    linkTarget3 = "romLinkPaletteAWin",
+    linkTarget4 = nil,
+  }))
+  steps[#steps + 1] = pause("Observe initial link setup", 0.4)
+
+  appendFocusWindow(steps, "Focus target1 before moving destination link", "linkTarget1")
+  appendDrag(
+    steps,
+    "Move single destination link from target1 to target4",
+    destinationAnchorCenterByKey("linkTarget1"),
+    windowHeaderCenterByKey("linkTarget4"),
+    {
+      dragDuration = 0.2,
+      postPause = 0.4,
+    }
+  )
+  steps[#steps + 1] = call("Assert moved destination link target1->target4", assertLinks({
+    linkTarget1 = nil,
+    linkTarget2 = "romLinkPaletteAWin",
+    linkTarget3 = "romLinkPaletteAWin",
+    linkTarget4 = "romLinkPaletteAWin",
+  }))
+  steps[#steps + 1] = pause("Observe moved destination link", 0.35)
+
+  appendFocusWindow(steps, "Focus target2 before destination unlink", "linkTarget2")
+  steps[#steps + 1] = call(
+    "Double-click destination marker on target2 to remove single link",
+    doubleClickAt(destinationAnchorCenterByKey("linkTarget2"))
+  )
+  steps[#steps + 1] = pause("Observe destination unlink", 0.4)
+  steps[#steps + 1] = call("Assert destination double-click unlink", assertLinks({
+    linkTarget1 = nil,
+    linkTarget2 = nil,
+    linkTarget3 = "romLinkPaletteAWin",
+    linkTarget4 = "romLinkPaletteAWin",
+  }))
+
+  appendFocusWindow(steps, "Focus palette A before remove-all double click", "romLinkPaletteAWin")
+  steps[#steps + 1] = call(
+    "Double-click source handle to remove all links from palette A",
+    doubleClickAt(paletteHandleCenterByKey("romLinkPaletteAWin"))
+  )
+  steps[#steps + 1] = pause("Observe source remove-all", 0.45)
+  steps[#steps + 1] = call("Assert source remove-all", assertLinks({
+    linkTarget1 = nil,
+    linkTarget2 = nil,
+    linkTarget3 = nil,
+    linkTarget4 = nil,
+  }))
+
+  appendLinkFromPalette(steps, "romLinkPaletteAWin", "linkTarget1")
+  appendLinkFromPalette(steps, "romLinkPaletteAWin", "linkTarget2")
+  appendLinkFromPalette(steps, "romLinkPaletteAWin", "linkTarget3")
+  appendLinkFromPalette(steps, "romLinkPaletteAWin", "linkTarget4")
+  steps[#steps + 1] = call("Assert all four targets linked to palette A", assertLinks({
+    linkTarget1 = "romLinkPaletteAWin",
+    linkTarget2 = "romLinkPaletteAWin",
+    linkTarget3 = "romLinkPaletteAWin",
+    linkTarget4 = "romLinkPaletteAWin",
+  }))
+
+  appendFocusWindow(steps, "Focus palette A before right-drag move-all", "romLinkPaletteAWin")
+  appendDrag(
+    steps,
+    "Right-drag move-all links from palette A to palette B",
+    paletteHandleCenterByKey("romLinkPaletteAWin"),
+    paletteContentCenterByKey("romLinkPaletteBWin"),
+    {
+      button = 2,
+      prePressPause = 0.12,
+      holdDuration = 0.12,
+      dragDuration = 0.34,
+      preReleasePause = 0.1,
+      postPause = 0.5,
+    }
+  )
+  steps[#steps + 1] = call("Assert all links moved to palette B", assertLinks({
+    linkTarget1 = "romLinkPaletteBWin",
+    linkTarget2 = "romLinkPaletteBWin",
+    linkTarget3 = "romLinkPaletteBWin",
+    linkTarget4 = "romLinkPaletteBWin",
+  }))
+
+  appendFocusWindow(steps, "Focus palette B before right-drag unchanged", "romLinkPaletteBWin")
+  appendDrag(
+    steps,
+    "Right-drag move-all from palette B back onto itself (unchanged)",
+    paletteHandleCenterByKey("romLinkPaletteBWin"),
+    paletteContentCenterByKey("romLinkPaletteBWin"),
+    {
+      button = 2,
+      prePressPause = 0.12,
+      holdDuration = 0.12,
+      dragDuration = 0.28,
+      preReleasePause = 0.1,
+      postPause = 0.36,
+    }
+  )
+  steps[#steps + 1] = call("Assert self-drop keeps palette B links", assertLinks({
+    linkTarget1 = "romLinkPaletteBWin",
+    linkTarget2 = "romLinkPaletteBWin",
+    linkTarget3 = "romLinkPaletteBWin",
+    linkTarget4 = "romLinkPaletteBWin",
+  }))
+
+  appendFocusWindow(steps, "Focus palette B before right-drag remove-all", "romLinkPaletteBWin")
+  appendDrag(
+    steps,
+    "Right-drag move-all from palette B to empty space (remove all)",
+    paletteHandleCenterByKey("romLinkPaletteBWin"),
+    { x = 8, y = 8 },
+    {
+      button = 2,
+      dragDuration = 0.22,
+      postPause = 0.45,
+    }
+  )
+  steps[#steps + 1] = call("Assert empty-drop remove-all", assertLinks({
+    linkTarget1 = nil,
+    linkTarget2 = nil,
+    linkTarget3 = nil,
+    linkTarget4 = nil,
+  }))
+  steps[#steps + 1] = pause("Scenario complete", 0.6)
+
+  return steps
+end
+
 local function buildSaveReloadPersistenceScenario(harness, app, runner)
   local tempSuffix = tostring(os.time()) .. "_" .. tostring(math.random(1000, 9999))
   local tempRomPath = "/tmp/ppux_e2e_visible_persist_" .. tempSuffix .. ".nes"
@@ -2080,6 +2398,10 @@ local SCENARIOS = {
     title = "ROM Palette Links",
     build = buildRomPaletteLinkScenario,
   },
+  rom_palette_link_interactions = {
+    title = "ROM Palette Link Interactions",
+    build = buildRomPaletteLinkInteractionsScenario,
+  },
   save_reload_persistence = {
     title = "Save Reload Persistence",
     build = buildSaveReloadPersistenceScenario,
@@ -2119,6 +2441,7 @@ local SCENARIO_ALIASES = {
   undo_redo_events_demo = "undo_redo_events",
   palette_edit_roundtrip_demo = "palette_edit_roundtrip",
   rom_palette_links_demo = "rom_palette_links",
+  rom_palette_link_interactions_demo = "rom_palette_link_interactions",
   save_reload_persistence_demo = "save_reload_persistence",
   submenu_positions_demo = "submenu_positions",
   context_menus_and_submenus_demo = "context_menus_and_submenus",

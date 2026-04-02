@@ -499,15 +499,24 @@ function M.getDropTarget(wm, sourceWin, x, y)
   end
 
   local hoverTarget = M.getHoverTarget(wm, sourceWin, x, y)
+  if not hoverTarget then
+    return nil
+  end
+
   local focusedWin = wm and wm.getFocus and wm:getFocus() or nil
-  if not focusedWin or focusedWin == sourceWin or focusedWin ~= hoverTarget then
-    return nil
+  if focusedWin and focusedWin ~= sourceWin and focusedWin == hoverTarget then
+    if focusedWin._closed or focusedWin._minimized then
+      return nil
+    end
+    if isPointInWindowDropArea(focusedWin, x, y) then
+      return focusedWin
+    end
   end
-  if focusedWin._closed or focusedWin._minimized then
-    return nil
-  end
-  if isPointInWindowDropArea(focusedWin, x, y) then
-    return focusedWin
+
+  -- Fallback: use the valid hovered target even if focus transition lagged
+  -- during drag/release.
+  if isPointInWindowDropArea(hoverTarget, x, y) then
+    return hoverTarget
   end
 
   return nil

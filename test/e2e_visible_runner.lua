@@ -324,77 +324,121 @@ function VisibleE2ERunner:_runInstantStep(step)
   end
 end
 
+function VisibleE2ERunner:_currentStepSummary()
+  local total = #self.steps
+  local index = tonumber(self.currentStepIndex) or 0
+  if total > 0 then
+    index = math.max(1, math.min(index, total))
+  else
+    index = 0
+  end
+
+  local step = self.currentStep
+  local label = self.currentLabel
+  if (not label or label == "") and step then
+    label = step.label or step.kind
+  end
+  label = label or "unknown"
+
+  local kind = (step and step.kind) or "n/a"
+  local scenario = tostring(self.scenarioName or "unknown")
+  return string.format(
+    "scenario=%s step=%d/%d kind=%s label=%s",
+    scenario,
+    index,
+    total,
+    tostring(kind),
+    tostring(label)
+  )
+end
+
+function VisibleE2ERunner:_raiseWithStepContext(err)
+  error(string.format(
+    "Visible E2E failed (%s): %s",
+    self:_currentStepSummary(),
+    tostring(err)
+  ), 0)
+end
+
 function VisibleE2ERunner:update(dt)
   if self.abortModalVisible then
     return
   end
 
-  if self.harness and self.harness.advanceTimer then
-    self.harness:advanceTimer(dt)
-  end
-  local remaining = dt
-
-  while remaining > 0 do
-    if not self.currentStep and not self.done then
-      self:_startNextStep()
+  local ok, err = xpcall(function()
+    if self.harness and self.harness.advanceTimer then
+      self.harness:advanceTimer(dt)
     end
+    local remaining = dt
 
-    local step = self.currentStep
-    if not step then
-      self.timelineSeconds = self.timelineSeconds + remaining
-      remaining = 0
-      break
-    end
+    while remaining > 0 do
+      if not self.currentStep and not self.done then
+        self:_startNextStep()
+      end
 
-    if step.kind == "pause" then
-      local needed = math.max(0, step.duration - step.elapsed)
-      local consume = math.min(remaining, needed)
-      step.elapsed = step.elapsed + consume
-      self.timelineSeconds = self.timelineSeconds + consume
-      remaining = remaining - consume
-      if step.elapsed >= step.duration then
-        self.currentStep = nil
-      end
-    elseif step.kind == "move" then
-      local needed = math.max(0, step.duration - step.elapsed)
-      local consume = math.min(remaining, needed)
-      step.elapsed = step.elapsed + consume
-      self.timelineSeconds = self.timelineSeconds + consume
-      remaining = remaining - consume
-
-      if step.tweenGroup then
-        step.tweenGroup:update(consume)
-      end
-      self.harness:moveMouse(
-        step.cursor and step.cursor.x or step.toX,
-        step.cursor and step.cursor.y or step.toY
-      )
-      if step.elapsed >= step.duration then
-        self.harness:moveMouse(step.toX, step.toY)
-        step.tweenGroup = nil
-        step.cursor = nil
-        self.currentStep = nil
-      end
-    else
-      self:_runInstantStep(step)
-      if self.currentStep == step then
+      local step = self.currentStep
+      if not step then
+        self.timelineSeconds = self.timelineSeconds + remaining
+        remaining = 0
         break
       end
-    end
-  end
 
-  self.app:update(dt)
+      if step.kind == "pause" then
+        local needed = math.max(0, step.duration - step.elapsed)
+        local consume = math.min(remaining, needed)
+        step.elapsed = step.elapsed + consume
+        self.timelineSeconds = self.timelineSeconds + consume
+        remaining = remaining - consume
+        if step.elapsed >= step.duration then
+          self.currentStep = nil
+        end
+      elseif step.kind == "move" then
+        local needed = math.max(0, step.duration - step.elapsed)
+        local consume = math.min(remaining, needed)
+        step.elapsed = step.elapsed + consume
+        self.timelineSeconds = self.timelineSeconds + consume
+        remaining = remaining - consume
 
-  if self.done and not self.quitIssued then
-    self.doneElapsed = self.doneElapsed + dt
-    if self.doneElapsed >= self.autoCloseDelay then
-      if self.app.clearUnsavedChanges then
-        self.app:clearUnsavedChanges()
+        if step.tweenGroup then
+          step.tweenGroup:update(consume)
+        end
+        self.harness:moveMouse(
+          step.cursor and step.cursor.x or step.toX,
+          step.cursor and step.cursor.y or step.toY
+        )
+        if step.elapsed >= step.duration then
+          self.harness:moveMouse(step.toX, step.toY)
+          step.tweenGroup = nil
+          step.cursor = nil
+          self.currentStep = nil
+        end
+      else
+        self:_runInstantStep(step)
+        if self.currentStep == step then
+          break
+        end
       end
-      self.app._allowImmediateQuit = true
-      self.quitIssued = true
-      love.event.quit()
     end
+
+    self.app:update(dt)
+
+    if self.done and not self.quitIssued then
+      self.doneElapsed = self.doneElapsed + dt
+      if self.doneElapsed >= self.autoCloseDelay then
+        if self.app.clearUnsavedChanges then
+          self.app:clearUnsavedChanges()
+        end
+        self.app._allowImmediateQuit = true
+        self.quitIssued = true
+        love.event.quit()
+      end
+    end
+  end, function(message)
+    return debug.traceback(tostring(message), 2)
+  end)
+
+  if not ok then
+    self:_raiseWithStepContext(err)
   end
 end
 
