@@ -136,6 +136,9 @@ function AppCoreController.new()
     active = false,
     sourceWin = nil,
     sourceWinId = nil,
+    mode = nil,
+    originContentWin = nil,
+    originPaletteWin = nil,
     currentX = 0,
     currentY = 0,
   }

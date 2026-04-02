@@ -5,6 +5,11 @@ local M = {}
 local DOUBLE_CLICK_SECONDS = 0.35
 local DOUBLE_CLICK_MOVE_TOLERANCE = 4
 local lastPaletteLinkHandleClick = nil
+local lastDestinationLinkClick = nil
+
+local DRAG_MODE_LINK_CREATE = "link_create"
+local DRAG_MODE_MOVE_SINGLE = "move_single"
+local DRAG_MODE_MOVE_ALL = "move_all"
 
 local function nowSeconds()
   if love and love.timer and love.timer.getTime then
@@ -21,6 +26,20 @@ end
 local function getPaletteLinkDrag()
   local app = getApp()
   return app and app.paletteLinkDrag or nil
+end
+
+local function clearPaletteLinkDragState(drag, x, y)
+  if not drag then
+    return
+  end
+  drag.active = false
+  drag.sourceWin = nil
+  drag.sourceWinId = nil
+  drag.mode = nil
+  drag.originContentWin = nil
+  drag.originPaletteWin = nil
+  drag.currentX = x or drag.currentX or 0
+  drag.currentY = y or drag.currentY or 0
 end
 
 local function deepCopy(value, seen)
@@ -89,6 +108,20 @@ function M.canApplyToTarget(targetWin, sourceWin)
   return true, li
 end
 
+local function canMoveAllToPaletteTarget(targetWin, sourceWin, opts)
+  opts = opts or {}
+  if not targetWin then
+    return false
+  end
+  if targetWin == sourceWin and not opts.allowSource then
+    return false
+  end
+  if targetWin._closed or targetWin._minimized then
+    return false
+  end
+  return WindowCaps.isRomPaletteWindow(targetWin) == true
+end
+
 local function isValidPaletteLinkHandle(toolbar, x, y)
   if not (toolbar and toolbar.getLinkHandleRect) then
     return false
@@ -99,26 +132,45 @@ local function isValidPaletteLinkHandle(toolbar, x, y)
     and y >= by and y <= (by + bh)
 end
 
+local function collectNumericLayerKeys(layers)
+  local numericKeys = {}
+  for key, value in pairs(layers or {}) do
+    if type(key) == "number" and value ~= nil then
+      numericKeys[#numericKeys + 1] = key
+    end
+  end
+  table.sort(numericKeys)
+  return numericKeys
+end
+
 local function collectLinkedTargetsForPalette(wm, paletteWin)
   local out = {}
   local windows = wm and wm.getWindows and wm:getWindows() or {}
   for _, win in ipairs(windows) do
     if not WindowCaps.isAnyPaletteWindow(win) then
       local layers = win and win.layers or {}
-      local numericKeys = {}
-      for key, value in pairs(layers) do
-        if type(key) == "number" and value ~= nil then
-          numericKeys[#numericKeys + 1] = key
-        end
-      end
-      table.sort(numericKeys)
-      for _, layerIndex in ipairs(numericKeys) do
+      for _, layerIndex in ipairs(collectNumericLayerKeys(layers)) do
         local layer = layers[layerIndex]
         local pd = layer and layer.paletteData or nil
         if paletteWin and paletteWin._id and pd and pd.winId == paletteWin._id then
           out[#out + 1] = { win = win, layerIndex = layerIndex }
         end
       end
+    end
+  end
+  return out
+end
+
+local function collectLinkedTargetsForWindowPalette(contentWin, paletteWin)
+  local out = {}
+  if not (contentWin and contentWin.layers and paletteWin and paletteWin._id) then
+    return out
+  end
+  for _, layerIndex in ipairs(collectNumericLayerKeys(contentWin.layers)) do
+    local layer = contentWin.layers[layerIndex]
+    local pd = layer and layer.paletteData or nil
+    if pd and pd.winId == paletteWin._id then
+      out[#out + 1] = { win = contentWin, layerIndex = layerIndex }
     end
   end
   return out
@@ -135,8 +187,28 @@ local function clearPaletteWinIdLink(layer)
   return true
 end
 
-local function unlinkAllPaletteTargets(wm, paletteWin)
+local function pushPaletteLinkUndo(actions)
+  if type(actions) ~= "table" or #actions == 0 then
+    return false
+  end
+
   local app = getApp()
+  if app and app.undoRedo and app.undoRedo.addPaletteLinkEvent then
+    app.undoRedo:addPaletteLinkEvent({
+      type = "palette_link",
+      actions = actions,
+    })
+    return true
+  end
+  if app and app.markUnsaved then
+    app:markUnsaved("palette_link_change")
+    return true
+  end
+  return false
+end
+
+local function unlinkAllPaletteTargets(wm, paletteWin, opts)
+  opts = opts or {}
   local linked = collectLinkedTargetsForPalette(wm, paletteWin)
   local removedCount = 0
   local undoActions = {}
@@ -156,20 +228,112 @@ local function unlinkAllPaletteTargets(wm, paletteWin)
   end
 
   if removedCount <= 0 then
+    return false, undoActions, removedCount
+  end
+
+  if opts.commitUndo ~= false then
+    pushPaletteLinkUndo(undoActions)
+  end
+  if opts.setStatus ~= false then
+    local app = getApp()
+    if app and app.setStatus then
+      app:setStatus(string.format(
+        "Unlinked %d palette connection%s from %s",
+        removedCount,
+        removedCount == 1 and "" or "s",
+        paletteWin and (paletteWin.title or "Palette") or "Palette"
+      ))
+    end
+  end
+
+  return true, undoActions, removedCount
+end
+
+local function unlinkWindowPaletteTargets(contentWin, paletteWin, outActions)
+  local linked = collectLinkedTargetsForWindowPalette(contentWin, paletteWin)
+  local removedCount = 0
+  for _, entry in ipairs(linked) do
+    local layer = entry.win and entry.win.layers and entry.win.layers[entry.layerIndex] or nil
+    local beforePaletteData = clonePaletteData(layer and layer.paletteData or nil)
+    if clearPaletteWinIdLink(layer) then
+      removedCount = removedCount + 1
+      outActions[#outActions + 1] = {
+        win = entry.win,
+        layerIndex = entry.layerIndex,
+        beforePaletteData = beforePaletteData,
+        afterPaletteData = clonePaletteData(layer and layer.paletteData or nil),
+      }
+    end
+  end
+  return removedCount
+end
+
+local function unlinkPaletteConnection(contentWin, paletteWin)
+  local actions = {}
+  local removedCount = unlinkWindowPaletteTargets(contentWin, paletteWin, actions)
+  if removedCount <= 0 then
     return false
   end
 
-  if app and app.undoRedo and app.undoRedo.addPaletteLinkEvent then
-    app.undoRedo:addPaletteLinkEvent({
-      type = "palette_link",
-      actions = undoActions,
-    })
-  elseif app and app.markUnsaved then
-    app:markUnsaved("palette_link_change")
-  end
+  pushPaletteLinkUndo(actions)
+
+  local app = getApp()
   if app and app.setStatus then
-    app:setStatus(string.format("Unlinked %d palette connection%s from %s", removedCount, removedCount == 1 and "" or "s", paletteWin.title or "Palette"))
+    app:setStatus(string.format(
+      "Unlinked %d palette connection%s from %s",
+      removedCount,
+      removedCount == 1 and "" or "s",
+      contentWin and (contentWin.title or "window") or "window"
+    ))
   end
+  return true
+end
+
+local function moveAllPaletteTargets(wm, sourcePaletteWin, targetPaletteWin)
+  if not canMoveAllToPaletteTarget(targetPaletteWin, sourcePaletteWin) then
+    return false, "Move target must be another ROM palette window"
+  end
+  if not (sourcePaletteWin and sourcePaletteWin._id and targetPaletteWin and targetPaletteWin._id) then
+    return false, "Palette link move failed"
+  end
+
+  local linked = collectLinkedTargetsForPalette(wm, sourcePaletteWin)
+  if #linked == 0 then
+    return false, "No palette connections to move"
+  end
+
+  local actions = {}
+  for _, entry in ipairs(linked) do
+    local layer = entry.win and entry.win.layers and entry.win.layers[entry.layerIndex] or nil
+    if layer then
+      local beforePaletteData = clonePaletteData(layer.paletteData or nil)
+      layer.paletteData = { winId = targetPaletteWin._id }
+      actions[#actions + 1] = {
+        win = entry.win,
+        layerIndex = entry.layerIndex,
+        beforePaletteData = beforePaletteData,
+        afterPaletteData = clonePaletteData(layer.paletteData or nil),
+      }
+    end
+  end
+
+  if #actions == 0 then
+    return false, "No palette connections to move"
+  end
+
+  pushPaletteLinkUndo(actions)
+
+  local app = getApp()
+  if app and app.setStatus then
+    app:setStatus(string.format(
+      "Moved %d palette connection%s from %s to %s",
+      #actions,
+      #actions == 1 and "" or "s",
+      sourcePaletteWin.title or "Palette",
+      targetPaletteWin.title or "Palette"
+    ))
+  end
+
   return true
 end
 
@@ -201,8 +365,38 @@ local function maybeHandleDoubleClick(toolbar, x, y, win, wm)
   return unlinkAllPaletteTargets(wm, win)
 end
 
+local function maybeHandleDestinationDoubleClick(link, x, y)
+  if not (link and link.contentWin and link.paletteWin) then
+    return false
+  end
+
+  local t = nowSeconds()
+  local prev = lastDestinationLinkClick
+  local sameClick = prev
+    and prev.contentWin == link.contentWin
+    and prev.paletteWin == link.paletteWin
+    and (t - (prev.time or 0)) <= DOUBLE_CLICK_SECONDS
+    and math.abs((prev.x or 0) - x) <= DOUBLE_CLICK_MOVE_TOLERANCE
+    and math.abs((prev.y or 0) - y) <= DOUBLE_CLICK_MOVE_TOLERANCE
+
+  lastDestinationLinkClick = {
+    contentWin = link.contentWin,
+    paletteWin = link.paletteWin,
+    time = t,
+    x = x,
+    y = y,
+  }
+
+  if not sameClick then
+    return false
+  end
+
+  lastDestinationLinkClick = nil
+  return unlinkPaletteConnection(link.contentWin, link.paletteWin)
+end
+
 function M.beginDrag(toolbar, button, x, y, win, wm)
-  if button ~= 1 then
+  if button ~= 1 and button ~= 2 and button ~= 3 then
     return false
   end
   if not (win and win._id and WindowCaps.isRomPaletteWindow(win)) then
@@ -212,7 +406,7 @@ function M.beginDrag(toolbar, button, x, y, win, wm)
     return false
   end
 
-  if maybeHandleDoubleClick(toolbar, x, y, win, wm) then
+  if button == 1 and maybeHandleDoubleClick(toolbar, x, y, win, wm) then
     return true
   end
 
@@ -226,6 +420,42 @@ function M.beginDrag(toolbar, button, x, y, win, wm)
   drag.sourceWinId = win._id
   drag.currentX = x
   drag.currentY = y
+  drag.mode = (button == 1) and DRAG_MODE_LINK_CREATE or DRAG_MODE_MOVE_ALL
+  drag.originContentWin = nil
+  drag.originPaletteWin = nil
+  return true
+end
+
+function M.beginDestinationDrag(button, x, y, link, wm)
+  if button ~= 1 then
+    return false
+  end
+  if not (link and link.contentWin and link.paletteWin and link.paletteWin._id) then
+    return false
+  end
+
+  if maybeHandleDestinationDoubleClick(link, x, y) then
+    return true
+  end
+
+  local drag = getPaletteLinkDrag()
+  if not drag then
+    return false
+  end
+
+  drag.active = true
+  drag.sourceWin = link.paletteWin
+  drag.sourceWinId = link.paletteWin._id
+  drag.currentX = x
+  drag.currentY = y
+  drag.mode = DRAG_MODE_MOVE_SINGLE
+  drag.originContentWin = link.contentWin
+  drag.originPaletteWin = link.paletteWin
+
+  if wm and wm.setFocus and link.contentWin then
+    wm:setFocus(link.contentWin)
+  end
+
   return true
 end
 
@@ -241,6 +471,18 @@ function M.getHoverTarget(wm, sourceWin, x, y)
       and ok
       and isPointInWindowDropArea(win, x, y)
     then
+      return win
+    end
+  end
+  return nil
+end
+
+function M.getMoveAllTarget(wm, sourceWin, x, y, opts)
+  opts = opts or {}
+  local windows = wm and wm.getWindows and wm:getWindows() or {}
+  for i = #windows, 1, -1 do
+    local win = windows[i]
+    if canMoveAllToPaletteTarget(win, sourceWin, opts) and isPointInWindowDropArea(win, x, y) then
       return win
     end
   end
@@ -297,33 +539,20 @@ local function applyToTarget(targetWin, paletteWin)
   }
 end
 
-function M.finishDrag(wm, x, y)
-  local drag = getPaletteLinkDrag()
-  if not (drag and drag.active) then
-    return false
-  end
-
+local function finishCreateLinkDrag(wm, x, y, drag)
   local app = getApp()
   local sourceWin = drag.sourceWin
   local sourceTitle = sourceWin and (sourceWin.title or sourceWin._id) or "Palette"
   local sourceToolbar = sourceWin and sourceWin.specializedToolbar or nil
   local targetWin = M.getDropTarget(wm, sourceWin, x, y)
 
-  drag.active = false
-  drag.currentX = x
-  drag.currentY = y
-
   if not targetWin then
     if sourceToolbar and isValidPaletteLinkHandle(sourceToolbar, x, y) then
-      drag.sourceWin = nil
-      drag.sourceWinId = nil
       return true
     end
     if app and app.setStatus then
       app:setStatus("Palette link canceled")
     end
-    drag.sourceWin = nil
-    drag.sourceWinId = nil
     return true
   end
 
@@ -335,28 +564,137 @@ function M.finishDrag(wm, x, y)
     if app and app.showToast then
       app:showToast("error", result)
     end
-    drag.sourceWin = nil
-    drag.sourceWinId = nil
     return true
   end
 
   if wm and wm.setFocus then
     wm:setFocus(targetWin)
   end
-  if app and app.undoRedo and app.undoRedo.addPaletteLinkEvent and result.actions and #result.actions > 0 then
-    app.undoRedo:addPaletteLinkEvent({
-      type = "palette_link",
-      actions = result.actions,
-    })
-  elseif app and app.markUnsaved and result.actions and #result.actions > 0 then
-    app:markUnsaved("palette_link_change")
+  if result.actions and #result.actions > 0 then
+    pushPaletteLinkUndo(result.actions)
   end
   if app and app.setStatus then
     app:setStatus(string.format("Linked %s to %s layer %d", sourceTitle, targetWin.title or "window", result.layerIndex))
   end
-  drag.sourceWin = nil
-  drag.sourceWinId = nil
   return true
+end
+
+local function finishMoveSingleDrag(wm, x, y, drag)
+  local app = getApp()
+  local sourcePalette = drag.sourceWin
+  local originContentWin = drag.originContentWin
+  local targetWin = M.getDropTarget(wm, sourcePalette, x, y)
+
+  if not targetWin then
+    if app and app.setStatus then
+      app:setStatus("Palette link move canceled")
+    end
+    return true
+  end
+
+  if targetWin == originContentWin then
+    if app and app.setStatus then
+      app:setStatus("Palette link unchanged")
+    end
+    return true
+  end
+
+  local ok, li = M.canApplyToTarget(targetWin, sourcePalette)
+  if not ok then
+    if app and app.setStatus then
+      app:setStatus(li)
+    end
+    return true
+  end
+
+  local actions = {}
+  local removedCount = unlinkWindowPaletteTargets(originContentWin, sourcePalette, actions)
+
+  local layer = targetWin.layers and targetWin.layers[li] or nil
+  if layer then
+    local beforePaletteData = clonePaletteData(layer.paletteData or nil)
+    layer.paletteData = { winId = sourcePalette._id }
+    actions[#actions + 1] = {
+      win = targetWin,
+      layerIndex = li,
+      beforePaletteData = beforePaletteData,
+      afterPaletteData = clonePaletteData(layer.paletteData or nil),
+    }
+  end
+
+  if #actions > 0 then
+    pushPaletteLinkUndo(actions)
+    if app and app.setStatus then
+      app:setStatus(string.format(
+        "Moved palette link from %s to %s layer %d",
+        originContentWin and (originContentWin.title or "window") or "window",
+        targetWin.title or "window",
+        li
+      ))
+    end
+    if wm and wm.setFocus then
+      wm:setFocus(targetWin)
+    end
+    return true
+  end
+
+  if removedCount <= 0 and app and app.setStatus then
+    app:setStatus("Palette link unchanged")
+  end
+  return true
+end
+
+local function finishMoveAllDrag(wm, x, y, drag)
+  local app = getApp()
+  local sourcePalette = drag.sourceWin
+  local targetPalette = M.getMoveAllTarget(wm, sourcePalette, x, y, { allowSource = true })
+
+  if targetPalette == sourcePalette then
+    if app and app.setStatus then
+      app:setStatus("Palette links unchanged")
+    end
+    return true
+  end
+
+  if not targetPalette then
+    local unlinked = unlinkAllPaletteTargets(wm, sourcePalette, {
+      commitUndo = true,
+      setStatus = true,
+    })
+    if not unlinked and app and app.setStatus then
+      app:setStatus("No palette connections to remove")
+    end
+    return true
+  end
+
+  local ok, err = moveAllPaletteTargets(wm, sourcePalette, targetPalette)
+  if not ok and app and app.setStatus then
+    app:setStatus(err or "Palette link move failed")
+  end
+  if ok and wm and wm.setFocus then
+    wm:setFocus(targetPalette)
+  end
+  return true
+end
+
+function M.finishDrag(wm, x, y)
+  local drag = getPaletteLinkDrag()
+  if not (drag and drag.active) then
+    return false
+  end
+
+  local mode = drag.mode or DRAG_MODE_LINK_CREATE
+  local handled = false
+  if mode == DRAG_MODE_MOVE_SINGLE then
+    handled = finishMoveSingleDrag(wm, x, y, drag)
+  elseif mode == DRAG_MODE_MOVE_ALL then
+    handled = finishMoveAllDrag(wm, x, y, drag)
+  else
+    handled = finishCreateLinkDrag(wm, x, y, drag)
+  end
+
+  clearPaletteLinkDragState(drag, x, y)
+  return handled
 end
 
 function M.updateDragHover(wm, x, y)
@@ -367,7 +705,14 @@ function M.updateDragHover(wm, x, y)
 
   drag.currentX = x
   drag.currentY = y
-  local hoveredWin = M.getHoverTarget(wm, drag.sourceWin, x, y)
+
+  local hoveredWin = nil
+  if drag.mode == DRAG_MODE_MOVE_ALL then
+    hoveredWin = M.getMoveAllTarget(wm, drag.sourceWin, x, y, { allowSource = true })
+  else
+    hoveredWin = M.getHoverTarget(wm, drag.sourceWin, x, y)
+  end
+
   if hoveredWin and hoveredWin ~= drag.sourceWin and wm and wm.setFocus then
     wm:setFocus(hoveredWin)
   end
@@ -376,6 +721,7 @@ end
 
 function M.resetDoubleClickState()
   lastPaletteLinkHandleClick = nil
+  lastDestinationLinkClick = nil
 end
 
 return M

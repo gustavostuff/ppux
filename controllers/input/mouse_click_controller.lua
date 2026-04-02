@@ -1,5 +1,6 @@
 local SpriteController = require("controllers.sprite.sprite_controller")
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
+local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local PaletteLinkRenderController = require("controllers.palette.palette_link_render_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 
@@ -536,16 +537,49 @@ function M._resetRomPaletteDoubleClickState()
   clearRomPaletteCellClick()
 end
 
+local function handlePaletteDestinationLinkClick(env, button, x, y, wm)
+  if button ~= 1 then
+    return false
+  end
+
+  local ctx = env.ctx
+  local app = ctx and ctx.app or nil
+  if not app then
+    return false
+  end
+
+  local link = PaletteLinkRenderController.getLinkAtDestinationPoint(app, x, y)
+  if not link then
+    return false
+  end
+
+  if wm and wm.setFocus and link.contentWin then
+    wm:setFocus(link.contentWin)
+  end
+
+  return PaletteLinkController.beginDestinationDrag(button, x, y, link, wm)
+end
+
 function M.handleMousePressed(env, x, y, button)
   local ctx = env.ctx
   local wm = ctx.wm()
   local chrome = env.chrome
 
-  if button == 1 then
+  if handlePaletteDestinationLinkClick(env, button, x, y, wm) then
+    return true
+  end
+
+  if button == 1 or button == 2 or button == 3 then
     local app = ctx and ctx.app or nil
     local proxyWin = PaletteLinkRenderController.getSourcePaletteProxyWindowAt(app, x, y)
     if proxyWin then
       wm:setFocus(proxyWin)
+      if proxyWin.specializedToolbar and proxyWin.specializedToolbar.updatePosition then
+        proxyWin.specializedToolbar:updatePosition()
+      end
+      if chrome and chrome.handleToolbarClicks and chrome.handleToolbarClicks(button, x, y, proxyWin, wm) then
+        return true
+      end
       return true
     end
   end

@@ -87,6 +87,9 @@ function M.resetTransientState()
     app.paletteLinkDrag.active = false
     app.paletteLinkDrag.sourceWin = nil
     app.paletteLinkDrag.sourceWinId = nil
+    app.paletteLinkDrag.mode = nil
+    app.paletteLinkDrag.originContentWin = nil
+    app.paletteLinkDrag.originPaletteWin = nil
   end
   MultiSelectController.reset()
   if SpriteController and SpriteController.endDrag then

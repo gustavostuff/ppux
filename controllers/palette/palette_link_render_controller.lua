@@ -6,6 +6,61 @@ local colors = require("app_colors")
 local M = {}
 local isMouseInsideSquareHoverArea
 
+local SOURCE_SQUARE_SIZE = 3
+local DESTINATION_SQUARE_SIZE = 7
+local DESTINATION_HIT_SIZE = DESTINATION_SQUARE_SIZE + 4
+
+local function isPointInsideSquare(cx, cy, size, x, y)
+  local half = math.floor((size or 1) / 2)
+  return x >= (cx - half) and x <= (cx + half)
+    and y >= (cy - half) and y <= (cy + half)
+end
+
+local function getScaledMousePosition()
+  local mouse = ResolutionController:getScaledMouse(true)
+  local mx = mouse and mouse.x or nil
+  local my = mouse and mouse.y or nil
+  if type(mx) ~= "number" or type(my) ~= "number" then
+    mx, my = love.mouse.getPosition()
+  end
+  return mx, my
+end
+
+local function roundPixel(value)
+  return math.floor((tonumber(value) or 0) + 0.5)
+end
+
+local function buildElbowControlPoints(ax, ay, bx, by)
+  local axq = roundPixel(ax)
+  local ayq = roundPixel(ay)
+  local bxq = roundPixel(bx)
+  local byq = roundPixel(by)
+  local dx = bxq - axq
+  local dy = byq - ayq
+  if math.abs(dx) >= math.abs(dy) then
+    local midX = axq + math.floor(dx * 0.5)
+    -- Horizontal, then vertical, then horizontal (3 segments).
+    return midX, ayq, midX, byq
+  end
+  local midY = ayq + math.floor(dy * 0.5)
+  -- Vertical, then horizontal, then vertical (3 segments).
+  return axq, midY, bxq, midY
+end
+
+local function buildRectilinearPoints(ax, ay, bx, by)
+  local axq = roundPixel(ax)
+  local ayq = roundPixel(ay)
+  local bxq = roundPixel(bx)
+  local byq = roundPixel(by)
+  local c1x, c1y, c2x, c2y = buildElbowControlPoints(axq, ayq, bxq, byq)
+  return {
+    axq, ayq,
+    roundPixel(c1x), roundPixel(c1y),
+    roundPixel(c2x), roundPixel(c2y),
+    bxq, byq,
+  }
+end
+
 local function eachLayer(layers, fn)
   if type(layers) ~= "table" or type(fn) ~= "function" then
     return
@@ -209,12 +264,43 @@ function M.getWindowLinkAnchor(fromWin, toWin)
   return x + math.floor(w / 2), y + math.floor(h / 2)
 end
 
-function M.getPaletteHandleAnchor(paletteWin, focusedWin)
-  if paletteWin and focusedWin then
-    return M.getWindowLinkAnchor(paletteWin, focusedWin)
+function M.getDestinationLayerAnchor(contentWin)
+  if not contentWin then
+    return nil, nil
   end
+  if contentWin.getScreenRect then
+    local x, y = contentWin:getScreenRect()
+    if x and y then
+      return x - 4, y + 4
+    end
+  end
+  local x, y = M.getWindowLinkRect(contentWin)
+  return x, y
+end
+
+function M.getPaletteSourceAnchor(paletteWin, targetWin)
+  if not paletteWin then
+    return nil, nil
+  end
+
+  if WindowCaps.isRomPaletteWindow(paletteWin) then
+    local sx, sy = M.getPaletteLinkDragAnchor(paletteWin)
+    if sx and sy then
+      return sx, sy
+    end
+  end
+
+  local sx, sy = M.getWindowLinkAnchor(paletteWin, targetWin)
+  if sx and sy then
+    return sx, sy
+  end
+
   local x, y, w, h = M.getWindowLinkRect(paletteWin)
   return x + math.floor(w / 2), y + math.floor(h / 2)
+end
+
+function M.getPaletteHandleAnchor(paletteWin, focusedWin)
+  return M.getPaletteSourceAnchor(paletteWin, focusedWin)
 end
 
 function M.getPaletteLinkDragAnchor(paletteWin)
@@ -327,24 +413,50 @@ function M.getHoveredSourceSquareLinks(app)
 end
 
 isMouseInsideSquareHoverArea = function(cx, cy, size)
-  local mouse = ResolutionController:getScaledMouse(true)
-  local mx = mouse and mouse.x or nil
-  local my = mouse and mouse.y or nil
-  if type(mx) ~= "number" or type(my) ~= "number" then
-    mx, my = love.mouse.getPosition()
-  end
-  local half = math.floor((size or 15) / 2)
-  return mx >= (cx - half) and mx <= (cx + half)
-    and my >= (cy - half) and my <= (cy + half)
+  local mx, my = getScaledMousePosition()
+  return isPointInsideSquare(cx, cy, size or 15, mx, my)
 end
 
-function M.isMouseHoveringDestinationSquare(contentWin, paletteWin)
+function M.isPointHoveringDestinationSquare(contentWin, paletteWin, x, y, hitSize)
   if not (contentWin and paletteWin) then
     return false
   end
 
-  local sx, sy = M.getWindowLinkAnchor(contentWin, paletteWin)
-  return isMouseInsideSquareHoverArea(sx, sy, 15)
+  local sx, sy = M.getDestinationLayerAnchor(contentWin)
+  if not (sx and sy and x and y) then
+    return false
+  end
+  return isPointInsideSquare(sx, sy, hitSize or DESTINATION_HIT_SIZE, x, y)
+end
+
+function M.isMouseHoveringDestinationSquare(contentWin, paletteWin)
+  local mx, my = getScaledMousePosition()
+  return M.isPointHoveringDestinationSquare(contentWin, paletteWin, mx, my, DESTINATION_HIT_SIZE)
+end
+
+function M.getLinkAtDestinationPoint(app, x, y)
+  local wm = app and app.wm
+  if not (wm and wm.getWindows) then
+    return nil
+  end
+
+  local windows = wm:getWindows() or {}
+  for i = #windows, 1, -1 do
+    local win = windows[i]
+    if win and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
+      local linkedPaletteWindows = collectLinkedPaletteWindowsForWindow(win, wm)
+      for _, paletteWin in ipairs(linkedPaletteWindows) do
+        if paletteWin and not paletteWin._closed and not paletteWin._minimized and WindowCaps.isRomPaletteWindow(paletteWin) then
+          local showLine = M.getPersistentVisual(app, win, paletteWin)
+          if showLine and M.isPointHoveringDestinationSquare(win, paletteWin, x, y, DESTINATION_HIT_SIZE) then
+            return { contentWin = win, paletteWin = paletteWin }
+          end
+        end
+      end
+    end
+  end
+
+  return nil
 end
 
 function M.getHoveredDestinationLinks(app)
@@ -415,6 +527,8 @@ end
 
 function M.buildConnectorGeometry(x1, y1, x2, y2, opts)
   opts = opts or {}
+  local snappedPoints = buildRectilinearPoints(x1, y1, x2, y2)
+
   local geometry = {
     showLine = (opts.showLine ~= false),
     alpha = math.max(0, math.min(1, tonumber(opts.alpha) or 1)),
@@ -423,11 +537,9 @@ function M.buildConnectorGeometry(x1, y1, x2, y2, opts)
     y1 = y1,
     x2 = x2,
     y2 = y2,
+    rawPoints = snappedPoints,
   }
-  geometry.points = {
-    math.floor((x1 or 0) + 0.5), math.floor((y1 or 0) + 0.5),
-    math.floor((x2 or 0) + 0.5), math.floor((y2 or 0) + 0.5),
-  }
+  geometry.points = snappedPoints
   return geometry
 end
 
@@ -437,21 +549,9 @@ function M.drawConnector(geometry)
   end
 
   love.graphics.push("all")
-  M.drawConnectorShadowLine(geometry)
   M.drawConnectorLine(geometry)
   M.drawConnectorSquares(geometry)
   love.graphics.pop()
-end
-
-function M.drawConnectorShadowLine(geometry)
-  if not (geometry and geometry.showLine) then
-    return
-  end
-  local alpha = geometry.alpha or 1
-  love.graphics.setLineStyle("rough")
-  love.graphics.setLineWidth(3)
-  love.graphics.setColor(0, 0, 0, alpha)
-  love.graphics.line(geometry.points)
 end
 
 function M.drawConnectorLine(geometry)
@@ -470,9 +570,18 @@ function M.drawConnectorSquares(geometry)
   if not geometry then
     return
   end
-  -- love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], geometry.alpha)
-  -- love.graphics.rectangle("fill", geometry.x1 - 1, geometry.y1 - 1, 3, 3)
-  -- love.graphics.rectangle("fill", geometry.x2 - 1, geometry.y2 - 1, 3, 3)
+  local lineColor = geometry.lineColor or colors.blue
+  local alpha = geometry.alpha or 1
+
+  -- Source marker (palette handle): compact white 3x3.
+  love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], alpha)
+  love.graphics.rectangle("fill", geometry.x1 - math.floor(SOURCE_SQUARE_SIZE / 2), geometry.y1 - math.floor(SOURCE_SQUARE_SIZE / 2), SOURCE_SQUARE_SIZE, SOURCE_SQUARE_SIZE)
+
+  -- Destination marker (window anchor): 7x7 button style (blue border, white center).
+  love.graphics.setColor(lineColor[1], lineColor[2], lineColor[3], alpha)
+  love.graphics.rectangle("fill", geometry.x2 - math.floor(DESTINATION_SQUARE_SIZE / 2), geometry.y2 - math.floor(DESTINATION_SQUARE_SIZE / 2), DESTINATION_SQUARE_SIZE, DESTINATION_SQUARE_SIZE)
+  love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], alpha)
+  love.graphics.rectangle("fill", geometry.x2 - 1, geometry.y2 - 1, 3, 3)
 end
 
 function M.drawRectConnector(x1, y1, x2, y2, opts)
@@ -497,6 +606,8 @@ end
 
 function M.drawOverlay(app)
   local mode = M.normalizeLinksMode(app and app.paletteLinksMode)
+  local drag = app and app.paletteLinkDrag or nil
+  local suppressPaletteWin = (drag and drag.active and drag.mode == "move_all" and drag.sourceWin) or nil
   local links = {}
   local seen = {}
   local function appendLinks(list)
@@ -523,9 +634,9 @@ function M.drawOverlay(app)
   for _, link in ipairs(links) do
     local contentWin = link.contentWin
     local paletteWin = link.paletteWin
-    if contentWin and paletteWin then
-      local sx, sy = M.getWindowLinkAnchor(contentWin, paletteWin)
-      local tx, ty = M.getPaletteHandleAnchor(paletteWin, contentWin)
+    if contentWin and paletteWin and paletteWin ~= suppressPaletteWin then
+      local sx, sy = M.getPaletteSourceAnchor(paletteWin, contentWin)
+      local tx, ty = M.getDestinationLayerAnchor(contentWin)
       local showLine, alpha = M.getPersistentVisual(app, contentWin, paletteWin)
       geometries[#geometries + 1] = M.buildConnectorGeometry(sx, sy, tx, ty, {
         showLine = showLine,
@@ -535,9 +646,6 @@ function M.drawOverlay(app)
   end
 
   love.graphics.push("all")
-  for _, geometry in ipairs(geometries) do
-    M.drawConnectorShadowLine(geometry)
-  end
   for _, geometry in ipairs(geometries) do
     M.drawConnectorLine(geometry)
   end
@@ -573,11 +681,44 @@ function M.drawActiveDrag(app)
   end
 
   local lineColor = colors.red
-  if app and app.wm then
-    local targetWin = PaletteLinkController.getDropTarget(app.wm, drag.sourceWin, tx, ty)
-    local ok = PaletteLinkController.canApplyToTarget(targetWin, drag.sourceWin)
-    if ok then
-      lineColor = colors.green
+  local wm = app and app.wm or nil
+  if wm then
+    if drag.mode == "move_all" then
+      local targetPalette = PaletteLinkController.getMoveAllTarget(wm, drag.sourceWin, tx, ty, { allowSource = true })
+      if targetPalette then
+        lineColor = colors.green
+      end
+    else
+      local targetWin = PaletteLinkController.getDropTarget(wm, drag.sourceWin, tx, ty)
+      local ok = PaletteLinkController.canApplyToTarget(targetWin, drag.sourceWin)
+      if ok then
+        lineColor = colors.green
+      end
+    end
+  end
+
+  if drag.mode == "move_all" and wm and wm.getWindows then
+    local drawn = 0
+    for _, contentWin in ipairs(wm:getWindows()) do
+      if contentWin
+        and contentWin ~= drag.sourceWin
+        and not contentWin._closed
+        and not contentWin._minimized
+        and not WindowCaps.isAnyPaletteWindow(contentWin)
+        and windowHasPaletteLinkTo(contentWin, drag.sourceWin, wm)
+      then
+        local dx, dy = M.getDestinationLayerAnchor(contentWin)
+        if dx and dy then
+          M.drawRectConnector(tx, ty, dx, dy, {
+            lineColor = lineColor,
+          })
+          drawn = drawn + 1
+        end
+      end
+    end
+
+    if drawn > 0 then
+      return
     end
   end
 

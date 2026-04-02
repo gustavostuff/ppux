@@ -137,13 +137,13 @@ function M.handleToolbarClicks(button, x, y, win, wm)
 
   if not win._collapsed and win.specializedToolbar then
     local toolbar = win.specializedToolbar
-    if isWindowDragMouseButton(button) and isOverToolbarControl(toolbar, x, y) then
-      return true
-    end
     if wm and wm.setFocus then
       wm:setFocus(win)
     end
     if PaletteLinkController.beginDrag(toolbar, button, x, y, win, wm, previousFocus) then
+      return true
+    end
+    if isWindowDragMouseButton(button) and isOverToolbarControl(toolbar, x, y) then
       return true
     end
     if beginToolbarWindowDragIfNeeded(toolbar, button, x, y, win) then
