@@ -10,6 +10,7 @@ local RomPaletteWindow   = require("user_interface.windows_system.rom_palette_wi
 local SpriteController   = require("controllers.sprite.sprite_controller")
 local ToolbarController  = require("controllers.window.toolbar_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local UiScale = require("user_interface.ui_scale")
 
 local WM = {}
 WM.__index = WM
@@ -234,7 +235,7 @@ end
 function WM:cascade(opts)
   opts = opts or {}
   local startX  = opts.startX or 30
-  local startY  = opts.startY or 30 + 15
+  local startY  = opts.startY or 30 + UiScale.windowHeaderHeight()
   local offsetX = opts.offsetX or 15
   local offsetY = opts.offsetY or 15
   local cascadeShiftX = opts.cascadeShiftX or 80
@@ -396,7 +397,7 @@ function WM:grid(opts)
       p._collapsed = true
       p.x = stackRight - pw
       p.y = stackY + (p.headerH or 0)
-      stackY = stackY + (p.headerH or 15) + paletteStackGap
+      stackY = stackY + (p.headerH or UiScale.windowHeaderHeight()) + paletteStackGap
     end
   end
 
@@ -467,7 +468,7 @@ function WM:collapseAll(opts)
     if not firstColumnStepW then
       firstColumnStepW = ww
     end
-    local headerH = w.headerH or 15
+    local headerH = w.headerH or UiScale.windowHeaderHeight()
     local itemH = headerH
 
     if colY > areaY and (colY + itemH) > maxY then

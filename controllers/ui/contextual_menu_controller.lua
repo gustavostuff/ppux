@@ -1,4 +1,5 @@
 local Panel = require("user_interface.panel")
+local UiScale = require("user_interface.ui_scale")
 
 local ContextualMenuController = {}
 ContextualMenuController.__index = ContextualMenuController
@@ -93,11 +94,12 @@ end
 local function resolveCellWidth(menu)
   local items = visibleItems(menu)
   local splitIconCell = menuUsesSplitIconCell(menu)
+  local defaultCell = UiScale.menuCellSize()
   if splitIconCell then
     local cols = math.max(2, math.floor(tonumber(menu.cols) or 8))
     local iconCols = 1
     local textCols = math.max(1, cols - iconCols)
-    local baseCell = tonumber(menu.cellW) or tonumber(menu.cellH) or 15
+    local baseCell = tonumber(menu.cellW) or tonumber(menu.cellH) or defaultCell
     local leftInset = ContextualMenuController.TEXT_PADDING_X
     local rightInset = ContextualMenuController.TEXT_PADDING_X
     local resolved = baseCell
@@ -114,7 +116,7 @@ local function resolveCellWidth(menu)
     return resolved
   end
 
-  local resolved = tonumber(menu.cellW) or tonumber(menu.cellH) or 15
+  local resolved = tonumber(menu.cellW) or tonumber(menu.cellH) or defaultCell
   local leftInset = ContextualMenuController.TEXT_PADDING_X
   local rightInset = leftInset
 
@@ -277,6 +279,7 @@ end
 
 function ContextualMenuController.new(opts)
   opts = opts or {}
+  local defaultCell = UiScale.menuCellSize()
   local self = setmetatable({
     visible = false,
     x = 0,
@@ -289,8 +292,8 @@ function ContextualMenuController.new(opts)
     rootMenu = opts.rootMenu,
     getBounds = opts.getBounds,
     cols = opts.cols or 8,
-    cellW = opts.cellW or 15,
-    cellH = opts.cellH or 15,
+    cellW = opts.cellW or defaultCell,
+    cellH = opts.cellH or defaultCell,
     padding = (opts.padding ~= nil) and opts.padding or 0,
     colGap = (opts.colGap ~= nil) and opts.colGap or 0,
     rowGap = (opts.rowGap ~= nil) and opts.rowGap or 1,
@@ -334,6 +337,33 @@ function ContextualMenuController:setItems(items)
   self.pendingChildRow = nil
   hideChild(self)
   rebuildPanel(self)
+end
+
+function ContextualMenuController:setCellSize(cellW, cellH)
+  local nextW = tonumber(cellW) or self.cellW
+  local nextH = tonumber(cellH) or self.cellH
+  local changed = (self.cellW ~= nextW) or (self.cellH ~= nextH)
+
+  self.cellW = nextW
+  self.cellH = nextH
+
+  if self.childMenu and self.childMenu.setCellSize then
+    self.childMenu:setCellSize(nextW, nextH)
+  end
+
+  if changed then
+    self.childHoverGraceUntil = nil
+    self.pendingChildRow = nil
+    hideChild(self)
+    rebuildPanel(self)
+  end
+
+  if self.visible and self.panel then
+    self.panel:setVisible(true)
+    self:setPosition(self.x, self.y)
+  end
+
+  return changed
 end
 
 function ContextualMenuController:showAt(x, y, items)

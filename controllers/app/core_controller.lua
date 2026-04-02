@@ -16,6 +16,7 @@ local NametableTilesController = require("controllers.ppu.nametable_tiles_contro
 local SimpleLoadingScreen = require("controllers.app.simple_loading_screen")
 local TooltipController = require("controllers.ui.tooltip_controller")
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
+local UiScale = require("user_interface.ui_scale")
 local UserInput = require("controllers.input")
 local TableUtils = require("utils.table_utils")
 
@@ -116,6 +117,7 @@ local function captureRomPaletteAddressUndoState(win)
 end
 
 function AppCoreController.new()
+  UiScale.setCompactMode(false)
   local self = setmetatable({}, AppCoreController)
 
   -- app state
@@ -180,7 +182,7 @@ function AppCoreController.new()
         h = canvas and canvas.getHeight and canvas:getHeight() or 0,
       }
     end,
-    cellH = 15,
+    cellH = UiScale.menuCellSize(),
     padding = 0,
     colGap = 0,
     rowGap = 1,
@@ -194,7 +196,7 @@ function AppCoreController.new()
         h = canvas and canvas.getHeight and canvas:getHeight() or 0,
       }
     end,
-    cellH = 15,
+    cellH = UiScale.menuCellSize(),
     padding = 0,
     colGap = 0,
     rowGap = 1,

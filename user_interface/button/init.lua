@@ -2,6 +2,7 @@
 -- Reusable button component for toolbars and UI
 
 local colors = require("app_colors")
+local UiScale = require("user_interface.ui_scale")
 
 local Button = {}
 Button.__index = Button
@@ -35,10 +36,10 @@ function Button.new(opts)
   if opts.icon and not opts.text then
     local iw, ih = iconSize(opts.icon)
     if (not hasExplicitW) then
-      initialW = iw
+      initialW = UiScale.mapStandardButtonSize(iw) or iw
     end
     if (not hasExplicitH) then
-      initialH = ih
+      initialH = UiScale.mapStandardButtonSize(ih) or ih
     end
   end
   local self = setmetatable({
@@ -198,6 +199,17 @@ end
 function Button:setSize(w, h)
   self.w = w or self.w
   self.h = h or self.h
+end
+
+function Button:applyUiScale()
+  local w = tonumber(self.w)
+  local h = tonumber(self.h)
+  if UiScale.isScalableButtonSquare(w, h) then
+    local size = UiScale.buttonSize()
+    self:setSize(size, size)
+    return true
+  end
+  return false
 end
 
 return Button

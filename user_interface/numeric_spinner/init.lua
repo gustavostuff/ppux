@@ -1,10 +1,10 @@
 local colors = require("app_colors")
 local images = require("images")
+local UiScale = require("user_interface.ui_scale")
 
 local NumericSpinner = {}
 NumericSpinner.__index = NumericSpinner
 
-local BUTTON_SIZE = 15
 local VALUE_PADDING_X = 4
 local MIN_VALUE_WIDTH = 12
 
@@ -40,12 +40,13 @@ end
 
 function NumericSpinner.new(opts)
   opts = opts or {}
+  local buttonSize = math.max(1, math.floor(tonumber(opts.buttonSize) or UiScale.buttonSize()))
   local self = setmetatable({
     x = opts.x or 0,
     y = opts.y or 0,
-    h = BUTTON_SIZE,
+    h = buttonSize,
     w = 0,
-    buttonSize = BUTTON_SIZE,
+    buttonSize = buttonSize,
     value = opts.value or 0,
     min = opts.min or 0,
     max = opts.max or 999,
@@ -98,6 +99,11 @@ end
 function NumericSpinner:setSize()
   self.h = self.buttonSize
   self:_updateWidth()
+end
+
+function NumericSpinner:applyUiScale()
+  self.buttonSize = UiScale.buttonSize()
+  self:setSize()
 end
 
 function NumericSpinner:_minusRect()

@@ -1,4 +1,5 @@
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
+local UiScale = require("user_interface.ui_scale")
 
 local M = {}
 local DOUBLE_CLICK_SECONDS = 0.35
@@ -22,9 +23,9 @@ local function isInHeaderTitleArea(win, x, y)
     headerLeft, headerTop, headerWidth, headerHeight = win:getHeaderRect()
   else
     headerLeft = win.x or 0
-    headerTop = (win.y or 0) - (win.headerH or 15)
+    headerTop = (win.y or 0) - (win.headerH or UiScale.windowHeaderHeight())
     headerWidth = ((win.cellW or 0) * (win.visibleCols or win.cols or 0) * (win.zoom or 1))
-    headerHeight = win.headerH or 15
+    headerHeight = win.headerH or UiScale.windowHeaderHeight()
   end
 
   local left = headerLeft + 4

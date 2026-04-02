@@ -1,10 +1,12 @@
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
 local images = require("images")
+local UiScale = require("user_interface.ui_scale")
 
 local M = {}
 
 function M.install(Taskbar, Helpers)
   function Taskbar:_initMenu()
+    local menuCell = UiScale.menuCellSize()
     self.menuController = ContextualMenuController.new({
       getBounds = function()
         return {
@@ -13,8 +15,8 @@ function M.install(Taskbar, Helpers)
         }
       end,
       cols = 8,
-      cellW = 15,
-      cellH = 15,
+      cellW = menuCell,
+      cellH = menuCell,
       padding = 0,
       colGap = 0,
       rowGap = 1,

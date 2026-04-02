@@ -5,6 +5,8 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local AppSettingsController = require("controllers.app.settings_controller")
 local CursorsController = require("controllers.input_support.cursors_controller")
 local Taskbar = require("user_interface.taskbar")
+local UiScale = require("user_interface.ui_scale")
+local UiScaleController = require("controllers.ui.ui_scale_controller")
 local ToastController = require("controllers.ui.toast_controller")
 local UserInput = require("controllers.input")
 local RomProjectController = require("controllers.rom.rom_project_controller")
@@ -214,6 +216,7 @@ local function initGraphics(self, opts)
   self.canvas:setFilter("nearest", "nearest")
   self.canvasFilterMode = self.canvasFilterMode or "sharp"
   self.crtModeEnabled = crtMode
+  UiScaleController.applyForCrtMode(self, crtMode)
 
   ResolutionController:init(self.canvas)
   if previousResolutionMode ~= nil then
@@ -428,11 +431,12 @@ function AppCoreController:load()
 
   CursorsController.init(self)
   UserInput.setup(ctx, self)
-  self.taskbar = Taskbar.new(self, { h = 15 })
+  self.taskbar = Taskbar.new(self, { h = UiScale.taskbarHeight() })
   self.wm.taskbar = self.taskbar
   self.taskbar:updateLayout(self.canvas:getWidth(), self.canvas:getHeight())
   self.toastController = ToastController.new(self)
   self.toastController:updateLayout(self.canvas:getWidth(), self.canvas:getHeight())
+  UiScaleController.applyForCrtMode(self, self.crtModeEnabled == true)
 end
 
 function AppCoreController:setCrtModeEnabled(enabled)

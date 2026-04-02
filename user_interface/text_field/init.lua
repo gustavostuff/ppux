@@ -2,6 +2,7 @@
 -- Text input field component using love.textinput
 
 local colors = require("app_colors")
+local UiScale = require("user_interface.ui_scale")
 local Selection = require("user_interface.text_field.selection")
 local Editing = require("user_interface.text_field.editing")
 local Rendering = require("user_interface.text_field.rendering")
@@ -86,7 +87,9 @@ local shared = {
 function TextField.new(opts)
   opts = opts or {}
 
-  local defaultButtonSize = opts.buttonSize or 15
+  local hasExplicitWidth = (opts.width ~= nil)
+  local hasExplicitHeight = (opts.height ~= nil)
+  local defaultButtonSize = opts.buttonSize or UiScale.buttonSize()
   local defaultWidth = (opts.width or (defaultButtonSize * 4))
   local defaultHeight = opts.height or defaultButtonSize
   local mask = opts.mask
@@ -113,6 +116,8 @@ function TextField.new(opts)
     _selectionAnchor = nil,
     _dragSelecting = false,
     _keyboardSelectionAnchor = nil,
+    _explicitWidth = hasExplicitWidth,
+    _explicitHeight = hasExplicitHeight,
   }, TextField)
 
   self:setText(opts.text or "")
@@ -273,6 +278,16 @@ end
 function TextField:setSize(w, h)
   self.w = w or self.w
   self.h = h or self.h
+end
+
+function TextField:applyUiScale()
+  local size = UiScale.buttonSize()
+  if self._explicitHeight ~= true or UiScale.isKnownButtonSize(self.h) then
+    self.h = size
+  end
+  if self._explicitWidth ~= true then
+    self.w = size * 4
+  end
 end
 
 Selection.install(TextField, shared)

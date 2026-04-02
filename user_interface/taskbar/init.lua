@@ -1,5 +1,6 @@
 local colors = require("app_colors")
 local images = require("images")
+local UiScale = require("user_interface.ui_scale")
 
 local Helpers = require("user_interface.taskbar.helpers")
 local ModeIndicator = require("user_interface.taskbar.mode_indicator")
@@ -20,7 +21,7 @@ function Taskbar.new(app, data)
     x = 0,
     y = 0,
     w = 0,
-    h = data.h or 15,
+    h = data.h or UiScale.taskbarHeight(),
     paddingX = 0,
     paddingY = 0,
     spacing = 0,
@@ -100,15 +101,18 @@ function Taskbar:updateLayout(canvasW, canvasH)
       if button._explicitW then
         buttonW = button.w
       elseif button.icon and button.icon.getWidth then
-        buttonW = button.icon:getWidth()
+        local mappedW = UiScale.mapStandardButtonSize(button.icon:getWidth())
+        buttonW = mappedW or button.icon:getWidth()
       end
       if button._explicitH then
         buttonH = button.h
       elseif button.icon and button.icon.getHeight then
-        buttonH = button.icon:getHeight()
+        local mappedH = UiScale.mapStandardButtonSize(button.icon:getHeight())
+        buttonH = mappedH or button.icon:getHeight()
       end
     elseif button.fitIconWidth and button.icon and button.icon.getWidth then
-      buttonW = math.max(buttonSize, button.icon:getWidth())
+      local iconW = UiScale.mapStandardButtonSize(button.icon:getWidth()) or button.icon:getWidth()
+      buttonW = math.max(buttonSize, iconW)
     end
     button:setSize(buttonW, buttonH)
     button:setPosition(x, y)

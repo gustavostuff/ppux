@@ -2,13 +2,14 @@ local katsudo = require("lib.katsudo")
 local colors = require("app_colors")
 local images = require("images")
 local ResolutionController = require("controllers.app.resolution_controller")
+local UiScale = require("user_interface.ui_scale")
 
 local M = {}
 
 M.MINIMIZED_VISIBLE_MAX = 35
 M.MINIMIZED_SCROLLBAR_OPACITY_TIME = 1.5
 M.MINIMIZED_SCROLL_BUTTON_W = 10
-M.MINIMIZED_SCROLL_BUTTON_H = 15
+M.MINIMIZED_SCROLL_BUTTON_H = UiScale.buttonSize()
 
 function M.install(Taskbar, Helpers)
   local function removeMinimizedWindowAt(self, idx)
@@ -173,6 +174,7 @@ function M.install(Taskbar, Helpers)
   end
 
   function Taskbar:_initWindowControls()
+    M.MINIMIZED_SCROLL_BUTTON_H = UiScale.buttonSize()
     self.minimizedWindowButtonIcon = images.icons.icon_circle
     self.minimizedScrollLeftIcon = images.icons.icon_scroll_toolbar_left
     self.minimizedScrollRightIcon = images.icons.icon_scroll_toolbar_right
@@ -358,11 +360,12 @@ function M.install(Taskbar, Helpers)
     end
     local iw = sheet:getWidth()
     local ih = sheet:getHeight()
-    if ih ~= 15 or iw < 15 or (iw % 15 ~= 0) then
+    local frameSize = UiScale.normalButtonSize()
+    if ih ~= frameSize or iw < frameSize or (iw % frameSize ~= 0) then
       return nil
     end
-    local frames = math.max(1, math.floor(iw / 15))
-    return katsudo.new(sheet, 15, 15, frames, 0.1)
+    local frames = math.max(1, math.floor(iw / frameSize))
+    return katsudo.new(sheet, frameSize, frameSize, frames, 0.1)
   end
 
   function Taskbar:getTaskbarIconForWindow(win)

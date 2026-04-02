@@ -3,6 +3,7 @@
 
 local Window = {}
 Window.__index = Window
+local UiScale = require("user_interface.ui_scale")
 
 local SCROLL_BAR_OPACITY_TIME = 1.5
 
@@ -42,7 +43,7 @@ function Window.new(x, y, cellW, cellH, cols, rows, zoom, data)
     checkerDark  = { 0.10, 0.10, 0.10 },
     selected = nil,
     selectedByLayer = {},
-    headerH = 15,
+    headerH = UiScale.windowHeaderHeight(),
     scrollbarOpacity = SCROLL_BAR_OPACITY_TIME,
     itemCountLabelMarkName = nil,
     itemCountLabelSpaceDown = false,
