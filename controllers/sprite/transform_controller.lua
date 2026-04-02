@@ -133,6 +133,12 @@ local function syncSharedOAMFieldsIntoTarget(target, source, opts)
     if source.mirrorY ~= nil then
       target.mirrorY = source.mirrorY and true or false
     end
+    if source._mirrorXOverrideSet == true then
+      target._mirrorXOverrideSet = true
+    end
+    if source._mirrorYOverrideSet == true then
+      target._mirrorYOverrideSet = true
+    end
   end
 
   if syncAttr then
@@ -180,7 +186,7 @@ local function collectCandidateOamWindows(sourceWin, opts)
 
   local filtered = {}
   for _, win in ipairs(out) do
-    if WindowCaps.isOamAnimation(win) and not win._closed and not win._minimized then
+    if WindowCaps.isOamAnimation(win) and not win._closed then
       filtered[#filtered + 1] = win
     end
   end
@@ -254,8 +260,10 @@ function SpriteTransformController.toggleMirrorForSelection(SpriteController, wi
     if sprite.mirrorY == nil then sprite.mirrorY = false end
     if axis == "h" then
       sprite.mirrorX = not sprite.mirrorX
+      sprite._mirrorXOverrideSet = true
     else
       sprite.mirrorY = not sprite.mirrorY
+      sprite._mirrorYOverrideSet = true
     end
   end
 

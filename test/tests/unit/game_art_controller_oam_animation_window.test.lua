@@ -192,9 +192,11 @@ describe("game_art_controller.lua - oam_animation hydration", function()
     expect(s.attr).toBe(0xC2)
     expect(s.mirrorX).toBe(true)
     expect(s.mirrorY).toBe(true)
+    expect(s._mirrorXOverrideSet).toBe(false)
+    expect(s._mirrorYOverrideSet).toBe(false)
   end)
 
-  it("preserves explicit project mirror flags over attr bits during hydration", function()
+  it("normalizes explicit project mirror flags to ROM attr bits during hydration", function()
     local startAddr = 60
     local romRaw = makeRom(128, {
       [startAddr + 0] = 18,
@@ -254,8 +256,10 @@ describe("game_art_controller.lua - oam_animation hydration", function()
 
     local s = wm:getWindows()[1].layers[1].items[1]
     expect(s.attr).toBe(0xC1)
-    expect(s.mirrorX).toBe(false)
-    expect(s.mirrorY).toBe(false)
+    expect(s.mirrorX).toBe(true)
+    expect(s.mirrorY).toBe(true)
+    expect(s._mirrorXOverrideSet).toBe(true)
+    expect(s._mirrorYOverrideSet).toBe(true)
   end)
 
   it("snapshots oam_animation layers with sprite metadata and frame delays", function()
@@ -282,6 +286,8 @@ describe("game_art_controller.lua - oam_animation hydration", function()
         paletteNumber = 3,
         mirrorX = true,
         mirrorY = true,
+        _mirrorXOverrideSet = true,
+        _mirrorYOverrideSet = true,
       }
     }
     win.frameDelays[1] = 0.15
@@ -305,6 +311,37 @@ describe("game_art_controller.lua - oam_animation hydration", function()
     expect(entry.layers[1].items[1].dy).toBe(-1)
     expect(entry.layers[1].items[1].mirrorX).toBe(true)
     expect(entry.layers[1].items[1].mirrorY).toBe(true)
+  end)
+
+  it("omits mirror flags for OAM sprites when no UI mirror override was set", function()
+    local wm = WM.new()
+    local win = wm:createSpriteWindow({
+      animated = true,
+      oamBacked = true,
+      numFrames = 1,
+      cols = 32,
+      rows = 30,
+      spriteMode = "8x8",
+      title = "OAM Snapshot No Mirror Flags",
+    })
+
+    win.layers[1].items = {
+      {
+        startAddr = 0x1234,
+        bank = 1,
+        tile = 42,
+        paletteNumber = 3,
+        mirrorX = true,
+        mirrorY = false,
+        _mirrorXOverrideSet = false,
+        _mirrorYOverrideSet = false,
+      }
+    }
+
+    local layout = GameArtController.snapshotLayout(wm, nil, 1)
+    local item = layout.windows[1].layers[1].items[1]
+    expect(item.mirrorX).toBeNil()
+    expect(item.mirrorY).toBeNil()
   end)
 
   it("applies ROM displacement writes for oam_animation sprite layers", function()
@@ -352,5 +389,62 @@ describe("game_art_controller.lua - oam_animation hydration", function()
     expect(out[2]).toBe(5)   -- tile unchanged
     expect(out[3]).toBe(195) -- 128+64 + palette bits (3)
     expect(out[4]).toBe(23)  -- 20 + 3
+  end)
+
+  it("prefers explicit mirror override when shared startAddr appears in multiple windows", function()
+    local startAddr = 70
+    local romRaw = makeRom(128, {
+      [startAddr + 0] = 10,
+      [startAddr + 1] = 5,
+      [startAddr + 2] = 0x40, -- mirrored in X
+      [startAddr + 3] = 20,
+    })
+
+    local spriteWithOverride = {
+      startAddr = startAddr,
+      baseX = 20,
+      baseY = 10,
+      dx = 0,
+      dy = 0,
+      oamTile = 5,
+      attr = 0x40,
+      mirrorX = false,
+      _mirrorXOverrideSet = true,
+    }
+
+    local staleSprite = {
+      startAddr = startAddr,
+      baseX = 20,
+      baseY = 10,
+      dx = 0,
+      dy = 0,
+      oamTile = 5,
+      attr = 0x40,
+      mirrorX = true,
+      _mirrorXOverrideSet = false,
+    }
+
+    local winA = {
+      kind = "oam_animation",
+      layers = { { kind = "sprite", items = { staleSprite } } },
+      getSpriteLayers = function(self)
+        return { { index = 1, layer = self.layers[1] } }
+      end,
+    }
+    local winB = {
+      kind = "oam_animation",
+      layers = { { kind = "sprite", items = { spriteWithOverride } } },
+      getSpriteLayers = function(self)
+        return { { index = 1, layer = self.layers[1] } }
+      end,
+    }
+
+    local updated, err = SpriteController.applyDisplacementsToROMForWindows({ winA, winB }, romRaw)
+    expect(err).toBeNil()
+    expect(updated).toBeTruthy()
+
+    local out, readErr = chr.readBytesFromRange(updated, startAddr, startAddr + 3)
+    expect(readErr).toBeNil()
+    expect(out[3]).toBe(0x00) -- mirrorX cleared from attr bit 6
   end)
 end)

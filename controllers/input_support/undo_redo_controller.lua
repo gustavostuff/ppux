@@ -493,6 +493,12 @@ local function applySpriteState(sprite, state)
   elseif state.mirrorY ~= nil then
     sprite.mirrorY = state.mirrorY and true or false
   end
+  if state.mirrorXOverrideSet ~= nil then
+    sprite._mirrorXOverrideSet = (state.mirrorXOverrideSet == true)
+  end
+  if state.mirrorYOverrideSet ~= nil then
+    sprite._mirrorYOverrideSet = (state.mirrorYOverrideSet == true)
+  end
   if state.attrSet ~= nil then
     if state.attrSet then
       sprite.attr = state.attr

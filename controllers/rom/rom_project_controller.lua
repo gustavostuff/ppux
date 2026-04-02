@@ -627,6 +627,7 @@ M._chooseAdjacentProjectPath = chooseAdjacentProjectPath
 M._isEditedRomPath = isEditedRomPath
 M._normalizeRecentProjectBasePath = normalizeRecentProjectBasePath
 M._resolveRecentProjectLoadPath = resolveRecentProjectLoadPath
+M._resolveRomPathForProject = resolveRomPathForProject
 M.resolveRecentProjectLoadPath = resolveRecentProjectLoadPath
 
 local function collectPlannedBanksFromWindowData(value, banksSet)

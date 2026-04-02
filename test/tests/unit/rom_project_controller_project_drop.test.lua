@@ -89,6 +89,28 @@ describe("rom_project_controller.lua - project file loading", function()
     expect(foundPath).toBe(romPath)
   end)
 
+  it("resolves project rom path to base rom when both base and edited rom exist", function()
+    local projectPath = "/tmp/project_rom_resolution.lua"
+    local baseRomPath = "/tmp/project_rom_resolution.nes"
+    local editedRomPath = "/tmp/project_rom_resolution_edited.nes"
+    touchTempFile(projectPath, "return {}")
+    touchTempFile(baseRomPath, "base-rom")
+    touchTempFile(editedRomPath, "edited-rom")
+
+    local resolvedPath = RomProjectController._resolveRomPathForProject(projectPath)
+    expect(resolvedPath).toBe(baseRomPath)
+  end)
+
+  it("resolves project rom path to edited rom when base rom is missing", function()
+    local projectPath = "/tmp/project_rom_resolution_fallback.lua"
+    local editedRomPath = "/tmp/project_rom_resolution_fallback_edited.nes"
+    touchTempFile(projectPath, "return {}")
+    touchTempFile(editedRomPath, "edited-rom")
+
+    local resolvedPath = RomProjectController._resolveRomPathForProject(projectPath)
+    expect(resolvedPath).toBe(editedRomPath)
+  end)
+
   it("finds the sibling lua project when an edited rom is dropped", function()
     local romPath = "/tmp/ppux_drop_test_edited.nes"
     local projectPath = "/tmp/ppux_drop_test.lua"

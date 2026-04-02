@@ -18,6 +18,8 @@ local function captureSpriteState(sprite)
     mirrorX = sprite.mirrorX == true,
     mirrorYSet = (sprite.mirrorY ~= nil),
     mirrorY = sprite.mirrorY == true,
+    mirrorXOverrideSet = (sprite._mirrorXOverrideSet == true),
+    mirrorYOverrideSet = (sprite._mirrorYOverrideSet == true),
     attrSet = (sprite.attr ~= nil),
     attr = sprite.attr,
     paletteNumberSet = (sprite.paletteNumber ~= nil),
@@ -39,6 +41,8 @@ local function statesEqual(a, b)
     and (a.mirrorYSet == true) == (b.mirrorYSet == true)
     and (a.mirrorX == true) == (b.mirrorX == true)
     and (a.mirrorY == true) == (b.mirrorY == true)
+    and (a.mirrorXOverrideSet == true) == (b.mirrorXOverrideSet == true)
+    and (a.mirrorYOverrideSet == true) == (b.mirrorYOverrideSet == true)
     and (a.attrSet == true) == (b.attrSet == true)
     and a.attr == b.attr
     and (a.paletteNumberSet == true) == (b.paletteNumberSet == true)

@@ -34,6 +34,13 @@ function M.hydrateSpriteLayer(layer, opts)
 
   for _, s in ipairs(items) do
     if type(s.startAddr) == "number" then
+      if s._mirrorXOverrideSet == nil then
+        s._mirrorXOverrideSet = false
+      end
+      if s._mirrorYOverrideSet == nil then
+        s._mirrorYOverrideSet = false
+      end
+
       local bytes = chr.readBytesFromRange(romRaw, s.startAddr, s.startAddr + 3)
       if bytes and #bytes >= 4 then
         local baseY = bytes[1] or 0
@@ -44,23 +51,10 @@ function M.hydrateSpriteLayer(layer, opts)
         local palNumFromLayout = s.paletteNumber
         local palNumFromAttr = (attr % 4) + 1
         local palNum = palNumFromLayout or palNumFromAttr
-        local mirrorXFromLayout = s.mirrorX
-        local mirrorYFromLayout = s.mirrorY
         local mirrorXFromAttr = (math.floor(attr / 64) % 2) == 1
         local mirrorYFromAttr = (math.floor(attr / 128) % 2) == 1
-        local mirrorX
-        if mirrorXFromLayout ~= nil then
-          mirrorX = (mirrorXFromLayout == true)
-        else
-          mirrorX = mirrorXFromAttr
-        end
-
-        local mirrorY
-        if mirrorYFromLayout ~= nil then
-          mirrorY = (mirrorYFromLayout == true)
-        else
-          mirrorY = mirrorYFromAttr
-        end
+        local mirrorX = mirrorXFromAttr
+        local mirrorY = mirrorYFromAttr
 
         s.baseX = baseX
         s.baseY = baseY
@@ -146,12 +140,16 @@ function M.snapshotSpriteLayer(layer)
       bank = s.bank,
       tile = s.tile,
       paletteNumber = s.paletteNumber,
-      mirrorX = (s.mirrorX ~= nil) and s.mirrorX or nil,
-      mirrorY = (s.mirrorY ~= nil) and s.mirrorY or nil,
     }
 
     if s.startAddr then
       entry.startAddr = s.startAddr
+      if s._mirrorXOverrideSet == true then
+        entry.mirrorX = (s.mirrorX == true)
+      end
+      if s._mirrorYOverrideSet == true then
+        entry.mirrorY = (s.mirrorY == true)
+      end
       local dx = s.dx or 0
       local dy = s.dy or 0
       if dx ~= 0 or dy ~= 0 then
@@ -159,6 +157,8 @@ function M.snapshotSpriteLayer(layer)
         entry.dy = dy
       end
     else
+      entry.mirrorX = (s.mirrorX ~= nil) and s.mirrorX or nil
+      entry.mirrorY = (s.mirrorY ~= nil) and s.mirrorY or nil
       entry.x = s.x or s.worldX or 0
       entry.y = s.y or s.worldY or 0
     end
@@ -195,8 +195,10 @@ function M.applySnapshotToSpriteLayer(layer, snapshot, opts)
       s.tile = entry.tile
       s.tileBelow = nil
       s.paletteNumber = entry.paletteNumber
-      s.mirrorX = (entry.mirrorX ~= nil) and entry.mirrorX or false
-      s.mirrorY = (entry.mirrorY ~= nil) and entry.mirrorY or false
+      s._mirrorXOverrideSet = (entry.mirrorX ~= nil)
+      s._mirrorYOverrideSet = (entry.mirrorY ~= nil)
+      s.mirrorX = entry.mirrorX
+      s.mirrorY = entry.mirrorY
 
       if entry.startAddr then
         s.startAddr = entry.startAddr
@@ -214,8 +216,10 @@ function M.applySnapshotToSpriteLayer(layer, snapshot, opts)
           bank = entry.bank,
           tile = entry.tile,
           paletteNumber = entry.paletteNumber,
-          mirrorX = (entry.mirrorX ~= nil) and entry.mirrorX or false,
-          mirrorY = (entry.mirrorY ~= nil) and entry.mirrorY or false,
+          mirrorX = entry.mirrorX,
+          mirrorY = entry.mirrorY,
+          _mirrorXOverrideSet = (entry.mirrorX ~= nil),
+          _mirrorYOverrideSet = (entry.mirrorY ~= nil),
           dx = entry.dx or 0,
           dy = entry.dy or 0,
         }

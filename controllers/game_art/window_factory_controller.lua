@@ -209,6 +209,8 @@ function M.createStaticArtWindow(w, tilesPool, ensureTiles)
               paletteNumber = it.paletteNumber,
               mirrorX = it.mirrorX,
               mirrorY = it.mirrorY,
+              _mirrorXOverrideSet = (it.mirrorX ~= nil),
+              _mirrorYOverrideSet = (it.mirrorY ~= nil),
             })
           end
         end
@@ -274,6 +276,8 @@ function M.createAnimationWindow(w, tilesPool, ensureTiles)
               paletteNumber = it.paletteNumber,
               mirrorX = it.mirrorX,
               mirrorY = it.mirrorY,
+              _mirrorXOverrideSet = (it.mirrorX ~= nil),
+              _mirrorYOverrideSet = (it.mirrorY ~= nil),
             })
           end
         end
@@ -355,6 +359,8 @@ function M.createOamAnimationWindow(w, tilesPool, ensureTiles)
               paletteNumber = it.paletteNumber,
               mirrorX = it.mirrorX,
               mirrorY = it.mirrorY,
+              _mirrorXOverrideSet = (it.mirrorX ~= nil),
+              _mirrorYOverrideSet = (it.mirrorY ~= nil),
             })
           end
         end
@@ -398,6 +404,8 @@ local function addPpuSpriteOverlayLayers(win, w, ensureTiles)
             paletteNumber = it.paletteNumber,
             mirrorX = it.mirrorX,
             mirrorY = it.mirrorY,
+            _mirrorXOverrideSet = (it.mirrorX ~= nil),
+            _mirrorYOverrideSet = (it.mirrorY ~= nil),
           })
         end
       end

@@ -502,6 +502,44 @@ describe("sprite_controller.lua - shared OAM item sync", function()
     expect(sAOther.attr).toBe(sA.attr)
     expect(sB.attr).toBe(sA.attr)
   end)
+
+  it("syncs shared OAM state to minimized oam_animation windows too", function()
+    local winA, _, _, sA = makeOAMWinWithSharedSprite()
+    local sB = {
+      bank = 0, tile = 3, startAddr = 0x1234,
+      baseX = 20, baseY = 30, worldX = 20, worldY = 30, x = 20, y = 30,
+      dx = 0, dy = 0, attr = 0x00, paletteNumber = 1, mirrorX = false, mirrorY = false,
+    }
+    local winB = {
+      kind = "oam_animation",
+      layers = {
+        { kind = "sprite", mode = "8x8", items = { sB } },
+      },
+      _closed = false,
+      _minimized = true,
+    }
+    local wm = {
+      getWindows = function()
+        return { winA, winB }
+      end,
+    }
+    winA._wm = wm
+    winB._wm = wm
+
+    sA.mirrorX = true
+    sA._mirrorXOverrideSet = true
+    sA.attr = 0x40
+
+    local count = SpriteController.syncSharedOAMSpriteState(winA, sA, {
+      syncPosition = false,
+      syncVisual = true,
+      syncAttr = true,
+    })
+
+    expect(count).toBe(3)
+    expect(sB.mirrorX).toBe(true)
+    expect(sB.attr).toBe(sA.attr)
+  end)
 end)
 
 describe("sprite_controller.lua - oam animation restrictions", function()
