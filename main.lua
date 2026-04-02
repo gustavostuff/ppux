@@ -8,6 +8,7 @@ local crtModeToggleLatched = false
 local AppCoreController
 local RomProjectController
 local LoveRunLoop = require("controllers.app.love_run_loop")
+local applyHighSpeedPaintMode
 
 local function parseCommandLineArgs(argv)
   local out = {
@@ -70,6 +71,10 @@ function love.load(arg)
   if love.mouse and love.mouse.getPosition then
     lastPolledMouseX, lastPolledMouseY = love.mouse.getPosition()
   end
+
+  -- Re-assert startup mode in case initialization touched window flags and
+  -- silently restored vsync defaults.
+  applyHighSpeedPaintMode(highSpeedPaintMode)
 end
 
 local function ctrlDown()
@@ -92,11 +97,29 @@ local function digitEightDown()
   return love.keyboard.isDown("8") or love.keyboard.isDown("kp8")
 end
 
-local function applyHighSpeedPaintMode(enabled)
+function applyHighSpeedPaintMode(enabled)
   highSpeedPaintMode = not not enabled
 
+  local targetVsync = highSpeedPaintMode and 0 or 1
+
   if love.window and love.window.setVSync then
-    pcall(love.window.setVSync, highSpeedPaintMode and 0 or 1)
+    pcall(love.window.setVSync, targetVsync)
+  end
+
+  -- Some systems/drivers ignore setVSync changes until window mode flags are
+  -- re-applied. Keep all existing window flags and only force vsync.
+  if love.window and love.window.getMode and love.window.updateMode then
+    local w, h, flags = love.window.getMode()
+    if type(flags) == "table" and flags.vsync ~= targetVsync then
+      local nextFlags = {}
+      for k, v in pairs(flags) do
+        nextFlags[k] = v
+      end
+      nextFlags.vsync = targetVsync
+      nextFlags.x = nil
+      nextFlags.y = nil
+      pcall(love.window.updateMode, w, h, nextFlags)
+    end
   end
 
   if app and app.setStatus then
@@ -267,6 +290,12 @@ end
 
 function love.resize(w, h)
   app:resize(w, h)
+end
+
+function love.focus(focused)
+  if focused then
+    applyHighSpeedPaintMode(highSpeedPaintMode)
+  end
 end
 
 function love.quit()
