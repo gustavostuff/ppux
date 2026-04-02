@@ -56,6 +56,15 @@ function M.hydrateSpriteLayer(layer, opts)
         local mirrorX = mirrorXFromAttr
         local mirrorY = mirrorYFromAttr
 
+        -- For OAM-backed sprites, explicit project mirror flags (true or false)
+        -- are authoritative UI overrides when present; otherwise we reflect ROM.
+        if s._mirrorXOverrideSet == true and s.mirrorX ~= nil then
+          mirrorX = (s.mirrorX == true)
+        end
+        if s._mirrorYOverrideSet == true and s.mirrorY ~= nil then
+          mirrorY = (s.mirrorY == true)
+        end
+
         s.baseX = baseX
         s.baseY = baseY
         s.oamTile = baseTile

@@ -196,7 +196,7 @@ describe("game_art_controller.lua - oam_animation hydration", function()
     expect(s._mirrorYOverrideSet).toBe(false)
   end)
 
-  it("normalizes explicit project mirror flags to ROM attr bits during hydration", function()
+  it("applies explicit project mirror flags over ROM attr bits during hydration", function()
     local startAddr = 60
     local romRaw = makeRom(128, {
       [startAddr + 0] = 18,
@@ -256,6 +256,72 @@ describe("game_art_controller.lua - oam_animation hydration", function()
 
     local s = wm:getWindows()[1].layers[1].items[1]
     expect(s.attr).toBe(0xC1)
+    expect(s.mirrorX).toBe(false)
+    expect(s.mirrorY).toBe(false)
+    expect(s._mirrorXOverrideSet).toBe(true)
+    expect(s._mirrorYOverrideSet).toBe(true)
+  end)
+
+  it("applies explicit true mirror flags over ROM attr bits during hydration", function()
+    local startAddr = 66
+    local romRaw = makeRom(128, {
+      [startAddr + 0] = 18,
+      [startAddr + 1] = 12,
+      [startAddr + 2] = 0x01, -- no mirror bits in attr
+      [startAddr + 3] = 24,
+    })
+
+    local layout = {
+      currentBank = 1,
+      windows = {
+        {
+          id = "oam_anim_03b",
+          title = "OAM Anim 03b",
+          kind = "oam_animation",
+          x = 20, y = 20,
+          cellW = 8, cellH = 8,
+          cols = 32, rows = 30,
+          visibleCols = 16, visibleRows = 16,
+          scrollCol = 0, scrollRow = 0,
+          zoom = 2,
+          activeLayer = 1,
+          layers = {
+            {
+              kind = "sprite",
+              name = "Frame 1",
+              mode = "8x8",
+              items = {
+                {
+                  startAddr = startAddr,
+                  bank = 1,
+                  mirrorX = true,
+                  mirrorY = true,
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    local wm = WM.new()
+    local tilesPool = { [1] = { [12] = { _bankIndex = 1, index = 12, pixels = {} } } }
+    local function ensureTiles(bankIdx)
+      tilesPool[bankIdx] = tilesPool[bankIdx] or {}
+    end
+
+    local result, err = GameArtController.buildWindowsFromLayout(layout, {
+      wm = wm,
+      tilesPool = tilesPool,
+      ensureTiles = ensureTiles,
+      romRaw = romRaw,
+    })
+
+    expect(err).toBeNil()
+    expect(result).toBeTruthy()
+
+    local s = wm:getWindows()[1].layers[1].items[1]
+    expect(s.attr).toBe(0x01)
     expect(s.mirrorX).toBe(true)
     expect(s.mirrorY).toBe(true)
     expect(s._mirrorXOverrideSet).toBe(true)
