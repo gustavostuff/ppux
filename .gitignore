@@ -1,4 +1,5 @@
 base-love2d-images/
 build/
 scripts/__pycache__
+scripts/remove_unused_img_files.sh
 todos.lua
