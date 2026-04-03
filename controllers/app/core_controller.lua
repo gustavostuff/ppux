@@ -5,6 +5,8 @@ local UndoRedoController = require("controllers.input_support.undo_redo_controll
 
 local GenericActionsModal = require("user_interface.modals.generic_actions_modal")
 local NewWindowModal = require("user_interface.modals.new_window_modal")
+local PPUFrameAddSpriteModal = require("user_interface.modals.ppu_frame_add_sprite_modal")
+local PPUFrameSpriteLayerModeModal = require("user_interface.modals.ppu_frame_sprite_layer_mode_modal")
 local PPUFrameRangeModal = require("user_interface.modals.ppu_frame_range_modal")
 local RenameWindowModal = require("user_interface.modals.rename_window_modal")
 local RomPaletteAddressModal = require("user_interface.modals.rom_palette_address_modal")
@@ -13,6 +15,7 @@ local QuitConfirmModal = require("user_interface.modals.quit_confirm_modal")
 local SettingsModal = require("user_interface.modals.settings_modal")
 local TextFieldDemoModal = require("user_interface.modals.text_field_demo_modal")
 local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
+local SpriteController = require("controllers.sprite.sprite_controller")
 local SimpleLoadingScreen = require("controllers.app.simple_loading_screen")
 local TooltipController = require("controllers.ui.tooltip_controller")
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
@@ -31,6 +34,8 @@ local function anyModalVisible(app)
     or (app.newWindowModal and app.newWindowModal:isVisible())
     or (app.renameWindowModal and app.renameWindowModal:isVisible())
     or (app.romPaletteAddressModal and app.romPaletteAddressModal:isVisible())
+    or (app.ppuFrameSpriteLayerModeModal and app.ppuFrameSpriteLayerModeModal:isVisible())
+    or (app.ppuFrameAddSpriteModal and app.ppuFrameAddSpriteModal:isVisible())
     or (app.ppuFrameRangeModal and app.ppuFrameRangeModal:isVisible())
     or (app.textFieldDemoModal and app.textFieldDemoModal:isVisible())
 end
@@ -78,6 +83,8 @@ local function getTopModalTooltipCandidate(app, x, y)
     app.newWindowModal,
     app.renameWindowModal,
     app.romPaletteAddressModal,
+    app.ppuFrameSpriteLayerModeModal,
+    app.ppuFrameAddSpriteModal,
     app.ppuFrameRangeModal,
     app.textFieldDemoModal,
   }
@@ -233,6 +240,8 @@ function AppCoreController.new()
   self.newWindowModal = NewWindowModal.new()
   self.renameWindowModal = RenameWindowModal.new()
   self.romPaletteAddressModal = RomPaletteAddressModal.new()
+  self.ppuFrameSpriteLayerModeModal = PPUFrameSpriteLayerModeModal.new()
+  self.ppuFrameAddSpriteModal = PPUFrameAddSpriteModal.new()
   self.ppuFrameRangeModal = PPUFrameRangeModal.new()
   self.saveOptionsModal = SaveOptionsModal.new()
   self.quitConfirmModal = QuitConfirmModal.new()
@@ -873,6 +882,35 @@ local function parseHexAddress(text)
   return math.floor(value)
 end
 
+local function parseNonNegativeInteger(text, label)
+  local trimmed = tostring(text or ""):match("^%s*(.-)%s*$")
+  label = label or "Value"
+  if trimmed == "" then
+    return nil, string.format("%s is required", label)
+  end
+
+  local base = 10
+  local normalized = trimmed
+  if trimmed:match("^0[xX][0-9A-Fa-f]+$") then
+    base = 16
+    normalized = trimmed:sub(3)
+  elseif not trimmed:match("^%d+$") then
+    return nil, string.format("%s must be a whole number", label)
+  end
+
+  local value = tonumber(normalized, base)
+  if type(value) ~= "number" then
+    return nil, string.format("%s must be a whole number", label)
+  end
+
+  value = math.floor(value)
+  if value < 0 then
+    return nil, string.format("%s must be zero or greater", label)
+  end
+
+  return value
+end
+
 function AppCoreController:showRenameWindowModal(win)
   if not (self.renameWindowModal and win and type(win) == "table") then
     return false
@@ -956,6 +994,161 @@ local function getPpuNametableLayer(win)
     end
   end
   return nil
+end
+
+local function getFirstPpuSpriteLayer(win)
+  if not (win and win.getSpriteLayers) then return nil, nil end
+  local spriteLayers = win:getSpriteLayers() or {}
+  local first = spriteLayers[1]
+  if not first then
+    return nil, nil
+  end
+  return first.layer, first.index
+end
+
+local function getInitialPpuSpriteModalValues(app)
+  local state = app and app.appEditState or {}
+  local bankWindow = app and app.winBank or nil
+  local bankNumber = (bankWindow and bankWindow.currentBank) or state.currentBank or 1
+  local tileNumber = 0
+
+  if bankWindow and bankWindow.getSelected and bankWindow.get then
+    local col, row, layerIndex = bankWindow:getSelected()
+    if type(col) == "number" and type(row) == "number" then
+      local selectedTile = bankWindow:get(col, row, layerIndex)
+      if selectedTile and type(selectedTile.index) == "number" then
+        tileNumber = math.max(0, math.floor(selectedTile.index))
+      end
+    end
+  end
+
+  return tostring(bankNumber), tostring(tileNumber), ""
+end
+
+function AppCoreController:showPpuFrameSpriteLayerModeModal(win, opts)
+  if not (self.ppuFrameSpriteLayerModeModal and win and win.kind == "ppu_frame") then
+    return false
+  end
+
+  opts = opts or {}
+  self.ppuFrameSpriteLayerModeModal:show({
+    title = opts.title or "Create sprite layer",
+    window = win,
+    initialMode = opts.initialMode or "8x8",
+    onConfirm = opts.onConfirm,
+    onCancel = opts.onCancel,
+  })
+  return true
+end
+
+function AppCoreController:showPpuFrameAddSpriteModal(win)
+  if not (self.ppuFrameAddSpriteModal and win and win.kind == "ppu_frame") then
+    return false
+  end
+
+  local initialBank, initialTile, initialOamStart = getInitialPpuSpriteModalValues(self)
+
+  self.ppuFrameAddSpriteModal:show({
+    title = "Add sprite",
+    window = win,
+    initialBank = initialBank,
+    initialTile = initialTile,
+    initialOamStart = initialOamStart,
+    onConfirm = function(bankText, tileText, oamStartText, targetWindow)
+      local spriteLayer, spriteLayerIndex = getFirstPpuSpriteLayer(targetWindow)
+      if not spriteLayer then
+        local message = "PPU frame window is missing a sprite layer"
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+
+      local bankNumber, bankErr = parseNonNegativeInteger(bankText, "Bank number")
+      if not bankNumber then
+        self:setStatus(bankErr)
+        self:showToast("error", bankErr)
+        return false
+      end
+      if bankNumber < 1 then
+        local message = "Bank number must be 1 or greater"
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+
+      local tileNumber, tileErr = parseNonNegativeInteger(tileText, "Tile number")
+      if not tileNumber then
+        self:setStatus(tileErr)
+        self:showToast("error", tileErr)
+        return false
+      end
+
+      local oamStart, oamErr = parseHexAddress(oamStartText)
+      if not oamStart then
+        self:setStatus(oamErr)
+        self:showToast("error", oamErr)
+        return false
+      end
+
+      local state = self.appEditState or {}
+      local romRaw = state.romRaw
+      local tilesPool = state.tilesPool
+      if type(romRaw) ~= "string" or romRaw == "" then
+        local message = "Open a ROM before adding an OAM-backed sprite"
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+      if not (tilesPool and tilesPool[bankNumber]) then
+        local message = string.format("CHR bank %d is not available", bankNumber)
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+      if not tilesPool[bankNumber][tileNumber] then
+        local message = string.format("Tile %d is not available in CHR bank %d", tileNumber, bankNumber)
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+
+      spriteLayer.items = spriteLayer.items or {}
+      table.insert(spriteLayer.items, {
+        bank = bankNumber,
+        startAddr = oamStart,
+        tile = tileNumber,
+      })
+
+      SpriteController.hydrateSpriteLayer(spriteLayer, {
+        romRaw = romRaw,
+        tilesPool = tilesPool,
+        keepWorld = false,
+      })
+
+      local itemIndex = #spriteLayer.items
+      spriteLayer.selectedSpriteIndex = itemIndex
+      spriteLayer.multiSpriteSelection = nil
+      spriteLayer.multiSpriteSelectionOrder = nil
+      spriteLayer.hoverSpriteIndex = nil
+
+      if targetWindow.setActiveLayerIndex then
+        targetWindow:setActiveLayerIndex(spriteLayerIndex)
+      else
+        targetWindow.activeLayer = spriteLayerIndex
+      end
+
+      self:markUnsaved("sprite_move")
+      self:setStatus(string.format(
+        "Added sprite from OAM 0x%06X on bank %d tile %d",
+        oamStart,
+        bankNumber,
+        tileNumber
+      ))
+      return true
+    end,
+  })
+
+  return true
 end
 
 function AppCoreController:showPpuFrameRangeModal(win)

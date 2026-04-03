@@ -269,6 +269,9 @@ anyModalVisible = function(app)
     or (app.newWindowModal and app.newWindowModal:isVisible())
     or (app.renameWindowModal and app.renameWindowModal:isVisible())
     or (app.romPaletteAddressModal and app.romPaletteAddressModal:isVisible())
+    or (app.ppuFrameSpriteLayerModeModal and app.ppuFrameSpriteLayerModeModal:isVisible())
+    or (app.ppuFrameAddSpriteModal and app.ppuFrameAddSpriteModal:isVisible())
+    or (app.ppuFrameRangeModal and app.ppuFrameRangeModal:isVisible())
     or (app.textFieldDemoModal and app.textFieldDemoModal:isVisible())
 end
 

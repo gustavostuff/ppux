@@ -4,7 +4,6 @@
 local ToolbarBase = require("user_interface.toolbars.toolbar_base")
 local images = require("images")
 local colors = require("app_colors")
-local DebugController = require("controllers.dev.debug_controller")
 
 local PPUFrameToolbar = {}
 PPUFrameToolbar.__index = PPUFrameToolbar
@@ -18,6 +17,16 @@ local function getNametableLayer(window)
     end
   end
   return nil
+end
+
+local function getFirstSpriteLayer(window)
+  if not (window and window.layers) then return nil, nil end
+  for i, layer in ipairs(window.layers) do
+    if layer and layer.kind == "sprite" then
+      return layer, i
+    end
+  end
+  return nil, nil
 end
 
 local function hasConfiguredRange(window)
@@ -56,10 +65,15 @@ function PPUFrameToolbar.new(window, ctx, windowController)
     self:_onNextLayer()
   end, "Next layer")
 
-  self.rangeButton = self:addButton(images.icons.icon_not_selected, function()
+  self.rangeButton = self:addButton(images.icons.icon_nametable_range, function()
     self:_onConfigureRange()
-  end, "Set tile range")
+  end, "Set stat and end addresses for nametable")
+
+  self.addSpriteButton = self:addButton(images.icons.icon_add_sprite, function()
+    self:_onAddSprite()
+  end, "Add a sprite on sprite layer")
   self:updateRangeButton()
+  self:updateSpriteButton()
   
   -- Update position
   self:updatePosition()
@@ -99,6 +113,107 @@ function PPUFrameToolbar:_onConfigureRange()
   local app = self.ctx and self.ctx.app or nil
   if app and app.showPpuFrameRangeModal then
     app:showPpuFrameRangeModal(self.window)
+  end
+end
+
+local function normalizeSpriteMode(mode)
+  return (mode == "8x16") and "8x16" or "8x8"
+end
+
+function PPUFrameToolbar:_ensureSpriteLayer(mode, createIfMissing, targetWindow)
+  local window = targetWindow or self.window
+  if not window then return nil, nil, false end
+
+  local activeIndex = window:getActiveLayerIndex()
+  local activeLayer = window.layers and window.layers[activeIndex] or nil
+  if activeLayer and activeLayer.kind == "sprite" then
+    activeLayer.items = activeLayer.items or {}
+    return activeLayer, activeIndex, false
+  end
+
+  local existingLayer, existingIndex = getFirstSpriteLayer(window)
+  if existingLayer then
+    existingLayer.items = existingLayer.items or {}
+    if window.setActiveLayerIndex then
+      window:setActiveLayerIndex(existingIndex)
+    else
+      window.activeLayer = existingIndex
+    end
+    return existingLayer, existingIndex, false
+  end
+
+  if createIfMissing == false then
+    return nil, nil, false
+  end
+
+  local spriteMode = normalizeSpriteMode(mode)
+  local newIndex = window:addLayer({
+    name = "Sprites",
+    kind = "sprite",
+    mode = spriteMode,
+    originX = 0,
+    originY = 0,
+  })
+  local newLayer = window.layers and window.layers[newIndex] or nil
+  if newLayer then
+    newLayer.items = newLayer.items or {}
+  end
+  if window.setActiveLayerIndex then
+    window:setActiveLayerIndex(newIndex)
+  else
+    window.activeLayer = newIndex
+  end
+  self:updateSpriteButton()
+  return newLayer, newIndex, true
+end
+
+function PPUFrameToolbar:_onAddSprite()
+  if not self.window then return end
+
+  local spriteLayer = self:_ensureSpriteLayer(nil, false)
+  local app = self.ctx and self.ctx.app or nil
+  if not spriteLayer then
+    if app and app.showPpuFrameSpriteLayerModeModal then
+      local opened = app:showPpuFrameSpriteLayerModeModal(self.window, {
+        onConfirm = function(spriteMode, targetWindow)
+          local layer = self:_ensureSpriteLayer(spriteMode, true, targetWindow)
+          if not layer then
+            if self.ctx and self.ctx.setStatus then
+              self.ctx.setStatus("Could not create sprite layer")
+            end
+            return false
+          end
+          if self.ctx and self.ctx.setStatus then
+            self.ctx.setStatus("Created sprite layer (" .. normalizeSpriteMode(spriteMode) .. ")")
+          end
+          return true
+        end,
+      })
+      if opened ~= false then
+        return
+      end
+    end
+
+    local fallbackLayer = self:_ensureSpriteLayer("8x8", true)
+    if fallbackLayer and app and app.showPpuFrameAddSpriteModal then
+      app:showPpuFrameAddSpriteModal(self.window)
+      if self.ctx and self.ctx.setStatus then
+        self.ctx.setStatus("Created sprite layer and opened add sprite dialog")
+      end
+      return
+    end
+  end
+
+  spriteLayer = self:_ensureSpriteLayer(nil, false)
+  if not spriteLayer then
+    if self.ctx and self.ctx.setStatus then
+      self.ctx.setStatus("Could not resolve a sprite layer")
+    end
+    return
+  end
+
+  if app and app.showPpuFrameAddSpriteModal then
+    app:showPpuFrameAddSpriteModal(self.window)
   end
 end
 
@@ -152,20 +267,31 @@ end
 -- Empty updateIcons method
 function PPUFrameToolbar:updateIcons()
   self:updateRangeButton()
+  self:updateSpriteButton()
 end
 
 function PPUFrameToolbar:updateRangeButton()
   if not self.rangeButton then return end
+  self.rangeButton.icon = images.icons.icon_nametable_range or self.rangeButton.icon
   if hasConfiguredRange(self.window) then
-    self.rangeButton.icon = images.icons.icon_selected or self.rangeButton.icon
     self.rangeButton.bgColor = nil
     self.rangeButton.contentColor = colors.white
-    self.rangeButton.tooltip = "Edit tile range"
+    self.rangeButton.tooltip = "Set stat and end addresses for nametable"
   else
-    self.rangeButton.icon = images.icons.icon_not_selected or self.rangeButton.icon
     self.rangeButton.bgColor = colors.yellow
     self.rangeButton.contentColor = colors.black
-    self.rangeButton.tooltip = "Set tile range"
+    self.rangeButton.tooltip = "Set stat and end addresses for nametable"
+  end
+end
+
+function PPUFrameToolbar:updateSpriteButton()
+  if not self.addSpriteButton then return end
+  self.addSpriteButton.icon = images.icons.icon_add_sprite or self.addSpriteButton.icon
+  local _, spriteLayerIndex = getFirstSpriteLayer(self.window)
+  if spriteLayerIndex then
+    self.addSpriteButton.tooltip = "Add a sprite on sprite layer"
+  else
+    self.addSpriteButton.tooltip = "Create sprite layer"
   end
 end
 

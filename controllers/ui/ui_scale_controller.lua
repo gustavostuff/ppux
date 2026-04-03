@@ -116,6 +116,7 @@ local function refreshModalMetrics(app)
     app.newWindowModal,
     app.renameWindowModal,
     app.romPaletteAddressModal,
+    app.ppuFrameSpriteLayerModeModal,
     app.ppuFrameRangeModal,
     app.textFieldDemoModal,
   }
