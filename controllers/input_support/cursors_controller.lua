@@ -211,7 +211,7 @@ local function isHoveringEditableContent(app)
     local cols = win.cols or 0
     if cols <= 0 then return false end
     local idx = (row * cols + col) + 1
-    if layer.removedCells and layer.removedCells[idx] then return false end
+    if (not WindowCaps.isPpuFrame(win)) and layer.removedCells and layer.removedCells[idx] then return false end
 
     if win.getVirtualTileHandle then
       return win:getVirtualTileHandle(col, row, layerIndex) ~= nil

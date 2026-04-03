@@ -303,7 +303,7 @@ function Window:highlightAllTiles(L, overlayCtx, opts)
 
   local cols = self.cols or 0
   local rows = self.rows or 0
-  local removedCells = L.removedCells
+  local removedCells = (WindowCaps.isPpuFrame(self) and L.kind == "tile") and nil or L.removedCells
 
   for row = 0, rows - 1 do
     for col = 0, cols - 1 do

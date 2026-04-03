@@ -308,10 +308,9 @@ function PPUFrameWindow:drawVisibleNametableCells(renderCell, layerIndex)
   local r1 = math.min(self.rows - 1, vR1 + spill)
 
   local layerAlpha = (layer.opacity ~= nil) and layer.opacity or 1.0
-  local removedCells = layer.removedCells
 
   for idx, item in pairs(layer.items or {}) do
-    if item ~= nil and not (removedCells and removedCells[idx]) then
+    if item ~= nil then
       local z = idx - 1
       local col = z % self.cols
       local row = math.floor(z / self.cols)
@@ -428,7 +427,6 @@ function PPUFrameWindow:setNametableBytes(bytesTbl, bankIndex, pageIndex, tilesP
   local L = self.layers[li]
   if L then
     L.items = {}
-    L.removedCells = nil
   end
 
   if tilesPool then
@@ -565,7 +563,6 @@ function PPUFrameWindow:setBankPage(bankIndex, pageIndex, tilesPool)
   local layer = self:getLayer(li)
   if layer then
     layer.items = {}
-    layer.removedCells = nil
   end
   if tilesPool then
     for i = 1, #self.nametableBytes do

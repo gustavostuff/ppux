@@ -126,7 +126,7 @@ function M.collectSelectedBankTileKeys(win, layer, bankIdx)
   end
 
   local li = win.getActiveLayerIndex and win:getActiveLayerIndex() or win.activeLayer or 1
-  local removedCells = layer.removedCells
+  local removedCells = (WindowCaps.isPpuFrame(win) and layer.kind == "tile") and nil or layer.removedCells
   if type(layer.multiTileSelection) == "table" then
     for idx, on in pairs(layer.multiTileSelection) do
       if on == true and not (removedCells and removedCells[idx]) then

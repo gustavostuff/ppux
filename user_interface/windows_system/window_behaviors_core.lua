@@ -115,10 +115,28 @@ end
 -- ==== Cell stacks (unchanged) ====
 local function idxBy(cols, col, row) return row * cols + col + 1 end
 
+local function layerUsesRemovedCells(win, layer)
+  return not (WindowCaps.isPpuFrame(win) and layer and layer.kind == "tile")
+end
+
+function Window:usesRemovedCells(layerIndex)
+  local L = self:getLayer(layerIndex)
+  return L ~= nil and layerUsesRemovedCells(self, L)
+end
+
+function Window:getRemovedCells(layerIndex)
+  local L = self:getLayer(layerIndex)
+  if not (L and layerUsesRemovedCells(self, L)) then
+    return nil
+  end
+  return L.removedCells
+end
+
 function Window:get(col, row, layerIndex)
   local L = self:getLayer(layerIndex); if not L then return nil end
   local i = idxBy(self.cols, col, row)
-  if L.removedCells and L.removedCells[i] then
+  local removedCells = self:getRemovedCells(layerIndex)
+  if removedCells and removedCells[i] then
     return nil
   end
   local item = L.items[i]
@@ -134,8 +152,9 @@ end
 function Window:set(col, row, item, layerIndex)
   local L = self:getLayer(layerIndex); if not L then return end
   local i = idxBy(self.cols, col, row)
-  if L.removedCells then
-    L.removedCells[i] = nil
+  local removedCells = self:getRemovedCells(layerIndex)
+  if removedCells then
+    removedCells[i] = nil
   end
   -- Note: We no longer use item.removed for tiles since they're shared references
   -- Sprites may still use removed flag (they're not shared), but that's handled separately
@@ -146,7 +165,8 @@ end
 function Window:getStack(col, row, layerIndex)
   local L = self:getLayer(layerIndex); if not L then return nil end
   local i = idxBy(self.cols, col, row)
-  if L.removedCells and L.removedCells[i] then
+  local removedCells = self:getRemovedCells(layerIndex)
+  if removedCells and removedCells[i] then
     return nil
   end
   local item = L.items[i]
@@ -247,22 +267,25 @@ function Window:isInHeader(px, py)
 end
 
 function Window:isCellRemoved(col, row, layerIndex)
-  local L = self:getLayer(layerIndex); if not L or not L.removedCells then return false end
+  local removedCells = self:getRemovedCells(layerIndex)
+  if not removedCells then return false end
   local i = idxBy(self.cols, col, row)
-  return L.removedCells[i] == true
+  return removedCells[i] == true
 end
 
 function Window:markCellRemoved(col, row, layerIndex)
   local L = self:getLayer(layerIndex); if not L then return end
+  if not layerUsesRemovedCells(self, L) then return end
   local i = idxBy(self.cols, col, row)
   L.removedCells = L.removedCells or {}
   L.removedCells[i] = true
 end
 
 function Window:clearRemovedCell(col, row, layerIndex)
-  local L = self:getLayer(layerIndex); if not L or not L.removedCells then return end
+  local removedCells = self:getRemovedCells(layerIndex)
+  if not removedCells then return end
   local i = idxBy(self.cols, col, row)
-  L.removedCells[i] = nil
+  removedCells[i] = nil
 end
 
 end

@@ -829,7 +829,7 @@ local function drawEditModeColorIndicator(app)
       return
     end
 
-    if layer.removedCells and win.cols then
+    if (not WindowCaps.isPpuFrame(win)) and layer.removedCells and win.cols then
       local idx = (row * win.cols + col) + 1
       if layer.removedCells[idx] then
         return

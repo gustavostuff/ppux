@@ -245,7 +245,7 @@ end
 local function purgeRemovedTiles(win)
   if not (win and win.layers) then return end
   for _, L in ipairs(win.layers) do
-    if L.removedCells and L.items then
+    if not (WindowCaps.isPpuFrame(win) and L.kind == "tile") and L.removedCells and L.items then
       for idx, removed in pairs(L.removedCells) do
         if removed == true then
           L.items[idx] = nil

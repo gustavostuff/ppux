@@ -9,6 +9,7 @@ UndoRedoController.__index = UndoRedoController
 local GameArtController = require("controllers.game_art.game_art_controller")
 local ChrDuplicateSync = require("controllers.chr.duplicate_sync_controller")
 local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
+local WindowCaps = require("controllers.window.window_capabilities")
 
 -- Create a new undo/redo manager
 function UndoRedoController.new(maxDepth)
@@ -689,6 +690,9 @@ local function applyRemovalEvent(event, direction, app)
       else
         local L = win.layers and win.layers[li]
         if L then
+          if WindowCaps.isPpuFrame(win) and L.kind == "tile" then
+            goto continue_action
+          end
           L.removedCells = L.removedCells or {}
           local idx = (act.row * (win.cols or 0) + act.col) + 1
           if direction == "undo" then
@@ -703,6 +707,7 @@ local function applyRemovalEvent(event, direction, app)
           applied = applied + 1
         end
       end
+      ::continue_action::
     end
   end
 

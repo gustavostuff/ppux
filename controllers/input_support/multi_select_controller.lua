@@ -396,7 +396,7 @@ function M.addTileCellToSelection(win, layerIdx, col, row, includeCurrentSingle)
   if col < 0 or col >= cols or row < 0 or row >= rows then return false end
 
   local idx = (row * cols + col) + 1
-  local removedCells = layer.removedCells
+  local removedCells = (WindowCaps.isPpuFrame(win) and layer.kind == "tile") and nil or layer.removedCells
   local item = getTileInteractionItem(win, col, row, layerIdx)
   if item == nil or (removedCells and removedCells[idx]) then
     return false
@@ -758,7 +758,7 @@ function M.buildTileDragGroup(win, layerIdx, anchorCol, anchorRow)
   local minOffsetCol, maxOffsetCol = 0, 0
   local minOffsetRow, maxOffsetRow = 0, 0
   local cols = win.cols or 0
-  local removedCells = layer.removedCells
+  local removedCells = (WindowCaps.isPpuFrame(win) and layer.kind == "tile") and nil or layer.removedCells
 
   for _, cell in ipairs(selected) do
     local idx = cell.idx or ((cell.row * cols + cell.col) + 1)
@@ -995,7 +995,7 @@ local function applyTileMarqueeSelection(win, layerIdx, startCol, startRow, endC
   local minRow = math.min(startRow, endRow)
   local maxRow = math.max(startRow, endRow)
   local cols = win.cols or 0
-  local removedCells = layer.removedCells
+  local removedCells = (WindowCaps.isPpuFrame(win) and layer.kind == "tile") and nil or layer.removedCells
 
   local selected = {}
   local selectedCount = 0

@@ -199,7 +199,7 @@ function M.handleSelectAll(ctx, utils, key, focus)
     local rows = focus.rows or 0
     if cols <= 0 or rows <= 0 then return true end
 
-    local removedCells = layer.removedCells
+    local removedCells = (WindowCaps.isPpuFrame(focus) and layer.kind == "tile") and nil or layer.removedCells
     local selected = {}
     local selectedCount = 0
     local firstCol, firstRow = nil, nil

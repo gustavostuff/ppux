@@ -8,6 +8,7 @@ local UiScale = require("user_interface.ui_scale")
 local images = require("images")
 local DebugController = require("controllers.dev.debug_controller")
 local SpaceHighlightController = require("controllers.window.space_highlight_controller")
+local WindowCaps = require("controllers.window.window_capabilities")
 local Timer = require("utils.timer_utils")
 
 local ToolbarBase = {}
@@ -495,7 +496,7 @@ function ToolbarBase:drawLayerLabelInContent()
     end
 
     local count = 0
-    local removed = L.removedCells
+    local removed = (WindowCaps.isPpuFrame(self.window) and L.kind == "tile") and nil or L.removedCells
     for idx, item in pairs(L.items or {}) do
       if item ~= nil and not (removed and removed[idx]) then
         count = count + 1
