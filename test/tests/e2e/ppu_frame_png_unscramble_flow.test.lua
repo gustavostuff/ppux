@@ -1,4 +1,5 @@
 local E2EHarness = require("test.e2e_harness")
+local BankViewController = require("controllers.chr.bank_view_controller")
 local PngPaletteMappingController = require("controllers.png.palette_mapping_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 
@@ -80,6 +81,7 @@ describe("ppu_frame PNG drop flow - CHR import then nametable unscramble", funct
     local ok, err = pcall(function()
       local app = harness:boot()
       harness:loadROM()
+      BankViewController.ensureBankTiles(app.appEditState, 1)
 
       local chrPngPath = firstReadablePath({
         "test/test_chr.png",
