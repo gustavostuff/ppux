@@ -21,14 +21,14 @@ end
 
 -- Per your mapping:
 --   page 1: byte B -> tilesPool[bank][B]
---   page 2: byte B -> tilesPool[bank][256 + 1 + B]  (so B=0 -> index 257)
+--   page 2: byte B -> tilesPool[bank][256 + B]      (so B=0 -> index 256)
 local function resolveTile(tilesPool, bankIndex, pageIndex, byteVal)
   if not tilesPool then return nil end
   local bank = tilesPool[bankIndex]
   if not bank then return nil end
   local B = byteVal or 0
   if pageIndex == 2 then
-    return bank[256 + 1 + B]
+    return bank[256 + B]
   else
     return bank[B]
   end
@@ -593,9 +593,9 @@ local function tileToByte(tile, layer)
   
   -- Reverse of resolveTile logic:
   --   page 1: byte B -> tilesPool[bank][B], so tileIndex = B, byte = tileIndex
-  --   page 2: byte B -> tilesPool[bank][256 + 1 + B], so tileIndex = 256 + 1 + B, byte = tileIndex - 257
-  if page == 2 and tileIndex >= 257 and tileIndex <= 512 then
-    return tileIndex - 257
+  --   page 2: byte B -> tilesPool[bank][256 + B], so tileIndex = 256 + B, byte = tileIndex - 256
+  if page == 2 and tileIndex >= 256 and tileIndex <= 511 then
+    return tileIndex - 256
   else
     return tileIndex % 256
   end

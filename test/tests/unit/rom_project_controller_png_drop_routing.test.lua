@@ -193,6 +193,21 @@ describe("rom_project_controller.lua - PNG drop routing", function()
     expect(#calls.chr).toBe(0)
   end)
 
+  it("uses the window under mouse for PPU unscramble even when focus is on another window", function()
+    local ppuWin = makeWin("ppu_frame", "ppu_under_mouse", {
+      { kind = "tile" },
+    })
+    local focusedChrWin = makeWin("chr", "focused_chr", {})
+    local app = makeApp(focusedChrWin, ppuWin)
+
+    RomProjectController.handleFileDropped(app, makeFile("nt.png"))
+
+    expect(#calls.ppu).toBe(1)
+    expect(calls.ppu[1].win).toBe(ppuWin)
+    expect(#calls.sprite).toBe(0)
+    expect(#calls.chr).toBe(0)
+  end)
+
   it("routes PNG to sprite importer for ppu_frame when active layer is sprite", function()
     local ppuWin = makeWin("ppu_frame", "ppu", {
       { kind = "tile" },

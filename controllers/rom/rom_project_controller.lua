@@ -1383,7 +1383,7 @@ function M.handleFileDropped(app, file)
       
       -- Perform unscrambling
       local success, message = NametableUnscrambleController.unscrambleFromPNG(
-        focusedWin,
+        targetWin,
         file,
         tilesPool,
         0,  -- threshold = 0 for zero-error margin by default

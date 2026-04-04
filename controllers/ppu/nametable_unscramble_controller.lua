@@ -3,6 +3,8 @@
 
 local DebugController = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local PngPaletteMappingController = require("controllers.png.palette_mapping_controller")
+local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 
 local M = {}
 
@@ -14,56 +16,42 @@ end
 
 -- Build a mapping from unique opaque colors (sorted darkest->lightest) to indices 0..3.
 -- Returns map[key]=index, uniqueCount
-local function buildBrightnessIndexMap(imageData)
-  local seen = {}
-  local entries = {}
-  local w, h = imageData:getWidth(), imageData:getHeight()
+local function buildBrightnessIndexMap(imageData, paletteColors)
+  local rankMap, uniqueCount = PngPaletteMappingController.buildBrightnessRankMap(imageData, {
+    rankStart = 0,
+    maxRank = 3,
+  })
 
-  for y = 0, h - 1 do
-    for x = 0, w - 1 do
-      local r, g, b, a = imageData:getPixel(x, y)
-      if a > 0 then
-        local r8 = math.floor(r * 255 + 0.5)
-        local g8 = math.floor(g * 255 + 0.5)
-        local b8 = math.floor(b * 255 + 0.5)
-        local a8 = math.floor(a * 255 + 0.5)
-        local key = string.format("%d_%d_%d_%d", r8, g8, b8, a8)
-        if not seen[key] then
-          seen[key] = true
-          entries[#entries + 1] = { key = key, lum = getBrightness(r, g, b) }
-        end
-      end
-    end
+  local remap = nil
+  if paletteColors then
+    local hasTransparency = PngPaletteMappingController.imageHasTransparency(imageData)
+    remap = hasTransparency
+      and PngPaletteMappingController.buildPaletteBrightnessRemap(paletteColors, {
+        pixelValues = { 1, 2, 3 },
+        rankStart = 0,
+      })
+      or PngPaletteMappingController.buildPaletteBrightnessRemap(paletteColors, {
+        pixelValues = { 0, 1, 2, 3 },
+        rankStart = 0,
+      })
   end
 
-  table.sort(entries, function(a, b)
-    if a.lum == b.lum then
-      return a.key < b.key
-    end
-    return a.lum < b.lum
-  end)
-
-  local map = {}
-  for i, entry in ipairs(entries) do
-    map[entry.key] = math.min(i - 1, 3) -- clamp to 0..3
-  end
-
-  return map, #entries
+  return rankMap, uniqueCount, remap
 end
 
-local function mapPixelToIndex(r, g, b, a, brightnessMap)
+local function mapPixelToIndex(r, g, b, a, brightnessMap, brightnessRemap)
   if a == 0 then return 0 end
-  local key = string.format("%d_%d_%d_%d",
-    math.floor(r * 255 + 0.5),
-    math.floor(g * 255 + 0.5),
-    math.floor(b * 255 + 0.5),
-    math.floor(a * 255 + 0.5))
-  return brightnessMap[key] or 0
+  local key = PngPaletteMappingController.rgbKeyFromFloats(r, g, b)
+  local rank = brightnessMap[key] or 0
+  if brightnessRemap then
+    return brightnessRemap[rank] or 0
+  end
+  return rank
 end
 
 -- Extract 8x8 tile pattern from PNG at given position
 -- Returns array of 64 indices based on image brightness ordering (darkest->0)
-local function extractTileFromPNG(imageData, tileCol, tileRow, brightnessMap)
+local function extractTileFromPNG(imageData, tileCol, tileRow, brightnessMap, brightnessRemap)
   local pixels = {}
   local tileX = tileCol * 8
   local tileY = tileRow * 8
@@ -74,7 +62,7 @@ local function extractTileFromPNG(imageData, tileCol, tileRow, brightnessMap)
       local py = tileY + y
       local r, g, b, a = imageData:getPixel(px, py)
 
-      pixels[y * 8 + x + 1] = mapPixelToIndex(r, g, b, a, brightnessMap)
+      pixels[y * 8 + x + 1] = mapPixelToIndex(r, g, b, a, brightnessMap, brightnessRemap)
     end
   end
   
@@ -106,7 +94,7 @@ local function resolveTile(tilesPool, bankIndex, pageIndex, byteVal)
   if not bank then return nil end
   local B = byteVal or 0
   if pageIndex == 2 then
-    return bank[256 + 1 + B]
+    return bank[256 + B]
   else
     return bank[B]
   end
@@ -239,7 +227,10 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
       expectedTilesW, expectedTilesH, win.cols, win.rows)
   end
 
-  local brightnessMap, uniqueColorCount = buildBrightnessIndexMap(imageData)
+  local romRaw = (app and app.appEditState and app.appEditState.romRaw) or win.romRaw
+  local paletteSourceLayer = (app and app.winBank and app.winBank.layers and app.winBank.layers[1]) or layer
+  local paletteColors = ShaderPaletteController.getPaletteColors(paletteSourceLayer, 1, romRaw)
+  local brightnessMap, uniqueColorCount, brightnessRemap = buildBrightnessIndexMap(imageData, paletteColors)
   if uniqueColorCount > 4 then
     DebugController.log("warning", "UNSCR", "PNG has %d unique opaque colors; mapping darkest->lightest and clamping to 0-3", uniqueColorCount)
   else
@@ -262,7 +253,7 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
   local totalTilesInPNG = expectedTilesW * expectedTilesH
   for row = 0, math.min(win.rows - 1, expectedTilesH - 1) do
     for col = 0, math.min(win.cols - 1, expectedTilesW - 1) do
-      local pngPattern = extractTileFromPNG(imageData, col, row, brightnessMap)
+      local pngPattern = extractTileFromPNG(imageData, col, row, brightnessMap, brightnessRemap)
       local patternKey = table.concat(pngPattern, ",")
       pngPatterns[patternKey] = (pngPatterns[patternKey] or 0) + 1
     end
@@ -299,7 +290,7 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
       local originalByte = win.nametableBytes and win.nametableBytes[idx]
       
       -- Extract pattern from PNG (brightness-based quantization)
-      local pngPattern = extractTileFromPNG(imageData, col, row, brightnessMap)
+      local pngPattern = extractTileFromPNG(imageData, col, row, brightnessMap, brightnessRemap)
       
       -- First, check if the original tile at this position is a perfect match
       -- Note: PNG pattern is brightness-quantized, tile pixels are palette indices
@@ -460,8 +451,8 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
       local convertedByte = nil
       if tileRef and tileRef.index ~= nil then
         local tileIndex = tileRef.index  -- 0-based within bank
-        if page == 2 and tileIndex >= 257 and tileIndex <= 512 then
-          convertedByte = tileIndex - 257
+        if page == 2 and tileIndex >= 256 and tileIndex <= 511 then
+          convertedByte = tileIndex - 256
         else
           convertedByte = tileIndex % 256
         end
