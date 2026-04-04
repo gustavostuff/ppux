@@ -344,6 +344,7 @@ function PPUFrameWindow.new(x, y, zoom, data)
   setmetatable(self, PPUFrameWindow)
 
   self.kind       = "ppu_frame"
+  self.showSpriteOriginGuides = (data.showSpriteOriginGuides == true)
   self.nametableBytes     = {}   -- table of numbers 0..255, length = cols*rows (or fewer)
   self.nametableAttrBytes = {}   -- table of numbers 0..255, length = 256
   self.romRaw = data.romRaw

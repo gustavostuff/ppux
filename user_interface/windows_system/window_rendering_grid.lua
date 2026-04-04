@@ -72,6 +72,30 @@ local function drawDefaultSpriteBody(L, s, isActiveLayer, cw, ch, mode, layerOpa
   ShaderPaletteController.releaseShader()
 end
 
+local function drawDottedLineHorizontal(x0, x1, y, dash, gap)
+  if x1 < x0 then
+    x0, x1 = x1, x0
+  end
+  local x = x0
+  while x < x1 do
+    local segEnd = math.min(x + dash, x1)
+    love.graphics.line(x, y, segEnd, y)
+    x = x + dash + gap
+  end
+end
+
+local function drawDottedLineVertical(x, y0, y1, dash, gap)
+  if y1 < y0 then
+    y0, y1 = y1, y0
+  end
+  local y = y0
+  while y < y1 do
+    local segEnd = math.min(y + dash, y1)
+    love.graphics.line(x, y, x, segEnd)
+    y = y + dash + gap
+  end
+end
+
 function Window:drawLinesGrid()
   -- grid with horizontal and vertical lines
   love.graphics.push()
@@ -190,6 +214,17 @@ function Window:drawSprites(renderSprite, isFocused, layerIndex, romRaw)
   local viewMaxX = viewMinX + (self.visibleCols or self.cols or 0) * cw
   local viewMaxY = viewMinY + (self.visibleRows or self.rows or 0) * ch
   local wrapPreview = (self.kind == "oam_animation")
+
+  if self.kind == "ppu_frame" and isActiveLayer and self.showSpriteOriginGuides == true then
+    local axisX = originX
+    local axisY = originY
+    local dash = 2
+    local gap = 2
+    love.graphics.setColor(colors.gray75[1], colors.gray75[2], colors.gray75[3], 0.85)
+    drawDottedLineHorizontal(viewMinX, viewMaxX, axisY, dash, gap)
+    drawDottedLineVertical(axisX, viewMinY, viewMaxY, dash, gap)
+    love.graphics.setColor(colors.white)
+  end
 
   -- Draw sprites
   for idx, s in ipairs(items) do

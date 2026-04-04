@@ -36,6 +36,20 @@ local function hasConfiguredRange(window)
     and type(layer.nametableEndAddr) == "number"
 end
 
+local function isShiftDown()
+  if not (love and love.keyboard and love.keyboard.isDown) then
+    return false
+  end
+  return love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
+end
+
+local function clamp(value, minValue, maxValue)
+  value = math.floor(tonumber(value) or 0)
+  if value < minValue then return minValue end
+  if value > maxValue then return maxValue end
+  return value
+end
+
 function PPUFrameToolbar.new(window, ctx, windowController)
   local self = setmetatable(ToolbarBase.new(window, {}), PPUFrameToolbar)
   
@@ -72,8 +86,34 @@ function PPUFrameToolbar.new(window, ctx, windowController)
   self.addSpriteButton = self:addButton(images.icons.icon_add_sprite, function()
     self:_onAddSprite()
   end, "Add a sprite on sprite layer")
+
+  self.originXMinusButton = self:addButton(images.icons.icon_minus, function()
+    self:_onAdjustSpriteOrigin("x", -1)
+  end, "Origin X -1")
+  self.originXMinusButton.bgColor = colors.red
+
+  self.originXPlusButton = self:addButton(images.icons.icon_plus, function()
+    self:_onAdjustSpriteOrigin("x", 1)
+  end, "Origin X +1")
+  self.originXPlusButton.bgColor = colors.red
+
+  self.originYMinusButton = self:addButton(images.icons.icon_minus, function()
+    self:_onAdjustSpriteOrigin("y", -1)
+  end, "Origin Y -1")
+  self.originYMinusButton.bgColor = colors.green
+
+  self.originYPlusButton = self:addButton(images.icons.icon_plus, function()
+    self:_onAdjustSpriteOrigin("y", 1)
+  end, "Origin Y +1")
+  self.originYPlusButton.bgColor = colors.green
+
+  self.toggleOriginGuidesButton = self:addButton(images.icons.icon_dotted_lines, function()
+    self:_onToggleOriginGuides()
+  end, "Toggle origin guides")
+
   self:updateRangeButton()
   self:updateSpriteButton()
+  self:updateOriginButtons()
   
   -- Update position
   self:updatePosition()
@@ -118,6 +158,19 @@ end
 
 local function normalizeSpriteMode(mode)
   return (mode == "8x16") and "8x16" or "8x8"
+end
+
+function PPUFrameToolbar:_getActiveSpriteLayer()
+  if not self.window then return nil, nil end
+  local activeIndex = self.window:getActiveLayerIndex() or self.window.activeLayer or 1
+  local activeLayer = self.window.layers and self.window.layers[activeIndex] or nil
+  if activeLayer and activeLayer.kind == "sprite" then
+    activeLayer.items = activeLayer.items or {}
+    activeLayer.originX = clamp(activeLayer.originX or 0, 0, 255)
+    activeLayer.originY = clamp(activeLayer.originY or 0, 0, 239)
+    return activeLayer, activeIndex
+  end
+  return nil, nil
 end
 
 function PPUFrameToolbar:_ensureSpriteLayer(mode, createIfMissing, targetWindow)
@@ -217,6 +270,31 @@ function PPUFrameToolbar:_onAddSprite()
   end
 end
 
+function PPUFrameToolbar:_onAdjustSpriteOrigin(axis, direction)
+  local layer = self:_getActiveSpriteLayer()
+  if not layer then
+    return
+  end
+
+  local step = isShiftDown() and 8 or 1
+  local delta = (direction < 0) and -step or step
+
+  if axis == "x" then
+    layer.originX = clamp((layer.originX or 0) + delta, 0, 255)
+  else
+    layer.originY = clamp((layer.originY or 0) + delta, 0, 239)
+  end
+end
+
+function PPUFrameToolbar:_onToggleOriginGuides()
+  local layer = self:_getActiveSpriteLayer()
+  if not layer or not self.window then
+    return
+  end
+  self.window.showSpriteOriginGuides = not (self.window.showSpriteOriginGuides == true)
+  self:updateOriginButtons()
+end
+
 -- Handle add layer
 function PPUFrameToolbar:_onAddLayer()
   if not self.window then return end
@@ -268,6 +346,7 @@ end
 function PPUFrameToolbar:updateIcons()
   self:updateRangeButton()
   self:updateSpriteButton()
+  self:updateOriginButtons()
 end
 
 function PPUFrameToolbar:updateRangeButton()
@@ -292,6 +371,53 @@ function PPUFrameToolbar:updateSpriteButton()
     self.addSpriteButton.tooltip = "Add a sprite on sprite layer"
   else
     self.addSpriteButton.tooltip = "Create sprite layer"
+  end
+end
+
+function PPUFrameToolbar:updateOriginButtons()
+  local layer = self:_getActiveSpriteLayer()
+  local isActiveSpriteLayer = layer ~= nil
+  local originX = layer and clamp(layer.originX or 0, 0, 255) or 0
+  local originY = layer and clamp(layer.originY or 0, 0, 239) or 0
+  local stepHint = " (Shift: 8)"
+
+  if self.originXMinusButton then
+    self.originXMinusButton.icon = images.icons.icon_minus or self.originXMinusButton.icon
+    self.originXMinusButton.bgColor = colors.red
+    self.originXMinusButton.enabled = isActiveSpriteLayer
+    self.originXMinusButton.tooltip = string.format("Origin X: %d -1%s", originX, stepHint)
+  end
+  if self.originXPlusButton then
+    self.originXPlusButton.icon = images.icons.icon_plus or self.originXPlusButton.icon
+    self.originXPlusButton.bgColor = colors.red
+    self.originXPlusButton.enabled = isActiveSpriteLayer
+    self.originXPlusButton.tooltip = string.format("Origin X: %d +1%s", originX, stepHint)
+  end
+  if self.originYMinusButton then
+    self.originYMinusButton.icon = images.icons.icon_minus or self.originYMinusButton.icon
+    self.originYMinusButton.bgColor = colors.green
+    self.originYMinusButton.enabled = isActiveSpriteLayer
+    self.originYMinusButton.tooltip = string.format("Origin Y: %d -1%s", originY, stepHint)
+  end
+  if self.originYPlusButton then
+    self.originYPlusButton.icon = images.icons.icon_plus or self.originYPlusButton.icon
+    self.originYPlusButton.bgColor = colors.green
+    self.originYPlusButton.enabled = isActiveSpriteLayer
+    self.originYPlusButton.tooltip = string.format("Origin Y: %d +1%s", originY, stepHint)
+  end
+
+  if self.toggleOriginGuidesButton then
+    local enabledGuides = isActiveSpriteLayer and (self.window and self.window.showSpriteOriginGuides == true)
+    self.toggleOriginGuidesButton.icon = images.icons.icon_dotted_lines or self.toggleOriginGuidesButton.icon
+    self.toggleOriginGuidesButton.enabled = isActiveSpriteLayer
+    if enabledGuides then
+      self.toggleOriginGuidesButton.bgColor = nil
+    else
+      self.toggleOriginGuidesButton.bgColor = colors.gray20
+    end
+    self.toggleOriginGuidesButton.tooltip = enabledGuides
+      and "Hide sprite origin guides"
+      or "Show sprite origin guides"
   end
 end
 
