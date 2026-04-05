@@ -275,47 +275,6 @@ anyModalVisible = function(app)
     or (app.textFieldDemoModal and app.textFieldDemoModal:isVisible())
 end
 
-local function updateModalCursorLock(app)
-  if not (love and love.mouse and love.mouse.setCursor) then return end
-  if CursorsController.isUsingSoftwareCursor and CursorsController.isUsingSoftwareCursor(app) then
-    app._modalCursorLockActive = false
-    app._modalCursorRestore = nil
-    return
-  end
-
-  local modalOpen = anyModalVisible(app)
-  if modalOpen then
-    if not app._modalCursorLockActive then
-      app._modalCursorRestore = app.activeHardwareCursor
-      app._modalCursorLockActive = true
-    end
-
-    local arrowCursor = app.hardwareCursors and app.hardwareCursors.arrow or nil
-    if app.activeHardwareCursor ~= arrowCursor then
-      if arrowCursor then
-        love.mouse.setCursor(arrowCursor)
-      else
-        love.mouse.setCursor()
-      end
-      app.activeHardwareCursor = arrowCursor
-    end
-    return
-  end
-
-  if app._modalCursorLockActive then
-    local restore = app._modalCursorRestore
-    app._modalCursorLockActive = false
-    app._modalCursorRestore = nil
-
-    if restore ~= nil then
-      love.mouse.setCursor(restore)
-      app.activeHardwareCursor = restore
-    else
-      CursorsController.applyModeCursor(app, app.mode)
-    end
-  end
-end
-
 chooseBankTileRefForLabel = function(target, currentBank)
   if not target then return nil end
 
@@ -536,8 +495,6 @@ end
 function AppCoreController:update(dt)
   Timer.update(dt)
   katsudo.update(dt)
-  CursorsController.update(self)
-  updateModalCursorLock(self)
   -- Update window manager (skip closed windows)
   for _, w in ipairs(self.wm:getWindows()) do
     if not w._closed and not w._minimized then

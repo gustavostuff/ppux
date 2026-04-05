@@ -1,6 +1,7 @@
 local SpriteController = require("controllers.sprite.sprite_controller")
 local KeyboardDebugController = require("controllers.input.keyboard_debug_controller")
 local KeyboardWindowShortcutsController = require("controllers.input.keyboard_window_shortcuts_controller")
+local CursorsController = require("controllers.input_support.cursors_controller")
 local ResolutionController = require("controllers.app.resolution_controller")
 local AppSettingsController = require("controllers.app.settings_controller")
 local UserInput = require("controllers.input")
@@ -56,6 +57,12 @@ local function modalHandleKey(modal, key)
   if not modal then return end
   if modal.handleKey then
     modal:handleKey(key)
+  end
+end
+
+local function refreshCursor(app)
+  if app and CursorsController and CursorsController.applyModeCursor then
+    CursorsController.applyModeCursor(app, app.mode)
   end
 end
 
@@ -185,10 +192,12 @@ function AppCoreController:keypressed(k)
   -- Handle dialog input
   if modalVisible(self.quitConfirmModal) then
     modalHandleKey(self.quitConfirmModal, k)
+    refreshCursor(self)
     return
   end
   if modalVisible(self.saveOptionsModal) then
     modalHandleKey(self.saveOptionsModal, k)
+    refreshCursor(self)
     return
   end
   if modalVisible(self.genericActionsModal) then
@@ -240,17 +249,20 @@ function AppCoreController:keypressed(k)
   -- Ctrl+S: Save dialog (project, ROM, or both)
   if ctrlDown and k == "s" then
     self:showSaveOptionsModal()
+    refreshCursor(self)
     return
   end
   
   -- Ctrl+N: New window dialog
   if ctrlDown and k == "n" then
     self:showNewWindowModal()
+    refreshCursor(self)
     return
   end
 
   -- Pass appCore so input handlers can touch selection/etc later
   UserInput.keypressed(k, self)
+  refreshCursor(self)
 end
 
 function AppCoreController:keyreleased(k)
@@ -266,35 +278,42 @@ function AppCoreController:keyreleased(k)
       or modalVisible(self.ppuFrameRangeModal)
       or modalVisible(self.textFieldDemoModal)
       or (self.splash and self.splash.isVisible and self.splash:isVisible()) then
+    refreshCursor(self)
     return
   end
   UserInput.keyreleased(k, self)
+  refreshCursor(self)
 end
 
 function AppCoreController:mousepressed(x, y, b)
   local DebugController = require("controllers.dev.debug_controller")
   local mouse = ResolutionController:getScaledMouse(true)
+  refreshCursor(self)
   
   DebugController.log("info", "INPUT", "AppCoreController:mousepressed - screen: (%d, %d), canvas: (%.1f, %.1f), button: %d", x, y, mouse.x, mouse.y, b)
 
   if self.quitConfirmModal:isVisible() then
     self.quitConfirmModal:mousepressed(mouse.x, mouse.y, b)
+    refreshCursor(self)
     return
   end
 
   -- Splash consumes initial click
   if self.splash and self.splash:isVisible() then
     self.splash:mousepressed(mouse.x, mouse.y, b)
+    refreshCursor(self)
     return
   end
 
   if self.saveOptionsModal and self.saveOptionsModal:isVisible() then
     self.saveOptionsModal:mousepressed(mouse.x, mouse.y, b)
+    refreshCursor(self)
     return
   end
 
   if self.genericActionsModal:isVisible() then
     self.genericActionsModal:mousepressed(mouse.x, mouse.y, b)
+    refreshCursor(self)
     return
   end
 
@@ -349,16 +368,19 @@ function AppCoreController:mousepressed(x, y, b)
   end
   
   UserInput.mousepressed(mouse.x, mouse.y, b)
+  refreshCursor(self)
 end
 
 function AppCoreController:mousereleased(x, y, b)
   local mouse = ResolutionController:getScaledMouse(true)
+  refreshCursor(self)
   
   local DebugController = require("controllers.dev.debug_controller")
   DebugController.log("info", "INPUT", "AppCoreController:mousereleased - screen: (%d, %d), canvas: (%.1f, %.1f), button: %d", x, y, mouse.x, mouse.y, b)
 
   if self.quitConfirmModal:isVisible() then
     self.quitConfirmModal:mousereleased(mouse.x, mouse.y, b)
+    refreshCursor(self)
     return
   end
 
@@ -366,16 +388,19 @@ function AppCoreController:mousereleased(x, y, b)
     self.splash:mousereleased(mouse.x, mouse.y, function()
       AppSettingsController.save({ skipSplash = true })
     end)
+    refreshCursor(self)
     return
   end
 
   if self.saveOptionsModal and self.saveOptionsModal:isVisible() then
     self.saveOptionsModal:mousereleased(mouse.x, mouse.y, b)
+    refreshCursor(self)
     return
   end
 
   if self.genericActionsModal:isVisible() then
     self.genericActionsModal:mousereleased(mouse.x, mouse.y, b)
+    refreshCursor(self)
     return
   end
 
@@ -426,14 +451,17 @@ function AppCoreController:mousereleased(x, y, b)
   UserInput.mousereleased(mouse.x, mouse.y, b)
 
   if (not activeInteraction) and self.taskbar and self.taskbar:mousereleased(mouse.x, mouse.y, b) then
+    refreshCursor(self)
     return
   end
+  refreshCursor(self)
 end
 
 function AppCoreController:mousemoved(x, y, dx, dy)
   local mouse = ResolutionController:getScaledMouse(true)
   dx = dx or 0
   dy = dy or 0
+  refreshCursor(self)
 
   if self.quitConfirmModal:isVisible() then
     self.quitConfirmModal:mousemoved(mouse.x, mouse.y)

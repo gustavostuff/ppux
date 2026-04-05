@@ -345,4 +345,59 @@ describe("cursors_controller.lua", function()
     CursorsController.applyModeCursor(app, "edit")
     expect(setTo).toBe("arrow")
   end)
+
+  it("treats PPU frame range/add-sprite modals as blocking modals for cursor choice", function()
+    local setTo = nil
+    love.mouse.setCursor = function(cursor) setTo = cursor end
+    ResolutionController.getScaledMouse = function()
+      return { x = 10, y = 10 }
+    end
+
+    local layer = { kind = "tile", removedCells = {} }
+    local win = {
+      isPalette = false,
+      cols = 8,
+      layers = { layer },
+      getActiveLayerIndex = function() return 1 end,
+      toGridCoords = function() return true, 1, 2 end,
+      get = function() return { id = "tile" } end,
+      isInHeader = function() return false end,
+    }
+
+    local app = {
+      hardwareCursors = { arrow = "arrow", pencil = "pencil", hand = "hand" },
+      wm = {
+        windowAt = function() return win end,
+      },
+      ppuFrameRangeModal = {
+        isVisible = function() return true end,
+      },
+    }
+
+    CursorsController.applyModeCursor(app, "edit")
+    expect(setTo).toBe("arrow")
+
+    app.ppuFrameRangeModal = { isVisible = function() return false end }
+    app.ppuFrameAddSpriteModal = { isVisible = function() return true end }
+    CursorsController.applyModeCursor(app, "edit")
+    expect(setTo).toBe("arrow")
+  end)
+
+  it("does not apply hardware cursor changes from CursorsController.update", function()
+    local setCalls = 0
+    love.mouse.setCursor = function()
+      setCalls = setCalls + 1
+    end
+
+    local app = {
+      mode = "edit",
+      hardwareCursors = { arrow = "arrow", pencil = "pencil" },
+      wm = {
+        windowAt = function() return nil end,
+      },
+    }
+
+    CursorsController.update(app)
+    expect(setCalls).toBe(0)
+  end)
 end)

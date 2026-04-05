@@ -180,6 +180,10 @@ local function anyModalVisible(app)
     or (app and app.renameWindowModal and app.renameWindowModal.isVisible and app.renameWindowModal:isVisible())
     or (app and app.romPaletteAddressModal and app.romPaletteAddressModal.isVisible and app.romPaletteAddressModal:isVisible())
     or (app and app.ppuFrameSpriteLayerModeModal and app.ppuFrameSpriteLayerModeModal.isVisible and app.ppuFrameSpriteLayerModeModal:isVisible())
+    or (app and app.ppuFrameAddSpriteModal and app.ppuFrameAddSpriteModal.isVisible and app.ppuFrameAddSpriteModal:isVisible())
+    or (app and app.ppuFrameRangeModal and app.ppuFrameRangeModal.isVisible and app.ppuFrameRangeModal:isVisible())
+    or (app and app.textFieldDemoModal and app.textFieldDemoModal.isVisible and app.textFieldDemoModal:isVisible())
+    or (app and app.splash and app.splash.isVisible and app.splash:isVisible())
 end
 
 local function isHoveringEditableContent(app)
@@ -366,8 +370,8 @@ function CursorsController.init(app)
 end
 
 function CursorsController.update(app)
-  if not app then return end
-  CursorsController.applyModeCursor(app, app.mode)
+  -- Cursor application is event-driven; do not mutate hardware cursor in update().
+  return
 end
 
 function CursorsController.isUsingSoftwareCursor(app)
