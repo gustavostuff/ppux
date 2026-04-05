@@ -42,7 +42,12 @@ local function rebuildPanel(self)
       row = math.floor((i - 1) / cols) + 1
       col = ((i - 1) % cols) + 1
     end
-    local text = string.format("%d) %s", i, option.text or "")
+    local text
+    if type(self.optionTextFormatter) == "function" then
+      text = tostring(self.optionTextFormatter(i, option) or "")
+    else
+      text = string.format("%d) %s", i, option.text or "")
+    end
     self.panel:setCell(col, row, {
       kind = "button",
       text = text,
@@ -86,6 +91,7 @@ function Dialog.new()
     _boxY = nil,
     _boxW = nil,
     _boxH = nil,
+    optionTextFormatter = nil,
   }, Dialog)
 
   ModalPanelUtils.applyPanelDefaults(self)
@@ -146,11 +152,11 @@ end
 
 function Dialog:mousepressed(x, y, button)
   if not self.visible then return false end
-  if button ~= 1 then return true end
   if not self:_containsBox(x, y) then
     self:hide()
     return true
   end
+  if button ~= 1 then return true end
   return self.panel and self.panel:mousepressed(x, y, button) or true
 end
 

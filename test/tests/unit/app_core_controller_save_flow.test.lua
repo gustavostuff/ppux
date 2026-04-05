@@ -9,12 +9,14 @@ describe("core_controller.lua - combined save flow", function()
   local originalHandleDebugKeys
   local originalHandleWindowScaling
   local originalHandleFullscreen
+  local originalGetScaledMouse
 
   beforeEach(function()
     originalSaveEncodedProject = RomProjectController.saveEncodedProject
     originalHandleDebugKeys = KeyboardDebugController.handleDebugKeys
     originalHandleWindowScaling = KeyboardWindowShortcutsController.handleWindowScaling
     originalHandleFullscreen = KeyboardWindowShortcutsController.handleFullscreen
+    originalGetScaledMouse = ResolutionController.getScaledMouse
   end)
 
   afterEach(function()
@@ -22,6 +24,7 @@ describe("core_controller.lua - combined save flow", function()
     KeyboardDebugController.handleDebugKeys = originalHandleDebugKeys
     KeyboardWindowShortcutsController.handleWindowScaling = originalHandleWindowScaling
     KeyboardWindowShortcutsController.handleFullscreen = originalHandleFullscreen
+    ResolutionController.getScaledMouse = originalGetScaledMouse
   end)
 
   it("shows one success toast when saving both project and ROM", function()
@@ -454,6 +457,99 @@ describe("core_controller.lua - combined save flow", function()
     expect(scalingCalls).toBeGreaterThan(0)
     expect(fullscreenCalls).toBeGreaterThan(0)
     expect(modalKeyCalls).toBe(0)
+  end)
+
+  it("routes mouse press/release to save options modal when visible", function()
+    local pressed = 0
+    local released = 0
+    local moved = 0
+
+    ResolutionController.getScaledMouse = function()
+      return { x = 123, y = 77 }
+    end
+
+    local saveModal = {
+      isVisible = function() return true end,
+      mousepressed = function(_, x, y, b)
+        pressed = pressed + 1
+        expect(x).toBe(123)
+        expect(y).toBe(77)
+        expect(b).toBe(1)
+      end,
+      mousereleased = function(_, x, y, b)
+        released = released + 1
+        expect(x).toBe(123)
+        expect(y).toBe(77)
+        expect(b).toBe(1)
+      end,
+      mousemoved = function(_, x, y)
+        moved = moved + 1
+        expect(x).toBe(123)
+        expect(y).toBe(77)
+      end,
+    }
+
+    local app = setmetatable({
+      quitConfirmModal = { isVisible = function() return false end },
+      splash = { isVisible = function() return false end },
+      saveOptionsModal = saveModal,
+      genericActionsModal = { isVisible = function() return false end },
+      settingsModal = { isVisible = function() return false end },
+      newWindowModal = { isVisible = function() return false end },
+      renameWindowModal = { isVisible = function() return false end },
+      romPaletteAddressModal = { isVisible = function() return false end },
+      ppuFrameSpriteLayerModeModal = { isVisible = function() return false end },
+      ppuFrameAddSpriteModal = { isVisible = function() return false end },
+      ppuFrameRangeModal = { isVisible = function() return false end },
+      textFieldDemoModal = { isVisible = function() return false end },
+      toastController = nil,
+      taskbar = nil,
+      hideAppContextMenus = function() end,
+    }, AppCoreController)
+
+    app:mousepressed(0, 0, 1)
+    app:mousereleased(0, 0, 1)
+    app:mousemoved(0, 0, 4, 2)
+
+    expect(pressed).toBe(1)
+    expect(released).toBe(1)
+    expect(moved).toBe(1)
+  end)
+
+  it("can close save options modal from outside click via forwarded mouse press", function()
+    local visible = true
+    local saveModal = {
+      isVisible = function() return visible end,
+      mousepressed = function()
+        visible = false
+      end,
+    }
+
+    ResolutionController.getScaledMouse = function()
+      return { x = 8, y = 9 }
+    end
+
+    local app = setmetatable({
+      quitConfirmModal = { isVisible = function() return false end },
+      splash = { isVisible = function() return false end },
+      saveOptionsModal = saveModal,
+      genericActionsModal = { isVisible = function() return false end },
+      settingsModal = { isVisible = function() return false end },
+      newWindowModal = { isVisible = function() return false end },
+      renameWindowModal = { isVisible = function() return false end },
+      romPaletteAddressModal = { isVisible = function() return false end },
+      ppuFrameSpriteLayerModeModal = { isVisible = function() return false end },
+      ppuFrameAddSpriteModal = { isVisible = function() return false end },
+      ppuFrameRangeModal = { isVisible = function() return false end },
+      textFieldDemoModal = { isVisible = function() return false end },
+      toastController = nil,
+      taskbar = nil,
+      hideAppContextMenus = function() end,
+    }, AppCoreController)
+
+    expect(visible).toBe(true)
+    app:mousepressed(0, 0, 1)
+    expect(visible).toBe(false)
   end)
 
 end)

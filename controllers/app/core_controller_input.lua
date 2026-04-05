@@ -289,6 +289,7 @@ function AppCoreController:mousepressed(x, y, b)
   end
 
   if self.saveOptionsModal and self.saveOptionsModal:isVisible() then
+    self.saveOptionsModal:mousepressed(mouse.x, mouse.y, b)
     return
   end
 
@@ -369,6 +370,7 @@ function AppCoreController:mousereleased(x, y, b)
   end
 
   if self.saveOptionsModal and self.saveOptionsModal:isVisible() then
+    self.saveOptionsModal:mousereleased(mouse.x, mouse.y, b)
     return
   end
 
@@ -454,6 +456,7 @@ function AppCoreController:mousemoved(x, y, dx, dy)
   end
 
   if self.saveOptionsModal and self.saveOptionsModal:isVisible() then
+    self.saveOptionsModal:mousemoved(mouse.x, mouse.y)
     return
   end
 
