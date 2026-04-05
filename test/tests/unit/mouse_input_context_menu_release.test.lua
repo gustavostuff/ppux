@@ -223,6 +223,92 @@ describe("mouse_input.lua - context menus on release", function()
     expect(lastY).toBe(200)
   end)
 
+  it("opens select-in-CHR context menu on right-button release for sprite layer items", function()
+    local openCalls = 0
+    local lastArgs = nil
+    local focusWin = nil
+    local win = {
+      kind = "static_art",
+      _id = "spr_ctx",
+      _closed = false,
+      _minimized = false,
+      _collapsed = false,
+      x = 10,
+      y = 40,
+      dragging = false,
+      layers = {
+        { kind = "sprite", items = { { bank = 1, tile = 0x22 } } },
+      },
+      getActiveLayerIndex = function() return 1 end,
+      isInHeader = function() return false end,
+      contains = function(_, x, y)
+        return x >= 10 and x <= 210 and y >= 25 and y <= 180
+      end,
+      mousepressed = function(self, x, y, button)
+        if button == 2 or button == 3 then
+          self.dragging = true
+          self.dx = x - self.x
+          self.dy = y - self.y
+        end
+      end,
+      mousereleased = function(self)
+        self.dragging = false
+      end,
+    }
+    local wm = {
+      getFocus = function() return focusWin end,
+      setFocus = function(_, next) focusWin = next end,
+      windowAt = function(_, x, y)
+        if win:contains(x, y) then
+          return win
+        end
+        return nil
+      end,
+      getWindows = function()
+        return { win }
+      end,
+    }
+
+    local SpriteController = require("controllers.sprite.sprite_controller")
+    local originalPickSpriteAt = SpriteController.pickSpriteAt
+    SpriteController.pickSpriteAt = function()
+      return 1, 1, 0, 0
+    end
+
+    MouseInput.setup({
+      wm = function() return wm end,
+      getMode = function() return "tile" end,
+      getPainting = function() return false end,
+      setPainting = function() end,
+      app = {
+        showSelectInChrContextMenu = function(_, targetWin, layerIndex, col, row, itemIndex)
+          openCalls = openCalls + 1
+          lastArgs = {
+            win = targetWin,
+            layerIndex = layerIndex,
+            col = col,
+            row = row,
+            itemIndex = itemIndex,
+          }
+        end,
+      },
+    }, { active = false, pending = false }, { active = false }, {
+      pickByVisual = function() return false end,
+    })
+
+    MouseInput.mousepressed(40, 30, 2)
+    MouseInput.mousereleased(40, 30, 2)
+
+    SpriteController.pickSpriteAt = originalPickSpriteAt
+
+    expect(openCalls).toBe(1)
+    expect(lastArgs.win).toBe(win)
+    expect(lastArgs.layerIndex).toBe(1)
+    expect(lastArgs.col).toBeNil()
+    expect(lastArgs.row).toBeNil()
+    expect(lastArgs.itemIndex).toBe(1)
+  end)
+
   it("finishes rect fill edit shapes on left-button release without crashing", function()
     local focusWin = {
       kind = "static_art",

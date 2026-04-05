@@ -137,6 +137,12 @@ end
 local function normalizeTileIndex(item)
   local tileIndex = item and tonumber(item.index) or nil
   if type(tileIndex) ~= "number" then
+    tileIndex = item and tonumber(item.tile) or nil
+  end
+  if type(tileIndex) ~= "number" and item and item.topRef then
+    tileIndex = tonumber(item.topRef.index)
+  end
+  if type(tileIndex) ~= "number" then
     return nil
   end
   tileIndex = math.floor(tileIndex)
@@ -635,6 +641,70 @@ function AppCoreController:_buildPpuTileContext(win, layerIndex, col, row)
   }
 end
 
+function AppCoreController:_buildSelectInChrContext(win, layerIndex, col, row, itemIndex)
+  if not (win and type(layerIndex) == "number") then
+    return nil
+  end
+
+  local layer = win.getLayer and win:getLayer(layerIndex) or (win.layers and win.layers[layerIndex])
+  if not layer then
+    return nil
+  end
+
+  if layer.kind == "tile" then
+    if not (type(col) == "number" and type(row) == "number") then
+      return nil
+    end
+
+    local item = nil
+    if win.getVirtualTileHandle then
+      item = win:getVirtualTileHandle(col, row, layerIndex)
+    end
+    if not item and win.get then
+      item = win:get(col, row, layerIndex)
+    end
+    if not item then
+      return nil
+    end
+
+    return {
+      win = win,
+      layerIndex = layerIndex,
+      layer = layer,
+      col = col,
+      row = row,
+      item = item,
+      tileIndex = normalizeTileIndex(item),
+      sourceBank = tonumber(layer.bank) or tonumber(item._bankIndex) or 1,
+    }
+  end
+
+  if layer.kind == "sprite" then
+    if type(itemIndex) ~= "number" then
+      return nil
+    end
+    local item = layer.items and layer.items[itemIndex] or nil
+    if not item or item.removed == true then
+      return nil
+    end
+
+    return {
+      win = win,
+      layerIndex = layerIndex,
+      layer = layer,
+      itemIndex = itemIndex,
+      item = item,
+      tileIndex = normalizeTileIndex(item),
+      sourceBank = tonumber(item.bank)
+        or tonumber(layer.bank)
+        or tonumber(item.topRef and item.topRef._bankIndex)
+        or 1,
+    }
+  end
+
+  return nil
+end
+
 function AppCoreController:_markPpuTileByteAsGlass(context)
   if not context then
     return false
@@ -677,7 +747,7 @@ function AppCoreController:_selectPpuTileInChrWindow(context)
   end
 
   if type(context.tileIndex) ~= "number" then
-    self:setStatus("This PPU tile has no CHR source selection to jump to")
+    self:setStatus("This item has no CHR source selection to jump to")
     return false
   end
 
@@ -759,6 +829,18 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
   }
 end
 
+function AppCoreController:_buildSelectInChrContextMenuItems(context)
+  return {
+    {
+      text = "Select in CHR/ROM window",
+      enabled = context and context.tileIndex ~= nil,
+      callback = function()
+        self:_selectPpuTileInChrWindow(context)
+      end,
+    },
+  }
+end
+
 function AppCoreController:showPpuTileContextMenu(win, layerIndex, col, row, x, y)
   if not (self.ppuTileContextMenu and type(x) == "number" and type(y) == "number") then
     return false
@@ -771,6 +853,21 @@ function AppCoreController:showPpuTileContextMenu(win, layerIndex, col, row, x, 
 
   self:_hideAllContextMenus()
   self.ppuTileContextMenu:showAt(x, y, self:_buildPpuTileContextMenuItems(context))
+  return self.ppuTileContextMenu:isVisible()
+end
+
+function AppCoreController:showSelectInChrContextMenu(win, layerIndex, col, row, itemIndex, x, y)
+  if not (self.ppuTileContextMenu and type(x) == "number" and type(y) == "number") then
+    return false
+  end
+
+  local context = self:_buildSelectInChrContext(win, layerIndex, col, row, itemIndex)
+  if not context then
+    return false
+  end
+
+  self:_hideAllContextMenus()
+  self.ppuTileContextMenu:showAt(x, y, self:_buildSelectInChrContextMenuItems(context))
   return self.ppuTileContextMenu:isVisible()
 end
 

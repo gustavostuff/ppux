@@ -257,6 +257,56 @@ local function handleRightButton(env, button, x, y, win, wm)
     return true
   end
 
+  local function beginSelectInChrContextClick()
+    if not (win and env.beginContextMenuClick) then
+      return false
+    end
+
+    if not (WindowCaps.isPpuFrame(win) or WindowCaps.isStaticOrAnimationArt(win)) then
+      return false
+    end
+
+    local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+    local layer = win.layers and win.layers[li] or nil
+    if not layer then
+      return false
+    end
+
+    if layer.kind == "tile" then
+      local pickByVisual = env.utils and env.utils.pickByVisual or nil
+      if type(pickByVisual) ~= "function" then
+        return false
+      end
+
+      local hit, col, row, item = pickByVisual(win, x, y, li)
+      if not (hit and item and type(col) == "number" and type(row) == "number") then
+        return false
+      end
+
+      env.beginContextMenuClick("select_in_chr", x, y, button, win, {
+        layerIndex = li,
+        col = col,
+        row = row,
+      })
+      return true
+    end
+
+    if layer.kind == "sprite" then
+      local pickedLayerIndex, itemIndex = SpriteController.pickSpriteAt(win, x, y, li)
+      if not (type(pickedLayerIndex) == "number" and type(itemIndex) == "number") then
+        return false
+      end
+
+      env.beginContextMenuClick("select_in_chr", x, y, button, win, {
+        layerIndex = pickedLayerIndex,
+        itemIndex = itemIndex,
+      })
+      return true
+    end
+
+    return false
+  end
+
   if button == 2 or button == 3 then
     if win then
       if isOverToolbarControl(win.specializedToolbar) or isOverToolbarControl(win.headerToolbar) then
@@ -264,6 +314,10 @@ local function handleRightButton(env, button, x, y, win, wm)
       end
       wm:setFocus(win)
       if beginPpuTileContextClick() then
+        win:mousepressed(x, y, button)
+        return true
+      end
+      if beginSelectInChrContextClick() then
         win:mousepressed(x, y, button)
         return true
       end

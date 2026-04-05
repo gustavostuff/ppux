@@ -202,6 +202,22 @@ local function handleContextMenuRelease(button, x, y)
     return false
   end
 
+  if pending.kind == "select_in_chr" then
+    if app.showSelectInChrContextMenu and pending.win then
+      app:showSelectInChrContextMenu(
+        pending.win,
+        pending.layerIndex,
+        pending.col,
+        pending.row,
+        pending.itemIndex,
+        x,
+        y
+      )
+      return true
+    end
+    return false
+  end
+
   return false
 end
 

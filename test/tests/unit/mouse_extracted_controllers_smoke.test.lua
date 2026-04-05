@@ -412,4 +412,136 @@ describe("mouse extracted controllers (smoke)", function()
     expect(contextArgs.col).toBe(1)
     expect(contextArgs.row).toBe(2)
   end)
+
+  it("mouse_click_controller opens select-in-CHR context for right-click on PPU sprite layer items", function()
+    local SpriteController = require("controllers.sprite.sprite_controller")
+    local originalPickSpriteAt = SpriteController.pickSpriteAt
+    local focused = nil
+    local contextArgs = nil
+
+    local win = {
+      _id = "ppu_spr",
+      kind = "ppu_frame",
+      layers = { { kind = "sprite", items = { { bank = 1, tile = 0x2A } } } },
+      x = 4,
+      y = 8,
+      dragging = false,
+      getActiveLayerIndex = function() return 1 end,
+      mousepressed = function(self, x, y, button)
+        if button == 2 or button == 3 then
+          self.dragging = true
+          self.dx = x - self.x
+          self.dy = y - self.y
+        end
+      end,
+      contains = function() return true end,
+    }
+    local wm = {
+      getFocus = function() return focused end,
+      setFocus = function(_, next) focused = next end,
+      windowAt = function() return win end,
+    }
+    local env = {
+      ctx = {
+        wm = function() return wm end,
+        getMode = function() return "tile" end,
+      },
+      chrome = {
+        getTopInteractiveWindowAt = function() return win end,
+        handleToolbarClicks = function() return false end,
+        handleResizeHandle = function() return false end,
+        handleHeaderClick = function() return false end,
+      },
+      beginContextMenuClick = function(kind, x, y, button, targetWin, extra)
+        contextArgs = {
+          kind = kind,
+          button = button,
+          win = targetWin,
+          layerIndex = extra and extra.layerIndex or nil,
+          itemIndex = extra and extra.itemIndex or nil,
+        }
+      end,
+    }
+
+    SpriteController.pickSpriteAt = function()
+      return 1, 1, 0, 0
+    end
+    local handled = MouseClickController.handleMousePressed(env, 20, 20, 2)
+    SpriteController.pickSpriteAt = originalPickSpriteAt
+
+    expect(handled).toBeTruthy()
+    expect(focused).toBe(win)
+    expect(win.dragging).toBeTruthy()
+    expect(contextArgs.kind).toBe("select_in_chr")
+    expect(contextArgs.button).toBe(2)
+    expect(contextArgs.win).toBe(win)
+    expect(contextArgs.layerIndex).toBe(1)
+    expect(contextArgs.itemIndex).toBe(1)
+  end)
+
+  it("mouse_click_controller opens select-in-CHR context for right-click on static tile layers", function()
+    local focused = nil
+    local contextArgs = nil
+    local win = {
+      _id = "static_tile",
+      kind = "static_art",
+      layers = { { kind = "tile" } },
+      x = 10,
+      y = 12,
+      dragging = false,
+      getActiveLayerIndex = function() return 1 end,
+      mousepressed = function(self, x, y, button)
+        if button == 2 or button == 3 then
+          self.dragging = true
+          self.dx = x - self.x
+          self.dy = y - self.y
+        end
+      end,
+      contains = function() return true end,
+    }
+    local wm = {
+      getFocus = function() return focused end,
+      setFocus = function(_, next) focused = next end,
+      windowAt = function() return win end,
+    }
+    local env = {
+      ctx = {
+        wm = function() return wm end,
+        getMode = function() return "tile" end,
+      },
+      chrome = {
+        getTopInteractiveWindowAt = function() return win end,
+        handleToolbarClicks = function() return false end,
+        handleResizeHandle = function() return false end,
+        handleHeaderClick = function() return false end,
+      },
+      utils = {
+        pickByVisual = function()
+          return true, 2, 3, { index = 0x11, _bankIndex = 1 }
+        end,
+      },
+      beginContextMenuClick = function(kind, x, y, button, targetWin, extra)
+        contextArgs = {
+          kind = kind,
+          button = button,
+          win = targetWin,
+          layerIndex = extra and extra.layerIndex or nil,
+          col = extra and extra.col or nil,
+          row = extra and extra.row or nil,
+        }
+      end,
+    }
+
+    local handled = MouseClickController.handleMousePressed(env, 40, 55, 2)
+
+    expect(handled).toBeTruthy()
+    expect(focused).toBe(win)
+    expect(win.dragging).toBeTruthy()
+    expect(contextArgs.kind).toBe("select_in_chr")
+    expect(contextArgs.button).toBe(2)
+    expect(contextArgs.win).toBe(win)
+    expect(contextArgs.layerIndex).toBe(1)
+    expect(contextArgs.col).toBe(2)
+    expect(contextArgs.row).toBe(3)
+  end)
 end)
