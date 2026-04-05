@@ -122,9 +122,9 @@ describe("toast_controller.lua", function()
     expect(toast.w).toBeLessThan(521)
   end)
 
-  it("still truncates with ellipsis when text does not fit even expanded width", function()
+  it("truncates with middle ellipsis when text does not fit even expanded width", function()
     local controller = makeController()
-    local veryLongText = string.rep("this message is intentionally very long ", 40)
+    local veryLongText = "Saved project: /home/g/Documents/super_long_workspace_name/projects/nes/very/deep/folder/structure/my_project_file_with_a_long_name.ppux"
     controller:show("error", veryLongText)
 
     local capturedText = nil
@@ -142,6 +142,8 @@ describe("toast_controller.lua", function()
 
     expect(capturedText).toBeTruthy()
     expect(capturedText).toNotBe(veryLongText)
-    expect(string.sub(capturedText, -3)).toBe("...")
+    expect(string.find(capturedText, "...", 1, true)).toNotBe(nil)
+    expect(string.sub(capturedText, 1, 6)).toBe(string.sub(veryLongText, 1, 6))
+    expect(string.sub(capturedText, -5)).toBe(string.sub(veryLongText, -5))
   end)
 end)

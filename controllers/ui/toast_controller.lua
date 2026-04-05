@@ -51,17 +51,40 @@ local function truncateToWidth(text, maxWidth)
     return text
   end
 
-  local suffix = "..."
-  local suffixW = font:getWidth(suffix)
-  if suffixW >= maxWidth then
+  local ellipsis = "..."
+  local ellipsisW = font:getWidth(ellipsis)
+  if ellipsisW >= maxWidth then
     return ""
   end
 
-  local trimmed = text
-  while #trimmed > 0 and (font:getWidth(trimmed) + suffixW) > maxWidth do
-    trimmed = trimmed:sub(1, -2)
+  local len = #text
+  if len <= 2 then
+    return ellipsis
   end
-  return trimmed .. suffix
+
+  local leftCount = math.floor(len / 2)
+  local rightCount = len - leftCount
+
+  if leftCount < 1 then leftCount = 1 end
+  if rightCount < 1 then rightCount = 1 end
+
+  local candidate = text:sub(1, leftCount) .. ellipsis .. text:sub(len - rightCount + 1)
+  while font:getWidth(candidate) > maxWidth and (leftCount > 1 or rightCount > 1) do
+    if leftCount >= rightCount and leftCount > 1 then
+      leftCount = leftCount - 1
+    elseif rightCount > 1 then
+      rightCount = rightCount - 1
+    else
+      break
+    end
+    candidate = text:sub(1, leftCount) .. ellipsis .. text:sub(len - rightCount + 1)
+  end
+
+  if font:getWidth(candidate) <= maxWidth then
+    return candidate
+  end
+
+  return ellipsis
 end
 
 local function toastStyle(kind)
