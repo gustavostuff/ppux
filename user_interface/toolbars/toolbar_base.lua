@@ -16,6 +16,10 @@ ToolbarBase.__index = ToolbarBase
 
 local _layerLabelId = 0
 
+local function isButtonVisible(button)
+  return button and button.hidden ~= true
+end
+
 function ToolbarBase.new(window, data)
   data = data or {}
   _layerLabelId = _layerLabelId + 1
@@ -143,7 +147,9 @@ end
     -- Calculate total width of all buttons and labels (exclude labels that render in content)
     local totalButtonWidth = 0
     for _, button in ipairs(self.buttons) do
-      totalButtonWidth = totalButtonWidth + button.w
+      if isButtonVisible(button) then
+        totalButtonWidth = totalButtonWidth + button.w
+      end
     end
     
     local totalLabelWidth = 0
@@ -172,8 +178,10 @@ end
     
     -- Then layout buttons (right side)
     for _, button in ipairs(self.buttons) do
-      button:setPosition(x, itemY)
-      x = x + button.w
+      if isButtonVisible(button) then
+        button:setPosition(x, itemY)
+        x = x + button.w
+      end
     end
     
     -- Update toolbar position and width
@@ -192,7 +200,7 @@ function ToolbarBase:contains(px, py)
   
   -- Check if point is within any button bounds
   for _, button in ipairs(self.buttons) do
-    if button:contains(px, py) then
+    if isButtonVisible(button) and button:contains(px, py) then
       return true
     end
   end
@@ -211,7 +219,7 @@ function ToolbarBase:getButtonAt(px, py)
   if not self:contains(px, py) then return nil end
   
   for _, button in ipairs(self.buttons) do
-    if button:contains(px, py) then
+    if isButtonVisible(button) and button:contains(px, py) then
       return button
     end
   end
@@ -257,6 +265,7 @@ function ToolbarBase:mousepressed(x, y, button)
   if not isFocused then return false end
   
   -- Update position before checking (toolbar might have moved)
+  self:updateIcons()
   self:updatePosition()
   
   DebugController.log("info", "UI", "ToolbarBase:mousepressed - mouse: (%.1f, %.1f), toolbar: (%.1f, %.1f, %.1f, %.1f), button: %d", x, y, self.x, self.y, self.w, self.h, button)
@@ -279,7 +288,9 @@ function ToolbarBase:mousepressed(x, y, button)
   
   DebugController.log("info", "UI", "ToolbarBase:mousepressed - no button found. Button count: %d", #self.buttons)
   for i, b in ipairs(self.buttons) do
-    DebugController.log("info", "UI", "  Button %d: (%.1f, %.1f, %.1f, %.1f)", i, b.x, b.y, b.w, b.h)
+    if isButtonVisible(b) then
+      DebugController.log("info", "UI", "  Button %d: (%.1f, %.1f, %.1f, %.1f)", i, b.x, b.y, b.w, b.h)
+    end
   end
   
   self.pressedButton = nil
@@ -294,6 +305,7 @@ function ToolbarBase:mousereleased(x, y, button)
   end
   
   -- Update position before checking (toolbar might have moved)
+  self:updateIcons()
   self:updatePosition()
   
   DebugController.log("info", "UI", "ToolbarBase:mousereleased - mouse: (%.1f, %.1f), pressedButton: %s, button: %d", x, y, self.pressedButton and "set" or "nil", button)
@@ -349,7 +361,9 @@ function ToolbarBase:mousemoved(x, y)
     end
     return false
   end
-  
+
+  self:updateIcons()
+  self:updatePosition()
   local btn = self:getButtonAt(x, y)
   
   -- Update hover states
@@ -370,6 +384,7 @@ function ToolbarBase:draw()
   if not isFocused then return end
   
   -- Update position before drawing (this also re-layouts buttons)
+  self:updateIcons()
   self:updatePosition()
   
   -- Draw gray20 background covering toolbar width
@@ -381,9 +396,6 @@ function ToolbarBase:draw()
     self.h
   )
   love.graphics.setColor(colors.white)
-  
-  -- Allow subclasses to update button icons (e.g., collapse icon state)
-  self:updateIcons()
   
   -- Update label text if update function is provided
   for _, label in ipairs(self.labels) do
@@ -401,7 +413,9 @@ function ToolbarBase:draw()
   
   -- Draw buttons
   for _, button in ipairs(self.buttons) do
-    button:draw()
+    if isButtonVisible(button) then
+      button:draw()
+    end
   end
 end
 

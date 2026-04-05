@@ -377,6 +377,7 @@ end
 function PPUFrameToolbar:updateOriginButtons()
   local layer = self:_getActiveSpriteLayer()
   local isActiveSpriteLayer = layer ~= nil
+  local hideOriginButtons = not isActiveSpriteLayer
   local originX = layer and clamp(layer.originX or 0, 0, 255) or 0
   local originY = layer and clamp(layer.originY or 0, 0, 239) or 0
   local stepHint = " (Shift: 8)"
@@ -385,24 +386,28 @@ function PPUFrameToolbar:updateOriginButtons()
     self.originXMinusButton.icon = images.icons.icon_minus or self.originXMinusButton.icon
     self.originXMinusButton.bgColor = colors.red
     self.originXMinusButton.enabled = isActiveSpriteLayer
+    self.originXMinusButton.hidden = hideOriginButtons
     self.originXMinusButton.tooltip = string.format("Origin X: %d -1%s", originX, stepHint)
   end
   if self.originXPlusButton then
     self.originXPlusButton.icon = images.icons.icon_plus or self.originXPlusButton.icon
     self.originXPlusButton.bgColor = colors.red
     self.originXPlusButton.enabled = isActiveSpriteLayer
+    self.originXPlusButton.hidden = hideOriginButtons
     self.originXPlusButton.tooltip = string.format("Origin X: %d +1%s", originX, stepHint)
   end
   if self.originYMinusButton then
     self.originYMinusButton.icon = images.icons.icon_minus or self.originYMinusButton.icon
     self.originYMinusButton.bgColor = colors.green
     self.originYMinusButton.enabled = isActiveSpriteLayer
+    self.originYMinusButton.hidden = hideOriginButtons
     self.originYMinusButton.tooltip = string.format("Origin Y: %d -1%s", originY, stepHint)
   end
   if self.originYPlusButton then
     self.originYPlusButton.icon = images.icons.icon_plus or self.originYPlusButton.icon
     self.originYPlusButton.bgColor = colors.green
     self.originYPlusButton.enabled = isActiveSpriteLayer
+    self.originYPlusButton.hidden = hideOriginButtons
     self.originYPlusButton.tooltip = string.format("Origin Y: %d +1%s", originY, stepHint)
   end
 
@@ -410,6 +415,7 @@ function PPUFrameToolbar:updateOriginButtons()
     local enabledGuides = isActiveSpriteLayer and (self.window and self.window.showSpriteOriginGuides == true)
     self.toggleOriginGuidesButton.icon = images.icons.icon_dotted_lines or self.toggleOriginGuidesButton.icon
     self.toggleOriginGuidesButton.enabled = isActiveSpriteLayer
+    self.toggleOriginGuidesButton.hidden = hideOriginButtons
     if enabledGuides then
       self.toggleOriginGuidesButton.bgColor = nil
     else
