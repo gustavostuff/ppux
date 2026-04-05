@@ -264,6 +264,7 @@ local function handleRightButton(env, button, x, y, win, wm)
       end
       wm:setFocus(win)
       if beginPpuTileContextClick() then
+        win:mousepressed(x, y, button)
         return true
       end
       win:mousepressed(x, y, button)

@@ -342,4 +342,74 @@ describe("mouse extracted controllers (smoke)", function()
     expect(modalCalls[1].col).toBe(0)
     expect(modalCalls[1].row).toBe(0)
   end)
+
+  it("mouse_click_controller starts drag on right-click over a PPU tile item while preparing context menu", function()
+    local focused = nil
+    local contextArgs = nil
+    local win = {
+      _id = "ppu",
+      kind = "ppu_frame",
+      layers = { { kind = "tile" } },
+      x = 12,
+      y = 34,
+      dragging = false,
+      getActiveLayerIndex = function() return 1 end,
+      mousepressed = function(self, x, y, button)
+        if button == 2 or button == 3 then
+          self.dragging = true
+          self.dx = x - self.x
+          self.dy = y - self.y
+        end
+      end,
+      contains = function()
+        return true
+      end,
+    }
+    local wm = {
+      getFocus = function() return focused end,
+      setFocus = function(_, next) focused = next end,
+      windowAt = function() return win end,
+    }
+    local env = {
+      ctx = {
+        wm = function() return wm end,
+        getMode = function() return "tile" end,
+      },
+      chrome = {
+        getTopInteractiveWindowAt = function() return win end,
+        handleToolbarClicks = function() return false end,
+        handleResizeHandle = function() return false end,
+        handleHeaderClick = function() return false end,
+      },
+      utils = {
+        pickByVisual = function()
+          return true, 1, 2, { index = 0x21 }
+        end,
+      },
+      beginContextMenuClick = function(kind, x, y, button, targetWin, extra)
+        contextArgs = {
+          kind = kind,
+          x = x,
+          y = y,
+          button = button,
+          win = targetWin,
+          layerIndex = extra and extra.layerIndex or nil,
+          col = extra and extra.col or nil,
+          row = extra and extra.row or nil,
+        }
+      end,
+    }
+
+    local handled = MouseClickController.handleMousePressed(env, 40, 55, 2)
+
+    expect(handled).toBeTruthy()
+    expect(focused).toBe(win)
+    expect(win.dragging).toBeTruthy()
+    expect(contextArgs.kind).toBe("ppu_tile")
+    expect(contextArgs.button).toBe(2)
+    expect(contextArgs.win).toBe(win)
+    expect(contextArgs.layerIndex).toBe(1)
+    expect(contextArgs.col).toBe(1)
+    expect(contextArgs.row).toBe(2)
+  end)
 end)
