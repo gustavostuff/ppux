@@ -488,6 +488,12 @@ local function drawWindows(app)
     -- Content drawing
     ----------------------------------------------------------------
     local isPaletteWindow = WindowCaps.isAnyPaletteWindow(w)
+    local gridMode = GridModeUtils.normalize(w.showGrid)
+    w.showGrid = gridMode
+
+    if (not isPaletteWindow) and gridMode == "chess" then
+      renderWindowChessPattern(w, wm)
+    end
 
     if isPaletteWindow then
       -- Palette windows (global + ROM) draw their own grids
@@ -500,12 +506,6 @@ local function drawWindows(app)
       -- Normal windows: draw tile/sprite layers
       local layers = w.layers or {}
       local drawOrder
-      local gridMode = GridModeUtils.normalize(w.showGrid)
-      w.showGrid = gridMode
-
-      if gridMode == "chess" then
-        renderWindowChessPattern(w, wm)
-      end
       
       if w.drawOnlyActiveLayer == true then
         local activeIdx = w:getActiveLayerIndex() or w.activeLayer or 1
@@ -539,10 +539,10 @@ local function drawWindows(app)
           end
         end
       end
+    end
 
-      if gridMode == "lines" then
-        renderWindowLinesGrid(w)
-      end
+    if (not isPaletteWindow) and gridMode == "lines" then
+      renderWindowLinesGrid(w)
     end
 
     ----------------------------------------------------------------
