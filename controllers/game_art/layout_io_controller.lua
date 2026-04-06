@@ -471,6 +471,11 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
       nonActiveLayerOpacity = w.nonActiveLayerOpacity,
     }
 
+    if WindowCaps.isPpuFrame(w) then
+      entry.showSpriteOriginGuides = (w.showSpriteOriginGuides == true)
+      entry.showGlassTile = (w.showGlassTile ~= false)
+    end
+
     if not isPalette then
       entry.cellW = w.cellW
       entry.cellH = w.cellH

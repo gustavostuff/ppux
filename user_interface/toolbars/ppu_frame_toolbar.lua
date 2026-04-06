@@ -111,6 +111,10 @@ function PPUFrameToolbar.new(window, ctx, windowController)
     self:_onToggleOriginGuides()
   end, "Toggle origin guides")
 
+  self.toggleGlassTileButton = self:addButton(images.icons.icon_glass, function()
+    self:_onToggleGlassTile()
+  end, "Show glass/empty tile")
+
   self:updateRangeButton()
   self:updateSpriteButton()
   self:updateOriginButtons()
@@ -126,6 +130,7 @@ function PPUFrameToolbar:_onPrevLayer()
   if not self.window then return end
   
   self.window:prevLayer()
+  self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
   
   if self.ctx and self.ctx.setStatus then
@@ -140,6 +145,7 @@ function PPUFrameToolbar:_onNextLayer()
   if not self.window then return end
   
   self.window:nextLayer()
+  self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
   
   if self.ctx and self.ctx.setStatus then
@@ -168,6 +174,16 @@ function PPUFrameToolbar:_getActiveSpriteLayer()
     activeLayer.items = activeLayer.items or {}
     activeLayer.originX = clamp(activeLayer.originX or 0, 0, 255)
     activeLayer.originY = clamp(activeLayer.originY or 0, 0, 239)
+    return activeLayer, activeIndex
+  end
+  return nil, nil
+end
+
+function PPUFrameToolbar:_getActiveTileLayer()
+  if not self.window then return nil, nil end
+  local activeIndex = self.window:getActiveLayerIndex() or self.window.activeLayer or 1
+  local activeLayer = self.window.layers and self.window.layers[activeIndex] or nil
+  if activeLayer and activeLayer.kind ~= "sprite" then
     return activeLayer, activeIndex
   end
   return nil, nil
@@ -295,6 +311,29 @@ function PPUFrameToolbar:_onToggleOriginGuides()
   self:updateOriginButtons()
 end
 
+function PPUFrameToolbar:_onToggleGlassTile()
+  local layer, layerIndex = self:_getActiveTileLayer()
+  if not layer or not self.window then
+    return
+  end
+
+  self.window.showGlassTile = not (self.window.showGlassTile == true)
+
+  local app = self.ctx and self.ctx.app or nil
+  local tilesPool = app and app.appEditState and app.appEditState.tilesPool or nil
+  if self.window.refreshNametableVisuals then
+    self.window:refreshNametableVisuals(tilesPool, layerIndex)
+  elseif self.window.invalidateNametableLayerCanvas then
+    self.window:invalidateNametableLayerCanvas(layerIndex)
+  end
+
+  if self.ctx and self.ctx.setStatus then
+    self.ctx.setStatus((self.window.showGlassTile == true) and "Glass tile hidden" or "Glass tile visible")
+  end
+
+  self:updateOriginButtons()
+end
+
 -- Handle add layer
 function PPUFrameToolbar:_onAddLayer()
   if not self.window then return end
@@ -376,7 +415,9 @@ end
 
 function PPUFrameToolbar:updateOriginButtons()
   local layer = self:_getActiveSpriteLayer()
+  local tileLayer = self:_getActiveTileLayer()
   local isActiveSpriteLayer = layer ~= nil
+  local isActiveTileLayer = tileLayer ~= nil
   local hideOriginButtons = not isActiveSpriteLayer
   local originX = layer and clamp(layer.originX or 0, 0, 255) or 0
   local originY = layer and clamp(layer.originY or 0, 0, 239) or 0
@@ -424,6 +465,20 @@ function PPUFrameToolbar:updateOriginButtons()
     self.toggleOriginGuidesButton.tooltip = enabledGuides
       and "Hide sprite origin guides"
       or "Show sprite origin guides"
+  end
+
+  if self.toggleGlassTileButton then
+    local hideGlassTile = self.window and (self.window.showGlassTile ~= false)
+    self.toggleGlassTileButton.icon = images.icons.icon_glass or self.toggleGlassTileButton.icon
+    self.toggleGlassTileButton.enabled = isActiveTileLayer
+    self.toggleGlassTileButton.hidden = not isActiveTileLayer
+    if hideGlassTile then
+      self.toggleGlassTileButton.bgColor = nil
+      self.toggleGlassTileButton.tooltip = "Show glass/empty tile"
+    else
+      self.toggleGlassTileButton.bgColor = colors.gray20
+      self.toggleGlassTileButton.tooltip = "Hide glass/empty tile"
+    end
   end
 end
 

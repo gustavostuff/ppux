@@ -1442,6 +1442,40 @@ function AppCoreController:invalidateChrBankTileCanvas(bankIdx, tileIndex)
   return true
 end
 
+function AppCoreController:invalidatePpuFrameNametableTile(bankIdx, tileIndex)
+  if not (self.wm and self.wm.getWindows) then
+    return false
+  end
+
+  local bank = math.floor(tonumber(bankIdx) or -1)
+  local tile = math.floor(tonumber(tileIndex) or -1)
+  if bank < 1 or tile < 0 then
+    return false
+  end
+
+  local touched = false
+  for _, win in ipairs(self.wm:getWindows() or {}) do
+    if win and win.kind == "ppu_frame" and win.layers and win.invalidateNametableLayerCanvas then
+      for li, layer in ipairs(win.layers) do
+        if layer and layer.kind ~= "sprite" and tonumber(layer.bank) == bank and layer.items then
+          for idx, item in pairs(layer.items) do
+            if item and item.index == tile and tonumber(item._bankIndex) == bank then
+              local z = (tonumber(idx) or 1) - 1
+              local cols = win.cols or 32
+              local col = z % cols
+              local row = math.floor(z / cols)
+              win:invalidateNametableLayerCanvas(li, col, row)
+              touched = true
+            end
+          end
+        end
+      end
+    end
+  end
+
+  return touched
+end
+
 require("controllers.app.core_controller_save_settings")(AppCoreController)
 require("controllers.app.core_controller_lifecycle")(AppCoreController)
 require("controllers.app.core_controller_input")(AppCoreController)

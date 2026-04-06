@@ -23,6 +23,9 @@ function M.invalidateTile(app, bankIdx, tileIndex)
     return M.invalidateBank(resolvedApp, bankIdx)
   end
   resolvedApp:invalidateChrBankTileCanvas(bankIdx, tileIndex)
+  if resolvedApp.invalidatePpuFrameNametableTile then
+    resolvedApp:invalidatePpuFrameNametableTile(bankIdx, tileIndex)
+  end
   return true
 end
 

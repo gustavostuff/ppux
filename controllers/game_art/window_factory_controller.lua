@@ -439,6 +439,8 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
     nametableStart = nametableStart,
     title = w.title,
     nonActiveLayerOpacity = w.nonActiveLayerOpacity,
+    showSpriteOriginGuides = (w.showSpriteOriginGuides == true),
+    showGlassTile = (w.showGlassTile ~= false),
   })
 
   win._id = w.id

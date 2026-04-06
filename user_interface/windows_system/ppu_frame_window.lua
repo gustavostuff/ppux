@@ -62,7 +62,11 @@ local function getTransparentTileByte(layer)
   return 0x00
 end
 
-local function isTransparentNametableByte(layer, byteVal)
+local function isTransparentNametableByte(layer, byteVal, showGlassTile)
+  if showGlassTile == false then
+    return false
+  end
+
   local v = clampByte(byteVal)
   local hasExplicitTransparent = false
 
@@ -259,7 +263,7 @@ end
 
 function PPUFrameWindow:isTransparentNametableByte(byteVal, layerIndex)
   local layer = self:getLayer(layerIndex) or select(1, getNametableLayer(self))
-  return isTransparentNametableByte(layer, byteVal)
+  return isTransparentNametableByte(layer, byteVal, self.showGlassTile ~= false)
 end
 
 function PPUFrameWindow:syncNametableVisualCell(col, row, byteVal, tilesPool, layerIndex)
@@ -267,7 +271,7 @@ function PPUFrameWindow:syncNametableVisualCell(col, row, byteVal, tilesPool, la
   local layer = self:getLayer(li)
   if not layer then return end
 
-  if isTransparentNametableByte(layer, byteVal) then
+  if isTransparentNametableByte(layer, byteVal, self.showGlassTile ~= false) then
     Window.clear(self, col, row, li)
     self:invalidateNametableLayerCanvas(li, col, row)
     return
@@ -508,6 +512,7 @@ function PPUFrameWindow.new(x, y, zoom, data)
 
   self.kind       = "ppu_frame"
   self.showSpriteOriginGuides = (data.showSpriteOriginGuides == true)
+  self.showGlassTile = (data.showGlassTile ~= false)
   self._nametableLayerCanvas = {}
   self.nametableBytes     = {}   -- table of numbers 0..255, length = cols*rows (or fewer)
   self.nametableAttrBytes = {}   -- table of numbers 0..255, length = 256
@@ -795,7 +800,7 @@ function PPUFrameWindow:set(col, row, item, layerIndex)
     nametableByte = getTransparentTileByte(L)
   end
 
-  if isTransparentNametableByte(L, nametableByte) then
+  if isTransparentNametableByte(L, nametableByte, self.showGlassTile ~= false) then
     Window.clear(self, col, row, layerIndex)
   else
     Window.set(self, col, row, item, layerIndex)
