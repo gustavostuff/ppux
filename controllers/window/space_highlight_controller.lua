@@ -70,6 +70,20 @@ local function spriteMatchesBankKeys(sprite, bankKeys)
     or tileRefMatchesBankKeys(sprite.botRef, bankKeys)
 end
 
+local function isMappedDisplayWindow(win, spaceHighlightModel)
+  if not (win and spaceHighlightModel) then
+    return false
+  end
+  if win == spaceHighlightModel.focusedWindow or win == spaceHighlightModel.bankWindow then
+    return true
+  end
+  if WindowCaps.isChrLike(win) and type(spaceHighlightModel.currentBank) == "number" then
+    local winBank = tonumber(win.currentBank) or tonumber(win.activeLayer)
+    return type(winBank) == "number" and winBank == spaceHighlightModel.currentBank
+  end
+  return false
+end
+
 function M.collectLayerBankTileKeys(layer, bankIdx)
   local keys = {}
   if not (layer and type(bankIdx) == "number") then
@@ -226,7 +240,7 @@ function M.resolveMappedOverlayColor(win, target, spaceHighlightModel)
   if not (spaceHighlightModel and spaceHighlightModel.matchedTileKeys) then
     return nil
   end
-  if win ~= spaceHighlightModel.focusedWindow and win ~= spaceHighlightModel.bankWindow then
+  if not isMappedDisplayWindow(win, spaceHighlightModel) then
     return nil
   end
   if target and target.topRef then
@@ -237,6 +251,13 @@ function M.resolveMappedOverlayColor(win, target, spaceHighlightModel)
     return colors.green
   end
   return nil
+end
+
+function M.shouldShowMappedHighlightInWindow(win, spaceHighlightModel)
+  if not M.hasMatchedKeys(spaceHighlightModel) then
+    return false
+  end
+  return isMappedDisplayWindow(win, spaceHighlightModel)
 end
 
 function M.hasMatchedKeys(spaceHighlightModel)

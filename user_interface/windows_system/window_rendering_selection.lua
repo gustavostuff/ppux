@@ -371,9 +371,7 @@ function Window:drawTileSelectionOverlays(isFocused)
   local spaceHighlightModel = SpaceHighlightController.buildModel(nil, spaceDown)
   local selectionHighlightModel = SpaceHighlightController.buildSelectionModel()
   local showBankWindowMappedHighlight = (
-      spaceHighlightModel
-      and self == spaceHighlightModel.bankWindow
-      and SpaceHighlightController.hasMatchedKeys(spaceHighlightModel)
+      SpaceHighlightController.shouldShowMappedHighlightInWindow(self, spaceHighlightModel)
     ) or (
       selectionHighlightModel
       and self == selectionHighlightModel.bankWindow
