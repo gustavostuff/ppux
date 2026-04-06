@@ -81,7 +81,7 @@ function PPUFrameToolbar.new(window, ctx, windowController)
 
   self.rangeButton = self:addButton(images.icons.icon_nametable_range, function()
     self:_onConfigureRange()
-  end, "Set stat and end addresses for nametable")
+  end, "Set start and end addresses for nametable")
 
   self.addSpriteButton = self:addButton(images.icons.icon_add_sprite, function()
     self:_onAddSprite()
@@ -355,11 +355,11 @@ function PPUFrameToolbar:updateRangeButton()
   if hasConfiguredRange(self.window) then
     self.rangeButton.bgColor = nil
     self.rangeButton.contentColor = colors.white
-    self.rangeButton.tooltip = "Set stat and end addresses for nametable"
+    self.rangeButton.tooltip = "Set start and end addresses for nametable"
   else
     self.rangeButton.bgColor = colors.yellow
     self.rangeButton.contentColor = colors.black
-    self.rangeButton.tooltip = "Set stat and end addresses for nametable"
+    self.rangeButton.tooltip = "Set start and end addresses for nametable"
   end
 end
 

@@ -1103,6 +1103,34 @@ local function getFirstPpuSpriteLayer(win)
   return first.layer, first.index
 end
 
+local function getTargetSpriteLayerForAddSprite(win)
+  if not win then
+    return nil, nil
+  end
+
+  if win.kind == "ppu_frame" then
+    return getFirstPpuSpriteLayer(win)
+  end
+
+  if win.kind == "oam_animation" then
+    local activeIndex = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+    local activeLayer = win.layers and win.layers[activeIndex] or nil
+    if activeLayer and activeLayer.kind == "sprite" then
+      return activeLayer, activeIndex
+    end
+
+    if win.layers then
+      for i, layer in ipairs(win.layers) do
+        if layer and layer.kind == "sprite" then
+          return layer, i
+        end
+      end
+    end
+  end
+
+  return nil, nil
+end
+
 local function getInitialPpuSpriteModalValues(app)
   local state = app and app.appEditState or {}
   local bankWindow = app and app.winBank or nil
@@ -1139,7 +1167,7 @@ function AppCoreController:showPpuFrameSpriteLayerModeModal(win, opts)
 end
 
 function AppCoreController:showPpuFrameAddSpriteModal(win)
-  if not (self.ppuFrameAddSpriteModal and win and win.kind == "ppu_frame") then
+  if not (self.ppuFrameAddSpriteModal and win and (win.kind == "ppu_frame" or win.kind == "oam_animation")) then
     return false
   end
 
@@ -1152,9 +1180,12 @@ function AppCoreController:showPpuFrameAddSpriteModal(win)
     initialTile = initialTile,
     initialOamStart = initialOamStart,
     onConfirm = function(bankText, tileText, oamStartText, targetWindow)
-      local spriteLayer, spriteLayerIndex = getFirstPpuSpriteLayer(targetWindow)
+      local spriteLayer, spriteLayerIndex = getTargetSpriteLayerForAddSprite(targetWindow)
       if not spriteLayer then
         local message = "PPU frame window is missing a sprite layer"
+        if targetWindow and targetWindow.kind == "oam_animation" then
+          message = "OAM animation window is missing a sprite layer"
+        end
         self:setStatus(message)
         self:showToast("error", message)
         return false
@@ -1246,6 +1277,53 @@ function AppCoreController:showPpuFrameAddSpriteModal(win)
   })
 
   return true
+end
+
+function AppCoreController:_buildOamSpriteEmptySpaceContext(win, layerIndex)
+  if not (win and win.kind == "oam_animation" and type(layerIndex) == "number") then
+    return nil
+  end
+
+  local layer = win.getLayer and win:getLayer(layerIndex) or (win.layers and win.layers[layerIndex])
+  if not (layer and layer.kind == "sprite") then
+    return nil
+  end
+
+  return {
+    win = win,
+    layerIndex = layerIndex,
+    layer = layer,
+  }
+end
+
+function AppCoreController:_buildOamSpriteEmptySpaceContextMenuItems(context)
+  return {
+    {
+      text = "Add new sprite",
+      enabled = context ~= nil,
+      callback = function()
+        if not context then
+          return false
+        end
+        return self:showPpuFrameAddSpriteModal(context.win)
+      end,
+    },
+  }
+end
+
+function AppCoreController:showOamSpriteEmptySpaceContextMenu(win, layerIndex, x, y)
+  if not (self.ppuTileContextMenu and type(x) == "number" and type(y) == "number") then
+    return false
+  end
+
+  local context = self:_buildOamSpriteEmptySpaceContext(win, layerIndex)
+  if not context then
+    return false
+  end
+
+  self:_hideAllContextMenus()
+  self.ppuTileContextMenu:showAt(x, y, self:_buildOamSpriteEmptySpaceContextMenuItems(context))
+  return self.ppuTileContextMenu:isVisible()
 end
 
 function AppCoreController:showPpuFrameRangeModal(win)

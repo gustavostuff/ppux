@@ -307,6 +307,36 @@ local function handleRightButton(env, button, x, y, win, wm)
     return false
   end
 
+  local function beginOamSpriteEmptySpaceContextClick()
+    if not (win and env.beginContextMenuClick and WindowCaps.isOamAnimation(win)) then
+      return false
+    end
+
+    local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+    local layer = win.layers and win.layers[li] or nil
+    if not (layer and layer.kind == "sprite") then
+      return false
+    end
+
+    local pickedLayerIndex, itemIndex = SpriteController.pickSpriteAt(win, x, y, li)
+    if type(pickedLayerIndex) == "number" and type(itemIndex) == "number" then
+      return false
+    end
+
+    local inContent = false
+    if win.toGridCoords then
+      inContent = (select(1, win:toGridCoords(x, y)) == true)
+    end
+    if not inContent then
+      return false
+    end
+
+    env.beginContextMenuClick("oam_sprite_empty", x, y, button, win, {
+      layerIndex = li,
+    })
+    return true
+  end
+
   if button == 2 or button == 3 then
     if win then
       if isOverToolbarControl(win.specializedToolbar) or isOverToolbarControl(win.headerToolbar) then
@@ -318,6 +348,10 @@ local function handleRightButton(env, button, x, y, win, wm)
         return true
       end
       if beginSelectInChrContextClick() then
+        win:mousepressed(x, y, button)
+        return true
+      end
+      if beginOamSpriteEmptySpaceContextClick() then
         win:mousepressed(x, y, button)
         return true
       end

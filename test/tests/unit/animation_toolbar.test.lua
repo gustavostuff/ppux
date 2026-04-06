@@ -132,6 +132,38 @@ describe("animation_toolbar.lua - layer navigation", function()
   end)
 end)
 
+describe("animation_toolbar.lua - OAM add sprite", function()
+  it("adds an OAM-only add-sprite button and opens the shared add sprite modal", function()
+    local addCalls = 0
+    local win = {
+      kind = "oam_animation",
+      getHeaderRect = function() return 0, 0, 20, 10 end,
+      getActiveLayerIndex = function() return 1 end,
+      getLayerCount = function() return 2 end,
+      layers = {
+        { kind = "sprite", items = {} },
+        { kind = "sprite", items = {} },
+      },
+    }
+    local ctx = {
+      app = {
+        showPpuFrameAddSpriteModal = function(_, targetWindow)
+          addCalls = addCalls + 1
+          expect(targetWindow).toBe(win)
+          return true
+        end,
+      },
+      setStatus = function() end,
+    }
+
+    local toolbar = AnimationToolbar.new(win, ctx, { getFocus = function() return win end })
+    expect(toolbar.addSpriteButton).toBeTruthy()
+
+    toolbar.addSpriteButton.action()
+    expect(addCalls).toBe(1)
+  end)
+end)
+
 describe("window selection persistence per layer", function()
   it("remembers tile selections independently for each layer", function()
     local win = AnimationWindow.new(0, 0, 8, 8, 4, 4, 1, { title = "sel" })

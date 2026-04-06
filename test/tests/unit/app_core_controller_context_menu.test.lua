@@ -87,4 +87,31 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(items[2].enabled).toBe(true)
     expect(items[3].enabled).toBe(true)
   end)
+
+  it("builds OAM empty-space sprite context menu with add action", function()
+    local addCalls = 0
+    local app = setmetatable({
+      showPpuFrameAddSpriteModal = function(_, win)
+        addCalls = addCalls + 1
+        expect(win.kind).toBe("oam_animation")
+        return true
+      end,
+    }, AppCoreController)
+
+    local context = app:_buildOamSpriteEmptySpaceContext({
+      kind = "oam_animation",
+      layers = {
+        { kind = "sprite", items = {} },
+      },
+    }, 1)
+
+    local items = app:_buildOamSpriteEmptySpaceContextMenuItems(context)
+    expect(#items).toBe(1)
+    expect(items[1].text).toBe("Add new sprite")
+    expect(items[1].enabled).toBe(true)
+
+    local ok = items[1].callback()
+    expect(ok).toBe(true)
+    expect(addCalls).toBe(1)
+  end)
 end)

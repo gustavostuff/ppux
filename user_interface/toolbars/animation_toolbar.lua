@@ -54,6 +54,12 @@ function AnimationToolbar.new(window, ctx, windowController)
     self:_onAddLayer()
   end, "Add layer")
 
+  if WindowCaps.isOamAnimation(window) then
+    self.addSpriteButton = self:addButton(images.icons.icon_add_sprite, function()
+      self:_onAddSprite()
+    end, "Add a sprite on active layer")
+  end
+
   -- Copy from previous layer button
   self:addButton(images.icons.icon_copy_layer, function()
     self:_onCopyFromPrevious()
@@ -137,6 +143,20 @@ function AnimationToolbar:_onAddLayer()
   end
 end
 
+function AnimationToolbar:_onAddSprite()
+  if not WindowCaps.isOamAnimation(self.window) then return end
+
+  local app = self.ctx and self.ctx.app or nil
+  if app and app.showPpuFrameAddSpriteModal then
+    app:showPpuFrameAddSpriteModal(self.window)
+    return
+  end
+
+  if self.ctx and self.ctx.setStatus then
+    self.ctx.setStatus("Add sprite dialog is unavailable")
+  end
+end
+
 -- Handle remove layer
 function AnimationToolbar:_onRemoveLayer()
   if not isAnimationKind(self.window) then return end
@@ -199,6 +219,10 @@ end
 
 -- Update button icons
 function AnimationToolbar:updateIcons()
+  if self.addSpriteButton then
+    self.addSpriteButton.icon = images.icons.icon_add_sprite or self.addSpriteButton.icon
+  end
+
   -- Update play button icon based on current play state
   if self.playButton and self.window then
     if self.window.isPlaying then
