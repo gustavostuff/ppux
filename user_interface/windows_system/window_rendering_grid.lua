@@ -1,5 +1,6 @@
 local colors = require("app_colors")
 local SpriteController = require("controllers.sprite.sprite_controller")
+local images = require("images")
 
 return function(Window)
 local function intersectsRange(startPos, size, minPos, maxPos)
@@ -72,28 +73,24 @@ local function drawDefaultSpriteBody(L, s, isActiveLayer, cw, ch, mode, layerOpa
   ShaderPaletteController.releaseShader()
 end
 
-local function drawDottedLineHorizontal(x0, x1, y, dash, gap)
-  if x1 < x0 then
-    x0, x1 = x1, x0
+local function drawConcatenatedDottedGuides(axisX, axisY)
+  local dotted = images and images.dotted_line or nil
+  if not dotted then
+    return false
   end
-  local x = x0
-  while x < x1 do
-    local segEnd = math.min(x + dash, x1)
-    love.graphics.line(x, y, segEnd, y)
-    x = x + dash + gap
-  end
-end
 
-local function drawDottedLineVertical(x, y0, y1, dash, gap)
-  if y1 < y0 then
-    y0, y1 = y1, y0
+  -- `img/dotted_line.png` is 32x1. Draw 8 segments => 256px guide.
+  -- Horizontal
+  for i = 0, 7 do
+    love.graphics.draw(dotted, i * 32, axisY)
   end
-  local y = y0
-  while y < y1 do
-    local segEnd = math.min(y + dash, y1)
-    love.graphics.line(x, y, x, segEnd)
-    y = y + dash + gap
+
+  -- Vertical (rotated 90 degrees)
+  for i = 0, 7 do
+    love.graphics.draw(dotted, axisX, i * 32, math.pi * 0.5, 1, 1)
   end
+
+  return true
 end
 
 function Window:drawLinesGrid()
@@ -218,11 +215,12 @@ function Window:drawSprites(renderSprite, isFocused, layerIndex, romRaw)
   if self.kind == "ppu_frame" and isActiveLayer and self.showSpriteOriginGuides == true then
     local axisX = originX
     local axisY = originY
-    local dash = 2
-    local gap = 2
     love.graphics.setColor(colors.gray75[1], colors.gray75[2], colors.gray75[3], 0.85)
-    drawDottedLineHorizontal(viewMinX, viewMaxX, axisY, dash, gap)
-    drawDottedLineVertical(axisX, viewMinY, viewMaxY, dash, gap)
+    if not drawConcatenatedDottedGuides(axisX, axisY) then
+      -- Fallback line if the dotted image is unavailable.
+      love.graphics.line(0, axisY, 256, axisY)
+      love.graphics.line(axisX, 0, axisX, 256)
+    end
     love.graphics.setColor(colors.white)
   end
 
