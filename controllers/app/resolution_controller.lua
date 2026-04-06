@@ -32,7 +32,7 @@ function ResolutionController:init(canvas)
   self.canvasHeight = self.canvas:getHeight()
   self.canvasScaleX = 1
   self.canvasScaleY = 1
-  self.defaultMode = self.modes.STRETCH
+  self.defaultMode = self.modes.KEEP_ASPECT
   self.canvasCrtShaderEnabled = (rawget(_G, "__PPUX_ENABLE_CRT_SHADER__") == true)
   self.canvasCrtFlat = (rawget(_G, "__PPUX_CRT_FLAT__") == true)
   self.canvasCrtDistortion = tonumber(rawget(_G, "__PPUX_CRT_DISTORTION__")) or 0.15

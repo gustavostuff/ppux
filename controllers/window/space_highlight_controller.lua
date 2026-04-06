@@ -109,6 +109,34 @@ function M.collectLayerBankTileKeys(layer, bankIdx)
   return keys
 end
 
+function M.collectWindowLayerBankTileKeys(win, layer, layerIndex, bankIdx)
+  local keys = {}
+  if not (win and layer and type(bankIdx) == "number") then
+    return keys
+  end
+
+  if layer.kind == "sprite" then
+    return M.collectLayerBankTileKeys(layer, bankIdx)
+  end
+
+  local cols = tonumber(win.cols) or 0
+  local rows = tonumber(win.rows) or 0
+  if cols > 0 and rows > 0 then
+    local removedCells = layer.removedCells
+    for row = 0, rows - 1 do
+      for col = 0, cols - 1 do
+        local idx = (row * cols) + col + 1
+        if not (removedCells and removedCells[idx]) then
+          addTileRefBankKey(keys, getTileRefLike(win, layer, col, row, layerIndex), bankIdx)
+        end
+      end
+    end
+    return keys
+  end
+
+  return M.collectLayerBankTileKeys(layer, bankIdx)
+end
+
 function M.collectSelectedBankTileKeys(win, layer, bankIdx)
   local keys = {}
   if not (win and layer and type(bankIdx) == "number") then
@@ -194,12 +222,13 @@ function M.buildModel(ctxOverride, spaceDownOverride)
     return nil
   end
 
+  local activeLayerIndex = (focus.getActiveLayerIndex and focus:getActiveLayerIndex()) or focus.activeLayer or 1
   return {
     focusedWindow = focus,
     focusedLayer = layer,
     bankWindow = bankWindow,
     currentBank = currentBank,
-    matchedTileKeys = M.collectLayerBankTileKeys(layer, currentBank),
+    matchedTileKeys = M.collectWindowLayerBankTileKeys(focus, layer, activeLayerIndex, currentBank),
   }
 end
 

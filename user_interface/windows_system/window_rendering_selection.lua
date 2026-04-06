@@ -370,6 +370,7 @@ function Window:drawTileSelectionOverlays(isFocused)
   local spaceDown = SpaceHighlightController.isSpaceHighlightActive()
   local spaceHighlightModel = SpaceHighlightController.buildModel(nil, spaceDown)
   local selectionHighlightModel = SpaceHighlightController.buildSelectionModel()
+  local showFocusedSpaceHighlight = isFocused and self:canShowSpaceHighlight(L) and spaceDown
   local showBankWindowMappedHighlight = (
       SpaceHighlightController.shouldShowMappedHighlightInWindow(self, spaceHighlightModel)
     ) or (
@@ -391,8 +392,7 @@ function Window:drawTileSelectionOverlays(isFocused)
           local drawKey = string.format("%d:%d", col, topRow)
           if not drawnKeys[drawKey] then
             drawnKeys[drawKey] = true
-            local item = getSelectionTileRef(self, L, col, topRow, self.activeLayer or 1)
-            setOverlayColor(SpaceHighlightController.resolveMappedOverlayColor(self, item, spaceHighlightModel) or colors.white)
+            setOverlayColor(colors.white)
             drawSelectionRectAnimated(rx, ry, rw, rh)
           end
         end
@@ -401,15 +401,14 @@ function Window:drawTileSelectionOverlays(isFocused)
       local sel = self:getLayerSelection(self.activeLayer or 1)
       if mode ~= "edit" and sel and type(sel.col) == "number" and type(sel.row) == "number" then
         local rx, ry, rw, rh, topRow = getTileSelectionRect(self, sel.col, sel.row, overlayCtx)
-        local item = getSelectionTileRef(self, L, sel.col, topRow, self.activeLayer or 1)
-        setOverlayColor(SpaceHighlightController.resolveMappedOverlayColor(self, item, spaceHighlightModel) or colors.white)
+        setOverlayColor(colors.white)
         -- love.graphics.rectangle("line", math.floor(rx), math.floor(ry), rw + 1, rh + 1)
         drawSelectionRectAnimated(rx, ry, rw, rh)
       end
     end
   end
 
-  if isFocused and self:canShowSpaceHighlight(L) and spaceDown then
+  if showFocusedSpaceHighlight then
     self:highlightAllTiles(L, overlayCtx, {
       resolveColor = function(item)
         return SpaceHighlightController.resolveMappedOverlayColor(self, item, spaceHighlightModel) or colors.white
@@ -432,9 +431,7 @@ function Window:drawTileSelectionOverlays(isFocused)
     local ok, col, row = self:toGridCoords(mouse.x, mouse.y)
     if ok then
       local rx, ry, rw, rh, topRow = getTileSelectionRect(self, col, row, overlayCtx)
-      local item = getSelectionTileRef(self, L, col, topRow, self.activeLayer or 1)
-      local c = SpaceHighlightController.resolveMappedOverlayColor(self, item, spaceHighlightModel) or colors.white
-      setOverlayColor(c, HOVER_OPACITY)
+      setOverlayColor(colors.white, HOVER_OPACITY)
       -- love.graphics.rectangle("line", math.floor(rx), math.floor(ry), rw, rh)
       drawSelectionRectAnimated(rx, ry, rw, rh)
       love.graphics.setColor(colors.white)

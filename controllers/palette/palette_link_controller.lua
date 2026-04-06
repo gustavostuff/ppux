@@ -289,6 +289,45 @@ local function unlinkPaletteConnection(contentWin, paletteWin)
   return true
 end
 
+local function unlinkPaletteConnectionForLayer(contentWin, paletteWin, layerIndex)
+  if not (contentWin and paletteWin and type(layerIndex) == "number") then
+    return false
+  end
+  local layer = contentWin.layers and contentWin.layers[layerIndex] or nil
+  if not layer then
+    return false
+  end
+  local pd = layer.paletteData
+  if not (pd and pd.winId and paletteWin._id and pd.winId == paletteWin._id) then
+    return false
+  end
+
+  local beforePaletteData = clonePaletteData(layer.paletteData or nil)
+  if not clearPaletteWinIdLink(layer) then
+    return false
+  end
+
+  pushPaletteLinkUndo({
+    {
+      win = contentWin,
+      layerIndex = layerIndex,
+      beforePaletteData = beforePaletteData,
+      afterPaletteData = clonePaletteData(layer.paletteData or nil),
+    },
+  })
+
+  local app = getApp()
+  if app and app.setStatus then
+    app:setStatus(string.format(
+      "Unlinked palette from %s layer %d",
+      contentWin and (contentWin.title or "window") or "window",
+      layerIndex
+    ))
+  end
+
+  return true
+end
+
 local function moveAllPaletteTargets(wm, sourcePaletteWin, targetPaletteWin)
   if not canMoveAllToPaletteTarget(targetPaletteWin, sourcePaletteWin) then
     return false, "Move target must be another ROM palette window"
@@ -392,7 +431,10 @@ local function maybeHandleDestinationDoubleClick(link, x, y)
   end
 
   lastDestinationLinkClick = nil
-  return unlinkPaletteConnection(link.contentWin, link.paletteWin)
+  local activeLayer = (link.contentWin.getActiveLayerIndex and link.contentWin:getActiveLayerIndex())
+    or link.contentWin.activeLayer
+    or 1
+  return unlinkPaletteConnectionForLayer(link.contentWin, link.paletteWin, activeLayer)
 end
 
 function M.beginDrag(toolbar, button, x, y, win, wm)
