@@ -103,20 +103,25 @@ function M.handleWheel(env, dx, dy)
     end
   end
 
-  local win = focusedWindow or winBelowMouse
-  if not win then return false end
+  local targetWin = winBelowMouse or focusedWindow
+  if not targetWin then return false end
 
-  if winBelowMouse then
+  if winBelowMouse and focusedWindow ~= winBelowMouse then
     wm:setFocus(winBelowMouse)
-    local paletteCellInteractive = handlePaletteColorSelection(env, winBelowMouse, mouse, wm)
+    focusedWindow = winBelowMouse
+    targetWin = winBelowMouse
+  end
+
+  if WindowCaps.isAnyPaletteWindow(targetWin) then
+    local paletteCellInteractive = handlePaletteColorSelection(env, targetWin, mouse, wm)
     if paletteCellInteractive == false then
       return true
     end
   end
 
-  if handleZoom(env, winBelowMouse, mouse, wm, dy) then return true end
-  if handleHorizontalScroll(env, win, dx, dy) then return true end
-  if handleVerticalScroll(env, win, dy) then return true end
+  if handleZoom(env, targetWin, mouse, wm, dy) then return true end
+  if handleHorizontalScroll(env, targetWin, dx, dy) then return true end
+  if handleVerticalScroll(env, targetWin, dy) then return true end
   return false
 end
 
