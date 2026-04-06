@@ -27,6 +27,7 @@ end
 
 local function drawDefaultSpriteBody(L, s, isActiveLayer, cw, ch, mode, layerOpacity, romRaw)
   local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
+  local SpriteHydrationController = require("controllers.sprite.hydration_controller")
 
   local alpha = (L.opacity ~= nil) and L.opacity or layerOpacity or 1.0
   love.graphics.setColor(1.0, 1.0, 1.0, alpha)
@@ -42,6 +43,19 @@ local function drawDefaultSpriteBody(L, s, isActiveLayer, cw, ch, mode, layerOpa
   )
 
   local top = s.topRef
+  if mode == "8x16" and (not top or not s.botRef) then
+    local ctx = rawget(_G, "ctx")
+    local app = ctx and ctx.app or nil
+    local state = app and app.appEditState or nil
+    if state and state.tilesPool then
+      SpriteHydrationController.ensureTileRefsForSpriteItem(s, mode, state.tilesPool, state)
+      top = s.topRef
+    end
+  end
+  if not (top and top.draw) then
+    ShaderPaletteController.releaseShader()
+    return
+  end
   local mirrorX = s.mirrorX or false
   local mirrorY = s.mirrorY or false
   local scaleX = mirrorX and -1 or 1

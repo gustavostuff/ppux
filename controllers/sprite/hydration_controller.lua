@@ -2,22 +2,75 @@
 -- Sprite layer hydration and project snapshot/reapply helpers.
 
 local chr = require("chr")
+local Tile = require("user_interface.windows_system.tile_item")
 
 local M = {}
 
--- Resolve tile references for a sprite item using tilesPool[bank][tileIndex]
-function M.ensureTileRefsForSpriteItem(item, layerMode, tilesPool)
-  if not (item and item.bank and item.tile and tilesPool) then return end
-  local pool = tilesPool[item.bank]
-  if not pool then return end
+local function resolve8x16Pair(tileIndex, tileBelow)
+  local topIndex = tonumber(tileIndex)
+  if type(topIndex) ~= "number" then return nil, nil end
+  topIndex = math.floor(topIndex)
 
-  item.topRef = pool[item.tile]
+  local belowIndex = tonumber(tileBelow)
+  if type(belowIndex) == "number" then
+    belowIndex = math.floor(belowIndex)
+    return topIndex, belowIndex
+  end
+
+  -- NES 8x16 sprite selection uses bit 0 to select the pattern table.
+  -- The top tile index is always even, with the bottom tile at +1.
+  topIndex = topIndex - (topIndex % 2)
+  return topIndex, topIndex + 1
+end
+
+local function getAppEditStateHint(overrideState)
+  if overrideState then return overrideState end
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app or nil
+  return app and app.appEditState or nil
+end
+
+local function resolveTileRef(tilesPool, appEditState, bankIndex, tileIndex)
+  if type(bankIndex) ~= "number" or type(tileIndex) ~= "number" then
+    return nil
+  end
+
+  tilesPool[bankIndex] = tilesPool[bankIndex] or {}
+  local bankPool = tilesPool[bankIndex]
+  if bankPool[tileIndex] then
+    return bankPool[tileIndex]
+  end
+
+  local state = getAppEditStateHint(appEditState)
+  local bankBytes = state and state.chrBanksBytes and state.chrBanksBytes[bankIndex] or nil
+  if not bankBytes then
+    return nil
+  end
+
+  local created = Tile.fromCHR(bankBytes, tileIndex)
+  created._bankBytesRef = bankBytes
+  created._bankIndex = bankIndex
+  bankPool[tileIndex] = created
+  return created
+end
+
+-- Resolve tile references for a sprite item using tilesPool[bank][tileIndex]
+function M.ensureTileRefsForSpriteItem(item, layerMode, tilesPool, appEditState)
+  if not (item and item.bank and item.tile and tilesPool) then return end
 
   if layerMode == "8x16" then
-    local belowIndex = item.tileBelow or (item.tile + 1)
+    local topIndex, belowIndex = resolve8x16Pair(item.tile, item.tileBelow)
+    if topIndex == nil then
+      item.topRef = nil
+      item.botRef = nil
+      return
+    end
+    item.tile = topIndex
     item.tileBelow = belowIndex
-    item.botRef = pool[belowIndex]
+    item.topRef = resolveTileRef(tilesPool, appEditState, item.bank, topIndex)
+    item.botRef = resolveTileRef(tilesPool, appEditState, item.bank, belowIndex)
   else
+    item.topRef = resolveTileRef(tilesPool, appEditState, item.bank, item.tile)
     item.botRef = nil
   end
 end
@@ -71,9 +124,6 @@ function M.hydrateSpriteLayer(layer, opts)
         if s.tile == nil then
           s.tile = baseTile
         end
-        if mode == "8x16" and s.tileBelow == nil and s.tile ~= nil then
-          s.tileBelow = s.tile + 1
-        end
         s.attr = attr
         s.paletteNumber = palNum
         s.mirrorX = mirrorX
@@ -113,7 +163,7 @@ function M.hydrateSpriteLayer(layer, opts)
       s.hasMoved = false
     end
 
-    M.ensureTileRefsForSpriteItem(s, mode, tilesPool)
+    M.ensureTileRefsForSpriteItem(s, mode, tilesPool, opts.appEditState)
 
     if s.mirrorX == nil then s.mirrorX = false end
     if s.mirrorY == nil then s.mirrorY = false end
@@ -251,6 +301,7 @@ function M.applySnapshotToSpriteLayer(layer, snapshot, opts)
   M.hydrateSpriteLayer(layer, {
     romRaw = romRaw,
     tilesPool = tilesPool,
+    appEditState = opts and opts.appEditState or nil,
     keepWorld = false,
   })
 end

@@ -1250,6 +1250,7 @@ function AppCoreController:showPpuFrameAddSpriteModal(win)
       SpriteController.hydrateSpriteLayer(spriteLayer, {
         romRaw = romRaw,
         tilesPool = tilesPool,
+        appEditState = state,
         keepWorld = false,
       })
 
