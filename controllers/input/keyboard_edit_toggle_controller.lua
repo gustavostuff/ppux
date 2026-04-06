@@ -47,6 +47,9 @@ function M.handleAttrModeToggle(ctx, key, focus)
   if not layer or layer.kind == "sprite" then return false end
 
   layer.attrMode = not layer.attrMode
+  if w.invalidateNametableLayerCanvas then
+    w:invalidateNametableLayerCanvas(li)
+  end
   ctx.setStatus(layer.attrMode and "Attr mode ON" or "Attr mode OFF")
   return true
 end
@@ -68,6 +71,9 @@ function M.handleShaderToggle(ctx, utils, key, focus)
     layer.shaderEnabled = true
   end
   layer.shaderEnabled = not layer.shaderEnabled
+  if WindowCaps.isPpuFrame(w) and layer.kind == "tile" and w.invalidateNametableLayerCanvas then
+    w:invalidateNametableLayerCanvas(li)
+  end
 
   ctx.setStatus(layer.shaderEnabled and "Shader rendering ON" or "Shader rendering OFF (raw pixels)")
   return true

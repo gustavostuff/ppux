@@ -624,6 +624,9 @@ function M.hydrateWindowNametable(win, layer, opts)
   -- Extract palette numbers from attribute bytes (either from ROM or user-defined)
   local paletteExtractStartedAt = nowSeconds()
   M.extractPaletteNumbersFromAttributes(win, layer, win.cols, win.rows)
+  if win.invalidateNametableLayerCanvas then
+    win:invalidateNametableLayerCanvas(li)
+  end
   logPerf("ntm.extract_palette_numbers", paletteExtractStartedAt, string.format("title=%s", tostring(win.title or "")))
 
   return true
@@ -678,6 +681,9 @@ function M.applyTileSwaps(win, layer, swaps, tilesPool, opts)
 
       -- Keep diff map consistent with original baseline
       recordSwap(win, idx)
+      if win.invalidateNametableLayerCanvas then
+        win:invalidateNametableLayerCanvas(li, col, row)
+      end
     end
   end
 end
@@ -1050,6 +1056,37 @@ function M._setPaletteNumberForPPUFrame(win, layer, col, row, paletteNum, cols, 
   -- Sync paletteNumbers from updated attribute bytes
   -- This ensures all 4 tiles in the 2x2 quadrant are updated correctly
   M.extractPaletteNumbersFromAttributes(win, layer, cols, rows)
+
+  -- Attribute updates affect the selected 2x2 quadrant inside this 4x4 attribute block.
+  -- Invalidate those cells for the cached PPU nametable canvas path.
+  if win.invalidateNametableLayerCanvas and win.getActiveLayerIndex then
+    local li = win:getActiveLayerIndex() or win.activeLayer or 1
+    local baseCol = attrCol * 4
+    local baseRow = attrRow * 4
+    local qCol = (localCol < 2) and 0 or 2
+    local qRow = (localRow < 2) and 0 or 2
+    for dy = 0, 1 do
+      for dx = 0, 1 do
+        local c = baseCol + qCol + dx
+        local r = baseRow + qRow + dy
+        if c >= 0 and c < cols and r >= 0 and r < rows then
+          win:invalidateNametableLayerCanvas(li, c, r)
+        end
+      end
+    end
+  end
+
+  -- Keep compressed nametable bytes in ROM synchronized with edited attribute bytes.
+  if win.updateCompressedBytesInROM then
+    local ok, err = win:updateCompressedBytesInROM()
+    if not ok then
+      DebugController.log("warning", "NTM", "Failed to update ROM after palette assignment: %s", tostring(err))
+    end
+  end
+
+  if win.syncNametableLayerMetadata then
+    win:syncNametableLayerMetadata()
+  end
   
   -- Note: We no longer store paletteAssignments.
   -- User-defined attribute bytes are saved as userDefinedAttrs hex string in snapshotNametableLayer.

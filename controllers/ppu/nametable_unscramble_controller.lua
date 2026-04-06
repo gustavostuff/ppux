@@ -502,6 +502,9 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
   if win.syncNametableLayerMetadata then
     win:syncNametableLayerMetadata()
   end
+  if win.invalidateNametableLayerCanvas then
+    win:invalidateNametableLayerCanvas(win.activeLayer or 1)
+  end
 
   if #undoChanges > 0 then
     undoRedo:addDragEvent({

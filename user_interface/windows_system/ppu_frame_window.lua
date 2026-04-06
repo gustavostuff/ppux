@@ -37,6 +37,14 @@ end
 -- linear index helpers (1-based for internal arrays)
 local function lin(cols, col, row) return row * cols + col + 1 end
 
+local function makeNametableCanvas(self)
+  local w = math.max(1, (self.cols or 32) * (self.cellW or 8))
+  local h = math.max(1, (self.rows or 30) * (self.cellH or 8))
+  local canvas = love.graphics.newCanvas(w, h)
+  canvas:setFilter("nearest", "nearest")
+  return canvas, w, h
+end
+
 local function clampByte(byteVal)
   local v = math.floor(tonumber(byteVal) or 0)
   if v < 0 then return 0 end
@@ -261,10 +269,12 @@ function PPUFrameWindow:syncNametableVisualCell(col, row, byteVal, tilesPool, la
 
   if isTransparentNametableByte(layer, byteVal) then
     Window.clear(self, col, row, li)
+    self:invalidateNametableLayerCanvas(li, col, row)
     return
   end
 
   if not tilesPool then
+    self:invalidateNametableLayerCanvas(li, col, row)
     return
   end
 
@@ -276,6 +286,7 @@ function PPUFrameWindow:syncNametableVisualCell(col, row, byteVal, tilesPool, la
   else
     Window.clear(self, col, row, li)
   end
+  self:invalidateNametableLayerCanvas(li, col, row)
 end
 
 function PPUFrameWindow:drawVisibleNametableCells(renderCell, layerIndex)
@@ -329,6 +340,158 @@ function PPUFrameWindow:drawVisibleNametableCells(renderCell, layerIndex)
   return true
 end
 
+function PPUFrameWindow:_ensureNametableLayerCanvasState(layerIndex)
+  local li = layerIndex or select(2, getNametableLayer(self)) or self.activeLayer or 1
+  self._nametableLayerCanvas = self._nametableLayerCanvas or {}
+  local state = self._nametableLayerCanvas[li]
+  local expectedW = math.max(1, (self.cols or 32) * (self.cellW or 8))
+  local expectedH = math.max(1, (self.rows or 30) * (self.cellH or 8))
+
+  if not state then
+    local canvas, cw, ch = makeNametableCanvas(self)
+    state = {
+      canvas = canvas,
+      width = cw,
+      height = ch,
+      dirtyAll = true,
+      dirtyCells = {},
+    }
+    self._nametableLayerCanvas[li] = state
+    return state, li
+  end
+
+  if not state.canvas or state.width ~= expectedW or state.height ~= expectedH then
+    local canvas, cw, ch = makeNametableCanvas(self)
+    state.canvas = canvas
+    state.width = cw
+    state.height = ch
+    state.dirtyAll = true
+    state.dirtyCells = {}
+  end
+
+  return state, li
+end
+
+function PPUFrameWindow:invalidateNametableLayerCanvas(layerIndex, col, row)
+  local state, li = self:_ensureNametableLayerCanvasState(layerIndex)
+  if not state then
+    return false
+  end
+
+  if col == nil or row == nil then
+    state.dirtyAll = true
+    state.dirtyCells = {}
+    return true
+  end
+
+  local idx = lin(self.cols or 32, col, row)
+  state.dirtyCells = state.dirtyCells or {}
+  state.dirtyCells[idx] = true
+  return true
+end
+
+function PPUFrameWindow:_paintNametableCellToCanvas(layer, idx)
+  if not layer or not idx then
+    return
+  end
+
+  local cols = self.cols or 32
+  local col = (idx - 1) % cols
+  local row = math.floor((idx - 1) / cols)
+  local x = col * (self.cellW or 8)
+  local y = row * (self.cellH or 8)
+  local w = self.cellW or 8
+  local h = self.cellH or 8
+  local item = layer.items and layer.items[idx] or nil
+  local paletteNum = layer.paletteNumbers and layer.paletteNumbers[(row * cols) + col] or nil
+
+  love.graphics.setBlendMode("replace", "premultiplied")
+  love.graphics.setColor(0, 0, 0, 0)
+  love.graphics.rectangle("fill", x, y, w, h)
+  love.graphics.setBlendMode("alpha", "alphamultiply")
+
+  if item and item.draw then
+    ShaderPaletteController.applyLayerItemPalette(
+      layer,
+      item,
+      true,
+      self.romRaw,
+      paletteNum,
+      1.0
+    )
+    love.graphics.setColor(colors.white)
+    item:draw(x, y, 1)
+    ShaderPaletteController.releaseShader()
+  end
+end
+
+function PPUFrameWindow:_repaintNametableLayerCanvas(layerIndex)
+  local state, li = self:_ensureNametableLayerCanvasState(layerIndex)
+  local layer = self:getLayer(li)
+  if not (state and layer and layer.kind == "tile" and state.canvas) then
+    return false
+  end
+
+  local dirtyCells = state.dirtyCells or {}
+  local hasDirtyCells = next(dirtyCells) ~= nil
+  local repaintAll = state.dirtyAll == true or not hasDirtyCells
+
+  love.graphics.push("all")
+  love.graphics.setCanvas(state.canvas)
+  if repaintAll then
+    love.graphics.clear(0, 0, 0, 0)
+    local max = math.max(0, (self.cols or 32) * (self.rows or 30))
+    for idx = 1, max do
+      self:_paintNametableCellToCanvas(layer, idx)
+    end
+  else
+    for idx in pairs(dirtyCells) do
+      self:_paintNametableCellToCanvas(layer, idx)
+    end
+  end
+  love.graphics.setCanvas()
+  love.graphics.pop()
+  love.graphics.setScissor()
+  love.graphics.setColor(colors.white)
+  ShaderPaletteController.releaseShader()
+
+  state.dirtyAll = false
+  state.dirtyCells = {}
+  return true
+end
+
+function PPUFrameWindow:drawNametableLayerCanvas(layerIndex)
+  local state, li = self:_ensureNametableLayerCanvasState(layerIndex)
+  local layer = self:getLayer(li)
+  if not (state and layer and layer.kind == "tile" and state.canvas) then
+    return false
+  end
+  if layer.attrMode == true then
+    return false
+  end
+
+  if state.dirtyAll or (state.dirtyCells and next(state.dirtyCells) ~= nil) then
+    self:_repaintNametableLayerCanvas(li)
+  end
+
+  local sx, sy, sw, sh = self:getScreenRect()
+  local layerOpacity = (layer.opacity ~= nil) and layer.opacity or 1.0
+  local z = self.zoom or 1
+  local cw, ch = self.cellW or 8, self.cellH or 8
+
+  love.graphics.push()
+  love.graphics.translate(self.x, self.y)
+  love.graphics.scale(z, z)
+  love.graphics.setScissor(sx, sy, sw, sh)
+  love.graphics.translate(-(self.scrollCol or 0) * cw, -(self.scrollRow or 0) * ch)
+  love.graphics.setColor(1, 1, 1, layerOpacity)
+  love.graphics.draw(state.canvas, 0, 0)
+  love.graphics.pop()
+  love.graphics.setScissor()
+  love.graphics.setColor(colors.white)
+  return true
+end
+
 ----------------------------------------------------------------
 -- Constructor
 ----------------------------------------------------------------
@@ -345,6 +508,7 @@ function PPUFrameWindow.new(x, y, zoom, data)
 
   self.kind       = "ppu_frame"
   self.showSpriteOriginGuides = (data.showSpriteOriginGuides == true)
+  self._nametableLayerCanvas = {}
   self.nametableBytes     = {}   -- table of numbers 0..255, length = cols*rows (or fewer)
   self.nametableAttrBytes = {}   -- table of numbers 0..255, length = 256
   self.romRaw = data.romRaw
@@ -439,6 +603,7 @@ function PPUFrameWindow:setNametableBytes(bytesTbl, bankIndex, pageIndex, tilesP
       self:syncNametableVisualCell(col, row, b, tilesPool, li)
     end
   end
+  self:invalidateNametableLayerCanvas(li)
 
   if self.setScroll then self:setScroll(self.scrollCol or 0, self.scrollRow or 0) end
 
@@ -477,6 +642,7 @@ function PPUFrameWindow:setAttributeBytes(bytesTbl)
       self.rows    -- rows
     )
   end
+  self:invalidateNametableLayerCanvas(select(2, getNametableLayer(self)) or self.activeLayer or 1)
 
   if #self.nametableBytes > 0 then
     local ok, err = self:updateCompressedBytesInROM()
@@ -574,6 +740,7 @@ function PPUFrameWindow:setBankPage(bankIndex, pageIndex, tilesPool)
       self:syncNametableVisualCell(col, row, b, tilesPool, li)
     end
   end
+  self:invalidateNametableLayerCanvas(li)
   if self.setScroll then self:setScroll(self.scrollCol or 0, self.scrollRow or 0) end
 
   self:syncNametableLayerMetadata()
@@ -645,6 +812,7 @@ function PPUFrameWindow:set(col, row, item, layerIndex)
   if not ok then
     DebugController.log("info", "PPU", "Update failed after set: %s", tostring(err))
   end
+  self:invalidateNametableLayerCanvas(layerIndex or self.activeLayer or 1, col, row)
 end
 
 ----------------------------------------------------------------
@@ -690,6 +858,8 @@ function PPUFrameWindow:swapCells(c1, r1, c2, r2)
   -- Update ROM once with the correct swapped bytes
   local ok, err = self:updateCompressedBytesInROM()
   if not ok then DebugController.log("info", "PPU", "Update failed: %s", tostring(err)) end
+  self:invalidateNametableLayerCanvas(Lidx, c1, r1)
+  self:invalidateNametableLayerCanvas(Lidx, c2, r2)
 end
 
 -- Return a compact list of swapped cells for serialization:
@@ -737,6 +907,7 @@ function PPUFrameWindow:applyTileSwapsFrom(swaps, tilesPool)
 
       -- Keep diff map consistent with original baseline
       recordSwap(self, idx)
+      self:invalidateNametableLayerCanvas(li, col, row)
     end
   end
 
@@ -768,6 +939,7 @@ function PPUFrameWindow:setNametableByteAt(col, row, byteVal, tilesPool, layerIn
   -- Refresh visual tile if we can resolve it
   local li = layerIndex or self.activeLayer or 1
   self:syncNametableVisualCell(col, row, v, tilesPool, li)
+  self:invalidateNametableLayerCanvas(li, col, row)
 
   local ok, err = self:updateCompressedBytesInROM()
   if not ok then
@@ -796,6 +968,7 @@ function PPUFrameWindow:refreshNametableVisuals(tilesPool, layerIndex)
     self:setScroll(self.scrollCol or 0, self.scrollRow or 0)
   end
 
+  self:invalidateNametableLayerCanvas(li)
   self:syncNametableLayerMetadata()
   return true
 end
