@@ -178,6 +178,8 @@ local font = nil
 local scrollY = 0
 local lineHeight = 20
 local padding = 20
+local testsPerFrame = 1
+local slowReportPrinted = false
 local scrollbar = {
   width = 14,
   margin = 5,
@@ -253,6 +255,30 @@ local function setScrollFromThumb(topY, metrics)
   scrollY = clampScroll(ratio * metrics.maxScroll, metrics.maxScroll)
 end
 
+local function printSlowestTestsReport(limit)
+  local slowest = TestFramework.getSlowestTests(limit or 10)
+  print("")
+  print(string.rep("=", 72))
+  print(string.format("Top %d slowest tests", #slowest))
+  print(string.rep("=", 72))
+  if #slowest == 0 then
+    print("(no completed tests)")
+    return
+  end
+
+  for i, entry in ipairs(slowest) do
+    local status = entry.passed and "OK" or "X"
+    print(string.format(
+      "%2d. %8.3f ms  [%s]  %s > %s",
+      i,
+      tonumber(entry.durationMs) or 0,
+      status,
+      tostring(entry.suite or "(unknown suite)"),
+      tostring(entry.test or "(unknown test)")
+    ))
+  end
+end
+
 -- All tests are now in separate .test.lua files
 -- Love2D callbacks below
 
@@ -275,12 +301,22 @@ function love.load()
   -- Set as default font for the whole test framework
   love.graphics.setFont(font)
   
-  -- Run tests immediately
-  TestFramework.run()
+  -- Start tests and execute them progressively so the UI can render live updates.
+  TestFramework.startRun()
+  slowReportPrinted = false
 end
 
 function love.update(dt)
-  -- Scrolling is handled in love.wheelmoved
+  TestFramework.updateRun(testsPerFrame)
+
+  local state = TestFramework.getState()
+  if state.isRunning then
+    local maxScroll = math.max(0, calculateTotalHeight(state) - love.graphics.getHeight() + padding * 2)
+    scrollY = clampScroll(maxScroll, maxScroll)
+  elseif state.isComplete and not slowReportPrinted then
+    printSlowestTestsReport(10)
+    slowReportPrinted = true
+  end
 end
 
 function love.wheelmoved(x, y)
@@ -329,36 +365,27 @@ function calculateTotalHeight(state)
   y = y + lineHeight -- Title
   y = y + lineHeight -- Summary line
   y = y + lineHeight -- Blank line
-  
-  for _, suite in ipairs(state.suites) do
-    y = y + renderSuiteHeight(suite, 0)
+
+  if state.currentTask then
+    y = y + lineHeight
+    y = y + lineHeight
   end
-  
-  -- Error section if any
-  if #state.errors > 0 then
+
+  for _ in ipairs(state.liveLog or {}) do
+    y = y + lineHeight
+  end
+
+  if state.isComplete and #state.errors > 0 then
     y = y + lineHeight * 2
     for _ in ipairs(state.errors) do
       y = y + lineHeight * 2
     end
   end
-  
-  return y
-end
 
-function renderSuiteHeight(suite, indent)
-  local y = lineHeight -- Suite name
-  indent = indent + 2
-  
-  for _, test in ipairs(suite.tests) do
-    y = y + lineHeight -- Test line
+  if state.isComplete then
+    y = y + lineHeight * 2
   end
-  
-  if suite.children then
-    for _, childSuite in ipairs(suite.children) do
-      y = y + renderSuiteHeight(childSuite, indent)
-    end
-  end
-  
+
   return y
 end
 
@@ -399,63 +426,86 @@ function love.draw()
   -- Title
   love.graphics.setColor(0.6, 0.8, 1.0)
   love.graphics.setFont(font)
-  love.graphics.print("Running tests...", padding, y)
-  y = y + lineHeight
-  
   if state.isComplete then
-    -- Summary
-    local passedColor = {0.2, 0.8, 0.2}
-    local failedColor = {0.8, 0.2, 0.2}
-    
-    local summary = string.format("Tests: %d passed, %d failed, %d total", 
-      state.passedTests, state.failedTests, state.totalTests)
-    
-    -- Calculate x positions for numbers in the summary using font width
-    -- "Tests: " is 7 characters before the first number
-    local prefix1 = "Tests: "
-    local prefix2 = string.format("Tests: %d passed, ", state.passedTests)
-    local passedNumX = padding + font:getWidth(prefix1)
-    local failedNumX = padding + font:getWidth(prefix2)
-    
-    -- Draw summary with white text
-    love.graphics.setColor(1.0, 1.0, 1.0)
-    love.graphics.print(summary, padding, y)
-    
-    -- Color code passed/failed numbers by overlaying them at the correct positions
-    if state.passedTests > 0 then
+    love.graphics.print("Test run complete", padding, y)
+  else
+    love.graphics.print("Running tests...", padding, y)
+  end
+  y = y + lineHeight
+
+  -- Summary
+  local passedColor = {0.2, 0.8, 0.2}
+  local failedColor = {0.8, 0.2, 0.2}
+  local runningColor = {1.0, 0.85, 0.35}
+
+  local completedTests = state.passedTests + state.failedTests
+  local summary = string.format(
+    "Tests: %d passed, %d failed, %d/%d complete",
+    state.passedTests,
+    state.failedTests,
+    completedTests,
+    state.totalTests
+  )
+
+  local prefix1 = "Tests: "
+  local prefix2 = string.format("Tests: %d passed, ", state.passedTests)
+  local passedNumX = padding + font:getWidth(prefix1)
+  local failedNumX = padding + font:getWidth(prefix2)
+
+  love.graphics.setColor(1.0, 1.0, 1.0)
+  love.graphics.print(summary, padding, y)
+
+  if state.passedTests > 0 then
+    love.graphics.setColor(passedColor)
+    love.graphics.print(tostring(state.passedTests), passedNumX, y)
+  end
+  if state.failedTests > 0 then
+    love.graphics.setColor(failedColor)
+    love.graphics.print(tostring(state.failedTests), failedNumX, y)
+  end
+
+  y = y + lineHeight * 2
+
+  if state.currentTask then
+    love.graphics.setColor(runningColor)
+    love.graphics.print("Now running:", padding, y)
+    y = y + lineHeight
+    love.graphics.print(
+      string.format("  %s > %s", state.currentTask.suitePath, state.currentTask.test.name),
+      padding,
+      y
+    )
+    y = y + lineHeight
+  end
+
+  for _, entry in ipairs(state.liveLog or {}) do
+    if entry.passed then
       love.graphics.setColor(passedColor)
-      love.graphics.print(tostring(state.passedTests), passedNumX, y)
-    end
-    if state.failedTests > 0 then
+      love.graphics.print(string.format("  (OK) %s > %s", entry.suite, entry.test), padding, y)
+    else
       love.graphics.setColor(failedColor)
-      love.graphics.print(tostring(state.failedTests), failedNumX, y)
+      love.graphics.print(string.format("  (X) %s > %s", entry.suite, entry.test), padding, y)
     end
-    
-    y = y + lineHeight * 2
-    
-    -- Render all suites
-    for _, suite in ipairs(state.suites) do
-      y = y + renderSuite(suite, padding, y, 0)
-    end
-    
-    -- Render error details if any
-    if #state.errors > 0 then
+    y = y + lineHeight
+  end
+
+  if state.isComplete and #state.errors > 0 then
+    y = y + lineHeight
+    love.graphics.setColor(failedColor)
+    love.graphics.print("Failed tests:", padding, y)
+    y = y + lineHeight
+
+    for _, err in ipairs(state.errors) do
+      love.graphics.setColor(0.8, 0.4, 0.4)
+      love.graphics.print(string.format("  %s > %s", err.suite, err.test), padding, y)
       y = y + lineHeight
-      love.graphics.setColor(failedColor)
-      love.graphics.print("Failed tests:", padding, y)
+      love.graphics.setColor(0.6, 0.6, 0.6)
+      love.graphics.print("    " .. err.error, padding, y)
       y = y + lineHeight
-      
-      for _, err in ipairs(state.errors) do
-        love.graphics.setColor(0.8, 0.4, 0.4)
-        love.graphics.print(string.format("  %s > %s", err.suite, err.test), padding, y)
-        y = y + lineHeight
-        love.graphics.setColor(0.6, 0.6, 0.6)
-        love.graphics.print("    " .. err.error, padding, y)
-        y = y + lineHeight
-      end
     end
-    
-    -- Final status
+  end
+
+  if state.isComplete then
     y = y + lineHeight
     if state.failedTests == 0 then
       love.graphics.setColor(passedColor)
@@ -469,47 +519,9 @@ function love.draw()
   love.graphics.pop()
   
   -- Draw scroll indicators (after popping transform so they're fixed on screen)
-  if state.isComplete then
+  if state.isComplete or state.isRunning then
     drawScrollIndicators()
   end
-end
-
--- Render a suite and its tests
-function renderSuite(suite, x, y, indent)
-  local startY = y
-  
-  -- Suite name
-  local fileNameColor = {1.0, 0.62, 0.2}
-  local nestedSuiteColor = {0.4, 0.7, 1.0}
-  if indent == 0 then
-    love.graphics.setColor(fileNameColor)
-  else
-    love.graphics.setColor(nestedSuiteColor)
-  end
-  love.graphics.print(string.rep("  ", indent) .. suite.name, x, y)
-  y = y + lineHeight
-  
-  -- Render tests
-  for _, test in ipairs(suite.tests) do
-    local testX = x + (indent + 1) * 20
-    if test.passed then
-      love.graphics.setColor(0.2, 0.8, 0.2)
-      love.graphics.print("  (OK) " .. test.name, testX, y)
-    else
-      love.graphics.setColor(0.8, 0.2, 0.2)
-      love.graphics.print("  (X) " .. test.name, testX, y)
-    end
-    y = y + lineHeight
-  end
-  
-  -- Render nested suites
-  if suite.children then
-    for _, childSuite in ipairs(suite.children) do
-      y = y + renderSuite(childSuite, x, y, indent + 1)
-    end
-  end
-  
-  return y - startY
 end
 
 function love.keypressed(key, scancode, isrepeat)
