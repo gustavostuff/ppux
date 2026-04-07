@@ -31,6 +31,10 @@ function M.isOamAnimation(win)
   return win and win.kind == "oam_animation"
 end
 
+function M.isStartAddrSpriteSyncWindow(win)
+  return win and (win.kind == "oam_animation" or win.kind == "ppu_frame")
+end
+
 function M.isRomPaletteWindow(win)
   return win and win.kind == "rom_palette"
 end

@@ -93,8 +93,8 @@ function SpriteController.getSelectedSpriteIndicesInOrder(layer)
   return SpriteSelectionController.getSelectedSpriteIndicesInOrder(layer)
 end
 
--- Sync fields for all items in the same OAM animation window that reference
--- the same ROM OAM sprite (identified by startAddr).
+-- Sync fields for all sprite items across OAM animation windows and PPU Frame
+-- sprite layers that reference the same ROM OAM sprite (identified by startAddr).
 -- opts:
 --   syncPosition (default true)
 --   syncVisual   (default true) -> paletteNumber / mirrorX / mirrorY

@@ -149,7 +149,7 @@ local function syncSharedOAMFieldsIntoTarget(target, source, opts)
   end
 end
 
-local function collectCandidateOamWindows(sourceWin, opts)
+local function collectCandidateStartAddrSpriteWindows(sourceWin, opts)
   local out = {}
   local seen = {}
 
@@ -186,7 +186,7 @@ local function collectCandidateOamWindows(sourceWin, opts)
 
   local filtered = {}
   for _, win in ipairs(out) do
-    if WindowCaps.isOamAnimation(win) and not win._closed then
+    if WindowCaps.isStartAddrSpriteSyncWindow(win) and not win._closed then
       filtered[#filtered + 1] = win
     end
   end
@@ -194,7 +194,7 @@ local function collectCandidateOamWindows(sourceWin, opts)
 end
 
 function SpriteTransformController.syncSharedOAMSpriteState(win, sourceSprite, opts)
-  if not WindowCaps.isOamAnimation(win) then return 0 end
+  if not WindowCaps.isStartAddrSpriteSyncWindow(win) then return 0 end
   if not sourceSprite then return 0 end
   if type(sourceSprite.startAddr) ~= "number" then return 0 end
 
@@ -207,7 +207,7 @@ function SpriteTransformController.syncSharedOAMSpriteState(win, sourceSprite, o
   seenSprites[sourceSprite] = true
   updated = 1
 
-  for _, candidateWin in ipairs(collectCandidateOamWindows(win, opts)) do
+  for _, candidateWin in ipairs(collectCandidateStartAddrSpriteWindows(win, opts)) do
     for _, layer in ipairs(candidateWin.layers or {}) do
       if layer and layer.kind == "sprite" then
         for _, item in ipairs(layer.items or {}) do
