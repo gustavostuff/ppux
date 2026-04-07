@@ -472,6 +472,24 @@ function AppCoreController:_buildNewWindowOptions()
         self:setStatus(string.format("Created %s", win.title))
       end
     },
+    {
+      text = "OAM animation",
+      buttonText = "OAM animation",
+      callback = function(cols, rows, spriteMode, windowTitle)
+        local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
+        local win = self.wm:createSpriteWindow({
+          animated = true,
+          oamBacked = true,
+          numFrames = 1,
+          title = windowTitle or "OAM Animation",
+          spriteMode = spriteMode,
+          cols = cols,
+          rows = rows,
+        })
+        recordWindowCreateUndo(self, win, prevFocusedWin)
+        self:setStatus(string.format("Created %s", win.title))
+      end
+    },
   }
 end
 

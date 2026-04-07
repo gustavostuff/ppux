@@ -46,6 +46,9 @@ local function compactOptionLabel(option, index)
   if text:find("PPU Frame") then
     return "PPU Frame window"
   end
+  if text:find("OAM animation") then
+    return "OAM animation"
+  end
 
   return tostring(index or "")
 end
