@@ -133,12 +133,6 @@ function AnimationToolbar.new(window, ctx, windowController)
     end, "Toggle origin guides", {
       row = secondaryRow,
     })
-
-    self.toggleToolbarRowsButton = self:addButton(images.icons.icon_compact_mode, function()
-      self:_onToggleToolbarRows()
-    end, "Switch to single-row toolbar", {
-      row = secondaryRow,
-    })
   end
 
   -- Copy from previous layer button
@@ -294,20 +288,6 @@ function AnimationToolbar:_onToggleOriginGuides()
   self:updateOriginButtons()
 end
 
-function AnimationToolbar:_onToggleToolbarRows()
-  if not WindowCaps.isOamAnimation(self.window) or not self.window then
-    return
-  end
-  local enabled = not isOamMultiRowEnabled(self.window)
-  self.window.multiRowToolbar = enabled
-  self.useButtonRows = enabled
-  self:updatePosition()
-  self:updateIcons()
-  if self.ctx and self.ctx.setStatus then
-    self.ctx.setStatus(enabled and "OAM toolbar: two rows" or "OAM toolbar: single row")
-  end
-end
-
 -- Handle remove layer
 function AnimationToolbar:_onRemoveLayer()
   if not isAnimationKind(self.window) then return end
@@ -380,15 +360,6 @@ function AnimationToolbar:updateIcons()
   end
   if self.addSpriteButton then
     self.addSpriteButton.icon = images.icons.icon_add_sprite or self.addSpriteButton.icon
-  end
-  if self.toggleToolbarRowsButton then
-    if isOamMultiRowEnabled(self.window) then
-      self.toggleToolbarRowsButton.icon = images.icons.icon_normal_mode or self.toggleToolbarRowsButton.icon
-      self.toggleToolbarRowsButton.tooltip = "Switch to single-row toolbar"
-    else
-      self.toggleToolbarRowsButton.icon = images.icons.icon_compact_mode or self.toggleToolbarRowsButton.icon
-      self.toggleToolbarRowsButton.tooltip = "Switch to two-row toolbar"
-    end
   end
   self:updateOriginButtons()
 
