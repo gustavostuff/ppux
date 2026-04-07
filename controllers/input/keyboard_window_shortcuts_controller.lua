@@ -5,6 +5,12 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local M = {}
 local EXIT_FULLSCREEN_SCALE = 2
 
+local function invalidateVolatileWindowCanvases(app)
+  if app and app.invalidateAllPpuFrameNametableCanvases then
+    app:invalidateAllPpuFrameNametableCanvases()
+  end
+end
+
 local function copyWindowFlags(flags)
   local out = {}
   for k, v in pairs(flags or {}) do
@@ -67,6 +73,7 @@ function M.handleWindowScaling(ctx, utils, key, AppCoreControllerRef)
     ResolutionController:recalculate()
     if AppCoreControllerRef then
       AppCoreControllerRef._windowedScalePreference = numerScale
+      invalidateVolatileWindowCanvases(AppCoreControllerRef)
     end
     return true
   end
@@ -96,6 +103,7 @@ function M.handleFullscreen(ctx, utils, key)
         fullscreen = true,
       })
       ResolutionController:recalculate()
+      invalidateVolatileWindowCanvases(app)
     else
       local baseW = ResolutionController.canvasWidth or (app and app.canvas and app.canvas:getWidth()) or love.graphics.getWidth()
       local baseH = ResolutionController.canvasHeight or (app and app.canvas and app.canvas:getHeight()) or love.graphics.getHeight()
@@ -107,6 +115,7 @@ function M.handleFullscreen(ctx, utils, key)
       })
       if app then
         app._windowedScalePreference = EXIT_FULLSCREEN_SCALE
+        invalidateVolatileWindowCanvases(app)
       end
       ResolutionController:recalculate()
     end

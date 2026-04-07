@@ -318,6 +318,7 @@ function AppCoreController.new()
     window_close = true,
     window_rename = true,
     palette_link_change = true,
+    ppu_frame_range_change = true,
   }
 
   -- undo/redo
@@ -1009,6 +1010,40 @@ local function parseNonNegativeInteger(text, label)
   return value
 end
 
+local function parsePositiveDecimalInteger(text, label)
+  local trimmed = tostring(text or ""):match("^%s*(.-)%s*$")
+  label = label or "Value"
+  if trimmed == "" then
+    return nil, string.format("%s is required", label)
+  end
+  if not trimmed:match("^%d+$") then
+    return nil, string.format("%s must be a decimal whole number", label)
+  end
+
+  local value = tonumber(trimmed, 10)
+  if type(value) ~= "number" then
+    return nil, string.format("%s must be a decimal whole number", label)
+  end
+
+  value = math.floor(value)
+  if value < 1 then
+    return nil, string.format("%s must be 1 or greater", label)
+  end
+
+  return value
+end
+
+local function parsePageNumber(text)
+  local value, err = parsePositiveDecimalInteger(text, "Page")
+  if not value then
+    return nil, err
+  end
+  if value ~= 1 and value ~= 2 then
+    return nil, "Page must be 1 or 2"
+  end
+  return value
+end
+
 function AppCoreController:showRenameWindowModal(win)
   if not (self.renameWindowModal and win and type(win) == "table") then
     return false
@@ -1086,12 +1121,85 @@ end
 
 local function getPpuNametableLayer(win)
   if not (win and win.layers) then return nil end
+  local activeIndex = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+  local activeLayer = win.layers[activeIndex]
+  if activeLayer and activeLayer.kind ~= "sprite" then
+    return activeLayer, activeIndex
+  end
   for _, layer in ipairs(win.layers) do
     if layer and layer.kind ~= "sprite" then
       return layer
     end
   end
   return nil
+end
+
+local function copyNumberArray(values)
+  local out = {}
+  if type(values) ~= "table" then
+    return out
+  end
+  for i = 1, #values do
+    out[i] = values[i]
+  end
+  return out
+end
+
+local function snapshotPpuFrameRangeState(win, layerIndex)
+  if not (win and win.kind == "ppu_frame") then
+    return nil
+  end
+
+  local layer, resolvedLayerIndex = getPpuNametableLayer(win)
+  local li = layerIndex or resolvedLayerIndex or 1
+  layer = (win.getLayer and win:getLayer(li)) or layer
+  if not layer then
+    return nil
+  end
+
+  return {
+    win = win,
+    layerIndex = li,
+    cols = win.cols,
+    rows = win.rows,
+    nametableStart = win.nametableStart,
+    nametableBytes = copyNumberArray(win.nametableBytes),
+    nametableAttrBytes = copyNumberArray(win.nametableAttrBytes),
+    originalNametableBytes = copyNumberArray(win._originalNametableBytes),
+    originalNametableAttrBytes = copyNumberArray(win._originalNametableAttrBytes),
+    originalCompressedBytes = copyNumberArray(win._originalCompressedBytes),
+    tileSwapsMap = TableUtils.deepcopy(win._tileSwaps),
+    originalTotalByteNumber = win.originalTotalByteNumber,
+    nametableOriginalSize = win._nametableOriginalSize,
+    nametableCompressedSize = win._nametableCompressedSize,
+    layerState = {
+      kind = layer.kind,
+      mode = layer.mode,
+      codec = layer.codec,
+      bank = layer.bank,
+      page = layer.page,
+      nametableStartAddr = layer.nametableStartAddr,
+      nametableEndAddr = layer.nametableEndAddr,
+      noOverflowSupported = layer.noOverflowSupported,
+      glassTileByte = layer.glassTileByte,
+      transparentTileByte = layer.transparentTileByte,
+      attrMode = layer.attrMode,
+      tileSwaps = TableUtils.deepcopy(layer.tileSwaps),
+    },
+  }
+end
+
+local function didPpuFrameRangeSettingsChange(beforeState, afterState)
+  local beforeLayer = beforeState and beforeState.layerState or nil
+  local afterLayer = afterState and afterState.layerState or nil
+  if not (beforeLayer and afterLayer) then
+    return false
+  end
+
+  return beforeLayer.nametableStartAddr ~= afterLayer.nametableStartAddr
+    or beforeLayer.nametableEndAddr ~= afterLayer.nametableEndAddr
+    or beforeLayer.bank ~= afterLayer.bank
+    or beforeLayer.page ~= afterLayer.page
 end
 
 local function getFirstPpuSpriteLayer(win)
@@ -1338,13 +1446,17 @@ function AppCoreController:showPpuFrameRangeModal(win)
     and string.format("0x%06X", layer.nametableStartAddr) or ""
   local initialEnd = (layer and type(layer.nametableEndAddr) == "number")
     and string.format("0x%06X", layer.nametableEndAddr) or ""
+  local initialBank = tostring((layer and tonumber(layer.bank)) or 1)
+  local initialPage = tostring((layer and tonumber(layer.page)) or 1)
 
   self.ppuFrameRangeModal:show({
     title = "Set tile range",
     window = win,
     initialStartAddress = initialStart,
     initialEndAddress = initialEnd,
-    onConfirm = function(startText, endText, targetWindow)
+    initialBank = initialBank,
+    initialPage = initialPage,
+    onConfirm = function(startText, endText, bankText, pageText, targetWindow)
       local startAddr, startErr = parseHexAddress(startText)
       if not startAddr then
         self:setStatus(startErr)
@@ -1366,13 +1478,28 @@ function AppCoreController:showPpuFrameRangeModal(win)
         return false
       end
 
-      local targetLayer = getPpuNametableLayer(targetWindow)
+      local bankIndex, bankErr = parsePositiveDecimalInteger(bankText, "Bank")
+      if not bankIndex then
+        self:setStatus(bankErr)
+        self:showToast("error", bankErr)
+        return false
+      end
+
+      local pageIndex, pageErr = parsePageNumber(pageText)
+      if not pageIndex then
+        self:setStatus(pageErr)
+        self:showToast("error", pageErr)
+        return false
+      end
+
+      local targetLayer, targetLayerIndex = getPpuNametableLayer(targetWindow)
       if not targetLayer then
         local message = "PPU frame window is missing a tile layer"
         self:setStatus(message)
         self:showToast("error", message)
         return false
       end
+      local beforeRangeState = snapshotPpuFrameRangeState(targetWindow, targetLayerIndex)
 
       local state = self.appEditState or {}
       local tilesPool = state.tilesPool
@@ -1383,23 +1510,29 @@ function AppCoreController:showPpuFrameRangeModal(win)
         self:showToast("error", message)
         return false
       end
+      if not (state.chrBanksBytes and state.chrBanksBytes[bankIndex]) then
+        local message = string.format("CHR bank %d is not available", bankIndex)
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
 
-      local bankIndex = targetLayer.bank or state.currentBank or 1
-      local pageIndex = targetLayer.page or 1
+      local currentBankIndex = bankIndex
+      BankViewController.ensureBankTiles(state, currentBankIndex)
       targetLayer.codec = targetLayer.codec or "konami"
       local ok, err = NametableTilesController.hydrateWindowNametable(targetWindow, targetLayer, {
         romRaw = romRaw,
         tilesPool = tilesPool,
         ensureTiles = function(bank)
-          local pool = state.tilesPool
-          if pool and pool[bank] then
-            return true
+          if not (state.chrBanksBytes and state.chrBanksBytes[bank]) then
+            return false
           end
-          return false
+          BankViewController.ensureBankTiles(state, bank)
+          return true
         end,
         nametableStartAddr = startAddr,
         nametableEndAddr = endAddr,
-        bankIndex = bankIndex,
+        bankIndex = currentBankIndex,
         pageIndex = pageIndex,
         codec = targetLayer.codec,
         reportErrors = false,
@@ -1413,17 +1546,111 @@ function AppCoreController:showPpuFrameRangeModal(win)
 
       targetLayer.nametableStartAddr = startAddr
       targetLayer.nametableEndAddr = endAddr
+      targetLayer.bank = currentBankIndex
+      targetLayer.page = pageIndex
+      if targetWindow.setBankPage then
+        targetWindow:setBankPage(currentBankIndex, pageIndex, tilesPool)
+      elseif targetWindow.refreshNametableVisuals then
+        targetWindow:refreshNametableVisuals(tilesPool, targetLayerIndex)
+      elseif targetWindow.invalidateNametableLayerCanvas then
+        targetWindow:invalidateNametableLayerCanvas(targetLayerIndex)
+      end
       if targetWindow.syncNametableLayerMetadata then
         targetWindow:syncNametableLayerMetadata()
       end
       if targetWindow.specializedToolbar and targetWindow.specializedToolbar.updateIcons then
         targetWindow.specializedToolbar:updateIcons()
       end
+      local afterRangeState = snapshotPpuFrameRangeState(targetWindow, targetLayerIndex)
+      if self.undoRedo and self.undoRedo.addPpuFrameRangeEvent
+        and didPpuFrameRangeSettingsChange(beforeRangeState, afterRangeState)
+      then
+        self.undoRedo:addPpuFrameRangeEvent({
+          type = "ppu_frame_range",
+          win = targetWindow,
+          layerIndex = targetLayerIndex,
+          beforeState = beforeRangeState,
+          afterState = afterRangeState,
+        })
+      end
 
-      self:setStatus(string.format("Loaded tile range 0x%06X-0x%06X", startAddr, endAddr))
+      self:setStatus(string.format(
+        "Loaded tile range 0x%06X-0x%06X (bank %d, page %d)",
+        startAddr,
+        endAddr,
+        currentBankIndex,
+        pageIndex
+      ))
       return true
     end,
   })
+
+  return true
+end
+
+function AppCoreController:applyPpuFrameRangeState(rangeState)
+  if not (rangeState and rangeState.win and rangeState.win.kind == "ppu_frame") then
+    return false
+  end
+
+  local win = rangeState.win
+  local li = tonumber(rangeState.layerIndex) or select(2, getPpuNametableLayer(win)) or win.activeLayer or 1
+  local layer = win.layers and win.layers[li] or nil
+  local layerState = rangeState.layerState or nil
+  if not (layer and layerState) then
+    return false
+  end
+
+  win.cols = tonumber(rangeState.cols) or win.cols
+  win.rows = tonumber(rangeState.rows) or win.rows
+  win.nametableStart = rangeState.nametableStart
+  win.nametableBytes = copyNumberArray(rangeState.nametableBytes)
+  win.nametableAttrBytes = copyNumberArray(rangeState.nametableAttrBytes)
+  win._originalNametableBytes = copyNumberArray(rangeState.originalNametableBytes)
+  win._originalNametableAttrBytes = copyNumberArray(rangeState.originalNametableAttrBytes)
+  win._originalCompressedBytes = copyNumberArray(rangeState.originalCompressedBytes)
+  win._tileSwaps = TableUtils.deepcopy(rangeState.tileSwapsMap)
+  win.originalTotalByteNumber = rangeState.originalTotalByteNumber
+  win._nametableOriginalSize = rangeState.nametableOriginalSize
+  win._nametableCompressedSize = rangeState.nametableCompressedSize
+
+  layer.kind = layerState.kind
+  layer.mode = layerState.mode
+  layer.codec = layerState.codec
+  layer.bank = layerState.bank
+  layer.page = layerState.page
+  layer.nametableStartAddr = layerState.nametableStartAddr
+  layer.nametableEndAddr = layerState.nametableEndAddr
+  layer.noOverflowSupported = layerState.noOverflowSupported
+  layer.glassTileByte = layerState.glassTileByte
+  layer.transparentTileByte = layerState.transparentTileByte
+  layer.attrMode = layerState.attrMode
+  layer.tileSwaps = TableUtils.deepcopy(layerState.tileSwaps)
+  layer.items = {}
+
+  local state = self.appEditState or {}
+  local bankIndex = tonumber(layer.bank)
+  if bankIndex and state.chrBanksBytes and state.chrBanksBytes[bankIndex] then
+    BankViewController.ensureBankTiles(state, bankIndex)
+  end
+
+  if NametableTilesController.extractPaletteNumbersFromAttributes then
+    NametableTilesController.extractPaletteNumbersFromAttributes(win, layer, win.cols, win.rows)
+  end
+
+  local tilesPool = state.tilesPool
+  if win.refreshNametableVisuals then
+    win:refreshNametableVisuals(tilesPool, li)
+  elseif win.invalidateNametableLayerCanvas then
+    win:invalidateNametableLayerCanvas(li)
+  end
+
+  if win.syncNametableLayerMetadata then
+    win:syncNametableLayerMetadata()
+  end
+  if win.specializedToolbar and win.specializedToolbar.updateIcons then
+    win.specializedToolbar:updateIcons()
+  end
 
   return true
 end
@@ -1470,6 +1697,27 @@ function AppCoreController:invalidatePpuFrameNametableTile(bankIdx, tileIndex)
               touched = true
             end
           end
+        end
+      end
+    end
+  end
+
+  return touched
+end
+
+function AppCoreController:invalidateAllPpuFrameNametableCanvases()
+  if not (self.wm and self.wm.getWindows) then
+    return false
+  end
+
+  local touched = false
+  for _, win in ipairs(self.wm:getWindows() or {}) do
+    if win and win.kind == "ppu_frame" and win.layers and win.invalidateNametableLayerCanvas then
+      win._nametableLayerCanvas = {}
+      for li, layer in ipairs(win.layers) do
+        if layer and layer.kind == "tile" then
+          win:invalidateNametableLayerCanvas(li)
+          touched = true
         end
       end
     end

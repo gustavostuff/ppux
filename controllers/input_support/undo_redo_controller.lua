@@ -289,6 +289,20 @@ function UndoRedoController:addWindowCreateEvent(event)
   return pushed
 end
 
+function UndoRedoController:addPpuFrameRangeEvent(event)
+  if not event or event.type ~= "ppu_frame_range" or not event.win then
+    return false
+  end
+  if not (event.beforeState and event.afterState) then
+    return false
+  end
+  local pushed = self:_pushEvent(event)
+  if pushed then
+    self:_notifyUnsaved("ppu_frame_range_change")
+  end
+  return pushed
+end
+
 local function deepCopy(value, seen)
   if type(value) ~= "table" then
     return value
@@ -457,6 +471,19 @@ local function applyWindowCreateEvent(event, direction, app)
     wm:setFocus(win)
   end
   return true
+end
+
+local function applyPpuFrameRangeEvent(event, direction, app)
+  if not (event and event.type == "ppu_frame_range" and app and app.applyPpuFrameRangeState) then
+    return false
+  end
+
+  local state = (direction == "undo") and event.beforeState or event.afterState
+  if not state then
+    return false
+  end
+
+  return app:applyPpuFrameRangeState(state)
 end
 
 local function applySpriteState(sprite, state)
@@ -910,6 +937,8 @@ function UndoRedoController:_applyEvent(event, direction, app)
     return applyPaletteLinkEvent(event, direction)
   elseif event.type == "window_create" then
     return applyWindowCreateEvent(event, direction, app)
+  elseif event.type == "ppu_frame_range" then
+    return applyPpuFrameRangeEvent(event, direction, app)
   elseif event.type == "window_minimize" then
     return applyWindowMinimizeEvent(event, direction, app)
   elseif event.type == "window_close" then
