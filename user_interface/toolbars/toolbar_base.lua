@@ -59,9 +59,70 @@ function ToolbarBase.new(window, data)
     itemCountLabelShowDuration = itemCountLabelShowDuration,
     itemCountLabelFadeDuration = itemCountLabelFadeDuration,
     itemCountLabelSpaceDown = false,
+    rowHeight = data.rowHeight or 0,
+    buttonsPerRow = tonumber(data.buttonsPerRow) or nil,
+    useButtonRows = (data.useButtonRows ~= false),
+    _layoutRowWidths = {},
   }, ToolbarBase)
   
   return self
+end
+
+function ToolbarBase:_resolveButtonRow(button, visibleIndex)
+  if self.useButtonRows == false then
+    local buttonsPerRow = tonumber(self.buttonsPerRow) or 0
+    if buttonsPerRow > 0 then
+      return math.floor((visibleIndex - 1) / buttonsPerRow) + 1
+    end
+    return 1
+  end
+
+  if button and tonumber(button.toolbarRow) then
+    return math.max(1, math.floor(tonumber(button.toolbarRow)))
+  end
+
+  local buttonsPerRow = tonumber(self.buttonsPerRow) or 0
+  if buttonsPerRow > 0 then
+    return math.floor((visibleIndex - 1) / buttonsPerRow) + 1
+  end
+
+  return 1
+end
+
+function ToolbarBase:_getRowHeight(fallbackHeight)
+  local rowHeight = tonumber(self.rowHeight) or 0
+  if rowHeight <= 0 then
+    rowHeight = tonumber(fallbackHeight) or 0
+  end
+  return rowHeight
+end
+
+function ToolbarBase:_getButtonRowCount()
+  local visibleCount = 0
+  local maxRow = 1
+  for _, button in ipairs(self.buttons) do
+    if isButtonVisible(button) then
+      visibleCount = visibleCount + 1
+      local row = self:_resolveButtonRow(button, visibleCount)
+      if row > maxRow then
+        maxRow = row
+      end
+    end
+  end
+
+  if visibleCount <= 0 then
+    return 1
+  end
+  return maxRow
+end
+
+function ToolbarBase:_getToolbarHeight(fallbackHeight)
+  local rowHeight = self:_getRowHeight(fallbackHeight)
+  local rowCount = self:_getButtonRowCount()
+  if rowHeight <= 0 then
+    return tonumber(fallbackHeight) or 0
+  end
+  return rowHeight * rowCount
 end
 
 -- Update toolbar position based on window header
@@ -72,9 +133,8 @@ function ToolbarBase:updatePosition()
   local hx, hy, hw, hh = self.window:getHeaderRect()
   
   -- Ensure toolbar height is set (should match header height)
-  if not self.h or self.h == 0 then
-    self.h = hh
-  end
+  self.rowHeight = self:_getRowHeight(hh)
+  self.h = self:_getToolbarHeight(hh)
   
   -- Position above the header bar (for specialized toolbars)
   self.y = hy - self.h
@@ -84,14 +144,22 @@ function ToolbarBase:updatePosition()
 end
 
 -- Add a button to the toolbar
-function ToolbarBase:addButton(icon, action, tooltip)
+function ToolbarBase:addButton(icon, action, tooltip, opts)
+  opts = opts or {}
+  local buttonSize = self:_getRowHeight(self.h)
   local button = Button.new({
     icon = icon,  -- Image object
     action = action,  -- Function to call when clicked
     tooltip = tooltip or "",
     x = 0,  -- Will be set by layout
     y = 0,
+    w = opts.w or buttonSize,
+    h = opts.h or buttonSize,
+    bgColor = opts.bgColor,
+    bgAlpha = opts.bgAlpha,
+    transparent = opts.transparent,
   })
+  button.toolbarRow = tonumber(opts.row) or nil
   
   table.insert(self.buttons, button)
   self:_layoutButtons()
@@ -101,18 +169,20 @@ end
 
 function ToolbarBase:addTextButton(text, action, tooltip, opts)
   opts = opts or {}
+  local buttonSize = self:_getRowHeight(self.h)
   local button = Button.new({
     text = text or "",
     action = action,
     tooltip = tooltip or "",
     x = 0,
     y = 0,
-    w = opts.w or self.h,
-    h = opts.h or self.h,
+    w = opts.w or buttonSize,
+    h = opts.h or buttonSize,
     bgColor = opts.bgColor,
     bgAlpha = opts.bgAlpha,
     transparent = opts.transparent,
   })
+  button.toolbarRow = tonumber(opts.row) or nil
 
   table.insert(self.buttons, button)
   self:_layoutButtons()
@@ -121,13 +191,14 @@ end
 
 -- Add a label to the toolbar
 function ToolbarBase:addLabel(text, width, updateFn)
+  local rowHeight = self:_getRowHeight(self.h)
   local label = {
     text = text or "",
-    width = width or self.h * 2,  -- Default width is 2x button size
+    width = width or rowHeight * 2,  -- Default width is 2x button size
     updateFn = updateFn,  -- Optional function to update text dynamically
     x = 0,  -- Will be set by layout
     y = 0,
-    h = self.h,  -- Label height = toolbar height
+    h = rowHeight,  -- Label height = toolbar row height
     renderInContent = false,  -- If true, label will be drawn in window content instead of toolbar
   }
   
@@ -137,57 +208,73 @@ function ToolbarBase:addLabel(text, width, updateFn)
   return label
 end
 
-  -- Layout buttons and labels horizontally (left to right: labels first, then buttons)
-  function ToolbarBase:_layoutButtons()
-    if not self.window then return end
-    
-    -- Get header dimensions
-    local hx, hy, hw, hh = self.window:getHeaderRect()
-    
-    -- Calculate total width of all buttons and labels (exclude labels that render in content)
-    local totalButtonWidth = 0
-    for _, button in ipairs(self.buttons) do
-      if isButtonVisible(button) then
-        totalButtonWidth = totalButtonWidth + button.w
-      end
+-- Layout buttons and labels (labels on top row, buttons can wrap into multiple rows)
+function ToolbarBase:_layoutButtons()
+  if not self.window then return end
+
+  local hx, hy, hw, hh = self.window:getHeaderRect()
+  local rowHeight = self:_getRowHeight(hh)
+
+  local totalLabelWidth = 0
+  for _, label in ipairs(self.labels) do
+    if not label.renderInContent then
+      totalLabelWidth = totalLabelWidth + label.width
+      label.h = rowHeight
     end
-    
-    local totalLabelWidth = 0
-    for _, label in ipairs(self.labels) do
-      if not label.renderInContent then
-        totalLabelWidth = totalLabelWidth + label.width
-      end
-    end
-    
-    local totalWidth = totalButtonWidth + totalLabelWidth
-    
-    -- Ensure we have valid self.y from updatePosition
-    local itemY = self.y or hy
-    
-    -- Position from left edge of window (aligned with window border)
-    local x = hx - 1 -- minus 1 because of the window border
-    
-    -- Layout labels first (left side, skip labels that render in content)
-    for _, label in ipairs(self.labels) do
-      if not label.renderInContent then
-        label.x = x
-        label.y = itemY
-        x = x + label.width
-      end
-    end
-    
-    -- Then layout buttons (right side)
-    for _, button in ipairs(self.buttons) do
-      if isButtonVisible(button) then
-        button:setPosition(x, itemY)
-        x = x + button.w
-      end
-    end
-    
-    -- Update toolbar position and width
-    self.x = hx  -- Aligned with window's left edge
-    self.w = totalWidth
   end
+
+  local visibleIndex = 0
+  local rowWidths = {}
+  local rowCount = 1
+  for _, button in ipairs(self.buttons) do
+    if isButtonVisible(button) then
+      visibleIndex = visibleIndex + 1
+      local rowIndex = self:_resolveButtonRow(button, visibleIndex)
+      rowWidths[rowIndex] = (rowWidths[rowIndex] or 0) + button.w
+      if rowIndex > rowCount then
+        rowCount = rowIndex
+      end
+    end
+  end
+
+  local totalWidth = totalLabelWidth + (rowWidths[1] or 0)
+  for rowIndex = 2, rowCount do
+    totalWidth = math.max(totalWidth, rowWidths[rowIndex] or 0)
+  end
+  self._layoutRowWidths = rowWidths
+
+  local itemY = self.y or hy
+  local topRowX = hx - 1
+  local labelEndX = topRowX
+
+  for _, label in ipairs(self.labels) do
+    if not label.renderInContent then
+      label.x = labelEndX
+      label.y = itemY
+      labelEndX = labelEndX + label.width
+    end
+  end
+
+  visibleIndex = 0
+  local currentRowIndex = 1
+  local currentRowX = labelEndX
+  for _, button in ipairs(self.buttons) do
+    if isButtonVisible(button) then
+      visibleIndex = visibleIndex + 1
+      local rowIndex = self:_resolveButtonRow(button, visibleIndex)
+      if rowIndex ~= currentRowIndex then
+        currentRowIndex = rowIndex
+        currentRowX = (rowIndex == 1) and labelEndX or topRowX
+      end
+      local rowY = itemY + ((rowIndex - 1) * rowHeight)
+      button:setPosition(currentRowX, rowY)
+      currentRowX = currentRowX + button.w
+    end
+  end
+
+  self.x = hx
+  self.w = totalWidth
+end
 
 -- Check if a point is inside the toolbar (check all buttons and labels)
 function ToolbarBase:contains(px, py)
@@ -387,14 +474,40 @@ function ToolbarBase:draw()
   self:updateIcons()
   self:updatePosition()
   
-  -- Draw gray20 background covering toolbar width
+  -- Draw background only behind occupied row spans.
   love.graphics.setColor(colors.blue)
-  love.graphics.rectangle("fill",
-    self.x - 1, -- minus 1 because of the window border
-    self.y,
-    self.w,
-    self.h
-  )
+  local rowHeight = self:_getRowHeight(self.h)
+  local rowWidths = self._layoutRowWidths or {}
+  local drewRow = false
+  for rowIndex, rowWidth in pairs(rowWidths) do
+    if rowWidth and rowWidth > 0 then
+      local bgWidth = rowWidth
+      if rowIndex == 1 then
+        local labelWidth = 0
+        for _, label in ipairs(self.labels) do
+          if not label.renderInContent then
+            labelWidth = labelWidth + label.width
+          end
+        end
+        bgWidth = labelWidth + rowWidth
+      end
+      love.graphics.rectangle("fill",
+        self.x - 1, -- minus 1 because of the window border
+        self.y + ((rowIndex - 1) * rowHeight),
+        bgWidth,
+        rowHeight
+      )
+      drewRow = true
+    end
+  end
+  if not drewRow then
+    love.graphics.rectangle("fill",
+      self.x - 1,
+      self.y,
+      self.w,
+      self.h
+    )
+  end
   love.graphics.setColor(colors.white)
   
   -- Update label text if update function is provided

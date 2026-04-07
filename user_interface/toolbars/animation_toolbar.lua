@@ -29,6 +29,13 @@ local function clamp(value, minValue, maxValue)
   return value
 end
 
+local function isOamMultiRowEnabled(window)
+  if not WindowCaps.isOamAnimation(window) then
+    return false
+  end
+  return window.multiRowToolbar ~= false
+end
+
 function AnimationToolbar.new(window, ctx, windowController)
   local self = setmetatable(ToolbarBase.new(window, {}), AnimationToolbar)
   
@@ -48,62 +55,98 @@ function AnimationToolbar.new(window, ctx, windowController)
   end)
   self.layerLabel.renderInContent = true
 
-  self.linkButton = self:addButton(images.icons.icon_connect, nil, "Palette link handle")
+  local primaryRow = WindowCaps.isOamAnimation(window) and 1 or nil
+  local secondaryRow = WindowCaps.isOamAnimation(window) and 2 or nil
+  if WindowCaps.isOamAnimation(window) then
+    self.useButtonRows = isOamMultiRowEnabled(window)
+  end
+
+  self.linkButton = self:addButton(images.icons.icon_connect, nil, "Palette link handle", {
+    row = primaryRow,
+  })
   
   -- Previous layer button (down icon)
   self:addButton(images.icons.icon_down, function()
     self:_onPrevLayer()
-  end, "Previous layer")
+  end, "Previous layer", {
+    row = primaryRow,
+  })
   
   -- Next layer button (up icon)
   self:addButton(images.icons.icon_up, function()
     self:_onNextLayer()
-  end, "Next layer")
+  end, "Next layer", {
+    row = primaryRow,
+  })
 
   -- Remove layer button (minus icon)
   self:addButton(images.icons.icon_minus, function()
     self:_onRemoveLayer()
-  end, "Remove layer")
+  end, "Remove layer", {
+    row = primaryRow,
+  })
   
   -- Add layer button (plus icon)
   self:addButton(images.icons.icon_plus, function()
     self:_onAddLayer()
-  end, "Add layer")
+  end, "Add layer", {
+    row = primaryRow,
+  })
 
   if WindowCaps.isOamAnimation(window) then
     self.addSpriteButton = self:addButton(images.icons.icon_add_sprite, function()
       self:_onAddSprite()
-    end, "Add a sprite on active layer")
+    end, "Add a sprite on active layer", {
+      row = secondaryRow,
+    })
 
     self.originXMinusButton = self:addButton(images.icons.icon_minus, function()
       self:_onAdjustSpriteOrigin("x", -1)
-    end, "Origin X -1")
+    end, "Origin X -1", {
+      row = secondaryRow,
+    })
     self.originXMinusButton.bgColor = colors.red
 
     self.originXPlusButton = self:addButton(images.icons.icon_plus, function()
       self:_onAdjustSpriteOrigin("x", 1)
-    end, "Origin X +1")
+    end, "Origin X +1", {
+      row = secondaryRow,
+    })
     self.originXPlusButton.bgColor = colors.red
 
     self.originYMinusButton = self:addButton(images.icons.icon_minus, function()
       self:_onAdjustSpriteOrigin("y", -1)
-    end, "Origin Y -1")
+    end, "Origin Y -1", {
+      row = secondaryRow,
+    })
     self.originYMinusButton.bgColor = colors.green
 
     self.originYPlusButton = self:addButton(images.icons.icon_plus, function()
       self:_onAdjustSpriteOrigin("y", 1)
-    end, "Origin Y +1")
+    end, "Origin Y +1", {
+      row = secondaryRow,
+    })
     self.originYPlusButton.bgColor = colors.green
 
     self.toggleOriginGuidesButton = self:addButton(images.icons.icon_dotted_lines, function()
       self:_onToggleOriginGuides()
-    end, "Toggle origin guides")
+    end, "Toggle origin guides", {
+      row = secondaryRow,
+    })
+
+    self.toggleToolbarRowsButton = self:addButton(images.icons.icon_compact_mode, function()
+      self:_onToggleToolbarRows()
+    end, "Switch to single-row toolbar", {
+      row = secondaryRow,
+    })
   end
 
   -- Copy from previous layer button
   self:addButton(images.icons.icon_copy_layer, function()
     self:_onCopyFromPrevious()
-  end, "Copy previous layer")
+  end, "Copy previous layer", {
+    row = secondaryRow,
+  })
   
   -- Play/Pause button (toggle between play and pause icons)
   -- Start with play icon if not playing, pause icon if playing
@@ -111,7 +154,9 @@ function AnimationToolbar.new(window, ctx, windowController)
   local initialTooltip = (window.isPlaying and "Pause") or "Play"
   self.playButton = self:addButton(initialIcon, function()
     self:_onTogglePlay()
-  end, initialTooltip)
+  end, initialTooltip, {
+    row = secondaryRow,
+  })
   
   -- Update position
   self:updatePosition()
@@ -249,6 +294,20 @@ function AnimationToolbar:_onToggleOriginGuides()
   self:updateOriginButtons()
 end
 
+function AnimationToolbar:_onToggleToolbarRows()
+  if not WindowCaps.isOamAnimation(self.window) or not self.window then
+    return
+  end
+  local enabled = not isOamMultiRowEnabled(self.window)
+  self.window.multiRowToolbar = enabled
+  self.useButtonRows = enabled
+  self:updatePosition()
+  self:updateIcons()
+  if self.ctx and self.ctx.setStatus then
+    self.ctx.setStatus(enabled and "OAM toolbar: two rows" or "OAM toolbar: single row")
+  end
+end
+
 -- Handle remove layer
 function AnimationToolbar:_onRemoveLayer()
   if not isAnimationKind(self.window) then return end
@@ -313,11 +372,23 @@ end
 -- Update button icons
 function AnimationToolbar:updateIcons()
   ToolbarBase.updateIcons(self)
+  if WindowCaps.isOamAnimation(self.window) then
+    self.useButtonRows = isOamMultiRowEnabled(self.window)
+  end
   if self.linkButton then
     self.linkButton.icon = images.icons.icon_connect or self.linkButton.icon
   end
   if self.addSpriteButton then
     self.addSpriteButton.icon = images.icons.icon_add_sprite or self.addSpriteButton.icon
+  end
+  if self.toggleToolbarRowsButton then
+    if isOamMultiRowEnabled(self.window) then
+      self.toggleToolbarRowsButton.icon = images.icons.icon_normal_mode or self.toggleToolbarRowsButton.icon
+      self.toggleToolbarRowsButton.tooltip = "Switch to single-row toolbar"
+    else
+      self.toggleToolbarRowsButton.icon = images.icons.icon_compact_mode or self.toggleToolbarRowsButton.icon
+      self.toggleToolbarRowsButton.tooltip = "Switch to two-row toolbar"
+    end
   end
   self:updateOriginButtons()
 

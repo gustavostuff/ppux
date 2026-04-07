@@ -889,7 +889,11 @@ function WM:createSpriteWindow(opts)
       defaults.cellW, defaults.cellH,
       defaults.cols, defaults.rows,
       defaults.zoom,
-      { title = defaults.title, nonActiveLayerOpacity = 0.0 }
+      {
+        title = defaults.title,
+        nonActiveLayerOpacity = 0.0,
+        multiRowToolbar = (opts.multiRowToolbar ~= false),
+      }
     )
 
     win.layers = {}
