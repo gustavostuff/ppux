@@ -6,7 +6,6 @@ local AppSettingsController = require("controllers.app.settings_controller")
 local CursorsController = require("controllers.input_support.cursors_controller")
 local Taskbar = require("user_interface.taskbar")
 local UiScale = require("user_interface.ui_scale")
-local UiScaleController = require("controllers.ui.ui_scale_controller")
 local ToastController = require("controllers.ui.toast_controller")
 local UserInput = require("controllers.input")
 local RomProjectController = require("controllers.rom.rom_project_controller")
@@ -180,8 +179,6 @@ local CRT_CANVAS_H = 180
 
 local STANDARD_FONT_SIZE = 16
 local STANDARD_EMPTY_FONT_SIZE = 32
-local CRT_FONT_SIZE = 8
-local CRT_EMPTY_FONT_SIZE = 16
 
 local function resolveCanvasSize(crtMode)
   if crtMode == true then
@@ -190,42 +187,23 @@ local function resolveCanvasSize(crtMode)
   return STANDARD_CANVAS_W, STANDARD_CANVAS_H
 end
 
-local function resolveFontSizes(crtMode)
-  if crtMode == true then
-    return CRT_FONT_SIZE, CRT_EMPTY_FONT_SIZE
-  end
-  return STANDARD_FONT_SIZE, STANDARD_EMPTY_FONT_SIZE
-end
-
-local function loadAppFont(size, useTinyFont)
-  local candidates = nil
-  if useTinyFont == true then
-    candidates = {
-      { path = "user_interface/fonts/Tiny5-Regular.ttf", profile = UiScale.FONT_PROFILE_TINY5 },
-      { path = "user_interface/fonts/proggy-tiny.ttf", profile = UiScale.FONT_PROFILE_PROGGY_TINY },
-      { path = "../user_interface/fonts/proggy-tiny.ttf", profile = UiScale.FONT_PROFILE_PROGGY_TINY },
-      { path = "user_interface/fonts/proggy-clean-sz.ttf", profile = UiScale.FONT_PROFILE_PROGGY_TINY },
-      { path = "../user_interface/fonts/proggy-clean-sz.ttf", profile = UiScale.FONT_PROFILE_PROGGY_TINY },
-    }
-  else
-    candidates = {
-      { path = "user_interface/fonts/proggy-tiny.ttf", profile = UiScale.FONT_PROFILE_PROGGY_TINY },
-      { path = "../user_interface/fonts/proggy-tiny.ttf", profile = UiScale.FONT_PROFILE_PROGGY_TINY },
-      { path = "user_interface/fonts/proggy-clean-sz.ttf", profile = UiScale.FONT_PROFILE_PROGGY_TINY },
-      { path = "../user_interface/fonts/proggy-clean-sz.ttf", profile = UiScale.FONT_PROFILE_PROGGY_TINY },
-      { path = "user_interface/fonts/Tiny5-Regular.ttf", profile = UiScale.FONT_PROFILE_TINY5 },
-    }
-  end
+local function loadAppFont(size)
+  local candidates = {
+    "user_interface/fonts/proggy-tiny.ttf",
+    "../user_interface/fonts/proggy-tiny.ttf",
+    "user_interface/fonts/proggy-clean-sz.ttf",
+    "../user_interface/fonts/proggy-clean-sz.ttf",
+    "user_interface/fonts/Tiny5-Regular.ttf",
+  }
 
   for _, candidate in ipairs(candidates) do
-    local ok, font = pcall(love.graphics.newFont, candidate.path, size)
+    local ok, font = pcall(love.graphics.newFont, candidate, size)
     if ok and font then
-      return font, candidate.profile
+      return font
     end
   end
 
-  local fallbackProfile = useTinyFont == true and UiScale.FONT_PROFILE_TINY5 or UiScale.FONT_PROFILE_PROGGY_TINY
-  return love.graphics.newFont(size), fallbackProfile
+  return love.graphics.newFont(size)
 end
 
 local function initGraphics(self, opts)
@@ -233,19 +211,16 @@ local function initGraphics(self, opts)
   local crtMode = (opts.crtMode == true)
   local previousResolutionMode = ResolutionController.mode
   local canvasW, canvasH = resolveCanvasSize(crtMode)
-  local uiFontSize, emptyFontSize = resolveFontSizes(crtMode)
 
   self.canvas = love.graphics.newCanvas(canvasW, canvasH)
   self.canvas:setFilter("nearest", "nearest")
   self.canvasFilterMode = self.canvasFilterMode or "sharp"
   self.crtModeEnabled = crtMode
-  self.font, self.fontProfile = loadAppFont(uiFontSize, crtMode)
+  self.font = loadAppFont(STANDARD_FONT_SIZE)
   self.font:setFilter("nearest", "nearest")
-  self.emptyStateFont = loadAppFont(emptyFontSize, crtMode)
+  self.emptyStateFont = loadAppFont(STANDARD_EMPTY_FONT_SIZE)
   self.emptyStateFont:setFilter("nearest", "nearest")
   love.graphics.setFont(self.font)
-  UiScale.setFontProfile(self.fontProfile)
-  UiScaleController.applyForCrtMode(self, crtMode)
 
   ResolutionController:init(self.canvas)
   if previousResolutionMode ~= nil then
@@ -420,7 +395,6 @@ function AppCoreController:load()
   self.taskbar:updateLayout(self.canvas:getWidth(), self.canvas:getHeight())
   self.toastController = ToastController.new(self)
   self.toastController:updateLayout(self.canvas:getWidth(), self.canvas:getHeight())
-  UiScaleController.applyForCrtMode(self, self.crtModeEnabled == true)
 end
 
 function AppCoreController:setCrtModeEnabled(enabled)

@@ -1,5 +1,3 @@
-local DebugController = require("controllers.dev.debug_controller")
-
 local crtShaderLoadAttempted = false
 local cachedCrtShader = nil
 
@@ -33,7 +31,7 @@ function ResolutionController:init(canvas)
   self.canvasScaleX = 1
   self.canvasScaleY = 1
   self.defaultMode = self.modes.KEEP_ASPECT
-  self.canvasCrtShaderEnabled = (rawget(_G, "__PPUX_ENABLE_CRT_SHADER__") == true)
+  self.canvasCrtShaderEnabled = false
   self.canvasCrtFlat = (rawget(_G, "__PPUX_CRT_FLAT__") == true)
   self.canvasCrtDistortion = tonumber(rawget(_G, "__PPUX_CRT_DISTORTION__")) or 0.15
   self:setMode(self.defaultMode)

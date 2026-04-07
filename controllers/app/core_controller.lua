@@ -192,7 +192,6 @@ local function scrollChrWindowToCell(winBank, col, row)
 end
 
 function AppCoreController.new()
-  UiScale.setCompactMode(false)
   local self = setmetatable({}, AppCoreController)
 
   -- app state

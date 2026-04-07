@@ -126,7 +126,6 @@ local function refreshModalMetrics(app)
 end
 
 function M.applyForCrtMode(app, enabled)
-  UiScale.setCompactMode(enabled == true)
   ModalPanelUtils.refreshMetrics()
 
   if app then
@@ -159,7 +158,7 @@ function M.applyForCrtMode(app, enabled)
     refreshModalMetrics(app)
   end
 
-  return UiScale.isCompactMode()
+  return false
 end
 
 return M
