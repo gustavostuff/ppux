@@ -103,6 +103,9 @@ function PaletteToolbar:_onToggleActive()
   if self.window.syncToGlobalPalette then
     self.window:syncToGlobalPalette()
   end
+  if self.ctx and self.ctx.app and self.ctx.app.invalidatePpuFrameLayersAffectedByPaletteWin then
+    self.ctx.app:invalidatePpuFrameLayersAffectedByPaletteWin(self.window)
+  end
   
   if self.ctx and self.ctx.setStatus then
     local title = self.window.title or "Palette"

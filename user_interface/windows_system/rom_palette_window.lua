@@ -89,6 +89,14 @@ local function recordPaletteColorUndo(win, actions, beforePaletteData, afterPale
   })
 end
 
+local function invalidateLinkedPpuFrames(paletteWin)
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app
+  if app and app.invalidatePpuFrameLayersAffectedByPaletteWin then
+    app:invalidatePpuFrameLayersAffectedByPaletteWin(paletteWin)
+  end
+end
+
 function RomPaletteWindow:isCellEditable(col, row)
   if not self.paletteData or not self.paletteData.romColors then return false end
   local rowIndex = (row or 0) + 1
@@ -375,6 +383,7 @@ function RomPaletteWindow:adjustSelectedByArrows(dx, dy)
   end
 
   recordPaletteColorUndo(self, undoActions, beforePaletteData, TableUtils.deepcopy(self.paletteData or {}))
+  invalidateLinkedPpuFrames(self)
   markPaletteUnsaved()
 end
 
@@ -510,6 +519,7 @@ function RomPaletteWindow:setCellAddress(col, row, romAddr)
   self:set(col, row, code)
   self:setSelected(col, row)
 
+  invalidateLinkedPpuFrames(self)
   markPaletteUnsaved()
   return true, code
 end

@@ -324,6 +324,8 @@ local function applyPaletteLinkEvent(event, direction)
     return false
   end
 
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app or nil
   local applied = 0
   for _, act in ipairs(event.actions) do
     local win = act.win
@@ -332,6 +334,9 @@ local function applyPaletteLinkEvent(event, direction)
     if layer then
       local state = (direction == "undo") and act.beforePaletteData or act.afterPaletteData
       layer.paletteData = deepCopy(state)
+      if app and app.invalidatePpuFramePaletteLayer then
+        app:invalidatePpuFramePaletteLayer(win, li)
+      end
       applied = applied + 1
     end
   end
@@ -360,6 +365,8 @@ local function applyPaletteColorEvent(event, direction)
     return false
   end
 
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app or nil
   local touchedWins = {}
   local applied = 0
   for _, act in ipairs(event.actions) do
@@ -394,6 +401,9 @@ local function applyPaletteColorEvent(event, direction)
     elseif win.activePalette and win.syncToGlobalPalette then
       win:syncToGlobalPalette()
     end
+    if app and app.invalidatePpuFrameLayersAffectedByPaletteWin then
+      app:invalidatePpuFrameLayersAffectedByPaletteWin(win)
+    end
   end
 
   return applied > 0
@@ -414,6 +424,8 @@ local function applyRomPaletteAddressEvent(event, direction)
     return false
   end
 
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app or nil
   local state = (direction == "undo") and event.beforeState or event.afterState
   if not state then
     return false
@@ -432,6 +444,9 @@ local function applyRomPaletteAddressEvent(event, direction)
     win:setSelected(state.selected.col, state.selected.row)
   elseif win.clearSelected then
     win:clearSelected()
+  end
+  if app and app.invalidatePpuFrameLayersAffectedByPaletteWin then
+    app:invalidatePpuFrameLayersAffectedByPaletteWin(win)
   end
   return true
 end

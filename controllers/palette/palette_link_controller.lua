@@ -65,6 +65,19 @@ local function clonePaletteData(paletteData)
   return deepCopy(paletteData)
 end
 
+local function invalidatePaletteLinkedPpuLayer(win, layerIndex)
+  local app = getApp()
+  if app and app.invalidatePpuFramePaletteLayer then
+    app:invalidatePpuFramePaletteLayer(win, layerIndex)
+  end
+end
+
+local function invalidatePaletteLinkedPpuLayersForActions(actions)
+  for _, action in ipairs(actions or {}) do
+    invalidatePaletteLinkedPpuLayer(action and action.win or nil, action and action.layerIndex or nil)
+  end
+end
+
 local function isPointInWindowInteractiveArea(win, x, y)
   if not win then
     return false
@@ -324,6 +337,7 @@ local function unlinkAllPaletteTargets(wm, paletteWin, opts)
   if opts.commitUndo ~= false then
     pushPaletteLinkUndo(undoActions)
   end
+  invalidatePaletteLinkedPpuLayersForActions(undoActions)
   if opts.setStatus ~= false then
     local app = getApp()
     if app and app.setStatus then
@@ -366,6 +380,7 @@ local function unlinkPaletteConnection(contentWin, paletteWin)
   end
 
   pushPaletteLinkUndo(actions)
+  invalidatePaletteLinkedPpuLayersForActions(actions)
 
   local app = getApp()
   if app and app.setStatus then
@@ -405,6 +420,7 @@ local function unlinkPaletteConnectionForLayer(contentWin, paletteWin, layerInde
       afterPaletteData = clonePaletteData(layer.paletteData or nil),
     },
   })
+  invalidatePaletteLinkedPpuLayer(contentWin, layerIndex)
 
   local app = getApp()
   if app and app.setStatus then
@@ -451,6 +467,7 @@ local function moveAllPaletteTargets(wm, sourcePaletteWin, targetPaletteWin)
   end
 
   pushPaletteLinkUndo(actions)
+  invalidatePaletteLinkedPpuLayersForActions(actions)
 
   local app = getApp()
   if app and app.setStatus then
@@ -784,6 +801,7 @@ local function finishCreateLinkDrag(wm, x, y, drag)
   end
   if result.actions and #result.actions > 0 then
     pushPaletteLinkUndo(result.actions)
+    invalidatePaletteLinkedPpuLayersForActions(result.actions)
   end
   if app and app.setStatus then
     app:setStatus(string.format("Linked %s to %s layer %d", sourceTitle, targetWin.title or "window", result.layerIndex))
@@ -833,6 +851,7 @@ local function finishMoveSingleDrag(wm, x, y, drag)
       afterPaletteData = clonePaletteData(layer.paletteData or nil),
     },
   })
+  invalidatePaletteLinkedPpuLayer(originContentWin, layerIndex)
   if app and app.setStatus then
     app:setStatus(string.format(
       "Moved %s layer %d palette link to %s",

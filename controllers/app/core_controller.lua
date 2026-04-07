@@ -1104,6 +1104,9 @@ function AppCoreController:showRomPaletteAddressModal(win, col, row)
       end
 
       self:setStatus(string.format("Assigned ROM palette cell (%d,%d) to 0x%X", targetCol, targetRow, addr))
+      if self.invalidatePpuFrameLayersAffectedByPaletteWin then
+        self:invalidatePpuFrameLayersAffectedByPaletteWin(targetWindow)
+      end
       if self.undoRedo and self.undoRedo.addRomPaletteAddressEvent then
         self.undoRedo:addRomPaletteAddressEvent({
           type = "rom_palette_address",
@@ -1697,6 +1700,58 @@ function AppCoreController:invalidatePpuFrameNametableTile(bankIdx, tileIndex)
               touched = true
             end
           end
+        end
+      end
+    end
+  end
+
+  return touched
+end
+
+local function ppuLayerUsesPaletteWin(layer, paletteWin)
+  if not (layer and layer.kind == "tile" and paletteWin) then
+    return false
+  end
+
+  local pd = layer.paletteData
+  if pd and pd.winId and paletteWin._id then
+    return pd.winId == paletteWin._id
+  end
+
+  if paletteWin.kind == "palette" and paletteWin.activePalette == true then
+    return not (pd and pd.items)
+  end
+
+  return false
+end
+
+function AppCoreController:invalidatePpuFramePaletteLayer(win, layerIndex)
+  if not (win and win.kind == "ppu_frame" and win.layers and win.invalidateNametableLayerCanvas) then
+    return false
+  end
+
+  local li = tonumber(layerIndex) or (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+  local layer = win.layers[li]
+  if not (layer and layer.kind == "tile") then
+    return false
+  end
+
+  win:invalidateNametableLayerCanvas(li)
+  return true
+end
+
+function AppCoreController:invalidatePpuFrameLayersAffectedByPaletteWin(paletteWin)
+  if not (paletteWin and self.wm and self.wm.getWindows) then
+    return false
+  end
+
+  local touched = false
+  for _, win in ipairs(self.wm:getWindows() or {}) do
+    if win and win.kind == "ppu_frame" and win.layers and win.invalidateNametableLayerCanvas then
+      for li, layer in ipairs(win.layers) do
+        if ppuLayerUsesPaletteWin(layer, paletteWin) then
+          win:invalidateNametableLayerCanvas(li)
+          touched = true
         end
       end
     end

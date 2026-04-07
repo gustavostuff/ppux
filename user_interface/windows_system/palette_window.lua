@@ -80,6 +80,14 @@ local function recordPaletteColorUndo(win, actions, paletteStates)
   })
 end
 
+local function invalidateLinkedPpuFrames(paletteWin)
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app
+  if app and app.invalidatePpuFrameLayersAffectedByPaletteWin then
+    app:invalidatePpuFrameLayersAffectedByPaletteWin(paletteWin)
+  end
+end
+
 local function buildCodeFromNibbles(hi, lo)
   hi = clamp(tonumber(hi) or 0, 0, 3)
   lo = clamp(tonumber(lo) or 0, 0, 15)
@@ -201,6 +209,7 @@ function PaletteWindow:adjustSelectedByArrows(dx,dy)
       end
       ShaderPaletteController.setCodes(flat)
     end
+    invalidateLinkedPpuFrames(self)
   end
 
   recordPaletteColorUndo(self, {
