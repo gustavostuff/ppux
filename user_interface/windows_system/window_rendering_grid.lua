@@ -226,7 +226,10 @@ function Window:drawSprites(renderSprite, isFocused, layerIndex, romRaw)
   local viewMaxY = viewMinY + (self.visibleRows or self.rows or 0) * ch
   local wrapPreview = (self.kind == "oam_animation")
 
-  if self.kind == "ppu_frame" and isActiveLayer and self.showSpriteOriginGuides == true then
+  if (self.kind == "ppu_frame" or self.kind == "oam_animation")
+    and isActiveLayer
+    and self.showSpriteOriginGuides == true
+  then
     local axisX = originX
     local axisY = originY
     love.graphics.setColor(colors.gray75[1], colors.gray75[2], colors.gray75[3], 0.85)
