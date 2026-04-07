@@ -38,8 +38,7 @@ function ToolbarController.createSpecializedToolbar(window, ctx, windowControlle
   elseif WindowCaps.isPatternTableBuilder(window) then
     return PatternTableBuilderToolbar.new(window, ctx, windowController)
   elseif window.kind == "static_art" then
-    -- No specialized toolbar for static art windows
-    return nil
+    return StaticArtToolbar.new(window, ctx, windowController)
   elseif WindowCaps.isChrLike(window) then
     return ChrToolbar.new(window, ctx, windowController)
   elseif WindowCaps.isPpuFrame(window) then

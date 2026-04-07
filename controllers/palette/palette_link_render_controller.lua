@@ -2,6 +2,7 @@ local ResolutionController = require("controllers.app.resolution_controller")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local colors = require("app_colors")
+local images = require("images")
 
 local M = {}
 local isMouseInsideSquareHoverArea
@@ -24,6 +25,13 @@ local function getScaledMousePosition()
     mx, my = love.mouse.getPosition()
   end
   return mx, my
+end
+
+local function getFocusedWindow()
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app or nil
+  local wm = app and app.wm or nil
+  return wm and wm.getFocus and wm:getFocus() or nil
 end
 
 local function roundPixel(value)
@@ -79,37 +87,99 @@ local function eachLayer(layers, fn)
   end
 end
 
+local function getActiveLayerIndex(win)
+  if not win then
+    return 1
+  end
+  return (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+end
+
+local function getActiveLayer(win)
+  local layerIndex = getActiveLayerIndex(win)
+  return win and win.layers and win.layers[layerIndex] or nil, layerIndex
+end
+
+local function getWindowToolbarLinkHandleRect(win)
+  if not win or win._collapsed or win._closed or win._minimized then
+    return nil
+  end
+  local toolbar = win.specializedToolbar
+  if not (toolbar and toolbar.getLinkHandleRect) then
+    return nil
+  end
+  if toolbar.updatePosition then
+    toolbar:updatePosition()
+  end
+  local x, y, w, h = toolbar:getLinkHandleRect()
+  if not (x and y and w and h) then
+    return nil
+  end
+  return x, y, w, h
+end
+
+local function getCollapsedLeftAnchor(win)
+  if not win then
+    return nil, nil
+  end
+  local x, y, _, h = M.getWindowLinkRect(win)
+  if not (x and y and h) then
+    return nil, nil
+  end
+  return x, y + math.floor(h * 0.5)
+end
+
+local function getHeaderLeftAnchor(win)
+  if not win then
+    return nil, nil
+  end
+  local x, y, _, h
+  if win.getHeaderRect then
+    x, y, _, h = win:getHeaderRect()
+  else
+    x, y, _, h = M.getWindowLinkRect(win)
+  end
+  if not (x and y and h) then
+    return nil, nil
+  end
+  return x, y + math.floor(h * 0.5)
+end
+
+local function getVisibleLinkAnchor(win)
+  if not win then
+    return nil, nil
+  end
+  if win._collapsed then
+    return getCollapsedLeftAnchor(win)
+  end
+  if getFocusedWindow() ~= win then
+    return getHeaderLeftAnchor(win)
+  end
+  local x, y, w, h = getWindowToolbarLinkHandleRect(win)
+  if x and y and w and h then
+    return x + math.floor(w * 0.5), y + math.floor(h * 0.5)
+  end
+  return getHeaderLeftAnchor(win)
+end
+
+local function getActiveLayerLinkedPaletteWindow(win, wm)
+  local layer = getActiveLayer(win)
+  return M.getPaletteWindowForLayer(layer, wm)
+end
+
 local function collectLinkedPaletteWindowsForWindow(win, wm)
   local paletteWindows = {}
-  local seen = {}
-  local layers = win and win.layers or nil
-  if not (layers and wm) then
+  if not (win and wm) then
     return paletteWindows
   end
-
-  eachLayer(layers, function(layer)
-    local paletteWin = M.getPaletteWindowForLayer(layer, wm)
-    if paletteWin and not seen[paletteWin] then
-      seen[paletteWin] = true
-      paletteWindows[#paletteWindows + 1] = paletteWin
-    end
-  end)
-
+  local paletteWin = getActiveLayerLinkedPaletteWindow(win, wm)
+  if paletteWin then
+    paletteWindows[#paletteWindows + 1] = paletteWin
+  end
   return paletteWindows
 end
 
 local function windowHasPaletteLinkTo(win, paletteWin, wm)
-  if not (win and paletteWin and wm) then
-    return false
-  end
-
-  for _, linkedPaletteWin in ipairs(collectLinkedPaletteWindowsForWindow(win, wm)) do
-    if linkedPaletteWin == paletteWin then
-      return true
-    end
-  end
-
-  return false
+  return getActiveLayerLinkedPaletteWindow(win, wm) == paletteWin
 end
 
 local function paletteHasLinkedTargets(paletteWin, wm)
@@ -199,7 +269,7 @@ function M.getFocusedLinks(app)
   local links = {}
   for _, win in ipairs(wm:getWindows()) do
     if win ~= focused and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
-      if windowHasPaletteLinkTo(win, focused, wm) then
+      if getActiveLayerLinkedPaletteWindow(win, wm) == focused then
         links[#links + 1] = { contentWin = win, paletteWin = focused }
       end
     end
@@ -268,14 +338,7 @@ function M.getDestinationLayerAnchor(contentWin)
   if not contentWin then
     return nil, nil
   end
-  if contentWin.getScreenRect then
-    local x, y = contentWin:getScreenRect()
-    if x and y then
-      return x - 4, y - 8
-    end
-  end
-  local x, y = M.getWindowLinkRect(contentWin)
-  return x, y
+  return getVisibleLinkAnchor(contentWin)
 end
 
 function M.getPaletteSourceAnchor(paletteWin, targetWin)
@@ -284,7 +347,7 @@ function M.getPaletteSourceAnchor(paletteWin, targetWin)
   end
 
   if WindowCaps.isRomPaletteWindow(paletteWin) then
-    local sx, sy = M.getPaletteLinkDragAnchor(paletteWin)
+    local sx, sy = getVisibleLinkAnchor(paletteWin)
     if sx and sy then
       return sx, sy
     end
@@ -306,23 +369,14 @@ end
 function M.getPaletteLinkDragAnchor(paletteWin)
   if not paletteWin then return nil, nil end
   if paletteWin._collapsed then
-    local x, y, orientation, side = M.getWindowLinkAnchor(paletteWin, {
-      getScreenRect = function()
-        return 0, 0, 0, 0
-      end,
-      _collapsed = false,
-    })
-    return x, y, orientation, side
+    return getCollapsedLeftAnchor(paletteWin)
   end
-  local toolbar = paletteWin.specializedToolbar
-  if toolbar and toolbar.getLinkHandleRect then
-    local x, y, w, h = toolbar:getLinkHandleRect()
-    if x and y and w and h then
-      return x + w / 2, y + h / 2, nil, nil
-    end
+  local x, y, w, h = getWindowToolbarLinkHandleRect(paletteWin)
+  if x and y and w and h then
+    return x + w / 2, y + h / 2, nil, nil
   end
   local x, y, w, _ = M.getWindowLinkRect(paletteWin)
-  return x + w / 2, y, nil, nil
+  return x, y + math.floor(((paletteWin.getHeaderRect and select(4, paletteWin:getHeaderRect())) or 0) * 0.5), nil, nil
 end
 
 function M.getSourcePaletteProxyRect(paletteWin, app)
@@ -341,15 +395,7 @@ function M.getSourcePaletteProxyRect(paletteWin, app)
     return nil
   end
 
-  local toolbar = paletteWin.specializedToolbar
-  if not (toolbar and toolbar.getLinkHandleRect) then
-    return nil
-  end
-  local x, y, w, h = toolbar:getLinkHandleRect()
-  if not (x and y and w and h) then
-    return nil
-  end
-  return x, y, w, h
+  return getWindowToolbarLinkHandleRect(paletteWin)
 end
 
 function M.getSourcePaletteProxyWindowAt(app, x, y)
@@ -370,14 +416,15 @@ function M.getSourcePaletteProxyWindowAt(app, x, y)
 end
 
 function M.isMouseHoveringPaletteSourceSquare(paletteWin)
-  if not paletteWin then
+  if not paletteWin or paletteWin._collapsed then
     return false
   end
-  local sx, sy = M.getPaletteLinkDragAnchor(paletteWin)
-  if not (sx and sy) then
+  local x, y, w, h = getWindowToolbarLinkHandleRect(paletteWin)
+  if not (x and y and w and h) then
     return false
   end
-  return isMouseInsideSquareHoverArea(sx, sy, 15)
+  local mx, my = getScaledMousePosition()
+  return mx >= x and mx <= (x + w) and my >= y and my <= (y + h)
 end
 
 function M.getHoveredSourceSquareLinks(app)
@@ -421,12 +468,16 @@ function M.isPointHoveringDestinationSquare(contentWin, paletteWin, x, y, hitSiz
   if not (contentWin and paletteWin) then
     return false
   end
-
-  local sx, sy = M.getDestinationLayerAnchor(contentWin)
-  if not (sx and sy and x and y) then
+  if contentWin._collapsed then
     return false
   end
-  return isPointInsideSquare(sx, sy, hitSize or DESTINATION_HIT_SIZE, x, y)
+  local hx, hy, hw, hh = getWindowToolbarLinkHandleRect(contentWin)
+  if not (hx and hy and hw and hh and x and y) then
+    return false
+  end
+  local pad = math.max(0, math.floor(((hitSize or DESTINATION_HIT_SIZE) - math.min(hw, hh)) * 0.5))
+  return x >= (hx - pad) and x <= (hx + hw + pad)
+    and y >= (hy - pad) and y <= (hy + hh + pad)
 end
 
 function M.isMouseHoveringDestinationSquare(contentWin, paletteWin)
@@ -550,7 +601,6 @@ function M.drawConnector(geometry)
 
   love.graphics.push("all")
   M.drawConnectorLine(geometry)
-  M.drawConnectorSquares(geometry)
   love.graphics.pop()
 end
 
@@ -585,7 +635,11 @@ function M.drawConnectorSquares(geometry)
 end
 
 function M.drawRectConnector(x1, y1, x2, y2, opts)
-  M.drawConnector(M.buildConnectorGeometry(x1, y1, x2, y2, opts))
+  local geometry = M.buildConnectorGeometry(x1, y1, x2, y2, opts)
+  love.graphics.push("all")
+  M.drawConnectorLine(geometry)
+  M.drawConnectorSquares(geometry)
+  love.graphics.pop()
 end
 
 local function sortLinksStable(links)
@@ -649,9 +703,6 @@ function M.drawOverlay(app)
   for _, geometry in ipairs(geometries) do
     M.drawConnectorLine(geometry)
   end
-  for _, geometry in ipairs(geometries) do
-    M.drawConnectorSquares(geometry)
-  end
   love.graphics.pop()
 end
 
@@ -660,20 +711,25 @@ function M.drawSourcePaletteProxyForWindow(app, win)
   if not px then
     return
   end
-
-  love.graphics.push("all")
-  love.graphics.setColor(colors.gray20)
-  love.graphics.rectangle("fill", px, py, pw, ph)
-  love.graphics.pop()
 end
 
 function M.drawActiveDrag(app)
   local drag = app and app.paletteLinkDrag
-  if not (drag and drag.active and drag.sourceWin) then
+  if not (drag and drag.active) then
     return
   end
 
-  local sx, sy = M.getPaletteLinkDragAnchor(drag.sourceWin)
+  local sx, sy
+  if drag.mode == "move_single" and drag.originContentWin then
+    local x, y, w, h = getWindowToolbarLinkHandleRect(drag.originContentWin)
+    if x and y and w and h then
+      sx, sy = x + math.floor(w * 0.5), y + math.floor(h * 0.5)
+    else
+      sx, sy = getHeaderLeftAnchor(drag.originContentWin)
+    end
+  else
+    sx, sy = M.getPaletteLinkDragAnchor(drag.sourceWin)
+  end
   local tx = drag.currentX or sx
   local ty = drag.currentY or sy
   if not (sx and sy and tx and ty) then
@@ -685,6 +741,14 @@ function M.drawActiveDrag(app)
   if wm then
     if drag.mode == "move_all" then
       local targetPalette = PaletteLinkController.getMoveAllTarget(wm, drag.sourceWin, tx, ty, { allowSource = true })
+      if targetPalette then
+        lineColor = colors.green
+      end
+    elseif drag.mode == "move_single" then
+      local targetPalette = PaletteLinkController.getMoveSingleTarget(wm, drag.originContentWin, tx, ty, {
+        allowSource = true,
+        sourcePaletteWin = drag.originPaletteWin,
+      })
       if targetPalette then
         lineColor = colors.green
       end

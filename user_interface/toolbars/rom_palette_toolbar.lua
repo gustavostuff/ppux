@@ -17,7 +17,7 @@ function RomPaletteToolbar.new(window, ctx, windowController)
   local hx, hy, hw, hh = window:getHeaderRect()
   self.h = hh
 
-  self.linkButton = self:addButton(images.icons.icon_pivot or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty, nil, "Palette link handle")
+  self.linkButton = self:addButton(images.icons.icon_connect or images.icons.icon_pivot or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty, nil, "Palette link handle")
 
   self.compactButton = self:addButton(images.icons.icon_minus or images.icons.icon_down, function()
     self:_onToggleCompact()
@@ -30,13 +30,16 @@ function RomPaletteToolbar.new(window, ctx, windowController)
 end
 
 function RomPaletteToolbar:getLinkHandleRect()
-  if not self.linkButton then return nil end
+  if not self.linkButton or self.linkButton.hidden == true then return nil end
   self:updatePosition()
   return self.linkButton.x, self.linkButton.y, self.linkButton.w, self.linkButton.h
 end
 
 function RomPaletteToolbar:updateIcons()
   ToolbarBase.updateIcons(self)
+  if self.linkButton then
+    self.linkButton.icon = images.icons.icon_connect or images.icons.icon_pivot or self.linkButton.icon
+  end
   self:updateCompactIcon()
 end
 

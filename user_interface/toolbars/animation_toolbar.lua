@@ -33,6 +33,8 @@ function AnimationToolbar.new(window, ctx, windowController)
     return string.format("Layer %d/%d", current, total)
   end)
   self.layerLabel.renderInContent = true
+
+  self.linkButton = self:addButton(images.icons.icon_connect, nil, "Palette link handle")
   
   -- Previous layer button (down icon)
   self:addButton(images.icons.icon_down, function()
@@ -77,6 +79,14 @@ function AnimationToolbar.new(window, ctx, windowController)
   self:updatePosition()
   
   return self
+end
+
+function AnimationToolbar:getLinkHandleRect()
+  if not self.linkButton or self.linkButton.hidden == true then
+    return nil
+  end
+  self:updatePosition()
+  return self.linkButton.x, self.linkButton.y, self.linkButton.w, self.linkButton.h
 end
 
 -- Handle previous layer
@@ -219,6 +229,10 @@ end
 
 -- Update button icons
 function AnimationToolbar:updateIcons()
+  ToolbarBase.updateIcons(self)
+  if self.linkButton then
+    self.linkButton.icon = images.icons.icon_connect or self.linkButton.icon
+  end
   if self.addSpriteButton then
     self.addSpriteButton.icon = images.icons.icon_add_sprite or self.addSpriteButton.icon
   end

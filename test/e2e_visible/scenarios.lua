@@ -1812,43 +1812,6 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
     end)
   end
 
-  local function windowHeaderCenterByKey(key)
-    return windowHeaderCenter(function(_, currentRunner)
-      return requireRunnerWindow(currentRunner, key)
-    end)
-  end
-
-  local function windowContentCenterByKey(key)
-    return function(_, _, currentRunner)
-      local win = requireRunnerWindow(currentRunner, key)
-      assert(win.getScreenRect, "expected screen rect accessor")
-      local x, y, w, h = win:getScreenRect()
-      assert(type(x) == "number" and type(y) == "number" and type(w) == "number" and type(h) == "number",
-        "expected screen rect")
-      return x + math.floor(w * 0.5), y + math.floor(h * 0.5)
-    end
-  end
-
-  local function paletteContentCenterByKey(key)
-    return function(_, _, currentRunner)
-      local win = requireRunnerWindow(currentRunner, key)
-      assert(win.getScreenRect, "expected screen rect accessor")
-      local x, y, w, h = win:getScreenRect()
-      assert(type(x) == "number" and type(y) == "number" and type(w) == "number" and type(h) == "number",
-        "expected screen rect")
-      return x + math.floor(w * 0.5), y + math.floor(h * 0.5)
-    end
-  end
-
-  local function destinationAnchorCenterByKey(key)
-    return function(_, _, currentRunner)
-      local win = requireRunnerWindow(currentRunner, key)
-      local x, y = PaletteLinkRenderController.getDestinationLayerAnchor(win)
-      assert(type(x) == "number" and type(y) == "number", "expected destination link anchor")
-      return x, y
-    end
-  end
-
   local function appendFocusWindow(steps, label, key)
     steps[#steps + 1] = call(label, function(_, currentApp, currentRunner)
       currentApp.wm:setFocus(requireRunnerWindow(currentRunner, key))
@@ -1867,7 +1830,7 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
       steps,
       string.format("Link %s to %s", tostring(paletteKey), tostring(targetKey)),
       paletteHandleCenterByKey(paletteKey),
-      windowContentCenterByKey(targetKey),
+      paletteHandleCenterByKey(targetKey),
       {
         prePressPause = 0.12,
         holdDuration = 0.12,
@@ -1984,36 +1947,36 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
   }))
   steps[#steps + 1] = pause("Observe initial link setup", 0.4)
 
-  appendFocusWindow(steps, "Focus target1 before moving destination link", "linkTarget1")
+  appendFocusWindow(steps, "Focus target1 before reconnecting destination link", "linkTarget1")
   appendDrag(
     steps,
-    "Move single destination link from target1 to target4",
-    destinationAnchorCenterByKey("linkTarget1"),
-    windowHeaderCenterByKey("linkTarget4"),
+    "Reconnect target1 active layer from palette A to palette B",
+    paletteHandleCenterByKey("linkTarget1"),
+    paletteHandleCenterByKey("romLinkPaletteBWin"),
     {
       dragDuration = 0.2,
       postPause = 0.4,
     }
   )
-  steps[#steps + 1] = call("Assert moved destination link target1->target4", assertLinks({
-    linkTarget1 = nil,
+  steps[#steps + 1] = call("Assert target1 moved from palette A to palette B", assertLinks({
+    linkTarget1 = "romLinkPaletteBWin",
     linkTarget2 = "romLinkPaletteAWin",
     linkTarget3 = "romLinkPaletteAWin",
-    linkTarget4 = "romLinkPaletteAWin",
+    linkTarget4 = nil,
   }))
-  steps[#steps + 1] = pause("Observe moved destination link", 0.35)
+  steps[#steps + 1] = pause("Observe destination reconnect", 0.35)
 
   appendFocusWindow(steps, "Focus target2 before destination unlink", "linkTarget2")
   steps[#steps + 1] = call(
-    "Double-click destination marker on target2 to remove single link",
-    doubleClickAt(destinationAnchorCenterByKey("linkTarget2"))
+    "Double-click destination handle on target2 to remove single link",
+    doubleClickAt(paletteHandleCenterByKey("linkTarget2"))
   )
   steps[#steps + 1] = pause("Observe destination unlink", 0.4)
   steps[#steps + 1] = call("Assert destination double-click unlink", assertLinks({
-    linkTarget1 = nil,
+    linkTarget1 = "romLinkPaletteBWin",
     linkTarget2 = nil,
     linkTarget3 = "romLinkPaletteAWin",
-    linkTarget4 = "romLinkPaletteAWin",
+    linkTarget4 = nil,
   }))
 
   appendFocusWindow(steps, "Focus palette A before remove-all double click", "romLinkPaletteAWin")
@@ -2023,7 +1986,7 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
   )
   steps[#steps + 1] = pause("Observe source remove-all", 0.45)
   steps[#steps + 1] = call("Assert source remove-all", assertLinks({
-    linkTarget1 = nil,
+    linkTarget1 = "romLinkPaletteBWin",
     linkTarget2 = nil,
     linkTarget3 = nil,
     linkTarget4 = nil,
@@ -2045,7 +2008,7 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
     steps,
     "Right-drag move-all links from palette A to palette B",
     paletteHandleCenterByKey("romLinkPaletteAWin"),
-    paletteContentCenterByKey("romLinkPaletteBWin"),
+    paletteHandleCenterByKey("romLinkPaletteBWin"),
     {
       button = 2,
       prePressPause = 0.12,
@@ -2067,7 +2030,7 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
     steps,
     "Right-drag move-all from palette B back onto itself (unchanged)",
     paletteHandleCenterByKey("romLinkPaletteBWin"),
-    paletteContentCenterByKey("romLinkPaletteBWin"),
+    paletteHandleCenterByKey("romLinkPaletteBWin"),
     {
       button = 2,
       prePressPause = 0.12,

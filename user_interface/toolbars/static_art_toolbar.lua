@@ -28,6 +28,8 @@ function StaticArtToolbar.new(window, ctx, windowController)
     return string.format("%d/%d", current, total)
   end)
   self.layerLabel.renderInContent = true
+
+  self.linkButton = self:addButton(images.icons.icon_connect, nil, "Palette link handle")
   
   -- Previous layer button (down icon)
   self:addButton(images.icons.icon_down, function()
@@ -53,6 +55,14 @@ function StaticArtToolbar.new(window, ctx, windowController)
   self:updatePosition()
   
   return self
+end
+
+function StaticArtToolbar:getLinkHandleRect()
+  if not self.linkButton or self.linkButton.hidden == true then
+    return nil
+  end
+  self:updatePosition()
+  return self.linkButton.x, self.linkButton.y, self.linkButton.w, self.linkButton.h
 end
 
 -- Handle previous layer
@@ -148,7 +158,10 @@ end
 
 -- Empty updateIcons method
 function StaticArtToolbar:updateIcons()
-  -- No icons to update for static art toolbar
+  ToolbarBase.updateIcons(self)
+  if self.linkButton then
+    self.linkButton.icon = images.icons.icon_connect or self.linkButton.icon
+  end
 end
 
 return StaticArtToolbar
