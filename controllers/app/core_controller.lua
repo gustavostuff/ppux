@@ -206,6 +206,7 @@ function AppCoreController.new()
   self.editTool = "pencil"
   self.syncDuplicateTiles = false
   self.spaceHighlightActive = false
+  self.spaceHighlightSourceWin = nil
   self.showDebugInfo = false
   self.paletteLinkDrag = {
     active = false,

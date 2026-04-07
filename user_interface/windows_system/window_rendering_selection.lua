@@ -304,13 +304,20 @@ function Window:highlightAllTiles(L, overlayCtx, opts)
   local cols = self.cols or 0
   local rows = self.rows or 0
   local removedCells = (WindowCaps.isPpuFrame(self) and L.kind == "tile") and nil or L.removedCells
+  local layerIndex = self.activeLayer or 1
+  local drawnKeys = {}
 
   for row = 0, rows - 1 do
     for col = 0, cols - 1 do
       local i = row * cols + col + 1
-      local item = L.items[i]
+      local item = getSelectionTileRef(self, L, col, row, layerIndex)
       if item ~= nil and not (removedCells and removedCells[i]) then
-        local rx, ry, rw, rh = tileScreenRect(self, col, row, overlayCtx)
+        local rx, ry, rw, rh, topRow = getTileSelectionRect(self, col, row, overlayCtx)
+        local drawKey = string.format("%d:%d", col, topRow or row)
+        if drawnKeys[drawKey] then
+          goto continue
+        end
+        drawnKeys[drawKey] = true
         local color = colors.white
         if opts.resolveColor then
           color = opts.resolveColor(item, i, col, row)
@@ -370,7 +377,12 @@ function Window:drawTileSelectionOverlays(isFocused)
   local spaceDown = SpaceHighlightController.isSpaceHighlightActive()
   local spaceHighlightModel = SpaceHighlightController.buildModel(nil, spaceDown)
   local selectionHighlightModel = SpaceHighlightController.buildSelectionModel()
-  local showFocusedSpaceHighlight = isFocused and self:canShowSpaceHighlight(L) and spaceDown
+  local showFocusedSpaceHighlight = (
+    spaceDown
+    and spaceHighlightModel
+    and self == spaceHighlightModel.focusedWindow
+    and self:canShowSpaceHighlight(L)
+  )
   local showBankWindowMappedHighlight = (
       SpaceHighlightController.shouldShowMappedHighlightInWindow(self, spaceHighlightModel)
     ) or (

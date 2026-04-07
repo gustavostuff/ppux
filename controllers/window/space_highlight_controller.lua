@@ -14,6 +14,18 @@ local function getCtx(ctxOverride)
   return ctxOverride or rawget(_G, "ctx")
 end
 
+local function getHighlightSourceWindow(ctxOverride, wm)
+  local ctx = getCtx(ctxOverride)
+  if not ctx then return nil end
+  if ctx.getSpaceHighlightSourceWindow then
+    local sourceWin = ctx.getSpaceHighlightSourceWindow()
+    if sourceWin and not sourceWin._closed and not sourceWin._minimized then
+      return sourceWin
+    end
+  end
+  return (ctx.getFocus and ctx.getFocus()) or (wm and wm.getFocus and wm:getFocus()) or nil
+end
+
 local function getSpaceHighlightActive(ctxOverride)
   local ctx = getCtx(ctxOverride)
   if not ctx then return false end
@@ -205,7 +217,7 @@ function M.buildModel(ctxOverride, spaceDownOverride)
   if not spaceDown or not ctx then return nil end
 
   local wm = ctx.wm and ctx.wm() or nil
-  local focus = (ctx.getFocus and ctx.getFocus()) or (wm and wm.getFocus and wm:getFocus()) or nil
+  local focus = getHighlightSourceWindow(ctx, wm)
   if not focus or WindowCaps.isChrLike(focus) then return nil end
 
   local layer = focus.layers and focus.layers[focus.activeLayer or 1] or nil

@@ -119,13 +119,31 @@ function AppCoreController:_buildCtx()
       return selfRef.spaceHighlightActive == true
     end,
 
+    getSpaceHighlightSourceWindow = function()
+      return selfRef.spaceHighlightSourceWin
+    end,
+
     setSpaceHighlightActive = function(enabled)
       selfRef.spaceHighlightActive = (enabled == true)
+      if selfRef.spaceHighlightActive then
+        local wm = selfRef.wm
+        local focus = wm and wm.getFocus and wm:getFocus() or nil
+        selfRef.spaceHighlightSourceWin = focus
+      else
+        selfRef.spaceHighlightSourceWin = nil
+      end
       return selfRef.spaceHighlightActive
     end,
 
     toggleSpaceHighlightActive = function()
       selfRef.spaceHighlightActive = not (selfRef.spaceHighlightActive == true)
+      if selfRef.spaceHighlightActive then
+        local wm = selfRef.wm
+        local focus = wm and wm.getFocus and wm:getFocus() or nil
+        selfRef.spaceHighlightSourceWin = focus
+      else
+        selfRef.spaceHighlightSourceWin = nil
+      end
       return selfRef.spaceHighlightActive
     end,
 
