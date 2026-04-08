@@ -57,6 +57,7 @@ function AnimationToolbar.new(window, ctx, windowController)
 
   self.linkButton = self:addButton(images.icons.icon_connect, nil, "Palette link handle", {
     row = primaryRow,
+    paletteLinkHandle = true,
   })
   
   -- Previous layer button (down icon)

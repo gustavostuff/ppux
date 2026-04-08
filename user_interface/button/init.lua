@@ -181,16 +181,18 @@ function Button:draw()
   if not self.icon then return end
   drawBaseFill()
   drawHoverFocusUnderlay()
-  
-  -- Calculate icon alpha based on hover/press state
-  local iconAlpha = contentAlpha()
-  local r, g, b, a = contentColorWithAlpha(iconAlpha)
-  love.graphics.setColor(r, g, b, a)
-  
-  local iconW, iconH = iconSize(self.icon)
-  local iconX = self.x + (self.w - iconW) / 2  -- Center horizontally
-  local iconY = self.y + (self.h - iconH) / 2  -- Center vertically
-  drawIcon(self.icon, iconX, iconY)
+
+  if not self.skipIconDraw then
+    -- Calculate icon alpha based on hover/press state
+    local iconAlpha = contentAlpha()
+    local r, g, b, a = contentColorWithAlpha(iconAlpha)
+    love.graphics.setColor(r, g, b, a)
+
+    local iconW, iconH = iconSize(self.icon)
+    local iconX = self.x + (self.w - iconW) / 2  -- Center horizontally
+    local iconY = self.y + (self.h - iconH) / 2  -- Center vertically
+    drawIcon(self.icon, iconX, iconY)
+  end
   love.graphics.setColor(colors.white)
 end
 

@@ -42,9 +42,6 @@ function M.handleLayerNavigation(ctx, utils, key, focus)
   if not focus then return false end
   if key ~= "up" and key ~= "down" then return false end
   if not utils.shiftDown() then return false end
-  if WindowCaps.isStaticArt(focus) then
-    return false
-  end
   if not (focus.getActiveLayerIndex and focus.nextLayer and focus.prevLayer and focus.getLayerCount) then
     return false
   end

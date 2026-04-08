@@ -1045,6 +1045,12 @@ function M.isPointInToolbarLinkHandle(toolbar, x, y)
   return isValidPaletteLinkHandle(toolbar, x, y)
 end
 
+--- While a palette-link drag is active, hide the link handle icon on the window it started from.
+function M.shouldHidePaletteLinkHandleIconForWindow(win)
+  local drag = getPaletteLinkDrag()
+  return not not (drag and drag.active and win and drag.sourceWin == win)
+end
+
 function M.getActiveLayerLinkedPaletteWindow(contentWin, wm)
   return getActiveLayerLinkedPaletteWin(contentWin, wm)
 end

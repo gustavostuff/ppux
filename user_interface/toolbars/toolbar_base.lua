@@ -10,6 +10,7 @@ local DebugController = require("controllers.dev.debug_controller")
 local SpaceHighlightController = require("controllers.window.space_highlight_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local Timer = require("utils.timer_utils")
+local PaletteLinkController = require("controllers.palette.palette_link_controller")
 
 local ToolbarBase = {}
 ToolbarBase.__index = ToolbarBase
@@ -160,7 +161,10 @@ function ToolbarBase:addButton(icon, action, tooltip, opts)
     transparent = opts.transparent,
   })
   button.toolbarRow = tonumber(opts.row) or nil
-  
+  if opts.paletteLinkHandle then
+    button.paletteLinkHandle = true
+  end
+
   table.insert(self.buttons, button)
   self:_layoutButtons()
   
@@ -527,7 +531,13 @@ function ToolbarBase:draw()
   -- Draw buttons
   for _, button in ipairs(self.buttons) do
     if isButtonVisible(button) then
-      button:draw()
+      if button.paletteLinkHandle then
+        button.skipIconDraw = PaletteLinkController.shouldHidePaletteLinkHandleIconForWindow(self.window)
+        button:draw()
+        button.skipIconDraw = nil
+      else
+        button:draw()
+      end
     end
   end
 end

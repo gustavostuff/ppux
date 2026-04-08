@@ -19,7 +19,9 @@ function StaticArtToolbar.new(window, ctx, windowController)
   local _, _, _, hh = window:getHeaderRect()
   self.h = hh
 
-  self.linkButton = self:addButton(images.icons.icon_connect, nil, "Palette link handle")
+  self.linkButton = self:addButton(images.icons.icon_connect, nil, "Palette link handle", {
+    paletteLinkHandle = true,
+  })
 
   self:updatePosition()
 

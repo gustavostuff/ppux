@@ -19,7 +19,9 @@ function RomPaletteToolbar.new(window, ctx, windowController)
   local hx, hy, hw, hh = window:getHeaderRect()
   self.h = hh
 
-  self.linkButton = self:addButton(images.icons.icon_connect or images.icons.icon_pivot or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty, nil, "Palette link handle")
+  self.linkButton = self:addButton(images.icons.icon_connect or images.icons.icon_pivot or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty, nil, "Palette link handle", {
+    paletteLinkHandle = true,
+  })
 
   self.compactButton = self:addButton(images.icons.icon_minus or images.icons.icon_down, function()
     self:_onToggleCompact()
