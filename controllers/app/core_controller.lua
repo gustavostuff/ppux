@@ -15,6 +15,7 @@ local QuitConfirmModal = require("user_interface.modals.quit_confirm_modal")
 local SettingsModal = require("user_interface.modals.settings_modal")
 local TextFieldDemoModal = require("user_interface.modals.text_field_demo_modal")
 local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
+local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local SpriteController = require("controllers.sprite.sprite_controller")
 local SimpleLoadingScreen = require("controllers.app.simple_loading_screen")
 local TooltipController = require("controllers.ui.tooltip_controller")
@@ -298,6 +299,20 @@ function AppCoreController.new()
     rowGap = 1,
     splitIconCell = false,
   })
+  self.paletteLinkContextMenu = ContextualMenuController.new({
+    getBounds = function()
+      local canvas = self.canvas
+      return {
+        w = canvas and canvas.getWidth and canvas:getWidth() or 0,
+        h = canvas and canvas.getHeight and canvas:getHeight() or 0,
+      }
+    end,
+    cellH = UiScale.menuCellSize(),
+    padding = 0,
+    colGap = 0,
+    rowGap = 1,
+    splitIconCell = false,
+  })
   self.tooltipsEnabled = true
   self.tooltipController = TooltipController.new({
     delaySeconds = 0.7,
@@ -348,6 +363,9 @@ function AppCoreController:hideAppContextMenus()
   end
   if self.ppuTileContextMenu then
     self.ppuTileContextMenu:hide()
+  end
+  if self.paletteLinkContextMenu then
+    self.paletteLinkContextMenu:hide()
   end
 end
 
@@ -628,6 +646,174 @@ function AppCoreController:showEmptySpaceContextMenu(x, y)
   self:_hideAllContextMenus()
   self.emptySpaceContextMenu:showAt(x, y, self:_buildEmptySpaceContextMenuItems())
   return self.emptySpaceContextMenu:isVisible()
+end
+
+local function setWindowActiveLayer(win, layerIndex)
+  if not (win and type(layerIndex) == "number") then
+    return
+  end
+  if win.setActiveLayerIndex then
+    win:setActiveLayerIndex(layerIndex)
+  else
+    win.activeLayer = layerIndex
+  end
+end
+
+function AppCoreController:_focusLinkedLayerTarget(win, layerIndex)
+  if not win then
+    return false
+  end
+  setWindowActiveLayer(win, layerIndex)
+  if self.wm and self.wm.setFocus then
+    self.wm:setFocus(win)
+  end
+  self:setStatus(string.format(
+    "Focused %s layer %d",
+    tostring(win.title or "window"),
+    tonumber(layerIndex) or 1
+  ))
+  return true
+end
+
+function AppCoreController:_buildPaletteLinkSourceContextMenuItems(paletteWin)
+  local targets = PaletteLinkController.getLinkedTargetsForPalette(self.wm, paletteWin)
+  local romPaletteWindows = PaletteLinkController.getRomPaletteWindows(self.wm)
+  local items = {}
+
+  items[#items + 1] = {
+    text = (#targets > 0)
+      and string.format("Linked layers: %d", #targets)
+      or "No linked layers",
+    callback = function() end,
+  }
+
+  if #targets > 0 then
+    items[#items + 1] = {
+      text = "Jump To Linked Layer",
+      children = function()
+        local childItems = {}
+        for _, target in ipairs(targets) do
+          childItems[#childItems + 1] = {
+            text = string.format("%s / layer %d", tostring(target.win.title or "window"), target.layerIndex),
+            callback = function()
+              self:_focusLinkedLayerTarget(target.win, target.layerIndex)
+            end,
+          }
+        end
+        return childItems
+      end,
+    }
+  end
+
+  if #targets > 0 then
+    local moveTargets = {}
+    for _, candidate in ipairs(romPaletteWindows) do
+      if candidate ~= paletteWin then
+        moveTargets[#moveTargets + 1] = candidate
+      end
+    end
+    if #moveTargets > 0 then
+      items[#items + 1] = {
+        text = "Move All Links To",
+        children = function()
+          local childItems = {}
+          for _, candidate in ipairs(moveTargets) do
+            childItems[#childItems + 1] = {
+              text = tostring(candidate.title or "Palette"),
+              callback = function()
+                PaletteLinkController.moveAllLinksToPalette(self.wm, paletteWin, candidate)
+              end,
+            }
+          end
+          return childItems
+        end,
+      }
+    end
+
+    items[#items + 1] = {
+      text = "Remove all links",
+      callback = function()
+        PaletteLinkController.removeAllLinksForPalette(self.wm, paletteWin)
+      end,
+    }
+  end
+
+  return items
+end
+
+function AppCoreController:_buildPaletteLinkDestinationContextMenuItems(contentWin)
+  local layerIndex = (contentWin and contentWin.getActiveLayerIndex and contentWin:getActiveLayerIndex())
+    or (contentWin and contentWin.activeLayer)
+    or 1
+  local linkedPalette = PaletteLinkController.getActiveLayerLinkedPaletteWindow(contentWin, self.wm)
+  local paletteWindows = PaletteLinkController.getRomPaletteWindows(self.wm)
+  local items = {
+    {
+      text = linkedPalette
+        and string.format("Linked palette: %s", tostring(linkedPalette.title or "Palette"))
+        or "No linked palette",
+      callback = function() end,
+    },
+    {
+      text = "Link To Palette",
+      children = function()
+        local childItems = {}
+        for _, paletteWin in ipairs(paletteWindows) do
+          childItems[#childItems + 1] = {
+            text = tostring(paletteWin.title or "Palette"),
+            callback = function()
+              PaletteLinkController.linkLayerToPalette(contentWin, layerIndex, paletteWin)
+            end,
+          }
+        end
+        if #childItems == 0 then
+          childItems[1] = {
+            text = "No ROM palettes available",
+            callback = function() end,
+          }
+        end
+        return childItems
+      end,
+    },
+  }
+
+  if linkedPalette then
+    items[#items + 1] = {
+      text = "Jump to linked palette",
+      callback = function()
+        if self.wm and self.wm.setFocus then
+          self.wm:setFocus(linkedPalette)
+        end
+        self:setStatus(string.format("Focused %s", tostring(linkedPalette.title or "palette")))
+      end,
+    }
+    items[#items + 1] = {
+      text = "Remove this link",
+      callback = function()
+        PaletteLinkController.removeLinkForLayer(contentWin, layerIndex)
+      end,
+    }
+  end
+
+  return items
+end
+
+function AppCoreController:showPaletteLinkSourceContextMenu(win, x, y)
+  if not (self.paletteLinkContextMenu and win and type(x) == "number" and type(y) == "number") then
+    return false
+  end
+  self:_hideAllContextMenus()
+  self.paletteLinkContextMenu:showAt(x, y, self:_buildPaletteLinkSourceContextMenuItems(win))
+  return self.paletteLinkContextMenu:isVisible()
+end
+
+function AppCoreController:showPaletteLinkDestinationContextMenu(win, x, y)
+  if not (self.paletteLinkContextMenu and win and type(x) == "number" and type(y) == "number") then
+    return false
+  end
+  self:_hideAllContextMenus()
+  self.paletteLinkContextMenu:showAt(x, y, self:_buildPaletteLinkDestinationContextMenuItems(win))
+  return self.paletteLinkContextMenu:isVisible()
 end
 
 function AppCoreController:_buildPpuTileContext(win, layerIndex, col, row)

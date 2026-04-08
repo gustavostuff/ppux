@@ -1,7 +1,6 @@
 local SpriteController = require("controllers.sprite.sprite_controller")
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
-local PaletteLinkRenderController = require("controllers.palette.palette_link_render_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 
 local M = {}
@@ -659,50 +658,51 @@ function M._resetRomPaletteDoubleClickState()
 end
 
 local function handlePaletteDestinationLinkClick(env, button, x, y, wm)
-  if button ~= 1 then
+  return false
+end
+
+local function handlePaletteLinkContextClick(env, button, x, y, win, wm)
+  if not (button == 2 or button == 3) then
+    return false
+  end
+  if not (win and win.specializedToolbar and env.beginContextMenuClick) then
+    return false
+  end
+  if not PaletteLinkController.isPointInToolbarLinkHandle(win.specializedToolbar, x, y) then
     return false
   end
 
-  local ctx = env.ctx
-  local app = ctx and ctx.app or nil
-  if not app then
+  if wm and wm.setFocus then
+    wm:setFocus(win)
+  end
+
+  if WindowCaps.isRomPaletteWindow(win) then
+    env.beginContextMenuClick("palette_link_source", x, y, button, win)
+    return true
+  end
+
+  if WindowCaps.isAnyPaletteWindow(win) or WindowCaps.isChrLike(win) then
     return false
   end
 
-  local link = PaletteLinkRenderController.getLinkAtDestinationPoint(app, x, y)
-  if not link then
-    return false
-  end
-
-  if wm and wm.setFocus and link.contentWin then
-    wm:setFocus(link.contentWin)
-  end
-
-  return PaletteLinkController.beginDestinationDrag(button, x, y, link, wm)
+  env.beginContextMenuClick("palette_link_destination", x, y, button, win, {
+    layerIndex = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1,
+  })
+  return true
 end
 
 function M.handleMousePressed(env, x, y, button)
   local ctx = env.ctx
   local wm = ctx.wm()
   local chrome = env.chrome
+  local toolbarWin = chrome.findToolbarWindowAt and chrome.findToolbarWindowAt(x, y, wm) or nil
 
-  if handlePaletteDestinationLinkClick(env, button, x, y, wm) then
+  if handlePaletteLinkContextClick(env, button, x, y, toolbarWin, wm) then
     return true
   end
 
-  if button == 1 or button == 2 or button == 3 then
-    local app = ctx and ctx.app or nil
-    local proxyWin = PaletteLinkRenderController.getSourcePaletteProxyWindowAt(app, x, y)
-    if proxyWin then
-      wm:setFocus(proxyWin)
-      if proxyWin.specializedToolbar and proxyWin.specializedToolbar.updatePosition then
-        proxyWin.specializedToolbar:updatePosition()
-      end
-      if chrome and chrome.handleToolbarClicks and chrome.handleToolbarClicks(button, x, y, proxyWin, wm) then
-        return true
-      end
-      return true
-    end
+  if handlePaletteDestinationLinkClick(env, button, x, y, wm) then
+    return true
   end
 
   local topInteractiveWin = chrome.getTopInteractiveWindowAt and chrome.getTopInteractiveWindowAt(x, y, wm) or nil
@@ -712,7 +712,6 @@ function M.handleMousePressed(env, x, y, button)
     return true
   end
 
-  local toolbarWin = chrome.findToolbarWindowAt and chrome.findToolbarWindowAt(x, y, wm) or nil
   if toolbarWin and toolbarWin ~= focusedWin then
     if chrome.handleToolbarClicks(button, x, y, toolbarWin, wm) then
       return true

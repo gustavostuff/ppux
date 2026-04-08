@@ -95,7 +95,7 @@ local function getRomPaletteBgColorForWindow(win, wm)
 end
 
 local function drawPaletteLinkOverlay(app)
-  PaletteLinkRenderController.drawOverlay(app)
+  return PaletteLinkRenderController.drawOverlay(app)
 end
 
 local function drawActivePaletteLinkDrag(app)
@@ -104,7 +104,6 @@ end
 
 local function drawPaletteLinks(app)
   drawActivePaletteLinkDrag(app)
-  drawPaletteLinkOverlay(app)
 end
 
 local function renderWindowChessPattern(window, wm)
@@ -978,6 +977,12 @@ local function drawNonModalOverlays(app)
       app.ppuTileContextMenu:update()
     end
     app.ppuTileContextMenu:draw()
+  end
+  if app.paletteLinkContextMenu and app.paletteLinkContextMenu.isVisible and app.paletteLinkContextMenu:isVisible() then
+    if app.paletteLinkContextMenu.update then
+      app.paletteLinkContextMenu:update()
+    end
+    app.paletteLinkContextMenu:draw()
   end
   if app.e2eOverlayMenu and app.e2eOverlayMenu.isVisible and app.e2eOverlayMenu:isVisible() then
     if app.e2eOverlayMenu.update then

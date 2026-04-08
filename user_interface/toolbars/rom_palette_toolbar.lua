@@ -3,6 +3,8 @@
 
 local ToolbarBase = require("user_interface.toolbars.toolbar_base")
 local images = require("images")
+local colors = require("app_colors")
+local PaletteLinkController = require("controllers.palette.palette_link_controller")
 
 local RomPaletteToolbar = {}
 RomPaletteToolbar.__index = RomPaletteToolbar
@@ -39,6 +41,17 @@ function RomPaletteToolbar:updateIcons()
   ToolbarBase.updateIcons(self)
   if self.linkButton then
     self.linkButton.icon = images.icons.icon_connect or images.icons.icon_pivot or self.linkButton.icon
+    local targets = PaletteLinkController.getLinkedTargetsForPalette(self.windowController, self.window)
+    local linkedCount = #(targets or {})
+    self.linkButton.bgColor = linkedCount > 0 and colors.green or colors.gray20
+    if linkedCount > 0 then
+      self.linkButton.tooltip = string.format(
+        "%d linked layer(s) (right-click for actions, drag to link)",
+        linkedCount
+      )
+    else
+      self.linkButton.tooltip = "No linked layers (right-click for actions, drag to link)"
+    end
   end
   self:updateCompactIcon()
 end

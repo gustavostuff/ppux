@@ -198,6 +198,25 @@ local function getActiveLayerLinkedPaletteWin(contentWin, wm)
   return nil
 end
 
+local function getRomPaletteWindows(wm)
+  local out = {}
+  local windows = wm and wm.getWindows and wm:getWindows() or {}
+  for _, win in ipairs(windows) do
+    if WindowCaps.isRomPaletteWindow(win) and not win._closed and not win._minimized then
+      out[#out + 1] = win
+    end
+  end
+  table.sort(out, function(a, b)
+    local at = tostring(a and (a.title or a._id or "") or "")
+    local bt = tostring(b and (b.title or b._id or "") or "")
+    if at ~= bt then
+      return at < bt
+    end
+    return tostring(a) < tostring(b)
+  end)
+  return out
+end
+
 local function findTopWindowByPredicate(wm, predicate)
   local windows = wm and wm.getWindows and wm:getWindows() or {}
   for i = #windows, 1, -1 do
@@ -545,7 +564,7 @@ local function maybeHandleDestinationDoubleClick(link, x, y)
 end
 
 function M.beginDrag(toolbar, button, x, y, win, wm)
-  if button ~= 1 and button ~= 2 and button ~= 3 then
+  if button ~= 1 then
     return false
   end
   if not (win and win._id) then
@@ -556,7 +575,7 @@ function M.beginDrag(toolbar, button, x, y, win, wm)
   end
 
   if WindowCaps.isRomPaletteWindow(win) then
-    if button == 1 and maybeHandleDoubleClick(toolbar, x, y, win, wm) then
+    if maybeHandleDoubleClick(toolbar, x, y, win, wm) then
       return true
     end
 
@@ -570,7 +589,7 @@ function M.beginDrag(toolbar, button, x, y, win, wm)
     drag.sourceWinId = win._id
     drag.currentX = x
     drag.currentY = y
-    drag.mode = (button == 1) and DRAG_MODE_LINK_CREATE or DRAG_MODE_MOVE_ALL
+    drag.mode = DRAG_MODE_LINK_CREATE
     drag.originContentWin = nil
     drag.originPaletteWin = nil
     return true
@@ -949,6 +968,96 @@ end
 function M.resetDoubleClickState()
   lastPaletteLinkHandleClick = nil
   lastDestinationLinkClick = nil
+end
+
+function M.isPointInToolbarLinkHandle(toolbar, x, y)
+  return isValidPaletteLinkHandle(toolbar, x, y)
+end
+
+function M.getActiveLayerLinkedPaletteWindow(contentWin, wm)
+  return getActiveLayerLinkedPaletteWin(contentWin, wm)
+end
+
+function M.getLinkedTargetsForPalette(wm, paletteWin)
+  return collectLinkedTargetsForPalette(wm, paletteWin)
+end
+
+function M.getRomPaletteWindows(wm)
+  return getRomPaletteWindows(wm)
+end
+
+function M.removeAllLinksForPalette(wm, paletteWin)
+  local ok = unlinkAllPaletteTargets(wm, paletteWin, {
+    commitUndo = true,
+    setStatus = true,
+  })
+  return ok and true or false
+end
+
+function M.removeLinkForLayer(contentWin, layerIndex)
+  if not (contentWin and type(layerIndex) == "number") then
+    return false
+  end
+  local wm = getApp() and getApp().wm or nil
+  local paletteWin = getActiveLayerLinkedPaletteWin(contentWin, wm)
+  if not paletteWin then
+    return false
+  end
+  return unlinkPaletteConnectionForLayer(contentWin, paletteWin, layerIndex)
+end
+
+function M.linkLayerToPalette(contentWin, layerIndex, paletteWin)
+  if not (contentWin and paletteWin and type(layerIndex) == "number") then
+    return false, "Palette link failed"
+  end
+  if not (paletteWin and paletteWin._id and WindowCaps.isRomPaletteWindow(paletteWin)) then
+    return false, "Target palette is invalid"
+  end
+  local ok, result = M.canApplyToTarget(contentWin, paletteWin)
+  if not ok then
+    return false, result
+  end
+  if result ~= layerIndex then
+    return false, "Active layer changed"
+  end
+
+  local layer = contentWin.layers and contentWin.layers[layerIndex] or nil
+  if not layer then
+    return false, "Target window has no active layer"
+  end
+
+  local beforePaletteData = clonePaletteData(layer.paletteData or nil)
+  local beforeWinId = beforePaletteData and beforePaletteData.winId or nil
+  if beforeWinId == paletteWin._id then
+    return true
+  end
+
+  layer.paletteData = { winId = paletteWin._id }
+  local actions = {
+    {
+      win = contentWin,
+      layerIndex = layerIndex,
+      beforePaletteData = beforePaletteData,
+      afterPaletteData = clonePaletteData(layer.paletteData or nil),
+    },
+  }
+  pushPaletteLinkUndo(actions)
+  invalidatePaletteLinkedPpuLayer(contentWin, layerIndex)
+
+  local app = getApp()
+  if app and app.setStatus then
+    app:setStatus(string.format(
+      "Linked %s layer %d to %s",
+      contentWin.title or "window",
+      layerIndex,
+      paletteWin.title or "Palette"
+    ))
+  end
+  return true
+end
+
+function M.moveAllLinksToPalette(wm, sourcePaletteWin, targetPaletteWin)
+  return moveAllPaletteTargets(wm, sourcePaletteWin, targetPaletteWin)
 end
 
 return M

@@ -231,6 +231,22 @@ local function handleContextMenuRelease(button, x, y)
     return false
   end
 
+  if pending.kind == "palette_link_source" then
+    if app.showPaletteLinkSourceContextMenu and pending.win then
+      app:showPaletteLinkSourceContextMenu(pending.win, x, y)
+      return true
+    end
+    return false
+  end
+
+  if pending.kind == "palette_link_destination" then
+    if app.showPaletteLinkDestinationContextMenu and pending.win then
+      app:showPaletteLinkDestinationContextMenu(pending.win, x, y)
+      return true
+    end
+    return false
+  end
+
   return false
 end
 

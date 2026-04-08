@@ -380,38 +380,10 @@ function M.getPaletteLinkDragAnchor(paletteWin)
 end
 
 function M.getSourcePaletteProxyRect(paletteWin, app)
-  local wm = app and app.wm or nil
-  local focusedWin = wm and wm.getFocus and wm:getFocus() or nil
-  if not paletteWin or paletteWin._collapsed or paletteWin._closed or paletteWin._minimized then
-    return nil
-  end
-  if focusedWin == paletteWin then
-    return nil
-  end
-  if not paletteHasLinkedTargets(paletteWin, wm) then
-    return nil
-  end
-  if not paletteHasVisibleLinks(app, paletteWin) then
-    return nil
-  end
-
-  return getWindowToolbarLinkHandleRect(paletteWin)
+  return nil
 end
 
 function M.getSourcePaletteProxyWindowAt(app, x, y)
-  local wm = app and app.wm
-  if not (wm and wm.getWindows) then
-    return nil
-  end
-
-  local windows = wm:getWindows() or {}
-  for i = #windows, 1, -1 do
-    local win = windows[i]
-    local px, py, pw, ph = M.getSourcePaletteProxyRect(win, app)
-    if px and x >= px and x <= (px + pw) and y >= py and y <= (py + ph) then
-      return win
-    end
-  end
   return nil
 end
 
@@ -486,27 +458,6 @@ function M.isMouseHoveringDestinationSquare(contentWin, paletteWin)
 end
 
 function M.getLinkAtDestinationPoint(app, x, y)
-  local wm = app and app.wm
-  if not (wm and wm.getWindows) then
-    return nil
-  end
-
-  local windows = wm:getWindows() or {}
-  for i = #windows, 1, -1 do
-    local win = windows[i]
-    if win and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
-      local linkedPaletteWindows = collectLinkedPaletteWindowsForWindow(win, wm)
-      for _, paletteWin in ipairs(linkedPaletteWindows) do
-        if paletteWin and not paletteWin._closed and not paletteWin._minimized and WindowCaps.isRomPaletteWindow(paletteWin) then
-          local showLine = M.getPersistentVisual(app, win, paletteWin)
-          if showLine and M.isPointHoveringDestinationSquare(win, paletteWin, x, y, DESTINATION_HIT_SIZE) then
-            return { contentWin = win, paletteWin = paletteWin }
-          end
-        end
-      end
-    end
-  end
-
   return nil
 end
 
@@ -659,51 +610,7 @@ local function sortLinksStable(links)
 end
 
 function M.drawOverlay(app)
-  local mode = M.normalizeLinksMode(app and app.paletteLinksMode)
-  local drag = app and app.paletteLinkDrag or nil
-  local suppressPaletteWin = (drag and drag.active and drag.mode == "move_all" and drag.sourceWin) or nil
-  local links = {}
-  local seen = {}
-  local function appendLinks(list)
-    for _, link in ipairs(list or {}) do
-      local contentKey = link.contentWin and tostring(link.contentWin) or "?"
-      local paletteKey = link.paletteWin and tostring(link.paletteWin) or "?"
-      local key = contentKey .. "->" .. paletteKey
-      if not seen[key] then
-        seen[key] = true
-        links[#links + 1] = link
-      end
-    end
-  end
-
-  appendLinks(M.getFocusedLinks(app))
-  if mode == "on_hover" then
-    appendLinks(M.getHoveredSourceSquareLinks(app))
-    appendLinks(M.getHoveredDestinationLinks(app))
-  end
-  sortLinksStable(links)
-
-  local geometries = {}
-
-  for _, link in ipairs(links) do
-    local contentWin = link.contentWin
-    local paletteWin = link.paletteWin
-    if contentWin and paletteWin and paletteWin ~= suppressPaletteWin then
-      local sx, sy = M.getPaletteSourceAnchor(paletteWin, contentWin)
-      local tx, ty = M.getDestinationLayerAnchor(contentWin)
-      local showLine, alpha = M.getPersistentVisual(app, contentWin, paletteWin)
-      geometries[#geometries + 1] = M.buildConnectorGeometry(sx, sy, tx, ty, {
-        showLine = showLine,
-        alpha = alpha,
-      })
-    end
-  end
-
-  love.graphics.push("all")
-  for _, geometry in ipairs(geometries) do
-    M.drawConnectorLine(geometry)
-  end
-  love.graphics.pop()
+  return nil
 end
 
 function M.drawSourcePaletteProxyForWindow(app, win)

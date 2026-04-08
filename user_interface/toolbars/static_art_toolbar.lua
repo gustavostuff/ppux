@@ -5,6 +5,7 @@ local ToolbarBase = require("user_interface.toolbars.toolbar_base")
 local images = require("images")
 local colors = require("app_colors")
 local DebugController = require("controllers.dev.debug_controller")
+local PaletteLinkController = require("controllers.palette.palette_link_controller")
 
 local StaticArtToolbar = {}
 StaticArtToolbar.__index = StaticArtToolbar
@@ -161,6 +162,16 @@ function StaticArtToolbar:updateIcons()
   ToolbarBase.updateIcons(self)
   if self.linkButton then
     self.linkButton.icon = images.icons.icon_connect or self.linkButton.icon
+    local linkedPalette = PaletteLinkController.getActiveLayerLinkedPaletteWindow(self.window, self.windowController)
+    self.linkButton.bgColor = linkedPalette and colors.green or colors.gray20
+    if linkedPalette then
+      self.linkButton.tooltip = string.format(
+        "Linked to %s (right-click for actions, drag to relink)",
+        tostring(linkedPalette.title or "palette")
+      )
+    else
+      self.linkButton.tooltip = "No palette linked (right-click for actions, drag to link)"
+    end
   end
 end
 

@@ -72,6 +72,7 @@ local function eachAppContextMenu(app, fn)
     app.windowHeaderContextMenu,
     app.emptySpaceContextMenu,
     app.ppuTileContextMenu,
+    app.paletteLinkContextMenu,
   }
   for _, menu in ipairs(menus) do
     if menu then
