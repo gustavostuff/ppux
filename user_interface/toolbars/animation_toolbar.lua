@@ -27,7 +27,7 @@ local function isOamMultiRowEnabled(window)
   if not WindowCaps.isOamAnimation(window) then
     return false
   end
-  return window.multiRowToolbar ~= false
+  return window.multiRowToolbar == true
 end
 
 function AnimationToolbar.new(window, ctx, windowController)

@@ -344,8 +344,8 @@ local function handleRightButton(env, button, x, y, win, wm)
       end
       wm:setFocus(win)
       if button == 2 then
+        -- Do not forward right-click to Window:mousepressed — that starts window drag and fights origin drag.
         if SpriteOriginDrag.tryBeginPress(env.ctx, env.utils or {}, x, y, win, wm) then
-          win:mousepressed(x, y, button)
           return true
         end
       end

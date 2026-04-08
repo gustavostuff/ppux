@@ -12,11 +12,24 @@ local state = {
   layerIndex = nil,
   startX = 0,
   startY = 0,
-  lastX = 0,
-  lastY = 0,
+  lastCx = nil,
+  lastCy = nil,
+  originStartX = nil,
+  originStartY = nil,
+  sumCx = nil,
+  sumCy = nil,
 }
 
 local DRAG_TOL = 4
+
+-- Match drawSprites / pickSpriteAt (nearestZoomStep); raw win.zoom can diverge in theory.
+local function effectiveZoom(win)
+  local z = (win and win.getZoomLevel and win:getZoomLevel()) or (win and win.zoom) or 1
+  if z <= 0 then
+    return 1
+  end
+  return z
+end
 
 local function clampOriginX(v)
   v = math.floor(tonumber(v) or 0)
@@ -39,8 +52,12 @@ function M.clear()
   state.layerIndex = nil
   state.startX = 0
   state.startY = 0
-  state.lastX = 0
-  state.lastY = 0
+  state.lastCx = nil
+  state.lastCy = nil
+  state.originStartX = nil
+  state.originStartY = nil
+  state.sumCx = nil
+  state.sumCy = nil
 end
 
 function M.isActive()
@@ -80,8 +97,12 @@ function M.tryBeginPress(_ctx, utils, x, y, win, wm)
   state.layerIndex = li
   state.startX = x
   state.startY = y
-  state.lastX = x
-  state.lastY = y
+  state.lastCx = nil
+  state.lastCy = nil
+  state.originStartX = nil
+  state.originStartY = nil
+  state.sumCx = nil
+  state.sumCy = nil
   return true
 end
 
@@ -93,24 +114,37 @@ function M.updateMove(ctx, x, y, utils)
     return false
   end
 
+  local win = state.win
+  local li = state.layerIndex
+
   if state.pending and not state.dragging then
     local dxm = x - state.startX
     local dym = y - state.startY
     if (dxm * dxm + dym * dym) < (DRAG_TOL * DRAG_TOL) then
       return false
     end
+    local L0 = win and win.layers and li and win.layers[li]
+    if not (L0 and L0.kind == "sprite") then
+      M.clear()
+      return false
+    end
     state.dragging = true
     state.pending = false
-    state.lastX = state.startX
-    state.lastY = state.startY
+    local z0 = effectiveZoom(win)
+    -- Content-space anchor (float) so zoom matches what the window draws; immune to accidental win.x drift.
+    state.lastCx = (state.startX - (win and win.x or 0)) / z0
+    state.lastCy = (state.startY - (win and win.y or 0)) / z0
+    -- Integer origins + fractional motion per frame at zoom>1: accumulate before floor in clamp*.
+    state.originStartX = L0.originX or 0
+    state.originStartY = L0.originY or 0
+    state.sumCx = 0
+    state.sumCy = 0
   end
 
   if not state.dragging then
     return false
   end
 
-  local win = state.win
-  local li = state.layerIndex
   if not (win and win.layers and li) then
     return false
   end
@@ -120,17 +154,18 @@ function M.updateMove(ctx, x, y, utils)
     return false
   end
 
-  local z = win.zoom or 1
-  if z <= 0 then
-    z = 1
-  end
-  local dcx = (x - state.lastX) / z
-  local dcy = (y - state.lastY) / z
-  state.lastX = x
-  state.lastY = y
+  local z = effectiveZoom(win)
+  local cx = (x - win.x) / z
+  local cy = (y - win.y) / z
+  local dcx = cx - (state.lastCx or cx)
+  local dcy = cy - (state.lastCy or cy)
+  state.lastCx = cx
+  state.lastCy = cy
 
-  L.originX = clampOriginX((L.originX or 0) + dcx)
-  L.originY = clampOriginY((L.originY or 0) + dcy)
+  state.sumCx = (state.sumCx or 0) + dcx
+  state.sumCy = (state.sumCy or 0) + dcy
+  L.originX = clampOriginX((state.originStartX or 0) + state.sumCx)
+  L.originY = clampOriginY((state.originStartY or 0) + state.sumCy)
 
   local app = ctx and ctx.app
   if app and app.markUnsaved then

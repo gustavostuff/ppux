@@ -892,7 +892,7 @@ function WM:createSpriteWindow(opts)
       {
         title = defaults.title,
         nonActiveLayerOpacity = 0.0,
-        multiRowToolbar = (opts.multiRowToolbar ~= false),
+        multiRowToolbar = (opts.multiRowToolbar == true),
       }
     )
 

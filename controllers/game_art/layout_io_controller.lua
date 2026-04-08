@@ -476,7 +476,7 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
       entry.showGlassTile = (w.showGlassTile ~= false)
     end
     if WindowCaps.isOamAnimation(w) then
-      entry.multiRowToolbar = (w.multiRowToolbar ~= false)
+      entry.multiRowToolbar = (w.multiRowToolbar == true)
     end
 
     if not isPalette then

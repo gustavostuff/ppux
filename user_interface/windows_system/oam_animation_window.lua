@@ -12,7 +12,7 @@ function OAMAnimationWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
   setmetatable(self, OAMAnimationWindow)
   self.kind = "oam_animation"
   self.showSpriteOriginGuides = (data and data.showSpriteOriginGuides == true)
-  self.multiRowToolbar = not (data and data.multiRowToolbar == false)
+  self.multiRowToolbar = (data and data.multiRowToolbar == true)
   return self
 end
 

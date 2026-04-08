@@ -307,7 +307,7 @@ function M.createOamAnimationWindow(w, tilesPool, ensureTiles)
     w.x, w.y, w.cellW, w.cellH, w.cols, w.rows, w.zoom, {
       title = w.title,
       nonActiveLayerOpacity = w.nonActiveLayerOpacity,
-      multiRowToolbar = (w.multiRowToolbar ~= false),
+      multiRowToolbar = (w.multiRowToolbar == true),
     }
   )
 
