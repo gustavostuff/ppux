@@ -25,6 +25,8 @@ local TableUtils = require("utils.table_utils")
 
 local AppCoreController = {}
 AppCoreController.__index = AppCoreController
+local snapshotPpuFrameRangeState
+local didPpuFrameRangeSettingsChange
 
 local function anyModalVisible(app)
   return (app.quitConfirmModal and app.quitConfirmModal:isVisible())
@@ -729,13 +731,34 @@ function AppCoreController:_markPpuTileByteAsGlass(context)
     return false
   end
 
+  local beforeState = snapshotPpuFrameRangeState and snapshotPpuFrameRangeState(context.win, context.layerIndex) or nil
   local tilesPool = self.appEditState and self.appEditState.tilesPool or nil
   local win = context.win
+  local applied = false
   if win and win.setGlassTileByte then
-    win:setGlassTileByte(context.byteVal, tilesPool, context.layerIndex)
+    applied = (win:setGlassTileByte(context.byteVal, tilesPool, context.layerIndex) == true)
   else
     context.layer.glassTileByte = context.byteVal
     context.layer.transparentTileByte = nil
+    applied = true
+  end
+
+  if not applied then
+    return false
+  end
+
+  local afterState = snapshotPpuFrameRangeState and snapshotPpuFrameRangeState(context.win, context.layerIndex) or nil
+  if self.undoRedo and self.undoRedo.addPpuFrameRangeEvent
+    and didPpuFrameRangeSettingsChange
+    and didPpuFrameRangeSettingsChange(beforeState, afterState)
+  then
+    self.undoRedo:addPpuFrameRangeEvent({
+      type = "ppu_frame_range",
+      win = context.win,
+      layerIndex = context.layerIndex,
+      beforeState = beforeState,
+      afterState = afterState,
+    })
   end
 
   self:setStatus(string.format("Marked nametable byte 0x%02X as glass tile", context.byteVal))
@@ -747,13 +770,34 @@ function AppCoreController:_clearPpuTileGlassByte(context)
     return false
   end
 
+  local beforeState = snapshotPpuFrameRangeState and snapshotPpuFrameRangeState(context.win, context.layerIndex) or nil
   local tilesPool = self.appEditState and self.appEditState.tilesPool or nil
   local win = context.win
+  local applied = false
   if win and win.clearGlassTileByte then
-    win:clearGlassTileByte(tilesPool, context.layerIndex)
+    applied = (win:clearGlassTileByte(tilesPool, context.layerIndex) == true)
   else
     context.layer.glassTileByte = nil
     context.layer.transparentTileByte = nil
+    applied = true
+  end
+
+  if not applied then
+    return false
+  end
+
+  local afterState = snapshotPpuFrameRangeState and snapshotPpuFrameRangeState(context.win, context.layerIndex) or nil
+  if self.undoRedo and self.undoRedo.addPpuFrameRangeEvent
+    and didPpuFrameRangeSettingsChange
+    and didPpuFrameRangeSettingsChange(beforeState, afterState)
+  then
+    self.undoRedo:addPpuFrameRangeEvent({
+      type = "ppu_frame_range",
+      win = context.win,
+      layerIndex = context.layerIndex,
+      beforeState = beforeState,
+      afterState = afterState,
+    })
   end
 
   self:setStatus("Cleared glass tile byte")
@@ -1165,7 +1209,7 @@ local function copyNumberArray(values)
   return out
 end
 
-local function snapshotPpuFrameRangeState(win, layerIndex)
+snapshotPpuFrameRangeState = function(win, layerIndex)
   if not (win and win.kind == "ppu_frame") then
     return nil
   end
@@ -1209,7 +1253,7 @@ local function snapshotPpuFrameRangeState(win, layerIndex)
   }
 end
 
-local function didPpuFrameRangeSettingsChange(beforeState, afterState)
+didPpuFrameRangeSettingsChange = function(beforeState, afterState)
   local beforeLayer = beforeState and beforeState.layerState or nil
   local afterLayer = afterState and afterState.layerState or nil
   if not (beforeLayer and afterLayer) then
@@ -1220,6 +1264,8 @@ local function didPpuFrameRangeSettingsChange(beforeState, afterState)
     or beforeLayer.nametableEndAddr ~= afterLayer.nametableEndAddr
     or beforeLayer.bank ~= afterLayer.bank
     or beforeLayer.page ~= afterLayer.page
+    or beforeLayer.glassTileByte ~= afterLayer.glassTileByte
+    or beforeLayer.transparentTileByte ~= afterLayer.transparentTileByte
 end
 
 local function getFirstPpuSpriteLayer(win)
