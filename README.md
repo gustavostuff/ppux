@@ -107,48 +107,42 @@ Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface)
 
 <img src="img/readme_images/toolbars/static_tiles_toolbar.png" alt="Static Art tiles specialized toolbar">
 
-1. **Palette link handle** — drag to a **ROM palette** or right-click for more specific options
+1. **Palette link handle** — drag onto a **ROM palette** window (connect handle or anywhere on that window), **or** drag from the ROM palette’s handle onto this window; **right-click** for more specific options
 
 #### Static Art (sprites) toolbar
 
 <img src="img/readme_images/toolbars/static_sprites_toolbar.png" alt="Static Art sprites specialized toolbar">
 
-1. **Palette link handle** — effectively same as tiles
+1. **Palette link handle** — effectively same as Static Art for tiles
 
-#### Animation (tiles) and Animation (sprites) toolbar
+#### Animation (tiles) toolbar
 
-No PNG in the folder yet (e.g. add `animation_toolbar.png`). **Single row:**
+<img src="img/readme_images/toolbars/animation_tile_toolbar.png" alt="Animation tiles specialized toolbar">
 
-Layer keys use **`Shift` + `Up` / `Down`** (`Up` → next frame, `Down` → previous), same as other multi-layer windows. **`Shift` + `Left` / `Right`** changes **all frame delays** together when the window supports it.
+**Animation (both tiles and sprites)**. **`Shift` + `Up` / `Down`** (`Up` → next frame, `Down` → previous). **`Shift` + `Left` / `Right`** adjusts **all frame delays** together when the window supports it.
 
 1. **Palette link handle**
 2. **Previous layer** — `Shift` + `Down`
 3. **Next layer** — `Shift` + `Up`
-4. **Remove layer** — only when more than one frame exists — `-` or `_`
-5. **Add layer** — `=` or `+`
+4. **Remove layer** — only when more than one frame exists — `-`
+5. **Add layer** — `+`
 6. **Copy from previous layer**
 7. **Play / Pause** — `P` (any case)
+
 
 #### OAM Animation toolbar
 
 <img src="img/readme_images/toolbars/oam_animation.png" alt="OAM Animation specialized toolbar">
 
-Default **`multiRowToolbar`**: **two rows**. With **`multiRowToolbar = false`**, the same controls appear in **one row**, order **1–9** left to right.
-
-Layer stepping matches Animation: **`Shift` + `Up` / `Down`** (blocked while playing). Frame timing: **`Shift` + `Left` / `Right`** when supported.
-
-**Row 1**
+**`Shift` + `Up` / `Down`** steps frames (`Up` next, `Down` previous; disabled while playing). **`Shift` + `Left` / `Right`** adjusts **all frame delays** when supported.
 
 1. **Palette link handle**
 2. **Previous layer** — `Shift` + `Down`
 3. **Next layer** — `Shift` + `Up`
-4. **Remove layer** — `-` or `_`
-5. **Add layer** — `=` or `+`
-
-**Row 2**
-
+4. **Remove layer** — `-`
+5. **Add layer** — `+`
 6. **Add sprite**
-7. **Toggle origin guides** — **Shift + right-drag** on the canvas moves origin ([OAM animation windows](#oam-animation-windows))
+7. **Toggle origin guides** — **Shift + right-drag** on the canvas moves the sprites origin
 8. **Copy from previous layer**
 9. **Play / Pause** — `P`
 
@@ -229,6 +223,7 @@ Palette links are created and managed from the **connect button** on toolbars (t
 **Creating a link**
 
 * Drag from a **ROM palette** window’s connect handle and release over a destination window (or a specific layer target, depending on the window), **or**
+* Drag from a **destination** window’s connect handle (**Static Art**, **Animation** tiles/sprites, **OAM Animation**, etc.) and release over a **ROM palette** window, **or**
 * On a destination window, right-click its palette connect handle and use **Link to palette** to pick a ROM palette.
 
 **Context menus**
@@ -475,7 +470,6 @@ PPUX currently includes one nametable codec implementation aimed at Konami-style
 3. Frames can be **played** from the toolbar like other animation windows; layer edits are blocked while playback is running.
 4. Items that share a `startAddr` **sync** with **PPU Frame** sprite layers (and other OAM windows) so OAM edits stay consistent everywhere that references the same bytes.
 5. **Origin** and **origin guides** behave like PPU Frame sprite layers: **Shift + right-click drag** moves `originX` / `originY`; the dotted-line button toggles guides.
-6. Optional project field `multiRowToolbar = false` keeps the OAM toolbar on a **single row** (narrow layouts); otherwise the toolbar may split into two rows.
 
 <img src="img/readme_images/ui_new_window_oam_animation_placeholder.png" alt="New Window: OAM Animation placeholder">
 

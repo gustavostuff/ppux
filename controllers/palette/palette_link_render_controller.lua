@@ -627,7 +627,7 @@ function M.drawActiveDrag(app)
   end
 
   local sx, sy
-  if drag.mode == "move_single" and drag.originContentWin then
+  if (drag.mode == "move_single" or drag.mode == "link_create_from_content") and drag.originContentWin then
     local x, y, w, h = getWindowToolbarLinkHandleRect(drag.originContentWin)
     if x and y and w and h then
       sx, sy = x + math.floor(w * 0.5), y + math.floor(h * 0.5)
@@ -656,6 +656,11 @@ function M.drawActiveDrag(app)
         allowSource = true,
         sourcePaletteWin = drag.originPaletteWin,
       })
+      if targetPalette then
+        lineColor = colors.green
+      end
+    elseif drag.mode == "link_create_from_content" then
+      local targetPalette = PaletteLinkController.getContentToPaletteLinkDropTarget(wm, drag.sourceWin, tx, ty)
       if targetPalette then
         lineColor = colors.green
       end

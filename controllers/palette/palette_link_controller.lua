@@ -8,6 +8,7 @@ local lastPaletteLinkHandleClick = nil
 local lastDestinationLinkClick = nil
 
 local DRAG_MODE_LINK_CREATE = "link_create"
+local DRAG_MODE_LINK_CREATE_FROM_CONTENT = "link_create_from_content"
 local DRAG_MODE_MOVE_SINGLE = "move_single"
 local DRAG_MODE_MOVE_ALL = "move_all"
 
@@ -252,6 +253,25 @@ local function getHandleTargetForMoveSingle(wm, sourcePaletteWin, x, y, opts)
     return canMoveAllToPaletteTarget(win, sourcePaletteWin, opts)
       and isPointInWindowLinkHandle(win, x, y)
   end)
+end
+
+--- Topmost ROM palette under (x,y), for dropping a new link from a content window.
+local function getRomPaletteAtPoint(wm, x, y, opts)
+  opts = opts or {}
+  local exclude = opts.excludeWin
+  local windows = wm and wm.getWindows and wm:getWindows() or {}
+  for i = #windows, 1, -1 do
+    local win = windows[i]
+    if WindowCaps.isRomPaletteWindow(win)
+      and win ~= exclude
+      and not win._closed
+      and not win._minimized
+      and (isPointInWindowLinkHandle(win, x, y) or isPointInWindowDropArea(win, x, y))
+    then
+      return win
+    end
+  end
+  return nil
 end
 
 local function collectNumericLayerKeys(layers)
@@ -595,15 +615,27 @@ function M.beginDrag(toolbar, button, x, y, win, wm)
     return true
   end
 
-  if button ~= 1 then
-    return false
-  end
   if WindowCaps.isAnyPaletteWindow(win) or WindowCaps.isChrLike(win) then
     return false
   end
 
   local paletteWin = getActiveLayerLinkedPaletteWin(win, wm)
   if not paletteWin then
+    if WindowCaps.isStaticOrAnimationArt(win) then
+      local drag = getPaletteLinkDrag()
+      if not drag then
+        return false
+      end
+      drag.active = true
+      drag.sourceWin = win
+      drag.sourceWinId = win._id
+      drag.currentX = x
+      drag.currentY = y
+      drag.mode = DRAG_MODE_LINK_CREATE_FROM_CONTENT
+      drag.originContentWin = win
+      drag.originPaletteWin = nil
+      return true
+    end
     return false
   end
 
@@ -828,6 +860,41 @@ local function finishCreateLinkDrag(wm, x, y, drag)
   return true
 end
 
+local function finishCreateLinkFromContentDrag(wm, x, y, drag)
+  local app = getApp()
+  local contentWin = drag.originContentWin or drag.sourceWin
+  if not contentWin then
+    return true
+  end
+
+  local paletteWin = getRomPaletteAtPoint(wm, x, y, { excludeWin = contentWin })
+  if not paletteWin then
+    local tb = contentWin.specializedToolbar
+    if tb and isValidPaletteLinkHandle(tb, x, y) then
+      return true
+    end
+    if app and app.setStatus then
+      app:setStatus("Palette link canceled")
+    end
+    return true
+  end
+
+  local layerIndex = getActiveLayerIndex(contentWin)
+  local ok, err = M.linkLayerToPalette(contentWin, layerIndex, paletteWin)
+  if not ok and app then
+    if app.setStatus then
+      app:setStatus(tostring(err or "Palette link failed"))
+    end
+    if app.showToast then
+      app:showToast("error", tostring(err or "Palette link failed"))
+    end
+  end
+  if ok and wm and wm.setFocus then
+    wm:setFocus(contentWin)
+  end
+  return true
+end
+
 local function finishMoveSingleDrag(wm, x, y, drag)
   local app = getApp()
   local originContentWin = drag.originContentWin
@@ -930,6 +997,8 @@ function M.finishDrag(wm, x, y)
     handled = finishMoveSingleDrag(wm, x, y, drag)
   elseif mode == DRAG_MODE_MOVE_ALL then
     handled = finishMoveAllDrag(wm, x, y, drag)
+  elseif mode == DRAG_MODE_LINK_CREATE_FROM_CONTENT then
+    handled = finishCreateLinkFromContentDrag(wm, x, y, drag)
   else
     handled = finishCreateLinkDrag(wm, x, y, drag)
   end
@@ -955,6 +1024,8 @@ function M.updateDragHover(wm, x, y)
       allowSource = true,
       sourcePaletteWin = drag.originPaletteWin,
     })
+  elseif drag.mode == DRAG_MODE_LINK_CREATE_FROM_CONTENT then
+    hoveredWin = getRomPaletteAtPoint(wm, x, y, { excludeWin = drag.sourceWin })
   else
     hoveredWin = M.getHoverTarget(wm, drag.sourceWin, x, y)
   end
@@ -984,6 +1055,10 @@ end
 
 function M.getRomPaletteWindows(wm)
   return getRomPaletteWindows(wm)
+end
+
+function M.getContentToPaletteLinkDropTarget(wm, contentWin, x, y)
+  return getRomPaletteAtPoint(wm, x, y, { excludeWin = contentWin })
 end
 
 function M.removeAllLinksForPalette(wm, paletteWin)
