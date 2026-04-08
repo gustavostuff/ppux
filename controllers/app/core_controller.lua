@@ -747,14 +747,16 @@ function AppCoreController:_buildPaletteLinkDestinationContextMenuItems(contentW
     or 1
   local linkedPalette = PaletteLinkController.getActiveLayerLinkedPaletteWindow(contentWin, self.wm)
   local paletteWindows = PaletteLinkController.getRomPaletteWindows(self.wm)
-  local items = {
-    {
-      text = linkedPalette
-        and string.format("Linked palette: %s", tostring(linkedPalette.title or "Palette"))
-        or "No linked palette",
+  local items = {}
+
+  if linkedPalette then
+    items[#items + 1] = {
+      text = string.format("Linked palette: %s", tostring(linkedPalette.title or "Palette")),
       callback = function() end,
-    },
-    {
+    }
+  end
+
+  items[#items + 1] = {
       text = "Link To Palette",
       children = function()
         local childItems = {}
@@ -774,8 +776,7 @@ function AppCoreController:_buildPaletteLinkDestinationContextMenuItems(contentW
         end
         return childItems
       end,
-    },
-  }
+    }
 
   if linkedPalette then
     items[#items + 1] = {

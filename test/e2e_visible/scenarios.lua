@@ -2,7 +2,6 @@ local BubbleExample = require("test.e2e_bubble_example")
 local Steps = require("test.e2e_visible.steps")
 local Points = require("test.e2e_visible.points")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
-local PaletteLinkRenderController = require("controllers.palette.palette_link_render_controller")
 local images = require("images")
 
 local normalizeSpeedMultiplier = Steps.normalizeSpeedMultiplier
@@ -1841,6 +1840,132 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
     )
   end
 
+  local function paletteLinkMenu(currentApp)
+    local menu = currentApp and currentApp.paletteLinkContextMenu or nil
+    assert(menu and menu:isVisible(), "expected visible palette link context menu")
+    return menu
+  end
+
+  local function paletteLinkMenuRowByText(itemText)
+    return rootMenuItemCenter(function(currentApp)
+      return paletteLinkMenu(currentApp)
+    end, itemText)
+  end
+
+  local function openPaletteLinkChildMenuByText(itemText)
+    return function(_, currentApp)
+      local menu = paletteLinkMenu(currentApp)
+      local items = menu.visibleItems or {}
+      local targetRow = nil
+      for index, item in ipairs(items) do
+        if item and item.text == itemText then
+          targetRow = index
+          break
+        end
+      end
+      assert(targetRow, "expected palette link menu item: " .. tostring(itemText))
+      assert(menu._openChildForRow, "expected palette link menu child opener")
+      local opened = menu:_openChildForRow(targetRow)
+      assert(opened == true, "expected palette link child menu to open for " .. tostring(itemText))
+    end
+  end
+
+  local function assertPaletteLinkMenuTexts(expectedTexts)
+    return function(_, currentApp)
+      local menu = paletteLinkMenu(currentApp)
+      local actualTexts = {}
+      for _, item in ipairs(menu.visibleItems or {}) do
+        actualTexts[#actualTexts + 1] = tostring(item and item.text or "")
+      end
+      assert(#actualTexts == #expectedTexts,
+        string.format(
+          "expected %d palette link menu items, got %d (%s)",
+          #expectedTexts,
+          #actualTexts,
+          table.concat(actualTexts, ", ")
+        )
+      )
+      for index, expectedText in ipairs(expectedTexts) do
+        assert(
+          actualTexts[index] == expectedText,
+          string.format(
+            "expected palette link menu row %d to be %s, got %s",
+            index,
+            tostring(expectedText),
+            tostring(actualTexts[index])
+          )
+        )
+      end
+    end
+  end
+
+  local function assertFocusedWindow(expectedKey, expectedLayerIndex)
+    return function(_, currentApp, currentRunner)
+      local expectedWin = requireRunnerWindow(currentRunner, expectedKey)
+      local focusedWin = currentApp.wm:getFocus()
+      assert(focusedWin == expectedWin, string.format(
+        "expected focused window %s, got %s",
+        tostring(expectedKey),
+        tostring(focusedWin and (focusedWin.title or focusedWin._id) or nil)
+      ))
+      if expectedLayerIndex ~= nil then
+        local actualLayerIndex = (focusedWin.getActiveLayerIndex and focusedWin:getActiveLayerIndex()) or focusedWin.activeLayer or 1
+        assert(
+          actualLayerIndex == expectedLayerIndex,
+          string.format("expected focused layer %d, got %d", expectedLayerIndex, actualLayerIndex)
+        )
+      end
+    end
+  end
+
+  local function paletteLinkChildMenuRow(row)
+    return childMenuRowCenter(function(currentApp)
+      return paletteLinkMenu(currentApp)
+    end, row)
+  end
+
+  local function paletteLinkChildMenuItemByText(textResolver)
+    return function(_, currentApp, currentRunner)
+      local expectedText = textResolver
+      if type(textResolver) == "function" then
+        expectedText = textResolver(currentRunner)
+      end
+      expectedText = tostring(expectedText or "")
+      local menu = paletteLinkMenu(currentApp)
+      local childMenu = assert(menu.childMenu, "expected visible palette link child menu")
+      local items = childMenu.visibleItems or {}
+      local targetRow = nil
+      for index, item in ipairs(items) do
+        if item and item.text == expectedText then
+          targetRow = index
+          break
+        end
+      end
+      if not targetRow and expectedText ~= "" then
+        for index, item in ipairs(items) do
+          local itemText = item and tostring(item.text or "") or ""
+          if itemText:find(expectedText, 1, true) then
+            targetRow = index
+            break
+          end
+        end
+      end
+      assert(targetRow, "expected palette link child menu item: " .. tostring(expectedText))
+      return paletteLinkChildMenuRow(targetRow)(nil, currentApp, currentRunner)
+    end
+  end
+
+  local function appendRightClickPaletteHandle(steps, label, key)
+    appendFocusWindow(steps, "Focus " .. tostring(key) .. " before context click", key)
+    appendClick(steps, label, paletteHandleCenterByKey(key), {
+      button = 2,
+      moveDuration = 0.08,
+      prePressPause = 0.06,
+      holdDuration = 0.05,
+      postPause = 0.18,
+    })
+  end
+
   local function assertLinks(expectedPaletteKeyByTargetKey)
     return function(_, _, currentRunner)
       for targetKey, expectedPaletteKey in pairs(expectedPaletteKeyByTargetKey) do
@@ -1861,14 +1986,6 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
           )
         )
       end
-    end
-  end
-
-  local function doubleClickAt(resolver)
-    return function(currentHarness, currentApp, currentRunner)
-      local x, y = resolver(currentHarness, currentApp, currentRunner)
-      currentHarness:click(x, y, { wait = false })
-      currentHarness:click(x, y, { wait = false })
     end
   end
 
@@ -1947,6 +2064,57 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
   }))
   steps[#steps + 1] = pause("Observe initial link setup", 0.4)
 
+  appendRightClickPaletteHandle(steps, "Open palette A source menu for jump", "romLinkPaletteAWin")
+  steps[#steps + 1] = call("Assert source menu items while linked", assertPaletteLinkMenuTexts({
+    "Linked layers: 3",
+    "Jump To Linked Layer",
+    "Move All Links To",
+    "Remove all links",
+  }))
+  steps[#steps + 1] = call("Open Jump To Linked Layer child menu", openPaletteLinkChildMenuByText("Jump To Linked Layer"))
+  appendClick(steps, "Choose link target 3 from source jump menu", paletteLinkChildMenuItemByText("Link Target 3 / layer 1"), {
+    moveDuration = 0.08,
+    prePressPause = 0.05,
+    holdDuration = 0.05,
+    postPause = 0.22,
+  })
+  steps[#steps + 1] = call("Assert source jump focused link target 3", assertFocusedWindow("linkTarget3", 1))
+
+  appendRightClickPaletteHandle(steps, "Open linked destination menu on target3", "linkTarget3")
+  steps[#steps + 1] = call("Assert linked destination menu items", assertPaletteLinkMenuTexts({
+    "Linked palette: ROM Link Palette A",
+    "Link To Palette",
+    "Jump to linked palette",
+    "Remove this link",
+  }))
+  appendClick(steps, "Choose Jump to linked palette on target3", paletteLinkMenuRowByText("Jump to linked palette"), {
+    moveDuration = 0.08,
+    prePressPause = 0.05,
+    holdDuration = 0.05,
+    postPause = 0.22,
+  })
+  steps[#steps + 1] = call("Assert destination jump focused palette A", assertFocusedWindow("romLinkPaletteAWin"))
+
+  appendRightClickPaletteHandle(steps, "Open unlinked destination menu on target4", "linkTarget4")
+  steps[#steps + 1] = call("Assert unlinked destination menu items", assertPaletteLinkMenuTexts({
+    "Link To Palette",
+  }))
+  steps[#steps + 1] = call("Open Link To Palette child menu on target4", openPaletteLinkChildMenuByText("Link To Palette"))
+  appendClick(steps, "Choose palette B in target4 link menu", paletteLinkChildMenuItemByText(function(currentRunner)
+    return requireRunnerWindow(currentRunner, "romLinkPaletteBWin").title
+  end), {
+    moveDuration = 0.08,
+    prePressPause = 0.05,
+    holdDuration = 0.05,
+    postPause = 0.22,
+  })
+  steps[#steps + 1] = call("Assert target4 linked to palette B via destination menu", assertLinks({
+    linkTarget1 = "romLinkPaletteAWin",
+    linkTarget2 = "romLinkPaletteAWin",
+    linkTarget3 = "romLinkPaletteAWin",
+    linkTarget4 = "romLinkPaletteBWin",
+  }))
+
   appendFocusWindow(steps, "Focus target1 before reconnecting destination link", "linkTarget1")
   appendDrag(
     steps,
@@ -1962,35 +2130,47 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
     linkTarget1 = "romLinkPaletteBWin",
     linkTarget2 = "romLinkPaletteAWin",
     linkTarget3 = "romLinkPaletteAWin",
-    linkTarget4 = nil,
+    linkTarget4 = "romLinkPaletteBWin",
   }))
   steps[#steps + 1] = pause("Observe destination reconnect", 0.35)
 
-  appendFocusWindow(steps, "Focus target2 before destination unlink", "linkTarget2")
-  steps[#steps + 1] = call(
-    "Double-click destination handle on target2 to remove single link",
-    doubleClickAt(paletteHandleCenterByKey("linkTarget2"))
-  )
-  steps[#steps + 1] = pause("Observe destination unlink", 0.4)
-  steps[#steps + 1] = call("Assert destination double-click unlink", assertLinks({
+  appendRightClickPaletteHandle(steps, "Open palette link menu on target2", "linkTarget2")
+  appendClick(steps, "Choose Remove this link on target2", paletteLinkMenuRowByText("Remove this link"), {
+    moveDuration = 0.08,
+    prePressPause = 0.05,
+    holdDuration = 0.05,
+    postPause = 0.24,
+  })
+  steps[#steps + 1] = pause("Observe destination unlink", 0.22)
+  steps[#steps + 1] = call("Assert destination menu unlink", assertLinks({
     linkTarget1 = "romLinkPaletteBWin",
     linkTarget2 = nil,
     linkTarget3 = "romLinkPaletteAWin",
-    linkTarget4 = nil,
+    linkTarget4 = "romLinkPaletteBWin",
   }))
 
-  appendFocusWindow(steps, "Focus palette A before remove-all double click", "romLinkPaletteAWin")
-  steps[#steps + 1] = call(
-    "Double-click source handle to remove all links from palette A",
-    doubleClickAt(paletteHandleCenterByKey("romLinkPaletteAWin"))
-  )
-  steps[#steps + 1] = pause("Observe source remove-all", 0.45)
+  appendRightClickPaletteHandle(steps, "Open palette A source menu", "romLinkPaletteAWin")
+  appendClick(steps, "Choose Remove all links on palette A", paletteLinkMenuRowByText("Remove all links"), {
+    moveDuration = 0.08,
+    prePressPause = 0.05,
+    holdDuration = 0.05,
+    postPause = 0.24,
+  })
+  steps[#steps + 1] = pause("Observe source remove-all", 0.22)
   steps[#steps + 1] = call("Assert source remove-all", assertLinks({
     linkTarget1 = "romLinkPaletteBWin",
     linkTarget2 = nil,
     linkTarget3 = nil,
-    linkTarget4 = nil,
+    linkTarget4 = "romLinkPaletteBWin",
   }))
+  appendRightClickPaletteHandle(steps, "Open palette A source menu while unlinked", "romLinkPaletteAWin")
+  steps[#steps + 1] = call("Assert source menu items while unlinked", assertPaletteLinkMenuTexts({
+    "No linked layers",
+  }))
+  steps[#steps + 1] = call("Hide unlinked source menu", function(_, currentApp)
+    currentApp:hideAppContextMenus()
+  end)
+  steps[#steps + 1] = pause("Observe menu close before relinking", 0.08)
 
   appendLinkFromPalette(steps, "romLinkPaletteAWin", "linkTarget1")
   appendLinkFromPalette(steps, "romLinkPaletteAWin", "linkTarget2")
@@ -2003,21 +2183,17 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
     linkTarget4 = "romLinkPaletteAWin",
   }))
 
-  appendFocusWindow(steps, "Focus palette A before right-drag move-all", "romLinkPaletteAWin")
-  appendDrag(
-    steps,
-    "Right-drag move-all links from palette A to palette B",
-    paletteHandleCenterByKey("romLinkPaletteAWin"),
-    paletteHandleCenterByKey("romLinkPaletteBWin"),
-    {
-      button = 2,
-      prePressPause = 0.12,
-      holdDuration = 0.12,
-      dragDuration = 0.34,
-      preReleasePause = 0.1,
-      postPause = 0.5,
-    }
-  )
+  appendRightClickPaletteHandle(steps, "Open palette A source menu for move-all", "romLinkPaletteAWin")
+  steps[#steps + 1] = call("Open Move All Links To child menu", openPaletteLinkChildMenuByText("Move All Links To"))
+  steps[#steps + 1] = pause("Observe Move All Links submenu", 0.08)
+  appendClick(steps, "Choose palette B as move-all target", paletteLinkChildMenuItemByText(function(currentRunner)
+    return requireRunnerWindow(currentRunner, "romLinkPaletteBWin").title
+  end), {
+    moveDuration = 0.08,
+    prePressPause = 0.05,
+    holdDuration = 0.05,
+    postPause = 0.26,
+  })
   steps[#steps + 1] = call("Assert all links moved to palette B", assertLinks({
     linkTarget1 = "romLinkPaletteBWin",
     linkTarget2 = "romLinkPaletteBWin",
@@ -2025,41 +2201,14 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
     linkTarget4 = "romLinkPaletteBWin",
   }))
 
-  appendFocusWindow(steps, "Focus palette B before right-drag unchanged", "romLinkPaletteBWin")
-  appendDrag(
-    steps,
-    "Right-drag move-all from palette B back onto itself (unchanged)",
-    paletteHandleCenterByKey("romLinkPaletteBWin"),
-    paletteHandleCenterByKey("romLinkPaletteBWin"),
-    {
-      button = 2,
-      prePressPause = 0.12,
-      holdDuration = 0.12,
-      dragDuration = 0.28,
-      preReleasePause = 0.1,
-      postPause = 0.36,
-    }
-  )
-  steps[#steps + 1] = call("Assert self-drop keeps palette B links", assertLinks({
-    linkTarget1 = "romLinkPaletteBWin",
-    linkTarget2 = "romLinkPaletteBWin",
-    linkTarget3 = "romLinkPaletteBWin",
-    linkTarget4 = "romLinkPaletteBWin",
-  }))
-
-  appendFocusWindow(steps, "Focus palette B before right-drag remove-all", "romLinkPaletteBWin")
-  appendDrag(
-    steps,
-    "Right-drag move-all from palette B to empty space (remove all)",
-    paletteHandleCenterByKey("romLinkPaletteBWin"),
-    { x = 8, y = 8 },
-    {
-      button = 2,
-      dragDuration = 0.22,
-      postPause = 0.45,
-    }
-  )
-  steps[#steps + 1] = call("Assert empty-drop remove-all", assertLinks({
+  appendRightClickPaletteHandle(steps, "Open palette B source menu for remove-all", "romLinkPaletteBWin")
+  appendClick(steps, "Choose Remove all links on palette B", paletteLinkMenuRowByText("Remove all links"), {
+    moveDuration = 0.08,
+    prePressPause = 0.05,
+    holdDuration = 0.05,
+    postPause = 0.24,
+  })
+  steps[#steps + 1] = call("Assert palette B remove-all", assertLinks({
     linkTarget1 = nil,
     linkTarget2 = nil,
     linkTarget3 = nil,
