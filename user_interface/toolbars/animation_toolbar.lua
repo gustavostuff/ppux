@@ -16,13 +16,6 @@ local function isAnimationKind(window)
   return WindowCaps.isAnimationLike(window)
 end
 
-local function isShiftDown()
-  if not (love and love.keyboard and love.keyboard.isDown) then
-    return false
-  end
-  return love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
-end
-
 local function clamp(value, minValue, maxValue)
   value = math.floor(tonumber(value) or 0)
   if value < minValue then return minValue end
@@ -100,34 +93,6 @@ function AnimationToolbar.new(window, ctx, windowController)
     end, "Add a sprite on active layer", {
       row = secondaryRow,
     })
-
-    self.originXMinusButton = self:addButton(images.icons.icon_minus, function()
-      self:_onAdjustSpriteOrigin("x", -1)
-    end, "Origin X -1", {
-      row = secondaryRow,
-    })
-    self.originXMinusButton.bgColor = colors.red
-
-    self.originXPlusButton = self:addButton(images.icons.icon_plus, function()
-      self:_onAdjustSpriteOrigin("x", 1)
-    end, "Origin X +1", {
-      row = secondaryRow,
-    })
-    self.originXPlusButton.bgColor = colors.red
-
-    self.originYMinusButton = self:addButton(images.icons.icon_minus, function()
-      self:_onAdjustSpriteOrigin("y", -1)
-    end, "Origin Y -1", {
-      row = secondaryRow,
-    })
-    self.originYMinusButton.bgColor = colors.green
-
-    self.originYPlusButton = self:addButton(images.icons.icon_plus, function()
-      self:_onAdjustSpriteOrigin("y", 1)
-    end, "Origin Y +1", {
-      row = secondaryRow,
-    })
-    self.originYPlusButton.bgColor = colors.green
 
     self.toggleOriginGuidesButton = self:addButton(images.icons.icon_dotted_lines, function()
       self:_onToggleOriginGuides()
@@ -262,24 +227,6 @@ function AnimationToolbar:_getActiveSpriteLayer()
   return nil, nil
 end
 
-function AnimationToolbar:_onAdjustSpriteOrigin(axis, direction)
-  local layer = self:_getActiveSpriteLayer()
-  if not layer then
-    return
-  end
-
-  local step = isShiftDown() and 8 or 1
-  local delta = (direction < 0) and -step or step
-
-  if axis == "x" then
-    layer.originX = clamp((layer.originX or 0) + delta, 0, 255)
-  else
-    layer.originY = clamp((layer.originY or 0) + delta, 0, 239)
-  end
-
-  self:updateOriginButtons()
-end
-
 function AnimationToolbar:_onToggleOriginGuides()
   local layer = self:_getActiveSpriteLayer()
   if not layer or not self.window then
@@ -394,38 +341,7 @@ function AnimationToolbar:updateOriginButtons()
   local layer = self:_getActiveSpriteLayer()
   local isActiveSpriteLayer = layer ~= nil
   local hideOriginButtons = not isActiveSpriteLayer
-  local originX = layer and clamp(layer.originX or 0, 0, 255) or 0
-  local originY = layer and clamp(layer.originY or 0, 0, 239) or 0
-  local stepHint = " (Shift: 8)"
 
-  if self.originXMinusButton then
-    self.originXMinusButton.icon = images.icons.icon_minus or self.originXMinusButton.icon
-    self.originXMinusButton.bgColor = colors.red
-    self.originXMinusButton.enabled = isActiveSpriteLayer
-    self.originXMinusButton.hidden = hideOriginButtons
-    self.originXMinusButton.tooltip = string.format("Origin X: %d -1%s", originX, stepHint)
-  end
-  if self.originXPlusButton then
-    self.originXPlusButton.icon = images.icons.icon_plus or self.originXPlusButton.icon
-    self.originXPlusButton.bgColor = colors.red
-    self.originXPlusButton.enabled = isActiveSpriteLayer
-    self.originXPlusButton.hidden = hideOriginButtons
-    self.originXPlusButton.tooltip = string.format("Origin X: %d +1%s", originX, stepHint)
-  end
-  if self.originYMinusButton then
-    self.originYMinusButton.icon = images.icons.icon_minus or self.originYMinusButton.icon
-    self.originYMinusButton.bgColor = colors.green
-    self.originYMinusButton.enabled = isActiveSpriteLayer
-    self.originYMinusButton.hidden = hideOriginButtons
-    self.originYMinusButton.tooltip = string.format("Origin Y: %d -1%s", originY, stepHint)
-  end
-  if self.originYPlusButton then
-    self.originYPlusButton.icon = images.icons.icon_plus or self.originYPlusButton.icon
-    self.originYPlusButton.bgColor = colors.green
-    self.originYPlusButton.enabled = isActiveSpriteLayer
-    self.originYPlusButton.hidden = hideOriginButtons
-    self.originYPlusButton.tooltip = string.format("Origin Y: %d +1%s", originY, stepHint)
-  end
   if self.toggleOriginGuidesButton then
     local enabledGuides = isActiveSpriteLayer and (self.window and self.window.showSpriteOriginGuides == true)
     self.toggleOriginGuidesButton.icon = images.icons.icon_dotted_lines or self.toggleOriginGuidesButton.icon

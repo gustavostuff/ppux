@@ -125,50 +125,7 @@ describe("ppu_frame_toolbar.lua - add sprite flow", function()
 end)
 
 describe("ppu_frame_toolbar.lua - sprite origin controls", function()
-  it("adjusts origin by 1 (or 8 with Shift) and clamps to PPU bounds", function()
-    local originalIsDown = love.keyboard.isDown
-    love.keyboard.isDown = function()
-      return false
-    end
-
-    local win = makeWindow({
-      { kind = "tile", items = {} },
-      { kind = "sprite", items = {}, mode = "8x8", originX = 0, originY = 0 },
-    }, 2)
-
-    local toolbar = PPUFrameToolbar.new(win, { app = {} }, { getFocus = function() return win end })
-
-    toolbar:_onAdjustSpriteOrigin("x", 1)
-    toolbar:_onAdjustSpriteOrigin("y", 1)
-    expect(win.layers[2].originX).toBe(1)
-    expect(win.layers[2].originY).toBe(1)
-
-    love.keyboard.isDown = function(key)
-      return key == "lshift"
-    end
-    toolbar:_onAdjustSpriteOrigin("x", 1)
-    toolbar:_onAdjustSpriteOrigin("y", 1)
-    expect(win.layers[2].originX).toBe(9)
-    expect(win.layers[2].originY).toBe(9)
-
-    win.layers[2].originX = 255
-    win.layers[2].originY = 239
-    toolbar:_onAdjustSpriteOrigin("x", 1)
-    toolbar:_onAdjustSpriteOrigin("y", 1)
-    expect(win.layers[2].originX).toBe(255)
-    expect(win.layers[2].originY).toBe(239)
-
-    win.layers[2].originX = 0
-    win.layers[2].originY = 0
-    toolbar:_onAdjustSpriteOrigin("x", -1)
-    toolbar:_onAdjustSpriteOrigin("y", -1)
-    expect(win.layers[2].originX).toBe(0)
-    expect(win.layers[2].originY).toBe(0)
-
-    love.keyboard.isDown = originalIsDown
-  end)
-
-  it("enables origin buttons only when sprite layer is active", function()
+  it("enables origin guides control only when sprite layer is active", function()
     local win = makeWindow({
       { kind = "tile", items = {} },
       { kind = "sprite", items = {}, mode = "8x8", originX = 4, originY = 7 },
@@ -177,18 +134,10 @@ describe("ppu_frame_toolbar.lua - sprite origin controls", function()
     local toolbar = PPUFrameToolbar.new(win, { app = {} }, { getFocus = function() return win end })
 
     toolbar:updateOriginButtons()
-    expect(toolbar.originXMinusButton.enabled).toBe(false)
-    expect(toolbar.originXPlusButton.enabled).toBe(false)
-    expect(toolbar.originYMinusButton.enabled).toBe(false)
-    expect(toolbar.originYPlusButton.enabled).toBe(false)
     expect(toolbar.toggleOriginGuidesButton.enabled).toBe(false)
 
     win:setActiveLayerIndex(2)
     toolbar:updateOriginButtons()
-    expect(toolbar.originXMinusButton.enabled).toBe(true)
-    expect(toolbar.originXPlusButton.enabled).toBe(true)
-    expect(toolbar.originYMinusButton.enabled).toBe(true)
-    expect(toolbar.originYPlusButton.enabled).toBe(true)
     expect(toolbar.toggleOriginGuidesButton.enabled).toBe(true)
   end)
 

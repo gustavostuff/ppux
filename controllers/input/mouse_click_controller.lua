@@ -1,4 +1,5 @@
 local SpriteController = require("controllers.sprite.sprite_controller")
+local SpriteOriginDrag = require("controllers.sprite.sprite_origin_drag_controller")
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
@@ -342,6 +343,12 @@ local function handleRightButton(env, button, x, y, win, wm)
         return true
       end
       wm:setFocus(win)
+      if button == 2 then
+        if SpriteOriginDrag.tryBeginPress(env.ctx, env.utils or {}, x, y, win, wm) then
+          win:mousepressed(x, y, button)
+          return true
+        end
+      end
       if beginPpuTileContextClick() then
         win:mousepressed(x, y, button)
         return true

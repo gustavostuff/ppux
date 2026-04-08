@@ -1,4 +1,5 @@
 local SpriteController = require("controllers.sprite.sprite_controller")
+local SpriteOriginDrag = require("controllers.sprite.sprite_origin_drag_controller")
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
@@ -263,6 +264,10 @@ function M.handleMouseMoved(env, x, y, dx, dy)
   if app and app.paletteLinkDrag and app.paletteLinkDrag.active then
     local wm = ctx.wm()
     PaletteLinkController.updateDragHover(wm, x, y)
+  end
+
+  if SpriteOriginDrag.updateMove(ctx, x, y, utils) then
+    return true
   end
 
   if SpriteController.isDragging() then

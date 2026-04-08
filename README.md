@@ -15,15 +15,21 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
 - [Basic Usage](#basic-usage)
   - [Getting started](#getting-started)
   - [Windows system](#windows-system)
+  - [Specialized toolbars](#specialized-toolbars)
   - [Palette windows](#palette-windows)
   - [Main controls](#main-controls)
   - [Tile mode](#tile-mode)
   - [Edit mode](#edit-mode)
+  - [PNG drops](#png-drops)
 - [Advanced](#advanced)
   - [Build packages](#build-packages)
   - [Database](#database)
   - [DB contribution tracker](#db-contribution-tracker)
   - [Lua project mapping](#lua-project-mapping)
+  - [PPU frame windows](#ppu-frame-windows)
+  - [OAM animation windows](#oam-animation-windows)
+  - [ROM palette windows](#rom-palette-windows)
+  - [Window references between entries](#window-references-between-entries)
   - [Byte budget for PPU Frame windows](#byte-budget-for-ppu-frame-windows)
   - [Current nametable codec coverage](#current-nametable-codec-coverage)
   - [ROM patches](#rom-patches)
@@ -38,10 +44,10 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
 Create a folder, place your ROM inside it, then drag the ROM into PPUX. After that, the app will either:
 
 1. Open a default layout
-2. Open a DB-backed game layout
-3. Load an existing user project (`.lua` or `.ppux`)
+2. Open a DB layout
+3. Open a *.lua or *.ppux user project (if any)
 
-If a ROM has no DB entry yet, it can still be used normally. DB entries are just curated starting points.
+If a ROM has no DB entry yet, it can still be used normally. DB entries are just curated starting points. That said, any user can "pick" a game and start working on a user project that can be used for a new DB entry Pull Request. [See this section](#db-contribution-tracker).
 
 Example with an animation for Dr. Mario, this can be done in 2 or 3 minutes:
 
@@ -71,7 +77,128 @@ Notes:
 
 * ROM Banks is the fallback source browser, useful for Games that use CHR RAM data (like Megaman 2, for instance) and, as mentioned above, it will load the whole ROM, so be careful on unintentional non-graphics pixel edits.
 
-* Not all window types can currently be created through the UI. ROM-backed windows that depend on ROM addresses and related metadata still need to be created manually in Lua project files for now, but this will be improved.
+* You can create a window from **Main Menu > Windows > New Window** (or `Ctrl + N`) and pick the kind you want. ROM-backed fields (like ROM addresses) are filled in through the modals and property flows in the UI.
+
+### Specialized toolbars
+
+Windows include a slim toolbar strip just above the header. It holds small icon buttons whose actions depend on the window type. Every control should show a tooltip on hover, but it still helps to spell out what each button does in the docs so people can learn the layout without hovering everything.
+
+
+#### CHR Banks toolbar
+
+<img src="img/readme_images/toolbars/chr_banks_toolbar.png" alt="CHR Banks specialized toolbar">
+
+1. **Previous bank** — `Left`
+2. **Next bank** — `Right`
+3. **Tile layout (8x8 / 8x16)** — straight `8x8` rows vs paired `8x16` layout — `M`
+4. **Sync duplicate tiles** — on: identical tiles edit together; off: independent cells
+
+#### ROM Banks toolbar
+
+<img src="img/readme_images/toolbars/rom_banks_toolbar.png" alt="ROM Banks specialized toolbar">
+
+Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface).
+
+1. **Previous bank** — `Left`
+2. **Next bank** — `Right`
+3. **Tile layout (8x8 / 8x16)** — `M`
+
+#### Static Art (tiles) toolbar
+
+<img src="img/readme_images/toolbars/static_tiles_toolbar.png" alt="Static Art tiles specialized toolbar">
+
+1. **Palette link handle** — drag to a **ROM palette** or right-click for more specific options
+
+#### Static Art (sprites) toolbar
+
+<img src="img/readme_images/toolbars/static_sprites_toolbar.png" alt="Static Art sprites specialized toolbar">
+
+1. **Palette link handle** — effectively same as tiles
+
+#### Animation (tiles) and Animation (sprites) toolbar
+
+No PNG in the folder yet (e.g. add `animation_toolbar.png`). **Single row:**
+
+Layer keys use **`Shift` + `Up` / `Down`** (`Up` → next frame, `Down` → previous), same as other multi-layer windows. **`Shift` + `Left` / `Right`** changes **all frame delays** together when the window supports it.
+
+1. **Palette link handle**
+2. **Previous layer** — `Shift` + `Down`
+3. **Next layer** — `Shift` + `Up`
+4. **Remove layer** — only when more than one frame exists — `-` or `_`
+5. **Add layer** — `=` or `+`
+6. **Copy from previous layer**
+7. **Play / Pause** — `P` (any case)
+
+#### OAM Animation toolbar
+
+<img src="img/readme_images/toolbars/oam_animation.png" alt="OAM Animation specialized toolbar">
+
+Default **`multiRowToolbar`**: **two rows**. With **`multiRowToolbar = false`**, the same controls appear in **one row**, order **1–9** left to right.
+
+Layer stepping matches Animation: **`Shift` + `Up` / `Down`** (blocked while playing). Frame timing: **`Shift` + `Left` / `Right`** when supported.
+
+**Row 1**
+
+1. **Palette link handle**
+2. **Previous layer** — `Shift` + `Down`
+3. **Next layer** — `Shift` + `Up`
+4. **Remove layer** — `-` or `_`
+5. **Add layer** — `=` or `+`
+
+**Row 2**
+
+6. **Add sprite**
+7. **Toggle origin guides** — **Shift + right-drag** on the canvas moves origin ([OAM animation windows](#oam-animation-windows))
+8. **Copy from previous layer**
+9. **Play / Pause** — `P`
+
+#### Global palette toolbar
+
+<img src="img/readme_images/toolbars/global_palette.png" alt="Global palette specialized toolbar">
+
+1. **Compact / normal view**
+2. **Set as active palette** — for painting where no ROM palette applies
+
+#### ROM palette toolbar
+
+<img src="img/readme_images/toolbars/rom_palette.png" alt="ROM palette specialized toolbar">
+
+1. **Palette link handle (source)** — drag to destinations; **right-click** for **Jump To Linked Layer**, **Move All Links To**, **Remove all links**, etc.
+2. **Compact / normal view**
+
+Consumers of a ROM palette use **their** toolbar connect control; **right-click** for **Link to palette**, **Jump to linked palette**, **Remove this link**.
+
+#### PPU Frame — tile layer active
+
+<img src="img/readme_images/toolbars/ppu_frame_tile_layer_toolbar.png" alt="PPU Frame toolbar with tile layer active">
+
+Sprite-only controls are **hidden**.
+
+1. **Previous layer** — `Shift` + `Down`
+2. **Next layer** — `Shift` + `Up`
+3. **Nametable range** — compressed nametable **start/end** ROM addresses (warning styling until set)
+4. **Add sprite** — creates sprite layer if needed, otherwise adds a sprite (tooltip follows)
+5. **Glass / empty tile** — show/hide the empty-tile preview for the nametable
+
+#### PPU Frame — sprite layer active
+
+<img src="img/readme_images/toolbars/ppu_frame_sprite_layer_toolbar.png" alt="PPU Frame toolbar with sprite layer active">
+
+**Glass** control **hidden**.
+
+1. **Previous layer** — `Shift` + `Down`
+2. **Next layer** — `Shift` + `Up`
+3. **Nametable range** — same modal for the screen’s tile layer without switching away
+4. **Add sprite**
+5. **Toggle origin guides** — **Shift + right-drag** moves **origin X/Y** ([PPU frame windows](#ppu-frame-windows))
+
+#### Pattern table builder toolbar
+
+No PNG yet (e.g. `pattern_table_toolbar.png`).
+
+1. **Previous layer** — `Shift` + `Down`
+2. **Next layer** — `Shift` + `Up`
+3. **Generate** — packed pattern table (toolbar shows **G**); status shows capacity / overflow
 
 ### Palette windows
 
@@ -97,7 +224,19 @@ In practice:
 | Global palette | <img src="img/readme_images/global_palette_normal.png" alt="Global palette normal mode"> | <img src="img/readme_images/global_palette_compact.png" alt="Global palette compact mode"> |
 | ROM palette    | <img src="img/readme_images/rom_palette_normal.png" alt="ROM palette normal mode"> | <img src="img/readme_images/rom_palette_compact.png" alt="ROM palette compact mode"> |
 
-To link a `ROM palette` to another window, drag from the small pivot button in the ROM palette toolbar into the destination window. This is the UI-driven way to create palette links between a ROM palette and a window/layer.
+Palette links are created and managed from the **connect button** on toolbars (the small **palette link handle**). **Persistent link lines are not drawn** anymore; you see a rubber-band line only while dragging.
+
+**Creating a link**
+
+* Drag from a **ROM palette** window’s connect handle and release over a destination window (or a specific layer target, depending on the window), **or**
+* On a destination window, right-click its palette connect handle and use **Link to palette** to pick a ROM palette.
+
+**Context menus**
+
+* **ROM palette** (source): right-click the connect handle for **Jump To Linked Layer** (per target), **Move All Links To** (another ROM palette), **Remove all links**, and a read-only summary of how many layers are linked.
+* **Destination** windows (layers that consume a palette): right-click the connect handle for **Link to palette**, **Jump to linked palette**, and **Remove this link** when a link exists.
+
+While a drag is in progress, the UI still reflects valid drop targets as before.
 
 <img src="img/readme_images/palette_link_example.png" alt="ROM palette link drag and drop example">
 
@@ -108,6 +247,7 @@ To link a `ROM palette` to another window, drag from the small pivot button in t
 - `Ctrl + N`: open `New Window`
 - `Ctrl + S`: open save options
 - `Tab`: toggle `Tile` / `Edit` mode
+- `Space` (hold): **mapping highlight** — when a non–CHR/ROM layout window is focused, highlights tiles or sprites in the active layer that match the tile indices in the **current CHR/ROM bank**; matching cells are also emphasized in CHR/ROM bank windows for the same bank. Release `Space` to turn it off.
 - `Ctrl + G`: toggle the focused window grid
 - `Ctrl + R`: toggle shader rendering for the focused layer
 - `Ctrl + Z` / `Ctrl + Y`: undo / redo
@@ -125,11 +265,12 @@ Tile mode is for selection, drag and drop and tile-level editing in general.
 - `Ctrl + A` to select all
 - `Delete` / `Backspace` to remove selection where supported
 - arrows to move tile selections
-- `Shift + Up/Down` to switch layers
+- `Shift + Up/Down` to switch layers in **multi-layer** windows (animations, PPU Frame, OAM Animation, pattern builder, etc.): **`Up` = next layer, `Down` = previous**. **Static Art** windows stay single-layer and do not use layer switching shortcuts.
 - `Ctrl + Up/Down` to change inactive-layer opacity
 - `1` to `4` to assign palette numbers where supported
 - `H` / `V` to mirror selected sprites
 - bank windows: `Left/Right` switch banks, `M` toggles `8x8` / `8x16`
+- With a layout window focused, hold **`Space`** to cross-highlight matching tiles in the **current CHR/ROM bank** (see [Main controls](#main-controls)).
 
 ### Edit mode
 
@@ -150,6 +291,8 @@ Edit mode is for pixel-level editing.
 - `Ctrl + Z` / `Ctrl + Y`: undo / redo
 
 ### PNG drops
+
+PNG import rules are documented here and linked from the [Basic Usage](#basic-usage) outline at the top of this file.
 
 You can drag and drop a PNG directly into PPUX. What happens depends on the window under the mouse, and sometimes on the focused window.
 
@@ -254,9 +397,23 @@ Best practice: keep the base ROM, edited ROM, and project files in the same fold
 
 ### PPU frame windows
 
-`ppu_frame` windows are structured screen views. They usually contain one tile layer backed by a compressed nametable stream and, optionally, one sprite overlay layer.
+`ppu_frame` windows are structured screen views: a **tile** layer backed by compressed nametable data in ROM, plus an optional **sprite** overlay that tracks real OAM bytes.
 
-Example:
+**Creating and editing from the UI**
+
+1. Open **New Window** (`Ctrl + N`) and choose **PPU Frame**, or use the taskbar / menu equivalent.
+2. Use the window toolbar to pick the **nametable ROM range** (start/end addresses) when the tile layer is active — this opens the address modal tied to the game’s codec.
+3. Set **CHR/ROM bank**, **nametable page**, and related tile-layer fields through the same flows (bank selection follows the global CHR/ROM bank window; layer settings are edited in the inspectors / modals the window provides).
+4. The **glass tile** (empty-tile) byte and visibility are controlled from the toolbar and layer/window options (`glassTileByte` on the tile layer, `showGlassTile` at window level where exposed).
+5. Tile layers render from a **cached full-canvas** nametable view for performance; after heavy edits, use the normal refresh paths the UI offers if a screen looks stale.
+6. For **sprites**, use **Add sprite** on the toolbar to bind OAM entries. Sprite items that share the same `startAddr` **stay in sync** with **OAM Animation** windows (and other PPU Frame sprite layers) so moving or reconfiguring one updates the linked entries.
+7. **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. A plain **right-click** still opens the usual context menus when you are not dragging.
+
+<img src="img/readme_images/ui_new_window_ppu_frame_placeholder.png" alt="New Window: PPU Frame placeholder">
+
+<img src="img/readme_images/ui_ppu_frame_toolbar_modal_placeholder.png" alt="PPU Frame toolbar and modal placeholder">
+
+**Project file sketch** (what the UI ultimately saves) — useful when diffing projects or contributing DB entries:
 
 ```lua
 {
@@ -269,7 +426,7 @@ Example:
       nametableEndAddr = 0x01329B,
       nametableStartAddr = 0x013110,
       paletteData = { winId = "rom_palette_01" }
-    },
+    },  
     [2] = {
       kind = "sprite",
       mode = "8x16",
@@ -309,9 +466,22 @@ PPUX currently includes one nametable codec implementation aimed at Konami-style
 
 ### OAM animation windows
 
-`oam_animation` windows are ROM-backed sprite animation windows where each layer is effectively one frame.
+`oam_animation` windows are ROM-backed sprite animations: **each layer is one hardware frame** of sprites tied to real OAM bytes.
 
-Example:
+**Creating and editing from the UI**
+
+1. Open **New Window** and choose **OAM Animation**.
+2. Use **Add sprite** and the frame/layer controls on the toolbar to build each frame; ROM addresses and tiles are chosen inside the modals rather than by editing Lua by hand.
+3. Frames can be **played** from the toolbar like other animation windows; layer edits are blocked while playback is running.
+4. Items that share a `startAddr` **sync** with **PPU Frame** sprite layers (and other OAM windows) so OAM edits stay consistent everywhere that references the same bytes.
+5. **Origin** and **origin guides** behave like PPU Frame sprite layers: **Shift + right-click drag** moves `originX` / `originY`; the dotted-line button toggles guides.
+6. Optional project field `multiRowToolbar = false` keeps the OAM toolbar on a **single row** (narrow layouts); otherwise the toolbar may split into two rows.
+
+<img src="img/readme_images/ui_new_window_oam_animation_placeholder.png" alt="New Window: OAM Animation placeholder">
+
+<img src="img/readme_images/toolbars/oam_animation.png" alt="OAM Animation toolbar">
+
+**Project file sketch:**
 
 ```lua
 {
@@ -337,6 +507,8 @@ Important fields are frame timing (`delaysPerLayer`), sprite frames (`layers`), 
 
 `rom_palette` windows are `4x4` palette editors backed directly by ROM addresses.
 
+Use the **connect button** on the ROM palette toolbar to drag links onto layers, and **right-click** it for source-side management (**Jump To Linked Layer**, **Move All Links To**, **Remove all links**). Toggle **compact mode** from the same toolbar when you want a denser view. Destination windows still use their own connect handle plus the contextual **Link to palette** / **Remove this link** entries documented in [Palette windows](#palette-windows).
+
 Example:
 
 ```lua
@@ -353,7 +525,7 @@ Example:
 }
 ```
 
-So each `romColors[row][col]` stores a ROM address for a given palette color. The first column is the universal background color, usually one single "shared" ROM address.
+So each `romColors[row][col]` stores a ROM address for a given palette color. The first column is the universal background color, usually one single "shared" ROM address. On cells that are not directly editable, **double-click** opens the ROM address assignment flow described in the in-app status hint.
 
 ### Window references between entries
 
@@ -386,17 +558,3 @@ PPUX also includes visible end-to-end test scenarios that boot the real app. See
 ---
 
 **Detailed video tutorials are planned.**
-
-Dev notes:
-
-* Create a shader google sheet so people can add themselves and indicate which game(s) they'll add to the DB (DONE)
-* Add Tiles mode for windows (similar to "Tiling" windows managers on Linux)
-* Add more e2e tests (DONE, needs more tho)
-* Add a compressed version of the lua project, maybe *.ppux (DONE)
-* Separate DB into per-game Lua files (DONE)
-* Add a "recently loaded" list in main menu (DONE)
-* Re-structure main menu into sub-menus (DONE)
-* Add contextual menus for windows and empty space (DONE-ish)
-* Standarize modals to use panel as a base, and make panels more robust/flexible (DONE)
-* Fix issue: project loading way to many items when project was saved with CHR sync ON (FIXED)
-* Be able to create and populate/configure OAM/ROM-backed windows thru the UI (big task, needs split)

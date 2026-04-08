@@ -12,6 +12,7 @@ local MouseOverlayController = require("controllers.input.mouse_overlay_controll
 local MouseWindowChromeController = require("controllers.input.mouse_window_chrome_controller")
 local MouseClickController = require("controllers.input.mouse_click_controller")
 local MouseMoveController = require("controllers.input.mouse_move_controller")
+local SpriteOriginDrag = require("controllers.sprite.sprite_origin_drag_controller")
 
 local M = {}
 
@@ -91,6 +92,7 @@ function M.resetTransientState()
     app.paletteLinkDrag.originContentWin = nil
     app.paletteLinkDrag.originPaletteWin = nil
   end
+  SpriteOriginDrag.clear()
   MultiSelectController.reset()
   if SpriteController and SpriteController.endDrag then
     SpriteController.endDrag()
@@ -523,6 +525,10 @@ function M.mousereleased(x, y, button)
   local resizeEnded = handleResizeEnd(button, x, y, fwin)
   local windowDragEnded = handleWindowDragEnd(button, x, y, fwin)
   local spriteDragEnded = handleSpriteDragEnd()
+  if SpriteOriginDrag.finishRelease(ctx, button, x, y, ctx and ctx.app) then
+    logRoute("mousereleased", "sprite_origin_drag", x, y, button, fwin)
+    return
+  end
   if handleContextMenuRelease(button, x, y) then logRoute("mousereleased", "context_menu_release", x, y, button, fwin); return end
   if resizeEnded then logRoute("mousereleased", "resize_end", x, y, button, fwin); return end
   if windowDragEnded then logRoute("mousereleased", "window_drag_end", x, y, button, fwin); return end
