@@ -44,11 +44,11 @@ function StaticArtToolbar:updateIcons()
     self.linkButton.bgColor = linkedPalette and colors.green or colors.gray20
     if linkedPalette then
       self.linkButton.tooltip = string.format(
-        "Linked to %s (right-click for actions, drag to relink)",
+        "Linked to %s (click for menu)",
         tostring(linkedPalette.title or "palette")
       )
     else
-      self.linkButton.tooltip = "No palette linked (right-click for actions, drag to link)"
+      self.linkButton.tooltip = "No palette linked (click for menu)"
     end
   end
 end

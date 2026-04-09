@@ -1,4 +1,5 @@
 local ResolutionController = require("controllers.app.resolution_controller")
+local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 local DebugController = require("controllers.dev.debug_controller")
 local PaletteLinkRenderController = require("controllers.palette.palette_link_render_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
@@ -587,8 +588,9 @@ local function drawWindows(app)
 
     w:drawBorder(isFocused)
 
-    -- Draw specialized toolbar first (above header, left side)
-    if w.specializedToolbar then
+    -- Draw specialized toolbar first (above header, left side), unless docked in app top bar.
+    if w.specializedToolbar
+      and not (app.separateToolbar == true and w == wm:getFocus()) then
       w.specializedToolbar:draw()
     end
 
@@ -955,11 +957,14 @@ local function drawEditModeColorIndicator(app)
   love.graphics.setColor(colors.white)
 end
 
-local function drawNonModalOverlays(app)
+local function drawTranslatedNonModalOverlays(app)
   ShaderPaletteController.applyShader(true)
   UserInput.drawOverlay()
   ShaderPaletteController.releaseShader()
   drawEditModeColorIndicator(app)
+end
+
+local function drawNonModalOverlays(app)
   if app.windowHeaderContextMenu and app.windowHeaderContextMenu.isVisible and app.windowHeaderContextMenu:isVisible() then
     if app.windowHeaderContextMenu.update then
       app.windowHeaderContextMenu:update()
@@ -1090,9 +1095,18 @@ function AppCoreController:draw()
   love.graphics.setCanvas({ self.canvas, depthstencil = true })
   love.graphics.clear(colors.gray10)
 
+  AppTopToolbarController.draw(self)
+
+  love.graphics.push()
+  love.graphics.translate(0, AppTopToolbarController.getContentOffsetY(self))
+
   drawWindows(self)
   drawPaletteLinks(self)
   drawEmptyStatePrompt(self)
+  drawTranslatedNonModalOverlays(self)
+
+  love.graphics.pop()
+
   drawStatus(self)
   drawNonModalOverlays(self)
   drawOverlays(self)

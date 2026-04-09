@@ -1,4 +1,5 @@
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
+local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 local images = require("images")
 local UiScale = require("user_interface.ui_scale")
 
@@ -75,7 +76,8 @@ function M.install(Taskbar, Helpers)
       local canvas = self.app and self.app.canvas
       if wm and wm.collapseAll and canvas then
         local areaX = 30
-        local areaY = 30
+        local topPad = AppTopToolbarController.getContentOffsetY(self.app)
+        local areaY = math.max(30, topPad + 8)
         local areaH = math.max(1, self.y - areaY - 8)
         wm:collapseAll({
           areaX = areaX,

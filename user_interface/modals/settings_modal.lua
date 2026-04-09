@@ -92,6 +92,7 @@ function Dialog.new()
     onSetCanvasFilter = nil,
     onSetTooltipsEnabled = nil,
     onSetPaletteLinks = nil,
+    onSetSeparateToolbar = nil,
     getScale = nil,
     getFullscreen = nil,
     getResizable = nil,
@@ -99,6 +100,7 @@ function Dialog.new()
     getCanvasFilter = nil,
     getTooltipsEnabled = nil,
     getPaletteLinks = nil,
+    getSeparateToolbar = nil,
     extraRows = nil,
     bgColor = nil,
     cellPaddingX = nil,
@@ -150,6 +152,7 @@ function Dialog:show(opts)
   self.onSetCanvasFilter = opts.onSetCanvasFilter
   self.onSetTooltipsEnabled = opts.onSetTooltipsEnabled
   self.onSetPaletteLinks = opts.onSetPaletteLinks
+  self.onSetSeparateToolbar = opts.onSetSeparateToolbar
   self.getScale = opts.getScale
   self.getFullscreen = opts.getFullscreen
   self.getResizable = opts.getResizable
@@ -157,6 +160,7 @@ function Dialog:show(opts)
   self.getCanvasFilter = opts.getCanvasFilter
   self.getTooltipsEnabled = opts.getTooltipsEnabled
   self.getPaletteLinks = opts.getPaletteLinks
+  self.getSeparateToolbar = opts.getSeparateToolbar
   self.extraRows = opts.extraRows
   self.visible = true
   self.pressedButton = nil
@@ -221,6 +225,19 @@ function Dialog:_defaultRows()
           })[paletteLinks] or "always"
           if self.onSetPaletteLinks then
             self.onSetPaletteLinks(nextValue)
+          end
+        end,
+      },
+    },
+    {
+      id = "separate_toolbar",
+      label = "Separate toolbar",
+      buttonSpec = {
+        id = "separate_toolbar_toggle",
+        text = (self.getSeparateToolbar and self.getSeparateToolbar() == true) and "On" or "Off",
+        action = function()
+          if self.onSetSeparateToolbar then
+            self.onSetSeparateToolbar(not (self.getSeparateToolbar and self.getSeparateToolbar() == true))
           end
         end,
       },

@@ -1377,14 +1377,13 @@ local function buildUndoRedoEventsScenario(harness, app, runner)
     layer.paletteData = { winId = currentRunner.undoPaletteLinkPreviousWinId }
   end)
 
-  appendDrag(steps, "Link ROM palette to static window", toolbarLinkHandleCenter(function(_, currentRunner)
-    return currentRunner.undoRomPaletteWin
-  end), function(h)
-    return h:windowCellCenter(staticWin, 1, 1)
-  end, {
-    dragDuration = 0.18,
-    postPause = 0.35,
-  })
+  steps[#steps + 1] = call("Link ROM palette to static window (API)", function(_, currentApp, currentRunner)
+    local PLC = require("controllers.palette.palette_link_controller")
+    local paletteWin = currentRunner.undoRomPaletteWin
+    currentApp.wm:setFocus(staticWin)
+    PLC.linkLayerToPalette(staticWin, 1, paletteWin)
+  end)
+  steps[#steps + 1] = pause("Observe palette link", 0.35)
   steps[#steps + 1] = call("Assert palette link applied", function(_, _, currentRunner)
     local layer = staticWin.layers and staticWin.layers[1]
     assert(layer and layer.paletteData and layer.paletteData.winId == currentRunner.undoRomPaletteWin._id,
@@ -1638,14 +1637,13 @@ local function buildRomPaletteLinkScenario(harness, app, runner)
     pause("Observe created ROM palette and sprite windows", 0.7),
   }
 
-  appendDrag(steps, "Link ROM palette to static art window", toolbarLinkHandleCenter(function(_, currentRunner)
-    return currentRunner.romLinkPaletteWin
-  end), function(h)
-    return h:windowCellCenter(staticWin, 1, 1)
-  end, {
-    dragDuration = 0.18,
-    postPause = 0.45,
-  })
+  steps[#steps + 1] = call("Link ROM palette to static art window (API)", function(_, currentApp, currentRunner)
+    local PLC = require("controllers.palette.palette_link_controller")
+    local paletteWin = currentRunner.romLinkPaletteWin
+    currentApp.wm:setFocus(staticWin)
+    PLC.linkLayerToPalette(staticWin, 1, paletteWin)
+  end)
+  steps[#steps + 1] = pause("Observe static palette link", 0.45)
 
   steps[#steps + 1] = call("Assert static art palette link applied", function(_, _, currentRunner)
     local layer = staticWin.layers and staticWin.layers[1]
@@ -1680,16 +1678,15 @@ local function buildRomPaletteLinkScenario(harness, app, runner)
     assert(target == runner.romLinkSpriteWin, "expected sprite window to be topmost at link drop point")
   end)
 
-  appendDrag(steps, "Link ROM palette to animation sprite window", toolbarLinkHandleCenter(function(_, currentRunner)
-    return currentRunner.romLinkPaletteWin
-  end), function(_, currentApp)
-    return windowHeaderCenter(function()
-      return assert(runner.romLinkSpriteWin, "expected runtime sprite link window")
-    end)(nil, currentApp, runner)
-  end, {
-    dragDuration = 0.18,
-    postPause = 0.45,
-  })
+  steps[#steps + 1] = call("Link ROM palette to sprite window (API)", function(_, currentApp, currentRunner)
+    local PLC = require("controllers.palette.palette_link_controller")
+    local paletteWin = currentRunner.romLinkPaletteWin
+    local spriteWin = assert(currentRunner.romLinkSpriteWin, "expected runtime sprite link window")
+    currentApp.wm:setFocus(spriteWin)
+    local li = (spriteWin.getActiveLayerIndex and spriteWin:getActiveLayerIndex()) or spriteWin.activeLayer or 1
+    PLC.linkLayerToPalette(spriteWin, li, paletteWin)
+  end)
+  steps[#steps + 1] = pause("Observe sprite palette link", 0.45)
 
   steps[#steps + 1] = call("Assert sprite window palette link applied", function(_, _, currentRunner)
     local spriteWin = assert(currentRunner.romLinkSpriteWin, "expected runtime sprite link window")
@@ -1749,30 +1746,9 @@ local function buildRomPaletteLinkScenario(harness, app, runner)
   end)
   steps[#steps + 1] = pause("Observe full connector restore", 0.6)
 
-  steps[#steps + 1] = call("Bring ROM palette window to front for unlink", function(_, currentApp, currentRunner)
-    assert(currentRunner.romLinkPaletteWin, "expected runtime ROM palette window")
-    currentApp.wm:setFocus(currentRunner.romLinkPaletteWin)
+  steps[#steps + 1] = call("Remove all ROM palette links (API)", function(_, currentApp, currentRunner)
+    PaletteLinkController.removeAllLinksForPalette(currentApp.wm, currentRunner.romLinkPaletteWin)
   end)
-  steps[#steps + 1] = pause("Observe ROM palette before unlink", 0.18)
-  steps[#steps + 1] = moveTo("Prepare ROM palette unlink double click", toolbarLinkHandleCenter(function(_, currentRunner)
-    return currentRunner.romLinkPaletteWin
-  end), 0.08)
-  steps[#steps + 1] = pause("Settle before unlink double click", 0.06)
-  steps[#steps + 1] = mouseDown("Unlink double click first down", toolbarLinkHandleCenter(function(_, currentRunner)
-    return currentRunner.romLinkPaletteWin
-  end), 1)
-  steps[#steps + 1] = pause("Hold first unlink click", 0.05)
-  steps[#steps + 1] = mouseUp("Unlink double click first up", toolbarLinkHandleCenter(function(_, currentRunner)
-    return currentRunner.romLinkPaletteWin
-  end), 1)
-  steps[#steps + 1] = pause("Between unlink clicks", 0.12)
-  steps[#steps + 1] = mouseDown("Unlink double click second down", toolbarLinkHandleCenter(function(_, currentRunner)
-    return currentRunner.romLinkPaletteWin
-  end), 1)
-  steps[#steps + 1] = pause("Hold second unlink click", 0.05)
-  steps[#steps + 1] = mouseUp("Unlink double click second up", toolbarLinkHandleCenter(function(_, currentRunner)
-    return currentRunner.romLinkPaletteWin
-  end), 1)
   steps[#steps + 1] = pause("Observe unlink all result", 0.65)
   steps[#steps + 1] = call("Assert both palette links were removed", function(_, _, currentRunner)
     local staticLayer = staticWin.layers and staticWin.layers[1]
@@ -1819,25 +1795,15 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
   end
 
   local function appendLinkFromPalette(steps, paletteKey, targetKey)
-    steps[#steps + 1] = call("Reset palette link double-click state", function()
-      if PaletteLinkController and PaletteLinkController.resetDoubleClickState then
-        PaletteLinkController.resetDoubleClickState()
-      end
+    steps[#steps + 1] = call(string.format("Link %s to %s (API)", tostring(paletteKey), tostring(targetKey)), function(_, currentApp, currentRunner)
+      local PLC = require("controllers.palette.palette_link_controller")
+      local paletteWin = requireRunnerWindow(currentRunner, paletteKey)
+      local targetWin = requireRunnerWindow(currentRunner, targetKey)
+      currentApp.wm:setFocus(targetWin)
+      local li = (targetWin.getActiveLayerIndex and targetWin:getActiveLayerIndex()) or targetWin.activeLayer or 1
+      PLC.linkLayerToPalette(targetWin, li, paletteWin)
     end)
-    appendFocusWindow(steps, "Focus source palette " .. tostring(paletteKey), paletteKey)
-    appendDrag(
-      steps,
-      string.format("Link %s to %s", tostring(paletteKey), tostring(targetKey)),
-      paletteHandleCenterByKey(paletteKey),
-      paletteHandleCenterByKey(targetKey),
-      {
-        prePressPause = 0.12,
-        holdDuration = 0.12,
-        dragDuration = 0.34,
-        preReleasePause = 0.1,
-        postPause = 0.32,
-      }
-    )
+    steps[#steps + 1] = pause("Observe palette link", 0.18)
   end
 
   local function paletteLinkMenu(currentApp)
@@ -1955,10 +1921,10 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
     end
   end
 
-  local function appendRightClickPaletteHandle(steps, label, key)
-    appendFocusWindow(steps, "Focus " .. tostring(key) .. " before context click", key)
+  local function appendClickPaletteHandle(steps, label, key)
+    appendFocusWindow(steps, "Focus " .. tostring(key) .. " before palette handle click", key)
     appendClick(steps, label, paletteHandleCenterByKey(key), {
-      button = 2,
+      button = 1,
       moveDuration = 0.08,
       prePressPause = 0.06,
       holdDuration = 0.05,
@@ -2064,14 +2030,12 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
   }))
   steps[#steps + 1] = pause("Observe initial link setup", 0.4)
 
-  appendRightClickPaletteHandle(steps, "Open palette A source menu for jump", "romLinkPaletteAWin")
+  appendClickPaletteHandle(steps, "Open palette A source menu for jump", "romLinkPaletteAWin")
   steps[#steps + 1] = call("Assert source menu items while linked", assertPaletteLinkMenuTexts({
-    "Linked layers: 3",
-    "Jump To Linked Layer",
-    "Move All Links To",
+    "Jump to linked layer",
     "Remove all links",
   }))
-  steps[#steps + 1] = call("Open Jump To Linked Layer child menu", openPaletteLinkChildMenuByText("Jump To Linked Layer"))
+  steps[#steps + 1] = call("Open Jump to linked layer child menu", openPaletteLinkChildMenuByText("Jump to linked layer"))
   appendClick(steps, "Choose link target 3 from source jump menu", paletteLinkChildMenuItemByText("Link Target 3 / layer 1"), {
     moveDuration = 0.08,
     prePressPause = 0.05,
@@ -2080,9 +2044,8 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
   })
   steps[#steps + 1] = call("Assert source jump focused link target 3", assertFocusedWindow("linkTarget3", 1))
 
-  appendRightClickPaletteHandle(steps, "Open linked destination menu on target3", "linkTarget3")
+  appendClickPaletteHandle(steps, "Open linked destination menu on target3", "linkTarget3")
   steps[#steps + 1] = call("Assert linked destination menu items", assertPaletteLinkMenuTexts({
-    "Linked palette: ROM Link Palette A",
     "Link To Palette",
     "Jump to linked palette",
     "Remove this link",
@@ -2095,7 +2058,7 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
   })
   steps[#steps + 1] = call("Assert destination jump focused palette A", assertFocusedWindow("romLinkPaletteAWin"))
 
-  appendRightClickPaletteHandle(steps, "Open unlinked destination menu on target4", "linkTarget4")
+  appendClickPaletteHandle(steps, "Open unlinked destination menu on target4", "linkTarget4")
   steps[#steps + 1] = call("Assert unlinked destination menu items", assertPaletteLinkMenuTexts({
     "Link To Palette",
   }))
@@ -2116,25 +2079,22 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
   }))
 
   appendFocusWindow(steps, "Focus target1 before reconnecting destination link", "linkTarget1")
-  appendDrag(
-    steps,
-    "Reconnect target1 active layer from palette A to palette B",
-    paletteHandleCenterByKey("linkTarget1"),
-    paletteHandleCenterByKey("romLinkPaletteBWin"),
-    {
-      dragDuration = 0.2,
-      postPause = 0.4,
-    }
-  )
+  steps[#steps + 1] = call("Reconnect target1 from palette A to B (API)", function(_, currentApp, currentRunner)
+    local PLC = require("controllers.palette.palette_link_controller")
+    local t = requireRunnerWindow(currentRunner, "linkTarget1")
+    local b = requireRunnerWindow(currentRunner, "romLinkPaletteBWin")
+    currentApp.wm:setFocus(t)
+    local li = (t.getActiveLayerIndex and t:getActiveLayerIndex()) or t.activeLayer or 1
+    PLC.linkLayerToPalette(t, li, b)
+  end)
+  steps[#steps + 1] = pause("Observe destination reconnect", 0.35)
   steps[#steps + 1] = call("Assert target1 moved from palette A to palette B", assertLinks({
     linkTarget1 = "romLinkPaletteBWin",
     linkTarget2 = "romLinkPaletteAWin",
     linkTarget3 = "romLinkPaletteAWin",
     linkTarget4 = "romLinkPaletteBWin",
   }))
-  steps[#steps + 1] = pause("Observe destination reconnect", 0.35)
-
-  appendRightClickPaletteHandle(steps, "Open palette link menu on target2", "linkTarget2")
+  appendClickPaletteHandle(steps, "Open palette link menu on target2", "linkTarget2")
   appendClick(steps, "Choose Remove this link on target2", paletteLinkMenuRowByText("Remove this link"), {
     moveDuration = 0.08,
     prePressPause = 0.05,
@@ -2149,7 +2109,7 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
     linkTarget4 = "romLinkPaletteBWin",
   }))
 
-  appendRightClickPaletteHandle(steps, "Open palette A source menu", "romLinkPaletteAWin")
+  appendClickPaletteHandle(steps, "Open palette A source menu", "romLinkPaletteAWin")
   appendClick(steps, "Choose Remove all links on palette A", paletteLinkMenuRowByText("Remove all links"), {
     moveDuration = 0.08,
     prePressPause = 0.05,
@@ -2163,9 +2123,10 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
     linkTarget3 = nil,
     linkTarget4 = "romLinkPaletteBWin",
   }))
-  appendRightClickPaletteHandle(steps, "Open palette A source menu while unlinked", "romLinkPaletteAWin")
+  appendClickPaletteHandle(steps, "Open palette A source menu while unlinked", "romLinkPaletteAWin")
   steps[#steps + 1] = call("Assert source menu items while unlinked", assertPaletteLinkMenuTexts({
-    "No linked layers",
+    "Jump to linked layer",
+    "Remove all links",
   }))
   steps[#steps + 1] = call("Hide unlinked source menu", function(_, currentApp)
     currentApp:hideAppContextMenus()
@@ -2183,17 +2144,13 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
     linkTarget4 = "romLinkPaletteAWin",
   }))
 
-  appendRightClickPaletteHandle(steps, "Open palette A source menu for move-all", "romLinkPaletteAWin")
-  steps[#steps + 1] = call("Open Move All Links To child menu", openPaletteLinkChildMenuByText("Move All Links To"))
-  steps[#steps + 1] = pause("Observe Move All Links submenu", 0.08)
-  appendClick(steps, "Choose palette B as move-all target", paletteLinkChildMenuItemByText(function(currentRunner)
-    return requireRunnerWindow(currentRunner, "romLinkPaletteBWin").title
-  end), {
-    moveDuration = 0.08,
-    prePressPause = 0.05,
-    holdDuration = 0.05,
-    postPause = 0.26,
-  })
+  steps[#steps + 1] = call("Move all links from palette A to B (API)", function(_, currentApp, currentRunner)
+    local PLC = require("controllers.palette.palette_link_controller")
+    local a = requireRunnerWindow(currentRunner, "romLinkPaletteAWin")
+    local b = requireRunnerWindow(currentRunner, "romLinkPaletteBWin")
+    PLC.moveAllLinksToPalette(currentApp.wm, a, b)
+  end)
+  steps[#steps + 1] = pause("Observe move-all links", 0.2)
   steps[#steps + 1] = call("Assert all links moved to palette B", assertLinks({
     linkTarget1 = "romLinkPaletteBWin",
     linkTarget2 = "romLinkPaletteBWin",
@@ -2201,7 +2158,7 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
     linkTarget4 = "romLinkPaletteBWin",
   }))
 
-  appendRightClickPaletteHandle(steps, "Open palette B source menu for remove-all", "romLinkPaletteBWin")
+  appendClickPaletteHandle(steps, "Open palette B source menu for remove-all", "romLinkPaletteBWin")
   appendClick(steps, "Choose Remove all links on palette B", paletteLinkMenuRowByText("Remove all links"), {
     moveDuration = 0.08,
     prePressPause = 0.05,

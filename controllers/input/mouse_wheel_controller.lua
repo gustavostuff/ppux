@@ -1,5 +1,6 @@
 local WindowCaps = require("controllers.window.window_capabilities")
 local ResolutionController = require("controllers.app.resolution_controller")
+local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 
 local M = {}
 
@@ -78,9 +79,15 @@ function M.handleWheel(env, dx, dy)
   local utils = env.utils or {}
   local wm = ctx.wm()
   local mouse = ResolutionController:getScaledMouse(true)
-  local winBelowMouse = wm:windowAt(mouse.x, mouse.y)
-  local focusedWindow = wm:getFocus()
   local app = ctx.app
+  local mx, my = mouse.x, mouse.y
+  if app and AppTopToolbarController.containsPointer(app, mx, my) then
+    return false
+  end
+  local oy = AppTopToolbarController.getContentOffsetY(app)
+  local contentMouse = { x = mx, y = my - oy }
+  local winBelowMouse = wm:windowAt(contentMouse.x, contentMouse.y)
+  local focusedWindow = wm:getFocus()
 
   if (utils.ctrlDown and utils.ctrlDown())
     and (utils.altDown and utils.altDown())
@@ -113,13 +120,13 @@ function M.handleWheel(env, dx, dy)
   end
 
   if WindowCaps.isAnyPaletteWindow(targetWin) then
-    local paletteCellInteractive = handlePaletteColorSelection(env, targetWin, mouse, wm)
+    local paletteCellInteractive = handlePaletteColorSelection(env, targetWin, contentMouse, wm)
     if paletteCellInteractive == false then
       return true
     end
   end
 
-  if handleZoom(env, targetWin, mouse, wm, dy) then return true end
+  if handleZoom(env, targetWin, contentMouse, wm, dy) then return true end
   if handleHorizontalScroll(env, targetWin, dx, dy) then return true end
   if handleVerticalScroll(env, targetWin, dy) then return true end
   return false

@@ -12,6 +12,7 @@ local DEFAULT_SETTINGS = {
   canvasImageMode = "pixel_perfect",
   canvasFilter = "sharp",
   paletteLinks = "auto_hide",
+  separateToolbar = false,
   recentProjects = {},
 }
 
@@ -94,6 +95,7 @@ local function withDefaults(data)
   out.canvasImageMode = normalizeCanvasImageModeKey(data and data.canvasImageMode)
   out.canvasFilter = normalizeCanvasFilterKey(data and data.canvasFilter)
   out.paletteLinks = normalizePaletteLinksKey(data and data.paletteLinks)
+  out.separateToolbar = (data and data.separateToolbar == true)
   out.recentProjects = normalizeRecentProjects(data and data.recentProjects)
   return out
 end
@@ -156,6 +158,7 @@ function AppSettingsController.save(opts)
   if opts.canvasImageMode ~= nil then data.canvasImageMode = opts.canvasImageMode end
   if opts.canvasFilter ~= nil then data.canvasFilter = opts.canvasFilter end
   if opts.paletteLinks ~= nil then data.paletteLinks = normalizePaletteLinksKey(opts.paletteLinks) end
+  if opts.separateToolbar ~= nil then data.separateToolbar = (opts.separateToolbar == true) end
   if opts.recentProjects ~= nil then data.recentProjects = normalizeRecentProjects(opts.recentProjects) end
   return writeFile(data)
 end

@@ -636,7 +636,8 @@ function AppCoreController:showWindowHeaderContextMenu(win, x, y)
     return false
   end
   self:_hideAllContextMenus()
-  self.windowHeaderContextMenu:showAt(x, y, self:_buildWindowHeaderContextMenuItems(win))
+  local cx, cy = self:contentPointToCanvasPoint(x, y)
+  self.windowHeaderContextMenu:showAt(cx, cy, self:_buildWindowHeaderContextMenuItems(win))
   return self.windowHeaderContextMenu:isVisible()
 end
 
@@ -645,8 +646,25 @@ function AppCoreController:showEmptySpaceContextMenu(x, y)
     return false
   end
   self:_hideAllContextMenus()
-  self.emptySpaceContextMenu:showAt(x, y, self:_buildEmptySpaceContextMenuItems())
+  local cx, cy = self:contentPointToCanvasPoint(x, y)
+  self.emptySpaceContextMenu:showAt(cx, cy, self:_buildEmptySpaceContextMenuItems())
   return self.emptySpaceContextMenu:isVisible()
+end
+
+--- Context menu / interaction coordinates are in content space (below app top bar); menus draw outside that transform.
+function AppCoreController:contentYToCanvasY(y)
+  if type(y) ~= "number" then
+    return y
+  end
+  local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
+  return y + AppTopToolbarController.getContentOffsetY(self)
+end
+
+function AppCoreController:contentPointToCanvasPoint(x, y)
+  if type(x) ~= "number" or type(y) ~= "number" then
+    return x, y
+  end
+  return x, self:contentYToCanvasY(y)
 end
 
 local function setWindowActiveLayer(win, layerIndex)
@@ -678,66 +696,38 @@ end
 
 function AppCoreController:_buildPaletteLinkSourceContextMenuItems(paletteWin)
   local targets = PaletteLinkController.getLinkedTargetsForPalette(self.wm, paletteWin)
-  local romPaletteWindows = PaletteLinkController.getRomPaletteWindows(self.wm)
   local items = {}
 
   items[#items + 1] = {
-    text = (#targets > 0)
-      and string.format("Linked layers: %d", #targets)
-      or "No linked layers",
-    callback = function() end,
+    text = "Jump to linked layer",
+    children = function()
+      if #targets == 0 then
+        return {
+          {
+            text = "No linked layers",
+            callback = function() end,
+          },
+        }
+      end
+      local childItems = {}
+      for _, target in ipairs(targets) do
+        childItems[#childItems + 1] = {
+          text = string.format("%s / layer %d", tostring(target.win.title or "window"), target.layerIndex),
+          callback = function()
+            self:_focusLinkedLayerTarget(target.win, target.layerIndex)
+          end,
+        }
+      end
+      return childItems
+    end,
   }
 
-  if #targets > 0 then
-    items[#items + 1] = {
-      text = "Jump To Linked Layer",
-      children = function()
-        local childItems = {}
-        for _, target in ipairs(targets) do
-          childItems[#childItems + 1] = {
-            text = string.format("%s / layer %d", tostring(target.win.title or "window"), target.layerIndex),
-            callback = function()
-              self:_focusLinkedLayerTarget(target.win, target.layerIndex)
-            end,
-          }
-        end
-        return childItems
-      end,
-    }
-  end
-
-  if #targets > 0 then
-    local moveTargets = {}
-    for _, candidate in ipairs(romPaletteWindows) do
-      if candidate ~= paletteWin then
-        moveTargets[#moveTargets + 1] = candidate
-      end
-    end
-    if #moveTargets > 0 then
-      items[#items + 1] = {
-        text = "Move All Links To",
-        children = function()
-          local childItems = {}
-          for _, candidate in ipairs(moveTargets) do
-            childItems[#childItems + 1] = {
-              text = tostring(candidate.title or "Palette"),
-              callback = function()
-                PaletteLinkController.moveAllLinksToPalette(self.wm, paletteWin, candidate)
-              end,
-            }
-          end
-          return childItems
-        end,
-      }
-    end
-
-    items[#items + 1] = {
-      text = "Remove all links",
-      callback = function()
-        PaletteLinkController.removeAllLinksForPalette(self.wm, paletteWin)
-      end,
-    }
-  end
+  items[#items + 1] = {
+    text = "Remove all links",
+    callback = function()
+      PaletteLinkController.removeAllLinksForPalette(self.wm, paletteWin)
+    end,
+  }
 
   return items
 end
@@ -749,13 +739,6 @@ function AppCoreController:_buildPaletteLinkDestinationContextMenuItems(contentW
   local linkedPalette = PaletteLinkController.getActiveLayerLinkedPaletteWindow(contentWin, self.wm)
   local paletteWindows = PaletteLinkController.getRomPaletteWindows(self.wm)
   local items = {}
-
-  if linkedPalette then
-    items[#items + 1] = {
-      text = string.format("Linked palette: %s", tostring(linkedPalette.title or "Palette")),
-      callback = function() end,
-    }
-  end
 
   items[#items + 1] = {
       text = "Link To Palette",
@@ -805,7 +788,8 @@ function AppCoreController:showPaletteLinkSourceContextMenu(win, x, y)
     return false
   end
   self:_hideAllContextMenus()
-  self.paletteLinkContextMenu:showAt(x, y, self:_buildPaletteLinkSourceContextMenuItems(win))
+  local cx, cy = self:contentPointToCanvasPoint(x, y)
+  self.paletteLinkContextMenu:showAt(cx, cy, self:_buildPaletteLinkSourceContextMenuItems(win))
   return self.paletteLinkContextMenu:isVisible()
 end
 
@@ -814,7 +798,8 @@ function AppCoreController:showPaletteLinkDestinationContextMenu(win, x, y)
     return false
   end
   self:_hideAllContextMenus()
-  self.paletteLinkContextMenu:showAt(x, y, self:_buildPaletteLinkDestinationContextMenuItems(win))
+  local cx, cy = self:contentPointToCanvasPoint(x, y)
+  self.paletteLinkContextMenu:showAt(cx, cy, self:_buildPaletteLinkDestinationContextMenuItems(win))
   return self.paletteLinkContextMenu:isVisible()
 end
 
@@ -1174,7 +1159,8 @@ function AppCoreController:showPpuTileContextMenu(win, layerIndex, col, row, x, 
   end
 
   self:_hideAllContextMenus()
-  self.ppuTileContextMenu:showAt(x, y, self:_buildPpuTileContextMenuItems(context))
+  local cx, cy = self:contentPointToCanvasPoint(x, y)
+  self.ppuTileContextMenu:showAt(cx, cy, self:_buildPpuTileContextMenuItems(context))
   return self.ppuTileContextMenu:isVisible()
 end
 
@@ -1189,7 +1175,8 @@ function AppCoreController:showSelectInChrContextMenu(win, layerIndex, col, row,
   end
 
   self:_hideAllContextMenus()
-  self.ppuTileContextMenu:showAt(x, y, self:_buildSelectInChrContextMenuItems(context))
+  local cx, cy = self:contentPointToCanvasPoint(x, y)
+  self.ppuTileContextMenu:showAt(cx, cy, self:_buildSelectInChrContextMenuItems(context))
   return self.ppuTileContextMenu:isVisible()
 end
 
@@ -1204,7 +1191,8 @@ function AppCoreController:showChrBankTileContextMenu(win, col, row, x, y)
   end
 
   self:_hideAllContextMenus()
-  self.ppuTileContextMenu:showAt(x, y, self:_buildChrBankTileContextMenuItems(context))
+  local cx, cy = self:contentPointToCanvasPoint(x, y)
+  self.ppuTileContextMenu:showAt(cx, cy, self:_buildChrBankTileContextMenuItems(context))
   return self.ppuTileContextMenu:isVisible()
 end
 
@@ -1280,8 +1268,16 @@ function AppCoreController:getTooltipCandidateAt(x, y)
     return nil
   end
 
+  local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
+  local topBarCandidate = AppTopToolbarController.getTooltipAt(self, x, y)
+  if topBarCandidate then
+    return topBarCandidate
+  end
+  local oy = AppTopToolbarController.getContentOffsetY(self)
+  local cx, cy = x, y - oy
+
   if UserInput.getTooltipCandidate then
-    local candidate = UserInput.getTooltipCandidate(x, y)
+    local candidate = UserInput.getTooltipCandidate(cx, cy)
     if candidate then
       return candidate
     end
@@ -1294,7 +1290,7 @@ function AppCoreController:getTooltipCandidateAt(x, y)
     end
   end
 
-  return getTopWindowTooltipCandidate(self, x, y)
+  return getTopWindowTooltipCandidate(self, cx, cy)
 end
 
 local function parseHexAddress(text)
@@ -1772,7 +1768,8 @@ function AppCoreController:showOamSpriteEmptySpaceContextMenu(win, layerIndex, x
   end
 
   self:_hideAllContextMenus()
-  self.ppuTileContextMenu:showAt(x, y, self:_buildOamSpriteEmptySpaceContextMenuItems(context))
+  local cx, cy = self:contentPointToCanvasPoint(x, y)
+  self.ppuTileContextMenu:showAt(cx, cy, self:_buildOamSpriteEmptySpaceContextMenuItems(context))
   return self.ppuTileContextMenu:isVisible()
 end
 

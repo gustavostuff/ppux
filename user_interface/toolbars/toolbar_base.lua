@@ -131,15 +131,26 @@ end
 -- Header toolbars (right-aligned) override this method
 function ToolbarBase:updatePosition()
   if not self.window then return end
+
+  local dock = self._dockLayout
+  if dock and type(dock.leftX) == "number" and type(dock.topY) == "number" then
+    local rowH = self:_getRowHeight(dock.rowHeight or dock.topY)
+    self.rowHeight = rowH
+    self.h = self:_getToolbarHeight(rowH)
+    self.y = dock.topY
+    self:_layoutButtons()
+    return
+  end
+
   local hx, hy, hw, hh = self.window:getHeaderRect()
-  
+
   -- Ensure toolbar height is set (should match header height)
   self.rowHeight = self:_getRowHeight(hh)
   self.h = self:_getToolbarHeight(hh)
-  
+
   -- Position above the header bar (for specialized toolbars)
   self.y = hy - self.h
-  
+
   -- Re-layout buttons when position changes
   self:_layoutButtons()
 end
@@ -216,7 +227,15 @@ end
 function ToolbarBase:_layoutButtons()
   if not self.window then return end
 
-  local hx, hy, hw, hh = self.window:getHeaderRect()
+  local dock = self._dockLayout
+  local hx, hy, hw, hh
+  if dock and type(dock.leftX) == "number" and type(dock.topY) == "number" then
+    hx = dock.leftX + 1
+    hy = dock.topY
+    hh = tonumber(dock.rowHeight) or 24
+  else
+    hx, hy, hw, hh = self.window:getHeaderRect()
+  end
   local rowHeight = self:_getRowHeight(hh)
 
   local totalLabelWidth = 0

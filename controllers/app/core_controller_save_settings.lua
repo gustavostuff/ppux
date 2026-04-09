@@ -539,6 +539,22 @@ function AppCoreController:_applyPaletteLinksSetting(modeKey, saveSetting)
   return key
 end
 
+function AppCoreController:_getSeparateToolbarForSettings()
+  if self.separateToolbar ~= nil then
+    return self.separateToolbar == true
+  end
+  local settings = AppSettingsController.load()
+  return settings and settings.separateToolbar == true
+end
+
+function AppCoreController:_applySeparateToolbarSetting(enabled, saveSetting)
+  self.separateToolbar = (enabled == true)
+  if saveSetting ~= false then
+    AppSettingsController.save({ separateToolbar = self.separateToolbar })
+  end
+  return self.separateToolbar
+end
+
 function AppCoreController:_applyTooltipsEnabledSetting(enabled, saveSetting)
   self.tooltipsEnabled = (enabled ~= false)
   if self.tooltipController and self.tooltipsEnabled == false then
@@ -574,6 +590,9 @@ function AppCoreController:showSettingsModal()
     getPaletteLinks = function()
       return appRef:_getPaletteLinksForSettings()
     end,
+    getSeparateToolbar = function()
+      return appRef:_getSeparateToolbarForSettings()
+    end,
     onSetCanvasImageMode = function(modeKey)
       local key = appRef:_applyCanvasImageModeSetting(modeKey, true)
       local labels = {
@@ -599,6 +618,10 @@ function AppCoreController:showSettingsModal()
         on_hover = "On-hover",
       }
       appRef:setStatus(string.format("Palette links: %s", labels[applied] or applied))
+    end,
+    onSetSeparateToolbar = function(enabled)
+      local applied = appRef:_applySeparateToolbarSetting(enabled, true)
+      appRef:setStatus(string.format("Separate toolbar: %s", applied and "On" or "Off"))
     end,
   })
 end

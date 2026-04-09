@@ -699,7 +699,7 @@ local function handlePaletteDestinationLinkClick(env, button, x, y, wm)
 end
 
 local function handlePaletteLinkContextClick(env, button, x, y, win, wm)
-  if not (button == 2 or button == 3) then
+  if button ~= 1 then
     return false
   end
   if not (win and win.specializedToolbar and env.beginContextMenuClick) then

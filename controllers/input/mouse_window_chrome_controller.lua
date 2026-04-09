@@ -133,15 +133,18 @@ end
 function M.handleToolbarClicks(button, x, y, win, wm)
   if not win or win._closed or win._minimized then return false end
 
-  local previousFocus = (wm and wm.getFocus and wm:getFocus()) or nil
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app or nil
+  local skipDockedSpec = app
+    and app.separateToolbar == true
+    and wm
+    and wm.getFocus
+    and win == wm:getFocus()
 
-  if not win._collapsed and win.specializedToolbar then
+  if not win._collapsed and win.specializedToolbar and not skipDockedSpec then
     local toolbar = win.specializedToolbar
     if wm and wm.setFocus then
       wm:setFocus(win)
-    end
-    if PaletteLinkController.beginDrag(toolbar, button, x, y, win, wm, previousFocus) then
-      return true
     end
     if isWindowDragMouseButton(button) and isOverToolbarControl(toolbar, x, y) then
       return true
@@ -181,7 +184,11 @@ function M.handleToolbarRelease(button, x, y, wm)
   local focusedWin = (wm and wm.getFocus and wm:getFocus()) or nil
   if not focusedWin or focusedWin._closed or focusedWin._minimized then return false end
 
-  if not focusedWin._collapsed and focusedWin.specializedToolbar then
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app or nil
+  local skipDockedSpec = app and app.separateToolbar == true
+
+  if not focusedWin._collapsed and focusedWin.specializedToolbar and not skipDockedSpec then
     local toolbar = focusedWin.specializedToolbar
     if toolbar.updatePosition then
       toolbar:updatePosition()
@@ -205,10 +212,15 @@ function M.handleToolbarRelease(button, x, y, wm)
 end
 
 function M.updateToolbarHover(x, y, wm)
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app or nil
   local windows = wm:getWindows()
   for _, w in ipairs(windows) do
     if not w._closed and not w._minimized then
-      if not w._collapsed and w.specializedToolbar and w.specializedToolbar.mousemoved then
+      local skipDockedSpec = app
+        and app.separateToolbar == true
+        and w == wm:getFocus()
+      if not w._collapsed and w.specializedToolbar and w.specializedToolbar.mousemoved and not skipDockedSpec then
         w.specializedToolbar:mousemoved(x, y)
       end
       if w.headerToolbar and w.headerToolbar.mousemoved then

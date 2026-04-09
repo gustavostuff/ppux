@@ -368,6 +368,7 @@ function AppCoreController:load()
   end
   self:_applyPaletteLinksSetting((settings and settings.paletteLinks) or "auto_hide", false)
   self:_applyTooltipsEnabledSetting((settings and settings.tooltipsEnabled) ~= false, false)
+  self:_applySeparateToolbarSetting((settings and settings.separateToolbar) == true, false)
   ResolutionController:recalculate()
   local splashConfig = {}
   if settings then
@@ -520,6 +521,9 @@ function AppCoreController:update(dt)
       self.tooltipController:update(dt, mouse.x, mouse.y, candidate)
     end
   end
+
+  local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
+  AppTopToolbarController.syncLayout(self)
 end
 
 ------------------------------------------------------------

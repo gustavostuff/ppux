@@ -3,6 +3,7 @@ local KeyboardDebugController = require("controllers.input.keyboard_debug_contro
 local KeyboardWindowShortcutsController = require("controllers.input.keyboard_window_shortcuts_controller")
 local CursorsController = require("controllers.input_support.cursors_controller")
 local ResolutionController = require("controllers.app.resolution_controller")
+local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 local AppSettingsController = require("controllers.app.settings_controller")
 local UserInput = require("controllers.input")
 
@@ -32,10 +33,6 @@ local function hasActiveWindowInteraction(app)
   end
 
   if app.isPainting then
-    return true
-  end
-
-  if app.paletteLinkDrag and app.paletteLinkDrag.active then
     return true
   end
 
@@ -360,6 +357,11 @@ function AppCoreController:mousepressed(x, y, b)
     return
   end
 
+  if AppTopToolbarController.mousepressed(self, mouse.x, mouse.y, b) then
+    refreshCursor(self)
+    return
+  end
+
   local activeInteraction = hasActiveWindowInteraction(self)
   if b == 1 and self.taskbar and self.taskbar:contains(mouse.x, mouse.y) then
     self:hideAppContextMenus()
@@ -367,8 +369,9 @@ function AppCoreController:mousepressed(x, y, b)
   if (not activeInteraction) and self.taskbar and self.taskbar:mousepressed(mouse.x, mouse.y, b) then
     return
   end
-  
-  UserInput.mousepressed(mouse.x, mouse.y, b)
+
+  local oy = AppTopToolbarController.getContentOffsetY(self)
+  UserInput.mousepressed(mouse.x, mouse.y - oy, b)
   refreshCursor(self)
 end
 
@@ -447,9 +450,16 @@ function AppCoreController:mousereleased(x, y, b)
     return
   end
 
+  if AppTopToolbarController.mousereleasedQuickButtons(self, mouse.x, mouse.y, b) then
+    refreshCursor(self)
+    return
+  end
+
   local activeInteraction = hasActiveWindowInteraction(self)
   -- Always finalize input interactions first so resize/drag end is never skipped.
-  UserInput.mousereleased(mouse.x, mouse.y, b)
+  local oy = AppTopToolbarController.getContentOffsetY(self)
+  UserInput.mousereleased(mouse.x, mouse.y - oy, b)
+  AppTopToolbarController.mousereleasedDockedToolbar(self, mouse.x, mouse.y, b)
 
   if (not activeInteraction) and self.taskbar and self.taskbar:mousereleased(mouse.x, mouse.y, b) then
     refreshCursor(self)
@@ -539,11 +549,13 @@ function AppCoreController:mousemoved(x, y, dx, dy)
   if self.taskbar and not hasActiveWindowInteraction(self) then
     self.taskbar:mousemoved(mouse.x, mouse.y)
   end
-  
-  -- Toolbar hover state updates are now in UserInput.mousemoved
+
+  AppTopToolbarController.mousemoved(self, mouse.x, mouse.y)
+
+  local oy = AppTopToolbarController.getContentOffsetY(self)
   UserInput.mousemoved(
     mouse.x,
-    mouse.y,
+    mouse.y - oy,
     dx / ResolutionController.canvasScaleX,
     dy / ResolutionController.canvasScaleY
   )

@@ -48,11 +48,11 @@ function RomPaletteToolbar:updateIcons()
     self.linkButton.bgColor = linkedCount > 0 and colors.green or colors.gray20
     if linkedCount > 0 then
       self.linkButton.tooltip = string.format(
-        "%d linked layer(s) (right-click for actions, drag to link)",
+        "%d linked layer(s) (click for menu)",
         linkedCount
       )
     else
-      self.linkButton.tooltip = "No linked layers (right-click for actions, drag to link)"
+      self.linkButton.tooltip = "No linked layers (click for menu)"
     end
   end
   self:updateCompactIcon()

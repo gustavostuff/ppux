@@ -260,6 +260,30 @@ local function handleContextMenuRelease(button, x, y)
   return false
 end
 
+--- Palette link handle on the app-top docked toolbar (full canvas coords); stores content coords for menu release.
+function M.beginPaletteLinkContextFromAppTopBar(win, canvasX, canvasY, button, contentOffsetY)
+  if button ~= 1 then
+    return false
+  end
+  local wm = ctx and ctx.wm and ctx.wm() or nil
+  if wm and wm.setFocus and win then
+    wm:setFocus(win)
+  end
+  local oy = tonumber(contentOffsetY) or 0
+  local cx = canvasX
+  local cy = (type(canvasY) == "number") and (canvasY - oy) or canvasY
+  if WindowCaps.isRomPaletteWindow(win) then
+    beginContextMenuClick("palette_link_source", cx, cy, button, win)
+    return true
+  end
+  if WindowCaps.isAnyPaletteWindow(win) or WindowCaps.isChrLike(win) then
+    return false
+  end
+  local layerIndex = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+  beginContextMenuClick("palette_link_destination", cx, cy, button, win, { layerIndex = layerIndex })
+  return true
+end
+
 -- ===== Mouse =====
 function M.mousepressed(x, y, button)
   local handled = MouseClickController.handleMousePressed({
