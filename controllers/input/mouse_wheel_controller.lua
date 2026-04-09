@@ -118,13 +118,13 @@ function M.handleWheel(env, dx, dy)
   end
 
   if WindowCaps.isAnyPaletteWindow(targetWin) then
-    local paletteCellInteractive = handlePaletteColorSelection(env, targetWin, contentMouse, wm)
+    local paletteCellInteractive = handlePaletteColorSelection(env, targetWin, mouse, wm)
     if paletteCellInteractive == false then
       return true
     end
   end
 
-  if handleZoom(env, targetWin, contentMouse, wm, dy) then return true end
+  if handleZoom(env, targetWin, mouse, wm, dy) then return true end
   if handleHorizontalScroll(env, targetWin, dx, dy) then return true end
   if handleVerticalScroll(env, targetWin, dy) then return true end
   return false
