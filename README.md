@@ -532,6 +532,57 @@ PPUX can apply small ROM patches from project data before windows are built (so 
 
 This is meant for targeted graphics-related setup such as forcing a game state or changing a small byte sequence. It is not a replacement for a full ROM hacking workflow.
 
+Patches live on the project table as an array, `romPatches`. Each entry must include a **`reason`** string (non-empty description). Every value written is a **single byte** (0–255). Addresses are **unsigned integers** (0 or positive).
+
+Use one of 3 different forms:
+
+#### 1. Single byte (`address` + `value`)
+
+One ROM address, one new byte.
+
+```lua
+{
+  address = 0x009A36,
+  reason = "Indoors, idle pose, change tile index in right leg",
+  value = 0x70
+}
+```
+
+#### 2. Contiguous range (`addresses.from` / `addresses.to` + `values`)
+
+```lua
+{
+  addresses = {
+    from = 0x01F626,
+    to = 0x01F62D
+  },
+  reason = "Change blinking letters in title screen (Player 1)",
+  values = {
+    0xCA, 0xFA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+  }
+}
+```
+
+#### 3. Address list (useful for non-contiguous values)
+
+`addresses[1]` gets `values[1]`, `addresses[2]` gets `values[2]`, etc. The two lists must have the same length. Addresses do not need to be consecutive.
+
+```lua
+{
+  addresses = {
+    0x009A71,
+    0x009A7B,
+    0x009B00
+  },
+  reason = "Prepare sprite for 'on-the-ground' indoor sprites",
+  values = {
+    0x05,
+    0x8A,
+    0x00
+  }
+}
+```
+
 ## Development
 
 ### Build packages
