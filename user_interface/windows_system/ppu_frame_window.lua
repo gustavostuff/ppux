@@ -73,13 +73,6 @@ local function isTransparentNametableByte(layer, byteVal, showGlassTile)
     end
   end
 
-  if layer and layer.transparentTileByte ~= nil then
-    hasExplicitTransparent = true
-    if v == clampByte(layer.transparentTileByte) then
-      return true
-    end
-  end
-
   if not hasExplicitTransparent then
     return v == 0x00
   end
@@ -983,7 +976,6 @@ function PPUFrameWindow:setGlassTileByte(byteVal, tilesPool, layerIndex)
   end
 
   layer.glassTileByte = clampByte(byteVal)
-  layer.transparentTileByte = nil
   return self:refreshNametableVisuals(tilesPool, li)
 end
 
@@ -995,7 +987,6 @@ function PPUFrameWindow:clearGlassTileByte(tilesPool, layerIndex)
   end
 
   layer.glassTileByte = nil
-  layer.transparentTileByte = nil
   return self:refreshNametableVisuals(tilesPool, li)
 end
 

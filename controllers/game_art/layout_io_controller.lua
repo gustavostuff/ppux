@@ -8,6 +8,7 @@ local WindowCaps = require("controllers.window.window_capabilities")
 
 local TableUtils = require("utils.table_utils")
 local GridModeUtils = require("controllers.grid_mode_utils")
+local PpuLayerEmptyByte = require("utils.ppu_layer_empty_byte")
 
 local M = {}
 local DEFAULT_ANIMATION_FRAME_DELAY = 0.2
@@ -311,6 +312,8 @@ local function migrateProjectTable(project)
       loadedVersion
     )
   end
+
+  PpuLayerEmptyByte.migrateProjectWindowsLayers(project.windows)
 
   return project
 end
@@ -719,6 +722,7 @@ function M.loadLayoutLua(path)
   if type(res) ~= "table" or type(res.windows) ~= "table" then
     return nil, "invalid layout format"
   end
+  PpuLayerEmptyByte.migrateProjectWindowsLayers(res.windows)
   return res
 end
 

@@ -19,6 +19,7 @@ local NametableUtils = require("utils.nametable_utils")
 local TableUtils     = require("utils.table_utils")
 local DebugController   = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local PpuLayerEmptyByte = require("utils.ppu_layer_empty_byte")
 
 local M = {}
 
@@ -406,13 +407,12 @@ function M.hydrateWindowNametable(win, layer, opts)
   local pageIndex   = opts.pageIndex or layer.page
   local tileSwaps   = opts.tileSwaps or layer.tileSwaps
   local noOverflowSupported = (opts.noOverflowSupported == true) or (layer.noOverflowSupported == true)
+
+  PpuLayerEmptyByte.migrateLayerFields(layer)
+
   local glassTileByte = opts.glassTileByte
   if glassTileByte == nil then
     glassTileByte = layer.glassTileByte
-  end
-  local transparentTileByte = opts.transparentTileByte
-  if transparentTileByte == nil then
-    transparentTileByte = layer.transparentTileByte
   end
 
   if type(startAddr) ~= "number" or type(endAddr) ~= "number" then
@@ -529,9 +529,6 @@ function M.hydrateWindowNametable(win, layer, opts)
 
   if glassTileByte ~= nil then
     layer.glassTileByte = math.max(0, math.min(255, math.floor(tonumber(glassTileByte) or 0)))
-  end
-  if transparentTileByte ~= nil then
-    layer.transparentTileByte = math.max(0, math.min(255, math.floor(tonumber(transparentTileByte) or 0)))
   end
 
   if ensureTiles then ensureTiles(bankIndex) end
@@ -703,6 +700,8 @@ function M.snapshotNametableLayer(win, layer)
     return nil
   end
 
+  PpuLayerEmptyByte.migrateLayerFields(layer)
+
   local out = {
     name               = layer.name,
     kind               = "tile",
@@ -719,9 +718,6 @@ function M.snapshotNametableLayer(win, layer)
   end
   if layer.glassTileByte ~= nil then
     out.glassTileByte = math.max(0, math.min(255, math.floor(tonumber(layer.glassTileByte) or 0)))
-  end
-  if layer.transparentTileByte ~= nil then
-    out.transparentTileByte = math.max(0, math.min(255, math.floor(tonumber(layer.transparentTileByte) or 0)))
   end
 
   -- Swaps as pretty list { {col,row,val}, ... }

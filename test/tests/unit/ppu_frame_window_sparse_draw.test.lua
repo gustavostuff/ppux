@@ -59,7 +59,7 @@ describe("ppu_frame_window.lua sparse tile rendering", function()
     local layer = win.layers[1]
     layer.bank = 1
     layer.page = 1
-    layer.transparentTileByte = 0x00
+    layer.glassTileByte = 0x00
 
     win.cols = 2
     win.rows = 1
@@ -81,7 +81,7 @@ describe("ppu_frame_window.lua sparse tile rendering", function()
     local layer = win.layers[1]
     layer.bank = 1
     layer.page = 1
-    layer.transparentTileByte = 0x00
+    layer.glassTileByte = 0x00
 
     win.cols = 4
     win.rows = 1

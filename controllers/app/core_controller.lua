@@ -24,6 +24,7 @@ local ContextualMenuController = require("controllers.ui.contextual_menu_control
 local UiScale = require("user_interface.ui_scale")
 local UserInput = require("controllers.input")
 local TableUtils = require("utils.table_utils")
+local PpuLayerEmptyByte = require("utils.ppu_layer_empty_byte")
 
 local AppCoreController = {}
 AppCoreController.__index = AppCoreController
@@ -905,7 +906,6 @@ function AppCoreController:_markPpuTileByteAsGlass(context)
     applied = (win:setGlassTileByte(context.byteVal, tilesPool, context.layerIndex) == true)
   else
     context.layer.glassTileByte = context.byteVal
-    context.layer.transparentTileByte = nil
     applied = true
   end
 
@@ -944,7 +944,6 @@ function AppCoreController:_clearPpuTileGlassByte(context)
     applied = (win:clearGlassTileByte(tilesPool, context.layerIndex) == true)
   else
     context.layer.glassTileByte = nil
-    context.layer.transparentTileByte = nil
     applied = true
   end
 
@@ -1025,12 +1024,8 @@ end
 
 function AppCoreController:_buildPpuTileContextMenuItems(context)
   local currentGlassByte = nil
-  if context and context.layer then
-    if context.layer.glassTileByte ~= nil then
-      currentGlassByte = clampByte(context.layer.glassTileByte)
-    elseif context.layer.transparentTileByte ~= nil then
-      currentGlassByte = clampByte(context.layer.transparentTileByte)
-    end
+  if context and context.layer and context.layer.glassTileByte ~= nil then
+    currentGlassByte = clampByte(context.layer.glassTileByte)
   end
 
   return {
@@ -1482,6 +1477,8 @@ snapshotPpuFrameRangeState = function(win, layerIndex)
     return nil
   end
 
+  PpuLayerEmptyByte.migrateLayerFields(layer)
+
   return {
     win = win,
     layerIndex = li,
@@ -1507,7 +1504,6 @@ snapshotPpuFrameRangeState = function(win, layerIndex)
       nametableEndAddr = layer.nametableEndAddr,
       noOverflowSupported = layer.noOverflowSupported,
       glassTileByte = layer.glassTileByte,
-      transparentTileByte = layer.transparentTileByte,
       attrMode = layer.attrMode,
       tileSwaps = TableUtils.deepcopy(layer.tileSwaps),
     },
@@ -1526,7 +1522,6 @@ didPpuFrameRangeSettingsChange = function(beforeState, afterState)
     or beforeLayer.bank ~= afterLayer.bank
     or beforeLayer.page ~= afterLayer.page
     or beforeLayer.glassTileByte ~= afterLayer.glassTileByte
-    or beforeLayer.transparentTileByte ~= afterLayer.transparentTileByte
 end
 
 local function getFirstPpuSpriteLayer(win)
@@ -1929,6 +1924,8 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
     return false
   end
 
+  PpuLayerEmptyByte.migrateLayerFields(layerState)
+
   win.cols = tonumber(rangeState.cols) or win.cols
   win.rows = tonumber(rangeState.rows) or win.rows
   win.nametableStart = rangeState.nametableStart
@@ -1951,7 +1948,6 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
   layer.nametableEndAddr = layerState.nametableEndAddr
   layer.noOverflowSupported = layerState.noOverflowSupported
   layer.glassTileByte = layerState.glassTileByte
-  layer.transparentTileByte = layerState.transparentTileByte
   layer.attrMode = layerState.attrMode
   layer.tileSwaps = TableUtils.deepcopy(layerState.tileSwaps)
   layer.items = {}

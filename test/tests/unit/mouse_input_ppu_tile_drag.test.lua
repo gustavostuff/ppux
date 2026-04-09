@@ -6,7 +6,7 @@ local function makePpuWindow(opts)
   local layer = {
     kind = "tile",
     items = {},
-    transparentTileByte = 0x00,
+    glassTileByte = 0x00,
   }
 
   local function idx(col, row)

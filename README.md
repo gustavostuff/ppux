@@ -374,7 +374,9 @@ Best practice: keep the base ROM, edited ROM, and project files in the same fold
 
 `ppu_frame` windows are structured screen views: a **tile** layer backed by compressed nametable data in ROM, plus an optional **sprite** overlay that tracks real OAM bytes.
 
-**Creating and editing from th### Build packages
+Use **New Window > PPU Frame** and the in-app toolbars / context menus to edit nametables and sprites; saving the project persists layer state and nametable diffs.
+
+### Build packages
 
 To build a packaged Windows app from Windows, run:
 
@@ -392,10 +394,14 @@ To build a packaged Linux app from Linux, run:
 
 The packaged Linux app will be created as `build/PPUX-<version>-x86_64.AppImage`.
 
-You can also build for Windows and macOS from Linux using `./scripts/unix/build_all.sh` (macOS build not tested yet).lassTileByte` on the tile layer, `showGlassTile` at window level where exposed).
-5. Tile layers render from a **cached full-canvas** nametable view for performance; after heavy edits, use the normal refresh paths the UI offers if a screen looks stale.
-6. For **sprites**, use **Add sprite** on the toolbar to bind OAM entries. Sprite items that share the same `startAddr` **stay in sync** with **OAM Animation** windows (and other PPU Frame sprite layers) so moving or reconfiguring one updates the linked entries.
-7. **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. A plain **right-click** still opens the usual context menus when you are not dragging.
+You can also build for Windows and macOS from Linux using `./scripts/unix/build_all.sh` (macOS build not tested yet).
+
+### PPU frame editing notes
+
+* **Empty / glass nametable cells** use `glassTileByte` on the tile layer when set; otherwise the empty byte defaults to **0** (pattern-table tile 0 within that layer’s bank and **page** — page 2 still uses nametable byte 0, which maps to the second CHR page in the tile pool). The **show/hide glass** toolbar toggle is persisted as **`showGlassTile`** on the window in saved layouts/projects.
+* Tile layers render from a **cached full-canvas** nametable view for performance; after heavy edits, use the normal refresh paths the UI offers if a screen looks stale.
+* For **sprites**, use **Add sprite** on the toolbar to bind OAM entries. Sprite items that share the same `startAddr` **stay in sync** with **OAM Animation** windows (and other PPU Frame sprite layers) so moving or reconfiguring one updates the linked entries.
+* **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. A plain **right-click** still opens the usual context menus when you are not dragging.
 
 <img src="img/readme_images/ui_new_window_ppu_frame_placeholder.png" alt="New Window: PPU Frame placeholder">
 
@@ -407,10 +413,13 @@ You can also build for Windows and macOS from Linux using `./scripts/unix/build_
 {
   kind = "ppu_frame",
   id = "ppu_01",
+  showGlassTile = true, -- optional; persisted; omit defaults to showing glass for empty cells
   layers = {
     [1] = {
       kind = "tile",
       bank = 9,
+      page = 1,            -- 1 or 2; with no glassTileByte, empty cells use nametable byte 0 (tile 0 on this page)
+      glassTileByte = nil, -- optional; when set, that nametable byte is treated as empty / glass
       nametableEndAddr = 0x01329B,
       nametableStartAddr = 0x013110,
       paletteData = { winId = "rom_palette_01" }

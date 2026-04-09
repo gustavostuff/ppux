@@ -15,6 +15,7 @@ local GridModeUtils = require("controllers.grid_mode_utils")
 local WindowCaps = require("controllers.window.window_capabilities")
 
 local TableUtils = require("utils.table_utils")
+local PpuLayerEmptyByte = require("utils.ppu_layer_empty_byte")
 
 local M = {}
 
@@ -418,6 +419,10 @@ local function addPpuSpriteOverlayLayers(win, w, ensureTiles)
 end
 
 function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
+  for _, Lsrc in ipairs(w.layers or {}) do
+    PpuLayerEmptyByte.migrateLayerFields(Lsrc)
+  end
+
   local ntLayer = nil
   for _, Lsrc in ipairs(w.layers or {}) do
     local layerKind = Lsrc.kind or "tile"
@@ -465,7 +470,6 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
       pageIndex = pageIdx,
       tileSwaps = ntLayer and ntLayer.tileSwaps,
       glassTileByte = ntLayer and ntLayer.glassTileByte,
-      transparentTileByte = ntLayer and ntLayer.transparentTileByte,
       userDefinedAttrs = ntLayer and ntLayer.userDefinedAttrs,
     })
     if not ok then
@@ -533,6 +537,7 @@ local function applyLayerMetadataFromLayout(win, layoutLayers)
   for li, Lsrc in ipairs(layoutLayers or {}) do
     local Ldst = win.layers[li]
     if Ldst then
+      PpuLayerEmptyByte.migrateLayerFields(Lsrc)
       if Lsrc.originX ~= nil then Ldst.originX = Lsrc.originX end
       if Lsrc.originY ~= nil then Ldst.originY = Lsrc.originY end
       if Lsrc.mode ~= nil and Ldst.mode == nil then Ldst.mode = Lsrc.mode end
@@ -542,9 +547,6 @@ local function applyLayerMetadataFromLayout(win, layoutLayers)
       end
       if Lsrc.glassTileByte ~= nil then
         Ldst.glassTileByte = Lsrc.glassTileByte
-      end
-      if Lsrc.transparentTileByte ~= nil then
-        Ldst.transparentTileByte = Lsrc.transparentTileByte
       end
       if Lsrc.paletteData ~= nil then
         Ldst.paletteData = TableUtils.deepcopy(Lsrc.paletteData)

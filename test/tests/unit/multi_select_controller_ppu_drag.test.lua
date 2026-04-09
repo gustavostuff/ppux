@@ -4,7 +4,6 @@ describe("multi_select_controller.lua - ppu tile group drag", function()
   it("moves PPU nametable bytes for tile groups without dropping to empty bytes", function()
     local layer = {
       kind = "tile",
-      transparentTileByte = 0x00,
       items = {},
     }
 
@@ -62,12 +61,10 @@ describe("multi_select_controller.lua - ppu tile group drag", function()
     expect(win.nametableBytes[idx(6, 1)]).toBe(0x32)
   end)
 
-  it("clears PPU group-drag sources using glassTileByte when transparentTileByte is unset", function()
-    -- Glass-tile menu sets glassTileByte and clears transparentTileByte (see setGlassTileByte).
+  it("clears PPU group-drag sources to an explicit glassTileByte", function()
     local layer = {
       kind = "tile",
       glassTileByte = 0xAB,
-      transparentTileByte = nil,
       items = {},
     }
 
@@ -117,7 +114,6 @@ describe("multi_select_controller.lua - ppu tile group drag", function()
   it("applies PPU group drag when anchor column is 0 (Lua falsy guard regression)", function()
     local layer = {
       kind = "tile",
-      transparentTileByte = 0x00,
       items = {},
     }
 
@@ -163,7 +159,7 @@ describe("multi_select_controller.lua - ppu tile group drag", function()
 
   it("moves PPU nametable bytes between two PPU frame windows without materialize/CHR tile 0", function()
     local function makeWin()
-      local layer = { kind = "tile", transparentTileByte = 0x00, items = {} }
+      local layer = { kind = "tile", items = {} }
       local w = {
         kind = "ppu_frame",
         cols = 8,
