@@ -308,6 +308,7 @@ function M.createOamAnimationWindow(w, tilesPool, ensureTiles)
       title = w.title,
       nonActiveLayerOpacity = w.nonActiveLayerOpacity,
       multiRowToolbar = (w.multiRowToolbar == true),
+      showSpriteOriginGuides = (w.showSpriteOriginGuides == true),
     }
   )
 

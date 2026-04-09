@@ -477,6 +477,7 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
     end
     if WindowCaps.isOamAnimation(w) then
       entry.multiRowToolbar = (w.multiRowToolbar == true)
+      entry.showSpriteOriginGuides = (w.showSpriteOriginGuides == true)
     end
 
     if not isPalette then

@@ -288,4 +288,37 @@ describe("game_art_layout_io_controller.lua", function()
     expect(restored.cellW).toBe(20)
     expect(restored.cellH).toBe(13)
   end)
+
+  it("persists OAM animation sprite origin guides through layout snapshot and rebuild", function()
+    local WM = require("controllers.window.window_controller")
+    local wm = WM.new()
+    local win = wm:createSpriteWindow({
+      animated = true,
+      oamBacked = true,
+      numFrames = 1,
+      cols = 16,
+      rows = 14,
+      spriteMode = "8x8",
+      title = "OAM Guides",
+    })
+    win._id = "oam_guides"
+    win.showSpriteOriginGuides = true
+
+    local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1)
+    local entry = snapshot.windows[1]
+    expect(entry.kind).toBe("oam_animation")
+    expect(entry.showSpriteOriginGuides).toBe(true)
+
+    local built = GameArtWindowBuilderController.buildWindowsFromLayout(snapshot, {
+      wm = WM.new(),
+      tilesPool = {},
+      ensureTiles = function() end,
+      romRaw = "",
+      decodeUserDefinedCodes = GameArtLayoutIOController.decodeUserDefinedCodes,
+    })
+
+    local restored = built.windowsById["oam_guides"]
+    expect(restored).toBeTruthy()
+    expect(restored.showSpriteOriginGuides).toBe(true)
+  end)
 end)
