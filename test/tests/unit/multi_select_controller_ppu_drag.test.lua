@@ -61,6 +61,155 @@ describe("multi_select_controller.lua - ppu tile group drag", function()
     expect(win.nametableBytes[idx(5, 1)]).toBe(0x31)
     expect(win.nametableBytes[idx(6, 1)]).toBe(0x32)
   end)
+
+  it("clears PPU group-drag sources using glassTileByte when transparentTileByte is unset", function()
+    -- Glass-tile menu sets glassTileByte and clears transparentTileByte (see setGlassTileByte).
+    local layer = {
+      kind = "tile",
+      glassTileByte = 0xAB,
+      transparentTileByte = nil,
+      items = {},
+    }
+
+    local win = {
+      kind = "ppu_frame",
+      cols = 8,
+      rows = 4,
+      nametableBytes = {},
+      layers = { layer },
+    }
+
+    local function idx(col, row)
+      return row * win.cols + col + 1
+    end
+
+    for i = 1, win.cols * win.rows do
+      win.nametableBytes[i] = 0xAB
+    end
+
+    win.nametableBytes[idx(2, 1)] = 0x31
+    win.nametableBytes[idx(3, 1)] = 0x32
+
+    win.setNametableByteAt = function(self, col, row, byteVal)
+      self.nametableBytes[idx(col, row)] = byteVal
+    end
+
+    local group = {
+      entries = {
+        { srcCol = 2, srcRow = 1, offsetCol = 0, offsetRow = 0, item = {} },
+        { srcCol = 3, srcRow = 1, offsetCol = 1, offsetRow = 0, item = {} },
+      },
+    }
+
+    local result = MultiSelectController.applyTileDragGroup(win, 1, group, 5, 1, {
+      copyMode = false,
+      srcWin = win,
+      srcLayer = 1,
+    })
+
+    expect(result).toBeTruthy()
+    expect(win.nametableBytes[idx(2, 1)]).toBe(0xAB)
+    expect(win.nametableBytes[idx(3, 1)]).toBe(0xAB)
+    expect(win.nametableBytes[idx(5, 1)]).toBe(0x31)
+    expect(win.nametableBytes[idx(6, 1)]).toBe(0x32)
+  end)
+
+  it("applies PPU group drag when anchor column is 0 (Lua falsy guard regression)", function()
+    local layer = {
+      kind = "tile",
+      transparentTileByte = 0x00,
+      items = {},
+    }
+
+    local win = {
+      kind = "ppu_frame",
+      cols = 8,
+      rows = 4,
+      nametableBytes = {},
+      layers = { layer },
+    }
+
+    local function idx(col, row)
+      return row * win.cols + col + 1
+    end
+
+    for i = 1, win.cols * win.rows do
+      win.nametableBytes[i] = 0x00
+    end
+
+    win.nametableBytes[idx(5, 1)] = 0x41
+
+    win.setNametableByteAt = function(self, col, row, byteVal)
+      self.nametableBytes[idx(col, row)] = byteVal
+    end
+
+    local group = {
+      entries = {
+        { srcCol = 5, srcRow = 1, offsetCol = 0, offsetRow = 0, item = {} },
+      },
+    }
+
+    local result = MultiSelectController.applyTileDragGroup(win, 1, group, 0, 1, {
+      copyMode = false,
+      srcWin = win,
+      srcLayer = 1,
+    })
+
+    expect(result).toBeTruthy()
+    expect(result.count).toBe(1)
+    expect(win.nametableBytes[idx(5, 1)]).toBe(0x00)
+    expect(win.nametableBytes[idx(0, 1)]).toBe(0x41)
+  end)
+
+  it("moves PPU nametable bytes between two PPU frame windows without materialize/CHR tile 0", function()
+    local function makeWin()
+      local layer = { kind = "tile", transparentTileByte = 0x00, items = {} }
+      local w = {
+        kind = "ppu_frame",
+        cols = 8,
+        rows = 4,
+        nametableBytes = {},
+        layers = { layer },
+      }
+      local function idx(col, row)
+        return row * w.cols + col + 1
+      end
+      w._idx = idx
+      for i = 1, w.cols * w.rows do
+        w.nametableBytes[i] = 0x00
+      end
+      w.setNametableByteAt = function(self, col, row, byteVal)
+        self.nametableBytes[self._idx(col, row)] = byteVal
+      end
+      return w
+    end
+
+    local winA = makeWin()
+    local winB = makeWin()
+
+    winA.nametableBytes[winA._idx(1, 1)] = 0x51
+    winA.nametableBytes[winA._idx(2, 1)] = 0x52
+
+    local group = {
+      entries = {
+        { srcCol = 1, srcRow = 1, offsetCol = 0, offsetRow = 0, item = { index = 0 } },
+        { srcCol = 2, srcRow = 1, offsetCol = 1, offsetRow = 0, item = { index = 0 } },
+      },
+    }
+
+    local result = MultiSelectController.applyTileDragGroup(winB, 1, group, 4, 2, {
+      copyMode = false,
+      srcWin = winA,
+      srcLayer = 1,
+    })
+
+    expect(result).toBeTruthy()
+    expect(result.count).toBe(2)
+    expect(winA.nametableBytes[winA._idx(1, 1)]).toBe(0x00)
+    expect(winA.nametableBytes[winA._idx(2, 1)]).toBe(0x00)
+    expect(winB.nametableBytes[winB._idx(4, 2)]).toBe(0x51)
+    expect(winB.nametableBytes[winB._idx(5, 2)]).toBe(0x52)
+  end)
 end)
 
 describe("multi_select_controller.lua - oam animation sprite deletion restriction", function()

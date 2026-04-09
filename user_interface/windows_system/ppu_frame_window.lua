@@ -8,6 +8,7 @@ local Text = require("utils.text_utils")
 local DebugController = require("controllers.dev.debug_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 local CanvasSpace = require("utils.canvas_space")
+local PpuLayerEmptyByte = require("utils.ppu_layer_empty_byte")
 
 local PPUFrameWindow = {}
 PPUFrameWindow.__index = PPUFrameWindow
@@ -54,13 +55,7 @@ local function clampByte(byteVal)
 end
 
 local function getTransparentTileByte(layer)
-  if layer and layer.glassTileByte ~= nil then
-    return clampByte(layer.glassTileByte)
-  end
-  if layer and layer.transparentTileByte ~= nil then
-    return clampByte(layer.transparentTileByte)
-  end
-  return 0x00
+  return PpuLayerEmptyByte.forLayer(layer)
 end
 
 local function isTransparentNametableByte(layer, byteVal, showGlassTile)

@@ -1,5 +1,6 @@
 local M = {}
 local WindowCaps = require("controllers.window.window_capabilities")
+local PpuLayerEmptyByte = require("utils.ppu_layer_empty_byte")
 
 local SPRITE_X_RANGE = 256
 local SPRITE_Y_RANGE = 256
@@ -527,9 +528,7 @@ function M.deleteTileSelection(win, layerIdx, fallbackCol, fallbackRow, app, und
   if #cells == 0 then return nil end
 
   if WindowCaps.isPpuFrame(win) then
-    local glassByte = layer.glassTileByte
-      or layer.transparentTileByte
-      or 0x00
+    local glassByte = PpuLayerEmptyByte.forLayer(layer)
     local actions = {}
 
     for _, cell in ipairs(cells) do
@@ -833,7 +832,11 @@ function M.clampTileDropAnchor(win, group, targetCol, targetRow)
 end
 
 function M.applyTileDragGroup(win, layerIdx, group, anchorCol, anchorRow, opts)
-  if not (win and layerIdx and group and group.entries and anchorCol and anchorRow) then
+  -- anchor 0 is valid; do not use "anchorCol and anchorRow" (0 is falsy in Lua).
+  if not (win and layerIdx and group and group.entries) then
+    return nil
+  end
+  if type(anchorCol) ~= "number" or type(anchorRow) ~= "number" then
     return nil
   end
   opts = opts or {}
@@ -869,10 +872,18 @@ function M.applyTileDragGroup(win, layerIdx, group, anchorCol, anchorRow, opts)
     end
   end
 
-  -- PPU nametable layers should move bytes directly to avoid item/index conversion issues.
-  if WindowCaps.isPpuFrame(win) and srcWin == win and win.nametableBytes and win.setNametableByteAt then
+  -- PPU nametable layers should move bytes directly (any PPU → PPU). Using win:set + materialize
+  -- on virtual handles maps everything to CHR tile 0 for multi-drag across windows or layers.
+  if WindowCaps.isPpuFrame(win)
+    and WindowCaps.isPpuFrame(srcWin)
+    and win.nametableBytes
+    and srcWin.nametableBytes
+    and win.setNametableByteAt
+    and srcWin.setNametableByteAt
+  then
     local srcCols = srcWin.cols or 0
-    local transparentByte = layer.transparentTileByte or 0x00
+    local srcLayerTbl = srcWin.layers and srcWin.layers[srcLayer]
+    local transparentByte = PpuLayerEmptyByte.forLayer(srcLayerTbl)
     local placementBytes = {}
 
     for _, entry in ipairs(group.entries) do
@@ -884,7 +895,7 @@ function M.applyTileDragGroup(win, layerIdx, group, anchorCol, anchorRow, opts)
         and dstCol >= 0 and dstCol < cols and dstRow >= 0 and dstRow < rows
       then
         local srcIdx = (srcRow * srcCols + srcCol) + 1
-        local srcByte = win.nametableBytes[srcIdx] or 0
+        local srcByte = srcWin.nametableBytes[srcIdx] or 0
         placementBytes[#placementBytes + 1] = {
           col = dstCol,
           row = dstRow,
@@ -898,8 +909,13 @@ function M.applyTileDragGroup(win, layerIdx, group, anchorCol, anchorRow, opts)
 
     if (not copyMode) then
       for _, p in ipairs(placementBytes) do
-        if not destSet[p.srcIdx] then
-          win:setNametableByteAt(p.srcCol, p.srcRow, transparentByte, tilesPool, layerIdx)
+        local skipClear = false
+        if srcWin == win then
+          -- Same grid: do not clear a source cell that is also a drop target for another tile.
+          skipClear = destSet[p.srcIdx] == true
+        end
+        if not skipClear then
+          srcWin:setNametableByteAt(p.srcCol, p.srcRow, transparentByte, tilesPool, srcLayer)
         end
       end
     end
