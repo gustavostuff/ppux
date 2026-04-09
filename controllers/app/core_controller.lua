@@ -1,5 +1,6 @@
 local WindowController = require("controllers.window.window_controller")
 local BankViewController = require("controllers.chr.bank_view_controller")
+local RevertTilePixelsController = require("controllers.chr.revert_tile_pixels_controller")
 local BrushController = require("controllers.input_support.brush_controller")
 local UndoRedoController = require("controllers.input_support.undo_redo_controller")
 
@@ -1070,6 +1071,18 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
       end,
     },
     {
+      text = "Undo pixel edits",
+      enabled = RevertTilePixelsController.canRevertContext(self, context),
+      callback = function()
+        local ok, err = RevertTilePixelsController.revertForContext(self, context)
+        if ok then
+          self:setStatus("Reverted tile pixels to original CHR")
+        else
+          self:setStatus(tostring(err or "Could not revert tile pixels"))
+        end
+      end,
+    },
+    {
       text = "Select in CHR/ROM window",
       enabled = context and context.tileIndex ~= nil,
       callback = function()
@@ -1082,10 +1095,69 @@ end
 function AppCoreController:_buildSelectInChrContextMenuItems(context)
   return {
     {
+      text = "Undo pixel edits",
+      enabled = RevertTilePixelsController.canRevertContext(self, context),
+      callback = function()
+        local ok, err = RevertTilePixelsController.revertForContext(self, context)
+        if ok then
+          self:setStatus("Reverted tile pixels to original CHR")
+        else
+          self:setStatus(tostring(err or "Could not revert tile pixels"))
+        end
+      end,
+    },
+    {
       text = "Select in CHR/ROM window",
       enabled = context and context.tileIndex ~= nil,
       callback = function()
         self:_selectPpuTileInChrWindow(context)
+      end,
+    },
+  }
+end
+
+function AppCoreController:_buildChrBankTileContext(win, col, row)
+  if not (win and type(col) == "number" and type(row) == "number") then
+    return nil
+  end
+
+  local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+  local layer = win.getLayer and win:getLayer(li) or (win.layers and win.layers[li])
+  if not (layer and layer.kind == "tile") then
+    return nil
+  end
+
+  local item = win.get and win:get(col, row, li) or nil
+  if not item then
+    return nil
+  end
+
+  local bankIdx = tonumber(layer.bank) or tonumber(win.currentBank) or tonumber(li) or 1
+
+  return {
+    win = win,
+    layerIndex = li,
+    layer = layer,
+    col = col,
+    row = row,
+    item = item,
+    sourceBank = bankIdx,
+    tileIndex = normalizeTileIndex(item),
+  }
+end
+
+function AppCoreController:_buildChrBankTileContextMenuItems(context)
+  return {
+    {
+      text = "Undo pixel edits",
+      enabled = RevertTilePixelsController.canRevertContext(self, context),
+      callback = function()
+        local ok, err = RevertTilePixelsController.revertForContext(self, context)
+        if ok then
+          self:setStatus("Reverted tile pixels to original CHR")
+        else
+          self:setStatus(tostring(err or "Could not revert tile pixels"))
+        end
       end,
     },
   }
@@ -1118,6 +1190,21 @@ function AppCoreController:showSelectInChrContextMenu(win, layerIndex, col, row,
 
   self:_hideAllContextMenus()
   self.ppuTileContextMenu:showAt(x, y, self:_buildSelectInChrContextMenuItems(context))
+  return self.ppuTileContextMenu:isVisible()
+end
+
+function AppCoreController:showChrBankTileContextMenu(win, col, row, x, y)
+  if not (self.ppuTileContextMenu and type(x) == "number" and type(y) == "number") then
+    return false
+  end
+
+  local context = self:_buildChrBankTileContext(win, col, row)
+  if not context then
+    return false
+  end
+
+  self:_hideAllContextMenus()
+  self.ppuTileContextMenu:showAt(x, y, self:_buildChrBankTileContextMenuItems(context))
   return self.ppuTileContextMenu:isVisible()
 end
 

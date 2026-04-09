@@ -129,6 +129,53 @@ function M.recordEdit(edits, bankIdx, tileIdx, x, y, color)
   tileTbl[x .. "_" .. y] = color
 end
 
+--- Rebuild per-tile edit keys from current CHR vs original bank (for one 0-based tile index).
+function M.resyncTileEditsForTile(edits, origBank, curBank, bankIdx, tileIndex0)
+  if not (edits and origBank and curBank) then
+    return
+  end
+  bankIdx = math.floor(tonumber(bankIdx) or 0)
+  tileIndex0 = math.floor(tonumber(tileIndex0) or -1)
+  if bankIdx < 1 or tileIndex0 < 0 then
+    return
+  end
+
+  edits.banks = edits.banks or {}
+  local b = edits.banks[bankIdx]
+  if b then
+    b[tileIndex0] = nil
+    b[tostring(tileIndex0)] = nil
+    if next(b) == nil then
+      edits.banks[bankIdx] = nil
+    end
+  end
+
+  local piOrig = chr.decodeTile(origBank, tileIndex0)
+  local piCur = chr.decodeTile(curBank, tileIndex0)
+  if not (piOrig and piCur) then
+    return
+  end
+
+  for y = 0, 7 do
+    for x = 0, 7 do
+      local idx = y * 8 + x + 1
+      local c = piCur[idx] or 0
+      local o = piOrig[idx] or 0
+      if c ~= o then
+        M.recordEdit(edits, bankIdx, tileIndex0, x, y, c)
+      end
+    end
+  end
+
+  local t = edits.banks[bankIdx] and edits.banks[bankIdx][tileIndex0]
+  if t and next(t) == nil then
+    edits.banks[bankIdx][tileIndex0] = nil
+    if next(edits.banks[bankIdx]) == nil then
+      edits.banks[bankIdx] = nil
+    end
+  end
+end
+
 function M.compressEdits(edits)
   if not edits or type(edits) ~= "table" or type(edits.banks) ~= "table" then
     return { banks = {} }

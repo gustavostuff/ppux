@@ -7,6 +7,8 @@ local M = {}
 local UndoRedoController = {}
 UndoRedoController.__index = UndoRedoController
 local GameArtController = require("controllers.game_art.game_art_controller")
+local GameArtEditsController = require("controllers.game_art.edits_controller")
+local BankViewController = require("controllers.chr.bank_view_controller")
 local ChrDuplicateSync = require("controllers.chr.duplicate_sync_controller")
 local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
 local WindowCaps = require("controllers.window.window_capabilities")
@@ -299,6 +301,40 @@ function UndoRedoController:addPpuFrameRangeEvent(event)
   local pushed = self:_pushEvent(event)
   if pushed then
     self:_notifyUnsaved("ppu_frame_range_change")
+  end
+  return pushed
+end
+
+-- Menu "Undo pixel edits": before = CHR bytes before revert, after = baseline bytes (from originalChrBanksBytes).
+-- Undo (Ctrl+Z) restores before; redo (Ctrl+Y) restores after.
+function UndoRedoController:addChrTileRevertEvent(event)
+  if not event or event.type ~= "chr_tile_revert" then
+    return false
+  end
+  if type(event.tiles) ~= "table" or #event.tiles == 0 then
+    return false
+  end
+
+  local stored = { type = "chr_tile_revert", tiles = {} }
+  for i, t in ipairs(event.tiles) do
+    if type(t.bank) ~= "number" or type(t.tileIndex) ~= "number" then
+      return false
+    end
+    if type(t.before) ~= "table" or type(t.after) ~= "table" then
+      return false
+    end
+    local before = {}
+    local after = {}
+    for j = 1, 16 do
+      before[j] = t.before[j] or 0
+      after[j] = t.after[j] or 0
+    end
+    stored.tiles[i] = { bank = t.bank, tileIndex = t.tileIndex, before = before, after = after }
+  end
+
+  local pushed = self:_pushEvent(stored)
+  if pushed then
+    self:_notifyUnsaved("pixel_edit")
   end
   return pushed
 end
@@ -874,6 +910,53 @@ local function applyWindowMinimizeEvent(event, direction, app)
   return applied
 end
 
+local function applyChrTileRevertEvent(event, direction, app)
+  local state = app and app.appEditState
+  if not (state and state.chrBanksBytes and state.originalChrBanksBytes) then
+    return false
+  end
+
+  local useAfter = (direction == "redo")
+  local appliedAny = false
+  local targets = {}
+
+  for _, t in ipairs(event.tiles or {}) do
+    local bank = t.bank
+    local tileIndex = t.tileIndex
+    local bytes = useAfter and t.after or t.before
+    if type(bank) == "number" and type(tileIndex) == "number" and type(bytes) == "table" then
+      local curBank = state.chrBanksBytes[bank]
+      local origBank = state.originalChrBanksBytes[bank]
+      if curBank and origBank then
+        local base = tileIndex * 16
+        if base + 16 <= #curBank and base + 16 <= #origBank then
+          for i = 1, 16 do
+            curBank[base + i] = bytes[i] or 0
+          end
+          if app.edits then
+            GameArtEditsController.resyncTileEditsForTile(app.edits, origBank, curBank, bank, tileIndex)
+          end
+          local tileRef = BankViewController.getTileRef(state, bank, tileIndex)
+          if tileRef and tileRef.loadFromCHR then
+            tileRef:loadFromCHR(curBank, tileIndex)
+          end
+          targets[#targets + 1] = { bank = bank, tileIndex = tileIndex }
+          appliedAny = true
+        end
+      end
+    end
+  end
+
+  if #targets > 0 then
+    ChrDuplicateSync.updateTiles(state, targets)
+    for _, info in ipairs(targets) do
+      BankCanvasSupport.invalidateTile(app, info.bank, info.tileIndex)
+    end
+  end
+
+  return appliedAny
+end
+
 -- Apply an undo operation
 -- app: AppCoreController instance (needs appEditState.chrBanksBytes)
 -- Returns true if undo was applied, false if no undo available
@@ -954,6 +1037,8 @@ function UndoRedoController:_applyEvent(event, direction, app)
     return applyWindowCreateEvent(event, direction, app)
   elseif event.type == "ppu_frame_range" then
     return applyPpuFrameRangeEvent(event, direction, app)
+  elseif event.type == "chr_tile_revert" then
+    return applyChrTileRevertEvent(event, direction, app)
   elseif event.type == "window_minimize" then
     return applyWindowMinimizeEvent(event, direction, app)
   elseif event.type == "window_close" then

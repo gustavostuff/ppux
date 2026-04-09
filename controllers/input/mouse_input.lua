@@ -220,6 +220,14 @@ local function handleContextMenuRelease(button, x, y)
     return false
   end
 
+  if pending.kind == "chr_bank_tile" then
+    if app.showChrBankTileContextMenu and pending.win and type(pending.col) == "number" and type(pending.row) == "number" then
+      app:showChrBankTileContextMenu(pending.win, pending.col, pending.row, x, y)
+      return true
+    end
+    return false
+  end
+
   if pending.kind == "oam_sprite_empty" then
     if app.showOamSpriteEmptySpaceContextMenu and pending.win then
       app:showOamSpriteEmptySpaceContextMenu(

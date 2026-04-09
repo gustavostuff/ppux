@@ -357,6 +357,36 @@ local function handleRightButton(env, button, x, y, win, wm)
         win:mousepressed(x, y, button)
         return true
       end
+
+      local function beginChrBankTileContextClick()
+        if not (win and WindowCaps.isChrLike(win) and env.beginContextMenuClick) then
+          return false
+        end
+        local ok, col, row = win:toGridCoords(x, y)
+        if not ok then
+          return false
+        end
+        local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+        local layer = win.layers and win.layers[li] or nil
+        if not (layer and layer.kind == "tile") then
+          return false
+        end
+        local item = win.get and win:get(col, row, li) or nil
+        if not item then
+          return false
+        end
+        env.beginContextMenuClick("chr_bank_tile", x, y, button, win, {
+          layerIndex = li,
+          col = col,
+          row = row,
+        })
+        return true
+      end
+
+      if beginChrBankTileContextClick() then
+        win:mousepressed(x, y, button)
+        return true
+      end
       if beginOamSpriteEmptySpaceContextClick() then
         win:mousepressed(x, y, button)
         return true
