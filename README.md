@@ -15,14 +15,13 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
 - [Basic Usage](#basic-usage)
   - [Getting started](#getting-started)
   - [Windows system](#windows-system)
-  - [Specialized toolbars](#specialized-toolbars)
+  - [Toolbars](#specialized-toolbars)
   - [Palette windows](#palette-windows)
   - [Main controls](#main-controls)
   - [Tile mode](#tile-mode)
   - [Edit mode](#edit-mode)
   - [PNG drops](#png-drops)
 - [Advanced](#advanced)
-  - [Build packages](#build-packages)
   - [Database](#database)
   - [DB contribution tracker](#db-contribution-tracker)
   - [Lua project mapping](#lua-project-mapping)
@@ -34,6 +33,7 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
   - [Current nametable codec coverage](#current-nametable-codec-coverage)
   - [ROM patches](#rom-patches)
 - [Development](#development)
+  - [Build packages](#build-packages)
   - [Unit testing](#unit-testing)
   - [E2E testing](#e2e-testing)
 
@@ -79,7 +79,7 @@ Notes:
 
 * You can create a window from **Main Menu > Windows > New Window** (or `Ctrl + N`) and pick the kind you want. ROM-backed fields (like ROM addresses) are filled in through the modals and property flows in the UI.
 
-### Specialized toolbars
+### Toolbars
 
 Windows include a slim toolbar strip just above the header. It holds small icon buttons whose actions depend on the window type. Every control should show a tooltip on hover, but it still helps to spell out what each button does in the docs so people can learn the layout without hovering everything.
 
@@ -317,26 +317,6 @@ Notes:
 
 ## Advanced
 
-### Build packages
-
-To build a packaged Windows app from Windows, run:
-
-```bat
-scripts\windows\build_windows.bat
-```
-
-The packaged Windows app will be created only as `build\PPUX-<version>-win64.zip`.
-
-To build a packaged Linux app from Linux, run:
-
-```bash
-./scripts/unix/build_linux_appimage.sh
-```
-
-The packaged Linux app will be created as `build/PPUX-<version>-x86_64.AppImage`.
-
-You can also build for Windows and macOS from Linux using `./scripts/unix/build_all.sh` (macOS build not tested yet).
-
 ### Database
 
 The DB lets PPUX recognize specific ROMs and open a tailored starting workspace automatically.
@@ -394,12 +374,25 @@ Best practice: keep the base ROM, edited ROM, and project files in the same fold
 
 `ppu_frame` windows are structured screen views: a **tile** layer backed by compressed nametable data in ROM, plus an optional **sprite** overlay that tracks real OAM bytes.
 
-**Creating and editing from the UI**
+**Creating and editing from th### Build packages
 
-1. Open **New Window** (`Ctrl + N`) and choose **PPU Frame**, or use the taskbar / menu equivalent.
-2. Use the window toolbar to pick the **nametable ROM range** (start/end addresses) when the tile layer is active — this opens the address modal tied to the game’s codec.
-3. Set **CHR/ROM bank**, **nametable page**, and related tile-layer fields through the same flows (bank selection follows the global CHR/ROM bank window; layer settings are edited in the inspectors / modals the window provides).
-4. The **glass tile** (empty-tile) byte and visibility are controlled from the toolbar and layer/window options (`glassTileByte` on the tile layer, `showGlassTile` at window level where exposed).
+To build a packaged Windows app from Windows, run:
+
+```bat
+scripts\windows\build_windows.bat
+```
+
+The packaged Windows app will be created only as `build\PPUX-<version>-win64.zip`.
+
+To build a packaged Linux app from Linux, run:
+
+```bash
+./scripts/unix/build_linux_appimage.sh
+```
+
+The packaged Linux app will be created as `build/PPUX-<version>-x86_64.AppImage`.
+
+You can also build for Windows and macOS from Linux using `./scripts/unix/build_all.sh` (macOS build not tested yet).lassTileByte` on the tile layer, `showGlassTile` at window level where exposed).
 5. Tile layers render from a **cached full-canvas** nametable view for performance; after heavy edits, use the normal refresh paths the UI offers if a screen looks stale.
 6. For **sprites**, use **Add sprite** on the toolbar to bind OAM entries. Sprite items that share the same `startAddr` **stay in sync** with **OAM Animation** windows (and other PPU Frame sprite layers) so moving or reconfiguring one updates the linked entries.
 7. **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. A plain **right-click** still opens the usual context menus when you are not dragging.
@@ -540,6 +533,26 @@ PPUX can apply small ROM patches from project data before windows are built (so 
 This is meant for targeted graphics-related setup such as forcing a game state or changing a small byte sequence. It is not a replacement for a full ROM hacking workflow.
 
 ## Development
+
+### Build packages
+
+To build a packaged Windows app from Windows, run:
+
+```bat
+scripts\windows\build_windows.bat
+```
+
+The packaged Windows app will be created only as `build\PPUX-<version>-win64.zip`.
+
+To build a packaged Linux app from Linux, run:
+
+```bash
+./scripts/unix/build_linux_appimage.sh
+```
+
+The packaged Linux app will be created as `build/PPUX-<version>-x86_64.AppImage`.
+
+You can also build for Windows and macOS from Linux using `./scripts/unix/build_all.sh` (macOS build not tested yet).
 
 ### Unit testing
 
