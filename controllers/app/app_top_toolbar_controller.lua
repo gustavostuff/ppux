@@ -11,6 +11,7 @@ local MIN_BAR_H = 15
 local PAD_X = 0
 local PAD_Y = 0
 local GAP = 0
+local QUICK_BUTTON_ORDER = { "newWindow", "open", "save" }
 
 function M.getContentOffsetY(app)
   local lay = app and app._appTopToolbarLayout
@@ -64,44 +65,21 @@ local function ensureQuickButtons(app)
       w = cell,
       h = cell,
     }),
-    saveLua = Button.new({
-      icon = images.icons.save,
-      tooltip = "Save Lua project",
-      action = withRom(app, function(a)
-        a:saveProject()
-      end),
+    open = Button.new({
+      icon = images.icons.icon_open or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      tooltip = "Open",
+      action = function()
+      end,
       x = 0,
       y = 0,
       w = cell,
       h = cell,
     }),
-    savePpux = Button.new({
+    save = Button.new({
       icon = images.icons.save,
-      tooltip = "Save compressed .ppux project",
+      tooltip = "Save options",
       action = withRom(app, function(a)
-        a:saveEncodedProject()
-      end),
-      x = 0,
-      y = 0,
-      w = cell,
-      h = cell,
-    }),
-    saveRom = Button.new({
-      icon = images.icons.save,
-      tooltip = "Save edited ROM",
-      action = withRom(app, function(a)
-        a:saveEdited()
-      end),
-      x = 0,
-      y = 0,
-      w = cell,
-      h = cell,
-    }),
-    saveAll = Button.new({
-      icon = images.icons.save,
-      tooltip = "Save ROM, Lua project, and .ppux",
-      action = withRom(app, function(a)
-        a:saveAllArtifacts()
+        a:showSaveOptionsModal()
       end),
       x = 0,
       y = 0,
@@ -135,7 +113,7 @@ function M.syncLayout(app)
   local x = PAD_X
   local topY = PAD_Y
 
-  for _, key in ipairs({ "newWindow", "saveLua", "savePpux", "saveRom", "saveAll" }) do
+  for _, key in ipairs(QUICK_BUTTON_ORDER) do
     local b = app._appTopQuickButtons[key]
     if b then
       b:setPosition(x, topY)
@@ -184,7 +162,7 @@ function M.draw(app)
   love.graphics.setColor(colors.white)
 
   ensureQuickButtons(app)
-  for _, key in ipairs({ "newWindow", "saveLua", "savePpux", "saveRom", "saveAll" }) do
+  for _, key in ipairs(QUICK_BUTTON_ORDER) do
     local b = app._appTopQuickButtons[key]
     if b then
       b:draw()
@@ -198,7 +176,7 @@ end
 
 local function pointInQuickButton(app, px, py)
   ensureQuickButtons(app)
-  for _, key in ipairs({ "newWindow", "saveLua", "savePpux", "saveRom", "saveAll" }) do
+  for _, key in ipairs(QUICK_BUTTON_ORDER) do
     local b = app._appTopQuickButtons[key]
     if b and b:contains(px, py) then
       return b
@@ -292,7 +270,7 @@ end
 
 function M.mousemoved(app, px, py)
   if not M.containsPointer(app, px, py) then
-    for _, key in ipairs({ "newWindow", "saveLua", "savePpux", "saveRom", "saveAll" }) do
+    for _, key in ipairs(QUICK_BUTTON_ORDER) do
       local b = app._appTopQuickButtons and app._appTopQuickButtons[key]
       if b then
         b.hovered = false
@@ -301,7 +279,7 @@ function M.mousemoved(app, px, py)
     return false
   end
   local hit = pointInQuickButton(app, px, py)
-  for _, key in ipairs({ "newWindow", "saveLua", "savePpux", "saveRom", "saveAll" }) do
+  for _, key in ipairs(QUICK_BUTTON_ORDER) do
     local b = app._appTopQuickButtons and app._appTopQuickButtons[key]
     if b then
       b.hovered = (b == hit)
