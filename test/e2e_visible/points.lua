@@ -1,4 +1,16 @@
 local M = {}
+local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
+
+local function contentOffsetY(currentApp)
+  if not currentApp then
+    return 0
+  end
+  return tonumber(AppTopToolbarController.getContentOffsetY(currentApp)) or 0
+end
+
+local function contentToCanvasPoint(currentApp, x, y)
+  return x, (tonumber(y) or 0) + contentOffsetY(currentApp)
+end
 
 local function getNewWindowOptionCell(panel, optionIndex)
   local row = 6 + math.floor(((optionIndex or 1) - 1) / 2)
@@ -65,7 +77,7 @@ local function textFieldDemoFieldTextPoint(fieldKey, prefix)
 end
 
 local function spriteItemCenter(winResolver, itemResolver, layerResolver)
-  return function(_, _, currentRunner)
+  return function(_, currentApp, currentRunner)
     local win = assert(winResolver(currentRunner), "expected sprite window")
     local layerIndex = layerResolver and layerResolver(currentRunner) or (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
     local layer = assert(win.layers and win.layers[layerIndex], "expected sprite layer")
@@ -76,8 +88,11 @@ local function spriteItemCenter(winResolver, itemResolver, layerResolver)
     local worldY = sprite.worldY or sprite.baseY or sprite.y or 0
     local cellW = win.cellW or 8
     local cellH = win.cellH or 8
-    return win.x + (worldX + (cellW * 0.5)) * zoom,
+    return contentToCanvasPoint(
+      currentApp,
+      win.x + (worldX + (cellW * 0.5)) * zoom,
       win.y + (worldY + (cellH * 0.5)) * zoom
+    )
   end
 end
 
@@ -89,7 +104,10 @@ local function toolbarLinkHandleCenter(winResolver)
     local x, y, w, h = toolbar:getLinkHandleRect()
     assert(type(x) == "number" and type(y) == "number" and type(w) == "number" and type(h) == "number",
       "expected link handle rect")
-    return x + math.floor(w * 0.5), y + math.floor(h * 0.5)
+    if toolbar._dockLayout then
+      return x + math.floor(w * 0.5), y + math.floor(h * 0.5)
+    end
+    return contentToCanvasPoint(currentApp, x + math.floor(w * 0.5), y + math.floor(h * 0.5))
   end
 end
 
@@ -100,7 +118,7 @@ local function windowHeaderCenter(winResolver)
     local x, y, w, h = win:getHeaderRect()
     assert(type(x) == "number" and type(y) == "number" and type(w) == "number" and type(h) == "number",
       "expected header rect")
-    return x + math.floor(w * 0.5), y + math.floor(h * 0.5)
+    return contentToCanvasPoint(currentApp, x + math.floor(w * 0.5), y + math.floor(h * 0.5))
   end
 end
 
@@ -162,7 +180,7 @@ local function resizeHandleCenter(winResolver)
   return function(_, currentApp, currentRunner)
     local win = assert(winResolver(currentApp, currentRunner), "expected target window for resize handle")
     local x, y, w, h = win:getResizeHandleRect()
-    return x + math.floor(w * 0.5), y + math.floor(h * 0.5)
+    return contentToCanvasPoint(currentApp, x + math.floor(w * 0.5), y + math.floor(h * 0.5))
   end
 end
 

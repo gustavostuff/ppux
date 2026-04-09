@@ -1,5 +1,6 @@
 local AppCoreController = require("controllers.app.core_controller")
 local AppSettingsController = require("controllers.app.settings_controller")
+local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 local ResolutionController = require("controllers.app.resolution_controller")
 local RomProjectController = require("controllers.rom.rom_project_controller")
 
@@ -466,6 +467,18 @@ function E2EHarness:_setMouseCanvasPosition(x, y)
   return self._mouseX, self._mouseY
 end
 
+function E2EHarness:getCanvasContentOffsetY()
+  local app = self.app
+  if not app then
+    return 0
+  end
+  return tonumber(AppTopToolbarController.getContentOffsetY(app)) or 0
+end
+
+function E2EHarness:contentToCanvasPoint(x, y)
+  return x, (tonumber(y) or 0) + self:getCanvasContentOffsetY()
+end
+
 function E2EHarness:getMouseCanvasPosition()
   return self._mouseCanvasX or 0, self._mouseCanvasY or 0
 end
@@ -513,8 +526,10 @@ function E2EHarness:windowCellCenter(win, col, row)
   local scrollCol = win.scrollCol or 0
   local scrollRow = win.scrollRow or 0
 
-  return win.x + ((col - scrollCol) + 0.5) * cellW * zoom,
+  return self:contentToCanvasPoint(
+    win.x + ((col - scrollCol) + 0.5) * cellW * zoom,
     win.y + ((row - scrollRow) + 0.5) * cellH * zoom
+  )
 end
 
 function E2EHarness:windowPixelCenter(win, col, row, px, py)
@@ -526,8 +541,10 @@ function E2EHarness:windowPixelCenter(win, col, row, px, py)
   local localPx = math.max(0, math.min(cellW - 1, math.floor(px or 0)))
   local localPy = math.max(0, math.min(cellH - 1, math.floor(py or 0)))
 
-  return win.x + ((col - scrollCol) * cellW + localPx + 0.5) * zoom,
+  return self:contentToCanvasPoint(
+    win.x + ((col - scrollCol) * cellW + localPx + 0.5) * zoom,
     win.y + ((row - scrollRow) * cellH + localPy + 0.5) * zoom
+  )
 end
 
 function E2EHarness:click(x, y, opts)
