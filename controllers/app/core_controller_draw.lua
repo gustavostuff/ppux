@@ -14,6 +14,7 @@ local Timer = require("utils.timer_utils")
 local Draw = require("utils.draw_utils")
 local colors = require("app_colors")
 local images = require("images")
+local CanvasSpace = require("utils.canvas_space")
 
 local function drawEmptyStatePrompt(app)
   if app:hasLoadedROM() then return end
@@ -178,7 +179,8 @@ local function renderWindowLinesGrid(window)
 
   love.graphics.push("all")
   love.graphics.setShader(linesGridShader)
-  linesGridShader:send("u_origin", { x - scrollOffsetX, y - scrollOffsetY })
+  local ox, oy = love.graphics.transformPoint(x - scrollOffsetX, y - scrollOffsetY)
+  linesGridShader:send("u_origin", { ox, oy })
   linesGridShader:send("u_step", { stepX, stepY })
   linesGridShader:send("u_thickness", thickness)
   local c = colors.gray50
@@ -408,7 +410,7 @@ local function drawCanvasLayer(app, w, layerIndex, isFocused)
   love.graphics.translate(w.x, w.y)
   local z = (w.getZoomLevel and w:getZoomLevel()) or w.zoom or 1
   love.graphics.scale(z, z)
-  love.graphics.setScissor(sx, sy, sw, sh)
+  CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
 
   ShaderPaletteController.applyLayerItemPalette(
     layer,
@@ -1097,8 +1099,10 @@ function AppCoreController:draw()
 
   AppTopToolbarController.draw(self)
 
+  local contentOy = AppTopToolbarController.getContentOffsetY(self)
+  self._canvasContentOffsetY = contentOy
   love.graphics.push()
-  love.graphics.translate(0, AppTopToolbarController.getContentOffsetY(self))
+  love.graphics.translate(0, contentOy)
 
   drawWindows(self)
   drawPaletteLinks(self)
@@ -1106,6 +1110,7 @@ function AppCoreController:draw()
   drawTranslatedNonModalOverlays(self)
 
   love.graphics.pop()
+  self._canvasContentOffsetY = nil
 
   drawStatus(self)
   drawNonModalOverlays(self)

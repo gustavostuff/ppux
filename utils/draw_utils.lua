@@ -116,7 +116,13 @@ function M.drawRepeatingImageAnimated(img, x, y, w, h, data)
 
   if useShader and borderShader then
     love.graphics.push("all")
-    borderShader:send("u_rect", { x or 0, y or 0, w, h })
+    -- u_rect must match fragment pixel coords; love.graphics.transformPoint maps from
+    -- current drawing space through the active transform stack (LÖVE 11+).
+    local x0 = x or 0
+    local y0 = y or 0
+    local ax, ay = love.graphics.transformPoint(x0, y0)
+    local bx, by = love.graphics.transformPoint(x0 + w, y0 + h)
+    borderShader:send("u_rect", { math.min(ax, bx), math.min(ay, by), math.abs(bx - ax), math.abs(by - ay) })
     borderShader:send("u_border", borderPx)
     love.graphics.setShader(borderShader)
     love.graphics.draw(img, quad, x or 0, y or 0)

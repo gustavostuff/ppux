@@ -8,6 +8,7 @@ describe("settings_controller.lua - defaults", function()
       canvasImageMode = "pixel_perfect",
       canvasFilter = "sharp",
       paletteLinks = "auto_hide",
+      separateToolbar = false,
       recentProjects = {},
     })
   end)
@@ -59,6 +60,7 @@ describe("settings_controller.lua - persistence", function()
       canvasImageMode = "stretch",
       canvasFilter = "soft",
       paletteLinks = "on_hover",
+      separateToolbar = false,
       recentProjects = {
         "/tmp/foo",
         "/tmp/bar",

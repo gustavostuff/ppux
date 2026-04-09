@@ -11,6 +11,7 @@ local DebugController = require("controllers.dev.debug_controller")
 local colors = require("app_colors")
 local UiScale = require("user_interface.ui_scale")
 local TableUtils = require("utils.table_utils")
+local CanvasSpace = require("utils.canvas_space")
 
 local RomPaletteWindow = {}
 RomPaletteWindow.__index = RomPaletteWindow
@@ -527,7 +528,7 @@ end
 -- Override drawGrid to show codes even when not active (ROM palettes always show codes)
 function RomPaletteWindow:drawGrid()
   local sx, sy, sw, sh = self:getScreenRect()
-  love.graphics.setScissor(sx, sy, sw, sh)
+  CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   love.graphics.push()
   love.graphics.translate(self.x, self.y)
   love.graphics.scale(self.zoom, self.zoom)

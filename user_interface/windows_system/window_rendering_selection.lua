@@ -4,6 +4,7 @@ local Draw = require("utils.draw_utils")
 local SpriteController = require("controllers.sprite.sprite_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local SpaceHighlightController = require("controllers.window.space_highlight_controller")
+local CanvasSpace = require("utils.canvas_space")
 
 local HOVER_OPACITY = 0.4
 local SELECTION_RECT_ANIM = {
@@ -241,7 +242,7 @@ function Window:drawSpriteSelectionOverlays(isFocused)
   -- Keep drawing inside the window bounds
   local prevScissor = { love.graphics.getScissor() }
   local sx, sy, sw, sh = self:getScreenRect()
-  love.graphics.setScissor(sx, sy, sw, sh)
+  CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   local spaceDown = SpaceHighlightController.isSpaceHighlightActive()
   local spaceHighlightModel = SpaceHighlightController.buildModel(nil, spaceDown)
   local suppressSelectedHighlights = (WindowCaps.isAnimationLike(self) and self.isPlaying == true)
@@ -372,7 +373,7 @@ function Window:drawTileSelectionOverlays(isFocused)
 
   local prevScissor = { love.graphics.getScissor() }
   local sx, sy, sw, sh = self:getScreenRect()
-  love.graphics.setScissor(sx, sy, sw, sh)
+  CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   local suppressSelectedHighlights = (WindowCaps.isAnimationLike(self) and self.isPlaying == true)
   local spaceDown = SpaceHighlightController.isSpaceHighlightActive()
   local spaceHighlightModel = SpaceHighlightController.buildModel(nil, spaceDown)

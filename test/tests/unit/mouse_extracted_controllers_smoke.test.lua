@@ -104,8 +104,9 @@ describe("mouse extracted controllers (smoke)", function()
   it("mouse_wheel_controller prioritizes ctrl+alt brush size in edit mode before zoom/scroll", function()
     local calls = { brush = 0, zoom = 0, scroll = 0, focus = 0 }
 
+    -- Below the app top strip (getContentOffsetY defaults to 15px when layout not synced).
     ResolutionController.getScaledMouse = function()
-      return { x = 5, y = 6 }
+      return { x = 5, y = 22 }
     end
 
     local win = {
@@ -149,7 +150,7 @@ describe("mouse extracted controllers (smoke)", function()
     local calls = { toolbarWheel = 0, scroll = 0, focus = 0 }
 
     ResolutionController.getScaledMouse = function()
-      return { x = 10, y = 10 }
+      return { x = 10, y = 22 }
     end
 
     local win = {

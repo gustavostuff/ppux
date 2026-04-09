@@ -7,6 +7,7 @@ local colors = require("app_colors")
 local Text = require("utils.text_utils")
 local DebugController = require("controllers.dev.debug_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
+local CanvasSpace = require("utils.canvas_space")
 
 local PPUFrameWindow = {}
 PPUFrameWindow.__index = PPUFrameWindow
@@ -308,7 +309,7 @@ function PPUFrameWindow:drawVisibleNametableCells(renderCell, layerIndex)
 
   local cw, ch = self.cellW, self.cellH
   local sx, sy, sw, sh = self:getScreenRect()
-  love.graphics.setScissor(sx, sy, sw, sh)
+  CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   love.graphics.translate(-self.scrollCol * cw, -self.scrollRow * ch)
 
   local vC0 = self.scrollCol
@@ -486,7 +487,7 @@ function PPUFrameWindow:drawNametableLayerCanvas(layerIndex)
   love.graphics.push()
   love.graphics.translate(self.x, self.y)
   love.graphics.scale(z, z)
-  love.graphics.setScissor(sx, sy, sw, sh)
+  CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   love.graphics.translate(-(self.scrollCol or 0) * cw, -(self.scrollRow or 0) * ch)
   love.graphics.setColor(1, 1, 1, layerOpacity)
   love.graphics.draw(state.canvas, 0, 0)

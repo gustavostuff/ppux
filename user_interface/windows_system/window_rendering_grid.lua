@@ -1,4 +1,5 @@
 local colors = require("app_colors")
+local CanvasSpace = require("utils.canvas_space")
 local SpriteController = require("controllers.sprite.sprite_controller")
 local images = require("images")
 
@@ -139,7 +140,7 @@ function Window:drawGrid(renderCell, isFocused, layerIndex)
 
   local cw, ch = self.cellW, self.cellH
   local sx, sy, sw, sh = self:getScreenRect()
-  love.graphics.setScissor(sx, sy, sw, sh)
+  CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
 
   -- Apply scroll offset in world space
   love.graphics.translate(-self.scrollCol * cw, -self.scrollRow * ch)
@@ -201,7 +202,7 @@ function Window:drawSprites(renderSprite, isFocused, layerIndex, romRaw)
   local cw = self.cellW or 8
   local ch = self.cellH or 8
   local sx, sy, sw, sh = self:getScreenRect()
-  love.graphics.setScissor(sx, sy, sw, sh)
+  CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
 
   -- Apply scroll offset in world space
   local scol = self.scrollCol or 0

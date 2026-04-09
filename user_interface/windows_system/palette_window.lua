@@ -10,6 +10,7 @@ local UiScale = require("user_interface.ui_scale")
 local images = require("images")
 local katsudo = require("lib.katsudo")
 local DebugController = require("controllers.dev.debug_controller")
+local CanvasSpace = require("utils.canvas_space")
 
 local NORMAL_CELL_W, NORMAL_CELL_H = 32, 24
 local COMPACT_CELL_W, COMPACT_CELL_H = 20, 13
@@ -388,7 +389,7 @@ end
 -- override parent
 function PaletteWindow:drawGrid()
   local sx, sy, sw, sh = self:getScreenRect()
-  love.graphics.setScissor(sx, sy, sw, sh)
+  CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   love.graphics.push()
   love.graphics.translate(self.x, self.y)
   love.graphics.scale(self.zoom, self.zoom)

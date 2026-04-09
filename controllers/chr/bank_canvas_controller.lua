@@ -1,4 +1,5 @@
 local chr = require("chr")
+local CanvasSpace = require("utils.canvas_space")
 local DebugController = require("controllers.dev.debug_controller")
 
 local M = {}
@@ -230,7 +231,7 @@ function M:drawWindow(state, win, layerOpacity)
   love.graphics.push()
   love.graphics.translate(win.x, win.y)
   love.graphics.scale(z, z)
-  love.graphics.setScissor(sx, sy, sw, sh)
+  CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   love.graphics.translate(-(win.scrollCol or 0) * TILE_SIZE, -(win.scrollRow or 0) * TILE_SIZE)
   love.graphics.setColor(1, 1, 1, layerOpacity or 1.0)
   love.graphics.draw(self.image, 0, 0)

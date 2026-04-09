@@ -8,9 +8,9 @@ local PaletteLinkController = require("controllers.palette.palette_link_controll
 local M = {}
 
 local MIN_BAR_H = 15
-local PAD_X = 6
-local PAD_Y = 2
-local GAP = 4
+local PAD_X = 0
+local PAD_Y = 0
+local GAP = 0
 
 function M.getContentOffsetY(app)
   local lay = app and app._appTopToolbarLayout
@@ -30,6 +30,9 @@ local function ensureQuickButtons(app)
     return function()
       if not appRef:hasLoadedROM() then
         appRef:setStatus("Open a ROM before using this action.")
+        if appRef.showToast then
+          appRef:showToast("warning", appRef.statusText or "Open a ROM first.")
+        end
         return
       end
       fn(appRef)
@@ -43,8 +46,17 @@ local function ensureQuickButtons(app)
       icon = images.icons.icon_new_window,
       tooltip = "New window",
       action = function()
-        if app.showNewWindowModal and app:showNewWindowModal() then
-          app:setStatus("Opened new window modal")
+        if not app.hasLoadedROM or not app:hasLoadedROM() then
+          app:setStatus("Open a ROM before creating windows.")
+          if app.showToast then
+            app:showToast("warning", app.statusText or "Open a ROM first.")
+          end
+          return
+        end
+        app:showNewWindowModal()
+        app:setStatus("New window — choose a type")
+        if app.showToast then
+          app:showToast("info", "New window — choose a type")
         end
       end,
       x = 0,
@@ -235,6 +247,9 @@ function M.mousepressed(app, px, py, button)
   if b then
     b.pressed = true
     app._appTopPressedButton = b
+    if b.action then
+      b.action()
+    end
     return true
   end
   if app.separateToolbar == true and app.wm and app.wm.getFocus then
@@ -260,9 +275,6 @@ function M.mousereleasedQuickButtons(app, px, py, button)
   end
   pb.pressed = false
   app._appTopPressedButton = nil
-  if pb:contains(px, py) and pb.action then
-    pb.action()
-  end
   return true
 end
 
