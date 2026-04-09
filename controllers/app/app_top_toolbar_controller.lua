@@ -13,6 +13,23 @@ local PAD_Y = 0
 local GAP = 0
 local QUICK_BUTTON_ORDER = { "newWindow", "open", "save" }
 
+local function measureDockedToolbarHeight(toolbar, cell)
+  if not toolbar then
+    return 0
+  end
+
+  if toolbar._getToolbarHeight then
+    local ok, height = pcall(function()
+      return toolbar:_getToolbarHeight(cell)
+    end)
+    if ok and type(height) == "number" then
+      return height
+    end
+  end
+
+  return tonumber(toolbar.h) or tonumber(cell) or 0
+end
+
 function M.getContentOffsetY(app)
   local lay = app and app._appTopToolbarLayout
   local h = lay and lay.totalH
@@ -125,6 +142,19 @@ function M.syncLayout(app)
   local dockedWin = nil
   local dockLeftX = x + GAP
 
+  if app.separateToolbar == true and app.wm and app.wm.getWindows then
+    local maxDockedToolbarH = 0
+    for _, win in ipairs(app.wm:getWindows() or {}) do
+      if win and not win._closed and not win._minimized and win.specializedToolbar then
+        maxDockedToolbarH = math.max(
+          maxDockedToolbarH,
+          measureDockedToolbarHeight(win.specializedToolbar, cell)
+        )
+      end
+    end
+    totalH = math.max(totalH, topY + maxDockedToolbarH + PAD_Y)
+  end
+
   if app.separateToolbar == true and app.wm and app.wm.getFocus then
     local focus = app.wm:getFocus()
     if focus and not focus._closed and not focus._minimized and focus.specializedToolbar then
@@ -136,7 +166,6 @@ function M.syncLayout(app)
         rowHeight = cell,
       }
       tb:updatePosition()
-      totalH = math.max(totalH, topY + tb.h + PAD_Y)
     end
   end
 
@@ -147,6 +176,25 @@ function M.syncLayout(app)
     dockTopY = topY,
     cell = cell,
   }
+end
+
+--- Saved layout files store Y below the app top strip. After load, windows are built at those
+--- coordinates; call once after toolbars exist to shift into full-canvas space. Toolbar height
+--- is not tracked for live relayout of windows.
+function M.applyLoadedLayoutYOffset(app)
+  if not app or not app.wm then
+    return
+  end
+  M.syncLayout(app)
+  local oy = M.getContentOffsetY(app)
+  if type(oy) ~= "number" or oy <= 0 then
+    return
+  end
+  for _, w in ipairs(app.wm:getWindows() or {}) do
+    if w and not w._closed and type(w.y) == "number" then
+      w.y = w.y + oy
+    end
+  end
 end
 
 function M.draw(app)
@@ -235,7 +283,7 @@ function M.mousepressed(app, px, py, button)
     local tb = focus and focus.specializedToolbar
     if focus and tb and button == 1 and PaletteLinkController.isPointInToolbarLinkHandle(tb, px, py) then
       local UserInput = require("controllers.input")
-      if UserInput.beginPaletteLinkContextFromAppTopBar(focus, px, py, button, M.getContentOffsetY(app)) then
+      if UserInput.beginPaletteLinkContextFromAppTopBar(focus, px, py, button) then
         return true
       end
     end

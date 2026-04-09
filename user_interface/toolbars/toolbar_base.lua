@@ -314,11 +314,13 @@ function ToolbarBase:contains(px, py)
       return true
     end
   end
-  -- Check if point is within any label bounds
+  -- Check if point is within any label bounds (skip content-drawn labels; their x/y are not toolbar space)
   for _, label in ipairs(self.labels) do
-    if px >= label.x and px <= label.x + label.width and
-       py >= label.y and py <= label.y + label.h then
-      return true
+    if not label.renderInContent then
+      if px >= label.x and px <= label.x + label.width and
+         py >= label.y and py <= label.y + label.h then
+        return true
+      end
     end
   end
   return false

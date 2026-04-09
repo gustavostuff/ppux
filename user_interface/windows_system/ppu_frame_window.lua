@@ -303,7 +303,8 @@ function PPUFrameWindow:drawVisibleNametableCells(renderCell, layerIndex)
 
   love.graphics.push()
   love.graphics.translate(self.x, self.y)
-  love.graphics.scale(self.zoom, self.zoom)
+  local z = (self.getZoomLevel and self:getZoomLevel()) or self.zoom or 1
+  love.graphics.scale(z, z)
   love.graphics.setLineWidth(1)
   love.graphics.setLineStyle("rough")
 

@@ -1099,18 +1099,11 @@ function AppCoreController:draw()
 
   AppTopToolbarController.draw(self)
 
-  local contentOy = AppTopToolbarController.getContentOffsetY(self)
-  self._canvasContentOffsetY = contentOy
-  love.graphics.push()
-  love.graphics.translate(0, contentOy)
-
+  -- Windows use full-canvas coordinates (y includes the top toolbar strip height).
   drawWindows(self)
   drawPaletteLinks(self)
   drawEmptyStatePrompt(self)
   drawTranslatedNonModalOverlays(self)
-
-  love.graphics.pop()
-  self._canvasContentOffsetY = nil
 
   drawStatus(self)
   drawNonModalOverlays(self)

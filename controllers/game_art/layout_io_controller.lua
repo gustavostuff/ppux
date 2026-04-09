@@ -444,6 +444,16 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
     windows = {}
   }
 
+  local toolbarOy = 0
+  do
+    local ctx = rawget(_G, "ctx")
+    local app = ctx and ctx.app
+    if app then
+      local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
+      toolbarOy = tonumber(AppTopToolbarController.getContentOffsetY(app)) or 0
+    end
+  end
+
   for zi, w in ipairs(wins) do
     if w._closed then
       goto continue
@@ -456,7 +466,7 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
       title = w.title,
       kind  = entryKind,
       x     = w.x,
-      y     = w.y,
+      y     = (type(w.y) == "number") and (w.y - toolbarOy) or w.y,
       cols  = w.cols,
       rows  = w.rows,
       visibleRows = w.visibleRows or w.rows,

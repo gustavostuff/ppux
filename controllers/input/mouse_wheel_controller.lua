@@ -84,9 +84,7 @@ function M.handleWheel(env, dx, dy)
   if app and AppTopToolbarController.containsPointer(app, mx, my) then
     return false
   end
-  local oy = AppTopToolbarController.getContentOffsetY(app)
-  local contentMouse = { x = mx, y = my - oy }
-  local winBelowMouse = wm:windowAt(contentMouse.x, contentMouse.y)
+  local winBelowMouse = wm:windowAt(mx, my)
   local focusedWindow = wm:getFocus()
 
   if (utils.ctrlDown and utils.ctrlDown())

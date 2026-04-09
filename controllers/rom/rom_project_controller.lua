@@ -787,6 +787,8 @@ local function loadFromProject(app, project)
   local toolbarsStartedAt = nowSeconds()
   ToolbarController.createToolbarsForWindows(app)
   logPerf("project.create_toolbars", toolbarsStartedAt)
+  local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
+  AppTopToolbarController.applyLoadedLayoutYOffset(app)
   logPerf("project.total", loadStartedAt)
   
   return true
@@ -874,6 +876,10 @@ local function loadFromDBLayout(app, sha)
   local toolbarsStartedAt = nowSeconds()
   ToolbarController.createToolbarsForWindows(app)
   logPerf("db_layout.create_toolbars", toolbarsStartedAt)
+  do
+    local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
+    AppTopToolbarController.applyLoadedLayoutYOffset(app)
+  end
 
   DebugController.log("info", "ROM", "Loaded DB layout: %s", sha)
   DebugController.log("info", "ROM", "  #windows = %d", #(layout.windows or {}))

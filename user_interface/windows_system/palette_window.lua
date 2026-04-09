@@ -392,7 +392,8 @@ function PaletteWindow:drawGrid()
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   love.graphics.push()
   love.graphics.translate(self.x, self.y)
-  love.graphics.scale(self.zoom, self.zoom)
+  local z = (self.getZoomLevel and self:getZoomLevel()) or self.zoom or 1
+  love.graphics.scale(z, z)
 
   local cw, ch = self.cellW, self.cellH
   for r=0, self.rows-1 do

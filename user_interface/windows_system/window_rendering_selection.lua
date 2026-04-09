@@ -207,7 +207,7 @@ end
 function Window:drawSpriteSelectionOverlays(isFocused)
   local ctx = _G.ctx
   if not (ctx and ctx.getMode and (ctx.getMode() == "tile" or ctx.getMode() == "edit")) then return end
-  local mouse = ctx.scaledMouse and ctx.scaledMouse()
+  local mouse = ctx.scaledMouse and ctx.scaledMouse() or nil
   local wm = ctx.wm and ctx.wm()
   local hoverBlocked = hoverBlockedByResizeHandle(wm, mouse)
   local hoveredWindow = (wm and mouse) and wm:windowAt(mouse.x, mouse.y) or nil
@@ -354,7 +354,7 @@ function Window:drawTileSelectionOverlays(isFocused)
   local ctx = _G.ctx
   if not (ctx and ctx.getMode and (ctx.getMode() == "tile" or ctx.getMode() == "edit")) then return end
   local mode = ctx.getMode and ctx.getMode()
-  local mouse = ctx.scaledMouse and ctx.scaledMouse()
+  local mouse = ctx.scaledMouse and ctx.scaledMouse() or nil
   local wm = ctx.wm and ctx.wm()
   local hoverBlocked = hoverBlockedByResizeHandle(wm, mouse)
   local hoveredWindow = (wm and mouse) and wm:windowAt(mouse.x, mouse.y) or nil

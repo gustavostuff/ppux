@@ -222,6 +222,10 @@ local function buildWindowResizeAndHoverPriorityScenario(harness, app, runner)
     return currentRunner.staticResizeWin
   end
 
+  local function currentPpuWin(_, currentRunner)
+    return currentRunner.ppuSelectWin
+  end
+
   local steps = {
     pause("Start", 0.35),
     call("Arrange overlapping windows", function(_, currentApp, currentRunner)
@@ -232,6 +236,8 @@ local function buildWindowResizeAndHoverPriorityScenario(harness, app, runner)
       bankWin.y = 58
       staticWin.x = 180
       staticWin.y = 112
+
+      currentApp:_applySeparateToolbarSetting(true, false)
 
       if currentApp.wm and currentApp.wm.setFocus then
         currentApp.wm:setFocus(staticWin)
@@ -254,7 +260,10 @@ local function buildWindowResizeAndHoverPriorityScenario(harness, app, runner)
   appendDrag(steps, "Resize static art window inward", resizeHandleCenter(currentStaticWin), function(_, _, currentRunner)
     local win = assert(currentRunner.staticResizeWin, "expected static resize window")
     local hx, hy, hw, hh = win:getResizeHandleRect()
-    return hx + math.floor(hw * 0.5) - 18, hy + math.floor(hh * 0.5) - 18
+    local zoom = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
+    local shrinkX = math.max(18, math.floor(((win.cellW or 8) * zoom) + 6))
+    local shrinkY = math.max(18, math.floor(((win.cellH or 8) * zoom) + 6))
+    return hx + math.floor(hw * 0.5) - shrinkX, hy + math.floor(hh * 0.5) - shrinkY
   end, {
     dragDuration = 0.28,
     postPause = 0.35,
@@ -276,14 +285,29 @@ local function buildWindowResizeAndHoverPriorityScenario(harness, app, runner)
   steps[#steps + 1] = moveTo("Hover bank resize handle", resizeHandleCenter(currentBankWin), 0.12)
   steps[#steps + 1] = pause("Observe bank handle hover priority", 0.5)
 
-  appendDrag(steps, "Resize bank window inward", resizeHandleCenter(currentBankWin), function(_, _, currentRunner)
+  steps[#steps + 1] = call("Resize bank window inward", function(currentHarness, currentApp, currentRunner)
     local win = assert(currentRunner.bankResizeWin, "expected bank resize window")
+    if currentApp.wm and currentApp.wm.setFocus then
+      currentApp.wm:setFocus(win)
+    end
+
+    local fromX, fromY = resizeHandleCenter(currentBankWin)(currentHarness, currentApp, currentRunner)
     local hx, hy, hw, hh = win:getResizeHandleRect()
-    return hx + math.floor(hw * 0.5) - 22, hy + math.floor(hh * 0.5) - 22
-  end, {
-    dragDuration = 0.24,
-    postPause = 0.35,
-  })
+    local zoom = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
+    local shrinkX = math.max(22, math.floor(((win.cellW or 8) * zoom) + 10))
+    local shrinkY = math.max(22, math.floor(((win.cellH or 8) * zoom) + 10))
+    local toX, toY = currentHarness:contentToCanvasPoint(
+      hx + math.floor(hw * 0.5) - shrinkX,
+      hy + math.floor(hh * 0.5) - shrinkY
+    )
+
+    currentHarness:drag(fromX, fromY, toX, toY, {
+      wait = false,
+      steps = 6,
+      dt = currentHarness.stepDt,
+    })
+  end)
+  steps[#steps + 1] = pause("Observe bank resize drag", 0.35)
 
   steps[#steps + 1] = call("Assert bank window resized", function(_, _, currentRunner)
     local before = assert(currentRunner.bankBefore, "expected bank size snapshot")
@@ -291,6 +315,135 @@ local function buildWindowResizeAndHoverPriorityScenario(harness, app, runner)
     assert((win.visibleCols or 0) < (before.cols or 0) or (win.visibleRows or 0) < (before.rows or 0), "expected bank window visible size to shrink")
   end)
   steps[#steps + 1] = pause("Observe resized bank window", 0.7)
+
+  steps[#steps + 1] = call("Create PPU selection regression windows", function(_, currentApp, currentRunner)
+    local oamWin = currentApp.wm:createSpriteWindow({
+      animated = true,
+      oamBacked = true,
+      numFrames = 1,
+      multiRowToolbar = true,
+      spriteMode = "8x8",
+      title = "Toolbar Focus",
+      x = 28,
+      y = 176,
+      cols = 8,
+      rows = 8,
+      zoom = 2,
+    })
+    assert(oamWin, "expected OAM animation window")
+    currentRunner.toolbarFocusWin = oamWin
+
+    local ppuWin = currentApp.wm:createPPUFrameWindow({
+      title = "PPU Select",
+      x = 360,
+      y = 72,
+      zoom = 2,
+      romRaw = currentApp.appEditState and currentApp.appEditState.romRaw,
+      bankIndex = 1,
+      pageIndex = 1,
+    })
+    assert(ppuWin, "expected PPU frame window")
+    ppuWin.visibleCols = 8
+    ppuWin.visibleRows = 8
+    if ppuWin.setScroll then
+      ppuWin:setScroll(0, 0)
+    end
+
+    local tilesPool = currentApp.appEditState and currentApp.appEditState.tilesPool
+    assert(tilesPool, "expected tiles pool for PPU frame window")
+    local BankViewController = require("controllers.chr.bank_view_controller")
+    BankViewController.ensureBankTiles(currentApp.appEditState, 1)
+
+    local bytes = {}
+    for i = 1, 32 * 30 do
+      bytes[i] = 0
+    end
+    bytes[(4 * 32) + 4 + 1] = 6
+    bytes[(4 * 32) + 5 + 1] = 7
+    bytes[(5 * 32) + 4 + 1] = 22
+    bytes[(5 * 32) + 5 + 1] = 23
+    ppuWin:setNametableBytes(bytes, 1, 1, tilesPool)
+
+    local attrBytes = {}
+    for i = 1, 64 do
+      attrBytes[i] = 0
+    end
+    ppuWin:setAttributeBytes(attrBytes)
+
+    if ppuWin.setActiveLayerIndex then
+      ppuWin:setActiveLayerIndex(1)
+    end
+
+    currentRunner.ppuSelectWin = ppuWin
+    currentRunner.ppuSelectionAnchor = { col = 4, row = 4 }
+    currentRunner.ppuSelectionCorner = { col = 5, row = 5 }
+  end)
+  steps[#steps + 1] = pause("Observe added PPU regression windows", 0.45)
+
+  steps[#steps + 1] = call("Refocus OAM toolbar window before PPU selection", function(_, currentApp, currentRunner)
+    local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
+    assert(currentRunner.toolbarFocusWin, "expected OAM toolbar focus window")
+    currentApp.wm:setFocus(currentRunner.toolbarFocusWin)
+    currentRunner.toolbarOffsetBeforePpuSelection = AppTopToolbarController.getContentOffsetY(currentApp)
+  end)
+  steps[#steps + 1] = pause("Observe docked multi-row toolbar", 0.4)
+
+  appendClick(steps, "Select PPU frame tile after focus swap", function(h, _, currentRunner)
+    local target = assert(currentRunner.ppuSelectionAnchor, "expected PPU selection anchor")
+    return h:windowCellCenter(currentRunner.ppuSelectWin, target.col, target.row)
+  end, {
+    moveDuration = 0.08,
+    postPause = 0.25,
+  })
+
+  steps[#steps + 1] = call("Assert PPU tile selection aligns with click", function(_, currentApp, currentRunner)
+    local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
+    local win = assert(currentRunner.ppuSelectWin, "expected PPU selection window")
+    local target = assert(currentRunner.ppuSelectionAnchor, "expected PPU target")
+    local col, row = win:getSelected()
+    assert(col == target.col and row == target.row,
+      string.format("expected selected PPU tile (%d,%d), got (%s,%s)",
+        target.col, target.row, tostring(col), tostring(row)))
+    assert(currentApp.wm:getFocus() == win, "expected PPU window to gain focus after tile click")
+    assert(
+      AppTopToolbarController.getContentOffsetY(currentApp) == currentRunner.toolbarOffsetBeforePpuSelection,
+      "expected content offset to remain stable across focus swap"
+    )
+  end)
+  steps[#steps + 1] = pause("Observe aligned PPU tile selection", 0.45)
+
+  steps[#steps + 1] = call("Marquee select 2x2 block in PPU frame", function(currentHarness, _, currentRunner)
+    local win = assert(currentRunner.ppuSelectWin, "expected PPU selection window")
+    local start = assert(currentRunner.ppuSelectionAnchor, "expected marquee start")
+    local finish = assert(currentRunner.ppuSelectionCorner, "expected marquee end")
+    local x1, y1 = currentHarness:windowCellCenter(win, start.col, start.row)
+    local x2, y2 = currentHarness:windowCellCenter(win, finish.col, finish.row)
+    currentHarness:keyDown("lshift", { "lshift" })
+    currentHarness:drag(x1, y1, x2, y2, {
+      wait = false,
+      steps = 6,
+      dt = currentHarness.stepDt,
+    })
+    currentHarness:keyUp("lshift", { "lshift" })
+  end)
+  steps[#steps + 1] = pause("Observe PPU marquee selection", 0.45)
+  steps[#steps + 1] = call("Assert PPU marquee selection alignment", function(_, _, currentRunner)
+    local win = assert(currentRunner.ppuSelectWin, "expected PPU selection window")
+    local layer = assert(win.layers and win.layers[1], "expected PPU tile layer")
+    local selected = {}
+    for idx, on in pairs(layer.multiTileSelection or {}) do
+      if on then
+        selected[#selected + 1] = idx
+      end
+    end
+    assert(#selected == 4, string.format("expected 4 marquee-selected PPU tiles, got %d", #selected))
+    local col, row = win:getSelected()
+    local target = assert(currentRunner.ppuSelectionAnchor, "expected PPU target")
+    assert(col == target.col and row == target.row,
+      string.format("expected marquee anchor selection (%d,%d), got (%s,%s)",
+        target.col, target.row, tostring(col), tostring(row)))
+  end)
+  steps[#steps + 1] = pause("Observe stable PPU selection after marquee", 0.65)
 
   return steps
 end

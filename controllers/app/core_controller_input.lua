@@ -285,7 +285,7 @@ end
 
 function AppCoreController:mousepressed(x, y, b)
   local DebugController = require("controllers.dev.debug_controller")
-  local mouse = ResolutionController:getScaledMouse(true)
+  local mouse = ResolutionController:getScaledMouse(true, x, y)
   refreshCursor(self)
   
   DebugController.log("info", "INPUT", "AppCoreController:mousepressed - screen: (%d, %d), canvas: (%.1f, %.1f), button: %d", x, y, mouse.x, mouse.y, b)
@@ -370,13 +370,12 @@ function AppCoreController:mousepressed(x, y, b)
     return
   end
 
-  local oy = AppTopToolbarController.getContentOffsetY(self)
-  UserInput.mousepressed(mouse.x, mouse.y - oy, b)
+  UserInput.mousepressed(mouse.x, mouse.y, b)
   refreshCursor(self)
 end
 
 function AppCoreController:mousereleased(x, y, b)
-  local mouse = ResolutionController:getScaledMouse(true)
+  local mouse = ResolutionController:getScaledMouse(true, x, y)
   refreshCursor(self)
   
   local DebugController = require("controllers.dev.debug_controller")
@@ -457,8 +456,7 @@ function AppCoreController:mousereleased(x, y, b)
 
   local activeInteraction = hasActiveWindowInteraction(self)
   -- Always finalize input interactions first so resize/drag end is never skipped.
-  local oy = AppTopToolbarController.getContentOffsetY(self)
-  UserInput.mousereleased(mouse.x, mouse.y - oy, b)
+  UserInput.mousereleased(mouse.x, mouse.y, b)
   AppTopToolbarController.mousereleasedDockedToolbar(self, mouse.x, mouse.y, b)
 
   if (not activeInteraction) and self.taskbar and self.taskbar:mousereleased(mouse.x, mouse.y, b) then
@@ -469,7 +467,7 @@ function AppCoreController:mousereleased(x, y, b)
 end
 
 function AppCoreController:mousemoved(x, y, dx, dy)
-  local mouse = ResolutionController:getScaledMouse(true)
+  local mouse = ResolutionController:getScaledMouse(true, x, y)
   dx = dx or 0
   dy = dy or 0
   refreshCursor(self)
@@ -552,10 +550,9 @@ function AppCoreController:mousemoved(x, y, dx, dy)
 
   AppTopToolbarController.mousemoved(self, mouse.x, mouse.y)
 
-  local oy = AppTopToolbarController.getContentOffsetY(self)
   UserInput.mousemoved(
     mouse.x,
-    mouse.y - oy,
+    mouse.y,
     dx / ResolutionController.canvasScaleX,
     dy / ResolutionController.canvasScaleY
   )

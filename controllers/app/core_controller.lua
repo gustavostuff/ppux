@@ -651,20 +651,13 @@ function AppCoreController:showEmptySpaceContextMenu(x, y)
   return self.emptySpaceContextMenu:isVisible()
 end
 
---- Context menu / interaction coordinates are in content space (below app top bar); menus draw outside that transform.
+--- Mouse and window geometry use full canvas coordinates (including the top toolbar strip).
 function AppCoreController:contentYToCanvasY(y)
-  if type(y) ~= "number" then
-    return y
-  end
-  local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
-  return y + AppTopToolbarController.getContentOffsetY(self)
+  return y
 end
 
 function AppCoreController:contentPointToCanvasPoint(x, y)
-  if type(x) ~= "number" or type(y) ~= "number" then
-    return x, y
-  end
-  return x, self:contentYToCanvasY(y)
+  return x, y
 end
 
 local function setWindowActiveLayer(win, layerIndex)
@@ -1273,11 +1266,9 @@ function AppCoreController:getTooltipCandidateAt(x, y)
   if topBarCandidate then
     return topBarCandidate
   end
-  local oy = AppTopToolbarController.getContentOffsetY(self)
-  local cx, cy = x, y - oy
 
   if UserInput.getTooltipCandidate then
-    local candidate = UserInput.getTooltipCandidate(cx, cy)
+    local candidate = UserInput.getTooltipCandidate(x, y)
     if candidate then
       return candidate
     end
@@ -1290,7 +1281,7 @@ function AppCoreController:getTooltipCandidateAt(x, y)
     end
   end
 
-  return getTopWindowTooltipCandidate(self, cx, cy)
+  return getTopWindowTooltipCandidate(self, x, y)
 end
 
 local function parseHexAddress(text)

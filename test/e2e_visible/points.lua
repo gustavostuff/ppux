@@ -1,15 +1,7 @@
 local M = {}
-local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 
-local function contentOffsetY(currentApp)
-  if not currentApp then
-    return 0
-  end
-  return tonumber(AppTopToolbarController.getContentOffsetY(currentApp)) or 0
-end
-
-local function contentToCanvasPoint(currentApp, x, y)
-  return x, (tonumber(y) or 0) + contentOffsetY(currentApp)
+local function contentToCanvasPoint(_, x, y)
+  return x, tonumber(y) or 0
 end
 
 local function getNewWindowOptionCell(panel, optionIndex)

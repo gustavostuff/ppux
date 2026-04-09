@@ -98,11 +98,12 @@ end
 
 function Window:getScreenRect()
   local cw, ch = self:getContentSize()
+  local z = self:getZoomLevel()
 
   return self.x,
          self.y,
-         cw * self.zoom,
-         ch * self.zoom
+         cw * z,
+         ch * z
 end
 
 function Window:getResizeHandleRect()
@@ -191,7 +192,7 @@ end
 
 -- Programmatically shrink viewport to the minimum size allowed by resize constraints.
 function Window:resizeToMinimum()
-  local z = self.zoom or 1
+  local z = self:getZoomLevel()
   local cols = self.cols or 1
   local rows = self.rows or 1
   local cw = self.cellW or 1
@@ -212,8 +213,9 @@ end
 -- Convert screen → content (viewport) → grid, accounting for scroll
 function Window:toContentCoords(px,py)
   if not self:contains(px,py) then return false end
-  local cx = (px - self.x)/self.zoom
-  local cy = (py - self.y)/self.zoom
+  local z = self:getZoomLevel()
+  local cx = (px - self.x) / z
+  local cy = (py - self.y) / z
   return true, math.floor(cx), math.floor(cy)
 end
 

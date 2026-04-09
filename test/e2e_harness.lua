@@ -1,6 +1,5 @@
 local AppCoreController = require("controllers.app.core_controller")
 local AppSettingsController = require("controllers.app.settings_controller")
-local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 local ResolutionController = require("controllers.app.resolution_controller")
 local RomProjectController = require("controllers.rom.rom_project_controller")
 
@@ -467,16 +466,9 @@ function E2EHarness:_setMouseCanvasPosition(x, y)
   return self._mouseX, self._mouseY
 end
 
-function E2EHarness:getCanvasContentOffsetY()
-  local app = self.app
-  if not app then
-    return 0
-  end
-  return tonumber(AppTopToolbarController.getContentOffsetY(app)) or 0
-end
-
+-- Window geometry and mouse input both use full canvas coordinates (top toolbar included).
 function E2EHarness:contentToCanvasPoint(x, y)
-  return x, (tonumber(y) or 0) + self:getCanvasContentOffsetY()
+  return x, tonumber(y) or 0
 end
 
 function E2EHarness:getMouseCanvasPosition()
