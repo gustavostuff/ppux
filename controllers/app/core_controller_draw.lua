@@ -1023,6 +1023,9 @@ local function drawNonModalOverlays(app)
 end
 
 local function drawOverlays(app)
+  if app.newWindowTypeModal then
+    app.newWindowTypeModal:draw(app.canvas)
+  end
   app.newWindowModal:draw(app.canvas)
   if app.saveOptionsModal then
     app.saveOptionsModal:draw(app.canvas)

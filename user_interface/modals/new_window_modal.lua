@@ -22,60 +22,31 @@ local function trim(text)
   return text:match("^%s*(.-)%s*$")
 end
 
-local function compactOptionLabel(option, index)
-  if option and option.buttonText and option.buttonText ~= "" then
-    return option.buttonText
-  end
-
-  local text = tostring(option and option.text or "")
-  if text:find("Static Art") and text:find("%(tiles%)") then
-    return "Static Tiles window"
-  end
-  if text:find("Static Art") and text:find("%(sprites%)") then
-    return "Static Sprites window"
-  end
-  if text:find("Animation") and text:find("%(tiles%)") then
-    return "Animation Tiles window"
-  end
-  if text:find("Animation") and text:find("%(sprites%)") then
-    return "Animation Sprites window"
-  end
-  if text:find("Pattern Table Builder") then
-    return "Pattern Table Builder"
-  end
-  if text:find("PPU Frame") then
-    return "PPU Frame window"
-  end
-  if text:find("OAM animation") then
-    return "OAM animation"
-  end
-
-  return tostring(index or "")
-end
-
-local function activateOption(self, option)
-  if not (option and option.callback) then
-    return false
-  end
-
-  option.callback(
-    self.colsSpinner.value,
-    self.rowsSpinner.value,
-    self:getSpriteMode(),
-    self:getWindowName()
-  )
-  self:hide()
-  return true
-end
-
 local function rebuildPanel(self)
-  local optionCount = #(self.options or {})
-  local buttonRows = math.max(1, math.ceil(optionCount / 2))
-  local rows = 5 + buttonRows + 1
   local leftInset = math.floor((self.cellH or 0) / 2)
+  self.modeButton.contentPaddingX = leftInset
+  self.createButton.contentPaddingX = leftInset
+  self.cancelButton.contentPaddingX = leftInset
+
+  local rowCursor = 1
+  local nameRow = rowCursor
+  rowCursor = rowCursor + 1
+  local spriteModeRow = nil
+  if self.showSpriteMode == true then
+    spriteModeRow = rowCursor
+    rowCursor = rowCursor + 1
+  end
+  local colsRow = rowCursor
+  rowCursor = rowCursor + 1
+  local rowsRow = rowCursor
+  rowCursor = rowCursor + 1
+  local buttonsRow = rowCursor
+  rowCursor = rowCursor + 1
+  local footerRow = rowCursor
+
   self.panel = Panel.new({
     cols = 4,
-    rows = rows,
+    rows = footerRow,
     cellW = self.cellW,
     cellH = self.cellH,
     padding = self.padding,
@@ -90,47 +61,34 @@ local function rebuildPanel(self)
     titleBgColor = self.titleBgColor,
   })
 
-  self.panel:setCell(1, 1, { text = "Name:" })
-  self.panel:setCell(2, 1, { component = self.nameField, colspan = 3 })
+  self.panel:setCell(1, nameRow, { text = "Name:" })
+  self.panel:setCell(2, nameRow, { component = self.nameField, colspan = 3 })
 
-  self.panel:setCell(1, 2, {
-    text = "Sprite mode:",
-    preserveTrailingColon = true,
-  })
-
-  self.panel:setCell(2, 2, {
-    component = self.modeButton,
-  })
-
-  self.panel:setCell(1, 3, { text = "Cols:" })
-  self.panel:setCell(2, 3, { component = self.colsSpinner, colspan = 2 })
-
-  self.panel:setCell(1, 4, { text = "Rows:" })
-  self.panel:setCell(2, 4, { component = self.rowsSpinner, colspan = 2 })
-
-  self.panel:setCell(1, 5, {
-    text = "Create:",
-    colspan = 4,
-    preserveTrailingColon = true,
-  })
-
-  for i, option in ipairs(self.options or {}) do
-    local row = 6 + math.floor((i - 1) / 2)
-    local col = ((i - 1) % 2 == 0) and 1 or 3
-    self.panel:setCell(col, row, {
-      kind = "button",
-      text = compactOptionLabel(option, i),
-      colspan = 2,
-      transparent = true,
-      textAlign = "left",
-      contentPaddingX = leftInset,
-      action = function()
-        activateOption(self, option)
-      end,
+  if spriteModeRow then
+    self.panel:setCell(1, spriteModeRow, {
+      text = "Sprite mode:",
+      preserveTrailingColon = true,
+    })
+    self.panel:setCell(2, spriteModeRow, {
+      component = self.modeButton,
     })
   end
 
-  self.panel:setCell(1, rows, {
+  self.panel:setCell(1, colsRow, { text = "Cols:" })
+  self.panel:setCell(2, colsRow, { component = self.colsSpinner, colspan = 2 })
+
+  self.panel:setCell(1, rowsRow, { text = "Rows:" })
+  self.panel:setCell(2, rowsRow, { component = self.rowsSpinner, colspan = 2 })
+
+  self.panel:setCell(1, buttonsRow, {
+    component = self.createButton,
+    colspan = 2,
+  })
+  self.panel:setCell(3, buttonsRow, {
+    component = self.cancelButton,
+    colspan = 2,
+  })
+  self.panel:setCell(1, footerRow, {
     text = "Esc) Close",
     colspan = 4,
   })
@@ -147,8 +105,7 @@ function Dialog.new()
 
   local self = setmetatable({
     visible = false,
-    title = "New Window",
-    options = {},
+    title = "Window Settings",
     colsSpinner = NumericSpinner.new(spinnerDefaults),
     rowsSpinner = NumericSpinner.new(spinnerDefaults),
     nameField = TextField.new({
@@ -156,7 +113,10 @@ function Dialog.new()
       height = ModalPanelUtils.MODAL_BUTTON_H,
     }),
     spriteMode = "8x8",
-    pressedModeButton = false,
+    selectedOption = nil,
+    showSpriteMode = true,
+    onConfirm = nil,
+    onCancel = nil,
     padding = nil,
     colGap = nil,
     rowGap = nil,
@@ -177,6 +137,26 @@ function Dialog.new()
     contentPaddingX = 4,
     action = function()
       self:toggleSpriteMode()
+    end,
+  })
+  self.createButton = Button.new({
+    text = "Create",
+    h = ModalPanelUtils.MODAL_BUTTON_H,
+    transparent = true,
+    textAlign = "left",
+    contentPaddingX = 4,
+    action = function()
+      self:_confirm()
+    end,
+  })
+  self.cancelButton = Button.new({
+    text = "Cancel",
+    h = ModalPanelUtils.MODAL_BUTTON_H,
+    transparent = true,
+    textAlign = "left",
+    contentPaddingX = 4,
+    action = function()
+      self:_cancel()
     end,
   })
 
@@ -208,14 +188,23 @@ function Dialog:isVisible()
   return self.visible
 end
 
-function Dialog:show(title, options)
-  self.title = title or "New Window"
-  self.options = options or {}
+function Dialog:show(opts)
+  opts = opts or {}
+  self.title = opts.title or "Window Settings"
+  self.selectedOption = opts.option or nil
+  self.showSpriteMode = self.selectedOption and self.selectedOption.requiresSpriteMode == true or false
+  self.onConfirm = opts.onConfirm
+  self.onCancel = opts.onCancel
   self.spriteMode = "8x8"
-  self.pressedModeButton = false
+  self.rowsSpinner:setValue(tonumber(opts.initialRows) or 8)
+  self.colsSpinner:setValue(tonumber(opts.initialCols) or 8)
   self.modeButton.pressed = false
   self.modeButton.hovered = false
-  self.nameField:setText(DEFAULT_WINDOW_NAME)
+  self.createButton.pressed = false
+  self.cancelButton.pressed = false
+  self.createButton.hovered = false
+  self.cancelButton.hovered = false
+  self.nameField:setText(opts.initialName or DEFAULT_WINDOW_NAME)
   self.nameField:setFocused(true)
   self:_updateModeButtonVisual()
   self.visible = true
@@ -224,11 +213,16 @@ end
 
 function Dialog:hide()
   self.visible = false
-  self.title = ""
-  self.options = {}
-  self.pressedModeButton = false
+  self.title = "Window Settings"
+  self.selectedOption = nil
+  self.onConfirm = nil
+  self.onCancel = nil
   self.modeButton.pressed = false
   self.modeButton.hovered = false
+  self.createButton.pressed = false
+  self.cancelButton.pressed = false
+  self.createButton.hovered = false
+  self.cancelButton.hovered = false
   self.nameField:setFocused(false)
   if self.panel then
     self.panel:setVisible(false)
@@ -242,6 +236,35 @@ function Dialog:getWindowName()
     return nil
   end
   return name
+end
+
+function Dialog:_confirm()
+  local callback = self.onConfirm
+  local option = self.selectedOption
+  if callback then
+    local ok = callback(
+      self.colsSpinner.value,
+      self.rowsSpinner.value,
+      self:getSpriteMode(),
+      self:getWindowName(),
+      option
+    )
+    if ok == false then
+      return false
+    end
+  end
+  self:hide()
+  return true
+end
+
+function Dialog:_cancel()
+  local callback = self.onCancel
+  local option = self.selectedOption
+  self:hide()
+  if callback then
+    callback(option)
+  end
+  return true
 end
 
 function Dialog:_containsBox(x, y)
@@ -261,7 +284,11 @@ end
 function Dialog:handleKey(key)
   if not self.visible then return false end
   if key == "escape" then
-    self:hide()
+    self:_cancel()
+    return true
+  end
+  if key == "return" or key == "kpenter" then
+    self:_confirm()
     return true
   end
   if self.nameField:onKeyPressed(key) then
@@ -279,7 +306,7 @@ function Dialog:mousepressed(x, y, button)
   if not self.visible then return false end
   if button ~= 1 then return false end
   if not self:_containsBox(x, y) then
-    self:hide()
+    self:_cancel()
     return true
   end
 

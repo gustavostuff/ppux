@@ -206,6 +206,10 @@ function AppCoreController:keypressed(k)
     modalHandleKey(self.settingsModal, k)
     return
   end
+  if modalVisible(self.newWindowTypeModal) then
+    modalHandleKey(self.newWindowTypeModal, k)
+    return
+  end
   if modalVisible(self.newWindowModal) then
     modalHandleKey(self.newWindowModal, k)
     return
@@ -272,6 +276,7 @@ function AppCoreController:keyreleased(k)
       or modalVisible(self.saveOptionsModal)
       or modalVisible(self.genericActionsModal)
       or modalVisible(self.settingsModal)
+      or modalVisible(self.newWindowTypeModal)
       or modalVisible(self.newWindowModal)
       or modalVisible(self.renameWindowModal)
       or modalVisible(self.romPaletteAddressModal)
@@ -325,6 +330,10 @@ function AppCoreController:mousepressed(x, y, b)
     return
   end
 
+  if self.newWindowTypeModal and self.newWindowTypeModal:isVisible() then
+    self.newWindowTypeModal:mousepressed(mouse.x, mouse.y, b)
+    return
+  end
   if self.newWindowModal:isVisible() then
     self.newWindowModal:mousepressed(mouse.x, mouse.y, b)
     return
@@ -421,6 +430,10 @@ function AppCoreController:mousereleased(x, y, b)
     return
   end
 
+  if self.newWindowTypeModal and self.newWindowTypeModal:isVisible() then
+    self.newWindowTypeModal:mousereleased(mouse.x, mouse.y, b)
+    return
+  end
   if self.newWindowModal:isVisible() then
     self.newWindowModal:mousereleased(mouse.x, mouse.y, b)
     return
@@ -524,6 +537,10 @@ function AppCoreController:mousemoved(x, y, dx, dy)
     return
   end
 
+  if self.newWindowTypeModal and self.newWindowTypeModal:isVisible() then
+    self.newWindowTypeModal:mousemoved(mouse.x, mouse.y)
+    return
+  end
   if self.newWindowModal:isVisible() then
     self.newWindowModal:mousemoved(mouse.x, mouse.y)
     return
@@ -585,6 +602,7 @@ function AppCoreController:wheelmoved(dx, dy)
   if (self.saveOptionsModal and self.saveOptionsModal:isVisible())
       or self.genericActionsModal:isVisible()
       or (self.settingsModal and self.settingsModal:isVisible())
+      or (self.newWindowTypeModal and self.newWindowTypeModal:isVisible())
       or self.newWindowModal:isVisible()
       or (self.renameWindowModal and self.renameWindowModal:isVisible())
       or (self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible())
@@ -602,6 +620,9 @@ function AppCoreController:wheelmoved(dx, dy)
 end
 
 function AppCoreController:textinput(text)
+  if self.newWindowTypeModal and self.newWindowTypeModal:isVisible() then
+    return
+  end
   if self.newWindowModal and self.newWindowModal:isVisible() then
     self.newWindowModal:textinput(text)
     return

@@ -22,7 +22,7 @@ local function install(Panel, utils)
       utils.Text.print(
         self.title,
         titleX,
-        titleY,
+        titleY - 1,
         { shadowColor = utils.colors.transparent }
       )
     end

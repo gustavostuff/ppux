@@ -5,6 +5,7 @@ local BrushController = require("controllers.input_support.brush_controller")
 local UndoRedoController = require("controllers.input_support.undo_redo_controller")
 
 local GenericActionsModal = require("user_interface.modals.generic_actions_modal")
+local NewWindowTypeModal = require("user_interface.modals.new_window_type_modal")
 local NewWindowModal = require("user_interface.modals.new_window_modal")
 local PPUFrameAddSpriteModal = require("user_interface.modals.ppu_frame_add_sprite_modal")
 local PPUFrameSpriteLayerModeModal = require("user_interface.modals.ppu_frame_sprite_layer_mode_modal")
@@ -23,6 +24,8 @@ local SimpleLoadingScreen = require("controllers.app.simple_loading_screen")
 local TooltipController = require("controllers.ui.tooltip_controller")
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
 local UiScale = require("user_interface.ui_scale")
+local images = require("images")
+local katsudo = require("lib.katsudo")
 local UserInput = require("controllers.input")
 local TableUtils = require("utils.table_utils")
 local PatternTableMapping = require("utils.pattern_table_mapping")
@@ -41,6 +44,7 @@ local function anyModalVisible(app)
     or (app.saveOptionsModal and app.saveOptionsModal:isVisible())
     or (app.genericActionsModal and app.genericActionsModal:isVisible())
     or (app.settingsModal and app.settingsModal:isVisible())
+    or (app.newWindowTypeModal and app.newWindowTypeModal:isVisible())
     or (app.newWindowModal and app.newWindowModal:isVisible())
     or (app.renameWindowModal and app.renameWindowModal:isVisible())
     or (app.romPaletteAddressModal and app.romPaletteAddressModal:isVisible())
@@ -91,6 +95,7 @@ local function getTopModalTooltipCandidate(app, x, y)
     app.saveOptionsModal,
     app.genericActionsModal,
     app.settingsModal,
+    app.newWindowTypeModal,
     app.newWindowModal,
     app.renameWindowModal,
     app.romPaletteAddressModal,
@@ -255,6 +260,7 @@ function AppCoreController.new()
   self.winBank = nil
 
   self.genericActionsModal = GenericActionsModal.new()
+  self.newWindowTypeModal = NewWindowTypeModal.new()
   self.newWindowModal = NewWindowModal.new()
   self.renameWindowModal = RenameWindowModal.new()
   self.romPaletteAddressModal = RomPaletteAddressModal.new()
@@ -386,10 +392,53 @@ function AppCoreController:_hideAllContextMenus()
   end
 end
 
+local _newWindowOptionIcons = {}
+local NEW_WINDOW_ICON_SHEETS_BY_KEY = {
+  static_tile = "icon_static_tile_window",
+  static_sprite = "icon_static_sprite_window",
+  animated_tile = "icon_animated_tile_window",
+  animated_sprite = "icon_animated_sprite_window",
+  oam_animated = "icon_oam_animated_window",
+  ppu_frame = "icon_ppu_frame_window",
+  palette = "icon_palette_window",
+  rom_palette = "icon_rom_palette_window",
+  generic = "icon_generic_window",
+}
+
+local function getNewWindowOptionIcon(iconKey)
+  local key = tostring(iconKey or "generic")
+  if _newWindowOptionIcons[key] ~= nil then
+    return _newWindowOptionIcons[key]
+  end
+
+  local windowIcons = images.windows_icons or images.animated_icons or {}
+  local sheet = windowIcons[NEW_WINDOW_ICON_SHEETS_BY_KEY[key] or NEW_WINDOW_ICON_SHEETS_BY_KEY.generic]
+  local fallback = images.icons and images.icons.icon_circle or nil
+  local icon = fallback
+
+  if sheet and katsudo and type(katsudo.new) == "function"
+    and type(sheet.getWidth) == "function"
+    and type(sheet.getHeight) == "function"
+  then
+    local frameSize = UiScale.normalButtonSize()
+    local iw = sheet:getWidth()
+    local ih = sheet:getHeight()
+    if ih == frameSize and iw >= frameSize and (iw % frameSize == 0) then
+      local frames = math.max(1, math.floor(iw / frameSize))
+      icon = katsudo.new(sheet, frameSize, frameSize, frames, 0.1) or icon
+    end
+  end
+
+  _newWindowOptionIcons[key] = icon
+  return icon
+end
+
 function AppCoreController:_buildNewWindowOptions()
   return {
     {
       text = "Static Art window (tiles)",
+      icon = getNewWindowOptionIcon("static_tile"),
+      buttonText = "Static Tiles window",
       callback = function(cols, rows, _, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createTileWindow({
@@ -404,6 +453,9 @@ function AppCoreController:_buildNewWindowOptions()
     },
     {
       text = "Static Art window (sprites)",
+      icon = getNewWindowOptionIcon("static_sprite"),
+      buttonText = "Static Sprites window",
+      requiresSpriteMode = true,
       callback = function(cols, rows, spriteMode, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createSpriteWindow({
@@ -419,6 +471,8 @@ function AppCoreController:_buildNewWindowOptions()
     },
     {
       text = "Animation window  (tiles)",
+      icon = getNewWindowOptionIcon("animated_tile"),
+      buttonText = "Animation Tiles window",
       callback = function(cols, rows, _, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createTileWindow({
@@ -434,6 +488,9 @@ function AppCoreController:_buildNewWindowOptions()
     },
     {
       text = "Animation window  (sprites)",
+      icon = getNewWindowOptionIcon("animated_sprite"),
+      buttonText = "Animation Sprites window",
+      requiresSpriteMode = true,
       callback = function(cols, rows, spriteMode, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createSpriteWindow({
@@ -450,7 +507,9 @@ function AppCoreController:_buildNewWindowOptions()
     },
     {
       text = "Palette window",
+      icon = getNewWindowOptionIcon("palette"),
       buttonText = "Palette window",
+      skipSettingsModal = true,
       callback = function(_, _, _, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createPaletteWindow({
@@ -462,7 +521,9 @@ function AppCoreController:_buildNewWindowOptions()
     },
     {
       text = "ROM Palette window",
+      icon = getNewWindowOptionIcon("rom_palette"),
       buttonText = "ROM Palette window",
+      skipSettingsModal = true,
       callback = function(_, _, _, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createRomPaletteWindow({
@@ -474,7 +535,9 @@ function AppCoreController:_buildNewWindowOptions()
     },
     {
       text = "PPU Frame window",
+      icon = getNewWindowOptionIcon("ppu_frame"),
       buttonText = "PPU Frame window",
+      skipSettingsModal = true,
       callback = function(_, _, _, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local currentBank = self.appEditState and self.appEditState.currentBank or 1
@@ -490,20 +553,10 @@ function AppCoreController:_buildNewWindowOptions()
       end
     },
     {
-      text = "Pattern Table Builder",
-      buttonText = "Pattern Table Builder",
-      callback = function(_, _, _, windowTitle)
-        local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
-        local win = self.wm:createPatternTableBuilderWindow({
-          title = windowTitle or "Pattern Table Builder",
-        })
-        recordWindowCreateUndo(self, win, prevFocusedWin)
-        self:setStatus(string.format("Created %s", win.title))
-      end
-    },
-    {
       text = "OAM animation",
+      icon = getNewWindowOptionIcon("oam_animated"),
       buttonText = "OAM animation",
+      requiresSpriteMode = true,
       callback = function(cols, rows, spriteMode, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createSpriteWindow({
@@ -528,7 +581,39 @@ function AppCoreController:showNewWindowModal()
     return false
   end
 
-  self.newWindowModal:show("New Window", self:_buildNewWindowOptions())
+  local options = self:_buildNewWindowOptions()
+  local configTitle = "Window Settings"
+  self.newWindowTypeModal:show("New Window", (function()
+    local mapped = {}
+    for _, option in ipairs(options) do
+      mapped[#mapped + 1] = {
+        text = option.text,
+        buttonText = option.buttonText,
+        icon = option.icon,
+        callback = function()
+          if option.skipSettingsModal == true then
+            option.callback(nil, nil, nil, nil)
+            return
+          end
+
+          self.newWindowModal:show({
+            title = configTitle,
+            option = option,
+            initialName = "New Window",
+            onConfirm = function(cols, rows, spriteMode, windowName, selectedOption)
+              local targetOption = selectedOption or option
+              if not (targetOption and targetOption.callback) then
+                return false
+              end
+              targetOption.callback(cols, rows, spriteMode, windowName)
+              return true
+            end,
+          })
+        end,
+      }
+    end
+    return mapped
+  end)())
   return true
 end
 
