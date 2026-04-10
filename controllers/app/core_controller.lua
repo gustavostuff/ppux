@@ -830,8 +830,8 @@ function AppCoreController:_buildPpuTileContext(win, layerIndex, col, row)
   }
 end
 
-function AppCoreController:_openPpuPatternTableReferenceWindow(context)
-  if not (context and context.win and context.layer and self.wm and self.wm.createTileWindow) then
+function AppCoreController:_ensurePpuPatternTableReferenceLayer(context)
+  if not (context and context.win and context.layer) then
     return false
   end
   local layer = context.layer
@@ -845,38 +845,44 @@ function AppCoreController:_openPpuPatternTableReferenceWindow(context)
     return false
   end
 
-  local baseX = (context.win.x or 0) + 24
-  local baseY = (context.win.y or 0) + 24
-  local title = string.format("PPU PT Ref: %s", tostring(context.win.title or context.win._id or "frame"))
-  local refWin = self.wm:createTileWindow({
-    animated = false,
-    title = title,
-    x = baseX,
-    y = baseY,
-    cols = 16,
-    rows = 16,
-    cellW = 8,
-    cellH = 8,
-    zoom = 2,
-    numLayers = 1,
-  })
-  if not refWin then
-    self:setStatus("Could not open pattern table reference window")
-    return false
+  local refLayer = nil
+  local refLayerIndex = nil
+  for i, L in ipairs(context.win.layers or {}) do
+    if L
+      and L._runtimePatternTableRefLayer == true
+      and tonumber(L._runtimePatternTableRefTargetLayerIndex) == tonumber(context.layerIndex)
+    then
+      refLayer = L
+      refLayerIndex = i
+      break
+    end
   end
 
-  -- Runtime helper window: regular static tile window, not persisted to project.
-  refWin._runtimeOnly = true
-  refWin._runtimePatternTableRef = true
-  refWin._ppuGlassTarget = { win = context.win, layerIndex = context.layerIndex, title = context.win.title }
-  refWin.layers = refWin.layers or {}
-  refWin.layers[1] = refWin.layers[1] or { kind = "tile", items = {} }
-  local L = refWin.layers[1]
-  L.kind = "tile"
-  L.name = "Pattern Table"
-  L.opacity = 1.0
-  L.items = {}
-  refWin.activeLayer = 1
+  if not refLayer then
+    if not (context.win and context.win.addLayer) then
+      self:setStatus("Could not create pattern table reference layer")
+      return false
+    end
+    refLayerIndex = context.win:addLayer({
+      name = string.format("Pattern Table L%d", tonumber(context.layerIndex) or 1),
+      kind = "tile",
+      opacity = 1.0,
+      items = {},
+    })
+    refLayer = context.win.layers and context.win.layers[refLayerIndex] or nil
+    if not refLayer then
+      self:setStatus("Could not create pattern table reference layer")
+      return false
+    end
+  end
+
+  refLayer._runtimeOnly = true
+  refLayer._runtimePatternTableRefLayer = true
+  refLayer._runtimePatternTableRefTargetLayerIndex = tonumber(context.layerIndex) or 1
+  refLayer._runtimePatternTableRefTargetLayer = context.layer
+  refLayer._runtimePatternTableRefTargetWin = context.win
+  refLayer.items = {}
+  refLayer._runtimePatternTableLogicalByCell = {}
 
   local tilesPool = self.appEditState and self.appEditState.tilesPool or nil
   if not tilesPool then
@@ -897,14 +903,23 @@ function AppCoreController:_openPpuPatternTableReferenceWindow(context)
     if entry then
       local bankTiles = tilesPool[entry.bank]
       local tileRef = bankTiles and bankTiles[entry.tileIndex] or nil
-      local idx = logicalIndex + 1
-      L.items[idx] = tileRef
+      local col = logicalIndex % 16
+      local row = math.floor(logicalIndex / 16)
+      local idx = (row * (context.win.cols or 32)) + col + 1
+      refLayer.items[idx] = tileRef
+      refLayer._runtimePatternTableLogicalByCell[idx] = logicalIndex
     end
   end
-  if refWin.setScroll then
-    refWin:setScroll(0, 0)
+
+  if context.win.setActiveLayerIndex then
+    context.win:setActiveLayerIndex(refLayerIndex)
+  else
+    context.win.activeLayer = refLayerIndex
   end
-  self:setStatus("Opened runtime pattern table reference (right-click tile to set glass)")
+  if context.win.invalidateNametableLayerCanvas then
+    context.win:invalidateNametableLayerCanvas(refLayerIndex)
+  end
+  self:setStatus("Prepared pattern table reference layer (right-click tile to set glass)")
   return true
 end
 
@@ -943,7 +958,10 @@ function AppCoreController:_buildSelectInChrContext(win, layerIndex, col, row, i
       item = item,
       tileIndex = normalizeTileIndex(item),
       sourceBank = tonumber(item._bankIndex) or tonumber(layer.bank) or 1,
-      logicalIndex = (row * (win.cols or 16)) + col,
+      logicalIndex = (layer._runtimePatternTableRefLayer == true
+        and layer._runtimePatternTableLogicalByCell
+        and layer._runtimePatternTableLogicalByCell[((row * (win.cols or 32)) + col + 1)])
+        or (row * (win.cols or 16)) + col,
     }
   end
 
@@ -1142,10 +1160,10 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
       end,
     },
     {
-      text = "Open runtime pattern table reference (16x16)",
+      text = "Build/refresh pattern table reference layer",
       enabled = context and context.layer and type(context.layer.patternTable) == "table",
       callback = function()
-        self:_openPpuPatternTableReferenceWindow(context)
+        self:_ensurePpuPatternTableReferenceLayer(context)
       end,
     },
     {
@@ -1171,19 +1189,21 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
 end
 
 function AppCoreController:_setPpuGlassFromRuntimeReference(context)
-  if not (context and context.win and context.win._runtimePatternTableRef and type(context.logicalIndex) == "number") then
+  if not (context and context.layer and context.layer._runtimePatternTableRefLayer == true and type(context.logicalIndex) == "number") then
     return false
   end
-  local target = context.win._ppuGlassTarget
-  if not (target and target.win and target.layerIndex) then
+  local targetWin = context.layer._runtimePatternTableRefTargetWin
+  local targetLayerIndex = context.layer._runtimePatternTableRefTargetLayerIndex
+  local targetLayer = context.layer._runtimePatternTableRefTargetLayer
+  if not (targetWin and targetLayerIndex and targetLayer) then
     self:setStatus("Missing target PPU layer for runtime pattern table reference")
     return false
   end
 
   local markContext = {
-    win = target.win,
-    layerIndex = target.layerIndex,
-    layer = target.win.getLayer and target.win:getLayer(target.layerIndex) or (target.win.layers and target.win.layers[target.layerIndex]),
+    win = targetWin,
+    layerIndex = targetLayerIndex,
+    layer = targetWin.getLayer and targetWin:getLayer(targetLayerIndex) or (targetWin.layers and targetWin.layers[targetLayerIndex]) or targetLayer,
     byteVal = clampByte(context.logicalIndex),
     tileIndex = nil,
     sourceBank = context.sourceBank,
@@ -1217,7 +1237,7 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
       end,
     },
   }
-  if context and context.win and context.win._runtimePatternTableRef then
+  if context and context.layer and context.layer._runtimePatternTableRefLayer == true then
     items[#items + 1] = {
       text = string.format("Set as glass tile index %d", clampByte(context.logicalIndex or 0)),
       enabled = type(context.logicalIndex) == "number",
@@ -1276,15 +1296,6 @@ function AppCoreController:_buildChrBankTileContextMenuItems(context)
       end,
     },
   }
-  if context and context.win and context.win._runtimePatternTableRef then
-    items[#items + 1] = {
-      text = string.format("Set as glass tile index %d", clampByte(context.logicalIndex or 0)),
-      enabled = context.logicalIndex ~= nil,
-      callback = function()
-        self:_setPpuGlassFromRuntimeReference(context)
-      end,
-    }
-  end
   return items
 end
 

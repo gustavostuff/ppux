@@ -780,7 +780,7 @@ local function loadFromProject(app, project)
   end
 
   local function openRuntimePatternTableRefs()
-    if type(app._openPpuPatternTableReferenceWindow) ~= "function" then
+    if type(app._ensurePpuPatternTableReferenceLayer) ~= "function" then
       return 0
     end
     local opened = 0
@@ -792,7 +792,7 @@ local function loadFromProject(app, project)
             and type(layer.patternTable.ranges) == "table"
             and #layer.patternTable.ranges > 0
           then
-            local ok = app:_openPpuPatternTableReferenceWindow({
+            local ok = app:_ensurePpuPatternTableReferenceLayer({
               win = win,
               layerIndex = li,
               layer = layer,
@@ -901,7 +901,7 @@ local function loadFromDBLayout(app, sha)
   logPerf("db_layout.sync_duplicate_indexes", dupesStartedAt, string.format("enabled=%s", tostring(app.syncDuplicateTiles == true)))
 
   local function openRuntimePatternTableRefs()
-    if type(app._openPpuPatternTableReferenceWindow) ~= "function" then
+    if type(app._ensurePpuPatternTableReferenceLayer) ~= "function" then
       return 0
     end
     local opened = 0
@@ -913,7 +913,7 @@ local function loadFromDBLayout(app, sha)
             and type(layer.patternTable.ranges) == "table"
             and #layer.patternTable.ranges > 0
           then
-            local ok = app:_openPpuPatternTableReferenceWindow({
+            local ok = app:_ensurePpuPatternTableReferenceLayer({
               win = win,
               layerIndex = li,
               layer = layer,

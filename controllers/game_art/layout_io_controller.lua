@@ -589,6 +589,9 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
       for li = 1, #(w.layers or {}) do
         local L = w.layers[li]
         if L then
+          if L._runtimePatternTableRefLayer == true or L._runtimeOnly == true then
+            goto continue_layer
+          end
           local kind = L.kind or (L.spriteLayer and "sprite") or "tile"
 
           if kind == "sprite" then

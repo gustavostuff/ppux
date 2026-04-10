@@ -67,6 +67,7 @@ end
 
 local function isNametableLayer(layer)
   if not layer then return false end
+  if layer._runtimePatternTableRefLayer == true then return false end
   if layer.kind == "tile" then return true end
   return (layer.nametableStartAddr ~= nil) or (layer.nametableEndAddr ~= nil)
 end
@@ -734,6 +735,11 @@ function PPUFrameWindow:set(col, row, item, layerIndex)
     Window.set(self, col, row, item, layerIndex)
     return
   end
+  if L._runtimePatternTableRefLayer == true then
+    Window.set(self, col, row, item, layerIndex)
+    self:invalidateNametableLayerCanvas(layerIndex or self.activeLayer or 1, col, row)
+    return
+  end
   
   local idx = lin(self.cols, col, row)
   if idx < 1 or idx > #self.nametableBytes then return end
@@ -780,6 +786,9 @@ function PPUFrameWindow:swapCells(c1, r1, c2, r2)
   local Lidx = self.activeLayer or 1
   local L = self:getLayer(Lidx)
   if not L or L.kind ~= "tile" then return end
+  if L._runtimePatternTableRefLayer == true then
+    return
+  end
   
   local a = self:get(c1, r1, Lidx)
   local b = self:get(c2, r2, Lidx)

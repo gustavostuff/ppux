@@ -238,6 +238,9 @@ local function handleRightButton(env, button, x, y, win, wm)
     if not (layer and layer.kind == "tile") then
       return false
     end
+    if layer._runtimePatternTableRefLayer == true then
+      return false
+    end
 
     local pickByVisual = env.utils and env.utils.pickByVisual or nil
     if type(pickByVisual) ~= "function" then
