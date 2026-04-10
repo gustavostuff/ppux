@@ -25,7 +25,6 @@ local ContextualMenuController = require("controllers.ui.contextual_menu_control
 local UiScale = require("user_interface.ui_scale")
 local UserInput = require("controllers.input")
 local TableUtils = require("utils.table_utils")
-local PpuLayerEmptyByte = require("utils.ppu_layer_empty_byte")
 local PatternTableMapping = require("utils.pattern_table_mapping")
 
 local AppCoreController = {}
@@ -1058,90 +1057,6 @@ function AppCoreController:_buildSelectInChrContext(win, layerIndex, col, row, i
   return nil
 end
 
-function AppCoreController:_markPpuTileByteAsGlass(context)
-  if not context then
-    return false
-  end
-
-  local beforeState = snapshotPpuFrameRangeState and snapshotPpuFrameRangeState(context.win, context.layerIndex) or nil
-  local tilesPool = self.appEditState and self.appEditState.tilesPool or nil
-  local win = context.win
-  local applied = false
-  local glassTileIndex = clampByte(context.byteVal)
-  if win and win.setGlassTileIndex then
-    applied = (win:setGlassTileIndex(glassTileIndex, tilesPool, context.layerIndex) == true)
-  elseif win and win.setGlassTileByte then
-    applied = (win:setGlassTileByte(context.byteVal, tilesPool, context.layerIndex) == true)
-  else
-    PpuLayerEmptyByte.setGlassTileIndex(context.layer, glassTileIndex)
-    PpuLayerEmptyByte.migrateLayerFields(context.layer)
-    applied = true
-  end
-
-  if not applied then
-    return false
-  end
-
-  local afterState = snapshotPpuFrameRangeState and snapshotPpuFrameRangeState(context.win, context.layerIndex) or nil
-  if self.undoRedo and self.undoRedo.addPpuFrameRangeEvent
-    and didPpuFrameRangeSettingsChange
-    and didPpuFrameRangeSettingsChange(beforeState, afterState)
-  then
-    self.undoRedo:addPpuFrameRangeEvent({
-      type = "ppu_frame_range",
-      win = context.win,
-      layerIndex = context.layerIndex,
-      beforeState = beforeState,
-      afterState = afterState,
-    })
-  end
-
-  self:setStatus(string.format(
-    "Marked glass tile index %d (byte 0x%02X)",
-    glassTileIndex,
-    clampByte(context.byteVal)
-  ))
-  return true
-end
-
-function AppCoreController:_clearPpuTileGlassByte(context)
-  if not context then
-    return false
-  end
-
-  local beforeState = snapshotPpuFrameRangeState and snapshotPpuFrameRangeState(context.win, context.layerIndex) or nil
-  local tilesPool = self.appEditState and self.appEditState.tilesPool or nil
-  local win = context.win
-  local applied = false
-  if win and win.clearGlassTileByte then
-    applied = (win:clearGlassTileByte(tilesPool, context.layerIndex) == true)
-  else
-    PpuLayerEmptyByte.clearGlassTileIndex(context.layer)
-    applied = true
-  end
-
-  if not applied then
-    return false
-  end
-
-  local afterState = snapshotPpuFrameRangeState and snapshotPpuFrameRangeState(context.win, context.layerIndex) or nil
-  if self.undoRedo and self.undoRedo.addPpuFrameRangeEvent
-    and didPpuFrameRangeSettingsChange
-    and didPpuFrameRangeSettingsChange(beforeState, afterState)
-  then
-    self.undoRedo:addPpuFrameRangeEvent({
-      type = "ppu_frame_range",
-      win = context.win,
-      layerIndex = context.layerIndex,
-      beforeState = beforeState,
-      afterState = afterState,
-    })
-  end
-
-  self:setStatus("Cleared glass tile")
-  return true
-end
-
 function AppCoreController:_selectPpuTileInChrWindow(context)
   if not context then
     return false
@@ -1196,36 +1111,7 @@ function AppCoreController:_selectPpuTileInChrWindow(context)
 end
 
 function AppCoreController:_buildPpuTileContextMenuItems(context)
-  local currentGlassByte = nil
-  local currentGlassIndex = nil
-  if context and context.layer then
-    currentGlassIndex = PpuLayerEmptyByte.getGlassTileIndex(context.layer)
-    if currentGlassIndex ~= nil then
-      currentGlassByte = clampByte(currentGlassIndex % 256)
-    end
-  end
-
   local items = {
-    {
-      text = string.format("Mark 0x%02X as glass tile", context.byteVal or 0),
-      enabled = context ~= nil,
-      callback = function()
-        self:_markPpuTileByteAsGlass(context)
-      end,
-    },
-    {
-      text = (currentGlassIndex ~= nil and currentGlassByte)
-        and string.format(
-          "Clear glass tile (index %d / 0x%02X)",
-          currentGlassIndex,
-          currentGlassByte
-        )
-        or "Clear glass tile",
-      enabled = currentGlassByte ~= nil,
-      callback = function()
-        self:_clearPpuTileGlassByte(context)
-      end,
-    },
     {
       text = "Build/refresh pattern table reference layer",
       enabled = context and context.layer and type(context.layer.patternTable) == "table",
@@ -1257,33 +1143,6 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
     self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)
   end
   return items
-end
-
-function AppCoreController:_setPpuGlassFromRuntimeReference(context)
-  if not (context and context.layer and context.layer._runtimePatternTableRefLayer == true and type(context.logicalIndex) == "number") then
-    return false
-  end
-  local targetWin = context.layer._runtimePatternTableRefTargetWin
-  local targetLayerIndex = context.layer._runtimePatternTableRefTargetLayerIndex
-  local targetLayer = context.layer._runtimePatternTableRefTargetLayer
-  if not (targetWin and targetLayerIndex and targetLayer) then
-    self:setStatus("Missing target PPU layer for runtime pattern table reference")
-    return false
-  end
-
-  local markContext = {
-    win = targetWin,
-    layerIndex = targetLayerIndex,
-    layer = targetWin.getLayer and targetWin:getLayer(targetLayerIndex) or (targetWin.layers and targetWin.layers[targetLayerIndex]) or targetLayer,
-    byteVal = clampByte(context.logicalIndex),
-    tileIndex = nil,
-    sourceBank = context.sourceBank,
-  }
-  if not markContext.layer then
-    self:setStatus("Target PPU tile layer is no longer available")
-    return false
-  end
-  return self:_markPpuTileByteAsGlass(markContext)
 end
 
 function AppCoreController:_removePpuPatternRangeFromRuntimeReference(context)
@@ -1333,7 +1192,6 @@ function AppCoreController:_removePpuPatternRangeFromRuntimeReference(context)
 
   table.remove(ranges, removeIndex)
   targetLayer.patternTable = patternTable
-  PpuLayerEmptyByte.migrateLayerFields(targetLayer)
 
   local tilesPool = self.appEditState and self.appEditState.tilesPool or nil
   if targetWin.refreshNametableVisuals then
@@ -1391,13 +1249,6 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
     },
   }
   if context and context.layer and context.layer._runtimePatternTableRefLayer == true then
-    items[#items + 1] = {
-      text = string.format("Set as glass tile index %d", clampByte(context.logicalIndex or 0)),
-      enabled = type(context.logicalIndex) == "number",
-      callback = function()
-        self:_setPpuGlassFromRuntimeReference(context)
-      end,
-    }
     items[#items + 1] = {
       text = "Remove tile range at this tile",
       enabled = type(context.logicalIndex) == "number",
@@ -1896,8 +1747,6 @@ snapshotPpuFrameRangeState = function(win, layerIndex)
     return nil
   end
 
-  PpuLayerEmptyByte.migrateLayerFields(layer)
-
   return {
     win = win,
     layerIndex = li,
@@ -1934,14 +1783,8 @@ didPpuFrameRangeSettingsChange = function(beforeState, afterState)
     return false
   end
 
-  local function glassTileIndexFromLayer(layerLike)
-    if type(layerLike) ~= "table" then return nil end
-    return PpuLayerEmptyByte.getGlassTileIndex(layerLike)
-  end
-
   return beforeLayer.nametableStartAddr ~= afterLayer.nametableStartAddr
     or beforeLayer.nametableEndAddr ~= afterLayer.nametableEndAddr
-    or glassTileIndexFromLayer(beforeLayer) ~= glassTileIndexFromLayer(afterLayer)
 end
 
 local function getFirstPpuSpriteLayer(win)
@@ -2438,9 +2281,6 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
       local beforeState = snapshotPpuFrameRangeState and snapshotPpuFrameRangeState(targetWindow, layerIndex) or nil
       layer.patternTable = type(layer.patternTable) == "table" and layer.patternTable or {}
       layer.patternTable.ranges = type(layer.patternTable.ranges) == "table" and layer.patternTable.ranges or {}
-      if type(layer.patternTable.glassTileIndex) ~= "number" then
-        layer.patternTable.glassTileIndex = 0
-      end
       local currentTotal = patternTableLogicalSize(layer.patternTable) or 0
       local nextTotal = currentTotal + (toTile - fromTile + 1)
       if nextTotal > 256 then
@@ -2457,8 +2297,6 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
           to = toTile,
         },
       }
-      PpuLayerEmptyByte.migrateLayerFields(layer)
-
       local tilesPool = self.appEditState and self.appEditState.tilesPool or nil
       if targetWindow.refreshNametableVisuals then
         targetWindow:refreshNametableVisuals(tilesPool, layerIndex)
@@ -2522,8 +2360,6 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
     return false
   end
 
-  PpuLayerEmptyByte.migrateLayerFields(layerState)
-
   win.cols = tonumber(rangeState.cols) or win.cols
   win.rows = tonumber(rangeState.rows) or win.rows
   win.nametableStart = rangeState.nametableStart
@@ -2544,7 +2380,6 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
   layer.nametableEndAddr = layerState.nametableEndAddr
   layer.noOverflowSupported = layerState.noOverflowSupported
   layer.patternTable = TableUtils.deepcopy(layerState.patternTable)
-  PpuLayerEmptyByte.migrateLayerFields(layer)
   layer.attrMode = layerState.attrMode
   layer.tileSwaps = TableUtils.deepcopy(layerState.tileSwaps)
   layer.items = {}

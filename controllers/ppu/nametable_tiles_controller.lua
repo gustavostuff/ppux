@@ -19,7 +19,6 @@ local NametableUtils = require("utils.nametable_utils")
 local TableUtils     = require("utils.table_utils")
 local DebugController   = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
-local PpuLayerEmptyByte = require("utils.ppu_layer_empty_byte")
 local PatternTableMapping = require("utils.pattern_table_mapping")
 
 local M = {}
@@ -412,18 +411,6 @@ function M.hydrateWindowNametable(win, layer, opts)
   local tileSwaps   = opts.tileSwaps or layer.tileSwaps
   local noOverflowSupported = (opts.noOverflowSupported == true) or (layer.noOverflowSupported == true)
 
-  PpuLayerEmptyByte.migrateLayerFields(layer)
-
-  local glassTileIndex = opts.glassTileIndex
-  if glassTileIndex == nil and type(opts.patternTable) == "table" then
-    glassTileIndex = opts.patternTable.glassTileIndex
-  end
-  if glassTileIndex == nil and type(layer.patternTable) == "table" then
-    glassTileIndex = layer.patternTable.glassTileIndex
-  end
-  local glassTile = opts.glassTile
-  local glassTileByte = opts.glassTileByte
-
   if type(startAddr) ~= "number" or type(endAddr) ~= "number" then
     return nil, "missing_nametable_range"
   end
@@ -540,24 +527,6 @@ function M.hydrateWindowNametable(win, layer, opts)
   if type(layer.patternTable) ~= "table" then
     return nil, "patternTable is required for nametable layers"
   end
-  if glassTileIndex ~= nil then
-    if type(glassTileIndex) ~= "number" then
-      return nil, "patternTable.glassTileIndex must be a number (0..255)"
-    end
-    local ok = PpuLayerEmptyByte.setGlassTileIndex(
-      layer,
-      math.max(0, math.min(255, math.floor(tonumber(glassTileIndex) or 0)))
-    )
-    if not ok then
-      return nil, "failed to set glass tile index for this patternTable"
-    end
-  elseif type(glassTile) == "table" and glassTile.tile ~= nil then
-    PpuLayerEmptyByte.setGlassTileIndex(layer, math.max(0, math.min(255, math.floor(tonumber(glassTile.tile) or 0))))
-  elseif glassTileByte ~= nil then
-    PpuLayerEmptyByte.setGlassTileIndex(layer, math.max(0, math.min(255, math.floor(tonumber(glassTileByte) or 0))))
-  end
-  PpuLayerEmptyByte.migrateLayerFields(layer)
-
   local mapOk, mapErr = PatternTableMapping.validate(layer.patternTable)
   if not mapOk then
     local message = string.format("Invalid patternTable mapping for '%s'", win.title or "")
@@ -728,8 +697,6 @@ function M.snapshotNametableLayer(win, layer)
     return nil
   end
 
-  PpuLayerEmptyByte.migrateLayerFields(layer)
-
   local out = {
     name               = layer.name,
     kind               = "tile",
@@ -744,12 +711,6 @@ function M.snapshotNametableLayer(win, layer)
     out.noOverflowSupported = (layer.noOverflowSupported == true)
   end
   out.patternTable = out.patternTable or {}
-  local gti = PpuLayerEmptyByte.getGlassTileIndex(layer)
-  if gti ~= nil then
-    out.patternTable.glassTileIndex = gti
-  else
-    out.patternTable.glassTileIndex = nil
-  end
 
   -- Swaps as pretty list { {col,row,val}, ... }
   local swaps = buildTileSwapsList(win)

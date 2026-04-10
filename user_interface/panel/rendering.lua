@@ -9,11 +9,14 @@ local function install(Panel, utils)
     if self.title and self.title ~= "" then
       local titleRowH = (self.titleH > 0 and self.titleH or self.cellH)
       local titleBg = self.titleBgColor or self.bgColor
+      local titleBgX = self.x + self.padding
+      local titleBgY = self.y + self.padding
+      local titleBgW = math.max(0, self.w - (self.padding * 2))
       love.graphics.setColor(titleBg[1], titleBg[2], titleBg[3], 1)
-      love.graphics.rectangle("fill", self.x, self.y, self.w, self.padding + titleRowH)
+      love.graphics.rectangle("fill", titleBgX, titleBgY, titleBgW, titleRowH)
       local font = love.graphics.getFont()
       local titleW = font and font:getWidth(self.title) or 0
-      local titleX = self.x + math.floor((self.w - titleW) * 0.5)
+      local titleX = titleBgX + math.floor((titleBgW - titleW) * 0.5)
       love.graphics.setColor(utils.colors.white[1], utils.colors.white[2], utils.colors.white[3], 1)
       local titleY = self.y + self.padding + math.floor((titleRowH - (font and font:getHeight() or 0)) * 0.5)
       titleY = titleY + (self.textOffsetY or 0)

@@ -65,16 +65,6 @@ local function parseRangeBounds(range)
   return from, to
 end
 
-local function getRangeGlassTile(range)
-  if type(range) ~= "table" then
-    return nil
-  end
-  if type(range.tileRange) == "table" and range.tileRange.glass ~= nil then
-    return range.tileRange.glass
-  end
-  return nil
-end
-
 function M.buildMap(patternTable, fallbackBank, fallbackPage)
   if type(patternTable) ~= "table" or type(patternTable.ranges) ~= "table" then
     return buildDefaultMap(fallbackBank, fallbackPage), nil
@@ -113,89 +103,6 @@ function M.buildMap(patternTable, fallbackBank, fallbackPage)
   end
 
   return out, nil
-end
-
-function M.getGlassLogicalIndex(patternTable)
-  if type(patternTable) ~= "table" or type(patternTable.ranges) ~= "table" then
-    return nil, nil
-  end
-
-  local found = nil
-  local nextIdx = 0
-  for i, r in ipairs(patternTable.ranges) do
-    local fromRaw, toRaw = parseRangeBounds(r)
-    if fromRaw == nil or toRaw == nil then
-      return nil, string.format("patternTable.ranges[%d] missing from/to", i)
-    end
-    local from = clampByte(fromRaw)
-    local to = clampByte(toRaw)
-    if to < from then
-      return nil, string.format("patternTable.ranges[%d] has to < from", i)
-    end
-
-    local rangeLen = (to - from + 1)
-    local glassRaw = getRangeGlassTile(r)
-    if glassRaw ~= nil then
-      local glassTile = math.floor(tonumber(glassRaw) or -1)
-      if glassTile < from or glassTile > to then
-        return nil, string.format(
-          "patternTable.ranges[%d].tileRange.glass (%d) must be within [%d..%d]",
-          i, glassTile, from, to
-        )
-      end
-      if found ~= nil then
-        return nil, "glass tile is defined in more than one range entry"
-      end
-      found = nextIdx + (glassTile - from)
-    end
-    nextIdx = nextIdx + rangeLen
-  end
-
-  return found, nil
-end
-
-function M.clearGlass(patternTable)
-  if type(patternTable) ~= "table" or type(patternTable.ranges) ~= "table" then
-    return false
-  end
-  for _, r in ipairs(patternTable.ranges) do
-    if type(r) == "table" and type(r.tileRange) == "table" then
-      r.tileRange.glass = nil
-    end
-  end
-  return true
-end
-
-function M.setGlassLogicalIndex(patternTable, logicalIndex)
-  if type(patternTable) ~= "table" or type(patternTable.ranges) ~= "table" then
-    return false, "patternTable.ranges is required to set glass"
-  end
-
-  local target = clampByte(logicalIndex)
-  M.clearGlass(patternTable)
-
-  local nextIdx = 0
-  for i, r in ipairs(patternTable.ranges) do
-    local fromRaw, toRaw = parseRangeBounds(r)
-    if fromRaw == nil or toRaw == nil then
-      return false, string.format("patternTable.ranges[%d] missing from/to", i)
-    end
-    local from = clampByte(fromRaw)
-    local to = clampByte(toRaw)
-    if to < from then
-      return false, string.format("patternTable.ranges[%d] has to < from", i)
-    end
-    local rangeLen = (to - from + 1)
-    local localOffset = target - nextIdx
-    if localOffset >= 0 and localOffset < rangeLen then
-      r.tileRange = type(r.tileRange) == "table" and r.tileRange or {}
-      r.tileRange.glass = from + localOffset
-      return true, nil
-    end
-    nextIdx = nextIdx + rangeLen
-  end
-
-  return false, "glass logical index is out of range"
 end
 
 function M.resolveTile(tilesPool, layer, logicalIndex, fallbackBank, fallbackPage)
@@ -250,10 +157,6 @@ function M.validate(patternTable)
   local _, err = M.buildMap(patternTable, 1, 1)
   if err then
     return false, err
-  end
-  local _, glassErr = M.getGlassLogicalIndex(patternTable)
-  if glassErr then
-    return false, glassErr
   end
   return true, nil
 end

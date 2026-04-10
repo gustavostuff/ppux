@@ -61,10 +61,9 @@ describe("multi_select_controller.lua - ppu tile group drag", function()
     expect(win.nametableBytes[idx(6, 1)]).toBe(0x32)
   end)
 
-  it("clears PPU group-drag sources to an explicit glassTileByte", function()
+  it("clears PPU group-drag sources to byte 0x00", function()
     local layer = {
       kind = "tile",
-      glassTileByte = 0xAB,
       items = {},
     }
 

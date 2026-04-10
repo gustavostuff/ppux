@@ -1,6 +1,5 @@
 local M = {}
 local WindowCaps = require("controllers.window.window_capabilities")
-local PpuLayerEmptyByte = require("utils.ppu_layer_empty_byte")
 
 local SPRITE_X_RANGE = 256
 local SPRITE_Y_RANGE = 256
@@ -528,20 +527,20 @@ function M.deleteTileSelection(win, layerIdx, fallbackCol, fallbackRow, app, und
   if #cells == 0 then return nil end
 
   if WindowCaps.isPpuFrame(win) then
-    local glassByte = PpuLayerEmptyByte.forLayer(layer)
+    local clearByte = 0x00
     local actions = {}
 
     for _, cell in ipairs(cells) do
       local idx = cell.idx or ((cell.row * (win.cols or 0) + cell.col) + 1)
       local prevByte = win.nametableBytes and win.nametableBytes[idx]
-      if prevByte ~= glassByte then
+      if prevByte ~= clearByte then
         actions[#actions + 1] = {
           win        = win,
           layerIndex = layerIdx,
           col        = cell.col,
           row        = cell.row,
           prevByte   = prevByte,
-          newByte    = glassByte,
+          newByte    = clearByte,
         }
       end
     end
@@ -558,19 +557,19 @@ function M.deleteTileSelection(win, layerIdx, fallbackCol, fallbackRow, app, und
 
     local tilesPool = (app and app.appEditState and app.appEditState.tilesPool) or nil
     for _, act in ipairs(actions) do
-      win:setNametableByteAt(act.col, act.row, glassByte, tilesPool, layerIdx)
+      win:setNametableByteAt(act.col, act.row, clearByte, tilesPool, layerIdx)
     end
 
     layer.multiTileSelection = nil
     if #actions == 1 then
       win:setSelected(actions[1].col, actions[1].row, layerIdx)
-      return { count = 1, status = "Set glass tile" }
+      return { count = 1, status = "Cleared tile" }
     end
 
     win:clearSelected(layerIdx)
     return {
       count = #actions,
-      status = string.format("Set glass tile on %d cells", #actions),
+      status = string.format("Cleared %d tiles", #actions),
     }
   end
 
@@ -883,7 +882,7 @@ function M.applyTileDragGroup(win, layerIdx, group, anchorCol, anchorRow, opts)
   then
     local srcCols = srcWin.cols or 0
     local srcLayerTbl = srcWin.layers and srcWin.layers[srcLayer]
-    local transparentByte = PpuLayerEmptyByte.forLayer(srcLayerTbl)
+    local transparentByte = 0x00
     local placementBytes = {}
 
     for _, entry in ipairs(group.entries) do

@@ -54,7 +54,7 @@ describe("ppu_frame_window.lua sparse tile rendering", function()
     love.graphics.setColor = originalGraphics.setColor
   end)
 
-  it("keeps glass/transparent bytes in the visual tile map", function()
+  it("keeps zero-byte cells in the visual tile map", function()
     local win = PPUFrameWindow.new(0, 0, 1, { title = "PPU" })
     local layer = win.layers[1]
     layer.patternTable = {
@@ -62,7 +62,6 @@ describe("ppu_frame_window.lua sparse tile rendering", function()
         { bank = 1, page = 1, tileRange = { from = 0, to = 255 } },
       },
     }
-    layer.glassTileByte = 0x00
 
     win.cols = 2
     win.rows = 1
@@ -79,7 +78,7 @@ describe("ppu_frame_window.lua sparse tile rendering", function()
     expect(win:get(1, 0, 1)).toBeTruthy()
   end)
 
-  it("iterates all visible nametable cells including glass bytes", function()
+  it("iterates all visible nametable cells including zero bytes", function()
     local win = PPUFrameWindow.new(0, 0, 1, { title = "PPU" })
     local layer = win.layers[1]
     layer.patternTable = {
@@ -87,7 +86,6 @@ describe("ppu_frame_window.lua sparse tile rendering", function()
         { bank = 1, page = 1, tileRange = { from = 0, to = 255 } },
       },
     }
-    layer.glassTileByte = 0x00
 
     win.cols = 4
     win.rows = 1

@@ -1,7 +1,6 @@
 local SpriteController = require("controllers.sprite.sprite_controller")
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
-local PpuLayerEmptyByte = require("utils.ppu_layer_empty_byte")
 
 local M = {}
 
@@ -553,8 +552,7 @@ local function setPpuNametableByte(win, col, row, byteVal, app, layerIdx)
 end
 
 local function getTransparentPpuByte(win, layerIdx)
-  local layer = win and win.layers and win.layers[layerIdx]
-  return PpuLayerEmptyByte.forLayer(layer)
+  return 0x00
 end
 
 local function handleSameCellDrop(dst, col, row, drag, wm, dstLayer)

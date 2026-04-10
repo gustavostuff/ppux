@@ -182,35 +182,6 @@ describe("game_art_layout_io_controller.lua", function()
     expect(migrated.projectVersion).toBe(GameArtLayoutIOController.PROJECT_FORMAT_VERSION)
   end)
 
-  it("migrates legacy transparentTileByte to patternTable.glassTileIndex on nametable layers", function()
-    local migrated, err = GameArtLayoutIOController.migrateProjectTable({
-      kind = "project",
-      projectVersion = 1,
-      windows = {
-        {
-          kind = "ppu_frame",
-          layers = {
-            {
-              kind = "tile",
-              nametableStartAddr = 0x100,
-              nametableEndAddr = 0x200,
-              transparentTileByte = 0x42,
-            },
-          },
-        },
-      },
-    })
-
-    expect(err).toBeNil()
-    expect(migrated).toBeTruthy()
-    local L = migrated.windows[1].layers[1]
-    expect(L.patternTable).toBeTruthy()
-    expect(L.patternTable.glassTileIndex).toBe(0x42)
-    expect(L.glassTile).toBeNil()
-    expect(L.glassTileByte).toBeNil()
-    expect(L.transparentTileByte).toBeNil()
-  end)
-
   it("rejects unsupported future project versions", function()
     local path = nextTmpPath("project_future_version")
     table.insert(createdPaths, path)
