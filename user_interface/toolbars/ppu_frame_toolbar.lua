@@ -84,10 +84,6 @@ function PPUFrameToolbar.new(window, ctx, windowController)
     self:_onToggleOriginGuides()
   end, "Toggle origin guides")
 
-  self.toggleGlassTileButton = self:addButton(images.icons.icon_glass, function()
-    self:_onToggleGlassTile()
-  end, "Show glass/empty tile")
-
   self:updateRangeButton()
   self:updateSpriteButton()
   self:updateOriginButtons()
@@ -268,29 +264,6 @@ function PPUFrameToolbar:_onToggleOriginGuides()
   self:updateOriginButtons()
 end
 
-function PPUFrameToolbar:_onToggleGlassTile()
-  local layer, layerIndex = self:_getActiveTileLayer()
-  if not layer or not self.window then
-    return
-  end
-
-  self.window.showGlassTile = not (self.window.showGlassTile == true)
-
-  local app = self.ctx and self.ctx.app or nil
-  local tilesPool = app and app.appEditState and app.appEditState.tilesPool or nil
-  if self.window.refreshNametableVisuals then
-    self.window:refreshNametableVisuals(tilesPool, layerIndex)
-  elseif self.window.invalidateNametableLayerCanvas then
-    self.window:invalidateNametableLayerCanvas(layerIndex)
-  end
-
-  if self.ctx and self.ctx.setStatus then
-    self.ctx.setStatus((self.window.showGlassTile == true) and "Glass tile hidden" or "Glass tile visible")
-  end
-
-  self:updateOriginButtons()
-end
-
 -- Handle add layer
 function PPUFrameToolbar:_onAddLayer()
   if not self.window then return end
@@ -392,19 +365,6 @@ function PPUFrameToolbar:updateOriginButtons()
       or "Show sprite origin guides"
   end
 
-  if self.toggleGlassTileButton then
-    local hideGlassTile = self.window and (self.window.showGlassTile ~= false)
-    self.toggleGlassTileButton.icon = images.icons.icon_glass or self.toggleGlassTileButton.icon
-    self.toggleGlassTileButton.enabled = isActiveTileLayer
-    self.toggleGlassTileButton.hidden = not isActiveTileLayer
-    if hideGlassTile then
-      self.toggleGlassTileButton.bgColor = nil
-      self.toggleGlassTileButton.tooltip = "Show glass/empty tile"
-    else
-      self.toggleGlassTileButton.bgColor = colors.gray20
-      self.toggleGlassTileButton.tooltip = "Hide glass/empty tile"
-    end
-  end
 end
 
 return PPUFrameToolbar

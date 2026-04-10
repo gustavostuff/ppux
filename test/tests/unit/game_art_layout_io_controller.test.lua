@@ -182,7 +182,7 @@ describe("game_art_layout_io_controller.lua", function()
     expect(migrated.projectVersion).toBe(GameArtLayoutIOController.PROJECT_FORMAT_VERSION)
   end)
 
-  it("migrates legacy transparentTileByte to glassTileByte on nametable layers", function()
+  it("migrates legacy transparentTileByte to patternTable.glassTileIndex on nametable layers", function()
     local migrated, err = GameArtLayoutIOController.migrateProjectTable({
       kind = "project",
       projectVersion = 1,
@@ -204,7 +204,10 @@ describe("game_art_layout_io_controller.lua", function()
     expect(err).toBeNil()
     expect(migrated).toBeTruthy()
     local L = migrated.windows[1].layers[1]
-    expect(L.glassTileByte).toBe(0x42)
+    expect(L.patternTable).toBeTruthy()
+    expect(L.patternTable.glassTileIndex).toBe(0x42)
+    expect(L.glassTile).toBeNil()
+    expect(L.glassTileByte).toBeNil()
     expect(L.transparentTileByte).toBeNil()
   end)
 

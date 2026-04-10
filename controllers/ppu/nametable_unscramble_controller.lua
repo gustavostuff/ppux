@@ -5,6 +5,7 @@ local DebugController = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local PngPaletteMappingController = require("controllers.png.palette_mapping_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
+local PatternTableMapping = require("utils.pattern_table_mapping")
 
 local M = {}
 
@@ -87,46 +88,36 @@ local function comparePatterns(pattern1, pattern2, threshold)
   return differences
 end
 
--- Helper function to resolve tile from byte (copied from ppu_frame_window)
-local function resolveTile(tilesPool, bankIndex, pageIndex, byteVal)
-  if not tilesPool then return nil end
-  local bank = tilesPool[bankIndex]
-  if not bank then return nil end
-  local B = byteVal or 0
-  if pageIndex == 2 then
-    return bank[256 + B]
-  else
-    return bank[B]
+local function resolveTile(tilesPool, layer, byteVal)
+  if not layer then
+    return nil
   end
+  return PatternTableMapping.resolveTile(
+    tilesPool,
+    layer,
+    byteVal,
+    layer.bank or 1,
+    layer.page or 1
+  )
 end
 
--- Build a catalog of all unique tile patterns in the current layer
--- Includes ALL tiles from the CHR bank for the current page (0-255)
+-- Build a catalog of all unique tile patterns in the current layer.
+-- Includes all 256 logical bytes resolved through patternTable mapping.
 -- Returns: map of pattern -> {byte, col, row, tile}
 local function buildTileCatalog(win, layer, tilesPool)
   local catalog = {}
   local cols = win.cols
   local rows = win.rows
   
-  -- Get bank/page info from layer
-  local bank = layer.bank or 1
-  local page = layer.page or 1
-  
   if not tilesPool then
     DebugController.log("warning", "UNSCR", "No tilesPool available for catalog building")
     return catalog
   end
   
-  local bankData = tilesPool[bank]
-  if not bankData then
-    DebugController.log("warning", "UNSCR", "Bank %d not found in tilesPool", bank)
-    return catalog
-  end
-  
-  -- Include ALL 256 tiles from the CHR bank for the current page
+  -- Include ALL 256 logical tiles from the layer's pattern table mapping.
   -- This ensures we have access to all available tiles, not just those in the nametable
   for byteVal = 0, 255 do
-    local tileRef = resolveTile(tilesPool, bank, page, byteVal)
+    local tileRef = resolveTile(tilesPool, layer, byteVal)
     
     if tileRef and tileRef.pixels then
       local patternKey = table.concat(tileRef.pixels, ",")
@@ -150,7 +141,7 @@ local function buildTileCatalog(win, layer, tilesPool)
   if win.nametableBytes then
     for i = 1, #win.nametableBytes do
       local byteVal = win.nametableBytes[i]
-      local tileRef = resolveTile(tilesPool, bank, page, byteVal)
+      local tileRef = resolveTile(tilesPool, layer, byteVal)
       
       if tileRef and tileRef.pixels then
         local patternKey = table.concat(tileRef.pixels, ",")
@@ -297,9 +288,7 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
       -- They should match directly (0=darkest, 3=lightest) if image was rendered correctly
       local originalTile = nil
       if originalByte then
-        local bank = layer.bank or 1
-        local page = layer.page or 1
-        local tileRef = resolveTile(tilesPool, bank, page, originalByte)
+        local tileRef = resolveTile(tilesPool, layer, originalByte)
         if tileRef and tileRef.pixels then
           -- Compare PNG brightness pattern to tile's palette index pattern
           -- These should match if rendering is correct (both 0-3 range)
@@ -425,7 +414,6 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
   
   -- Update visual layer items directly (avoid calling win:set() which triggers ROM writes)
   -- This is similar to how swapCells() works - update items directly, then ROM once at the end
-  local bank, page = layer.bank or 1, layer.page or 1
   layer.items = {}
   
   -- Debug: Track tile-to-byte conversion mismatches
@@ -435,7 +423,7 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
   
   for i = 1, #win.nametableBytes do
     local byteVal = win.nametableBytes[i]
-    local tileRef = resolveTile(tilesPool, bank, page, byteVal)
+    local tileRef = resolveTile(tilesPool, layer, byteVal)
     
     if tileRef then
       local z = i - 1
@@ -451,9 +439,13 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
       local convertedByte = nil
       if tileRef and tileRef.index ~= nil then
         local tileIndex = tileRef.index  -- 0-based within bank
-        if page == 2 and tileIndex >= 256 and tileIndex <= 511 then
-          convertedByte = tileIndex - 256
-        else
+        convertedByte = PatternTableMapping.logicalIndexForTileRef(
+          layer,
+          tileRef,
+          layer.bank or 1,
+          layer.page or 1
+        )
+        if convertedByte == nil then
           convertedByte = tileIndex % 256
         end
         
@@ -467,7 +459,7 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
               expectedByte = byteVal,
               tileIndex = tileIndex,
               convertedByte = convertedByte,
-              page = page
+              page = (tileIndex >= 256) and 2 or 1
             })
           end
         end

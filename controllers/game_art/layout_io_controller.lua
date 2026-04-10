@@ -461,6 +461,9 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
     if w._closed then
       goto continue
     end
+    if w._runtimeOnly == true then
+      goto continue
+    end
     purgeRemovedTiles(w)
     local isPalette = WindowCaps.isAnyPaletteWindow(w)
     local entryKind = WindowCaps.isRomPaletteWindow(w) and "rom_palette" or (isPalette and "palette" or (w.kind or "normal"))
@@ -486,7 +489,6 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
 
     if WindowCaps.isPpuFrame(w) then
       entry.showSpriteOriginGuides = (w.showSpriteOriginGuides == true)
-      entry.showGlassTile = (w.showGlassTile ~= false)
     end
     if WindowCaps.isOamAnimation(w) then
       entry.multiRowToolbar = (w.multiRowToolbar == true)

@@ -9,6 +9,7 @@ local DebugController = require("controllers.dev.debug_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 local CanvasSpace = require("utils.canvas_space")
 local PpuLayerEmptyByte = require("utils.ppu_layer_empty_byte")
+local PatternTableMapping = require("utils.pattern_table_mapping")
 
 local PPUFrameWindow = {}
 PPUFrameWindow.__index = PPUFrameWindow
@@ -19,21 +20,6 @@ local function inferDims(n)
   local cols = 32
   local rows = math.max(1, math.floor((n + cols - 1) / cols))
   return cols, rows
-end
-
--- Per your mapping:
---   page 1: byte B -> tilesPool[bank][B]
---   page 2: byte B -> tilesPool[bank][256 + B]      (so B=0 -> index 256)
-local function resolveTile(tilesPool, bankIndex, pageIndex, byteVal)
-  if not tilesPool then return nil end
-  local bank = tilesPool[bankIndex]
-  if not bank then return nil end
-  local B = byteVal or 0
-  if pageIndex == 2 then
-    return bank[256 + B]
-  else
-    return bank[B]
-  end
 end
 
 -- linear index helpers (1-based for internal arrays)
@@ -58,25 +44,7 @@ local function getTransparentTileByte(layer)
   return PpuLayerEmptyByte.forLayer(layer)
 end
 
-local function isTransparentNametableByte(layer, byteVal, showGlassTile)
-  if showGlassTile == false then
-    return false
-  end
-
-  local v = clampByte(byteVal)
-  local hasExplicitTransparent = false
-
-  if layer and layer.glassTileByte ~= nil then
-    hasExplicitTransparent = true
-    if v == clampByte(layer.glassTileByte) then
-      return true
-    end
-  end
-
-  if not hasExplicitTransparent then
-    return v == 0x00
-  end
-
+local function isTransparentNametableByte(layer, byteVal)
   return false
 end
 
@@ -123,13 +91,6 @@ local function getNametableLayer(self)
   local first = self.layers[1]
   if not first then return nil, nil end
   return first, 1
-end
-
-local function getBankPage(self)
-  local L = getNametableLayer(self)
-  local bank = (L and L.bank) or 1
-  local page = (L and L.page) or 1
-  return bank, page
 end
 
 -- Get the codec name from layer/project (project-level for now, defaults to "konami")
@@ -252,7 +213,7 @@ end
 
 function PPUFrameWindow:isTransparentNametableByte(byteVal, layerIndex)
   local layer = self:getLayer(layerIndex) or select(1, getNametableLayer(self))
-  return isTransparentNametableByte(layer, byteVal, self.showGlassTile ~= false)
+  return isTransparentNametableByte(layer, byteVal)
 end
 
 function PPUFrameWindow:syncNametableVisualCell(col, row, byteVal, tilesPool, layerIndex)
@@ -260,20 +221,22 @@ function PPUFrameWindow:syncNametableVisualCell(col, row, byteVal, tilesPool, la
   local layer = self:getLayer(li)
   if not layer then return end
 
-  if isTransparentNametableByte(layer, byteVal, self.showGlassTile ~= false) then
-    Window.clear(self, col, row, li)
-    self:invalidateNametableLayerCanvas(li, col, row)
-    return
-  end
-
   if not tilesPool then
     self:invalidateNametableLayerCanvas(li, col, row)
     return
   end
 
-  local bank = layer.bank or 1
-  local page = layer.page or 1
-  local tileRef = resolveTile(tilesPool, bank, page, byteVal)
+  local tileRef, resolveErr = PatternTableMapping.resolveTile(
+    tilesPool,
+    layer,
+    byteVal,
+    layer.bank or 1,
+    layer.page or 1
+  )
+  if resolveErr and not layer._patternTableResolveWarned then
+    layer._patternTableResolveWarned = true
+    DebugController.log("warning", "PPU", "Pattern table mapping error: %s", tostring(resolveErr))
+  end
   if tileRef then
     Window.set(self, col, row, tileRef, li)
   else
@@ -502,7 +465,6 @@ function PPUFrameWindow.new(x, y, zoom, data)
 
   self.kind       = "ppu_frame"
   self.showSpriteOriginGuides = (data.showSpriteOriginGuides == true)
-  self.showGlassTile = (data.showGlassTile ~= false)
   self._nametableLayerCanvas = {}
   self.nametableBytes     = {}   -- table of numbers 0..255, length = cols*rows (or fewer)
   self.nametableAttrBytes = {}   -- table of numbers 0..255, length = 256
@@ -749,18 +711,16 @@ local function tileToByte(tile, layer)
   if not tile or tile.index == nil then
     return nil
   end
-  
-  local page = (layer and layer.page) or 1
-  local tileIndex = tile.index  -- 0-based within bank
-  
-  -- Reverse of resolveTile logic:
-  --   page 1: byte B -> tilesPool[bank][B], so tileIndex = B, byte = tileIndex
-  --   page 2: byte B -> tilesPool[bank][256 + B], so tileIndex = 256 + B, byte = tileIndex - 256
-  if page == 2 and tileIndex >= 256 and tileIndex <= 511 then
-    return tileIndex - 256
-  else
-    return tileIndex % 256
+  local logicalIndex, _ = PatternTableMapping.logicalIndexForTileRef(
+    layer,
+    tile,
+    (layer and layer.bank) or 1,
+    (layer and layer.page) or 1
+  )
+  if logicalIndex ~= nil then
+    return logicalIndex
   end
+  return tile.index % 256
 end
 
 ----------------------------------------------------------------
@@ -790,7 +750,7 @@ function PPUFrameWindow:set(col, row, item, layerIndex)
     nametableByte = getTransparentTileByte(L)
   end
 
-  if isTransparentNametableByte(L, nametableByte, self.showGlassTile ~= false) then
+  if isTransparentNametableByte(L, nametableByte) then
     Window.clear(self, col, row, layerIndex)
   else
     Window.set(self, col, row, item, layerIndex)
@@ -975,7 +935,9 @@ function PPUFrameWindow:setGlassTileByte(byteVal, tilesPool, layerIndex)
     return false
   end
 
-  layer.glassTileByte = clampByte(byteVal)
+  local tileByte = clampByte(byteVal)
+  PpuLayerEmptyByte.setGlassTileIndex(layer, tileByte)
+  PpuLayerEmptyByte.migrateLayerFields(layer)
   return self:refreshNametableVisuals(tilesPool, li)
 end
 
@@ -986,7 +948,18 @@ function PPUFrameWindow:clearGlassTileByte(tilesPool, layerIndex)
     return false
   end
 
-  layer.glassTileByte = nil
+  PpuLayerEmptyByte.clearGlassTileIndex(layer)
+  return self:refreshNametableVisuals(tilesPool, li)
+end
+
+function PPUFrameWindow:setGlassTileIndex(glassTileIndex, tilesPool, layerIndex)
+  local li = layerIndex or select(2, getNametableLayer(self)) or self.activeLayer or 1
+  local layer = self:getLayer(li)
+  if not layer then
+    return false
+  end
+  PpuLayerEmptyByte.setGlassTileIndex(layer, glassTileIndex)
+  PpuLayerEmptyByte.migrateLayerFields(layer)
   return self:refreshNametableVisuals(tilesPool, li)
 end
 

@@ -447,7 +447,6 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
     title = w.title,
     nonActiveLayerOpacity = w.nonActiveLayerOpacity,
     showSpriteOriginGuides = (w.showSpriteOriginGuides == true),
-    showGlassTile = (w.showGlassTile ~= false),
   })
 
   win._id = w.id
@@ -468,8 +467,9 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
       noOverflowSupported = ntLayer and ntLayer.noOverflowSupported == true,
       bankIndex = bankIdx,
       pageIndex = pageIdx,
+      patternTable = ntLayer and ntLayer.patternTable,
+      glassTileIndex = ntLayer and ntLayer.patternTable and ntLayer.patternTable.glassTileIndex,
       tileSwaps = ntLayer and ntLayer.tileSwaps,
-      glassTileByte = ntLayer and ntLayer.glassTileByte,
       userDefinedAttrs = ntLayer and ntLayer.userDefinedAttrs,
     })
     if not ok then
@@ -545,12 +545,13 @@ local function applyLayerMetadataFromLayout(win, layoutLayers)
       if Lsrc.noOverflowSupported ~= nil then
         Ldst.noOverflowSupported = (Lsrc.noOverflowSupported == true)
       end
-      if Lsrc.glassTileByte ~= nil then
-        Ldst.glassTileByte = Lsrc.glassTileByte
+      if type(Lsrc.patternTable) == "table" then
+        Ldst.patternTable = TableUtils.deepcopy(Lsrc.patternTable)
       end
       if Lsrc.paletteData ~= nil then
         Ldst.paletteData = TableUtils.deepcopy(Lsrc.paletteData)
       end
+      PpuLayerEmptyByte.migrateLayerFields(Ldst)
     end
   end
 end

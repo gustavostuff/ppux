@@ -25,6 +25,7 @@ local UiScale = require("user_interface.ui_scale")
 local UserInput = require("controllers.input")
 local TableUtils = require("utils.table_utils")
 local PpuLayerEmptyByte = require("utils.ppu_layer_empty_byte")
+local PatternTableMapping = require("utils.pattern_table_mapping")
 
 local AppCoreController = {}
 AppCoreController.__index = AppCoreController
@@ -814,7 +815,7 @@ function AppCoreController:_buildPpuTileContext(win, layerIndex, col, row)
     return nil
   end
 
-  local sourceBank = tonumber(layer.bank) or tonumber(item._bankIndex) or 1
+  local sourceBank = tonumber(item._bankIndex) or tonumber(layer.bank) or 1
 
   return {
     win = win,
@@ -827,6 +828,84 @@ function AppCoreController:_buildPpuTileContext(win, layerIndex, col, row)
     tileIndex = normalizeTileIndex(item),
     sourceBank = sourceBank,
   }
+end
+
+function AppCoreController:_openPpuPatternTableReferenceWindow(context)
+  if not (context and context.win and context.layer and self.wm and self.wm.createTileWindow) then
+    return false
+  end
+  local layer = context.layer
+  if type(layer.patternTable) ~= "table" then
+    self:setStatus("This layer has no patternTable")
+    return false
+  end
+  local map, mapErr = PatternTableMapping.buildMap(layer.patternTable, layer.bank or 1, layer.page or 1)
+  if not map then
+    self:setStatus(tostring(mapErr or "Invalid patternTable mapping"))
+    return false
+  end
+
+  local baseX = (context.win.x or 0) + 24
+  local baseY = (context.win.y or 0) + 24
+  local title = string.format("PPU PT Ref: %s", tostring(context.win.title or context.win._id or "frame"))
+  local refWin = self.wm:createTileWindow({
+    animated = false,
+    title = title,
+    x = baseX,
+    y = baseY,
+    cols = 16,
+    rows = 16,
+    cellW = 8,
+    cellH = 8,
+    zoom = 2,
+    numLayers = 1,
+  })
+  if not refWin then
+    self:setStatus("Could not open pattern table reference window")
+    return false
+  end
+
+  -- Runtime helper window: regular static tile window, not persisted to project.
+  refWin._runtimeOnly = true
+  refWin._runtimePatternTableRef = true
+  refWin._ppuGlassTarget = { win = context.win, layerIndex = context.layerIndex, title = context.win.title }
+  refWin.layers = refWin.layers or {}
+  refWin.layers[1] = refWin.layers[1] or { kind = "tile", items = {} }
+  local L = refWin.layers[1]
+  L.kind = "tile"
+  L.name = "Pattern Table"
+  L.opacity = 1.0
+  L.items = {}
+  refWin.activeLayer = 1
+
+  local tilesPool = self.appEditState and self.appEditState.tilesPool or nil
+  if not tilesPool then
+    self:setStatus("No tilesPool available for pattern table reference")
+    return false
+  end
+  if self.appEditState and self.appEditState.chrBanksBytes and type(layer.patternTable.ranges) == "table" then
+    for _, r in ipairs(layer.patternTable.ranges) do
+      local bank = type(r) == "table" and tonumber(r.bank) or nil
+      if bank and self.appEditState.chrBanksBytes[bank] then
+        BankViewController.ensureBankTiles(self.appEditState, bank)
+      end
+    end
+    tilesPool = self.appEditState.tilesPool or tilesPool
+  end
+  for logicalIndex = 0, 255 do
+    local entry = map[logicalIndex]
+    if entry then
+      local bankTiles = tilesPool[entry.bank]
+      local tileRef = bankTiles and bankTiles[entry.tileIndex] or nil
+      local idx = logicalIndex + 1
+      L.items[idx] = tileRef
+    end
+  end
+  if refWin.setScroll then
+    refWin:setScroll(0, 0)
+  end
+  self:setStatus("Opened runtime pattern table reference (right-click tile to set glass)")
+  return true
 end
 
 function AppCoreController:_buildSelectInChrContext(win, layerIndex, col, row, itemIndex)
@@ -863,7 +942,8 @@ function AppCoreController:_buildSelectInChrContext(win, layerIndex, col, row, i
       row = row,
       item = item,
       tileIndex = normalizeTileIndex(item),
-      sourceBank = tonumber(layer.bank) or tonumber(item._bankIndex) or 1,
+      sourceBank = tonumber(item._bankIndex) or tonumber(layer.bank) or 1,
+      logicalIndex = (row * (win.cols or 16)) + col,
     }
   end
 
@@ -902,10 +982,14 @@ function AppCoreController:_markPpuTileByteAsGlass(context)
   local tilesPool = self.appEditState and self.appEditState.tilesPool or nil
   local win = context.win
   local applied = false
-  if win and win.setGlassTileByte then
+  local glassTileIndex = clampByte(context.byteVal)
+  if win and win.setGlassTileIndex then
+    applied = (win:setGlassTileIndex(glassTileIndex, tilesPool, context.layerIndex) == true)
+  elseif win and win.setGlassTileByte then
     applied = (win:setGlassTileByte(context.byteVal, tilesPool, context.layerIndex) == true)
   else
-    context.layer.glassTileByte = context.byteVal
+    PpuLayerEmptyByte.setGlassTileIndex(context.layer, glassTileIndex)
+    PpuLayerEmptyByte.migrateLayerFields(context.layer)
     applied = true
   end
 
@@ -927,7 +1011,11 @@ function AppCoreController:_markPpuTileByteAsGlass(context)
     })
   end
 
-  self:setStatus(string.format("Marked nametable byte 0x%02X as glass tile", context.byteVal))
+  self:setStatus(string.format(
+    "Marked glass tile index %d (byte 0x%02X)",
+    glassTileIndex,
+    clampByte(context.byteVal)
+  ))
   return true
 end
 
@@ -943,7 +1031,7 @@ function AppCoreController:_clearPpuTileGlassByte(context)
   if win and win.clearGlassTileByte then
     applied = (win:clearGlassTileByte(tilesPool, context.layerIndex) == true)
   else
-    context.layer.glassTileByte = nil
+    PpuLayerEmptyByte.clearGlassTileIndex(context.layer)
     applied = true
   end
 
@@ -965,7 +1053,7 @@ function AppCoreController:_clearPpuTileGlassByte(context)
     })
   end
 
-  self:setStatus("Cleared glass tile byte")
+  self:setStatus("Cleared glass tile")
   return true
 end
 
@@ -1024,8 +1112,12 @@ end
 
 function AppCoreController:_buildPpuTileContextMenuItems(context)
   local currentGlassByte = nil
-  if context and context.layer and context.layer.glassTileByte ~= nil then
-    currentGlassByte = clampByte(context.layer.glassTileByte)
+  local currentGlassIndex = nil
+  if context and context.layer then
+    currentGlassIndex = PpuLayerEmptyByte.getGlassTileIndex(context.layer)
+    if currentGlassIndex ~= nil then
+      currentGlassByte = clampByte(currentGlassIndex % 256)
+    end
   end
 
   return {
@@ -1037,10 +1129,23 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
       end,
     },
     {
-      text = currentGlassByte and string.format("Clear glass tile (0x%02X)", currentGlassByte) or "Clear glass tile",
+      text = (currentGlassIndex ~= nil and currentGlassByte)
+        and string.format(
+          "Clear glass tile (index %d / 0x%02X)",
+          currentGlassIndex,
+          currentGlassByte
+        )
+        or "Clear glass tile",
       enabled = currentGlassByte ~= nil,
       callback = function()
         self:_clearPpuTileGlassByte(context)
+      end,
+    },
+    {
+      text = "Open runtime pattern table reference (16x16)",
+      enabled = context and context.layer and type(context.layer.patternTable) == "table",
+      callback = function()
+        self:_openPpuPatternTableReferenceWindow(context)
       end,
     },
     {
@@ -1065,8 +1170,33 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
   }
 end
 
+function AppCoreController:_setPpuGlassFromRuntimeReference(context)
+  if not (context and context.win and context.win._runtimePatternTableRef and type(context.logicalIndex) == "number") then
+    return false
+  end
+  local target = context.win._ppuGlassTarget
+  if not (target and target.win and target.layerIndex) then
+    self:setStatus("Missing target PPU layer for runtime pattern table reference")
+    return false
+  end
+
+  local markContext = {
+    win = target.win,
+    layerIndex = target.layerIndex,
+    layer = target.win.getLayer and target.win:getLayer(target.layerIndex) or (target.win.layers and target.win.layers[target.layerIndex]),
+    byteVal = clampByte(context.logicalIndex),
+    tileIndex = nil,
+    sourceBank = context.sourceBank,
+  }
+  if not markContext.layer then
+    self:setStatus("Target PPU tile layer is no longer available")
+    return false
+  end
+  return self:_markPpuTileByteAsGlass(markContext)
+end
+
 function AppCoreController:_buildSelectInChrContextMenuItems(context)
-  return {
+  local items = {
     {
       text = "Undo pixel edits",
       enabled = RevertTilePixelsController.canRevertContext(self, context),
@@ -1087,6 +1217,16 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
       end,
     },
   }
+  if context and context.win and context.win._runtimePatternTableRef then
+    items[#items + 1] = {
+      text = string.format("Set as glass tile index %d", clampByte(context.logicalIndex or 0)),
+      enabled = type(context.logicalIndex) == "number",
+      callback = function()
+        self:_setPpuGlassFromRuntimeReference(context)
+      end,
+    }
+  end
+  return items
 end
 
 function AppCoreController:_buildChrBankTileContext(win, col, row)
@@ -1105,7 +1245,8 @@ function AppCoreController:_buildChrBankTileContext(win, col, row)
     return nil
   end
 
-  local bankIdx = tonumber(layer.bank) or tonumber(win.currentBank) or tonumber(li) or 1
+  local bankIdx = tonumber(item._bankIndex) or tonumber(layer.bank) or tonumber(win.currentBank) or tonumber(li) or 1
+  local logicalIndex = (row * (win.cols or 16)) + col
 
   return {
     win = win,
@@ -1116,11 +1257,12 @@ function AppCoreController:_buildChrBankTileContext(win, col, row)
     item = item,
     sourceBank = bankIdx,
     tileIndex = normalizeTileIndex(item),
+    logicalIndex = logicalIndex,
   }
 end
 
 function AppCoreController:_buildChrBankTileContextMenuItems(context)
-  return {
+  local items = {
     {
       text = "Undo pixel edits",
       enabled = RevertTilePixelsController.canRevertContext(self, context),
@@ -1134,6 +1276,16 @@ function AppCoreController:_buildChrBankTileContextMenuItems(context)
       end,
     },
   }
+  if context and context.win and context.win._runtimePatternTableRef then
+    items[#items + 1] = {
+      text = string.format("Set as glass tile index %d", clampByte(context.logicalIndex or 0)),
+      enabled = context.logicalIndex ~= nil,
+      callback = function()
+        self:_setPpuGlassFromRuntimeReference(context)
+      end,
+    }
+  end
+  return items
 end
 
 function AppCoreController:showPpuTileContextMenu(win, layerIndex, col, row, x, y)
@@ -1503,7 +1655,7 @@ snapshotPpuFrameRangeState = function(win, layerIndex)
       nametableStartAddr = layer.nametableStartAddr,
       nametableEndAddr = layer.nametableEndAddr,
       noOverflowSupported = layer.noOverflowSupported,
-      glassTileByte = layer.glassTileByte,
+      patternTable = TableUtils.deepcopy(layer.patternTable),
       attrMode = layer.attrMode,
       tileSwaps = TableUtils.deepcopy(layer.tileSwaps),
     },
@@ -1517,11 +1669,16 @@ didPpuFrameRangeSettingsChange = function(beforeState, afterState)
     return false
   end
 
+  local function glassTileIndexFromLayer(layerLike)
+    if type(layerLike) ~= "table" then return nil end
+    return PpuLayerEmptyByte.getGlassTileIndex(layerLike)
+  end
+
   return beforeLayer.nametableStartAddr ~= afterLayer.nametableStartAddr
     or beforeLayer.nametableEndAddr ~= afterLayer.nametableEndAddr
     or beforeLayer.bank ~= afterLayer.bank
     or beforeLayer.page ~= afterLayer.page
-    or beforeLayer.glassTileByte ~= afterLayer.glassTileByte
+    or glassTileIndexFromLayer(beforeLayer) ~= glassTileIndexFromLayer(afterLayer)
 end
 
 local function getFirstPpuSpriteLayer(win)
@@ -1947,7 +2104,8 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
   layer.nametableStartAddr = layerState.nametableStartAddr
   layer.nametableEndAddr = layerState.nametableEndAddr
   layer.noOverflowSupported = layerState.noOverflowSupported
-  layer.glassTileByte = layerState.glassTileByte
+  layer.patternTable = TableUtils.deepcopy(layerState.patternTable)
+  PpuLayerEmptyByte.migrateLayerFields(layer)
   layer.attrMode = layerState.attrMode
   layer.tileSwaps = TableUtils.deepcopy(layerState.tileSwaps)
   layer.items = {}
@@ -2007,10 +2165,46 @@ function AppCoreController:invalidatePpuFrameNametableTile(bankIdx, tileIndex)
   end
 
   local touched = false
+  local function layerMayReferenceBankTile(layer, targetBank, targetTileIndex)
+    if type(layer) ~= "table" then
+      return false
+    end
+    local pt = layer.patternTable
+    if type(pt) ~= "table" or type(pt.ranges) ~= "table" then
+      return tonumber(layer.bank) == targetBank
+    end
+
+    local targetPage = (targetTileIndex >= 256) and 2 or 1
+    local targetByte = targetTileIndex % 256
+    for _, r in ipairs(pt.ranges) do
+      if type(r) == "table" then
+        local from = r.from
+        local to = r.to
+        local tr = r.tileRange
+        if type(tr) == "table" then
+          if from == nil then from = tr.from or tr.start end
+          if to == nil then to = tr.to or tr["end"] end
+        end
+        if from == nil then from = r.start end
+        if to == nil then to = r["end"] end
+        from = math.floor(tonumber(from) or -1)
+        to = math.floor(tonumber(to) or -1)
+        local rangeBank = math.floor(tonumber(r.bank) or 1)
+        local rangePage = math.floor(tonumber(r.page) or 1)
+        if rangePage < 1 then rangePage = 1 elseif rangePage > 2 then rangePage = 2 end
+        if rangeBank == targetBank and rangePage == targetPage and from >= 0 and to >= from and targetByte >= from and targetByte <= to then
+          return true
+        end
+      end
+    end
+    return false
+  end
+
   for _, win in ipairs(self.wm:getWindows() or {}) do
     if win and win.kind == "ppu_frame" and win.layers and win.invalidateNametableLayerCanvas then
       for li, layer in ipairs(win.layers) do
-        if layer and layer.kind ~= "sprite" and tonumber(layer.bank) == bank and layer.items then
+        if layer and layer.kind ~= "sprite" and layer.items then
+          local hitInItems = false
           for idx, item in pairs(layer.items) do
             if item and item.index == tile and tonumber(item._bankIndex) == bank then
               local z = (tonumber(idx) or 1) - 1
@@ -2019,7 +2213,14 @@ function AppCoreController:invalidatePpuFrameNametableTile(bankIdx, tileIndex)
               local row = math.floor(z / cols)
               win:invalidateNametableLayerCanvas(li, col, row)
               touched = true
+              hitInItems = true
             end
+          end
+          if not hitInItems and layerMayReferenceBankTile(layer, bank, tile) then
+            -- Fallback for cached layers where edited tile currently has no item instances
+            -- (for example after mapping changes or hidden/cleared cells); force full layer repaint.
+            win:invalidateNametableLayerCanvas(li)
+            touched = true
           end
         end
       end

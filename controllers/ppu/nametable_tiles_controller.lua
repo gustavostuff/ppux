@@ -20,6 +20,7 @@ local TableUtils     = require("utils.table_utils")
 local DebugController   = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local PpuLayerEmptyByte = require("utils.ppu_layer_empty_byte")
+local PatternTableMapping = require("utils.pattern_table_mapping")
 
 local M = {}
 
@@ -98,24 +99,32 @@ end
 -- Helpers
 ----------------------------------------------------------------------
 
--- tilesPool[bankIndex][tileIndex] lookup.
--- For pageIndex == 1: tileIndex = byteVal (0..255)
--- For pageIndex == 2: tileIndex = 256 + byteVal (0..255)  → 256..511
-local function resolveTile(tilesPool, bankIndex, pageIndex, byteVal)
-  if not tilesPool then return nil end
-  local bank = tilesPool[bankIndex]
-  if not bank then return nil end
-  local B = byteVal or 0
-  if pageIndex == 2 then
-    return bank[256 + B]
-  else
-    return bank[B]
-  end
-end
-
 -- Linear index helpers (1-based indexes into nametableBytes array).
 local function lin(cols, col, row)
   return row * cols + col + 1  -- (row, col) → 1..N
+end
+
+local function ensurePatternTableBanks(patternTable, ensureTiles, fallbackBank)
+  if type(ensureTiles) ~= "function" then
+    return
+  end
+  local ensured = {}
+  local function ensureOne(bank)
+    local b = math.floor(tonumber(bank) or 1)
+    if b < 1 then b = 1 end
+    if ensured[b] then return end
+    ensured[b] = true
+    ensureTiles(b)
+  end
+
+  if type(patternTable) == "table" and type(patternTable.ranges) == "table" then
+    for _, r in ipairs(patternTable.ranges) do
+      if type(r) == "table" then
+        ensureOne(r.bank)
+      end
+    end
+  end
+  ensureOne(fallbackBank)
 end
 
 local function copyBytes(src)
@@ -410,10 +419,15 @@ function M.hydrateWindowNametable(win, layer, opts)
 
   PpuLayerEmptyByte.migrateLayerFields(layer)
 
-  local glassTileByte = opts.glassTileByte
-  if glassTileByte == nil then
-    glassTileByte = layer.glassTileByte
+  local glassTileIndex = opts.glassTileIndex
+  if glassTileIndex == nil and type(opts.patternTable) == "table" then
+    glassTileIndex = opts.patternTable.glassTileIndex
   end
+  if glassTileIndex == nil and type(layer.patternTable) == "table" then
+    glassTileIndex = layer.patternTable.glassTileIndex
+  end
+  local glassTile = opts.glassTile
+  local glassTileByte = opts.glassTileByte
 
   if type(startAddr) ~= "number" or type(endAddr) ~= "number" then
     return nil, "missing_nametable_range"
@@ -527,14 +541,39 @@ function M.hydrateWindowNametable(win, layer, opts)
   -- Fill visual grid from nametableBytes
   local li = findLayerIndex(win, layer) or 1
 
-  if glassTileByte ~= nil then
-    layer.glassTileByte = math.max(0, math.min(255, math.floor(tonumber(glassTileByte) or 0)))
+  if type(opts.patternTable) == "table" then
+    layer.patternTable = TableUtils.deepcopy(opts.patternTable)
+  elseif type(layer.patternTable) ~= "table" then
+    layer.patternTable = {}
+  end
+  if glassTileIndex ~= nil then
+    if type(glassTileIndex) ~= "number" then
+      return nil, "patternTable.glassTileIndex must be a number (0..255)"
+    end
+    local ok = PpuLayerEmptyByte.setGlassTileIndex(
+      layer,
+      math.max(0, math.min(255, math.floor(tonumber(glassTileIndex) or 0)))
+    )
+    if not ok then
+      return nil, "failed to set glass tile index for this patternTable"
+    end
+  elseif type(glassTile) == "table" and glassTile.tile ~= nil then
+    PpuLayerEmptyByte.setGlassTileIndex(layer, math.max(0, math.min(255, math.floor(tonumber(glassTile.tile) or 0))))
+  elseif glassTileByte ~= nil then
+    PpuLayerEmptyByte.setGlassTileIndex(layer, math.max(0, math.min(255, math.floor(tonumber(glassTileByte) or 0))))
+  end
+  PpuLayerEmptyByte.migrateLayerFields(layer)
+
+  local mapOk, mapErr = PatternTableMapping.validate(layer.patternTable)
+  if not mapOk then
+    local message = string.format("Invalid patternTable mapping: %s", tostring(mapErr))
+    reportDecodeCoverageError(message, opts)
+    return nil, message
   end
 
-  if ensureTiles then ensureTiles(bankIndex) end
-  local bank = tilesPool and tilesPool[bankIndex] or nil
+  ensurePatternTableBanks(layer.patternTable, ensureTiles, bankIndex)
   DebugController.log("info", "NTM", "bankIndex in M.hydrateWindowNametable: %d", bankIndex)
-  if bank then
+  if tilesPool then
     local fillGridStartedAt = nowSeconds()
     for i = 1, #win.nametableBytes do
       local z   = i - 1
@@ -544,7 +583,7 @@ function M.hydrateWindowNametable(win, layer, opts)
       if win.syncNametableVisualCell then
         win:syncNametableVisualCell(col, row, byteVal, tilesPool, li)
       else
-        local tileRef = resolveTile(tilesPool, bankIndex, pageIndex, byteVal)
+        local tileRef = PatternTableMapping.resolveTile(tilesPool, layer, byteVal, bankIndex, pageIndex)
         if tileRef then
           win:set(col, row, tileRef, li)
         else
@@ -666,7 +705,7 @@ function M.applyTileSwaps(win, layer, swaps, tilesPool, opts)
         if win.syncNametableVisualCell then
           win:syncNametableVisualCell(col, row, val, tilesPool, li)
         else
-          local tileRef = resolveTile(tilesPool, bankIndex, pageIndex, val)
+          local tileRef = PatternTableMapping.resolveTile(tilesPool, layer, val, bankIndex, pageIndex)
           if tileRef then
             win:clear(col, row, li)
             win:set(col, row, tileRef, li)
@@ -709,6 +748,7 @@ function M.snapshotNametableLayer(win, layer)
     mode               = layer.mode or "8x8",
     bank               = layer.bank,
     page               = layer.page,
+    patternTable       = TableUtils.deepcopy(layer.patternTable),
     nametableStartAddr = layer.nametableStartAddr,
     nametableEndAddr   = layer.nametableEndAddr,
     items              = {},  -- always empty: base tiles come from ROM
@@ -716,8 +756,12 @@ function M.snapshotNametableLayer(win, layer)
   if layer.noOverflowSupported ~= nil then
     out.noOverflowSupported = (layer.noOverflowSupported == true)
   end
-  if layer.glassTileByte ~= nil then
-    out.glassTileByte = math.max(0, math.min(255, math.floor(tonumber(layer.glassTileByte) or 0)))
+  out.patternTable = out.patternTable or {}
+  local gti = PpuLayerEmptyByte.getGlassTileIndex(layer)
+  if gti ~= nil then
+    out.patternTable.glassTileIndex = gti
+  else
+    out.patternTable.glassTileIndex = nil
   end
 
   -- Swaps as pretty list { {col,row,val}, ... }

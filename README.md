@@ -398,7 +398,7 @@ You can also build for Windows and macOS from Linux using `./scripts/unix/build_
 
 ### PPU frame editing notes
 
-* **Empty / glass nametable cells** use `glassTileByte` on the tile layer when set; otherwise the empty byte defaults to **0** (pattern-table tile 0 within that layer’s bank and **page** — page 2 still uses nametable byte 0, which maps to the second CHR page in the tile pool). The **show/hide glass** toolbar toggle is persisted as **`showGlassTile`** on the window in saved layouts/projects.
+* **Empty / glass nametable cells** use `patternTable.glassTileIndex` on the tile layer when set; otherwise the empty byte defaults to **0** (pattern-table tile 0 within that layer’s bank and **page** — page 2 still uses nametable byte 0, which maps to the second CHR page in the tile pool). The **show/hide glass** toolbar toggle is persisted as **`showGlassTile`** on the window in saved layouts/projects.
 * Tile layers render from a **cached full-canvas** nametable view for performance; after heavy edits, use the normal refresh paths the UI offers if a screen looks stale.
 * For **sprites**, use **Add sprite** on the toolbar to bind OAM entries. Sprite items that share the same `startAddr` **stay in sync** with **OAM Animation** windows (and other PPU Frame sprite layers) so moving or reconfiguring one updates the linked entries.
 * **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. A plain **right-click** still opens the usual context menus when you are not dragging.
@@ -418,8 +418,8 @@ You can also build for Windows and macOS from Linux using `./scripts/unix/build_
     [1] = {
       kind = "tile",
       bank = 9,
-      page = 1,            -- 1 or 2; with no glassTileByte, empty cells use nametable byte 0 (tile 0 on this page)
-      glassTileByte = nil, -- optional; when set, that nametable byte is treated as empty / glass
+      page = 1,            -- 1 or 2; with no patternTable.glassTileIndex, empty cells use nametable byte 0 (tile 0 on this page)
+      patternTable = { glassTileIndex = 0 }, -- optional; logical index (0..511)
       nametableEndAddr = 0x01329B,
       nametableStartAddr = 0x013110,
       paletteData = { winId = "rom_palette_01" }

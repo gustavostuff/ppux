@@ -1,6 +1,6 @@
 -- Nametable byte for "empty" / glass cells and for clearing moved tiles on PPU nametable layers.
--- Single source: layer.glassTileByte when set; otherwise default 0 (pattern-table index 0 within
--- the layer's bank/page — page 2 still uses byte 0, resolved to tilesPool offset 256+0).
+-- New preferred source: layer.patternTable.glassTileIndex (logical tile index).
+-- Backward compatible with legacy layer.glassTile / glassTileByte / transparentTileByte.
 
 local M = {}
 
@@ -11,12 +11,74 @@ local function clampByte(byteVal)
   return v
 end
 
+local function ensurePatternTable(layer)
+  if type(layer) ~= "table" then
+    return nil
+  end
+  if type(layer.patternTable) ~= "table" then
+    layer.patternTable = {}
+  end
+  return layer.patternTable
+end
+
 --- @param layer table|nil layer from win.layers[i]
-function M.forLayer(layer)
-  if layer and layer.glassTileByte ~= nil then
+--- @return number|nil normalized logical index (0..255)
+function M.getGlassTileIndex(layer)
+  if type(layer) ~= "table" then
+    return nil
+  end
+
+  local pt = layer.patternTable
+  if type(pt) == "table" and pt.glassTileIndex ~= nil and type(pt.glassTileIndex) == "number" then
+    return clampByte(pt.glassTileIndex)
+  end
+
+  if type(layer.glassTile) == "table" and layer.glassTile.tile ~= nil then
+    -- Legacy absolute tile (0..511): keep the byte-facing logical index.
+    return clampByte(layer.glassTile.tile % 256)
+  end
+
+  if layer.glassTileByte ~= nil then
     return clampByte(layer.glassTileByte)
   end
+
+  if layer.transparentTileByte ~= nil then
+    return clampByte(layer.transparentTileByte)
+  end
+
+  return nil
+end
+
+function M.setGlassTileIndex(layer, tileIndex)
+  local pt = ensurePatternTable(layer)
+  if not pt then return false end
+  pt.glassTileIndex = clampByte(tileIndex)
+  return true
+end
+
+function M.clearGlassTileIndex(layer)
+  local pt = ensurePatternTable(layer)
+  if pt then
+    pt.glassTileIndex = nil
+  end
+  if type(layer) == "table" then
+    layer.glassTile = nil
+    layer.glassTileByte = nil
+    layer.transparentTileByte = nil
+  end
+end
+
+--- @param layer table|nil layer from win.layers[i]
+function M.forLayer(layer)
+  local glassTileIndex = M.getGlassTileIndex(layer)
+  if glassTileIndex ~= nil then
+    return clampByte(glassTileIndex)
+  end
   return 0x00
+end
+
+function M.hasExplicit(layer)
+  return M.getGlassTileIndex(layer) ~= nil
 end
 
 --- Migrate legacy transparentTileByte; clears transparentTileByte from the table.
@@ -24,9 +86,14 @@ function M.migrateLayerFields(layer)
   if not layer then
     return
   end
-  if layer.transparentTileByte ~= nil and layer.glassTileByte == nil then
-    layer.glassTileByte = clampByte(layer.transparentTileByte)
+
+  local migratedIndex = M.getGlassTileIndex(layer)
+  if migratedIndex ~= nil then
+    M.setGlassTileIndex(layer, migratedIndex)
   end
+
+  layer.glassTile = nil
+  layer.glassTileByte = nil
   layer.transparentTileByte = nil
 end
 

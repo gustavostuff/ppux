@@ -779,6 +779,35 @@ local function loadFromProject(app, project)
     end
   end
 
+  local function openRuntimePatternTableRefs()
+    if type(app._openPpuPatternTableReferenceWindow) ~= "function" then
+      return 0
+    end
+    local opened = 0
+    for _, win in ipairs(app.wm:getWindows() or {}) do
+      if win and win.kind == "ppu_frame" and type(win.layers) == "table" then
+        for li, layer in ipairs(win.layers) do
+          if layer and layer.kind == "tile"
+            and type(layer.patternTable) == "table"
+            and type(layer.patternTable.ranges) == "table"
+            and #layer.patternTable.ranges > 0
+          then
+            local ok = app:_openPpuPatternTableReferenceWindow({
+              win = win,
+              layerIndex = li,
+              layer = layer,
+            })
+            if ok then
+              opened = opened + 1
+            end
+          end
+        end
+      end
+    end
+    return opened
+  end
+  local refsOpened = openRuntimePatternTableRefs()
+
   app:setStatus("Loaded project")
   
   -- Create toolbars for all windows
@@ -789,6 +818,9 @@ local function loadFromProject(app, project)
   logPerf("project.create_toolbars", toolbarsStartedAt)
   local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
   AppTopToolbarController.applyLoadedLayoutYOffset(app)
+  if refsOpened > 0 then
+    app:setStatus(string.format("Loaded project (%d runtime pattern table refs opened)", refsOpened))
+  end
   logPerf("project.total", loadStartedAt)
   
   return true
@@ -868,6 +900,35 @@ local function loadFromDBLayout(app, sha)
   syncDuplicateIndexesForLoad(app, state)
   logPerf("db_layout.sync_duplicate_indexes", dupesStartedAt, string.format("enabled=%s", tostring(app.syncDuplicateTiles == true)))
 
+  local function openRuntimePatternTableRefs()
+    if type(app._openPpuPatternTableReferenceWindow) ~= "function" then
+      return 0
+    end
+    local opened = 0
+    for _, win in ipairs(app.wm:getWindows() or {}) do
+      if win and win.kind == "ppu_frame" and type(win.layers) == "table" then
+        for li, layer in ipairs(win.layers) do
+          if layer and layer.kind == "tile"
+            and type(layer.patternTable) == "table"
+            and type(layer.patternTable.ranges) == "table"
+            and #layer.patternTable.ranges > 0
+          then
+            local ok = app:_openPpuPatternTableReferenceWindow({
+              win = win,
+              layerIndex = li,
+              layer = layer,
+            })
+            if ok then
+              opened = opened + 1
+            end
+          end
+        end
+      end
+    end
+    return opened
+  end
+  local refsOpened = openRuntimePatternTableRefs()
+
   app:setStatus("Loaded DB layout")
   
   -- Create toolbars for all windows
@@ -881,6 +942,9 @@ local function loadFromDBLayout(app, sha)
     AppTopToolbarController.applyLoadedLayoutYOffset(app)
   end
 
+  if refsOpened > 0 then
+    app:setStatus(string.format("Loaded DB layout (%d runtime pattern table refs opened)", refsOpened))
+  end
   DebugController.log("info", "ROM", "Loaded DB layout: %s", sha)
   DebugController.log("info", "ROM", "  #windows = %d", #(layout.windows or {}))
   logPerf("db_layout.total", loadStartedAt)
