@@ -162,15 +162,21 @@ describe("game_art_window_builder_controller.lua", function()
       title = "PPU Frame",
       nametableStartAddr = 100,
       nametableEndAddr = 199,
-      bank = 2,
-      page = 1,
       layers = {
         {
           kind = "tile",
-          bank = 2,
-          page = 1,
           nametableStartAddr = 100,
           nametableEndAddr = 199,
+          patternTable = {
+            ranges = {
+              {
+                bank = 2,
+                page = 1,
+                from = 0,
+                to = 255,
+              },
+            },
+          },
           tileSwaps = "32x30|-1:1;9:3;-1:956",
         },
       },
@@ -181,8 +187,9 @@ describe("game_art_window_builder_controller.lua", function()
     expect(hydrateOpts.romRaw).toBe("rom")
     expect(hydrateOpts.nametableStartAddr).toBe(100)
     expect(hydrateOpts.nametableEndAddr).toBe(199)
-    expect(hydrateOpts.bankIndex).toBe(2)
-    expect(hydrateOpts.pageIndex).toBe(1)
+    expect(hydrateOpts.patternTable).toBeTruthy()
+    expect(hydrateOpts.patternTable.ranges[1].bank).toBe(2)
+    expect(hydrateOpts.patternTable.ranges[1].page).toBe(1)
     expect(hydrateOpts.tileSwaps).toBe("32x30|-1:1;9:3;-1:956")
     expect(hydrateOpts.preRegisteredWork).toBeNil()
     expect(hydrateOpts.loadingProgress).toBeNil()

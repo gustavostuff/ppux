@@ -689,17 +689,19 @@ local function buildAnimationPlaybackScenario(harness, app, runner)
     pause("Start", 0.35),
     keyPress("Open new window modal", "n", { "lctrl" }),
     pause("Observe new window modal", 0.7),
+    moveTo("Move to animation option", newWindowOptionCenter(3), 0.12),
+    pause("Prepare animation option click", 0.08),
+    mouseDown("Pick animation window type", newWindowOptionCenter(3), 1),
+    pause("Hold animation option click", 0.08),
+    mouseUp("Release animation type click", newWindowOptionCenter(3), 1),
+    pause("Observe animation settings modal", 0.2),
     call("Set animation window name", function(_, currentApp)
       local modal = currentApp.newWindowModal
       assert(modal and modal.nameField, "expected new window modal name field")
       modal.nameField:setText(animationWindowName)
     end),
     pause("Observe animation window name", 0.2),
-    moveTo("Move to animation option", newWindowOptionCenter(3), 0.12),
-    pause("Prepare animation option click", 0.08),
-    mouseDown("Create animation window", newWindowOptionCenter(3), 1),
-    pause("Hold animation option click", 0.08),
-    mouseUp("Release animation option click", newWindowOptionCenter(3), 1),
+    keyPress("Confirm animation window settings", "return"),
     pause("Observe animation window", 0.8),
     call("Resolve animation window", function(currentHarness, currentApp, currentRunner)
       currentRunner.animationWin = assert(currentHarness:findWindow({
@@ -996,21 +998,30 @@ local function buildNewWindowVariantsScenario(harness, app, runner)
     pause("Start", 0.35),
     keyPress("Open new window modal", "n", { "lctrl" }),
     pause("Observe new window modal", 0.6),
+    moveTo("Move to tile window option", newWindowOptionCenter(1), 0.12),
+    pause("Prepare tile option click", 0.08),
+    mouseDown("Pick tile window type", newWindowOptionCenter(1), 1),
+    pause("Hold tile option click", 0.08),
+    mouseUp("Release tile option click", newWindowOptionCenter(1), 1),
+    pause("Observe tile window settings", 0.2),
     call("Set tile window name", function(_, currentApp)
       local modal = currentApp.newWindowModal
       assert(modal and modal.nameField, "expected new window modal name field")
       modal.nameField:setText(tileWindowName)
     end),
     pause("Observe tile window name", 0.3),
-    moveTo("Move to tile window option", newWindowOptionCenter(1), 0.12),
-    pause("Prepare tile option click", 0.08),
-    mouseDown("Create tile window", newWindowOptionCenter(1), 1),
-    pause("Hold tile option click", 0.08),
-    mouseUp("Release tile option click", newWindowOptionCenter(1), 1),
+    keyPress("Confirm tile window settings", "return"),
     pause("Observe new tile window", 0.7),
     keyPress("Open new window modal again", "n", { "lctrl" }),
     pause("Observe modal for sprite window", 0.55),
   }
+
+  steps[#steps + 1] = moveTo("Move to sprite window option", newWindowOptionCenter(2), 0.12)
+  steps[#steps + 1] = pause("Prepare sprite option click", 0.08)
+  steps[#steps + 1] = mouseDown("Pick sprite window type", newWindowOptionCenter(2), 1)
+  steps[#steps + 1] = pause("Hold sprite option click", 0.08)
+  steps[#steps + 1] = mouseUp("Release sprite type click", newWindowOptionCenter(2), 1)
+  steps[#steps + 1] = pause("Observe sprite settings modal", 0.2)
 
   appendClick(steps, "Toggle sprite mode to 8x16", newWindowModeToggleCenter(), {
     moveDuration = 0.08,
@@ -1023,11 +1034,7 @@ local function buildNewWindowVariantsScenario(harness, app, runner)
     modal.nameField:setText(spriteWindowName)
   end)
   steps[#steps + 1] = pause("Observe sprite window name", 0.3)
-  steps[#steps + 1] = moveTo("Move to sprite window option", newWindowOptionCenter(2), 0.12)
-  steps[#steps + 1] = pause("Prepare sprite option click", 0.08)
-  steps[#steps + 1] = mouseDown("Create sprite window", newWindowOptionCenter(2), 1)
-  steps[#steps + 1] = pause("Hold sprite option click", 0.08)
-  steps[#steps + 1] = mouseUp("Release sprite option click", newWindowOptionCenter(2), 1)
+  steps[#steps + 1] = keyPress("Confirm sprite window settings", "return")
   steps[#steps + 1] = pause("Resolve created windows", 0.25)
   steps[#steps + 1] = call("Refocus sprite window", function(currentHarness, currentApp, currentRunner)
     currentRunner.tileVariantWin = assert(currentHarness:findWindow({
@@ -1058,17 +1065,19 @@ local function buildPaletteShaderPreviewScenario(harness, app, runner)
     pause("Start", 0.35),
     keyPress("Open new window modal", "n", { "lctrl" }),
     pause("Observe new window modal", 0.55),
+    moveTo("Move to sprite window option", newWindowOptionCenter(2), 0.12),
+    pause("Prepare sprite option click", 0.08),
+    mouseDown("Pick sprite window type", newWindowOptionCenter(2), 1),
+    pause("Hold sprite option click", 0.08),
+    mouseUp("Release sprite option click", newWindowOptionCenter(2), 1),
+    pause("Observe sprite settings modal", 0.2),
     call("Set sprite window name", function(_, currentApp)
       local modal = currentApp.newWindowModal
       assert(modal and modal.nameField, "expected new window modal name field")
       modal.nameField:setText(spriteWindowName)
     end),
     pause("Observe sprite window name", 0.25),
-    moveTo("Move to sprite window option", newWindowOptionCenter(2), 0.12),
-    pause("Prepare sprite option click", 0.08),
-    mouseDown("Create sprite window", newWindowOptionCenter(2), 1),
-    pause("Hold sprite option click", 0.08),
-    mouseUp("Release sprite option click", newWindowOptionCenter(2), 1),
+    keyPress("Confirm sprite window settings", "return"),
     pause("Resolve sprite window", 0.3),
     call("Focus created sprite window", function(currentHarness, currentApp, currentRunner)
       currentRunner.paletteSpriteWin = assert(currentHarness:findWindow({
@@ -1124,6 +1133,12 @@ local function buildStaticSpriteOpsScenario(harness, app, runner)
     pause("Start", 0.35),
     keyPress("Open new window modal", "n", { "lctrl" }),
     pause("Observe new window modal", 0.55),
+    moveTo("Move to static sprite option", newWindowOptionCenterByText("Static Sprites window"), 0.12),
+    pause("Prepare static sprite option click", 0.08),
+    mouseDown("Pick static sprite window type", newWindowOptionCenterByText("Static Sprites window"), 1),
+    pause("Hold static sprite option click", 0.08),
+    mouseUp("Release static sprite option click", newWindowOptionCenterByText("Static Sprites window"), 1),
+    pause("Observe sprite ops settings", 0.2),
     call("Configure sprite ops window", function(_, currentApp)
       local modal = currentApp.newWindowModal
       assert(modal and modal.nameField and modal.colsSpinner and modal.rowsSpinner, "expected new window modal controls")
@@ -1132,11 +1147,7 @@ local function buildStaticSpriteOpsScenario(harness, app, runner)
       modal.rowsSpinner:setValue(10)
     end),
     pause("Observe sprite ops settings", 0.3),
-    moveTo("Move to static sprite option", newWindowOptionCenterByText("Static Sprites window"), 0.12),
-    pause("Prepare static sprite option click", 0.08),
-    mouseDown("Create static sprite window", newWindowOptionCenterByText("Static Sprites window"), 1),
-    pause("Hold static sprite option click", 0.08),
-    mouseUp("Release static sprite option click", newWindowOptionCenterByText("Static Sprites window"), 1),
+    keyPress("Confirm static sprite window settings", "return"),
     pause("Resolve sprite ops window", 0.35),
     call("Focus sprite ops window", function(currentHarness, currentApp, currentRunner)
       currentRunner.spriteOpsWin = assert(currentHarness:findWindow({
@@ -1336,6 +1347,12 @@ local function buildUndoRedoEventsScenario(harness, app, runner)
 
     keyPress("Open new window modal", "n", { "lctrl" }),
     pause("Observe new window modal", 0.5),
+    moveTo("Move to undo sprite window type", newWindowOptionCenterByText("Static Sprites window"), 0.08),
+    pause("Prepare undo sprite type click", 0.06),
+    mouseDown("Pick undo sprite window type", newWindowOptionCenterByText("Static Sprites window"), 1),
+    pause("Hold undo sprite type click", 0.06),
+    mouseUp("Release undo sprite type click", newWindowOptionCenterByText("Static Sprites window"), 1),
+    pause("Observe undo sprite settings modal", 0.2),
     call("Configure undo sprite window", function(_, currentApp)
       local modal = currentApp.newWindowModal
       assert(modal and modal.nameField, "expected new window modal")
@@ -1344,10 +1361,8 @@ local function buildUndoRedoEventsScenario(harness, app, runner)
     pause("Observe undo sprite window name", 0.2),
   }
 
-  appendClick(steps, "Create undo sprite window", newWindowOptionCenterByText("Static Sprites window"), {
-    moveDuration = 0.08,
-    postPause = 0.3,
-  })
+  steps[#steps + 1] = keyPress("Confirm undo sprite window settings", "return")
+  steps[#steps + 1] = pause("Resolve created undo sprite window", 0.3)
 
   steps[#steps + 1] = call("Resolve created undo sprite window", function(currentHarness, currentApp, currentRunner)
     local win = assert(currentHarness:findWindow({
@@ -2378,17 +2393,19 @@ local function buildSaveReloadPersistenceScenario(harness, app, runner)
     pause("Start", 0.35),
     keyPress("Open new window modal", "n", { "lctrl" }),
     pause("Observe new window modal", 0.5),
+    moveTo("Move to static tiles option", newWindowOptionCenter(1), 0.12),
+    pause("Prepare static type click", 0.08),
+    mouseDown("Pick static tiles window type", newWindowOptionCenter(1), 1),
+    pause("Hold static type click", 0.08),
+    mouseUp("Release static type click", newWindowOptionCenter(1), 1),
+    pause("Observe persisted window settings", 0.2),
     call("Type persisted window name", function(currentHarness)
       local modal = currentHarness:getApp().newWindowModal
       assert(modal and modal.nameField, "expected new window modal name field")
       modal.nameField:setText(persistWindowName)
     end),
     pause("Observe persisted name", 0.25),
-    moveTo("Move to static tiles option", newWindowOptionCenter(1), 0.12),
-    pause("Prepare create window click", 0.08),
-    mouseDown("Create persisted window", newWindowOptionCenter(1), 1),
-    pause("Hold create window click", 0.08),
-    mouseUp("Release persisted window click", newWindowOptionCenter(1), 1),
+    keyPress("Confirm persisted window settings", "return"),
     pause("Resolve persisted window", 0.25),
     call("Store persisted window", function(currentHarness, _, currentRunner)
       currentRunner.persistedWin = assert(currentHarness:findWindow({

@@ -5,25 +5,21 @@ describe("new_window_modal.lua", function()
     local captured = nil
     local modal = NewWindowModal.new()
 
-    modal:show("New Window", {
-      {
-        text = "Animation window (sprites)",
-        callback = function(cols, rows, spriteMode, windowName)
-          captured = { cols = cols, rows = rows, spriteMode = spriteMode, windowName = windowName }
-        end,
+    modal:show({
+      title = "Window Settings",
+      option = {
+        requiresSpriteMode = true,
       },
+      onConfirm = function(cols, rows, spriteMode, windowName)
+        captured = { cols = cols, rows = rows, spriteMode = spriteMode, windowName = windowName }
+      end,
     })
 
     expect(modal:getSpriteMode()).toBe("8x8")
     modal:toggleSpriteMode()
     expect(modal:getSpriteMode()).toBe("8x16")
 
-    local optionCell = modal.panel:getCell(1, 6)
-    expect(optionCell).toBeTruthy()
-    local clickX = optionCell.x + 4
-    local clickY = optionCell.y + 4
-    expect(modal:mousepressed(clickX, clickY, 1)).toBe(true)
-    expect(modal:mousereleased(clickX, clickY, 1)).toBe(true)
+    expect(modal:handleKey("return")).toBe(true)
     expect(captured).toBeTruthy()
     expect(captured.cols).toBe(8)
     expect(captured.rows).toBe(8)
@@ -36,27 +32,23 @@ describe("new_window_modal.lua", function()
     local captured = nil
     local modal = NewWindowModal.new()
 
-    modal:show("New Window", {
-      {
-        text = "Static Art window (tiles)",
-        callback = function(cols, rows, spriteMode, windowName)
-          captured = {
-            cols = cols,
-            rows = rows,
-            spriteMode = spriteMode,
-            windowName = windowName,
-          }
-        end,
+    modal:show({
+      title = "Window Settings",
+      option = {
+        requiresSpriteMode = false,
       },
+      onConfirm = function(cols, rows, spriteMode, windowName)
+        captured = {
+          cols = cols,
+          rows = rows,
+          spriteMode = spriteMode,
+          windowName = windowName,
+        }
+      end,
     })
 
     modal.nameField:setText("  Custom Name  ")
-    local optionCell = modal.panel:getCell(1, 6)
-    expect(optionCell).toBeTruthy()
-    local clickX = optionCell.x + 4
-    local clickY = optionCell.y + 4
-    expect(modal:mousepressed(clickX, clickY, 1)).toBe(true)
-    expect(modal:mousereleased(clickX, clickY, 1)).toBe(true)
+    expect(modal:handleKey("return")).toBe(true)
 
     expect(captured).toBeTruthy()
     expect(captured.cols).toBe(8)
@@ -67,7 +59,12 @@ describe("new_window_modal.lua", function()
 
   it("toggles sprite mode when mode button is clicked", function()
     local modal = NewWindowModal.new()
-    modal:show("New Window", {})
+    modal:show({
+      title = "Window Settings",
+      option = {
+        requiresSpriteMode = true,
+      },
+    })
     local modeCell = modal.panel:getCell(2, 2)
     expect(modeCell).toBeTruthy()
 
@@ -81,7 +78,12 @@ describe("new_window_modal.lua", function()
 
   it("shows the sprite mode toggle as a text button", function()
     local modal = NewWindowModal.new()
-    modal:show("New Window", {})
+    modal:show({
+      title = "Window Settings",
+      option = {
+        requiresSpriteMode = true,
+      },
+    })
 
     expect(modal.modeButton.text).toBe("8x8")
     modal:toggleSpriteMode()
@@ -90,7 +92,12 @@ describe("new_window_modal.lua", function()
 
   it("handles textinput for the window name field when focused", function()
     local modal = NewWindowModal.new()
-    modal:show("New Window", {})
+    modal:show({
+      title = "Window Settings",
+      option = {
+        requiresSpriteMode = true,
+      },
+    })
 
     modal.nameField:setText("")
     expect(modal:textinput("A")).toBe(true)

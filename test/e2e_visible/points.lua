@@ -5,16 +5,16 @@ local function contentToCanvasPoint(_, x, y)
 end
 
 local function getNewWindowOptionCell(panel, optionIndex)
-  local row = 6 + math.floor(((optionIndex or 1) - 1) / 2)
+  local row = 1 + math.floor(((optionIndex or 1) - 1) / 2)
   local col = (((optionIndex or 1) - 1) % 2 == 0) and 1 or 3
   return panel and panel:getCell(col, row)
 end
 
 local function newWindowOptionCenter(optionIndex)
   return function(_, currentApp)
-    local cell = currentApp.newWindowModal
-      and currentApp.newWindowModal.panel
-      and getNewWindowOptionCell(currentApp.newWindowModal.panel, optionIndex)
+    local cell = currentApp.newWindowTypeModal
+      and currentApp.newWindowTypeModal.panel
+      and getNewWindowOptionCell(currentApp.newWindowTypeModal.panel, optionIndex)
     assert(cell, "expected new window option cell")
     return cell.x + math.floor(cell.w * 0.5), cell.y + math.floor(cell.h * 0.5)
   end
@@ -22,7 +22,7 @@ end
 
 local function newWindowOptionCenterByText(text)
   return function(_, currentApp)
-    local panel = currentApp.newWindowModal and currentApp.newWindowModal.panel or nil
+    local panel = currentApp.newWindowTypeModal and currentApp.newWindowTypeModal.panel or nil
     assert(panel and panel.cells, "expected new window panel")
     for _, rowCells in pairs(panel.cells or {}) do
       for _, cell in pairs(rowCells or {}) do

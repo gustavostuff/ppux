@@ -121,14 +121,6 @@ function applyHighSpeedPaintMode(enabled)
       pcall(love.window.updateMode, w, h, nextFlags)
     end
   end
-
-  if app and app.setStatus then
-    if highSpeedPaintMode then
-      app:setStatus("High speed paint mode enabled")
-    else
-      app:setStatus("High speed paint mode disabled")
-    end
-  end
 end
 
 local function shouldToggleHighSpeedMode(key, isrepeat)
