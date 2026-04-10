@@ -1791,6 +1791,19 @@ local function hydrateNametableLayerIfReady(app, win, layer, layerIndex)
     return false, "Open a ROM before loading a PPU frame range"
   end
 
+  if type(layer.userDefinedAttrs) ~= "string"
+    and type(win.nametableAttrBytes) == "table"
+    and #win.nametableAttrBytes >= 64
+  then
+    local hexParts = {}
+    for i = 1, 64 do
+      local byteVal = tonumber(win.nametableAttrBytes[i]) or 0x00
+      if byteVal < 0 then byteVal = 0x00 elseif byteVal > 255 then byteVal = 255 end
+      hexParts[i] = string.format("%02x", byteVal)
+    end
+    layer.userDefinedAttrs = table.concat(hexParts, "")
+  end
+
   local tilesPool = state.tilesPool
   local ok, err = NametableTilesController.hydrateWindowNametable(win, layer, {
     romRaw = romRaw,

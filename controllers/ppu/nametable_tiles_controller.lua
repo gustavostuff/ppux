@@ -136,6 +136,19 @@ local function copyBytes(src)
   return out
 end
 
+local function attrsToHexString(attrBytes)
+  if type(attrBytes) ~= "table" or #attrBytes < 64 then
+    return nil
+  end
+  local hexParts = {}
+  for i = 1, 64 do
+    local byteVal = tonumber(attrBytes[i]) or 0x00
+    if byteVal < 0 then byteVal = 0x00 elseif byteVal > 255 then byteVal = 255 end
+    hexParts[i] = string.format("%02x", byteVal)
+  end
+  return table.concat(hexParts, "")
+end
+
 local function reportDecodeCoverageError(message, opts)
   if opts and opts.reportErrors == false then
     return
@@ -569,6 +582,9 @@ function M.hydrateWindowNametable(win, layer, opts)
       -- the chunked-RLE table representation.
       tileSwaps = decodeTileSwapsRLE(tileSwaps) or rawTileSwaps
     end
+    if rawTileSwaps ~= nil then
+      layer.tileSwaps = TableUtils.deepcopy(rawTileSwaps)
+    end
     if tileSwaps and #tileSwaps > 0 then
       M.applyTileSwaps(win, layer, tileSwaps, tilesPool)
     end
@@ -629,6 +645,13 @@ function M.hydrateWindowNametable(win, layer, opts)
     win:invalidateNametableLayerCanvas(li)
   end
   logPerf("ntm.extract_palette_numbers", paletteExtractStartedAt, string.format("title=%s", tostring(win.title or "")))
+
+  -- Keep runtime layer metadata aligned with current attribute bytes so
+  -- re-hydration preserves user-defined attributes instead of reusing ROM defaults.
+  local attrsHex = attrsToHexString(win.nametableAttrBytes)
+  if attrsHex then
+    layer.userDefinedAttrs = attrsHex
+  end
 
   return true
 end

@@ -13,6 +13,7 @@ local NametableTilesController = require("controllers.ppu.nametable_tiles_contro
 local DebugController = require("controllers.dev.debug_controller")
 local GridModeUtils = require("controllers.grid_mode_utils")
 local WindowCaps = require("controllers.window.window_capabilities")
+local PatternTableMapping = require("utils.pattern_table_mapping")
 
 local TableUtils = require("utils.table_utils")
 
@@ -432,9 +433,8 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
   if not (nametableStart and nametableEnd) then
     return nil
   end
-
-  local bankIdx = (ntLayer and ntLayer.bank) or w.bank or w.bankIndex or 1
-  local pageIdx = (ntLayer and ntLayer.page) or w.page or w.pageIndex or 1
+  local patternTable = ntLayer and ntLayer.patternTable or nil
+  local mapOk, mapErr = PatternTableMapping.validate(patternTable)
 
   local win = PPUFrameWindow.new(w.x, w.y, w.zoom, {
     romRaw = romRaw,
@@ -447,35 +447,41 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
   win._id = w.id
   win.kind = "ppu_frame"
 
-  DebugController.log("info", "GAM", "Creating PPU frame window - bankIdx: %d, pageIdx: %d", bankIdx, pageIdx)
-
   local ntRuntimeLayer = win.layers and win.layers[1]
   if ntRuntimeLayer then
     local hydrateStartedAt = nowSeconds()
-    local ok, err = NametableTilesController.hydrateWindowNametable(win, ntRuntimeLayer, {
-      romRaw = romRaw,
-      tilesPool = tilesPool,
-      ensureTiles = ensureTiles,
-      nametableStartAddr = nametableStart,
-      nametableEndAddr = nametableEnd,
-      codec = (ntLayer and ntLayer.codec) or "konami",
-      noOverflowSupported = ntLayer and ntLayer.noOverflowSupported == true,
-      bankIndex = bankIdx,
-      pageIndex = pageIdx,
-      patternTable = ntLayer and ntLayer.patternTable,
-      tileSwaps = ntLayer and ntLayer.tileSwaps,
-      userDefinedAttrs = ntLayer and ntLayer.userDefinedAttrs,
-    })
-    if not ok then
-      DebugController.log("info", "GAM", "hydrateWindowNametable failed for PPU frame: %s", tostring(err))
+    if not mapOk then
+      DebugController.log(
+        "warning",
+        "GAM",
+        "Skipping PPU nametable hydrate for '%s': patternTable is missing/invalid (%s)",
+        tostring(w.title or ""),
+        tostring(mapErr)
+      )
     else
-      DebugController.log("info", "GAM", "hydrateWindowNametable OK for %s", win._id or win.title)
-      DebugController.log("info", "GAM", "  #nametableBytes = %d", #(win.nametableBytes or {}))
-      DebugController.log("info", "GAM", "  #nametableAttrBytes = %d", #(win.nametableAttrBytes or {}))
-      if ntRuntimeLayer.paletteNumbers then
-        DebugController.log("info", "GAM", "  ntRuntimeLayer.paletteNumbers present (table)")
+      local ok, err = NametableTilesController.hydrateWindowNametable(win, ntRuntimeLayer, {
+        romRaw = romRaw,
+        tilesPool = tilesPool,
+        ensureTiles = ensureTiles,
+        nametableStartAddr = nametableStart,
+        nametableEndAddr = nametableEnd,
+        codec = (ntLayer and ntLayer.codec) or "konami",
+        noOverflowSupported = ntLayer and ntLayer.noOverflowSupported == true,
+        patternTable = patternTable,
+        tileSwaps = ntLayer and ntLayer.tileSwaps,
+        userDefinedAttrs = ntLayer and ntLayer.userDefinedAttrs,
+      })
+      if not ok then
+        DebugController.log("info", "GAM", "hydrateWindowNametable failed for PPU frame: %s", tostring(err))
       else
-        DebugController.log("info", "GAM", "  ntRuntimeLayer.paletteNumbers is NIL")
+        DebugController.log("info", "GAM", "hydrateWindowNametable OK for %s", win._id or win.title)
+        DebugController.log("info", "GAM", "  #nametableBytes = %d", #(win.nametableBytes or {}))
+        DebugController.log("info", "GAM", "  #nametableAttrBytes = %d", #(win.nametableAttrBytes or {}))
+        if ntRuntimeLayer.paletteNumbers then
+          DebugController.log("info", "GAM", "  ntRuntimeLayer.paletteNumbers present (table)")
+        else
+          DebugController.log("info", "GAM", "  ntRuntimeLayer.paletteNumbers is NIL")
+        end
       end
     end
     logPerf("ppu_frame.hydrate_nametable", hydrateStartedAt, string.format("title=%s", tostring(w.title or "")))
@@ -535,11 +541,19 @@ local function applyLayerMetadataFromLayout(win, layoutLayers)
       if Lsrc.originY ~= nil then Ldst.originY = Lsrc.originY end
       if Lsrc.mode ~= nil and Ldst.mode == nil then Ldst.mode = Lsrc.mode end
       if Lsrc.codec ~= nil then Ldst.codec = Lsrc.codec end
+      if Lsrc.nametableStartAddr ~= nil then Ldst.nametableStartAddr = Lsrc.nametableStartAddr end
+      if Lsrc.nametableEndAddr ~= nil then Ldst.nametableEndAddr = Lsrc.nametableEndAddr end
       if Lsrc.noOverflowSupported ~= nil then
         Ldst.noOverflowSupported = (Lsrc.noOverflowSupported == true)
       end
       if type(Lsrc.patternTable) == "table" then
         Ldst.patternTable = TableUtils.deepcopy(Lsrc.patternTable)
+      end
+      if Lsrc.tileSwaps ~= nil then
+        Ldst.tileSwaps = TableUtils.deepcopy(Lsrc.tileSwaps)
+      end
+      if type(Lsrc.userDefinedAttrs) == "string" then
+        Ldst.userDefinedAttrs = Lsrc.userDefinedAttrs
       end
       if Lsrc.paletteData ~= nil then
         Ldst.paletteData = TableUtils.deepcopy(Lsrc.paletteData)
