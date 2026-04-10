@@ -13,6 +13,16 @@ local romPaletteCellDoubleClick = {
 }
 local ROM_PALETTE_DOUBLE_CLICK_SECONDS = 0.35
 
+local function setStatus(ctx, text)
+  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
+    ctx.app:setStatus(text)
+    return
+  end
+  if ctx and type(ctx.setStatus) == "function" then
+    ctx.setStatus(text)
+  end
+end
+
 local function nowSeconds(env)
   if env and type(env.nowSeconds) == "function" then
     return env.nowSeconds()
@@ -413,7 +423,7 @@ local function handlePaletteClick(env, button, x, y, win, wm)
   wm:setFocus(win)
 
   if win.kind ~= "rom_palette" and not win.activePalette then
-    ctx.setStatus("Activate palette before using it")
+    setStatus(ctx, "Activate palette before using it")
     return true
   end
 
@@ -431,12 +441,12 @@ local function handlePaletteClick(env, button, x, y, win, wm)
         if app and app.showRomPaletteAddressModal then
           app:showRomPaletteAddressModal(win, col, row)
         else
-          ctx.setStatus("ROM address entry is unavailable")
+          setStatus(ctx, "ROM address entry is unavailable")
         end
         return true
       end
       rememberRomPaletteCellClick(win, col, row, at)
-      ctx.setStatus("Double-click to assign ROM palette address")
+      setStatus(ctx, "Double-click to assign ROM palette address")
       return true
     end
 
@@ -448,11 +458,11 @@ local function handlePaletteClick(env, button, x, y, win, wm)
     if app then
       if win.rows == 1 and win.cols == 4 then
         app.currentColor = col
-        ctx.setStatus(string.format("Selected color %d", col))
+        setStatus(ctx, string.format("Selected color %d", col))
       else
         local colorIndex = row * win.cols + col
         app.currentColor = colorIndex
-        ctx.setStatus(string.format("Selected color %d", colorIndex))
+        setStatus(ctx, string.format("Selected color %d", colorIndex))
       end
     end
   end
@@ -487,9 +497,9 @@ local function handleEditModeClick(env, button, x, y, win, wm)
       local BrushController = require("controllers.input_support.brush_controller")
       local success = BrushController.floodFillTile(ctx.app, win, col, row, lx, ly)
       if success then
-        ctx.setStatus("Flood fill applied")
+        setStatus(ctx, "Flood fill applied")
       else
-        ctx.setStatus("Flood fill failed")
+        setStatus(ctx, "Flood fill failed")
       end
       ctx.setPainting(false)
     elseif utils.shiftDown and utils.shiftDown() then
@@ -554,7 +564,7 @@ local function handleTilePaintMode(env, button, x, y, win, wm)
 
   local selectedTile = utils.getSelectedTileFromCHR and utils.getSelectedTileFromCHR()
   if not selectedTile then
-    ctx.setStatus("No tile selected in CHR window")
+    setStatus(ctx, "No tile selected in CHR window")
     return false
   end
 
@@ -568,7 +578,7 @@ local function handleTilePaintMode(env, button, x, y, win, wm)
     tilePaintState.lastRow = row
   end
 
-  ctx.setStatus("Tile paint mode active")
+  setStatus(ctx, "Tile paint mode active")
   return true
 end
 

@@ -3,6 +3,16 @@ local WindowCaps = require("controllers.window.window_capabilities")
 
 local M = {}
 
+local function setStatus(ctx, text)
+  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
+    ctx.app:setStatus(text)
+    return
+  end
+  if ctx and type(ctx.setStatus) == "function" then
+    ctx.setStatus(text)
+  end
+end
+
 local function captureSpriteState(sprite)
   if not sprite then return nil end
   return {
@@ -114,15 +124,15 @@ function M.handleSpriteMirror(ctx, key, focus)
 
   if updated == 1 and singleSprite then
     if key == "h" then
-      ctx.setStatus(singleSprite.mirrorX and "Sprite mirrored horizontally" or "Sprite horizontal mirror removed")
+      setStatus(ctx, singleSprite.mirrorX and "Sprite mirrored horizontally" or "Sprite horizontal mirror removed")
     else
-      ctx.setStatus(singleSprite.mirrorY and "Sprite mirrored vertically" or "Sprite vertical mirror removed")
+      setStatus(ctx, singleSprite.mirrorY and "Sprite mirrored vertically" or "Sprite vertical mirror removed")
     end
   else
     if key == "h" then
-      ctx.setStatus(string.format("Mirrored %d sprites horizontally", updated))
+      setStatus(ctx, string.format("Mirrored %d sprites horizontally", updated))
     else
-      ctx.setStatus(string.format("Mirrored %d sprites vertically", updated))
+      setStatus(ctx, string.format("Mirrored %d sprites vertically", updated))
     end
   end
 
@@ -145,7 +155,7 @@ function M.handleDeleteKey(ctx, key, focus)
     if layer and layer.kind == "sprite" then
       local spriteDeleteResult = MultiSelectController.deleteSpriteSelection(w, li, undoRedo)
       if spriteDeleteResult then
-        ctx.setStatus(spriteDeleteResult.status)
+        setStatus(ctx, spriteDeleteResult.status)
         return true
       end
     end
@@ -158,7 +168,7 @@ function M.handleDeleteKey(ctx, key, focus)
 
   local result = MultiSelectController.deleteTileSelection(w, layerIndex, c, r, app, undoRedo)
   if not result then return false end
-  ctx.setStatus(result.status)
+  setStatus(ctx, result.status)
   return true
 end
 
@@ -190,7 +200,7 @@ function M.handleSelectAll(ctx, utils, key, focus)
     if ctx.showBankTileLabelForWindowSelection then
       ctx.showBankTileLabelForWindowSelection(focus)
     end
-    ctx.setStatus((#indices == 1) and "Selected 1 sprite" or string.format("Selected %d sprites", #indices))
+    setStatus(ctx, (#indices == 1) and "Selected 1 sprite" or string.format("Selected %d sprites", #indices))
     return true
   end
 
@@ -239,7 +249,7 @@ function M.handleSelectAll(ctx, utils, key, focus)
     end
 
     if selectedCount > 0 then
-      ctx.setStatus((selectedCount == 1) and "Selected 1 tile" or string.format("Selected %d tiles", selectedCount))
+      setStatus(ctx, (selectedCount == 1) and "Selected 1 tile" or string.format("Selected %d tiles", selectedCount))
     end
     return true
   end

@@ -101,7 +101,7 @@ function HeaderToolbar:_onMinimize()
 
   if self.windowController.minimizeWindow and self.windowController:minimizeWindow(self.window) then
     if self.ctx then
-      self.ctx.setStatus("Window minimized")
+      self.ctx.app:setStatus("Window minimized")
     end
   end
 end
@@ -298,11 +298,11 @@ function HeaderToolbar:_onCollapse()
   -- Update collapse icon to reflect new state
   self:updateCollapseIcon()
   
-  if self.ctx and self.ctx.setStatus then
+  if self.ctx and self.ctx.app and self.ctx.app.setStatus then
     if self.window._collapsed then
-      self.ctx.setStatus("Window collapsed")
+      self.ctx.app:setStatus("Window collapsed")
     else
-      self.ctx.setStatus("Window expanded")
+      self.ctx.app:setStatus("Window expanded")
     end
   end
 end
@@ -372,8 +372,8 @@ function HeaderToolbar:_onClose()
     })
   end
   
-  if self.ctx and self.ctx.setStatus then
-    self.ctx.setStatus("Window closed")
+  if self.ctx and self.ctx.app and self.ctx.app.setStatus then
+    self.ctx.app:setStatus("Window closed")
   end
   if self.ctx and self.ctx.showToast then
     local title = tostring((self.window and self.window.title) or "Untitled")

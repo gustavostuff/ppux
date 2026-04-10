@@ -23,6 +23,9 @@ local firstSelectedTargetForWindow
 return function(AppCoreController)
 function AppCoreController:_buildCtx()
   local selfRef = self
+  local function setAppStatus(text)
+    return selfRef:setStatus(text)
+  end
   return {
     app          = selfRef,
     getMode      = function() return selfRef.mode end,
@@ -36,7 +39,7 @@ function AppCoreController:_buildCtx()
 
     wm           = function() return selfRef.wm end,
     getFocus     = function() return selfRef.wm:getFocus() or selfRef.winBank end,
-    setStatus    = function(s) selfRef:setStatus(s) end,
+    setStatus    = function(s) return setAppStatus(s) end,
     getStatus    = function()
       return selfRef.lastEventText or selfRef.statusText
     end,
@@ -92,7 +95,7 @@ function AppCoreController:_buildCtx()
         chrWin,
         app,
         chrWin.orderMode or "normal",
-        function(txt) selfRef:setStatus(txt) end
+        function(txt) setAppStatus(txt) end
       )
     end,
 

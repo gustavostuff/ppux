@@ -177,8 +177,8 @@ function M.updateMove(ctx, x, y, utils)
     tb:updateOriginButtons()
   end
 
-  if ctx and ctx.setStatus then
-    ctx.setStatus(string.format("Sprite origin: %d, %d", L.originX, L.originY))
+  if ctx and ctx.app and ctx.app.setStatus then
+    ctx.app:setStatus(string.format("Sprite origin: %d, %d", L.originX, L.originY))
   end
 
   return true

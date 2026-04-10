@@ -2,6 +2,16 @@ local WindowCaps = require("controllers.window.window_capabilities")
 
 local M = {}
 
+local function setStatus(ctx, text)
+  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
+    ctx.app:setStatus(text)
+    return
+  end
+  if ctx and type(ctx.setStatus) == "function" then
+    ctx.setStatus(text)
+  end
+end
+
 function M.handlePaletteKeys(ctx, utils, key, focus)
   if not (focus and focus.isPalette) then return false end
 
@@ -19,7 +29,7 @@ function M.handlePaletteKeys(ctx, utils, key, focus)
   end
 
   if focus.kind ~= "rom_palette" and not focus.activePalette then
-    ctx.setStatus("Activate palette before using it")
+    setStatus(ctx, "Activate palette before using it")
     return true
   end
 
@@ -47,7 +57,7 @@ function M.handleLayerNavigation(ctx, utils, key, focus)
   end
 
   if WindowCaps.isAnimationLike(focus) and focus.isPlaying then
-    ctx.setStatus("Cannot change layers while animation is playing")
+    setStatus(ctx, "Cannot change layers while animation is playing")
     return true
   end
 
@@ -55,7 +65,7 @@ function M.handleLayerNavigation(ctx, utils, key, focus)
   if key == "up" then focus:nextLayer() else focus:prevLayer() end
   local newLayer = focus:getActiveLayerIndex()
   if oldLayer ~= newLayer then
-    ctx.setStatus(("Layer %d/%d"):format(newLayer, focus:getLayerCount()))
+    setStatus(ctx, ("Layer %d/%d"):format(newLayer, focus:getLayerCount()))
   end
   return true
 end
@@ -130,7 +140,7 @@ function M.handleChrBankKeys(ctx, utils, key, focus)
   if key == "m" then
     focus.orderMode = (focus.orderMode == "normal") and "oddEven" or "normal"
     ctx.rebuildChrBankWindow(focus)
-    ctx.setStatus("Order mode: " .. ((focus.orderMode == "normal") and "8x8" or "8x16"))
+    setStatus(ctx, "Order mode: " .. ((focus.orderMode == "normal") and "8x8" or "8x16"))
     if focus.specializedToolbar and focus.specializedToolbar.updateModeIcon then
       focus.specializedToolbar:updateModeIcon()
     end
@@ -156,7 +166,7 @@ function M.handleChrBankKeys(ctx, utils, key, focus)
       focus:nextLayer()
     end
     app.appEditState.currentBank = focus.currentBank or focus.activeLayer or 1
-    ctx.setStatus(string.format("Bank %d/%d", focus.currentBank, n))
+    setStatus(ctx, string.format("Bank %d/%d", focus.currentBank, n))
     if focus.specializedToolbar and focus.specializedToolbar.triggerLayerLabelFlash then
       focus.specializedToolbar:triggerLayerLabelFlash()
     end
@@ -176,23 +186,23 @@ function M.handleAnimationWindowKeys(ctx, key, focus)
     local newLayerIdx = focus:addLayerAfterActive({
       name = "Frame " .. (#focus.layers + 1),
     })
-    ctx.setStatus(("Added layer %d"):format(newLayerIdx))
+    setStatus(ctx, ("Added layer %d"):format(newLayerIdx))
     return true
   end
 
   if key == "-" or key == "_" then
     local success = focus:removeActiveLayer()
     if success then
-      ctx.setStatus(("Removed layer, now on layer %d"):format(focus:getActiveLayerIndex()))
+      setStatus(ctx, ("Removed layer, now on layer %d"):format(focus:getActiveLayerIndex()))
     else
-      ctx.setStatus("Cannot remove the last layer")
+      setStatus(ctx, "Cannot remove the last layer")
     end
     return true
   end
 
   if key == "p" or key == "P" then
     local isPlaying = focus:togglePlay()
-    ctx.setStatus(isPlaying and "Animation playing" or "Animation paused")
+    setStatus(ctx, isPlaying and "Animation playing" or "Animation paused")
     return true
   end
 
@@ -211,7 +221,7 @@ function M.handleAnimationDelayAdjust(ctx, utils, key, focus)
     return false
   end
 
-  ctx.setStatus(string.format("Frame delay: %.2fs (all frames)", newDelay))
+  setStatus(ctx, string.format("Frame delay: %.2fs (all frames)", newDelay))
   return true
 end
 
@@ -235,7 +245,7 @@ function M.handleInactiveLayerOpacity(ctx, utils, key, focus)
       layer.opacity = 1.0
     end
   end
-  ctx.setStatus(string.format("Inactive layers opacity: %.0f%%", newOpacity * 100))
+  setStatus(ctx, string.format("Inactive layers opacity: %.0f%%", newOpacity * 100))
   return true
 end
 

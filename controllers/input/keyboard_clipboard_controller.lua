@@ -5,6 +5,16 @@ local M = {}
 
 local clipboard = nil
 
+local function setStatus(ctx, text)
+  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
+    ctx.app:setStatus(text)
+    return
+  end
+  if ctx and type(ctx.setStatus) == "function" then
+    ctx.setStatus(text)
+  end
+end
+
 function M.reset()
   clipboard = nil
 end
@@ -246,9 +256,9 @@ function M.handleCopySelection(ctx, utils, key, focus)
   if layer.kind == "tile" then
     clipboard = captureTileClipboard(focus, layer, layerIndex)
     if clipboard and clipboard.count > 0 then
-      ctx.setStatus((clipboard.count == 1) and "Copied 1 tile" or string.format("Copied %d tiles", clipboard.count))
+      setStatus(ctx, (clipboard.count == 1) and "Copied 1 tile" or string.format("Copied %d tiles", clipboard.count))
     else
-      ctx.setStatus("No tiles selected to copy")
+      setStatus(ctx, "No tiles selected to copy")
     end
     return true
   end
@@ -256,9 +266,9 @@ function M.handleCopySelection(ctx, utils, key, focus)
   if layer.kind == "sprite" then
     clipboard = captureSpriteClipboard(focus, layer)
     if clipboard and clipboard.count > 0 then
-      ctx.setStatus((clipboard.count == 1) and "Copied 1 sprite" or string.format("Copied %d sprites", clipboard.count))
+      setStatus(ctx, (clipboard.count == 1) and "Copied 1 sprite" or string.format("Copied %d sprites", clipboard.count))
     else
-      ctx.setStatus("No sprites selected to copy")
+      setStatus(ctx, "No sprites selected to copy")
     end
     return true
   end
@@ -274,7 +284,7 @@ function M.handlePasteSelection(ctx, utils, key, focus)
   if not (focus and focus.layers and focus.getActiveLayerIndex) then return true end
 
   if not clipboard or not clipboard.kind then
-    ctx.setStatus("Clipboard is empty")
+    setStatus(ctx, "Clipboard is empty")
     return true
   end
 
@@ -289,16 +299,16 @@ function M.handlePasteSelection(ctx, utils, key, focus)
       ctx.app:markUnsaved("tile_move")
     end
     if pastedCount > 0 then
-      ctx.setStatus((pastedCount == 1) and "Pasted 1 tile at center" or string.format("Pasted %d tiles at center", pastedCount))
+      setStatus(ctx, (pastedCount == 1) and "Pasted 1 tile at center" or string.format("Pasted %d tiles at center", pastedCount))
     else
-      ctx.setStatus("Nothing pasted")
+      setStatus(ctx, "Nothing pasted")
     end
     return true
   end
 
   if clipboard.kind == "sprite" and layer.kind == "sprite" then
     if WindowCaps.isOamAnimation(focus) then
-      ctx.setStatus("Cannot add sprites to OAM animation windows")
+      setStatus(ctx, "Cannot add sprites to OAM animation windows")
       return true
     end
     pastedCount = pasteSpriteClipboard(focus, layer, clipboard)
@@ -306,14 +316,14 @@ function M.handlePasteSelection(ctx, utils, key, focus)
       ctx.app:markUnsaved("sprite_move")
     end
     if pastedCount > 0 then
-      ctx.setStatus((pastedCount == 1) and "Pasted 1 sprite at center" or string.format("Pasted %d sprites at center", pastedCount))
+      setStatus(ctx, (pastedCount == 1) and "Pasted 1 sprite at center" or string.format("Pasted %d sprites at center", pastedCount))
     else
-      ctx.setStatus("Nothing pasted")
+      setStatus(ctx, "Nothing pasted")
     end
     return true
   end
 
-  ctx.setStatus("Clipboard content does not match active layer type")
+  setStatus(ctx, "Clipboard content does not match active layer type")
   return true
 end
 

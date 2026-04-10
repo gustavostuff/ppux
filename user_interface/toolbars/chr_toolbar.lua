@@ -101,8 +101,8 @@ function ChrToolbar:_onBankChange(delta)
     self.window.activeLayer = self.window.currentBank
   end
   app.appEditState.currentBank = self.window.currentBank or self.window.activeLayer or 1
-  if self.ctx.setStatus then
-    self.ctx.setStatus(string.format("Bank %d/%d", self.window.currentBank, n))
+  if self.ctx.app and self.ctx.app.setStatus then
+    self.ctx.app:setStatus(string.format("Bank %d/%d", self.window.currentBank, n))
   end
   self:triggerLayerLabelFlash()
 end
@@ -124,8 +124,8 @@ function ChrToolbar:_onToggleMode()
     self.ctx.rebuildChrBankWindow(self.window)
   end
   self:updateModeIcon()
-  if self.ctx.setStatus then
-    self.ctx.setStatus("Order mode: " .. ((self.window.orderMode == "normal") and "8x8" or "8x16"))
+  if self.ctx.app and self.ctx.app.setStatus then
+    self.ctx.app:setStatus("Order mode: " .. ((self.window.orderMode == "normal") and "8x8" or "8x16"))
   end
 end
 
@@ -147,9 +147,9 @@ function ChrToolbar:_onToggleSyncDuplicates()
   end
 
   self:updateSyncIcon()
-  if self.ctx.setStatus then
+  if self.ctx.app and self.ctx.app.setStatus then
     local txt = newVal and "Sync duplicates: ON" or "Sync duplicates: OFF"
-    self.ctx.setStatus(txt)
+    self.ctx.app:setStatus(txt)
   end
 end
 

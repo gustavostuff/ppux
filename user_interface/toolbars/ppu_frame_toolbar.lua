@@ -9,6 +9,16 @@ local PPUFrameToolbar = {}
 PPUFrameToolbar.__index = PPUFrameToolbar
 setmetatable(PPUFrameToolbar, { __index = ToolbarBase })
 
+local function setStatus(ctx, text)
+  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
+    ctx.app:setStatus(text)
+    return
+  end
+  if ctx and type(ctx.setStatus) == "function" then
+    ctx.setStatus(text)
+  end
+end
+
 local function getNametableLayer(window)
   if not (window and window.layers) then return nil end
   for _, layer in ipairs(window.layers) do
@@ -102,11 +112,9 @@ function PPUFrameToolbar:_onPrevLayer()
   self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
   
-  if self.ctx and self.ctx.setStatus then
-    local current = self.window:getActiveLayerIndex()
-    local total = self.window:getLayerCount()
-    self.ctx.setStatus(string.format("Layer %d/%d", current, total))
-  end
+  local current = self.window:getActiveLayerIndex()
+  local total = self.window:getLayerCount()
+  setStatus(self.ctx, string.format("Layer %d/%d", current, total))
 end
 
 -- Handle next layer
@@ -117,11 +125,9 @@ function PPUFrameToolbar:_onNextLayer()
   self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
   
-  if self.ctx and self.ctx.setStatus then
-    local current = self.window:getActiveLayerIndex()
-    local total = self.window:getLayerCount()
-    self.ctx.setStatus(string.format("Layer %d/%d", current, total))
-  end
+  local current = self.window:getActiveLayerIndex()
+  local total = self.window:getLayerCount()
+  setStatus(self.ctx, string.format("Layer %d/%d", current, total))
 end
 
 function PPUFrameToolbar:_onConfigureRange()
@@ -216,14 +222,10 @@ function PPUFrameToolbar:_onAddSprite()
         onConfirm = function(spriteMode, targetWindow)
           local layer = self:_ensureSpriteLayer(spriteMode, true, targetWindow)
           if not layer then
-            if self.ctx and self.ctx.setStatus then
-              self.ctx.setStatus("Could not create sprite layer")
-            end
+            setStatus(self.ctx, "Could not create sprite layer")
             return false
           end
-          if self.ctx and self.ctx.setStatus then
-            self.ctx.setStatus("Created sprite layer (" .. normalizeSpriteMode(spriteMode) .. ")")
-          end
+          setStatus(self.ctx, "Created sprite layer (" .. normalizeSpriteMode(spriteMode) .. ")")
           return true
         end,
       })
@@ -235,18 +237,14 @@ function PPUFrameToolbar:_onAddSprite()
     local fallbackLayer = self:_ensureSpriteLayer("8x8", true)
     if fallbackLayer and app and app.showPpuFrameAddSpriteModal then
       app:showPpuFrameAddSpriteModal(self.window)
-      if self.ctx and self.ctx.setStatus then
-        self.ctx.setStatus("Created sprite layer and opened add sprite dialog")
-      end
+      setStatus(self.ctx, "Created sprite layer and opened add sprite dialog")
       return
     end
   end
 
   spriteLayer = self:_ensureSpriteLayer(nil, false)
   if not spriteLayer then
-    if self.ctx and self.ctx.setStatus then
-      self.ctx.setStatus("Could not resolve a sprite layer")
-    end
+    setStatus(self.ctx, "Could not resolve a sprite layer")
     return
   end
 
@@ -272,9 +270,7 @@ function PPUFrameToolbar:_onAddLayer()
     name = "Layer " .. (#self.window.layers + 1),
   })
   
-  if self.ctx and self.ctx.setStatus then
-    self.ctx.setStatus(string.format("Added layer %d", newLayerIdx))
-  end
+  setStatus(self.ctx, string.format("Added layer %d", newLayerIdx))
 end
 
 -- Handle remove layer
@@ -283,9 +279,7 @@ function PPUFrameToolbar:_onRemoveLayer()
   
   local numLayers = self.window:getLayerCount()
   if numLayers <= 1 then
-    if self.ctx and self.ctx.setStatus then
-      self.ctx.setStatus("Cannot remove the last layer")
-    end
+    setStatus(self.ctx, "Cannot remove the last layer")
     return
   end
   
@@ -301,10 +295,8 @@ function PPUFrameToolbar:_onRemoveLayer()
     self.window.activeLayer = 1
   end
   
-  if self.ctx and self.ctx.setStatus then
-    local current = self.window:getActiveLayerIndex()
-    self.ctx.setStatus(string.format("Removed layer, now on layer %d", current))
-  end
+  local current = self.window:getActiveLayerIndex()
+  setStatus(self.ctx, string.format("Removed layer, now on layer %d", current))
   if self.ctx and self.ctx.showToast then
     local title = tostring((self.window and self.window.title) or "Untitled")
     self.ctx.showToast("warning", string.format("Removed layer from %s", title))

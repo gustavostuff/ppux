@@ -19,6 +19,16 @@ local MODIFIER_KEYS = {
   g = true,
 }
 
+local function setStatus(ctx, text)
+  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
+    ctx.app:setStatus(text)
+    return
+  end
+  if ctx and type(ctx.setStatus) == "function" then
+    ctx.setStatus(text)
+  end
+end
+
 function M.reset()
   state.active = false
   state.activeText = nil
@@ -185,14 +195,14 @@ function M.updateStatus(ctx, utils)
     end
     state.active = true
     state.activeText = hintText
-    ctx.setStatus(hintText)
+    setStatus(ctx, hintText)
     return
   end
 
   if state.active then
     local currentStatus = getCurrentStatusText(ctx)
     if state.previousText ~= nil and currentStatus == state.activeText then
-      ctx.setStatus(state.previousText)
+      setStatus(ctx, state.previousText)
     end
   end
   state.active = false

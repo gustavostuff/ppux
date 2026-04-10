@@ -5,6 +5,17 @@ local PpuLayerEmptyByte = require("utils.ppu_layer_empty_byte")
 
 local M = {}
 
+local function setStatusFromEnv(env, text)
+  local ctx = env and env.ctx or nil
+  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
+    ctx.app:setStatus(text)
+    return
+  end
+  if ctx and type(ctx.setStatus) == "function" then
+    ctx.setStatus(text)
+  end
+end
+
 local function copyTilePixels(tile)
   if not (tile and tile.pixels and #tile.pixels == 64) then return nil end
   local out = {}
@@ -582,7 +593,7 @@ local function handleChrBankCopyToSpriteLayer(env, dst, x, y, drag, dstLayer)
   end
 
   if env.isSpriteLayerDropBlocked and env.isSpriteLayerDropBlocked(dst, layer, drag.srcWin) then
-    env.ctx.setStatus("Cannot drop CHR tiles onto sprite layers in this window")
+    setStatusFromEnv(env, "Cannot drop CHR tiles onto sprite layers in this window")
     return false
   end
 
@@ -609,7 +620,7 @@ local function handleChrBankCopyToSpriteLayer(env, dst, x, y, drag, dstLayer)
   local maxWorldY = rows * ch - spriteH - originY
 
   if pixelX < minWorldX or pixelX > maxWorldX or pixelY < minWorldY or pixelY > maxWorldY then
-    env.ctx.setStatus("out of bounds")
+    setStatusFromEnv(env, "out of bounds")
     return false
   end
 
@@ -705,8 +716,8 @@ function M.handleTileDrop(env, x, y, wm)
     local chrGroupState = getChrGroupDropState(env, x, y, wm)
     if not (chrGroupState and chrGroupState.valid) then
       local reasonText = chrGroupState and getTooltipTextForReason(chrGroupState.reason)
-      if reasonText and env.ctx and env.ctx.setStatus then
-        env.ctx.setStatus(reasonText)
+      if reasonText and env.ctx and env.ctx.app and env.ctx.app.setStatus then
+        setStatusFromEnv(env, reasonText)
       end
       env.clearDragState(false)
       return true
@@ -764,7 +775,7 @@ function M.handleTileDrop(env, x, y, wm)
   local layer = dst.layers and dst.layers[dstLayer]
   local isSpriteLayer = layer and layer.kind == "sprite"
   if isSpriteLayer and (WindowCaps.isPpuFrame(dst) or WindowCaps.isOamAnimation(dst)) then
-    env.ctx.setStatus("Cannot drop items onto sprite layers in this window")
+    setStatusFromEnv(env, "Cannot drop items onto sprite layers in this window")
     env.clearDragState(false)
     return true
   end

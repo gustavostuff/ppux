@@ -113,7 +113,7 @@ local function changeBrushSize(app, newSize)
   newSize = math.max(1, math.min(4, newSize))  -- Clamp between 1 and 4
   app.brushSize = newSize
   local sizeNames = {[1] = "1x1", [2] = "3x3", [3] = "5x5", [4] = "7x7"}
-  ctx.setStatus("Brush size: " .. (sizeNames[newSize] or tostring(newSize)))
+  ctx.app:setStatus("Brush size: " .. (sizeNames[newSize] or tostring(newSize)))
 end
 
 -- Helper function to get selected tile from CHR window

@@ -40,8 +40,8 @@ function PatternTableBuilderToolbar.new(window, ctx, windowController)
 end
 
 function PatternTableBuilderToolbar:_setLayerStatus()
-  if self.ctx and self.ctx.setStatus and self.window then
-    self.ctx.setStatus(string.format("Layer %d/%d", self.window:getActiveLayerIndex() or 1, self.window:getLayerCount() or 0))
+  if self.ctx and self.ctx.app and self.ctx.app.setStatus and self.window then
+    self.ctx.app:setStatus(string.format("Layer %d/%d", self.window:getActiveLayerIndex() or 1, self.window:getLayerCount() or 0))
   end
 end
 
@@ -66,8 +66,8 @@ function PatternTableBuilderToolbar:_onGenerate()
 
   local ok, result = self.window:generatePackedPatternTable()
   if not ok then
-    if self.ctx and self.ctx.setStatus then
-      self.ctx.setStatus("Pattern generation failed")
+    if self.ctx and self.ctx.app and self.ctx.app.setStatus then
+      self.ctx.app:setStatus("Pattern generation failed")
     end
     if self.ctx and self.ctx.showToast then
       self.ctx.showToast("error", "Pattern generation failed")
@@ -90,8 +90,8 @@ function PatternTableBuilderToolbar:_onGenerate()
     )
   end
 
-  if self.ctx and self.ctx.setStatus then
-    self.ctx.setStatus(status)
+  if self.ctx and self.ctx.app and self.ctx.app.setStatus then
+    self.ctx.app:setStatus(status)
   end
   if self.ctx and self.ctx.showToast then
     local kind = (result.overflowTiles > 0) and "warning" or "info"

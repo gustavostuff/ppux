@@ -11,6 +11,16 @@ local PIXEL_OFFSET_DEFAULTS = {
   fillValue = 0,
 }
 
+local function setStatus(ctx, text)
+  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
+    ctx.app:setStatus(text)
+    return
+  end
+  if ctx and type(ctx.setStatus) == "function" then
+    ctx.setStatus(text)
+  end
+end
+
 local function materializeFocusTile(focus, item, layerIndex)
   if item == nil then
     return nil
@@ -537,9 +547,9 @@ function M.handleKey(key, focus, ctx, utils)
       end
       if changedUnitsCount > 1 then
         local unitLabel = isChr8x16Mode(focus) and "items" or "tiles"
-        ctx.setStatus(string.format("Offset pixels on %d %s %s", changedUnitsCount, unitLabel, directionLabel))
+        setStatus(ctx, string.format("Offset pixels on %d %s %s", changedUnitsCount, unitLabel, directionLabel))
       else
-        ctx.setStatus(string.format("Offset tile pixels %s", directionLabel))
+        setStatus(ctx, string.format("Offset tile pixels %s", directionLabel))
       end
       return true
     end
@@ -657,9 +667,9 @@ function M.handleKey(key, focus, ctx, utils)
     end
 
     if selectedSpritesCount > 1 then
-      ctx.setStatus(string.format("Offset pixels on %d sprites %s", selectedSpritesCount, directionLabel))
+      setStatus(ctx, string.format("Offset pixels on %d sprites %s", selectedSpritesCount, directionLabel))
     else
-      ctx.setStatus(string.format("Offset sprite pixels %s", directionLabel))
+      setStatus(ctx, string.format("Offset sprite pixels %s", directionLabel))
     end
     return true
   end

@@ -79,8 +79,8 @@ function RomPaletteToolbar:_onToggleCompact()
   local newVal = not self.window.compactView
   self.window:setCompactMode(newVal)
   self:updateCompactIcon()
-  if self.ctx and self.ctx.setStatus then
-    self.ctx.setStatus(newVal and "Palette compact view" or "Palette full view")
+  if self.ctx and self.ctx.app and self.ctx.app.setStatus then
+    self.ctx.app:setStatus(newVal and "Palette compact view" or "Palette full view")
   end
 end
 

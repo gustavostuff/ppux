@@ -54,7 +54,7 @@ describe("ppu_frame_window.lua sparse tile rendering", function()
     love.graphics.setColor = originalGraphics.setColor
   end)
 
-  it("clears transparent bytes from the visual tile map", function()
+  it("keeps glass/transparent bytes in the visual tile map", function()
     local win = PPUFrameWindow.new(0, 0, 1, { title = "PPU" })
     local layer = win.layers[1]
     layer.bank = 1
@@ -73,10 +73,10 @@ describe("ppu_frame_window.lua sparse tile rendering", function()
     win:setNametableByteAt(1, 0, 0x00, tilesPool, 1)
 
     expect(win:get(0, 0, 1)).toBeTruthy()
-    expect(win:get(1, 0, 1)).toBeNil()
+    expect(win:get(1, 0, 1)).toBeTruthy()
   end)
 
-  it("iterates only non-transparent visible nametable cells", function()
+  it("iterates all visible nametable cells including glass bytes", function()
     local win = PPUFrameWindow.new(0, 0, 1, { title = "PPU" })
     local layer = win.layers[1]
     layer.bank = 1
@@ -106,8 +106,8 @@ describe("ppu_frame_window.lua sparse tile rendering", function()
     end, 1)
 
     expect(handled).toBeTruthy()
-    expect(#visited).toBe(2)
-    expect(visited[1].col + visited[2].col).toBe(2)
-    expect(visited[1].itemIndex + visited[2].itemIndex).toBe(0x12 + 0x34)
+    expect(#visited).toBe(4)
+    expect(visited[1].col + visited[2].col + visited[3].col + visited[4].col).toBe(6)
+    expect(visited[1].itemIndex + visited[2].itemIndex + visited[3].itemIndex + visited[4].itemIndex).toBe(0x12 + 0x00 + 0x34 + 0x00)
   end)
 end)

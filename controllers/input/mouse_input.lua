@@ -25,6 +25,16 @@ local spriteClick = { active = false }
 local contextClick = { active = false }
 local CONTEXT_MENU_DRAG_TOLERANCE = 4
 
+local function setStatus(text)
+  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
+    ctx.app:setStatus(text)
+    return
+  end
+  if ctx and type(ctx.setStatus) == "function" then
+    ctx.setStatus(text)
+  end
+end
+
 local function fmtWin(win)
   if not win then return "nil" end
   return string.format("%s:%s", tostring(win.kind or "?"), tostring(win._id or win.title or "?"))
@@ -445,14 +455,10 @@ local function finishEditShape(x, y, button)
     if ok then
       app.undoRedo:finishPaintEvent()
       win.editLastPoint = { x = endX, y = endY }
-      if ctx.setStatus then
-        ctx.setStatus("Filled rectangle drawn")
-      end
+      setStatus("Filled rectangle drawn")
     else
       app.undoRedo:cancelPaintEvent()
-      if ctx.setStatus then
-        ctx.setStatus("Rectangle draw failed")
-      end
+      setStatus("Rectangle draw failed")
     end
     return true
   end
@@ -470,14 +476,10 @@ local function finishEditShape(x, y, button)
     if ok then
       app.undoRedo:finishPaintEvent()
       win.editLastPoint = { x = endX, y = endY }
-      if ctx.setStatus then
-        ctx.setStatus("Filled rectangle drawn")
-      end
+      setStatus("Filled rectangle drawn")
     else
       app.undoRedo:cancelPaintEvent()
-      if ctx.setStatus then
-        ctx.setStatus("Rectangle draw failed")
-      end
+      setStatus("Rectangle draw failed")
     end
     return true
   end
@@ -488,20 +490,14 @@ local function finishEditShape(x, y, button)
     if ok then
       app.undoRedo:finishPaintEvent()
       win.editLastPoint = { x = endX, y = endY }
-      if ctx.setStatus then
-        ctx.setStatus("Line drawn")
-      end
+      setStatus("Line drawn")
     else
       app.undoRedo:cancelPaintEvent()
-      if ctx.setStatus then
-        ctx.setStatus("Line draw failed")
-      end
+      setStatus("Line draw failed")
     end
   else
     win.editLastPoint = { x = endX, y = endY }
-    if ctx.setStatus then
-      ctx.setStatus("Line anchor set")
-    end
+    setStatus("Line anchor set")
   end
 
   return true

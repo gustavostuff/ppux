@@ -669,14 +669,23 @@ local function resolveTransparentPreviewColor(app, win, layer, paletteNum, romRa
     or colors.black
 end
 
+local function contentPixelToScreen(win, px, py, zoom)
+  local cw = win.cellW or 8
+  local ch = win.cellH or 8
+  local scrollX = (win.scrollCol or 0) * cw
+  local scrollY = (win.scrollRow or 0) * ch
+  local sx = win.x + (px - scrollX) * zoom
+  local sy = win.y + (py - scrollY) * zoom
+  return sx, sy
+end
+
 local function drawPatternBuilderRectPreview(win, startX, startY, endX, endY, zoom, color)
   local minX = math.min(math.floor(startX or 0), math.floor(endX or 0))
   local maxX = math.max(math.floor(startX or 0), math.floor(endX or 0))
   local minY = math.min(math.floor(startY or 0), math.floor(endY or 0))
   local maxY = math.max(math.floor(startY or 0), math.floor(endY or 0))
 
-  local sx = win.x + minX * zoom
-  local sy = win.y + minY * zoom
+  local sx, sy = contentPixelToScreen(win, minX, minY, zoom)
   local sw = (maxX - minX + 1) * zoom
   local sh = (maxY - minY + 1) * zoom
 
@@ -773,9 +782,10 @@ local function tryDrawGenericEditShapePreview(app, win, layer, hoveredItem, romR
           local key = string.format("%d:%d", px, py)
           if not seen[key] then
             seen[key] = true
+            local sx, sy = contentPixelToScreen(win, px, py, zoom)
             previewPoints[#previewPoints + 1] = {
-              x = win.x + px * zoom,
-              y = win.y + py * zoom,
+              x = sx,
+              y = sy,
               size = zoom,
             }
           end
@@ -784,8 +794,9 @@ local function tryDrawGenericEditShapePreview(app, win, layer, hoveredItem, romR
     end
 
     drawPatternBuilderPointPreview(win, previewPoints, colorIndex, layer, hoveredItem, romRaw, paletteNum, bgPreviewColor)
+    local anchorX, anchorY = contentPixelToScreen(win, win.editLastPoint.x, win.editLastPoint.y, zoom)
     love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 0.9)
-    love.graphics.rectangle("line", win.x + win.editLastPoint.x * zoom, win.y + win.editLastPoint.y * zoom, zoom, zoom)
+    love.graphics.rectangle("line", anchorX, anchorY, zoom, zoom)
     love.graphics.setColor(colors.white)
     return true
   end

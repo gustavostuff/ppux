@@ -1363,8 +1363,9 @@ end
 
 function AppCoreController:setStatus(text)
   if text == nil then return end
-  self.statusText = text
-  self.lastEventText = text
+  local message = tostring(text)
+  self.statusText = message
+  self.lastEventText = message
 end
 
 function AppCoreController:hasLoadedROM()

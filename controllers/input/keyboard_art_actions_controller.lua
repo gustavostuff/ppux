@@ -7,6 +7,16 @@ local WindowCaps = require("controllers.window.window_capabilities")
 
 local M = {}
 
+local function setStatus(ctx, text)
+  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
+    ctx.app:setStatus(text)
+    return
+  end
+  if ctx and type(ctx.setStatus) == "function" then
+    ctx.setStatus(text)
+  end
+end
+
 local function isChr8x16Mode(win)
   return WindowCaps.isChrLike(win) and win.orderMode == "oddEven"
 end
@@ -147,9 +157,9 @@ function M.handleTileRotation(ctx, utils, key, focus)
     local dirText = (direction == 1) and "right" or "left"
     if rotatedUnitsCount > 1 then
       local unitLabel = isChr8x16Mode(focus) and "items" or "tiles"
-      ctx.setStatus(string.format("Rotated tile palette values %s on %d %s", dirText, rotatedUnitsCount, unitLabel))
+      setStatus(ctx, string.format("Rotated tile palette values %s on %d %s", dirText, rotatedUnitsCount, unitLabel))
     else
-      ctx.setStatus(string.format("Rotated tile palette values %s", dirText))
+      setStatus(ctx, string.format("Rotated tile palette values %s", dirText))
     end
     return true
   end
@@ -237,7 +247,7 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appEditState)
     if updated > 0 then
       local statusMsg = (updated > 1) and string.format("Sprite palettes set to %d", paletteNum)
         or string.format("Sprite palette set to %d", paletteNum)
-      ctx.setStatus(statusMsg)
+      setStatus(ctx, statusMsg)
       return true
     end
     return false
@@ -251,7 +261,7 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appEditState)
   local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
   local success = NametableTilesController.setPaletteNumberForTile(w, layer, col, row, paletteNum)
   if success then
-    ctx.setStatus(string.format("Tile palette set to %d", paletteNum))
+    setStatus(ctx, string.format("Tile palette set to %d", paletteNum))
     return true
   end
 
