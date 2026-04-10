@@ -374,8 +374,7 @@ local function drawTileLayer(app, w, layerIndex, isFocused)
   local attrMode = isPPUFrame and layer and layer.attrMode == true
   if isPPUFrame and w.isPatternTableInteractionLocked then
     local locked = w:isPatternTableInteractionLocked(layerIndex)
-    if locked and w.drawNametableLayerCanvas then
-      w:drawNametableLayerCanvas(layerIndex)
+    if locked then
       return
     end
   end

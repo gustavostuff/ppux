@@ -1668,6 +1668,69 @@ patternTableLogicalSize = function(patternTable)
   return total, nil
 end
 
+local function isNametableLayerRenderReady(layer)
+  if type(layer) ~= "table" then
+    return false, "Missing nametable layer"
+  end
+  if type(layer.nametableStartAddr) ~= "number" then
+    return false, "nametableStartAddr is not set"
+  end
+  if type(layer.nametableEndAddr) ~= "number" then
+    return false, "nametableEndAddr is not set"
+  end
+  local total, err = patternTableLogicalSize(layer.patternTable)
+  if err then
+    return false, err
+  end
+  if total ~= 256 then
+    return false, string.format("patternTable ranges must add up to 256 tiles (got %d)", total)
+  end
+  return true, nil
+end
+
+local function hydrateNametableLayerIfReady(app, win, layer, layerIndex)
+  local ready, reason = isNametableLayerRenderReady(layer)
+  if not ready then
+    if layer then
+      layer.items = {}
+    end
+    if win and win.invalidateNametableLayerCanvas then
+      win:invalidateNametableLayerCanvas(layerIndex)
+    end
+    return false, reason
+  end
+
+  local state = app and app.appEditState or {}
+  local romRaw = state.romRaw
+  if type(romRaw) ~= "string" or romRaw == "" then
+    return false, "Open a ROM before loading a PPU frame range"
+  end
+
+  local tilesPool = state.tilesPool
+  local ok, err = NametableTilesController.hydrateWindowNametable(win, layer, {
+    romRaw = romRaw,
+    tilesPool = tilesPool,
+    ensureTiles = function(bank)
+      if not (state.chrBanksBytes and state.chrBanksBytes[bank]) then
+        return false
+      end
+      BankViewController.ensureBankTiles(state, bank)
+      return true
+    end,
+    nametableStartAddr = layer.nametableStartAddr,
+    nametableEndAddr = layer.nametableEndAddr,
+    patternTable = layer.patternTable,
+    tileSwaps = layer.tileSwaps,
+    userDefinedAttrs = layer.userDefinedAttrs,
+    codec = layer.codec,
+    reportErrors = false,
+  })
+  if not ok then
+    return false, err or "Failed to load PPU frame range"
+  end
+  return true, nil
+end
+
 getPpuPatternTableTargetLayer = function(win)
   if not (win and win.kind == "ppu_frame" and win.layers) then
     return nil, nil
@@ -2028,14 +2091,6 @@ function AppCoreController:showPpuFrameRangeModal(win)
   end
 
   local layer = getPpuNametableLayer(win)
-  local patternTable = layer and layer.patternTable or nil
-  local total, totalErr = patternTableLogicalSize(patternTable)
-  if type(total) ~= "number" or total ~= 256 then
-    local message = totalErr or string.format("Complete patternTable ranges before setting addresses (%d/256)", tonumber(total) or 0)
-    self:setStatus(message)
-    self:showToast("warning", message)
-    return false
-  end
   local initialStart = (layer and type(layer.nametableStartAddr) == "number")
     and string.format("0x%06X", layer.nametableStartAddr) or ""
   local initialEnd = (layer and type(layer.nametableEndAddr) == "number")
@@ -2059,7 +2114,7 @@ function AppCoreController:showPpuFrameRangeModal(win)
     initialEndAddress = initialEnd,
     initialBank = initialBank,
     initialPage = initialPage,
-    onConfirm = function(startText, endText, bankText, pageText, targetWindow)
+    onConfirm = function(startText, endText, _bankText, _pageText, targetWindow)
       local startAddr, startErr = parseHexAddress(startText)
       if not startAddr then
         self:setStatus(startErr)
@@ -2081,20 +2136,6 @@ function AppCoreController:showPpuFrameRangeModal(win)
         return false
       end
 
-      local bankIndex, bankErr = parsePositiveDecimalInteger(bankText, "Bank")
-      if not bankIndex then
-        self:setStatus(bankErr)
-        self:showToast("error", bankErr)
-        return false
-      end
-
-      local pageIndex, pageErr = parsePageNumber(pageText)
-      if not pageIndex then
-        self:setStatus(pageErr)
-        self:showToast("error", pageErr)
-        return false
-      end
-
       local targetLayer, targetLayerIndex = getPpuNametableLayer(targetWindow)
       if not targetLayer then
         local message = "PPU frame window is missing a tile layer"
@@ -2104,62 +2145,11 @@ function AppCoreController:showPpuFrameRangeModal(win)
       end
       local beforeRangeState = snapshotPpuFrameRangeState(targetWindow, targetLayerIndex)
 
-      local state = self.appEditState or {}
-      local tilesPool = state.tilesPool
-      local romRaw = state.romRaw
-      if type(romRaw) ~= "string" or romRaw == "" then
-        local message = "Open a ROM before loading a PPU frame range"
-        self:setStatus(message)
-        self:showToast("error", message)
-        return false
-      end
-      if not (state.chrBanksBytes and state.chrBanksBytes[bankIndex]) then
-        local message = string.format("CHR bank %d is not available", bankIndex)
-        self:setStatus(message)
-        self:showToast("error", message)
-        return false
-      end
-
-      local currentBankIndex = bankIndex
-      BankViewController.ensureBankTiles(state, currentBankIndex)
       targetLayer.codec = targetLayer.codec or "konami"
-      targetLayer.patternTable = {
-        ranges = {
-          {
-            bank = currentBankIndex,
-            page = pageIndex,
-            tileRange = { from = 0, to = 255 },
-          },
-        },
-      }
-      local ok, err = NametableTilesController.hydrateWindowNametable(targetWindow, targetLayer, {
-        romRaw = romRaw,
-        tilesPool = tilesPool,
-        ensureTiles = function(bank)
-          if not (state.chrBanksBytes and state.chrBanksBytes[bank]) then
-            return false
-          end
-          BankViewController.ensureBankTiles(state, bank)
-          return true
-        end,
-        nametableStartAddr = startAddr,
-        nametableEndAddr = endAddr,
-        patternTable = targetLayer.patternTable,
-        codec = targetLayer.codec,
-        reportErrors = false,
-      })
-      if not ok then
-        local message = err or "Failed to load PPU frame range"
-        self:setStatus(message)
-        self:showToast("error", message)
-        return false
-      end
-
       targetLayer.nametableStartAddr = startAddr
       targetLayer.nametableEndAddr = endAddr
-      if targetWindow.refreshNametableVisuals then
-        targetWindow:refreshNametableVisuals(tilesPool, targetLayerIndex)
-      elseif targetWindow.invalidateNametableLayerCanvas then
+      local hydrated, hydrateErr = hydrateNametableLayerIfReady(self, targetWindow, targetLayer, targetLayerIndex)
+      if not hydrated and targetWindow.invalidateNametableLayerCanvas then
         targetWindow:invalidateNametableLayerCanvas(targetLayerIndex)
       end
       if targetWindow.syncNametableLayerMetadata then
@@ -2181,13 +2171,16 @@ function AppCoreController:showPpuFrameRangeModal(win)
         })
       end
 
-      self:setStatus(string.format(
-        "Loaded tile range 0x%06X-0x%06X (bank %d, page %d)",
-        startAddr,
-        endAddr,
-        currentBankIndex,
-        pageIndex
-      ))
+      if hydrated then
+        self:setStatus(string.format("Set nametable address range 0x%06X-0x%06X", startAddr, endAddr))
+      else
+        self:setStatus(string.format(
+          "Set nametable address range 0x%06X-0x%06X (waiting: %s)",
+          startAddr,
+          endAddr,
+          tostring(hydrateErr or "incomplete setup")
+        ))
+      end
       return true
     end,
   })
@@ -2297,10 +2290,8 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
           to = toTile,
         },
       }
-      local tilesPool = self.appEditState and self.appEditState.tilesPool or nil
-      if targetWindow.refreshNametableVisuals then
-        targetWindow:refreshNametableVisuals(tilesPool, layerIndex)
-      elseif targetWindow.invalidateNametableLayerCanvas then
+      local hydrated, hydrateErr = hydrateNametableLayerIfReady(self, targetWindow, layer, layerIndex)
+      if not hydrated and targetWindow.invalidateNametableLayerCanvas then
         targetWindow:invalidateNametableLayerCanvas(layerIndex)
       end
       self:_ensurePpuPatternTableReferenceLayer({
@@ -2332,14 +2323,26 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
         })
       end
 
-      self:setStatus(string.format(
-        "Added tile range [%d..%d] bank %d page %d (%d/256)",
-        fromTile,
-        toTile,
-        bankIndex,
-        pageIndex,
-        tonumber(total) or 0
-      ))
+      if hydrated then
+        self:setStatus(string.format(
+          "Added tile range [%d..%d] bank %d page %d (%d/256)",
+          fromTile,
+          toTile,
+          bankIndex,
+          pageIndex,
+          tonumber(total) or 0
+        ))
+      else
+        self:setStatus(string.format(
+          "Added tile range [%d..%d] bank %d page %d (%d/256, waiting: %s)",
+          fromTile,
+          toTile,
+          bankIndex,
+          pageIndex,
+          tonumber(total) or 0,
+          tostring(hydrateErr or "incomplete setup")
+        ))
+      end
       return true
     end,
   })
@@ -2400,10 +2403,8 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
     NametableTilesController.extractPaletteNumbersFromAttributes(win, layer, win.cols, win.rows)
   end
 
-  local tilesPool = state.tilesPool
-  if win.refreshNametableVisuals then
-    win:refreshNametableVisuals(tilesPool, li)
-  elseif win.invalidateNametableLayerCanvas then
+  local hydrated, _ = hydrateNametableLayerIfReady(self, win, layer, li)
+  if not hydrated and win.invalidateNametableLayerCanvas then
     win:invalidateNametableLayerCanvas(li)
   end
 

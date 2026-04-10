@@ -363,8 +363,14 @@ function PPUFrameWindow:isPatternTableInteractionLocked(layerIndex)
   if not layer or layer.kind ~= "tile" or layer._runtimePatternTableRefLayer == true then
     return false, nil
   end
+  if type(layer.nametableStartAddr) ~= "number" then
+    return true, "nametableStartAddr is missing"
+  end
+  if type(layer.nametableEndAddr) ~= "number" then
+    return true, "nametableEndAddr is missing"
+  end
   if type(layer.patternTable) ~= "table" then
-    return false, nil
+    return true, "patternTable.ranges is missing"
   end
   local total, err = patternTableLogicalSize(layer.patternTable)
   if err then

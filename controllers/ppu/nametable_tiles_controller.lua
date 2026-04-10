@@ -525,7 +525,7 @@ function M.hydrateWindowNametable(win, layer, opts)
     layer.patternTable = TableUtils.deepcopy(opts.patternTable)
   end
   if type(layer.patternTable) ~= "table" then
-    return nil, "patternTable is required for nametable layers"
+    layer.patternTable = {}
   end
   local mapOk, mapErr = PatternTableMapping.validate(layer.patternTable)
   if not mapOk then
@@ -559,12 +559,15 @@ function M.hydrateWindowNametable(win, layer, opts)
   -- Apply any pre-existing tileSwaps from layout/project
   if tileSwaps then
     local swapsStartedAt = nowSeconds()
+    local rawTileSwaps = tileSwaps
     if type(tileSwaps) == "string" then
       tileSwaps = decodeTileSwapsRLE(tileSwaps)
     elseif type(tileSwaps) == "table" and tileSwaps.rle then
       tileSwaps = decodeTileSwapsRLE(tileSwaps.rle)
     elseif type(tileSwaps) == "table" then
-      tileSwaps = decodeTileSwapsRLE(tileSwaps)
+      -- Keep native { {col,row,val}, ... } swap lists; only decode when this is
+      -- the chunked-RLE table representation.
+      tileSwaps = decodeTileSwapsRLE(tileSwaps) or rawTileSwaps
     end
     if tileSwaps and #tileSwaps > 0 then
       M.applyTileSwaps(win, layer, tileSwaps, tilesPool)
