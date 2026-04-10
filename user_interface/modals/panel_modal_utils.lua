@@ -6,7 +6,6 @@ local M = {}
 
 M.MODAL_BUTTON_H = UiScale.modalButtonHeight()
 M.MODAL_ICON_BUTTON_SIZE = UiScale.modalButtonHeight()
-M.MODAL_TEXT_OFFSET_Y = UiScale.modalTextOffsetY()
 
 M.DEFAULT_PANEL_STYLE = {}
 
@@ -32,7 +31,6 @@ end
 function M.refreshMetrics()
   M.MODAL_BUTTON_H = UiScale.modalButtonHeight()
   M.MODAL_ICON_BUTTON_SIZE = UiScale.modalButtonHeight()
-  M.MODAL_TEXT_OFFSET_Y = UiScale.modalTextOffsetY()
 
   M.DEFAULT_PANEL_STYLE.padding = 2
   M.DEFAULT_PANEL_STYLE.rowGap = 2
@@ -81,7 +79,6 @@ function M.applyPanelDefaults(target)
   setTrackedDefault(target, "titleH", M.DEFAULT_PANEL_STYLE.titleH)
   setTrackedDefault(target, "bgColor", copyColor(M.DEFAULT_PANEL_STYLE.bgColor))
   setTrackedDefault(target, "titleBgColor", copyColor(M.DEFAULT_PANEL_STYLE.titleBgColor))
-  setTrackedDefault(target, "textOffsetY", M.MODAL_TEXT_OFFSET_Y)
 end
 
 function M.refreshTargetMetrics(target)
@@ -104,7 +101,6 @@ function M.refreshTargetMetrics(target)
   if target._uses_modal_default_titleBgColor == true then
     target.titleBgColor = copyColor(M.DEFAULT_PANEL_STYLE.titleBgColor)
   end
-  setTrackedDefault(target, "textOffsetY", M.MODAL_TEXT_OFFSET_Y)
 end
 
 M.refreshMetrics()

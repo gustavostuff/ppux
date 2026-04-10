@@ -415,7 +415,7 @@ function ToastController:draw(canvasW, canvasH)
 
     if font then
       local textX = x + TOAST_PAD_X
-      local textY = y + math.floor((toast.h - font:getHeight()) * 0.5) + UiScale.textOffsetY()
+      local textY = y + math.floor((toast.h - font:getHeight()) * 0.5)
       local closeX = x + toast.w - CLOSE_PAD_RIGHT - iconW
       local messageMaxW = closeX - TOAST_PAD_X - textX
       local message = truncateToWidth(toast.text, messageMaxW)
@@ -429,7 +429,7 @@ function ToastController:draw(canvasW, canvasH)
     if icon then
       love.graphics.draw(icon, closeX, closeY)
     elseif font then
-      love.graphics.print("x", closeX, closeY - 1 + UiScale.textOffsetY())
+      love.graphics.print("x", closeX, closeY - 1)
     end
   end
 

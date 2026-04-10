@@ -97,9 +97,6 @@ local function refreshModal(modal)
     if modal.panel.titleH and modal.titleH then
       modal.panel.titleH = modal.titleH
     end
-    if modal.panel.textOffsetY ~= nil and modal.textOffsetY ~= nil then
-      modal.panel.textOffsetY = modal.textOffsetY
-    end
     if type(modal.panel.updateLayout) == "function" then
       modal.panel:updateLayout()
     end

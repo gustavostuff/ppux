@@ -25,7 +25,6 @@ local function rebuildPanel(self)
     titleH = self.titleH,
     bgColor = self.bgColor,
     titleBgColor = self.titleBgColor,
-    textOffsetY = self.textOffsetY,
   })
 
   self.panel:setCell(1, 1, { text = "Sprite mode" })
@@ -74,7 +73,6 @@ function Dialog.new()
     w = self.buttonW,
     h = self.buttonH,
     transparent = true,
-    textOffsetY = ModalPanelUtils.MODAL_TEXT_OFFSET_Y,
     action = function()
       self:_confirm()
     end,
@@ -85,7 +83,6 @@ function Dialog.new()
     w = self.buttonW,
     h = self.buttonH,
     transparent = true,
-    textOffsetY = ModalPanelUtils.MODAL_TEXT_OFFSET_Y,
     action = function()
       self:_cancel()
     end,

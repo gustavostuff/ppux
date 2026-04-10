@@ -202,7 +202,7 @@ function NumericSpinner:draw()
   local textH = font and font:getHeight() or 0
   local valueText = self:_valueText()
   local valueTextW = font and font:getWidth(valueText) or 0
-  local textY = self.y + math.floor((self.h - textH) * 0.5) + UiScale.textOffsetY()
+  local textY = self.y + math.floor((self.h - textH) * 0.5)
   local minusIconW, minusIconH = getIconSize(self.minusIcon)
   local plusIconW, plusIconH = getIconSize(self.plusIcon)
 

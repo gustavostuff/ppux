@@ -4,11 +4,6 @@ UiScale.NORMAL_BUTTON_SIZE = 15
 UiScale.NORMAL_MENU_CELL_SIZE = 15
 UiScale.NORMAL_WINDOW_HEADER_HEIGHT = 15
 UiScale.NORMAL_MODAL_TITLE_HEIGHT = 18
-UiScale.DEFAULT_TEXT_OFFSET_Y = 1
-
-function UiScale.textOffsetY()
-  return UiScale.DEFAULT_TEXT_OFFSET_Y
-end
 
 function UiScale.buttonSize()
   return UiScale.NORMAL_BUTTON_SIZE
@@ -32,10 +27,6 @@ end
 
 function UiScale.modalTitleHeight()
   return UiScale.NORMAL_MODAL_TITLE_HEIGHT
-end
-
-function UiScale.modalTextOffsetY()
-  return UiScale.textOffsetY()
 end
 
 function UiScale.mapStandardButtonSize(value)

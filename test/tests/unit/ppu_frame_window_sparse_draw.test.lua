@@ -68,6 +68,8 @@ describe("ppu_frame_window.lua sparse tile rendering", function()
     win.visibleCols = 2
     win.visibleRows = 1
     win.nametableBytes = { 0x12, 0x00 }
+    layer.nametableStartAddr = 0x0000
+    layer.nametableEndAddr = 0x03BF
     win.updateCompressedBytesInROM = function() return true end
 
     local tilesPool = makeTilesPool()
@@ -92,6 +94,8 @@ describe("ppu_frame_window.lua sparse tile rendering", function()
     win.visibleCols = 4
     win.visibleRows = 1
     win.nametableBytes = { 0x12, 0x00, 0x34, 0x00 }
+    layer.nametableStartAddr = 0x0000
+    layer.nametableEndAddr = 0x03BF
     win.updateCompressedBytesInROM = function() return true end
 
     local tilesPool = makeTilesPool()

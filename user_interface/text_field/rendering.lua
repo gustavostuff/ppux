@@ -75,7 +75,7 @@ local function install(TextField, utils)
     local font = love.graphics.getFont()
     local padding = 2
     local textX = self.x + padding
-    local textY = self.y + (self.h - font:getHeight()) / 2 + (self.textOffsetY or 0)
+    local textY = self.y + (self.h - font:getHeight()) / 2
     local clipX = math.floor(self.x + padding)
     local clipY = math.floor(self.y)
     local clipW = math.max(0, math.floor(self.w - (padding * 2)))

@@ -362,6 +362,20 @@ local function buildWindowResizeAndHoverPriorityScenario(harness, app, runner)
     bytes[(4 * 32) + 5 + 1] = 7
     bytes[(5 * 32) + 4 + 1] = 22
     bytes[(5 * 32) + 5 + 1] = 23
+    do
+      local layer = ppuWin.layers and ppuWin.layers[1] or nil
+      if layer then
+        -- Ensure PPU interaction-readiness gates are satisfied in tests.
+        layer.patternTable = {
+          ranges = {
+            { bank = 1, page = 1, tileRange = { from = 0, to = 255 } },
+          },
+        }
+        -- PPU interactions are now gated by explicit nametable address bounds.
+        layer.nametableStartAddr = 0
+        layer.nametableEndAddr = #bytes - 1
+      end
+    end
     ppuWin:setNametableBytes(bytes, 1, 1, tilesPool)
 
     local attrBytes = {}
@@ -2077,7 +2091,7 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
   local function appendClickPaletteHandle(steps, label, key)
     appendFocusWindow(steps, "Focus " .. tostring(key) .. " before palette handle click", key)
     appendClick(steps, label, paletteHandleCenterByKey(key), {
-      button = 1,
+      button = 2,
       moveDuration = 0.08,
       prePressPause = 0.06,
       holdDuration = 0.05,

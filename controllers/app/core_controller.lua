@@ -2095,26 +2095,12 @@ function AppCoreController:showPpuFrameRangeModal(win)
     and string.format("0x%06X", layer.nametableStartAddr) or ""
   local initialEnd = (layer and type(layer.nametableEndAddr) == "number")
     and string.format("0x%06X", layer.nametableEndAddr) or ""
-  local initialBank = "1"
-  local initialPage = "1"
-  local initialPatternRange = layer
-    and type(layer.patternTable) == "table"
-    and type(layer.patternTable.ranges) == "table"
-    and layer.patternTable.ranges[1]
-    or nil
-  if type(initialPatternRange) == "table" then
-    initialBank = tostring(tonumber(initialPatternRange.bank) or 1)
-    initialPage = tostring(tonumber(initialPatternRange.page) or 1)
-  end
-
   self.ppuFrameRangeModal:show({
     title = "Set tile range",
     window = win,
     initialStartAddress = initialStart,
     initialEndAddress = initialEnd,
-    initialBank = initialBank,
-    initialPage = initialPage,
-    onConfirm = function(startText, endText, _bankText, _pageText, targetWindow)
+    onConfirm = function(startText, endText, targetWindow)
       local startAddr, startErr = parseHexAddress(startText)
       if not startAddr then
         self:setStatus(startErr)

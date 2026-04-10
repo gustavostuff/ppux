@@ -1,7 +1,6 @@
 local Button = require("user_interface.button")
 local colors = require("app_colors")
 local Text = require("utils.text_utils")
-local UiScale = require("user_interface.ui_scale")
 
 local Cells = require("user_interface.panel.cells")
 local Layout = require("user_interface.panel.layout")
@@ -98,7 +97,6 @@ local function createButtonForCell(panel, cell)
     textAlign = cell.textAlign or cell.align or "left",
     contentPaddingX = cell.contentPaddingX or 6,
     iconTextGap = cell.iconTextGap or 5,
-    textOffsetY = cell.textOffsetY or (panel and panel.textOffsetY) or 0,
     enabled = cell.enabled ~= false,
     transparent = cell.transparent == true,
     bgColor = cell.bgColor,
@@ -123,10 +121,6 @@ local shared = {
 
 function Panel.new(opts)
   opts = opts or {}
-  local resolvedTextOffsetY = opts.textOffsetY
-  if resolvedTextOffsetY == nil then
-    resolvedTextOffsetY = UiScale.textOffsetY()
-  end
   local self = setmetatable({
     x = opts.x or 0,
     y = opts.y or 0,
@@ -139,7 +133,6 @@ function Panel.new(opts)
     spacingY = opts.spacingY or 1,
     cellPaddingX = opts.cellPaddingX or 2,
     cellPaddingY = opts.cellPaddingY or 2,
-    textOffsetY = resolvedTextOffsetY,
     visible = opts.visible == true,
     title = opts.title,
     titleH = opts.title and (opts.titleH or 14) or 0,

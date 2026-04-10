@@ -96,7 +96,6 @@ local function install(Panel, utils)
       bgColor = cell.bgColor,
       bgAlpha = cell.bgAlpha,
       textColor = cell.textColor,
-      textOffsetY = cell.textOffsetY,
       component = cell.component,
       draw = cell.draw,
     }

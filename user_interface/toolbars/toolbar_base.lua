@@ -581,7 +581,7 @@ function ToolbarBase:_drawLabel(label)
     local textW = font:getWidth(label.text)
     local textH = font:getHeight()
     local textX = labelX + (labelW - textW) / 2  -- Center horizontally
-    local textY = labelY + (labelH - textH) / 2 + UiScale.textOffsetY()  -- Center vertically
+    local textY = labelY + (labelH - textH) / 2  -- Center vertically
     love.graphics.print(label.text, textX, textY)
   end
   
@@ -629,7 +629,7 @@ function ToolbarBase:drawLayerLabelInContent()
     local sx, sy = self.window:getScreenRect()
     local margin = 4
     local labelX = sx + margin
-    local labelY = sy + margin + UiScale.textOffsetY()
+    local labelY = sy + margin
     local TU = require("utils.text_utils")
     TU.print(text, labelX, labelY, {
       outline = true,

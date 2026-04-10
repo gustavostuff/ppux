@@ -19,7 +19,6 @@ local function install(Panel, utils)
       local titleX = titleBgX + math.floor((titleBgW - titleW) * 0.5)
       love.graphics.setColor(utils.colors.white[1], utils.colors.white[2], utils.colors.white[3], 1)
       local titleY = self.y + self.padding + math.floor((titleRowH - (font and font:getHeight() or 0)) * 0.5)
-      titleY = titleY + (self.textOffsetY or 0)
       utils.Text.print(
         self.title,
         titleX,
@@ -57,7 +56,6 @@ local function install(Panel, utils)
         local labelMarginX = math.floor(cell.h / 2)
         local textX = cell.x + labelMarginX
         local textY = cell.y + math.floor((cell.h - (font and font:getHeight() or 0)) * 0.5)
-        textY = textY + (cell.textOffsetY or self.textOffsetY or 0)
         if cell.align == "center" then
           local textW = font and font:getWidth(cell.text or "") or 0
           textX = math.floor(cell.x + (cell.w - textW) * 0.5)

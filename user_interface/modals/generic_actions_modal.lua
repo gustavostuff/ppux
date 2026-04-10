@@ -30,7 +30,6 @@ local function rebuildPanel(self)
     titleH = self.titleH,
     bgColor = self.bgColor,
     titleBgColor = self.titleBgColor,
-    textOffsetY = self.textOffsetY,
   })
 
   for i, option in ipairs(self.options or {}) do

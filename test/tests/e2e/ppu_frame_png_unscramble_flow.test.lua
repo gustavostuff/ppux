@@ -105,8 +105,11 @@ describe("ppu_frame PNG drop flow - CHR import then nametable unscramble", funct
         app.wm:createPPUFrameWindow({
           title = "PPU Frame E2E",
           romRaw = app.appEditState and app.appEditState.romRaw,
-          bankIndex = 1,
-          pageIndex = 1,
+          patternTable = {
+            ranges = {
+              { bank = 1, page = 1, tileRange = { from = 0, to = 255 } },
+            },
+          },
         }),
         "failed to create PPU frame window"
       )

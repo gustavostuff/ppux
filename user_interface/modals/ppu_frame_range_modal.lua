@@ -9,7 +9,7 @@ Dialog.__index = Dialog
 local function rebuildPanel(self)
   self.panel = Panel.new({
     cols = 2,
-    rows = 6,
+    rows = 4,
     cellW = self.cellW,
     cellH = self.cellH,
     padding = self.padding,
@@ -22,20 +22,15 @@ local function rebuildPanel(self)
     titleH = self.titleH,
     bgColor = self.bgColor,
     titleBgColor = self.titleBgColor,
-    textOffsetY = self.textOffsetY,
   })
 
   self.panel:setCell(1, 1, { text = "Start:" })
   self.panel:setCell(2, 1, { component = self.startField })
   self.panel:setCell(1, 2, { text = "End:" })
   self.panel:setCell(2, 2, { component = self.endField })
-  self.panel:setCell(1, 3, { text = "Bank:" })
-  self.panel:setCell(2, 3, { component = self.bankField })
-  self.panel:setCell(1, 4, { text = "Page:" })
-  self.panel:setCell(2, 4, { component = self.pageField })
-  self.panel:setCell(1, 5, { component = self.setButton })
-  self.panel:setCell(2, 5, { component = self.cancelButton })
-  self.panel:setCell(1, 6, { text = "Esc) Close", colspan = 2 })
+  self.panel:setCell(1, 3, { component = self.setButton })
+  self.panel:setCell(2, 3, { component = self.cancelButton })
+  self.panel:setCell(1, 4, { text = "Esc) Close", colspan = 2 })
 end
 
 function Dialog.new()
@@ -69,20 +64,11 @@ function Dialog.new()
     height = self.fieldH,
     mask = "0x000000",
   })
-  self.bankField = TextField.new({
-    width = 104,
-    height = self.fieldH,
-  })
-  self.pageField = TextField.new({
-    width = 104,
-    height = self.fieldH,
-  })
   self.setButton = Button.new({
     text = "Set",
     w = self.buttonW,
     h = self.buttonH,
     transparent = true,
-    textOffsetY = ModalPanelUtils.MODAL_TEXT_OFFSET_Y,
     action = function()
       self:_confirm()
     end,
@@ -92,7 +78,6 @@ function Dialog.new()
     w = self.buttonW,
     h = self.buttonH,
     transparent = true,
-    textOffsetY = ModalPanelUtils.MODAL_TEXT_OFFSET_Y,
     action = function()
       self:_cancel()
     end,
@@ -118,12 +103,8 @@ function Dialog:show(opts)
 
   self.startField:setText(opts.initialStartAddress or "")
   self.endField:setText(opts.initialEndAddress or "")
-  self.bankField:setText(opts.initialBank or "")
-  self.pageField:setText(opts.initialPage or "")
   self.startField:setFocused(true)
   self.endField:setFocused(false)
-  self.bankField:setFocused(false)
-  self.pageField:setFocused(false)
   self.setButton.pressed = false
   self.cancelButton.pressed = false
   self.setButton.hovered = false
@@ -135,8 +116,6 @@ function Dialog:hide()
   self.visible = false
   self.startField:setFocused(false)
   self.endField:setFocused(false)
-  self.bankField:setFocused(false)
-  self.pageField:setFocused(false)
   self.setButton.pressed = false
   self.cancelButton.pressed = false
   self.setButton.hovered = false
@@ -171,8 +150,6 @@ function Dialog:_confirm()
     local ok = callback(
       self.startField:getText() or "",
       self.endField:getText() or "",
-      self.bankField:getText() or "",
-      self.pageField:getText() or "",
       targetWindow
     )
     if ok == false then
@@ -207,23 +184,9 @@ function Dialog:handleKey(key)
     if self.startField.focused then
       self.startField:setFocused(false)
       self.endField:setFocused(true)
-      self.bankField:setFocused(false)
-      self.pageField:setFocused(false)
-    elseif self.endField.focused then
-      self.startField:setFocused(false)
-      self.endField:setFocused(false)
-      self.bankField:setFocused(true)
-      self.pageField:setFocused(false)
-    elseif self.bankField.focused then
-      self.startField:setFocused(false)
-      self.endField:setFocused(false)
-      self.bankField:setFocused(false)
-      self.pageField:setFocused(true)
     else
       self.startField:setFocused(true)
       self.endField:setFocused(false)
-      self.bankField:setFocused(false)
-      self.pageField:setFocused(false)
     end
     return true
   end
@@ -231,12 +194,6 @@ function Dialog:handleKey(key)
     return true
   end
   if self.endField.focused and self.endField:onKeyPressed(key) then
-    return true
-  end
-  if self.bankField.focused and self.bankField:onKeyPressed(key) then
-    return true
-  end
-  if self.pageField.focused and self.pageField:onKeyPressed(key) then
     return true
   end
   return false
@@ -249,12 +206,6 @@ function Dialog:textinput(text)
   end
   if self.endField.focused then
     return self.endField:onTextInput(text)
-  end
-  if self.bankField.focused then
-    return self.bankField:onTextInput(text)
-  end
-  if self.pageField.focused then
-    return self.pageField:onTextInput(text)
   end
   return false
 end

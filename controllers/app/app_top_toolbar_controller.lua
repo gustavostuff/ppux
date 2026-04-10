@@ -237,7 +237,7 @@ function M.draw(app)
   local statusText = tostring(app.lastEventText or app.statusText or "")
   local pad = 4
   local textX = statusLeftX + pad
-  local textY = math.floor((h - love.graphics.getFont():getHeight()) / 2) + UiScale.textOffsetY()
+  local textY = math.floor((h - love.graphics.getFont():getHeight()) / 2)
   local textW = math.max(0, cw - statusLeftX - (pad * 2))
   love.graphics.setScissor(statusLeftX, 0, math.max(0, cw - statusLeftX), h)
   love.graphics.setColor(colors.white)

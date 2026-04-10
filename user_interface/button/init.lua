@@ -42,11 +42,6 @@ function Button.new(opts)
       initialH = UiScale.mapStandardButtonSize(ih) or ih
     end
   end
-  local resolvedTextOffsetY = opts.textOffsetY
-  if resolvedTextOffsetY == nil then
-    resolvedTextOffsetY = UiScale.textOffsetY()
-  end
-
   local self = setmetatable({
     icon = opts.icon,  -- Image object
     text = opts.text,
@@ -69,7 +64,6 @@ function Button.new(opts)
     contentPaddingX = opts.contentPaddingX or 4,
     iconTextGap = opts.iconTextGap or 4,
     alignTextToContentPadding = opts.alignTextToContentPadding == true,
-    textOffsetY = resolvedTextOffsetY,
     bgColor = opts.bgColor,
     bgAlpha = (opts.bgAlpha ~= nil) and opts.bgAlpha or 1,
     contentColor = opts.contentColor,
@@ -133,7 +127,6 @@ function Button:draw()
       textX = self.x + (self.w - textW) / 2
     end
     local textY = self.y + (self.h - textH) / 2
-    textY = textY + (self.textOffsetY or 0)
     local a = contentAlpha()
     local r, g, b, aa = contentColorWithAlpha(a)
     love.graphics.setColor(r, g, b, aa)
@@ -165,7 +158,6 @@ function Button:draw()
       iconX = self.x
     end
     local textY = self.y + (self.h - textH) / 2
-    textY = textY + (self.textOffsetY or 0)
 
     local iconAlpha = contentAlpha()
     local r, g, b, a = contentColorWithAlpha(iconAlpha)
