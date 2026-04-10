@@ -144,6 +144,7 @@ function Panel.new(opts)
     title = opts.title,
     titleH = opts.title and (opts.titleH or 14) or 0,
     bgColor = opts.bgColor or colors.gray20,
+    titleBgColor = opts.titleBgColor or opts.bgColor or colors.gray20,
     borderColor = opts.borderColor or colors.white,
     debugShowCells = opts.debugShowCells == true,
     debugCellColor = opts.debugCellColor or colors.gray10,

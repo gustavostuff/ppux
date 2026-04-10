@@ -57,8 +57,11 @@ describe("ppu_frame_window.lua sparse tile rendering", function()
   it("keeps glass/transparent bytes in the visual tile map", function()
     local win = PPUFrameWindow.new(0, 0, 1, { title = "PPU" })
     local layer = win.layers[1]
-    layer.bank = 1
-    layer.page = 1
+    layer.patternTable = {
+      ranges = {
+        { bank = 1, page = 1, tileRange = { from = 0, to = 255 } },
+      },
+    }
     layer.glassTileByte = 0x00
 
     win.cols = 2
@@ -79,8 +82,11 @@ describe("ppu_frame_window.lua sparse tile rendering", function()
   it("iterates all visible nametable cells including glass bytes", function()
     local win = PPUFrameWindow.new(0, 0, 1, { title = "PPU" })
     local layer = win.layers[1]
-    layer.bank = 1
-    layer.page = 1
+    layer.patternTable = {
+      ranges = {
+        { bank = 1, page = 1, tileRange = { from = 0, to = 255 } },
+      },
+    }
     layer.glassTileByte = 0x00
 
     win.cols = 4

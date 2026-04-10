@@ -107,9 +107,7 @@ local function resolveTile(tilesPool, layer, byteVal)
   return PatternTableMapping.resolveTile(
     tilesPool,
     layer,
-    byteVal,
-    layer.bank or 1,
-    layer.page or 1
+    byteVal
   )
 end
 
@@ -489,9 +487,7 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
         local tileIndex = tileRef.index  -- 0-based within bank
         convertedByte = PatternTableMapping.logicalIndexForTileRef(
           layer,
-          tileRef,
-          layer.bank or 1,
-          layer.page or 1
+          tileRef
         )
         if convertedByte == nil then
           convertedByte = tileIndex % 256

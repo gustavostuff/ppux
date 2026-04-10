@@ -104,7 +104,7 @@ local function lin(cols, col, row)
   return row * cols + col + 1  -- (row, col) → 1..N
 end
 
-local function ensurePatternTableBanks(patternTable, ensureTiles, fallbackBank)
+local function ensurePatternTableBanks(patternTable, ensureTiles)
   if type(ensureTiles) ~= "function" then
     return
   end
@@ -124,7 +124,6 @@ local function ensurePatternTableBanks(patternTable, ensureTiles, fallbackBank)
       end
     end
   end
-  ensureOne(fallbackBank)
 end
 
 local function copyBytes(src)
@@ -400,8 +399,6 @@ end
 --    ensureTiles         : function(bankIndex) to lazily build tiles
 --    nametableStartAddr  : 0-based ROM address of compressed stream start
 --    nametableEndAddr    : 0-based ROM address of compressed stream end (inclusive)
---    bankIndex           : CHR bank index for tiles
---    pageIndex           : 1 or 2 (CHR page within bank)
 --    tileSwaps           : optional list { {col,row,val}, ... } to apply after load
 function M.hydrateWindowNametable(win, layer, opts)
   if not (win and layer and opts) then
@@ -412,8 +409,6 @@ function M.hydrateWindowNametable(win, layer, opts)
   local ensureTiles = opts.ensureTiles
   local startAddr   = opts.nametableStartAddr or layer.nametableStartAddr or win.nametableStart
   local endAddr     = opts.nametableEndAddr   or layer.nametableEndAddr
-  local bankIndex   = opts.bankIndex or layer.bank
-  local pageIndex   = opts.pageIndex or layer.page
   local tileSwaps   = opts.tileSwaps or layer.tileSwaps
   local noOverflowSupported = (opts.noOverflowSupported == true) or (layer.noOverflowSupported == true)
 
@@ -532,8 +527,6 @@ function M.hydrateWindowNametable(win, layer, opts)
   layer.kind  = layer.kind or "tile"
   layer.mode  = layer.mode or "8x8"
   layer.codec = layer.codec or codec or "konami"
-  layer.bank  = bankIndex
-  layer.page  = pageIndex
   layer.nametableStartAddr = startAddr
   layer.nametableEndAddr   = endAddr
   layer.noOverflowSupported = noOverflowSupported
@@ -543,8 +536,9 @@ function M.hydrateWindowNametable(win, layer, opts)
 
   if type(opts.patternTable) == "table" then
     layer.patternTable = TableUtils.deepcopy(opts.patternTable)
-  elseif type(layer.patternTable) ~= "table" then
-    layer.patternTable = {}
+  end
+  if type(layer.patternTable) ~= "table" then
+    return nil, "patternTable is required for nametable layers"
   end
   if glassTileIndex ~= nil then
     if type(glassTileIndex) ~= "number" then
@@ -571,8 +565,7 @@ function M.hydrateWindowNametable(win, layer, opts)
     return nil, message
   end
 
-  ensurePatternTableBanks(layer.patternTable, ensureTiles, bankIndex)
-  DebugController.log("info", "NTM", "bankIndex in M.hydrateWindowNametable: %d", bankIndex)
+  ensurePatternTableBanks(layer.patternTable, ensureTiles)
   if tilesPool then
     local fillGridStartedAt = nowSeconds()
     for i = 1, #win.nametableBytes do
@@ -583,7 +576,7 @@ function M.hydrateWindowNametable(win, layer, opts)
       if win.syncNametableVisualCell then
         win:syncNametableVisualCell(col, row, byteVal, tilesPool, li)
       else
-        local tileRef = PatternTableMapping.resolveTile(tilesPool, layer, byteVal, bankIndex, pageIndex)
+        local tileRef = PatternTableMapping.resolveTile(tilesPool, layer, byteVal)
         if tileRef then
           win:set(col, row, tileRef, li)
         else
@@ -689,9 +682,6 @@ function M.applyTileSwaps(win, layer, swaps, tilesPool, opts)
 
   local li = findLayerIndex(win, layer) or 1
   local cols = win.cols or 32
-  local bankIndex = layer.bank or 1
-  local pageIndex = layer.page or 1
-
   ensureDiffState(win)
 
   for _, s in ipairs(swaps) do
@@ -705,7 +695,7 @@ function M.applyTileSwaps(win, layer, swaps, tilesPool, opts)
         if win.syncNametableVisualCell then
           win:syncNametableVisualCell(col, row, val, tilesPool, li)
         else
-          local tileRef = PatternTableMapping.resolveTile(tilesPool, layer, val, bankIndex, pageIndex)
+          local tileRef = PatternTableMapping.resolveTile(tilesPool, layer, val)
           if tileRef then
             win:clear(col, row, li)
             win:set(col, row, tileRef, li)
@@ -731,7 +721,6 @@ end
 --- Build a project-ready table for a nametable layer.
 --  We intentionally do NOT serialize the full 960-byte nametable;
 --  instead we store:
---    * bank / page
 --    * nametableStartAddr / nametableEndAddr
 --    * tileSwaps (list {col,row,val} for cells that differ from ROM)
 function M.snapshotNametableLayer(win, layer)
@@ -746,8 +735,6 @@ function M.snapshotNametableLayer(win, layer)
     kind               = "tile",
     opacity            = (layer.opacity ~= nil) and layer.opacity or 1.0,
     mode               = layer.mode or "8x8",
-    bank               = layer.bank,
-    page               = layer.page,
     patternTable       = TableUtils.deepcopy(layer.patternTable),
     nametableStartAddr = layer.nametableStartAddr,
     nametableEndAddr   = layer.nametableEndAddr,

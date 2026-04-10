@@ -344,9 +344,7 @@ function PPUFrameWindow:syncNametableVisualCell(col, row, byteVal, tilesPool, la
   local tileRef, resolveErr = PatternTableMapping.resolveTile(
     tilesPool,
     layer,
-    byteVal,
-    layer.bank or 1,
-    layer.page or 1
+    byteVal
   )
   if resolveErr and not layer._patternTableResolveWarned then
     layer._patternTableResolveWarned = true
@@ -652,8 +650,7 @@ end
 ----------------------------------------------------------------
 
 -- bytesTbl: table of numbers 0..255
--- bankIndex: tilesPool bank index
--- pageIndex: 1 or 2
+-- bankIndex/pageIndex: optional defaults for initializing patternTable
 -- tilesPool: source of live tile refs
 function PPUFrameWindow:setNametableBytes(bytesTbl, bankIndex, pageIndex, tilesPool)
   self.nametableBytes = {}
@@ -669,13 +666,17 @@ function PPUFrameWindow:setNametableBytes(bytesTbl, bankIndex, pageIndex, tilesP
   end
   self._tileSwaps = {}  -- compact diff map
 
-  local bank  = tonumber(bankIndex or 1) or 1
-  local page  = (pageIndex == 2) and 2 or 1
-
   local Lnt = select(1, getNametableLayer(self))
-  if Lnt then
-    Lnt.bank = bank
-    Lnt.page = page
+  if Lnt and type(Lnt.patternTable) ~= "table" then
+    Lnt.patternTable = {
+      ranges = {
+        {
+          bank = tonumber(bankIndex) or 1,
+          page = (pageIndex == 2) and 2 or 1,
+          tileRange = { from = 0, to = 255 },
+        },
+      },
+    }
   end
 
   self:syncNametableLayerMetadata()
@@ -684,7 +685,7 @@ function PPUFrameWindow:setNametableBytes(bytesTbl, bankIndex, pageIndex, tilesP
   local cols, rows = inferDims(#self.nametableBytes)
   self.cols, self.rows = cols, rows
 
-  DebugController.log("info", "PPU", "Window '%s' nametable bytes set: %d bytes, %dx%d grid, bank: %d, page: %d", self.title or "untitled", #self.nametableBytes, cols, rows, bank, page)
+  DebugController.log("info", "PPU", "Window '%s' nametable bytes set: %d bytes, %dx%d grid", self.title or "untitled", #self.nametableBytes, cols, rows)
 
   -- Clear existing items on layer 1
   local li = select(2, getNametableLayer(self)) or self.activeLayer or 1
@@ -815,13 +816,14 @@ end
 function PPUFrameWindow:setBankPage(bankIndex, pageIndex, tilesPool)
   local Lnt = select(1, getNametableLayer(self))
   if not Lnt then return end
-
-  if bankIndex ~= nil then
-    Lnt.bank = tonumber(bankIndex) or Lnt.bank or 1
-  end
-  if pageIndex ~= nil then
-    Lnt.page = (pageIndex == 2) and 2 or 1
-  end
+  Lnt.patternTable = type(Lnt.patternTable) == "table" and Lnt.patternTable or {}
+  Lnt.patternTable.ranges = {
+    {
+      bank = tonumber(bankIndex) or 1,
+      page = (pageIndex == 2) and 2 or 1,
+      tileRange = { from = 0, to = 255 },
+    },
+  }
 
   -- Rebuild items from current bytes
   local cols = self.cols
@@ -855,9 +857,7 @@ local function tileToByte(tile, layer)
   end
   local logicalIndex, _ = PatternTableMapping.logicalIndexForTileRef(
     layer,
-    tile,
-    (layer and layer.bank) or 1,
-    (layer and layer.page) or 1
+    tile
   )
   if logicalIndex ~= nil then
     return logicalIndex

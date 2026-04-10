@@ -860,7 +860,13 @@ function AppCoreController:_buildPpuTileContext(win, layerIndex, col, row)
     return nil
   end
 
-  local sourceBank = tonumber(item._bankIndex) or tonumber(layer.bank) or 1
+  local sourceBank = tonumber(item._bankIndex)
+  if not sourceBank and type(layer.patternTable) == "table" then
+    local map = PatternTableMapping.buildMap(layer.patternTable)
+    local entry = map and map[clampByte(byteVal)] or nil
+    sourceBank = entry and tonumber(entry.bank) or nil
+  end
+  sourceBank = sourceBank or 1
 
   return {
     win = win,
@@ -885,7 +891,7 @@ function AppCoreController:_ensurePpuPatternTableReferenceLayer(context, opts)
     self:setStatus("This layer has no patternTable")
     return false
   end
-  local map, mapErr = buildPatternTableMapAllowPartial(layer.patternTable, layer.bank or 1, layer.page or 1)
+  local map, mapErr = buildPatternTableMapAllowPartial(layer.patternTable)
   if not map then
     self:setStatus(tostring(mapErr or "Invalid patternTable mapping"))
     return false
@@ -998,6 +1004,18 @@ function AppCoreController:_buildSelectInChrContext(win, layerIndex, col, row, i
       return nil
     end
 
+    local sourceBank = tonumber(item._bankIndex)
+    if not sourceBank and win.kind == "ppu_frame" and win.nametableBytes then
+      local idx = ppuTileLinearIndex(win, col, row)
+      local byteVal = win.nametableBytes[idx]
+      if type(byteVal) == "number" and type(layer.patternTable) == "table" then
+        local map = PatternTableMapping.buildMap(layer.patternTable)
+        local entry = map and map[clampByte(byteVal)] or nil
+        sourceBank = entry and tonumber(entry.bank) or nil
+      end
+    end
+    sourceBank = sourceBank or 1
+
     return {
       win = win,
       layerIndex = layerIndex,
@@ -1006,7 +1024,7 @@ function AppCoreController:_buildSelectInChrContext(win, layerIndex, col, row, i
       row = row,
       item = item,
       tileIndex = normalizeTileIndex(item),
-      sourceBank = tonumber(item._bankIndex) or tonumber(layer.bank) or 1,
+      sourceBank = sourceBank,
       logicalIndex = (layer._runtimePatternTableRefLayer == true
         and layer._runtimePatternTableLogicalByCell
         and layer._runtimePatternTableLogicalByCell[((row * (win.cols or 32)) + col + 1)])
@@ -1817,11 +1835,8 @@ getPpuPatternTableTargetLayer = function(win)
   return fallbackLayer, fallbackIndex
 end
 
-buildPatternTableMapAllowPartial = function(patternTable, fallbackBank, fallbackPage)
+buildPatternTableMapAllowPartial = function(patternTable)
   local map = {}
-  local bankFallback = math.max(1, math.floor(tonumber(fallbackBank) or 1))
-  local pageFallback = math.floor(tonumber(fallbackPage) or 1)
-  if pageFallback < 1 then pageFallback = 1 elseif pageFallback > 2 then pageFallback = 2 end
 
   if type(patternTable) ~= "table" or type(patternTable.ranges) ~= "table" then
     return map, nil
@@ -1833,8 +1848,14 @@ buildPatternTableMapAllowPartial = function(patternTable, fallbackBank, fallback
     if from == nil or to == nil then
       return nil, string.format("patternTable.ranges[%d] has invalid from/to", i)
     end
-    local bank = math.max(1, math.floor(tonumber(range.bank) or bankFallback))
-    local page = math.floor(tonumber(range.page) or pageFallback)
+    local bank = math.max(1, math.floor(tonumber(range.bank) or -1))
+    local page = math.floor(tonumber(range.page) or -1)
+    if bank < 1 then
+      return nil, string.format("patternTable.ranges[%d] is missing bank", i)
+    end
+    if page < 1 then
+      return nil, string.format("patternTable.ranges[%d] is missing page", i)
+    end
     if page < 1 then page = 1 elseif page > 2 then page = 2 end
     for src = from, to do
       if logicalIndex > 255 then
@@ -1896,8 +1917,6 @@ snapshotPpuFrameRangeState = function(win, layerIndex)
       kind = layer.kind,
       mode = layer.mode,
       codec = layer.codec,
-      bank = layer.bank,
-      page = layer.page,
       nametableStartAddr = layer.nametableStartAddr,
       nametableEndAddr = layer.nametableEndAddr,
       noOverflowSupported = layer.noOverflowSupported,
@@ -1922,8 +1941,6 @@ didPpuFrameRangeSettingsChange = function(beforeState, afterState)
 
   return beforeLayer.nametableStartAddr ~= afterLayer.nametableStartAddr
     or beforeLayer.nametableEndAddr ~= afterLayer.nametableEndAddr
-    or beforeLayer.bank ~= afterLayer.bank
-    or beforeLayer.page ~= afterLayer.page
     or glassTileIndexFromLayer(beforeLayer) ~= glassTileIndexFromLayer(afterLayer)
 end
 
@@ -2168,12 +2185,29 @@ function AppCoreController:showPpuFrameRangeModal(win)
   end
 
   local layer = getPpuNametableLayer(win)
+  local patternTable = layer and layer.patternTable or nil
+  local total, totalErr = patternTableLogicalSize(patternTable)
+  if type(total) ~= "number" or total ~= 256 then
+    local message = totalErr or string.format("Complete patternTable ranges before setting addresses (%d/256)", tonumber(total) or 0)
+    self:setStatus(message)
+    self:showToast("warning", message)
+    return false
+  end
   local initialStart = (layer and type(layer.nametableStartAddr) == "number")
     and string.format("0x%06X", layer.nametableStartAddr) or ""
   local initialEnd = (layer and type(layer.nametableEndAddr) == "number")
     and string.format("0x%06X", layer.nametableEndAddr) or ""
-  local initialBank = tostring((layer and tonumber(layer.bank)) or 1)
-  local initialPage = tostring((layer and tonumber(layer.page)) or 1)
+  local initialBank = "1"
+  local initialPage = "1"
+  local initialPatternRange = layer
+    and type(layer.patternTable) == "table"
+    and type(layer.patternTable.ranges) == "table"
+    and layer.patternTable.ranges[1]
+    or nil
+  if type(initialPatternRange) == "table" then
+    initialBank = tostring(tonumber(initialPatternRange.bank) or 1)
+    initialPage = tostring(tonumber(initialPatternRange.page) or 1)
+  end
 
   self.ppuFrameRangeModal:show({
     title = "Set tile range",
@@ -2246,6 +2280,15 @@ function AppCoreController:showPpuFrameRangeModal(win)
       local currentBankIndex = bankIndex
       BankViewController.ensureBankTiles(state, currentBankIndex)
       targetLayer.codec = targetLayer.codec or "konami"
+      targetLayer.patternTable = {
+        ranges = {
+          {
+            bank = currentBankIndex,
+            page = pageIndex,
+            tileRange = { from = 0, to = 255 },
+          },
+        },
+      }
       local ok, err = NametableTilesController.hydrateWindowNametable(targetWindow, targetLayer, {
         romRaw = romRaw,
         tilesPool = tilesPool,
@@ -2258,8 +2301,7 @@ function AppCoreController:showPpuFrameRangeModal(win)
         end,
         nametableStartAddr = startAddr,
         nametableEndAddr = endAddr,
-        bankIndex = currentBankIndex,
-        pageIndex = pageIndex,
+        patternTable = targetLayer.patternTable,
         codec = targetLayer.codec,
         reportErrors = false,
       })
@@ -2272,11 +2314,7 @@ function AppCoreController:showPpuFrameRangeModal(win)
 
       targetLayer.nametableStartAddr = startAddr
       targetLayer.nametableEndAddr = endAddr
-      targetLayer.bank = currentBankIndex
-      targetLayer.page = pageIndex
-      if targetWindow.setBankPage then
-        targetWindow:setBankPage(currentBankIndex, pageIndex, tilesPool)
-      elseif targetWindow.refreshNametableVisuals then
+      if targetWindow.refreshNametableVisuals then
         targetWindow:refreshNametableVisuals(tilesPool, targetLayerIndex)
       elseif targetWindow.invalidateNametableLayerCanvas then
         targetWindow:invalidateNametableLayerCanvas(targetLayerIndex)
@@ -2328,8 +2366,8 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
   local existingPatternTable = type(targetLayer.patternTable) == "table" and targetLayer.patternTable or {}
   local existingRanges = type(existingPatternTable.ranges) == "table" and existingPatternTable.ranges or {}
 
-  local initialBank = tostring(tonumber(targetLayer.bank) or 1)
-  local initialPage = tonumber(targetLayer.page) or 1
+  local initialBank = "1"
+  local initialPage = 1
   local initialFrom = "0"
   local initialTo = "255"
   local lastRange = existingRanges[#existingRanges]
@@ -2502,8 +2540,6 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
   layer.kind = layerState.kind
   layer.mode = layerState.mode
   layer.codec = layerState.codec
-  layer.bank = layerState.bank
-  layer.page = layerState.page
   layer.nametableStartAddr = layerState.nametableStartAddr
   layer.nametableEndAddr = layerState.nametableEndAddr
   layer.noOverflowSupported = layerState.noOverflowSupported
@@ -2514,9 +2550,15 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
   layer.items = {}
 
   local state = self.appEditState or {}
-  local bankIndex = tonumber(layer.bank)
-  if bankIndex and state.chrBanksBytes and state.chrBanksBytes[bankIndex] then
-    BankViewController.ensureBankTiles(state, bankIndex)
+  if state.chrBanksBytes and type(layer.patternTable) == "table" and type(layer.patternTable.ranges) == "table" then
+    local ensuredBanks = {}
+    for _, range in ipairs(layer.patternTable.ranges) do
+      local bankIndex = type(range) == "table" and tonumber(range.bank) or nil
+      if bankIndex and bankIndex >= 1 and not ensuredBanks[bankIndex] and state.chrBanksBytes[bankIndex] then
+        ensuredBanks[bankIndex] = true
+        BankViewController.ensureBankTiles(state, bankIndex)
+      end
+    end
   end
 
   if NametableTilesController.extractPaletteNumbersFromAttributes then
@@ -2574,7 +2616,7 @@ function AppCoreController:invalidatePpuFrameNametableTile(bankIdx, tileIndex)
     end
     local pt = layer.patternTable
     if type(pt) ~= "table" or type(pt.ranges) ~= "table" then
-      return tonumber(layer.bank) == targetBank
+      return false
     end
 
     local targetPage = (targetTileIndex >= 256) and 2 or 1

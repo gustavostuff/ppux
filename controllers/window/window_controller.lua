@@ -1007,8 +1007,15 @@ function WM:createPPUFrameWindow(opts)
     layer.kind = "tile"
     layer.mode = "8x8"
     layer.codec = opts.codec or "konami"
-    layer.bank = opts.bankIndex or 1
-    layer.page = opts.pageIndex or 1
+    layer.patternTable = {
+      ranges = {
+        {
+          bank = opts.bankIndex or 1,
+          page = opts.pageIndex or 1,
+          tileRange = { from = 0, to = 255 },
+        },
+      },
+    }
   end
   win.activeLayer = 1
 

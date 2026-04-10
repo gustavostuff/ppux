@@ -58,6 +58,39 @@ local function patternRangeCount(window)
   return #layer.patternTable.ranges
 end
 
+local function hasCompletePatternTable(window)
+  local layer = getNametableLayer(window)
+  local pt = layer and layer.patternTable or nil
+  if type(pt) ~= "table" or type(pt.ranges) ~= "table" then
+    return false
+  end
+  local total = 0
+  for _, range in ipairs(pt.ranges) do
+    if type(range) ~= "table" then
+      return false
+    end
+    local from = range.from
+    local to = range.to
+    local tr = range.tileRange
+    if type(tr) == "table" then
+      if from == nil then from = tr.from or tr.start end
+      if to == nil then to = tr.to or tr["end"] end
+    end
+    if from == nil then from = range.start end
+    if to == nil then to = range["end"] end
+    from = math.floor(tonumber(from) or -1)
+    to = math.floor(tonumber(to) or -1)
+    if from < 0 or to < from or to > 255 then
+      return false
+    end
+    total = total + (to - from + 1)
+    if total > 256 then
+      return false
+    end
+  end
+  return total == 256
+end
+
 local function clamp(value, minValue, maxValue)
   value = math.floor(tonumber(value) or 0)
   if value < minValue then return minValue end
@@ -162,6 +195,10 @@ function PPUFrameToolbar:_onNextLayer()
 end
 
 function PPUFrameToolbar:_onConfigureRange()
+  if self.rangeButton and self.rangeButton.enabled == false then
+    setStatus(self.ctx, "Complete patternTable ranges (256 tiles) before setting addresses")
+    return
+  end
   local app = self.ctx and self.ctx.app or nil
   if app and app.showPpuFrameRangeModal then
     app:showPpuFrameRangeModal(self.window)
@@ -366,14 +403,20 @@ end
 function PPUFrameToolbar:updateRangeButton()
   if not self.rangeButton then return end
   self.rangeButton.icon = images.icons.icon_nametable_range or self.rangeButton.icon
-  if hasConfiguredRange(self.window) then
+  local hasFullPatternTable = hasCompletePatternTable(self.window)
+  self.rangeButton.enabled = hasFullPatternTable
+  if hasConfiguredRange(self.window) and hasFullPatternTable then
     self.rangeButton.bgColor = nil
     self.rangeButton.contentColor = colors.white
     self.rangeButton.tooltip = "Set start and end addresses for nametable"
-  else
+  elseif hasFullPatternTable then
     self.rangeButton.bgColor = colors.yellow
     self.rangeButton.contentColor = colors.black
     self.rangeButton.tooltip = "Set start and end addresses for nametable"
+  else
+    self.rangeButton.bgColor = colors.gray20
+    self.rangeButton.contentColor = colors.white
+    self.rangeButton.tooltip = "Add complete patternTable ranges (256 tiles) first"
   end
 end
 

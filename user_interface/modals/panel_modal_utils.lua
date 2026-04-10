@@ -43,6 +43,7 @@ function M.refreshMetrics()
   M.DEFAULT_PANEL_STYLE.cellH = M.MODAL_BUTTON_H
   M.DEFAULT_PANEL_STYLE.titleH = UiScale.modalTitleHeight()
   M.DEFAULT_PANEL_STYLE.bgColor = { 0.356, 0.424, 0.851 }
+  M.DEFAULT_PANEL_STYLE.titleBgColor = copyColor(colors.gray20)
 end
 
 function M.centerPanel(panel, canvas)
@@ -79,6 +80,7 @@ function M.applyPanelDefaults(target)
   end
   setTrackedDefault(target, "titleH", M.DEFAULT_PANEL_STYLE.titleH)
   setTrackedDefault(target, "bgColor", copyColor(M.DEFAULT_PANEL_STYLE.bgColor))
+  setTrackedDefault(target, "titleBgColor", copyColor(M.DEFAULT_PANEL_STYLE.titleBgColor))
   setTrackedDefault(target, "textOffsetY", M.MODAL_TEXT_OFFSET_Y)
 end
 
@@ -98,6 +100,9 @@ function M.refreshTargetMetrics(target)
   setTrackedDefault(target, "titleH", M.DEFAULT_PANEL_STYLE.titleH)
   if target._uses_modal_default_bgColor == true then
     target.bgColor = copyColor(M.DEFAULT_PANEL_STYLE.bgColor)
+  end
+  if target._uses_modal_default_titleBgColor == true then
+    target.titleBgColor = copyColor(M.DEFAULT_PANEL_STYLE.titleBgColor)
   end
   setTrackedDefault(target, "textOffsetY", M.MODAL_TEXT_OFFSET_Y)
 end

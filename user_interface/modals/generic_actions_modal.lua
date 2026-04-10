@@ -29,6 +29,7 @@ local function rebuildPanel(self)
     title = self.title,
     titleH = self.titleH,
     bgColor = self.bgColor,
+    titleBgColor = self.titleBgColor,
     textOffsetY = self.textOffsetY,
   })
 
