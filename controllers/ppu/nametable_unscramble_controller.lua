@@ -88,6 +88,18 @@ local function comparePatterns(pattern1, pattern2, threshold)
   return differences
 end
 
+local function patternEntryHasByte(entry, byteVal)
+  if not (entry and entry.bytes and type(byteVal) == "number") then
+    return false
+  end
+  for _, b in ipairs(entry.bytes) do
+    if b == byteVal then
+      return true
+    end
+  end
+  return false
+end
+
 local function resolveTile(tilesPool, layer, byteVal)
   if not layer then
     return nil
@@ -127,11 +139,25 @@ local function buildTileCatalog(win, layer, tilesPool)
       if not catalog[patternKey] then
         catalog[patternKey] = {
           byte = byteVal,
+          bytes = { byteVal },
           col = nil,  -- Not from a specific position
           row = nil,
           tile = tileRef,
           pattern = tileRef.pixels
         }
+      else
+        local entry = catalog[patternKey]
+        local seen = false
+        for _, existingByte in ipairs(entry.bytes or {}) do
+          if existingByte == byteVal then
+            seen = true
+            break
+          end
+        end
+        if not seen then
+          entry.bytes = entry.bytes or {}
+          entry.bytes[#entry.bytes + 1] = byteVal
+        end
       end
     end
   end
@@ -282,6 +308,7 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
       
       -- Extract pattern from PNG (brightness-based quantization)
       local pngPattern = extractTileFromPNG(imageData, col, row, brightnessMap, brightnessRemap)
+      local pngPatternKey = table.concat(pngPattern, ",")
       
       -- First, check if the original tile at this position is a perfect match
       -- Note: PNG pattern is brightness-quantized, tile pixels are palette indices
@@ -311,6 +338,25 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
         newNametableBytes[idx] = originalTile.byte
         matchedCount = matchedCount + 1
       else
+        if threshold == 0 then
+          local exactEntry = tileCatalog[pngPatternKey]
+          if exactEntry then
+            if patternEntryHasByte(exactEntry, originalByte) then
+              newNametableBytes[idx] = originalByte
+            else
+              newNametableBytes[idx] = exactEntry.byte
+            end
+            matchedCount = matchedCount + 1
+            if exactEntry and exactEntry.bytes and #exactEntry.bytes > 1 then
+              ambiguousMatches = ambiguousMatches + 1
+            end
+            perfectMatches = perfectMatches + 1
+          else
+            unmatchedCount = unmatchedCount + 1
+          end
+          goto continue_match
+        end
+
         -- Find best match in catalog
         local bestMatch = nil
         local bestDiff = 999
@@ -353,6 +399,8 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
           unmatchedCount = unmatchedCount + 1
         end
       end
+
+      ::continue_match::
     end
     
     -- Log progress every 10 rows

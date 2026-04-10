@@ -865,6 +865,7 @@ local function floodFillTileItem(app, item, tx, ty, targetColor, fillColor, sour
     local visited = {}
     local painted = 0
     local queue = {{tx, ty}}
+    local queueHead = 1
 
     local function getKey(x, y)
       return y * 8 + x
@@ -874,8 +875,9 @@ local function floodFillTileItem(app, item, tx, ty, targetColor, fillColor, sour
       return x >= 0 and x < 8 and y >= 0 and y < 8
     end
 
-    while #queue > 0 do
-      local current = table.remove(queue, 1)
+    while queueHead <= #queue do
+      local current = queue[queueHead]
+      queueHead = queueHead + 1
       local x, y = current[1], current[2]
       local key = getKey(x, y)
 
@@ -922,6 +924,7 @@ local function floodFillTileItem(app, item, tx, ty, targetColor, fillColor, sour
   local visited = {}
   local painted = 0
   local queue = {{tx, ty}}
+  local queueHead = 1
   local targets = getSyncTargets(app, bankIdx, tileIndex, sourceWin)
   
   local function getKey(x, y)
@@ -932,8 +935,9 @@ local function floodFillTileItem(app, item, tx, ty, targetColor, fillColor, sour
     return x >= 0 and x < 8 and y >= 0 and y < 8
   end
   
-  while #queue > 0 do
-    local current = table.remove(queue, 1)
+  while queueHead <= #queue do
+    local current = queue[queueHead]
+    queueHead = queueHead + 1
     local x, y = current[1], current[2]
     local key = getKey(x, y)
     
@@ -984,13 +988,15 @@ local function floodFillCanvas(app, win, canvas, px, py, targetColor, fillColor)
 
   local visited = {}
   local queue = {{px, py}}
+  local queueHead = 1
   local painted = 0
   local function keyFor(x, y)
     return y * canvas.width + x
   end
 
-  while #queue > 0 do
-    local current = table.remove(queue, 1)
+  while queueHead <= #queue do
+    local current = queue[queueHead]
+    queueHead = queueHead + 1
     local x, y = current[1], current[2]
     if x < 0 or y < 0 or x >= canvas.width or y >= canvas.height then
       goto continue
@@ -1049,6 +1055,7 @@ local function floodFillTileItemForSprite(app, item, bankIdx, tileIndex, tx, ty,
   local visited = {}
   local painted = 0
   local queue = {{tx, ty}}
+  local queueHead = 1
   local targets = getSyncTargets(app, bankIdx, tileIndex, sourceWin)
   
   local function getKey(x, y)
@@ -1059,8 +1066,9 @@ local function floodFillTileItemForSprite(app, item, bankIdx, tileIndex, tx, ty,
     return x >= 0 and x < 8 and y >= 0 and y < 8
   end
   
-  while #queue > 0 do
-    local current = table.remove(queue, 1)
+  while queueHead <= #queue do
+    local current = queue[queueHead]
+    queueHead = queueHead + 1
     local x, y = current[1], current[2]
     local key = getKey(x, y)
     
