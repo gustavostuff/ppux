@@ -272,7 +272,7 @@ end
 
 --- Palette link handle on the app-top docked toolbar (canvas coordinates throughout).
 function M.beginPaletteLinkContextFromAppTopBar(win, canvasX, canvasY, button)
-  if button ~= 1 then
+  if button ~= 1 and button ~= 2 and button ~= 3 then
     return false
   end
   local wm = ctx and ctx.wm and ctx.wm() or nil

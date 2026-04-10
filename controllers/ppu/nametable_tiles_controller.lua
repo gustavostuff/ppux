@@ -566,7 +566,7 @@ function M.hydrateWindowNametable(win, layer, opts)
 
   local mapOk, mapErr = PatternTableMapping.validate(layer.patternTable)
   if not mapOk then
-    local message = string.format("Invalid patternTable mapping: %s", tostring(mapErr))
+    local message = string.format("Invalid patternTable mapping for '%s'", win.title or "")
     reportDecodeCoverageError(message, opts)
     return nil, message
   end

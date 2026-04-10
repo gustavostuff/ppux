@@ -48,6 +48,84 @@ local function isTransparentNametableByte(layer, byteVal)
   return false
 end
 
+local function getCurrentRomRaw(self)
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app or nil
+  local liveRom = app and app.appEditState and app.appEditState.romRaw or nil
+  if type(liveRom) == "string" and liveRom ~= "" then
+    return liveRom
+  end
+  return self.romRaw
+end
+
+local function getCurrentTilesPool()
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app or nil
+  local pool = app and app.appEditState and app.appEditState.tilesPool or nil
+  if type(pool) == "table" then
+    return pool
+  end
+  return nil
+end
+
+local function decodePaletteNumberFromAttributes(win, col, row)
+  local attrBytes = win and win.nametableAttrBytes or nil
+  local cols = win and win.cols or 32
+  if type(attrBytes) ~= "table" or #attrBytes == 0 then
+    return nil
+  end
+
+  local attrCols = math.max(1, math.floor((cols or 32) / 4))
+  local attrCol = math.floor((col or 0) / 4)
+  local attrRow = math.floor((row or 0) / 4)
+  local attrIndex = attrRow * attrCols + attrCol + 1
+  if attrIndex < 1 or attrIndex > #attrBytes then
+    return nil
+  end
+
+  local attrByte = tonumber(attrBytes[attrIndex]) or 0
+  local localCol = (col or 0) % 4
+  local localRow = (row or 0) % 4
+  local palIndex = 0
+  if localRow < 2 then
+    if localCol < 2 then
+      palIndex = attrByte % 4
+    else
+      palIndex = math.floor((attrByte % 16) / 4)
+    end
+  else
+    if localCol < 2 then
+      palIndex = math.floor((attrByte % 64) / 16)
+    else
+      palIndex = math.floor(attrByte / 64)
+    end
+  end
+  return palIndex + 1
+end
+
+local function getPaletteLayerForRender(win, layer)
+  if type(layer) == "table" and layer._runtimePatternTableRefLayer == true then
+    -- Pattern-table reference layers should always preview using the active global palette.
+    return nil
+  end
+  if type(layer) == "table" and type(layer.paletteData) == "table" then
+    return layer
+  end
+  if not (win and type(win.layers) == "table") then
+    return layer
+  end
+  for _, candidate in ipairs(win.layers) do
+    if candidate
+      and candidate.kind == "tile"
+      and candidate._runtimePatternTableRefLayer ~= true
+      and type(candidate.paletteData) == "table"
+    then
+      return candidate
+    end
+  end
+  return layer
+end
+
 local function recordSwap(self, idx)
   if not self._originalNametableBytes then return end
   local orig = self._originalNametableBytes[idx]
@@ -99,6 +177,42 @@ local function getCodec(layer, projectData)
   -- TODO: Get from project-level data when project system supports it
   -- For now, check layer, then default to "konami"
   return (layer and layer.codec) or (projectData and projectData.codec) or "konami"
+end
+
+local function parsePatternRangeBounds(range)
+  if type(range) ~= "table" then
+    return nil, nil
+  end
+  local tileRange = type(range.tileRange) == "table" and range.tileRange or nil
+  local from = range.from
+  local to = range.to
+  if from == nil and tileRange then
+    from = tileRange.from
+  end
+  if to == nil and tileRange then
+    to = tileRange.to
+  end
+  from = math.floor(tonumber(from) or -1)
+  to = math.floor(tonumber(to) or -1)
+  if from < 0 or from > 255 or to < 0 or to > 255 or to < from then
+    return nil, nil
+  end
+  return from, to
+end
+
+local function patternTableLogicalSize(patternTable)
+  if type(patternTable) ~= "table" or type(patternTable.ranges) ~= "table" then
+    return nil, "patternTable.ranges is missing"
+  end
+  local total = 0
+  for i, range in ipairs(patternTable.ranges) do
+    local from, to = parsePatternRangeBounds(range)
+    if from == nil or to == nil then
+      return nil, string.format("patternTable.ranges[%d] has invalid from/to", i)
+    end
+    total = total + (to - from + 1)
+  end
+  return total, nil
 end
 
 local function resolveOriginalCompressedSizeBudget(self, layer, startAddr)
@@ -246,11 +360,34 @@ function PPUFrameWindow:syncNametableVisualCell(col, row, byteVal, tilesPool, la
   self:invalidateNametableLayerCanvas(li, col, row)
 end
 
+function PPUFrameWindow:isPatternTableInteractionLocked(layerIndex)
+  local li = layerIndex or self.activeLayer or 1
+  local layer = self:getLayer(li)
+  if not layer or layer.kind ~= "tile" or layer._runtimePatternTableRefLayer == true then
+    return false, nil
+  end
+  if type(layer.patternTable) ~= "table" then
+    return false, nil
+  end
+  local total, err = patternTableLogicalSize(layer.patternTable)
+  if err then
+    return true, err
+  end
+  if total ~= 256 then
+    return true, string.format("patternTable ranges must add up to 256 tiles (got %d)", total)
+  end
+  return false, nil
+end
+
 function PPUFrameWindow:drawVisibleNametableCells(renderCell, layerIndex)
   local li = layerIndex or self.activeLayer or 1
   local layer = self:getLayer(li)
   if not layer then
     return false
+  end
+  local locked = self:isPatternTableInteractionLocked(li)
+  if locked then
+    return true
   end
 
   love.graphics.push()
@@ -362,6 +499,10 @@ function PPUFrameWindow:_paintNametableCellToCanvas(layer, idx)
   local h = self.cellH or 8
   local item = layer.items and layer.items[idx] or nil
   local paletteNum = layer.paletteNumbers and layer.paletteNumbers[(row * cols) + col] or nil
+  if paletteNum == nil then
+    paletteNum = decodePaletteNumberFromAttributes(self, col, row)
+  end
+  local paletteLayer = getPaletteLayerForRender(self, layer)
 
   love.graphics.setBlendMode("replace", "premultiplied")
   love.graphics.setColor(0, 0, 0, 0)
@@ -370,10 +511,10 @@ function PPUFrameWindow:_paintNametableCellToCanvas(layer, idx)
 
   if item and item.draw then
     ShaderPaletteController.applyLayerItemPalette(
-      layer,
+      paletteLayer,
       item,
       true,
-      self.romRaw,
+      getCurrentRomRaw(self),
       paletteNum,
       1.0
     )
@@ -917,6 +1058,10 @@ function PPUFrameWindow:refreshNametableVisuals(tilesPool, layerIndex)
   if not layer then
     return false
   end
+  tilesPool = tilesPool or getCurrentTilesPool()
+  if type(self.nametableAttrBytes) == "table" and #self.nametableAttrBytes > 0 then
+    NametableTilesController.extractPaletteNumbersFromAttributes(self, layer, self.cols or 32, self.rows or 30)
+  end
 
   layer.items = {}
 
@@ -1165,12 +1310,16 @@ function PPUFrameWindow:renderCell(col, row, x, y, w, h, layerIndex, layerAlpha)
     local idx = row * self.cols + col
     paletteNum = layer.paletteNumbers[idx]
   end
+  if paletteNum == nil then
+    paletteNum = decodePaletteNumberFromAttributes(self, col, row)
+  end
+  local paletteLayer = getPaletteLayerForRender(self, layer)
 
   ShaderPaletteController.applyLayerItemPalette(
-    layer,
+    paletteLayer,
     item,
     drawingActiveLayer,
-    self.romRaw,
+    getCurrentRomRaw(self),
     paletteNum,
     layerAlpha
   )

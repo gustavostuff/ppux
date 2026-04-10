@@ -9,6 +9,7 @@ local NewWindowModal = require("user_interface.modals.new_window_modal")
 local PPUFrameAddSpriteModal = require("user_interface.modals.ppu_frame_add_sprite_modal")
 local PPUFrameSpriteLayerModeModal = require("user_interface.modals.ppu_frame_sprite_layer_mode_modal")
 local PPUFrameRangeModal = require("user_interface.modals.ppu_frame_range_modal")
+local PPUFramePatternRangeModal = require("user_interface.modals.ppu_frame_pattern_range_modal")
 local RenameWindowModal = require("user_interface.modals.rename_window_modal")
 local RomPaletteAddressModal = require("user_interface.modals.rom_palette_address_modal")
 local SaveOptionsModal = require("user_interface.modals.save_options_modal")
@@ -31,6 +32,10 @@ local AppCoreController = {}
 AppCoreController.__index = AppCoreController
 local snapshotPpuFrameRangeState
 local didPpuFrameRangeSettingsChange
+local parsePatternRangeBounds
+local patternTableLogicalSize
+local getPpuPatternTableTargetLayer
+local buildPatternTableMapAllowPartial
 
 local function anyModalVisible(app)
   return (app.quitConfirmModal and app.quitConfirmModal:isVisible())
@@ -43,6 +48,7 @@ local function anyModalVisible(app)
     or (app.ppuFrameSpriteLayerModeModal and app.ppuFrameSpriteLayerModeModal:isVisible())
     or (app.ppuFrameAddSpriteModal and app.ppuFrameAddSpriteModal:isVisible())
     or (app.ppuFrameRangeModal and app.ppuFrameRangeModal:isVisible())
+    or (app.ppuFramePatternRangeModal and app.ppuFramePatternRangeModal:isVisible())
     or (app.textFieldDemoModal and app.textFieldDemoModal:isVisible())
 end
 
@@ -92,6 +98,7 @@ local function getTopModalTooltipCandidate(app, x, y)
     app.ppuFrameSpriteLayerModeModal,
     app.ppuFrameAddSpriteModal,
     app.ppuFrameRangeModal,
+    app.ppuFramePatternRangeModal,
     app.textFieldDemoModal,
   }
 
@@ -255,6 +262,7 @@ function AppCoreController.new()
   self.ppuFrameSpriteLayerModeModal = PPUFrameSpriteLayerModeModal.new()
   self.ppuFrameAddSpriteModal = PPUFrameAddSpriteModal.new()
   self.ppuFrameRangeModal = PPUFrameRangeModal.new()
+  self.ppuFramePatternRangeModal = PPUFramePatternRangeModal.new()
   self.saveOptionsModal = SaveOptionsModal.new()
   self.quitConfirmModal = QuitConfirmModal.new()
   self.settingsModal = SettingsModal.new()
@@ -778,6 +786,43 @@ function AppCoreController:_buildPaletteLinkDestinationContextMenuItems(contentW
   return items
 end
 
+function AppCoreController:_resolveLinkedPaletteForLayer(win, layerIndex)
+  if not (win and layerIndex and self.wm and self.wm.findWindowById) then
+    return nil
+  end
+  local layer = (win.getLayer and win:getLayer(layerIndex)) or (win.layers and win.layers[layerIndex]) or nil
+  local pd = layer and layer.paletteData or nil
+  local winId = pd and pd.winId or nil
+  if not winId then
+    return nil
+  end
+  local paletteWin = self.wm:findWindowById(winId)
+  if paletteWin and paletteWin._closed ~= true and paletteWin._minimized ~= true and paletteWin.kind == "rom_palette" then
+    return paletteWin
+  end
+  return nil
+end
+
+function AppCoreController:_appendJumpToLinkedPaletteMenuItem(items, win, layerIndex)
+  if type(items) ~= "table" then
+    return items
+  end
+  local paletteWin = self:_resolveLinkedPaletteForLayer(win, layerIndex)
+  if not paletteWin then
+    return items
+  end
+  items[#items + 1] = {
+    text = "Jump to linked palette",
+    callback = function()
+      if self.wm and self.wm.setFocus then
+        self.wm:setFocus(paletteWin)
+      end
+      self:setStatus(string.format("Focused %s", tostring(paletteWin.title or "ROM Palette")))
+    end,
+  }
+  return items
+end
+
 function AppCoreController:showPaletteLinkSourceContextMenu(win, x, y)
   if not (self.paletteLinkContextMenu and win and type(x) == "number" and type(y) == "number") then
     return false
@@ -830,7 +875,8 @@ function AppCoreController:_buildPpuTileContext(win, layerIndex, col, row)
   }
 end
 
-function AppCoreController:_ensurePpuPatternTableReferenceLayer(context)
+function AppCoreController:_ensurePpuPatternTableReferenceLayer(context, opts)
+  opts = opts or {}
   if not (context and context.win and context.layer) then
     return false
   end
@@ -839,7 +885,7 @@ function AppCoreController:_ensurePpuPatternTableReferenceLayer(context)
     self:setStatus("This layer has no patternTable")
     return false
   end
-  local map, mapErr = PatternTableMapping.buildMap(layer.patternTable, layer.bank or 1, layer.page or 1)
+  local map, mapErr = buildPatternTableMapAllowPartial(layer.patternTable, layer.bank or 1, layer.page or 1)
   if not map then
     self:setStatus(tostring(mapErr or "Invalid patternTable mapping"))
     return false
@@ -911,15 +957,18 @@ function AppCoreController:_ensurePpuPatternTableReferenceLayer(context)
     end
   end
 
-  if context.win.setActiveLayerIndex then
-    context.win:setActiveLayerIndex(refLayerIndex)
-  else
-    context.win.activeLayer = refLayerIndex
+  if opts.keepActiveLayer ~= true then
+    if context.win.setActiveLayerIndex then
+      context.win:setActiveLayerIndex(refLayerIndex)
+    else
+      context.win.activeLayer = refLayerIndex
+    end
   end
   if context.win.invalidateNametableLayerCanvas then
     context.win:invalidateNametableLayerCanvas(refLayerIndex)
   end
-  self:setStatus("Prepared pattern table reference layer (right-click tile to set glass)")
+  local size = patternTableLogicalSize(layer.patternTable)
+  self:setStatus(string.format("Prepared pattern table reference layer (%d/256 tiles)", tonumber(size) or 0))
   return true
 end
 
@@ -1138,7 +1187,7 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
     end
   end
 
-  return {
+  local items = {
     {
       text = string.format("Mark 0x%02X as glass tile", context.byteVal or 0),
       enabled = context ~= nil,
@@ -1163,7 +1212,7 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
       text = "Build/refresh pattern table reference layer",
       enabled = context and context.layer and type(context.layer.patternTable) == "table",
       callback = function()
-        self:_ensurePpuPatternTableReferenceLayer(context)
+        self:_ensurePpuPatternTableReferenceLayer(context, { keepActiveLayer = false })
       end,
     },
     {
@@ -1186,6 +1235,10 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
       end,
     },
   }
+  if context and context.win and context.layerIndex then
+    self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)
+  end
+  return items
 end
 
 function AppCoreController:_setPpuGlassFromRuntimeReference(context)
@@ -1213,6 +1266,88 @@ function AppCoreController:_setPpuGlassFromRuntimeReference(context)
     return false
   end
   return self:_markPpuTileByteAsGlass(markContext)
+end
+
+function AppCoreController:_removePpuPatternRangeFromRuntimeReference(context)
+  if not (context and context.layer and context.layer._runtimePatternTableRefLayer == true and type(context.logicalIndex) == "number") then
+    return false
+  end
+  local targetWin = context.layer._runtimePatternTableRefTargetWin
+  local targetLayerIndex = context.layer._runtimePatternTableRefTargetLayerIndex
+  local targetLayer = context.layer._runtimePatternTableRefTargetLayer
+  if not (targetWin and targetLayerIndex and targetLayer) then
+    self:setStatus("Missing target PPU layer for runtime pattern table reference")
+    return false
+  end
+  if targetWin.getLayer then
+    targetLayer = targetWin:getLayer(targetLayerIndex) or targetLayer
+  end
+  if not targetLayer then
+    self:setStatus("Target PPU tile layer is no longer available")
+    return false
+  end
+  local patternTable = type(targetLayer.patternTable) == "table" and targetLayer.patternTable or nil
+  local ranges = patternTable and patternTable.ranges
+  if type(ranges) ~= "table" or #ranges == 0 then
+    self:setStatus("No tile ranges to remove")
+    return false
+  end
+
+  local beforeState = snapshotPpuFrameRangeState and snapshotPpuFrameRangeState(targetWin, targetLayerIndex) or nil
+  local logicalIndex = math.max(0, math.floor(tonumber(context.logicalIndex) or 0))
+  local cursor = 0
+  local removeIndex = nil
+  for i, range in ipairs(ranges) do
+    local from, to = parsePatternRangeBounds(range)
+    if from ~= nil and to ~= nil then
+      local len = to - from + 1
+      if logicalIndex >= cursor and logicalIndex < (cursor + len) then
+        removeIndex = i
+        break
+      end
+      cursor = cursor + len
+    end
+  end
+  if not removeIndex then
+    self:setStatus("Could not resolve a range at that logical tile")
+    return false
+  end
+
+  table.remove(ranges, removeIndex)
+  targetLayer.patternTable = patternTable
+  PpuLayerEmptyByte.migrateLayerFields(targetLayer)
+
+  local tilesPool = self.appEditState and self.appEditState.tilesPool or nil
+  if targetWin.refreshNametableVisuals then
+    targetWin:refreshNametableVisuals(tilesPool, targetLayerIndex)
+  elseif targetWin.invalidateNametableLayerCanvas then
+    targetWin:invalidateNametableLayerCanvas(targetLayerIndex)
+  end
+  self:_ensurePpuPatternTableReferenceLayer({
+    win = targetWin,
+    layerIndex = targetLayerIndex,
+    layer = targetLayer,
+  }, { keepActiveLayer = true })
+  if targetWin.specializedToolbar and targetWin.specializedToolbar.updateIcons then
+    targetWin.specializedToolbar:updateIcons()
+  end
+
+  local total = patternTableLogicalSize(patternTable)
+  local afterState = snapshotPpuFrameRangeState and snapshotPpuFrameRangeState(targetWin, targetLayerIndex) or nil
+  if self.undoRedo and self.undoRedo.addPpuFrameRangeEvent
+    and didPpuFrameRangeSettingsChange(beforeState, afterState)
+  then
+    self.undoRedo:addPpuFrameRangeEvent({
+      type = "ppu_frame_range",
+      win = targetWin,
+      layerIndex = targetLayerIndex,
+      beforeState = beforeState,
+      afterState = afterState,
+    })
+  end
+
+  self:setStatus(string.format("Removed tile range #%d (%d/256 tiles)", removeIndex, tonumber(total) or 0))
+  return true
 end
 
 function AppCoreController:_buildSelectInChrContextMenuItems(context)
@@ -1245,6 +1380,16 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
         self:_setPpuGlassFromRuntimeReference(context)
       end,
     }
+    items[#items + 1] = {
+      text = "Remove tile range at this tile",
+      enabled = type(context.logicalIndex) == "number",
+      callback = function()
+        self:_removePpuPatternRangeFromRuntimeReference(context)
+      end,
+    }
+  end
+  if context and context.win and context.layerIndex then
+    self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)
   end
   return items
 end
@@ -1616,6 +1761,95 @@ local function getPpuNametableLayer(win)
     end
   end
   return nil
+end
+
+parsePatternRangeBounds = function(range)
+  if type(range) ~= "table" then
+    return nil, nil
+  end
+  local tileRange = type(range.tileRange) == "table" and range.tileRange or nil
+  local from = range.from
+  local to = range.to
+  if from == nil and tileRange then
+    from = tileRange.from
+  end
+  if to == nil and tileRange then
+    to = tileRange.to
+  end
+  from = math.floor(tonumber(from) or -1)
+  to = math.floor(tonumber(to) or -1)
+  if from < 0 or from > 255 or to < 0 or to > 255 or to < from then
+    return nil, nil
+  end
+  return from, to
+end
+
+patternTableLogicalSize = function(patternTable)
+  if type(patternTable) ~= "table" or type(patternTable.ranges) ~= "table" then
+    return 0, "patternTable.ranges is missing"
+  end
+  local total = 0
+  for i, range in ipairs(patternTable.ranges) do
+    local from, to = parsePatternRangeBounds(range)
+    if from == nil or to == nil then
+      return total, string.format("patternTable.ranges[%d] has invalid from/to", i)
+    end
+    total = total + (to - from + 1)
+  end
+  return total, nil
+end
+
+getPpuPatternTableTargetLayer = function(win)
+  if not (win and win.kind == "ppu_frame" and win.layers) then
+    return nil, nil
+  end
+  local fallbackLayer, fallbackIndex = nil, nil
+  for i, layer in ipairs(win.layers) do
+    if layer and layer.kind == "tile" and layer._runtimePatternTableRefLayer ~= true then
+      if not fallbackLayer then
+        fallbackLayer, fallbackIndex = layer, i
+      end
+      if type(layer.nametableStartAddr) == "number" and type(layer.nametableEndAddr) == "number" then
+        return layer, i
+      end
+    end
+  end
+  return fallbackLayer, fallbackIndex
+end
+
+buildPatternTableMapAllowPartial = function(patternTable, fallbackBank, fallbackPage)
+  local map = {}
+  local bankFallback = math.max(1, math.floor(tonumber(fallbackBank) or 1))
+  local pageFallback = math.floor(tonumber(fallbackPage) or 1)
+  if pageFallback < 1 then pageFallback = 1 elseif pageFallback > 2 then pageFallback = 2 end
+
+  if type(patternTable) ~= "table" or type(patternTable.ranges) ~= "table" then
+    return map, nil
+  end
+
+  local logicalIndex = 0
+  for i, range in ipairs(patternTable.ranges) do
+    local from, to = parsePatternRangeBounds(range)
+    if from == nil or to == nil then
+      return nil, string.format("patternTable.ranges[%d] has invalid from/to", i)
+    end
+    local bank = math.max(1, math.floor(tonumber(range.bank) or bankFallback))
+    local page = math.floor(tonumber(range.page) or pageFallback)
+    if page < 1 then page = 1 elseif page > 2 then page = 2 end
+    for src = from, to do
+      if logicalIndex > 255 then
+        return nil, "patternTable ranges exceed 256 tiles"
+      end
+      map[logicalIndex] = {
+        bank = bank,
+        page = page,
+        tileByte = src,
+        tileIndex = (page == 2) and (256 + src) or src,
+      }
+      logicalIndex = logicalIndex + 1
+    end
+  end
+  return map, nil
 end
 
 local function copyNumberArray(values)
@@ -2072,6 +2306,163 @@ function AppCoreController:showPpuFrameRangeModal(win)
         endAddr,
         currentBankIndex,
         pageIndex
+      ))
+      return true
+    end,
+  })
+
+  return true
+end
+
+function AppCoreController:showPpuFramePatternRangeModal(win)
+  if not (self.ppuFramePatternRangeModal and win and win.kind == "ppu_frame") then
+    return false
+  end
+
+  local targetLayer = getPpuPatternTableTargetLayer(win)
+  if not targetLayer then
+    self:setStatus("PPU frame window is missing a target tile layer")
+    self:showToast("error", "PPU frame window is missing a target tile layer")
+    return false
+  end
+  local existingPatternTable = type(targetLayer.patternTable) == "table" and targetLayer.patternTable or {}
+  local existingRanges = type(existingPatternTable.ranges) == "table" and existingPatternTable.ranges or {}
+
+  local initialBank = tostring(tonumber(targetLayer.bank) or 1)
+  local initialPage = tonumber(targetLayer.page) or 1
+  local initialFrom = "0"
+  local initialTo = "255"
+  local lastRange = existingRanges[#existingRanges]
+  if type(lastRange) == "table" then
+    initialBank = tostring(tonumber(lastRange.bank) or tonumber(initialBank) or 1)
+    initialPage = tonumber(lastRange.page) or initialPage
+    local lastFrom, lastTo = parsePatternRangeBounds(lastRange)
+    if lastFrom ~= nil and lastTo ~= nil then
+      initialFrom = tostring(lastFrom)
+      initialTo = tostring(lastTo)
+    end
+  end
+
+  self.ppuFramePatternRangeModal:show({
+    title = "Add tile range",
+    window = win,
+    initialBank = initialBank,
+    initialPage = initialPage,
+    initialFrom = initialFrom,
+    initialTo = initialTo,
+    onConfirm = function(bankText, pageValue, fromText, toText, targetWindow)
+      local layer, layerIndex = getPpuPatternTableTargetLayer(targetWindow)
+      if not layer then
+        local message = "PPU frame window is missing a target tile layer"
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+
+      local bankIndex, bankErr = parsePositiveDecimalInteger(bankText, "Bank")
+      if not bankIndex then
+        self:setStatus(bankErr)
+        self:showToast("error", bankErr)
+        return false
+      end
+      local pageIndex = math.floor(tonumber(pageValue) or 1)
+      if pageIndex ~= 1 and pageIndex ~= 2 then
+        local message = "Page must be 1 or 2"
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+      local fromTile, fromErr = parseNonNegativeInteger(fromText, "From")
+      if not fromTile then
+        self:setStatus(fromErr)
+        self:showToast("error", fromErr)
+        return false
+      end
+      local toTile, toErr = parseNonNegativeInteger(toText, "To")
+      if not toTile then
+        self:setStatus(toErr)
+        self:showToast("error", toErr)
+        return false
+      end
+      if fromTile > 255 or toTile > 255 then
+        local message = "From/To must be between 0 and 255"
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+      if toTile < fromTile then
+        local message = "To must be greater than or equal to From"
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+
+      local beforeState = snapshotPpuFrameRangeState and snapshotPpuFrameRangeState(targetWindow, layerIndex) or nil
+      layer.patternTable = type(layer.patternTable) == "table" and layer.patternTable or {}
+      layer.patternTable.ranges = type(layer.patternTable.ranges) == "table" and layer.patternTable.ranges or {}
+      if type(layer.patternTable.glassTileIndex) ~= "number" then
+        layer.patternTable.glassTileIndex = 0
+      end
+      local currentTotal = patternTableLogicalSize(layer.patternTable) or 0
+      local nextTotal = currentTotal + (toTile - fromTile + 1)
+      if nextTotal > 256 then
+        local message = string.format("Range exceeds 256 logical tiles (%d/256)", nextTotal)
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+      layer.patternTable.ranges[#layer.patternTable.ranges + 1] = {
+        bank = bankIndex,
+        page = pageIndex,
+        tileRange = {
+          from = fromTile,
+          to = toTile,
+        },
+      }
+      PpuLayerEmptyByte.migrateLayerFields(layer)
+
+      local tilesPool = self.appEditState and self.appEditState.tilesPool or nil
+      if targetWindow.refreshNametableVisuals then
+        targetWindow:refreshNametableVisuals(tilesPool, layerIndex)
+      elseif targetWindow.invalidateNametableLayerCanvas then
+        targetWindow:invalidateNametableLayerCanvas(layerIndex)
+      end
+      self:_ensurePpuPatternTableReferenceLayer({
+        win = targetWindow,
+        layer = layer,
+        layerIndex = layerIndex,
+      }, {
+        keepActiveLayer = true,
+      })
+
+      local total = patternTableLogicalSize(layer.patternTable)
+      if total == 256 then
+        self:showToast("success", "Pattern table ranges complete (256/256).")
+      end
+      if targetWindow.specializedToolbar and targetWindow.specializedToolbar.updateIcons then
+        targetWindow.specializedToolbar:updateIcons()
+      end
+
+      local afterState = snapshotPpuFrameRangeState and snapshotPpuFrameRangeState(targetWindow, layerIndex) or nil
+      if self.undoRedo and self.undoRedo.addPpuFrameRangeEvent
+        and didPpuFrameRangeSettingsChange(beforeState, afterState)
+      then
+        self.undoRedo:addPpuFrameRangeEvent({
+          type = "ppu_frame_range",
+          win = targetWindow,
+          layerIndex = layerIndex,
+          beforeState = beforeState,
+          afterState = afterState,
+        })
+      end
+
+      self:setStatus(string.format(
+        "Added tile range [%d..%d] bank %d page %d (%d/256)",
+        fromTile,
+        toTile,
+        bankIndex,
+        pageIndex,
+        tonumber(total) or 0
       ))
       return true
     end,

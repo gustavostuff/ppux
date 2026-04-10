@@ -372,6 +372,13 @@ local function drawTileLayer(app, w, layerIndex, isFocused)
   local isPPUFrame = WindowCaps.isPpuFrame(w)
   local layer = w.layers and w.layers[layerIndex]
   local attrMode = isPPUFrame and layer and layer.attrMode == true
+  if isPPUFrame and w.isPatternTableInteractionLocked then
+    local locked = w:isPatternTableInteractionLocked(layerIndex)
+    if locked and w.drawNametableLayerCanvas then
+      w:drawNametableLayerCanvas(layerIndex)
+      return
+    end
+  end
 
   if isPPUFrame and not attrMode and w.drawNametableLayerCanvas then
     local handledCanvas = w:drawNametableLayerCanvas(layerIndex)
@@ -1039,6 +1046,9 @@ local function drawOverlays(app)
   end
   if app.ppuFrameRangeModal then
     app.ppuFrameRangeModal:draw(app.canvas)
+  end
+  if app.ppuFramePatternRangeModal then
+    app.ppuFramePatternRangeModal:draw(app.canvas)
   end
   if app.textFieldDemoModal then
     app.textFieldDemoModal:draw(app.canvas)

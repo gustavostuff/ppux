@@ -265,4 +265,11 @@ function M.getTileMarquee()
   return MouseInput.getTileMarquee and MouseInput.getTileMarquee()
 end
 
+function M.beginPaletteLinkContextFromAppTopBar(win, canvasX, canvasY, button)
+  if MouseInput.beginPaletteLinkContextFromAppTopBar then
+    return MouseInput.beginPaletteLinkContextFromAppTopBar(win, canvasX, canvasY, button)
+  end
+  return false
+end
+
 return M

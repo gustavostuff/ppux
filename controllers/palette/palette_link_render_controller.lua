@@ -10,6 +10,7 @@ local isMouseInsideSquareHoverArea
 local SOURCE_SQUARE_SIZE = 3
 local DESTINATION_SQUARE_SIZE = 7
 local DESTINATION_HIT_SIZE = DESTINATION_SQUARE_SIZE + 4
+local USE_SIMPLE_ACTIVE_DRAG_LINE = true
 
 local function isPointInsideSquare(cx, cy, size, x, y)
   local half = math.floor((size or 1) / 2)
@@ -621,7 +622,80 @@ function M.drawSourcePaletteProxyForWindow(app, win)
 end
 
 function M.drawActiveDrag(app)
-  return
+  local drag = app and app.paletteLinkDrag or nil
+  if not (drag and drag.active and drag.sourceWin) then
+    return
+  end
+
+  local sourceX, sourceY = nil, nil
+  local mode = tostring(drag.mode or "")
+  if mode == "link_create" or mode == "move_all" then
+    sourceX, sourceY = M.getPaletteHandleAnchor(drag.sourceWin, nil)
+  elseif mode == "link_create_from_content" or mode == "move_single" then
+    sourceX, sourceY = M.getDestinationLayerAnchor(drag.originContentWin or drag.sourceWin)
+  end
+  if not (sourceX and sourceY) then
+    sourceX, sourceY = M.getWindowLinkAnchor(drag.sourceWin, nil)
+  end
+  if not (sourceX and sourceY) then
+    return
+  end
+
+  -- Always prefer live mouse position for drag preview so the line tracks smoothly.
+  local mouseX, mouseY = getScaledMousePosition()
+  if type(mouseX) ~= "number" or type(mouseY) ~= "number" then
+    mouseX = drag.currentX
+    mouseY = drag.currentY
+  end
+  if type(mouseX) ~= "number" or type(mouseY) ~= "number" then
+    return
+  end
+
+  local wm = app and app.wm or nil
+  local canDrop = false
+  if wm then
+    if mode == "link_create" then
+      canDrop = PaletteLinkController.getDropTarget(wm, drag.sourceWin, mouseX, mouseY) ~= nil
+    elseif mode == "link_create_from_content" then
+      canDrop = PaletteLinkController.getContentToPaletteLinkDropTarget(
+        wm,
+        drag.originContentWin or drag.sourceWin,
+        mouseX,
+        mouseY
+      ) ~= nil
+    elseif mode == "move_all" then
+      canDrop = PaletteLinkController.getMoveAllTarget(wm, drag.sourceWin, mouseX, mouseY, {
+        allowSource = true,
+      }) ~= nil
+    elseif mode == "move_single" then
+      canDrop = PaletteLinkController.getMoveSingleTarget(
+        wm,
+        drag.originContentWin,
+        mouseX,
+        mouseY,
+        { allowSource = true, sourcePaletteWin = drag.originPaletteWin }
+      ) ~= nil
+    end
+  end
+  local lineColor = canDrop and colors.green or colors.red
+
+  if USE_SIMPLE_ACTIVE_DRAG_LINE then
+    love.graphics.push("all")
+    love.graphics.setScissor()
+    love.graphics.setLineStyle("rough")
+    love.graphics.setLineWidth(1)
+    love.graphics.setColor(lineColor)
+    love.graphics.line(roundPixel(sourceX), roundPixel(sourceY), roundPixel(mouseX), roundPixel(mouseY))
+    love.graphics.pop()
+    return
+  end
+
+  -- Legacy multi-segment rectilinear connector (kept for future reuse).
+  M.drawRectConnector(sourceX, sourceY, mouseX, mouseY, {
+    showLine = true,
+    alpha = 1,
+    lineColor = lineColor,
+  })
 end
 
 return M

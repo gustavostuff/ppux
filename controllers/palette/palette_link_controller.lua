@@ -584,7 +584,46 @@ local function maybeHandleDestinationDoubleClick(link, x, y)
 end
 
 function M.beginDrag(toolbar, button, x, y, win, wm)
-  return false
+  if button ~= 1 then
+    return false
+  end
+  if not (toolbar and win and isValidPaletteLinkHandle(toolbar, x, y)) then
+    return false
+  end
+
+  if maybeHandleDoubleClick(toolbar, x, y, win, wm) then
+    return true
+  end
+
+  local drag = getPaletteLinkDrag()
+  if not drag then
+    return false
+  end
+
+  drag.active = true
+  drag.sourceWin = win
+  drag.sourceWinId = win._id
+  drag.currentX = x
+  drag.currentY = y
+  drag.originContentWin = nil
+  drag.originPaletteWin = nil
+
+  if WindowCaps.isRomPaletteWindow(win) then
+    drag.mode = DRAG_MODE_LINK_CREATE
+  elseif not WindowCaps.isAnyPaletteWindow(win) and not WindowCaps.isChrLike(win) then
+    drag.mode = DRAG_MODE_LINK_CREATE_FROM_CONTENT
+    drag.originContentWin = win
+    drag.originPaletteWin = getActiveLayerLinkedPaletteWin(win, wm)
+  else
+    clearPaletteLinkDragState(drag, x, y)
+    return false
+  end
+
+  if wm and wm.setFocus then
+    wm:setFocus(win)
+  end
+
+  return true
 end
 
 function M.beginDestinationDrag(button, x, y, link, wm)

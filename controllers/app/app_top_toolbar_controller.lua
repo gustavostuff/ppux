@@ -4,6 +4,7 @@ local Button = require("user_interface.button")
 local images = require("images")
 local UiScale = require("user_interface.ui_scale")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
+local Text = require("utils.text_utils")
 
 local M = {}
 
@@ -12,6 +13,7 @@ local PAD_X = 0
 local PAD_Y = 0
 local GAP = 0
 local QUICK_BUTTON_ORDER = { "newWindow", "open", "save" }
+local STATUS_AREA_RATIO = 0.5
 
 local function measureDockedToolbarHeight(toolbar, cell)
   if not toolbar then
@@ -127,6 +129,8 @@ function M.syncLayout(app)
   M.clearDockLayouts(app)
 
   local cell = math.max(UiScale.menuCellSize(), MIN_BAR_H)
+  local canvasW = app.canvas and app.canvas:getWidth() or 0
+  local statusLeftX = math.floor(canvasW * STATUS_AREA_RATIO)
   local x = PAD_X
   local topY = PAD_Y
 
@@ -141,6 +145,7 @@ function M.syncLayout(app)
   local totalH = math.max(MIN_BAR_H, topY + cell + PAD_Y)
   local dockedWin = nil
   local dockLeftX = x + GAP
+  local dockRightX = math.max(dockLeftX, statusLeftX - 2)
 
   if app.separateToolbar == true and app.wm and app.wm.getWindows then
     local maxDockedToolbarH = 0
@@ -162,6 +167,7 @@ function M.syncLayout(app)
       local tb = focus.specializedToolbar
       tb._dockLayout = {
         leftX = dockLeftX,
+        rightX = dockRightX,
         topY = topY,
         rowHeight = cell,
       }
@@ -173,6 +179,8 @@ function M.syncLayout(app)
     totalH = totalH,
     dockedWin = dockedWin,
     dockLeftX = dockLeftX,
+    dockRightX = dockRightX,
+    statusLeftX = statusLeftX,
     dockTopY = topY,
     cell = cell,
   }
@@ -204,9 +212,12 @@ function M.draw(app)
   local lay = app._appTopToolbarLayout
   local h = (lay and lay.totalH) or MIN_BAR_H
   local cw = app.canvas and app.canvas:getWidth() or 0
+  local statusLeftX = (lay and lay.statusLeftX) or math.floor(cw * STATUS_AREA_RATIO)
 
   love.graphics.setColor(colors.gray20)
   love.graphics.rectangle("fill", 0, 0, cw, h)
+  love.graphics.setColor(colors.gray10)
+  love.graphics.rectangle("fill", statusLeftX, 0, math.max(0, cw - statusLeftX), h)
   love.graphics.setColor(colors.white)
 
   ensureQuickButtons(app)
@@ -218,8 +229,39 @@ function M.draw(app)
   end
 
   if app.separateToolbar == true and lay and lay.dockedWin and lay.dockedWin.specializedToolbar then
+    love.graphics.setScissor(0, 0, math.max(0, statusLeftX - 2), h)
     lay.dockedWin.specializedToolbar:draw()
+    love.graphics.setScissor()
   end
+
+  local statusText = tostring(app.lastEventText or app.statusText or "")
+  local pad = 4
+  local textX = statusLeftX + pad
+  local textY = math.floor((h - love.graphics.getFont():getHeight()) / 2) + UiScale.textOffsetY()
+  local textW = math.max(0, cw - statusLeftX - (pad * 2))
+  love.graphics.setScissor(statusLeftX, 0, math.max(0, cw - statusLeftX), h)
+  love.graphics.setColor(colors.white)
+  Text.drawScrollingText(statusText, textX, textY, textW, {
+    speed = 8,
+    pause = 1,
+    key = "app_top_status",
+  })
+  love.graphics.setScissor()
+  love.graphics.setColor(colors.white)
+end
+
+local function inStatusArea(app, px)
+  local lay = app and app._appTopToolbarLayout or nil
+  local cw = app and app.canvas and app.canvas.getWidth and app.canvas:getWidth() or 0
+  local statusLeftX = (lay and lay.statusLeftX) or math.floor(cw * STATUS_AREA_RATIO)
+  return px >= statusLeftX
+end
+
+local function inDockArea(app, px)
+  if inStatusArea(app, px) then
+    return false
+  end
+  return true
 end
 
 local function pointInQuickButton(app, px, py)
@@ -266,11 +308,8 @@ function M.mousepressed(app, px, py, button)
   if not M.containsPointer(app, px, py) then
     return false
   end
-  if button ~= 1 then
-    return true
-  end
   local b = pointInQuickButton(app, px, py)
-  if b then
+  if b and button == 1 then
     b.pressed = true
     app._appTopPressedButton = b
     if b.action then
@@ -281,13 +320,19 @@ function M.mousepressed(app, px, py, button)
   if app.separateToolbar == true and app.wm and app.wm.getFocus then
     local focus = app.wm:getFocus()
     local tb = focus and focus.specializedToolbar
-    if focus and tb and button == 1 and PaletteLinkController.isPointInToolbarLinkHandle(tb, px, py) then
-      local UserInput = require("controllers.input")
-      if UserInput.beginPaletteLinkContextFromAppTopBar(focus, px, py, button) then
-        return true
+    if inDockArea(app, px) and focus and tb and PaletteLinkController.isPointInToolbarLinkHandle(tb, px, py) then
+      if button == 1 then
+        if PaletteLinkController.beginDrag(tb, button, px, py, focus, app.wm) then
+          return true
+        end
+      else
+        local UserInput = require("controllers.input")
+        if UserInput.beginPaletteLinkContextFromAppTopBar(focus, px, py, button) then
+          return true
+        end
       end
     end
-    if tb and tb.mousepressed and tb:mousepressed(px, py, button) then
+    if button == 1 and inDockArea(app, px) and tb and tb.mousepressed and tb:mousepressed(px, py, button) then
       return true
     end
   end
@@ -310,7 +355,7 @@ function M.mousereleasedDockedToolbar(app, px, py, button)
   end
   local focus = app.wm:getFocus()
   local tb = focus and focus.specializedToolbar
-  if tb and tb.mousereleased and tb:mousereleased(px, py, button) then
+  if inDockArea(app, px) and tb and tb.mousereleased and tb:mousereleased(px, py, button) then
     return true
   end
   return false
@@ -336,7 +381,7 @@ function M.mousemoved(app, px, py)
   if app.separateToolbar == true and app.wm and app.wm.getFocus then
     local focus = app.wm:getFocus()
     local tb = focus and focus.specializedToolbar
-    if tb and tb.mousemoved then
+    if inDockArea(app, px) and tb and tb.mousemoved then
       tb:mousemoved(px, py)
     end
   end

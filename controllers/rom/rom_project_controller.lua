@@ -790,13 +790,12 @@ local function loadFromProject(app, project)
           if layer and layer.kind == "tile"
             and type(layer.patternTable) == "table"
             and type(layer.patternTable.ranges) == "table"
-            and #layer.patternTable.ranges > 0
           then
             local ok = app:_ensurePpuPatternTableReferenceLayer({
               win = win,
               layerIndex = li,
               layer = layer,
-            })
+            }, { keepActiveLayer = true })
             if ok then
               opened = opened + 1
             end
@@ -818,9 +817,6 @@ local function loadFromProject(app, project)
   logPerf("project.create_toolbars", toolbarsStartedAt)
   local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
   AppTopToolbarController.applyLoadedLayoutYOffset(app)
-  if refsOpened > 0 then
-    app:setStatus(string.format("Loaded project (%d runtime pattern table refs opened)", refsOpened))
-  end
   logPerf("project.total", loadStartedAt)
   
   return true
@@ -911,13 +907,12 @@ local function loadFromDBLayout(app, sha)
           if layer and layer.kind == "tile"
             and type(layer.patternTable) == "table"
             and type(layer.patternTable.ranges) == "table"
-            and #layer.patternTable.ranges > 0
           then
             local ok = app:_ensurePpuPatternTableReferenceLayer({
               win = win,
               layerIndex = li,
               layer = layer,
-            })
+            }, { keepActiveLayer = true })
             if ok then
               opened = opened + 1
             end

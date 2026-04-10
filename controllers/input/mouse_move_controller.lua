@@ -2,6 +2,7 @@ local SpriteController = require("controllers.sprite.sprite_controller")
 local SpriteOriginDrag = require("controllers.sprite.sprite_origin_drag_controller")
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local PaletteLinkController = require("controllers.palette.palette_link_controller")
 
 local M = {}
 
@@ -287,6 +288,10 @@ function M.handleMouseMoved(env, x, y, dx, dy)
   if drag and (drag.pending or drag.active) then
     drag.currentX = x
     drag.currentY = y
+  end
+
+  if app and app.paletteLinkDrag and app.paletteLinkDrag.active and PaletteLinkController.updateDragHover then
+    PaletteLinkController.updateDragHover(wm, x, y)
   end
 
   chrome.updateToolbarHover(x, y, wm)
