@@ -41,7 +41,11 @@ function M.refreshMetrics()
   M.DEFAULT_PANEL_STYLE.cellH = M.MODAL_BUTTON_H
   M.DEFAULT_PANEL_STYLE.titleH = UiScale.modalTitleHeight()
   M.DEFAULT_PANEL_STYLE.bgColor = { 0.356, 0.424, 0.851 }
-  M.DEFAULT_PANEL_STYLE.titleBgColor = copyColor(colors.gray20)
+  local titleBg = copyColor(colors.gray20)
+  if type(titleBg) == "table" then
+    titleBg[4] = 0.4
+  end
+  M.DEFAULT_PANEL_STYLE.titleBgColor = titleBg
 end
 
 function M.centerPanel(panel, canvas)

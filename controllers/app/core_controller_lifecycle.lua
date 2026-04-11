@@ -249,12 +249,12 @@ end
 local function drawEmptyStatePrompt(app)
   if app:hasLoadedROM() then return end
 
-  Text.printCenter("Drop an NES ROM here", {
-    canvas = app.canvas,
-    font = app.emptyStateFont or app.font,
-    shadowColor = colors.transparent,
-    color = colors.gray20
-  })
+  -- Text.printCenter("Drop an NES ROM here", {
+  --   canvas = app.canvas,
+  --   font = app.emptyStateFont or app.font,
+  --   shadowColor = colors.transparent,
+  --   color = colors.gray20
+  -- })
 end
 
 anyModalVisible = function(app)
