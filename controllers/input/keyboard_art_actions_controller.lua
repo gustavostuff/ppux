@@ -253,15 +253,30 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appEditState)
     return false
   end
 
-  if not layer.paletteData then return false end
+  if layer.kind ~= "tile" then
+    return false
+  end
 
   local col, row, _ = w:getSelected()
-  if not (col and row) then return false end
+  local selectedCells = MultiSelectController.getSelectedTileCells(w, li, col, row)
+  if not selectedCells or #selectedCells == 0 then
+    return false
+  end
 
   local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
-  local success = NametableTilesController.setPaletteNumberForTile(w, layer, col, row, paletteNum)
-  if success then
-    setStatus(ctx, string.format("Tile palette set to %d", paletteNum))
+  local updated = 0
+  for _, cell in ipairs(selectedCells) do
+    local success = NametableTilesController.setPaletteNumberForTile(w, layer, cell.col, cell.row, paletteNum)
+    if success then
+      updated = updated + 1
+    end
+  end
+  if updated > 0 then
+    if updated > 1 then
+      setStatus(ctx, string.format("Tile palettes set to %d", paletteNum))
+    else
+      setStatus(ctx, string.format("Tile palette set to %d", paletteNum))
+    end
     return true
   end
 

@@ -277,4 +277,46 @@ describe("keyboard_art_actions_controller.lua", function()
     expect(calls[1].paletteNum).toBe(4)
     expect(statusMessages[#statusMessages]).toBe("Tile palette set to 4")
   end)
+
+  it("applies palette assignment to all selected tile cells", function()
+    local calls = {}
+    package.loaded["controllers.ppu.nametable_tiles_controller"] = {
+      setPaletteNumberForTile = function(w, layer, col, row, paletteNum)
+        calls[#calls + 1] = { w = w, layer = layer, col = col, row = row, paletteNum = paletteNum }
+        return true
+      end
+    }
+
+    local layer = {
+      kind = "tile",
+      multiTileSelection = {
+        [4] = true,  -- col=0,row=1 when cols=3
+        [9] = true,  -- col=2,row=2 when cols=3
+      },
+    }
+    local w = {
+      cols = 3,
+      layers = { layer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 1, 0, 1 end,
+    }
+    local ctx = {
+      getMode = function() return "tile" end,
+      setStatus = function(text)
+        statusMessages[#statusMessages + 1] = text
+      end,
+    }
+
+    local handled = KeyboardArtActionsController.handlePaletteNumberAssignment(ctx, "2", w, {})
+
+    expect(handled).toBeTruthy()
+    expect(#calls).toBe(2)
+    expect(calls[1].col).toBe(0)
+    expect(calls[1].row).toBe(1)
+    expect(calls[1].paletteNum).toBe(2)
+    expect(calls[2].col).toBe(2)
+    expect(calls[2].row).toBe(2)
+    expect(calls[2].paletteNum).toBe(2)
+    expect(statusMessages[#statusMessages]).toBe("Tile palettes set to 2")
+  end)
 end)
