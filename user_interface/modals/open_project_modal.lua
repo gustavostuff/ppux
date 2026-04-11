@@ -1,11 +1,14 @@
 local Button = require("user_interface.button")
 local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
 local Panel = require("user_interface.panel")
+local colors = require("app_colors")
+local images = require("images")
 
 local Dialog = {}
 Dialog.__index = Dialog
 
 local VISIBLE_FILE_SLOTS = 8
+local SCROLLBAR_W = 4
 
 local function isWindows()
   return package.config:sub(1, 1) == "\\"
@@ -187,9 +190,7 @@ end
 
 local function rebuildPanel(self)
   local leftInset = math.floor((self.cellH or 0) / 2)
-  self.backButton.contentPaddingX = leftInset
-  self.upButton.contentPaddingX = leftInset
-  self.cancelButton.contentPaddingX = leftInset
+  self.parentButton.contentPaddingX = leftInset
   for i = 1, VISIBLE_FILE_SLOTS do
     self.fileButtons[i].contentPaddingX = leftInset
   end
@@ -212,10 +213,9 @@ local function rebuildPanel(self)
     titleBgColor = self.titleBgColor,
   })
 
-  self.panel:setCell(1, 1, { component = self.backButton })
-  self.panel:setCell(2, 1, { component = self.upButton })
+  self.panel:setCell(1, 1, { component = self.parentButton, colspan = 2 })
   self.panel:setCell(3, 1, { text = "" })
-  self.panel:setCell(4, 1, { component = self.cancelButton })
+  self.panel:setCell(4, 1, { text = "" })
 
   for i = 1, VISIBLE_FILE_SLOTS do
     self.panel:setCell(1, i + 1, {
@@ -225,7 +225,7 @@ local function rebuildPanel(self)
   end
 
   self.panel:setCell(1, rows, {
-    text = "Wheel) Scroll  Enter) Open first  Esc) Cancel",
+    text = "Esc) Close",
     colspan = 4,
   })
 end
@@ -236,11 +236,10 @@ function Dialog.new()
     title = "Open Project",
     onOpen = nil,
     onCancel = nil,
+    onDirectoryChanged = nil,
     currentDir = ".",
     entries = {},
     scrollOffset = 0,
-    historyStack = {},
-    historyIndex = 0,
     padding = nil,
     colGap = nil,
     rowGap = nil,
@@ -256,34 +255,15 @@ function Dialog.new()
     _boxH = nil,
   }, Dialog)
 
-  self.backButton = Button.new({
-    text = "Back",
-    h = ModalPanelUtils.MODAL_BUTTON_H,
-    transparent = true,
-    textAlign = "left",
-    contentPaddingX = 4,
-    action = function()
-      self:_goBack()
-    end,
-  })
-  self.upButton = Button.new({
-    text = "Up",
+  self.parentButton = Button.new({
+    icon = images.icons.icon_up,
+    text = "Parent",
     h = ModalPanelUtils.MODAL_BUTTON_H,
     transparent = true,
     textAlign = "left",
     contentPaddingX = 4,
     action = function()
       self:_goUp()
-    end,
-  })
-  self.cancelButton = Button.new({
-    text = "Cancel",
-    h = ModalPanelUtils.MODAL_BUTTON_H,
-    transparent = true,
-    textAlign = "left",
-    contentPaddingX = 4,
-    action = function()
-      self:_cancel()
     end,
   })
 
@@ -342,9 +322,8 @@ function Dialog:_scrollBy(delta)
 end
 
 function Dialog:_refreshNavButtons()
-  self.backButton.enabled = (self.historyIndex or 0) > 1
   local parent = pathParent(self.currentDir)
-  self.upButton.enabled = parent ~= nil and parent ~= self.currentDir
+  self.parentButton.enabled = parent ~= nil and parent ~= self.currentDir
 end
 
 function Dialog:_refreshFileButtons()
@@ -354,13 +333,16 @@ function Dialog:_refreshFileButtons()
     local button = self.fileButtons[i]
     if entry then
       if entry.isDir then
-        button.text = "[DIR] " .. tostring(entry.name or "")
+        button.icon = images.icons.icon_folder
+        button.text = tostring(entry.name or "") .. "/"
       else
+        button.icon = images.icons.icon_project
         button.text = tostring(entry.name or "")
       end
       button.tooltip = tostring(entry.path or "")
       button.enabled = true
     else
+      button.icon = nil
       button.text = ""
       button.tooltip = ""
       button.enabled = false
@@ -374,8 +356,7 @@ function Dialog:_loadEntries(dir)
   self.entries = listEntries(dir)
 end
 
-function Dialog:_setDirectory(dir, opts)
-  opts = opts or {}
+function Dialog:_setDirectory(dir)
   local normalized = normalizePath(dir)
   if normalized == "" then
     normalized = "."
@@ -383,40 +364,11 @@ function Dialog:_setDirectory(dir, opts)
   self.currentDir = normalized
   self:_loadEntries(normalized)
   self.scrollOffset = 0
-
-  if opts.pushHistory then
-    local stack = self.historyStack or {}
-    local index = math.max(1, math.min(#stack, self.historyIndex or 1))
-    while #stack > index do
-      table.remove(stack)
-    end
-    if stack[#stack] ~= normalized then
-      stack[#stack + 1] = normalized
-      index = #stack
-    end
-    self.historyStack = stack
-    self.historyIndex = index
-  end
-
   self:_refreshNavButtons()
   self:_refreshFileButtons()
-end
-
-function Dialog:_goBack()
-  if (self.historyIndex or 0) <= 1 then
-    return false
+  if self.onDirectoryChanged then
+    self.onDirectoryChanged(normalized)
   end
-  self.historyIndex = self.historyIndex - 1
-  local target = self.historyStack[self.historyIndex]
-  if not target then
-    return false
-  end
-  self.currentDir = normalizePath(target)
-  self:_loadEntries(self.currentDir)
-  self.scrollOffset = 0
-  self:_refreshNavButtons()
-  self:_refreshFileButtons()
-  return true
 end
 
 function Dialog:_goUp()
@@ -424,7 +376,7 @@ function Dialog:_goUp()
   if not parent then
     return false
   end
-  self:_setDirectory(parent, { pushHistory = true })
+  self:_setDirectory(parent)
   return true
 end
 
@@ -435,14 +387,11 @@ function Dialog:_activateVisibleSlot(slotIndex)
     return false
   end
   if entry.isDir then
-    self:_setDirectory(entry.path, { pushHistory = true })
+    self:_setDirectory(entry.path)
     return true
   end
   if self.onOpen then
-    local ok = self.onOpen(entry.path, entry)
-    if ok == false then
-      return false
-    end
+    self.onOpen(entry.path, entry)
   end
   self:hide()
   return true
@@ -470,13 +419,12 @@ function Dialog:show(opts)
   self.title = opts.title or "Open Project"
   self.onOpen = opts.onOpen
   self.onCancel = opts.onCancel
+  self.onDirectoryChanged = opts.onDirectoryChanged
   self.visible = true
   rebuildPanel(self)
 
   local initialDir = normalizePath(opts.initialDir or self.currentDir or ".")
-  self.historyStack = { initialDir }
-  self.historyIndex = 1
-  self:_setDirectory(initialDir, { pushHistory = false })
+  self:_setDirectory(initialDir)
   return true
 end
 
@@ -484,6 +432,7 @@ function Dialog:hide()
   self.visible = false
   self.onOpen = nil
   self.onCancel = nil
+  self.onDirectoryChanged = nil
   if self.panel then
     self.panel:setVisible(false)
   end
@@ -510,10 +459,6 @@ function Dialog:handleKey(key)
   if not self.visible then return false end
   if key == "escape" then
     self:_cancel()
-    return true
-  end
-  if key == "left" then
-    self:_goBack()
     return true
   end
   if key == "backspace" then
@@ -593,6 +538,36 @@ function Dialog:draw(canvas)
   self.panel:setVisible(true)
   self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)
   self.panel:draw()
+  self:_drawScrollIndicator()
+end
+
+function Dialog:_drawScrollIndicator()
+  if not self.panel then
+    return
+  end
+  local total = #(self.entries or {})
+  if total <= VISIBLE_FILE_SLOTS then
+    return
+  end
+  local firstCell = self.panel:getCell(1, 2)
+  local lastCell = self.panel:getCell(1, 1 + VISIBLE_FILE_SLOTS)
+  if not firstCell or not lastCell then
+    return
+  end
+  local trackTop = firstCell.y
+  local trackBottom = lastCell.y + lastCell.h
+  local trackH = math.max(1, trackBottom - trackTop)
+  local trackX = firstCell.x + firstCell.w - SCROLLBAR_W - 1
+  local maxOffset = self:_maxScrollOffset()
+  local visibleFrac = VISIBLE_FILE_SLOTS / total
+  local thumbH = math.max(1, math.floor(trackH * visibleFrac))
+  local offsetFrac = (maxOffset > 0) and ((self.scrollOffset or 0) / maxOffset) or 0
+  local thumbY = math.floor(trackTop + ((trackH - thumbH) * offsetFrac))
+
+  local c = colors.white
+  love.graphics.setColor(c[1], c[2], c[3], 1)
+  love.graphics.rectangle("fill", trackX, thumbY, SCROLLBAR_W, thumbH)
+  love.graphics.setColor(colors.white)
 end
 
 return Dialog

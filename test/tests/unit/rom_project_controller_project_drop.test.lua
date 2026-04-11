@@ -185,6 +185,34 @@ describe("rom_project_controller.lua - project file loading", function()
     expect(loadCalls).toBe(1)
   end)
 
+  it("shows an error toast when lua/ppux payload does not match project structure", function()
+    local invalidPath = "/tmp/invalid_project_structure.lua"
+    touchTempFile(invalidPath, "return { foo = 'bar' }")
+
+    local statusText = nil
+    local toastType = nil
+    local toastText = nil
+    local app = {
+      appEditState = {},
+      setStatus = function(_, text)
+        statusText = text
+      end,
+      showToast = function(_, kind, text)
+        toastType = kind
+        toastText = text
+      end,
+      beginSimpleLoading = function() end,
+      endSimpleLoading = function() end,
+    }
+
+    local ok = RomProjectController.loadProjectFile(app, invalidPath)
+    expect(ok).toBe(false)
+    expect(type(statusText)).toBe("string")
+    expect(statusText:match("Invalid project format") ~= nil).toBe(true)
+    expect(toastType).toBe("error")
+    expect(toastText).toBe(statusText)
+  end)
+
   it("treats DB layouts with no windows as unusable", function()
     expect(RomProjectController._dbLayoutHasWindows(nil)).toBe(false)
     expect(RomProjectController._dbLayoutHasWindows({})).toBe(false)

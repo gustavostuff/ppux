@@ -256,6 +256,7 @@ function AppCoreController.new()
   self.edits = nil
   self.projectPath = nil
   self.encodedProjectPath = nil
+  self.lastOpenProjectDir = nil
   self.recentProjects = {}
   self.groupedPaletteWindows = false
   self.paletteGroupState = nil

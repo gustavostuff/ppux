@@ -12,7 +12,6 @@ local MIN_BAR_H = 15
 local PAD_X = 0
 local PAD_Y = 0
 local GAP = 0
-local QUICK_BUTTON_ORDER = { "newWindow", "open", "save" }
 local STATUS_AREA_RATIO = 0.5
 
 local function measureDockedToolbarHeight(toolbar, cell)
@@ -111,6 +110,19 @@ local function ensureQuickButtons(app)
   }
 end
 
+local function hasOpenProject(app)
+  return app and app.hasLoadedROM and app:hasLoadedROM() == true
+end
+
+local function quickButtonOrder(app)
+  local order = { "open" }
+  if hasOpenProject(app) then
+    order[#order + 1] = "newWindow"
+    order[#order + 1] = "save"
+  end
+  return order
+end
+
 function M.clearDockLayouts(app)
   if not (app and app.wm and app.wm.getWindows) then
     return
@@ -137,7 +149,7 @@ function M.syncLayout(app)
   local x = PAD_X
   local topY = PAD_Y
 
-  for _, key in ipairs(QUICK_BUTTON_ORDER) do
+  for _, key in ipairs(quickButtonOrder(app)) do
     local b = app._appTopQuickButtons[key]
     if b then
       b:setPosition(x, topY)
@@ -224,7 +236,7 @@ function M.draw(app)
   love.graphics.setColor(colors.white)
 
   ensureQuickButtons(app)
-  for _, key in ipairs(QUICK_BUTTON_ORDER) do
+  for _, key in ipairs(quickButtonOrder(app)) do
     local b = app._appTopQuickButtons[key]
     if b then
       b:draw()
@@ -269,7 +281,7 @@ end
 
 local function pointInQuickButton(app, px, py)
   ensureQuickButtons(app)
-  for _, key in ipairs(QUICK_BUTTON_ORDER) do
+  for _, key in ipairs(quickButtonOrder(app)) do
     local b = app._appTopQuickButtons[key]
     if b and b:contains(px, py) then
       return b
@@ -366,7 +378,7 @@ end
 
 function M.mousemoved(app, px, py)
   if not M.containsPointer(app, px, py) then
-    for _, key in ipairs(QUICK_BUTTON_ORDER) do
+    for _, key in ipairs(quickButtonOrder(app)) do
       local b = app._appTopQuickButtons and app._appTopQuickButtons[key]
       if b then
         b.hovered = false
@@ -375,7 +387,7 @@ function M.mousemoved(app, px, py)
     return false
   end
   local hit = pointInQuickButton(app, px, py)
-  for _, key in ipairs(QUICK_BUTTON_ORDER) do
+  for _, key in ipairs(quickButtonOrder(app)) do
     local b = app._appTopQuickButtons and app._appTopQuickButtons[key]
     if b then
       b.hovered = (b == hit)

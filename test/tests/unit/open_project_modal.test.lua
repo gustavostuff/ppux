@@ -49,7 +49,7 @@ describe("open_project_modal.lua", function()
     io.popen = originalPopen
   end)
 
-  it("supports folder navigation, back history, fixed slots, and file open callback", function()
+  it("supports parent navigation, fixed slots, and file open callback", function()
     local originalPopen = io.popen
     io.popen = makePopenStub({
       ["ls -1Ap '/tmp/work' 2>/dev/null"] = {
@@ -93,7 +93,7 @@ describe("open_project_modal.lua", function()
     expect(modal:_activateVisibleSlot(1)).toBe(true)
     expect(modal:getCurrentDir()).toBe("/tmp/work/child")
 
-    expect(modal:_goBack()).toBe(true)
+    expect(modal:_goUp()).toBe(true)
     expect(modal:getCurrentDir()).toBe("/tmp/work")
 
     modal:_setScrollOffset(1)

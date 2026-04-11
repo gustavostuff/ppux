@@ -394,23 +394,44 @@ local function detectProjectFormat(path)
   return nil
 end
 
+local function invalidProjectMessage(format, rawMessage)
+  local label = (format == "ppux") and "PPUX project" or "Lua project"
+  local msg = tostring(rawMessage or "")
+  if msg == "" or msg == "lua" or msg == "ppux" then
+    return "The file is not a valid " .. label .. "."
+  end
+  if msg:match("Invalid project format") then
+    return "The file is not a valid " .. label .. "."
+  end
+  return msg
+end
+
 local function loadProjectFromString(projectPath, raw)
   local format = detectProjectFormat(projectPath)
-  if format == "ppux" then
-    return GameArtController.loadProjectPpuxString(raw, projectPath), format
+  if not format then
+    return nil, "Unsupported project file type: " .. tostring(projectPath), nil
   end
-  return GameArtController.loadProjectLuaString(raw, projectPath), "lua"
+  local project, err
+  if format == "ppux" then
+    project, err = GameArtController.loadProjectPpuxString(raw, projectPath)
+  else
+    project, err = GameArtController.loadProjectLuaString(raw, projectPath)
+  end
+  return project, err, format
 end
 
 local function loadProjectFromPath(projectPath)
   local format = detectProjectFormat(projectPath)
+  if not format then
+    return nil, "Unsupported project file type: " .. tostring(projectPath), nil
+  end
+  local project, err
   if format == "ppux" then
-    return GameArtController.loadProjectPpux(projectPath), format
+    project, err = GameArtController.loadProjectPpux(projectPath)
+  else
+    project, err = GameArtController.loadProjectLua(projectPath)
   end
-  if format == "lua" then
-    return GameArtController.loadProjectLua(projectPath), format
-  end
-  return nil, "Unsupported project file type: " .. tostring(projectPath), nil
+  return project, err, format
 end
 
 local function pushCandidate(candidates, seen, path)
@@ -1224,7 +1245,11 @@ function M.loadProjectFile(app, fileOrPath)
   local project, loadErr
   project, loadErr, projectFormat = loadProjectFromString(projectPath, rawProject)
   if not project then
-    app:setStatus(loadErr or "Project load failed")
+    local message = invalidProjectMessage(projectFormat, loadErr or "Project load failed")
+    app:setStatus(message)
+    if app and app.showToast then
+      app:showToast("error", message)
+    end
     return finish(false)
   end
 

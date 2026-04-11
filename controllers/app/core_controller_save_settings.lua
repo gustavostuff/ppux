@@ -73,33 +73,16 @@ local function combineAllSaveMessages(luaOk, luaStatus, ppuxOk, ppuxStatus, romO
   return false, table.concat(parts, "; ")
 end
 
-local function pathDirectory(path)
-  if type(path) ~= "string" or path == "" then
-    return nil
-  end
-  local dir = path:match("^(.*)[/\\][^/\\]+$")
-  if dir and dir ~= "" then
-    return dir
-  end
-  if path:match("^%a:[/\\]?") then
-    return path:sub(1, 2) .. "\\"
-  end
-  return nil
-end
-
 local function resolveOpenProjectInitialDir(app)
   if not app then
     return "."
   end
-  local state = app.appEditState or {}
-  local candidates = {
-    app.projectPath,
-    app.encodedProjectPath,
-    state.romOriginalPath,
-  }
-  for _, candidate in ipairs(candidates) do
-    local dir = pathDirectory(candidate)
-    if dir and dir ~= "" then
+  if type(app.lastOpenProjectDir) == "string" and app.lastOpenProjectDir ~= "" then
+    return app.lastOpenProjectDir
+  end
+  if love and love.filesystem and love.filesystem.getWorkingDirectory then
+    local dir = love.filesystem.getWorkingDirectory()
+    if type(dir) == "string" and dir ~= "" then
       return dir
     end
   end
@@ -822,7 +805,11 @@ function AppCoreController:showOpenProjectModal()
   self.openProjectModal:show({
     title = "Open Project",
     initialDir = resolveOpenProjectInitialDir(self),
+    onDirectoryChanged = function(path)
+      self.lastOpenProjectDir = path
+    end,
     onOpen = function(path)
+      self.lastOpenProjectDir = path:match("^(.*)[/\\][^/\\]+$") or self.lastOpenProjectDir
       openedPath = path
       return RomProjectController.requestLoad(self, path)
     end,
