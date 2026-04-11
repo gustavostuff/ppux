@@ -88,6 +88,9 @@ local function ensureQuickButtons(app)
       icon = images.icons.icon_open or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
       tooltip = "Open",
       action = function()
+        if app.showOpenProjectModal then
+          app:showOpenProjectModal()
+        end
       end,
       x = 0,
       y = 0,

@@ -73,6 +73,39 @@ local function combineAllSaveMessages(luaOk, luaStatus, ppuxOk, ppuxStatus, romO
   return false, table.concat(parts, "; ")
 end
 
+local function pathDirectory(path)
+  if type(path) ~= "string" or path == "" then
+    return nil
+  end
+  local dir = path:match("^(.*)[/\\][^/\\]+$")
+  if dir and dir ~= "" then
+    return dir
+  end
+  if path:match("^%a:[/\\]?") then
+    return path:sub(1, 2) .. "\\"
+  end
+  return nil
+end
+
+local function resolveOpenProjectInitialDir(app)
+  if not app then
+    return "."
+  end
+  local state = app.appEditState or {}
+  local candidates = {
+    app.projectPath,
+    app.encodedProjectPath,
+    state.romOriginalPath,
+  }
+  for _, candidate in ipairs(candidates) do
+    local dir = pathDirectory(candidate)
+    if dir and dir ~= "" then
+      return dir
+    end
+  end
+  return "."
+end
+
 function AppCoreController:saveEdited(opts)
   opts = opts or {}
   if not self:hasLoadedROM() then
@@ -776,6 +809,30 @@ function AppCoreController:showSaveOptionsModal()
   }
 
   self.saveOptionsModal:show("Save Options", options)
+  return true
+end
+
+function AppCoreController:showOpenProjectModal()
+  if not self.openProjectModal then
+    local OpenProjectModal = require("user_interface.modals.open_project_modal")
+    self.openProjectModal = OpenProjectModal.new()
+  end
+
+  local openedPath = nil
+  self.openProjectModal:show({
+    title = "Open Project",
+    initialDir = resolveOpenProjectInitialDir(self),
+    onOpen = function(path)
+      openedPath = path
+      return RomProjectController.requestLoad(self, path)
+    end,
+  })
+
+  if openedPath then
+    self:setStatus("Opening project: " .. tostring(openedPath))
+  else
+    self:setStatus("Open project")
+  end
   return true
 end
 

@@ -7,6 +7,7 @@ local UndoRedoController = require("controllers.input_support.undo_redo_controll
 local GenericActionsModal = require("user_interface.modals.generic_actions_modal")
 local NewWindowTypeModal = require("user_interface.modals.new_window_type_modal")
 local NewWindowModal = require("user_interface.modals.new_window_modal")
+local OpenProjectModal = require("user_interface.modals.open_project_modal")
 local PPUFrameAddSpriteModal = require("user_interface.modals.ppu_frame_add_sprite_modal")
 local PPUFrameSpriteLayerModeModal = require("user_interface.modals.ppu_frame_sprite_layer_mode_modal")
 local PPUFrameRangeModal = require("user_interface.modals.ppu_frame_range_modal")
@@ -46,6 +47,7 @@ local function anyModalVisible(app)
     or (app.settingsModal and app.settingsModal:isVisible())
     or (app.newWindowTypeModal and app.newWindowTypeModal:isVisible())
     or (app.newWindowModal and app.newWindowModal:isVisible())
+    or (app.openProjectModal and app.openProjectModal:isVisible())
     or (app.renameWindowModal and app.renameWindowModal:isVisible())
     or (app.romPaletteAddressModal and app.romPaletteAddressModal:isVisible())
     or (app.ppuFrameSpriteLayerModeModal and app.ppuFrameSpriteLayerModeModal:isVisible())
@@ -97,6 +99,7 @@ local function getTopModalTooltipCandidate(app, x, y)
     app.settingsModal,
     app.newWindowTypeModal,
     app.newWindowModal,
+    app.openProjectModal,
     app.renameWindowModal,
     app.romPaletteAddressModal,
     app.ppuFrameSpriteLayerModeModal,
@@ -265,6 +268,7 @@ function AppCoreController.new()
   self.genericActionsModal = GenericActionsModal.new()
   self.newWindowTypeModal = NewWindowTypeModal.new()
   self.newWindowModal = NewWindowModal.new()
+  self.openProjectModal = OpenProjectModal.new()
   self.renameWindowModal = RenameWindowModal.new()
   self.romPaletteAddressModal = RomPaletteAddressModal.new()
   self.ppuFrameSpriteLayerModeModal = PPUFrameSpriteLayerModeModal.new()

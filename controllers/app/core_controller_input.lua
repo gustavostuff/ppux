@@ -214,6 +214,10 @@ function AppCoreController:keypressed(k)
     modalHandleKey(self.newWindowModal, k)
     return
   end
+  if modalVisible(self.openProjectModal) then
+    modalHandleKey(self.openProjectModal, k)
+    return
+  end
   if modalVisible(self.renameWindowModal) then
     modalHandleKey(self.renameWindowModal, k)
     return
@@ -278,6 +282,7 @@ function AppCoreController:keyreleased(k)
       or modalVisible(self.settingsModal)
       or modalVisible(self.newWindowTypeModal)
       or modalVisible(self.newWindowModal)
+      or modalVisible(self.openProjectModal)
       or modalVisible(self.renameWindowModal)
       or modalVisible(self.romPaletteAddressModal)
       or modalVisible(self.ppuFrameSpriteLayerModeModal)
@@ -336,6 +341,10 @@ function AppCoreController:mousepressed(x, y, b)
   end
   if self.newWindowModal:isVisible() then
     self.newWindowModal:mousepressed(mouse.x, mouse.y, b)
+    return
+  end
+  if self.openProjectModal and self.openProjectModal:isVisible() then
+    self.openProjectModal:mousepressed(mouse.x, mouse.y, b)
     return
   end
   if self.renameWindowModal and self.renameWindowModal:isVisible() then
@@ -436,6 +445,10 @@ function AppCoreController:mousereleased(x, y, b)
   end
   if self.newWindowModal:isVisible() then
     self.newWindowModal:mousereleased(mouse.x, mouse.y, b)
+    return
+  end
+  if self.openProjectModal and self.openProjectModal:isVisible() then
+    self.openProjectModal:mousereleased(mouse.x, mouse.y, b)
     return
   end
   if self.renameWindowModal and self.renameWindowModal:isVisible() then
@@ -545,6 +558,10 @@ function AppCoreController:mousemoved(x, y, dx, dy)
     self.newWindowModal:mousemoved(mouse.x, mouse.y)
     return
   end
+  if self.openProjectModal and self.openProjectModal:isVisible() then
+    self.openProjectModal:mousemoved(mouse.x, mouse.y)
+    return
+  end
   if self.renameWindowModal and self.renameWindowModal:isVisible() then
     self.renameWindowModal:mousemoved(mouse.x, mouse.y)
     return
@@ -604,6 +621,7 @@ function AppCoreController:wheelmoved(dx, dy)
       or (self.settingsModal and self.settingsModal:isVisible())
       or (self.newWindowTypeModal and self.newWindowTypeModal:isVisible())
       or self.newWindowModal:isVisible()
+      or (self.openProjectModal and self.openProjectModal:isVisible())
       or (self.renameWindowModal and self.renameWindowModal:isVisible())
       or (self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible())
       or (self.ppuFrameSpriteLayerModeModal and self.ppuFrameSpriteLayerModeModal:isVisible())
@@ -611,6 +629,9 @@ function AppCoreController:wheelmoved(dx, dy)
       or (self.ppuFrameRangeModal and self.ppuFrameRangeModal:isVisible())
       or (self.ppuFramePatternRangeModal and self.ppuFramePatternRangeModal:isVisible())
       or (self.textFieldDemoModal and self.textFieldDemoModal:isVisible()) then
+    if self.openProjectModal and self.openProjectModal:isVisible() and self.openProjectModal.wheelmoved then
+      return self.openProjectModal:wheelmoved(dx, dy)
+    end
     return
   end
   if self.taskbar and self.taskbar.wheelmoved and self.taskbar:wheelmoved(dx, dy) then

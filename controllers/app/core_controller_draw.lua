@@ -1027,6 +1027,9 @@ local function drawOverlays(app)
     app.newWindowTypeModal:draw(app.canvas)
   end
   app.newWindowModal:draw(app.canvas)
+  if app.openProjectModal then
+    app.openProjectModal:draw(app.canvas)
+  end
   if app.saveOptionsModal then
     app.saveOptionsModal:draw(app.canvas)
   end
