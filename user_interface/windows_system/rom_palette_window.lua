@@ -18,7 +18,7 @@ RomPaletteWindow.__index = RomPaletteWindow
 setmetatable(RomPaletteWindow, { __index = PaletteWindow })
 
 local NORMAL_CELL_W, NORMAL_CELL_H = 32, 24
-local COMPACT_CELL_W, COMPACT_CELL_H = 20, 13
+local COMPACT_CELL_W, COMPACT_CELL_H = 20, 15
 
 local function clamp(n,a,b) if n<a then return a elseif n>b then return b else return n end end
 local function hex2(n) return string.format("%02X", n) end
@@ -553,7 +553,7 @@ function RomPaletteWindow:drawGrid()
 
       -- Always show codes for ROM palettes
       if editable then
-        Text.print(code, x + 3, y + 2, {
+        Text.print(code, x + 3, y + 3, {
           color = getLabelTextColor(fillColor),
           shadowColor = colors.transparent,
         })

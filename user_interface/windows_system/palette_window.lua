@@ -13,7 +13,7 @@ local DebugController = require("controllers.dev.debug_controller")
 local CanvasSpace = require("utils.canvas_space")
 
 local NORMAL_CELL_W, NORMAL_CELL_H = 32, 24
-local COMPACT_CELL_W, COMPACT_CELL_H = 20, 13
+local COMPACT_CELL_W, COMPACT_CELL_H = 20, 15
 
 local function buildSelectionAnim()
   if images and images.palette_selection then
@@ -405,7 +405,7 @@ function PaletteWindow:drawGrid()
       love.graphics.rectangle("fill", x, y, cw, ch)
 
       if self.activePalette then
-        Text.print(code, x + 3, y + 2, {
+        Text.print(code, x + 3, y + 3, {
           color = getLabelTextColor(rgb),
           shadowColor = colors.transparent,
         })
