@@ -136,6 +136,11 @@ local function isProjectFileName(name)
   return ext == "lua" or ext == "ppux"
 end
 
+local function isHiddenName(name)
+  name = tostring(name or "")
+  return name:sub(1, 1) == "."
+end
+
 local function shellQuotePosix(path)
   return "'" .. tostring(path or ""):gsub("'", "'\\''") .. "'"
 end
@@ -173,7 +178,7 @@ local function sortedEntries(entries)
   return entries
 end
 
-local function listEntriesPosix(dir)
+local function listEntriesPosix(dir, showHidden)
   local command = string.format("ls -1Ap %s 2>/dev/null", shellQuotePosix(dir))
   local lines = readCommandLines(command)
   local entries = {}
@@ -181,7 +186,7 @@ local function listEntriesPosix(dir)
     if raw ~= "" and raw ~= "." and raw ~= ".." then
       local isDir = raw:sub(-1) == "/"
       local name = isDir and raw:sub(1, -2) or raw
-      if isDir or isProjectFileName(name) then
+      if (showHidden or (not isHiddenName(name))) and (isDir or isProjectFileName(name)) then
         entries[#entries + 1] = {
           name = name,
           path = pathJoin(dir, name),
@@ -193,22 +198,24 @@ local function listEntriesPosix(dir)
   return sortedEntries(entries)
 end
 
-local function listEntriesWindows(dir)
+local function listEntriesWindows(dir, showHidden)
   local quoted = shellQuoteWindows(dir)
   local dirLines = readCommandLines(string.format("cmd /d /c dir /b /ad %s 2>nul", quoted))
   local fileLines = readCommandLines(string.format("cmd /d /c dir /b /a-d %s 2>nul", quoted))
   local entries = {}
   for _, name in ipairs(dirLines) do
     if name ~= "" and name ~= "." and name ~= ".." then
-      entries[#entries + 1] = {
-        name = name,
-        path = pathJoin(dir, name),
-        isDir = true,
-      }
+      if showHidden or (not isHiddenName(name)) then
+        entries[#entries + 1] = {
+          name = name,
+          path = pathJoin(dir, name),
+          isDir = true,
+        }
+      end
     end
   end
   for _, name in ipairs(fileLines) do
-    if name ~= "" and isProjectFileName(name) then
+    if name ~= "" and isProjectFileName(name) and (showHidden or (not isHiddenName(name))) then
       entries[#entries + 1] = {
         name = name,
         path = pathJoin(dir, name),
@@ -219,11 +226,11 @@ local function listEntriesWindows(dir)
   return sortedEntries(entries)
 end
 
-local function listEntries(dir)
+local function listEntries(dir, showHidden)
   if isWindows() then
-    return listEntriesWindows(dir)
+    return listEntriesWindows(dir, showHidden)
   end
-  return listEntriesPosix(dir)
+  return listEntriesPosix(dir, showHidden)
 end
 
 local function makeClippedFileButton(slotAction)
@@ -299,6 +306,7 @@ function Dialog.new()
     onOpen = nil,
     onCancel = nil,
     onDirectoryChanged = nil,
+    showHidden = false,
     currentDir = ".",
     entries = {},
     scrollOffset = 0,
@@ -321,7 +329,8 @@ function Dialog.new()
     icon = images.icons.icon_up,
     text = "Parent",
     h = ModalPanelUtils.MODAL_BUTTON_H,
-    transparent = true,
+    transparent = false,
+    bgColor = colors.green,
     textAlign = "left",
     contentPaddingX = 4,
     action = function()
@@ -332,7 +341,8 @@ function Dialog.new()
     icon = images.icons.icon_folder,
     text = "Home",
     h = ModalPanelUtils.MODAL_BUTTON_H,
-    transparent = true,
+    transparent = false,
+    bgColor = colors.green,
     textAlign = "left",
     contentPaddingX = 4,
     action = function()
@@ -423,7 +433,7 @@ function Dialog:_refreshFileButtons()
 end
 
 function Dialog:_loadEntries(dir)
-  self.entries = listEntries(dir)
+  self.entries = listEntries(dir, self.showHidden == true)
 end
 
 function Dialog:_setDirectory(dir)
@@ -501,6 +511,7 @@ function Dialog:show(opts)
   self.onOpen = opts.onOpen
   self.onCancel = opts.onCancel
   self.onDirectoryChanged = opts.onDirectoryChanged
+  self.showHidden = opts.showHidden == true
   self.visible = true
   rebuildPanel(self)
 

@@ -19,7 +19,7 @@ local function makePopenStub(commandOutputs)
 end
 
 describe("open_project_modal.lua", function()
-  it("filters to folders plus lua/ppux files", function()
+  it("filters to non-hidden folders plus lua/ppux files by default", function()
     local originalPopen = io.popen
     io.popen = makePopenStub({
       ["ls -1Ap '/tmp/work' 2>/dev/null"] = {
@@ -38,13 +38,37 @@ describe("open_project_modal.lua", function()
     })
 
     local entries = modal:getEntries()
-    expect(#entries).toBe(5)
+    expect(#entries).toBe(4)
     expect(entries[1].isDir).toBe(true)
-    expect(entries[1].name).toBe(".git")
-    expect(entries[2].name).toBe("folderA")
-    expect(entries[3].name).toBe("folderB")
-    expect(entries[4].name).toBe("alpha.lua")
-    expect(entries[5].name).toBe("beta.ppux")
+    expect(entries[1].name).toBe("folderA")
+    expect(entries[2].name).toBe("folderB")
+    expect(entries[3].name).toBe("alpha.lua")
+    expect(entries[4].name).toBe("beta.ppux")
+
+    io.popen = originalPopen
+  end)
+
+  it("shows hidden files/folders when showHidden=true", function()
+    local originalPopen = io.popen
+    io.popen = makePopenStub({
+      ["ls -1Ap '/tmp/work' 2>/dev/null"] = {
+        ".cache/",
+        ".project.lua",
+        "visible.lua",
+      },
+    })
+
+    local modal = OpenProjectModal.new()
+    modal:show({
+      initialDir = "/tmp/work",
+      showHidden = true,
+    })
+
+    local entries = modal:getEntries()
+    expect(#entries).toBe(3)
+    expect(entries[1].name).toBe(".cache")
+    expect(entries[2].name).toBe(".project.lua")
+    expect(entries[3].name).toBe("visible.lua")
 
     io.popen = originalPopen
   end)
