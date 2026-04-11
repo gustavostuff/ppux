@@ -22,7 +22,7 @@ function M.install(Taskbar, Helpers)
   local function pruneMinimizedWindows(self)
     for i = #self.minimizedWindows, 1, -1 do
       local win = self.minimizedWindows[i]
-      if (not win) or win._closed then
+      if (not win) or win._closed or win._groupHidden == true then
         removeMinimizedWindowAt(self, i)
       end
     end
@@ -115,7 +115,7 @@ function M.install(Taskbar, Helpers)
     end
 
     for _, win in ipairs(wm:getWindows() or {}) do
-      if win and not win._closed then
+      if win and not win._closed and win._groupHidden ~= true then
         if not present[win] then
           self.minimizedWindows[#self.minimizedWindows + 1] = win
           present[win] = true

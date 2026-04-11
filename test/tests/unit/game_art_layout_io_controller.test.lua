@@ -95,6 +95,20 @@ describe("game_art_layout_io_controller.lua", function()
       edits = { banks = {} },
       syncDuplicateTiles = true,
       currentColor = 4,
+      paletteGroupState = {
+        version = 1,
+        enabled = true,
+        global = {
+          activeSourceWindowId = "palette_01",
+          activeIndex = 1,
+          logicalWindow = { x = 11, y = 22 },
+        },
+        rom = {
+          activeSourceWindowId = "rom_palette_01",
+          activeIndex = 1,
+          logicalWindow = { x = 33, y = 44 },
+        },
+      },
     }
 
     local ok, err = GameArtLayoutIOController.saveProjectLua(path, project)
@@ -320,5 +334,41 @@ describe("game_art_layout_io_controller.lua", function()
     local restored = built.windowsById["oam_guides"]
     expect(restored).toBeTruthy()
     expect(restored.showSpriteOriginGuides).toBe(true)
+  end)
+
+  it("includes paletteGroupState in layout snapshots when app exposes it", function()
+    local oldCtx = rawget(_G, "ctx")
+    _G.ctx = {
+      app = {
+        getPaletteGroupStateForSave = function()
+          return {
+            version = 1,
+            enabled = true,
+            global = {
+              activeSourceWindowId = "palette_02",
+              activeIndex = 2,
+              logicalWindow = { x = 10, y = 20 },
+            },
+            rom = {
+              activeSourceWindowId = "rom_palette_01",
+              activeIndex = 1,
+              logicalWindow = { x = 30, y = 40 },
+            },
+          }
+        end,
+      },
+    }
+
+    local wm = require("controllers.window.window_controller").new()
+    local win = wm:createPaletteWindow({ title = "Palette A" })
+    win._id = "palette_01"
+
+    local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1)
+    _G.ctx = oldCtx
+
+    expect(snapshot.paletteGroupState).toBeTruthy()
+    expect(snapshot.paletteGroupState.enabled).toBe(true)
+    expect(snapshot.paletteGroupState.global.activeSourceWindowId).toBe("palette_02")
+    expect(snapshot.paletteGroupState.rom.activeSourceWindowId).toBe("rom_palette_01")
   end)
 end)

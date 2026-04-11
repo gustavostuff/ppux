@@ -35,7 +35,7 @@ local function refreshZOrder(self)
 end
 
 local function isWindowVisibleForInteraction(win)
-  return win and not win._closed and not win._minimized
+  return win and not win._closed and not win._minimized and win._groupHidden ~= true
 end
 
 local function findTopVisibleWindow(self)
@@ -66,12 +66,18 @@ function WM:add(win)
   elseif self.taskbar and self.taskbar.addMinimizedWindow then
     self.taskbar:addMinimizedWindow(win)
   end
+
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app or nil
+  if app and app.onWindowManagerWindowCreated then
+    app:onWindowManagerWindowCreated(win)
+  end
 end
 
 function WM:update(dt)
   -- Skip closed windows
   for _, w in ipairs(self.windows) do
-    if not w._closed and not w._minimized then
+    if not w._closed and not w._minimized and w._groupHidden ~= true then
       w:update(dt)
     end
   end
@@ -513,7 +519,7 @@ function WM:bringToFront(win)
 end
 
 function WM:setFocus(win)
-  if win and (win._closed or win._minimized) then
+  if win and (win._closed or win._minimized or win._groupHidden == true) then
     return
   end
   if win and self.focused ~= win then
@@ -540,7 +546,7 @@ function WM:windowAt(x, y)
   for i = #self.windows, 1, -1 do
     local win = self.windows[i]
     -- Skip closed windows
-    if not win._closed and not win._minimized and win:contains(x, y) then
+    if not win._closed and not win._minimized and win._groupHidden ~= true and win:contains(x, y) then
       return win
     end
   end

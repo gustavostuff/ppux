@@ -9,6 +9,7 @@ describe("settings_controller.lua - defaults", function()
       canvasFilter = "sharp",
       paletteLinks = "auto_hide",
       separateToolbar = false,
+      groupedPaletteWindows = false,
       recentProjects = {},
     })
   end)
@@ -43,6 +44,7 @@ describe("settings_controller.lua - persistence", function()
       paletteLinks = "on_hover",
       skipSplash = true,
       tooltipsEnabled = false,
+      groupedPaletteWindows = true,
       recentProjects = {
         "/tmp/foo.lua",
         "/tmp/foo_edited.nes",
@@ -61,6 +63,7 @@ describe("settings_controller.lua - persistence", function()
       canvasFilter = "soft",
       paletteLinks = "on_hover",
       separateToolbar = false,
+      groupedPaletteWindows = true,
       recentProjects = {
         "/tmp/foo",
         "/tmp/bar",

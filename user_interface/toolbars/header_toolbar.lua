@@ -7,7 +7,7 @@ local colors = require("app_colors")
 local DebugController = require("controllers.dev.debug_controller")
 local ResolutionController = require("controllers.app.resolution_controller")
 
-local TOOLBAR_PROXIMITY_PX = 8
+local TOOLBAR_PROXIMITY_PX = 0
 
 local HeaderToolbar = {}
 HeaderToolbar.__index = HeaderToolbar

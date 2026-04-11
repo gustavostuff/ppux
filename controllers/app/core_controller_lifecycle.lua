@@ -373,6 +373,7 @@ function AppCoreController:load()
   self:_applyPaletteLinksSetting((settings and settings.paletteLinks) or "auto_hide", false)
   self:_applyTooltipsEnabledSetting((settings and settings.tooltipsEnabled) ~= false, false)
   self:_applySeparateToolbarSetting((settings and settings.separateToolbar) == true, false)
+  self:_applyGroupedPaletteWindowsSetting((settings and settings.groupedPaletteWindows) == true, false)
   ResolutionController:recalculate()
   local splashConfig = {}
   if settings then

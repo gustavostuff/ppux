@@ -20,6 +20,14 @@ function PaletteToolbar.new(window, ctx, windowController)
   local hx, hy, hw, hh = window:getHeaderRect()
   self.h = hh  -- Toolbar height matches header height
 
+  self.prevButton = self:addButton(images.icons.icon_left, function()
+    self:_onNavigate(-1)
+  end, "Previous palette")
+
+  self.nextButton = self:addButton(images.icons.icon_right, function()
+    self:_onNavigate(1)
+  end, "Next palette")
+
   self.compactButton = self:addButton(images.icons.icon_minus or images.icons.icon_down, function()
     self:_onToggleCompact()
   end, "Toggle compact palette view")
@@ -44,8 +52,26 @@ end
 -- Override updateIcons to refresh the active button icon
 function PaletteToolbar:updateIcons()
   ToolbarBase.updateIcons(self)
+  self:updateGroupedNavigationButtons()
   self:updateCompactIcon()
   self:updateActiveIcon()
+end
+
+function PaletteToolbar:isGroupedPaletteMode()
+  local app = self.ctx and self.ctx.app or nil
+  return app and app.isGroupedPaletteWindowsEnabled and app:isGroupedPaletteWindowsEnabled() or false
+end
+
+function PaletteToolbar:updateGroupedNavigationButtons()
+  local grouped = self:isGroupedPaletteMode()
+  if self.prevButton then
+    self.prevButton.visible = grouped
+    self.prevButton.enabled = grouped
+  end
+  if self.nextButton then
+    self.nextButton.visible = grouped
+    self.nextButton.enabled = grouped
+  end
 end
 
 function PaletteToolbar:updateCompactIcon()
@@ -127,6 +153,14 @@ function PaletteToolbar:_onToggleCompact()
   self:updateCompactIcon()
   if self.ctx and self.ctx.app and self.ctx.app.setStatus then
     self.ctx.app:setStatus(newVal and "Palette compact view" or "Palette full view")
+  end
+end
+
+function PaletteToolbar:_onNavigate(delta)
+  if not self.window or not self.ctx or not self.ctx.app then return end
+  local app = self.ctx.app
+  if app.cycleGroupedPaletteWindow then
+    app:cycleGroupedPaletteWindow(self.window, delta or 0)
   end
 end
 

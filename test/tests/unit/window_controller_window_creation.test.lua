@@ -402,6 +402,38 @@ describe("window_controller.lua - close and reopen", function()
   end)
 end)
 
+describe("window_controller.lua - grouped hidden windows", function()
+  it("ignores grouped-hidden windows for interaction hit tests", function()
+    local wm = WM.new()
+    local w1 = wm:createTileWindow({
+      animated = false,
+      title = "A",
+      x = 10,
+      y = 10,
+      cols = 2,
+      rows = 2,
+      cellW = 8,
+      cellH = 8,
+      zoom = 1,
+    })
+    local w2 = wm:createTileWindow({
+      animated = false,
+      title = "B",
+      x = 10,
+      y = 10,
+      cols = 2,
+      rows = 2,
+      cellW = 8,
+      cellH = 8,
+      zoom = 1,
+    })
+    w2._groupHidden = true
+
+    local found = wm:windowAt(12, 12)
+    expect(found).toBe(w1)
+  end)
+end)
+
 describe("window_controller.lua - cascade", function()
   it("starts a new cascade after 14 items", function()
     local wm = WM.new()

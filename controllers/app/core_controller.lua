@@ -254,6 +254,9 @@ function AppCoreController.new()
   self.projectPath = nil
   self.encodedProjectPath = nil
   self.recentProjects = {}
+  self.groupedPaletteWindows = false
+  self.paletteGroupState = nil
+  self.groupedPaletteController = nil
 
   -- windows + manager
   self.wm = WindowController.new()
@@ -853,7 +856,9 @@ function AppCoreController:_buildPaletteLinkDestinationContextMenuItems(contentW
     items[#items + 1] = {
       text = "Jump to linked palette",
       callback = function()
-        if self.wm and self.wm.setFocus then
+        if self.focusPaletteWindowWithGrouping then
+          self:focusPaletteWindowWithGrouping(linkedPalette)
+        elseif self.wm and self.wm.setFocus then
           self.wm:setFocus(linkedPalette)
         end
         self:setStatus(string.format("Focused %s", tostring(linkedPalette.title or "palette")))
@@ -898,7 +903,9 @@ function AppCoreController:_appendJumpToLinkedPaletteMenuItem(items, win, layerI
   items[#items + 1] = {
     text = "Jump to linked palette",
     callback = function()
-      if self.wm and self.wm.setFocus then
+      if self.focusPaletteWindowWithGrouping then
+        self:focusPaletteWindowWithGrouping(paletteWin)
+      elseif self.wm and self.wm.setFocus then
         self.wm:setFocus(paletteWin)
       end
       self:setStatus(string.format("Focused %s", tostring(paletteWin.title or "ROM Palette")))

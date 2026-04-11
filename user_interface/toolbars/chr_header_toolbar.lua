@@ -6,7 +6,7 @@ local images = require("images")
 local colors = require("app_colors")
 local ResolutionController = require("controllers.app.resolution_controller")
 
-local TOOLBAR_PROXIMITY_PX = 4
+local TOOLBAR_PROXIMITY_PX = 0
 
 local ChrHeaderToolbar = {}
 ChrHeaderToolbar.__index = ChrHeaderToolbar

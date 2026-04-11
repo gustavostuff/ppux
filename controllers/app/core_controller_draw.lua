@@ -36,7 +36,7 @@ local function getActiveGlobalPaletteBgColor(wm)
   local fallback = nil
 
   for _, win in ipairs(wm:getWindows()) do
-    if WindowCaps.isGlobalPaletteWindow(win) and not win._closed and not win._minimized then
+    if WindowCaps.isGlobalPaletteWindow(win) and not win._closed and not win._minimized and win._groupHidden ~= true then
       if not fallback then
         fallback = win
       end
@@ -59,7 +59,7 @@ local function getActiveGlobalPaletteWindow(wm)
   local fallback = nil
 
   for _, win in ipairs(wm:getWindows()) do
-    if WindowCaps.isGlobalPaletteWindow(win) and not win._closed and not win._minimized then
+    if WindowCaps.isGlobalPaletteWindow(win) and not win._closed and not win._minimized and win._groupHidden ~= true then
       if not fallback then
         fallback = win
       end
@@ -462,7 +462,7 @@ local function drawWindows(app)
 
   for _, w in ipairs(wm:getWindows()) do
     -- Skip closed windows
-    if w._closed or w._minimized then
+    if w._closed or w._minimized or w._groupHidden == true then
       goto continue
     end
 
@@ -1077,7 +1077,7 @@ local function drawHUD(app)
   local windows = (app.wm and app.wm.getWindows and app.wm:getWindows()) or {}
   local visibleWindows = 0
   for _, win in ipairs(windows) do
-    if win and not win._closed and not win._minimized then
+    if win and not win._closed and not win._minimized and win._groupHidden ~= true then
       visibleWindows = visibleWindows + 1
     end
   end

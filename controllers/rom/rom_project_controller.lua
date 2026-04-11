@@ -16,6 +16,7 @@ local SpriteController = require("controllers.sprite.sprite_controller")
 local UserInput = require("controllers.input")
 local DebugController    = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local TableUtils = require("utils.table_utils")
 
 ------------------------------------------------------------
 -- Helpers: sha1 + path + edits merge
@@ -687,6 +688,7 @@ M._dbLayoutHasWindows = dbLayoutHasWindows
 local function loadFromProject(app, project)
   local state = app.appEditState
   local loadStartedAt = nowSeconds()
+  app.paletteGroupState = type(project.paletteGroupState) == "table" and TableUtils.deepcopy(project.paletteGroupState) or nil
   if project.syncDuplicateTiles ~= nil then
     app.syncDuplicateTiles = project.syncDuplicateTiles
   end
@@ -817,6 +819,9 @@ local function loadFromProject(app, project)
   logPerf("project.create_toolbars", toolbarsStartedAt)
   local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
   AppTopToolbarController.applyLoadedLayoutYOffset(app)
+  if app.refreshGroupedPaletteWindows then
+    app:refreshGroupedPaletteWindows()
+  end
   logPerf("project.total", loadStartedAt)
   
   return true
@@ -828,6 +833,7 @@ local function loadFromDBLayout(app, sha)
 
   local layout = GameArtController.getLayout(sha)
   if not layout then return false end
+  app.paletteGroupState = type(layout.paletteGroupState) == "table" and TableUtils.deepcopy(layout.paletteGroupState) or nil
   if not dbLayoutHasWindows(layout) then
     DebugController.log("info", "ROM", "DB layout is empty for SHA-1 %s; falling back to default layout", tostring(sha))
     return false
@@ -936,6 +942,9 @@ local function loadFromDBLayout(app, sha)
     local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
     AppTopToolbarController.applyLoadedLayoutYOffset(app)
   end
+  if app.refreshGroupedPaletteWindows then
+    app:refreshGroupedPaletteWindows()
+  end
 
   if refsOpened > 0 then
     app:setStatus(string.format("Loaded DB layout (%d runtime pattern table refs opened)", refsOpened))
@@ -950,6 +959,7 @@ end
 local function createDefaultWindows(app)
   local state = app.appEditState
   state.currentBank = 1
+  app.paletteGroupState = nil
   local createStartedAt = nowSeconds()
 
   pulseLoading(app, "Building default windows...")
@@ -1040,6 +1050,9 @@ local function createDefaultWindows(app)
   local ToolbarController = require("controllers.window.toolbar_controller")
   local toolbarsStartedAt = nowSeconds()
   ToolbarController.createToolbarsForWindows(app)
+  if app.refreshGroupedPaletteWindows then
+    app:refreshGroupedPaletteWindows()
+  end
   logPerf("default_layout.create_toolbars", toolbarsStartedAt)
   logPerf("default_layout.total", createStartedAt)
 end

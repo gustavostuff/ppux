@@ -13,6 +13,7 @@ local DEFAULT_SETTINGS = {
   canvasFilter = "sharp",
   paletteLinks = "auto_hide",
   separateToolbar = false,
+  groupedPaletteWindows = false,
   recentProjects = {},
 }
 
@@ -96,6 +97,7 @@ local function withDefaults(data)
   out.canvasFilter = normalizeCanvasFilterKey(data and data.canvasFilter)
   out.paletteLinks = normalizePaletteLinksKey(data and data.paletteLinks)
   out.separateToolbar = (data and data.separateToolbar == true)
+  out.groupedPaletteWindows = (data and data.groupedPaletteWindows == true)
   out.recentProjects = normalizeRecentProjects(data and data.recentProjects)
   return out
 end
@@ -159,6 +161,7 @@ function AppSettingsController.save(opts)
   if opts.canvasFilter ~= nil then data.canvasFilter = opts.canvasFilter end
   if opts.paletteLinks ~= nil then data.paletteLinks = normalizePaletteLinksKey(opts.paletteLinks) end
   if opts.separateToolbar ~= nil then data.separateToolbar = (opts.separateToolbar == true) end
+  if opts.groupedPaletteWindows ~= nil then data.groupedPaletteWindows = (opts.groupedPaletteWindows == true) end
   if opts.recentProjects ~= nil then data.recentProjects = normalizeRecentProjects(opts.recentProjects) end
   return writeFile(data)
 end

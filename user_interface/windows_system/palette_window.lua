@@ -13,7 +13,7 @@ local DebugController = require("controllers.dev.debug_controller")
 local CanvasSpace = require("utils.canvas_space")
 
 local NORMAL_CELL_W, NORMAL_CELL_H = 32, 24
-local COMPACT_CELL_W, COMPACT_CELL_H = 20, 15
+local COMPACT_CELL_W, COMPACT_CELL_H = 20, 13
 
 local function buildSelectionAnim()
   if images and images.palette_selection then

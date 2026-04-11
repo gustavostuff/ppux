@@ -444,6 +444,17 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
     windows = {}
   }
 
+  do
+    local ctx = rawget(_G, "ctx")
+    local app = ctx and ctx.app or nil
+    if app and app.getPaletteGroupStateForSave then
+      local paletteGroupState = app:getPaletteGroupStateForSave()
+      if type(paletteGroupState) == "table" then
+        out.paletteGroupState = TableUtils.deepcopy(paletteGroupState)
+      end
+    end
+  end
+
   local toolbarOy = 0
   do
     local ctx = rawget(_G, "ctx")

@@ -19,6 +19,14 @@ function RomPaletteToolbar.new(window, ctx, windowController)
   local hx, hy, hw, hh = window:getHeaderRect()
   self.h = hh
 
+  self.prevButton = self:addButton(images.icons.icon_left, function()
+    self:_onNavigate(-1)
+  end, "Previous ROM palette")
+
+  self.nextButton = self:addButton(images.icons.icon_right, function()
+    self:_onNavigate(1)
+  end, "Next ROM palette")
+
   self.linkButton = self:addButton(images.icons.icon_connect or images.icons.icon_pivot or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty, nil, "Palette link handle", {
     paletteLinkHandle = true,
   })
@@ -41,6 +49,7 @@ end
 
 function RomPaletteToolbar:updateIcons()
   ToolbarBase.updateIcons(self)
+  self:updateGroupedNavigationButtons()
   if self.linkButton then
     self.linkButton.icon = images.icons.icon_connect or images.icons.icon_pivot or self.linkButton.icon
     local targets = PaletteLinkController.getLinkedTargetsForPalette(self.windowController, self.window)
@@ -56,6 +65,23 @@ function RomPaletteToolbar:updateIcons()
     end
   end
   self:updateCompactIcon()
+end
+
+function RomPaletteToolbar:isGroupedPaletteMode()
+  local app = self.ctx and self.ctx.app or nil
+  return app and app.isGroupedPaletteWindowsEnabled and app:isGroupedPaletteWindowsEnabled() or false
+end
+
+function RomPaletteToolbar:updateGroupedNavigationButtons()
+  local grouped = self:isGroupedPaletteMode()
+  if self.prevButton then
+    self.prevButton.visible = grouped
+    self.prevButton.enabled = grouped
+  end
+  if self.nextButton then
+    self.nextButton.visible = grouped
+    self.nextButton.enabled = grouped
+  end
 end
 
 function RomPaletteToolbar:updateCompactIcon()
@@ -81,6 +107,14 @@ function RomPaletteToolbar:_onToggleCompact()
   self:updateCompactIcon()
   if self.ctx and self.ctx.app and self.ctx.app.setStatus then
     self.ctx.app:setStatus(newVal and "Palette compact view" or "Palette full view")
+  end
+end
+
+function RomPaletteToolbar:_onNavigate(delta)
+  if not self.window or not self.ctx or not self.ctx.app then return end
+  local app = self.ctx.app
+  if app.cycleGroupedPaletteWindow then
+    app:cycleGroupedPaletteWindow(self.window, delta or 0)
   end
 end
 

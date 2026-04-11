@@ -4,6 +4,7 @@ local AppSettingsController = require("controllers.app.settings_controller")
 local ResolutionController = require("controllers.app.resolution_controller")
 local SaveOptionsModal = require("user_interface.modals.save_options_modal")
 local SettingsModal = require("user_interface.modals.settings_modal")
+local TableUtils = require("utils.table_utils")
 
 return function(AppCoreController)
 local function combineSaveMessages(projectRequested, projectOk, projectStatus, romRequested, romOk, romStatus)
@@ -420,6 +421,10 @@ local function normalizeCanvasFilterKey(key)
   return "sharp"
 end
 
+local function normalizeGroupedPaletteWindows(enabled)
+  return enabled == true
+end
+
 local function windowFlagsEquivalent(currentFlags, desiredFlags)
   currentFlags = currentFlags or {}
   desiredFlags = desiredFlags or {}
@@ -555,6 +560,98 @@ function AppCoreController:_applySeparateToolbarSetting(enabled, saveSetting)
   return self.separateToolbar
 end
 
+function AppCoreController:_ensureGroupedPaletteController()
+  if self.groupedPaletteController then
+    return self.groupedPaletteController
+  end
+  local GroupedPaletteController = require("controllers.palette.grouped_palette_controller")
+  self.groupedPaletteController = GroupedPaletteController.new(self)
+  if self.paletteGroupState then
+    self.groupedPaletteController:setState(self.paletteGroupState)
+  end
+  return self.groupedPaletteController
+end
+
+function AppCoreController:_getGroupedPaletteWindowsForSettings()
+  if self.groupedPaletteWindows ~= nil then
+    return normalizeGroupedPaletteWindows(self.groupedPaletteWindows)
+  end
+  local settings = AppSettingsController.load()
+  return normalizeGroupedPaletteWindows(settings and settings.groupedPaletteWindows)
+end
+
+function AppCoreController:isGroupedPaletteWindowsEnabled()
+  return self.groupedPaletteWindows == true
+end
+
+function AppCoreController:getPaletteGroupStateForSave()
+  if self.groupedPaletteController and self.groupedPaletteController.getState then
+    self.paletteGroupState = self.groupedPaletteController:getState()
+  end
+  return TableUtils.deepcopy(self.paletteGroupState)
+end
+
+function AppCoreController:_applyGroupedPaletteWindowsSetting(enabled, saveSetting)
+  self.groupedPaletteWindows = normalizeGroupedPaletteWindows(enabled)
+  if saveSetting ~= false then
+    AppSettingsController.save({ groupedPaletteWindows = self.groupedPaletteWindows })
+  end
+
+  local controller = self:_ensureGroupedPaletteController()
+  controller:setEnabled(self.groupedPaletteWindows, self.paletteGroupState)
+  self.paletteGroupState = controller:getState()
+  return self.groupedPaletteWindows
+end
+
+function AppCoreController:refreshGroupedPaletteWindows()
+  local controller = self:_ensureGroupedPaletteController()
+  controller:setState(self.paletteGroupState)
+  controller:setEnabled(self.groupedPaletteWindows == true, self.paletteGroupState)
+  self.paletteGroupState = controller:getState()
+  return self.paletteGroupState
+end
+
+function AppCoreController:cycleGroupedPaletteWindow(window, delta)
+  if self.groupedPaletteWindows ~= true then
+    return false
+  end
+  local controller = self:_ensureGroupedPaletteController()
+  local changed = controller:cycleWindow(window, delta)
+  if changed then
+    self.paletteGroupState = controller:getState()
+  end
+  return changed
+end
+
+function AppCoreController:focusPaletteWindowWithGrouping(window)
+  if not window then
+    return false
+  end
+  local focusedViaGroup = false
+  if self.groupedPaletteWindows == true then
+    local controller = self:_ensureGroupedPaletteController()
+    focusedViaGroup = controller:activateWindow(window) == true
+    if focusedViaGroup then
+      self.paletteGroupState = controller:getState()
+    end
+  end
+  if (not focusedViaGroup) and self.wm and self.wm.setFocus then
+    self.wm:setFocus(window)
+  end
+  return true
+end
+
+function AppCoreController:onWindowManagerWindowCreated(win)
+  if self.groupedPaletteWindows ~= true then
+    return false
+  end
+  if not win then
+    return false
+  end
+  self:refreshGroupedPaletteWindows()
+  return true
+end
+
 function AppCoreController:_applyTooltipsEnabledSetting(enabled, saveSetting)
   self.tooltipsEnabled = (enabled ~= false)
   if self.tooltipController and self.tooltipsEnabled == false then
@@ -593,6 +690,21 @@ function AppCoreController:showSettingsModal()
     getSeparateToolbar = function()
       return appRef:_getSeparateToolbarForSettings()
     end,
+    extraRows = {
+      {
+        id = "grouped_palette_windows",
+        label = "Grouped palettes",
+        buttonSpec = {
+          id = "grouped_palette_windows_toggle",
+          text = appRef:_getGroupedPaletteWindowsForSettings() and "On" or "Off",
+          action = function()
+            local enabled = not appRef:_getGroupedPaletteWindowsForSettings()
+            local applied = appRef:_applyGroupedPaletteWindowsSetting(enabled, true)
+            appRef:setStatus(string.format("Grouped palettes: %s", applied and "On" or "Off"))
+          end,
+        },
+      },
+    },
     onSetCanvasImageMode = function(modeKey)
       local key = appRef:_applyCanvasImageModeSetting(modeKey, true)
       local labels = {

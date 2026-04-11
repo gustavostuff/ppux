@@ -62,7 +62,7 @@ function M.getTopInteractiveWindowAt(x, y, wm)
   local windows = wm and wm.getWindows and wm:getWindows() or {}
   for i = #windows, 1, -1 do
     local win = windows[i]
-    if win and not win._closed and not win._minimized then
+    if win and not win._closed and not win._minimized and win._groupHidden ~= true then
       if isPointInWindowInteractiveArea(win, x, y) then
         return win
       end
@@ -131,7 +131,7 @@ local function isOverToolbarControl(toolbar, x, y)
 end
 
 function M.handleToolbarClicks(button, x, y, win, wm)
-  if not win or win._closed or win._minimized then return false end
+  if not win or win._closed or win._minimized or win._groupHidden == true then return false end
 
   local gctx = rawget(_G, "ctx")
   local app = gctx and gctx.app or nil
@@ -182,7 +182,7 @@ function M.handleToolbarRelease(button, x, y, wm)
   end
 
   local focusedWin = (wm and wm.getFocus and wm:getFocus()) or nil
-  if not focusedWin or focusedWin._closed or focusedWin._minimized then return false end
+  if not focusedWin or focusedWin._closed or focusedWin._minimized or focusedWin._groupHidden == true then return false end
 
   local gctx = rawget(_G, "ctx")
   local app = gctx and gctx.app or nil
@@ -216,7 +216,7 @@ function M.updateToolbarHover(x, y, wm)
   local app = gctx and gctx.app or nil
   local windows = wm:getWindows()
   for _, w in ipairs(windows) do
-    if not w._closed and not w._minimized then
+    if not w._closed and not w._minimized and w._groupHidden ~= true then
       local skipDockedSpec = app
         and app.separateToolbar == true
         and w == wm:getFocus()
@@ -232,6 +232,9 @@ end
 
 function M.handleHeaderClick(button, x, y, win, wm, opts)
   opts = opts or {}
+  if win and (win._closed or win._minimized or win._groupHidden == true) then
+    return false
+  end
   if isWindowDragMouseButton(button) and win and isInHeaderTitleArea(win, x, y) then
     if wm and wm.setFocus then
       wm:setFocus(win)
@@ -296,7 +299,7 @@ function M.handleResizeHandle(button, x, y, wm)
 
   for i = #windows, 1, -1 do
     local w = windows[i]
-    if w == focused and not w._closed and not w._minimized and w:hitResizeHandle(x, y) then
+    if w == focused and not w._closed and not w._minimized and w._groupHidden ~= true and w:hitResizeHandle(x, y) then
       w:mousepressed(x, y, button)
       return true
     end
@@ -305,7 +308,7 @@ function M.handleResizeHandle(button, x, y, wm)
 end
 
 function M.handleResizeEnd(button, x, y, fwin)
-  if fwin and not fwin._minimized and fwin.resizing and fwin.mousereleased then
+  if fwin and not fwin._minimized and fwin._groupHidden ~= true and fwin.resizing and fwin.mousereleased then
     fwin:mousereleased(x, y, button)
     return true
   end
@@ -313,7 +316,7 @@ function M.handleResizeEnd(button, x, y, fwin)
 end
 
 function M.handleWindowDragEnd(button, x, y, fwin)
-  if fwin and not fwin._minimized and fwin.dragging and fwin.mousereleased then
+  if fwin and not fwin._minimized and fwin._groupHidden ~= true and fwin.dragging and fwin.mousereleased then
     fwin:mousereleased(x, y, button)
     return true
   end

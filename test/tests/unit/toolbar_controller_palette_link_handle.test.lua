@@ -11,6 +11,9 @@ describe("toolbar_controller.lua - palette link handle", function()
         appEditState = {
           romRaw = string.rep(string.char(0x0F), 64),
         },
+        isGroupedPaletteWindowsEnabled = function()
+          return true
+        end,
       },
     }
   end)
@@ -29,6 +32,10 @@ describe("toolbar_controller.lua - palette link handle", function()
 
     expect(win.specializedToolbar).toBeTruthy()
     expect(win.specializedToolbar.linkButton).toBeNil()
+    expect(win.specializedToolbar.prevButton).toBeTruthy()
+    expect(win.specializedToolbar.nextButton).toBeTruthy()
+    expect(win.specializedToolbar.buttons[1]).toBe(win.specializedToolbar.prevButton)
+    expect(win.specializedToolbar.buttons[2]).toBe(win.specializedToolbar.nextButton)
     expect(win.specializedToolbar.compactButton).toBeTruthy()
   end)
 
@@ -41,6 +48,26 @@ describe("toolbar_controller.lua - palette link handle", function()
     ToolbarController.createToolbarsForWindow(win, _G.ctx, wm)
 
     expect(win.specializedToolbar).toBeTruthy()
+    expect(win.specializedToolbar.prevButton).toBeTruthy()
+    expect(win.specializedToolbar.nextButton).toBeTruthy()
+    expect(win.specializedToolbar.buttons[1]).toBe(win.specializedToolbar.prevButton)
+    expect(win.specializedToolbar.buttons[2]).toBe(win.specializedToolbar.nextButton)
     expect(win.specializedToolbar.linkButton).toBeTruthy()
+  end)
+
+  it("hides grouped navigation buttons when grouped mode is off", function()
+    _G.ctx.app.isGroupedPaletteWindowsEnabled = function()
+      return false
+    end
+    local wm = WM.new()
+    local win = wm:createPaletteWindow({
+      title = "Palette B",
+    })
+
+    ToolbarController.createToolbarsForWindow(win, _G.ctx, wm)
+    win.specializedToolbar:updateIcons()
+
+    expect(win.specializedToolbar.prevButton.visible).toBe(false)
+    expect(win.specializedToolbar.nextButton.visible).toBe(false)
   end)
 end)
