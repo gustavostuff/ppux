@@ -1,6 +1,7 @@
 local Button = require("user_interface.button")
 local colors = require("app_colors")
 local Text = require("utils.text_utils")
+local UiScale = require("user_interface.ui_scale")
 
 local Cells = require("user_interface.panel.cells")
 local Layout = require("user_interface.panel.layout")
@@ -10,7 +11,7 @@ local Rendering = require("user_interface.panel.rendering")
 local Panel = {}
 Panel.__index = Panel
 Panel.DEFAULT_CELL_W = 96
-Panel.DEFAULT_CELL_H = 16
+Panel.DEFAULT_CELL_H = UiScale.menuCellSize()
 
 local function getFont()
   return love.graphics.getFont()
@@ -121,13 +122,14 @@ local shared = {
 
 function Panel.new(opts)
   opts = opts or {}
+  local resolvedCellH = opts.cellH or Panel.DEFAULT_CELL_H
   local self = setmetatable({
     x = opts.x or 0,
     y = opts.y or 0,
     cols = math.max(1, opts.cols or 1),
     rows = math.max(1, opts.rows or 1),
     cellW = opts.cellW or Panel.DEFAULT_CELL_W,
-    cellH = opts.cellH or Panel.DEFAULT_CELL_H,
+    cellH = resolvedCellH,
     padding = opts.padding or 2,
     spacingX = opts.spacingX or 1,
     spacingY = opts.spacingY or 1,
@@ -135,7 +137,7 @@ function Panel.new(opts)
     cellPaddingY = opts.cellPaddingY or 2,
     visible = opts.visible == true,
     title = opts.title,
-    titleH = opts.title and (opts.titleH or 14) or 0,
+    titleH = opts.title and (opts.titleH or resolvedCellH) or 0,
     bgColor = opts.bgColor or colors.gray20,
     titleBgColor = opts.titleBgColor or opts.bgColor or colors.gray20,
     borderColor = opts.borderColor or colors.white,

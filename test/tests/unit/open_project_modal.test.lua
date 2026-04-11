@@ -63,6 +63,24 @@ describe("open_project_modal.lua", function()
         "proj07.lua",
         "proj08.lua",
         "proj09.lua",
+        "proj10.lua",
+        "proj11.lua",
+        "proj12.lua",
+        "proj13.lua",
+        "proj14.lua",
+        "proj15.lua",
+        "proj16.lua",
+        "proj17.lua",
+        "proj18.lua",
+        "proj19.lua",
+        "proj20.lua",
+        "proj21.lua",
+        "proj22.lua",
+        "proj23.lua",
+        "proj24.lua",
+        "proj25.lua",
+        "proj26.lua",
+        "proj27.lua",
       },
       ["ls -1Ap '/tmp/work/child' 2>/dev/null"] = {
         "inside.ppux",
@@ -80,14 +98,14 @@ describe("open_project_modal.lua", function()
     })
 
     local firstVisible = modal:getVisibleEntries()
-    expect(#firstVisible).toBe(8)
+    expect(#firstVisible).toBe(24)
     expect(firstVisible[1].name).toBe("child")
-    expect(firstVisible[8].name).toBe("proj07.lua")
+    expect(firstVisible[24].name).toBe("proj23.lua")
 
     modal:wheelmoved(0, -1)
     local afterScroll = modal:getVisibleEntries()
-    expect(afterScroll[1].name).toBe("proj01.lua")
-    expect(afterScroll[8].name).toBe("proj08.lua")
+    expect(afterScroll[1].name).toBe("proj03.lua")
+    expect(afterScroll[24].name).toBe("proj26.lua")
 
     modal:_setScrollOffset(0)
     expect(modal:_activateVisibleSlot(1)).toBe(true)
@@ -96,8 +114,8 @@ describe("open_project_modal.lua", function()
     expect(modal:_goUp()).toBe(true)
     expect(modal:getCurrentDir()).toBe("/tmp/work")
 
-    modal:_setScrollOffset(1)
-    expect(modal:_activateVisibleSlot(1)).toBe(true)
+    modal:_setScrollOffset(0)
+    expect(modal:_activateVisibleSlot(2)).toBe(true)
     expect(opened).toBe("/tmp/work/proj01.lua")
     expect(modal:isVisible()).toBe(false)
 

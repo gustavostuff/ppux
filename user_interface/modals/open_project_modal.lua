@@ -7,7 +7,10 @@ local images = require("images")
 local Dialog = {}
 Dialog.__index = Dialog
 
-local VISIBLE_FILE_SLOTS = 8
+local MODAL_COLS = 3
+local FILE_COLS = 3
+local VISIBLE_FILE_ROWS = 8
+local VISIBLE_FILE_SLOTS = FILE_COLS * VISIBLE_FILE_ROWS
 local SCROLLBAR_W = 4
 
 local function isWindows()
@@ -31,6 +34,41 @@ local function detectWorkingDirectory()
     return "."
   end
   return line
+end
+
+local function readFirstLine(command)
+  local handle = io.popen(command)
+  if not handle then
+    return nil
+  end
+  local line = handle:read("*l")
+  handle:close()
+  line = trim((line or ""):gsub("\r", ""))
+  if line == "" then
+    return nil
+  end
+  return line
+end
+
+local function detectHomeDirectory()
+  if isWindows() then
+    local profile = trim(os.getenv("USERPROFILE") or "")
+    if profile ~= "" then
+      return profile
+    end
+    local homeDrive = trim(os.getenv("HOMEDRIVE") or "")
+    local homePath = trim(os.getenv("HOMEPATH") or "")
+    if homeDrive ~= "" and homePath ~= "" then
+      return homeDrive .. homePath
+    end
+    return readFirstLine("echo %USERPROFILE%")
+  end
+
+  local home = trim(os.getenv("HOME") or "")
+  if home ~= "" then
+    return home
+  end
+  return readFirstLine("echo $HOME")
 end
 
 local function normalizePath(path)
@@ -188,16 +226,38 @@ local function listEntries(dir)
   return listEntriesPosix(dir)
 end
 
+local function makeClippedFileButton(slotAction)
+  local button = Button.new({
+    text = "",
+    h = ModalPanelUtils.MODAL_BUTTON_H,
+    transparent = true,
+    textAlign = "left",
+    contentPaddingX = 4,
+    enabled = false,
+    action = slotAction,
+  })
+
+  function button:draw()
+    local sx, sy, sw, sh = love.graphics.getScissor()
+    love.graphics.setScissor(math.floor(self.x), math.floor(self.y), math.floor(self.w), math.floor(self.h))
+    Button.draw(self)
+    love.graphics.setScissor(sx, sy, sw, sh)
+  end
+
+  return button
+end
+
 local function rebuildPanel(self)
   local leftInset = math.floor((self.cellH or 0) / 2)
   self.parentButton.contentPaddingX = leftInset
+  self.homeButton.contentPaddingX = leftInset
   for i = 1, VISIBLE_FILE_SLOTS do
     self.fileButtons[i].contentPaddingX = leftInset
   end
 
-  local rows = 1 + VISIBLE_FILE_SLOTS + 1
+  local rows = 1 + VISIBLE_FILE_ROWS + 1
   self.panel = Panel.new({
-    cols = 4,
+    cols = MODAL_COLS,
     rows = rows,
     cellW = self.cellW,
     cellH = self.cellH,
@@ -213,20 +273,22 @@ local function rebuildPanel(self)
     titleBgColor = self.titleBgColor,
   })
 
-  self.panel:setCell(1, 1, { component = self.parentButton, colspan = 2 })
+  self.panel:setCell(1, 1, { component = self.parentButton })
+  self.panel:setCell(2, 1, { component = self.homeButton })
   self.panel:setCell(3, 1, { text = "" })
-  self.panel:setCell(4, 1, { text = "" })
 
-  for i = 1, VISIBLE_FILE_SLOTS do
-    self.panel:setCell(1, i + 1, {
-      component = self.fileButtons[i],
-      colspan = 4,
-    })
+  for row = 1, VISIBLE_FILE_ROWS do
+    for col = 1, FILE_COLS do
+      local slot = ((row - 1) * FILE_COLS) + col
+      self.panel:setCell(col, row + 1, {
+        component = self.fileButtons[slot],
+      })
+    end
   end
 
   self.panel:setCell(1, rows, {
     text = "Esc) Close",
-    colspan = 4,
+    colspan = MODAL_COLS,
   })
 end
 
@@ -266,21 +328,24 @@ function Dialog.new()
       self:_goUp()
     end,
   })
+  self.homeButton = Button.new({
+    icon = images.icons.icon_folder,
+    text = "Home",
+    h = ModalPanelUtils.MODAL_BUTTON_H,
+    transparent = true,
+    textAlign = "left",
+    contentPaddingX = 4,
+    action = function()
+      self:_goHome()
+    end,
+  })
 
   self.fileButtons = {}
   for i = 1, VISIBLE_FILE_SLOTS do
     local idx = i
-    self.fileButtons[i] = Button.new({
-      text = "",
-      h = ModalPanelUtils.MODAL_BUTTON_H,
-      transparent = true,
-      textAlign = "left",
-      contentPaddingX = 4,
-      enabled = false,
-      action = function()
-        self:_activateVisibleSlot(idx)
-      end,
-    })
+    self.fileButtons[i] = makeClippedFileButton(function()
+      self:_activateVisibleSlot(idx)
+    end)
   end
 
   ModalPanelUtils.applyPanelDefaults(self)
@@ -300,7 +365,8 @@ function Dialog:_containsBox(x, y)
 end
 
 function Dialog:_maxScrollOffset()
-  return math.max(0, #(self.entries or {}) - VISIBLE_FILE_SLOTS)
+  local totalRows = math.ceil((#(self.entries or {})) / FILE_COLS)
+  return math.max(0, totalRows - VISIBLE_FILE_ROWS)
 end
 
 function Dialog:_setScrollOffset(offset)
@@ -324,11 +390,15 @@ end
 function Dialog:_refreshNavButtons()
   local parent = pathParent(self.currentDir)
   self.parentButton.enabled = parent ~= nil and parent ~= self.currentDir
+  local home = normalizePath(detectHomeDirectory() or "")
+  self.homeButton.enabled = home ~= "" and home ~= self.currentDir
 end
 
 function Dialog:_refreshFileButtons()
   for i = 1, VISIBLE_FILE_SLOTS do
-    local entryIndex = (self.scrollOffset or 0) + i
+    local row = math.floor((i - 1) / FILE_COLS)
+    local col = (i - 1) % FILE_COLS
+    local entryIndex = ((self.scrollOffset or 0) + row) * FILE_COLS + col + 1
     local entry = self.entries and self.entries[entryIndex] or nil
     local button = self.fileButtons[i]
     if entry then
@@ -380,6 +450,15 @@ function Dialog:_goUp()
   return true
 end
 
+function Dialog:_goHome()
+  local home = detectHomeDirectory()
+  if type(home) ~= "string" or trim(home) == "" then
+    return false
+  end
+  self:_setDirectory(home)
+  return true
+end
+
 function Dialog:_activateVisibleSlot(slotIndex)
   local absoluteIndex = (self.scrollOffset or 0) + tonumber(slotIndex or 0)
   local entry = self.entries and self.entries[absoluteIndex] or nil
@@ -408,7 +487,9 @@ end
 function Dialog:getVisibleEntries()
   local visible = {}
   for i = 1, VISIBLE_FILE_SLOTS do
-    local idx = (self.scrollOffset or 0) + i
+    local row = math.floor((i - 1) / FILE_COLS)
+    local col = (i - 1) % FILE_COLS
+    local idx = ((self.scrollOffset or 0) + row) * FILE_COLS + col + 1
     visible[i] = self.entries and self.entries[idx] or nil
   end
   return visible
@@ -474,11 +555,11 @@ function Dialog:handleKey(key)
     return true
   end
   if key == "pageup" then
-    self:_scrollBy(-VISIBLE_FILE_SLOTS)
+    self:_scrollBy(-VISIBLE_FILE_ROWS)
     return true
   end
   if key == "pagedown" then
-    self:_scrollBy(VISIBLE_FILE_SLOTS)
+    self:_scrollBy(VISIBLE_FILE_ROWS)
     return true
   end
   if key == "home" then
@@ -546,20 +627,22 @@ function Dialog:_drawScrollIndicator()
     return
   end
   local total = #(self.entries or {})
-  if total <= VISIBLE_FILE_SLOTS then
+  local totalRows = math.ceil(total / FILE_COLS)
+  if totalRows <= VISIBLE_FILE_ROWS then
     return
   end
   local firstCell = self.panel:getCell(1, 2)
-  local lastCell = self.panel:getCell(1, 1 + VISIBLE_FILE_SLOTS)
+  local lastCell = self.panel:getCell(1, 1 + VISIBLE_FILE_ROWS)
   if not firstCell or not lastCell then
     return
   end
   local trackTop = firstCell.y
   local trackBottom = lastCell.y + lastCell.h
   local trackH = math.max(1, trackBottom - trackTop)
-  local trackX = firstCell.x + firstCell.w - SCROLLBAR_W - 1
+  local thirdCell = self.panel:getCell(MODAL_COLS, 2) or firstCell
+  local trackX = thirdCell.x + thirdCell.w - SCROLLBAR_W - 1
   local maxOffset = self:_maxScrollOffset()
-  local visibleFrac = VISIBLE_FILE_SLOTS / total
+  local visibleFrac = VISIBLE_FILE_ROWS / math.max(1, totalRows)
   local thumbH = math.max(1, math.floor(trackH * visibleFrac))
   local offsetFrac = (maxOffset > 0) and ((self.scrollOffset or 0) / maxOffset) or 0
   local thumbY = math.floor(trackTop + ((trackH - thumbH) * offsetFrac))

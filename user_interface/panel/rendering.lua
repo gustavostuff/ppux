@@ -12,18 +12,19 @@ local function install(Panel, utils)
       local titleBgX = self.x + self.padding
       local titleBgY = self.y + self.padding
       local titleBgW = math.max(0, self.w - (self.padding * 2))
+      local titleBgH = math.max(0, titleRowH)
       local titleAlpha = (type(titleBg) == "table" and type(titleBg[4]) == "number") and titleBg[4] or 1
       love.graphics.setColor(titleBg[1], titleBg[2], titleBg[3], titleAlpha)
-      love.graphics.rectangle("fill", titleBgX, titleBgY, titleBgW, math.max(0, titleRowH - self.padding))
+      love.graphics.rectangle("fill", titleBgX, titleBgY, titleBgW, titleBgH)
       local font = love.graphics.getFont()
       local titleW = font and font:getWidth(self.title) or 0
       local titleX = titleBgX + math.floor((titleBgW - titleW) * 0.5)
       love.graphics.setColor(utils.colors.white[1], utils.colors.white[2], utils.colors.white[3], 1)
-      local titleY = self.y + self.padding + math.floor((titleRowH - (font and font:getHeight() or 0)) * 0.5)
+      local titleY = titleBgY + math.floor((titleBgH - (font and font:getHeight() or 0)) * 0.5)
       utils.Text.print(
         self.title,
         titleX,
-        titleY - 1,
+        titleY,
         { shadowColor = utils.colors.transparent }
       )
     end

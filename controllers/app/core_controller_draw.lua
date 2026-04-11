@@ -1017,9 +1017,6 @@ local function drawNonModalOverlays(app)
   if app.toastController and app.canvas then
     app.toastController:draw(app.canvas:getWidth(), app.canvas:getHeight())
   end
-  if app.tooltipController and app.canvas then
-    app.tooltipController:draw(app.canvas:getWidth(), app.canvas:getHeight())
-  end
 end
 
 local function drawOverlays(app)
@@ -1134,6 +1131,9 @@ function AppCoreController:draw()
   drawStatus(self)
   drawNonModalOverlays(self)
   drawOverlays(self)
+  if self.tooltipController and self.canvas then
+    self.tooltipController:draw(self.canvas:getWidth(), self.canvas:getHeight())
+  end
   if self.splash and self.splash:isVisible() then
     self.splash:draw(self.canvas)
   end
