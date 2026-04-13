@@ -534,6 +534,9 @@ local function drawWindows(app)
       for _, li in ipairs(drawOrder) do
         local L = layers[li]
         if L then
+          if WindowCaps.isPpuFrame(w) and w.isLayerVisibleInMode and not w:isLayerVisibleInMode(li) then
+            goto continue_layer
+          end
           -- Skip layers with opacity 0 (for animation windows, only visible layers are drawn)
           local layerOpacity = (L.opacity ~= nil) and L.opacity or 1.0
           if layerOpacity > 0.001 then
@@ -546,6 +549,7 @@ local function drawWindows(app)
             end
           end
         end
+        ::continue_layer::
       end
     end
 
@@ -1120,12 +1124,14 @@ function AppCoreController:draw()
   love.graphics.setCanvas({ self.canvas, depthstencil = true })
   love.graphics.clear(colors.gray10)
 
-  AppTopToolbarController.draw(self)
-
   -- Windows use full-canvas coordinates (y includes the top toolbar strip height).
   drawWindows(self)
   drawPaletteLinks(self)
   drawEmptyStatePrompt(self)
+
+  -- Keep app top toolbar/status strip above all window content.
+  AppTopToolbarController.draw(self)
+
   drawTranslatedNonModalOverlays(self)
 
   drawStatus(self)

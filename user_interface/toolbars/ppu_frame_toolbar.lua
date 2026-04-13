@@ -65,6 +65,29 @@ local function clamp(value, minValue, maxValue)
   return value
 end
 
+local function getLayerDisplayProgress(window)
+  if not window then return 0, 0 end
+  if window.getAllowedLayerIndicesForNavigation then
+    local allowed = window:getAllowedLayerIndicesForNavigation() or {}
+    local total = #allowed
+    if total <= 0 then
+      return 0, 0
+    end
+    local active = window:getActiveLayerIndex() or 1
+    local pos = 1
+    for i, idx in ipairs(allowed) do
+      if idx == active then
+        pos = i
+        break
+      end
+    end
+    return pos, total
+  end
+  local current = window:getActiveLayerIndex() or 1
+  local total = window:getLayerCount() or 0
+  return current, total
+end
+
 function PPUFrameToolbar.new(window, ctx, windowController)
   local self = setmetatable(ToolbarBase.new(window, {}), PPUFrameToolbar)
   
@@ -78,8 +101,7 @@ function PPUFrameToolbar.new(window, ctx, windowController)
   -- Layer counter label (N/M format) - rendered in window content area
   self.layerLabel = self:addLabel("", self.h * 3, function()
     if not self.window then return "0/0" end
-    local current = self.window:getActiveLayerIndex() or 1
-    local total = self.window:getLayerCount() or 0
+    local current, total = getLayerDisplayProgress(self.window)
     return string.format("%d/%d", current, total)
   end)
   self.layerLabel.renderInContent = true
@@ -106,11 +128,16 @@ function PPUFrameToolbar.new(window, ctx, windowController)
     self:_onAddSprite()
   end, "Add a sprite on sprite layer")
 
+  self.patternLayerToggleButton = self:addButton(images.icons.icon_pattern_table or images.icons.icon_nametable_range, function()
+    self:_onTogglePatternLayerSolo()
+  end, "Show pattern table layer only")
+
   self.toggleOriginGuidesButton = self:addButton(images.icons.icon_dotted_lines, function()
     self:_onToggleOriginGuides()
   end, "Toggle origin guides")
 
   self:updatePatternRangeButton()
+  self:updatePatternLayerToggleButton()
   self:updateRangeButton()
   self:updateSpriteButton()
   self:updateOriginButtons()
@@ -119,6 +146,31 @@ function PPUFrameToolbar.new(window, ctx, windowController)
   self:updatePosition()
   
   return self
+end
+
+function PPUFrameToolbar:_onTogglePatternLayerSolo()
+  if not self.window then return end
+  local currentlyOn = (self.window.patternLayerSoloMode == true)
+  local ok, reason = true, nil
+  if self.window.setPatternLayerSoloMode then
+    ok, reason = self.window:setPatternLayerSoloMode(not currentlyOn)
+  end
+  if not ok then
+    setStatus(self.ctx, tostring(reason or "Pattern table layer is not available"))
+    if self.ctx and self.ctx.showToast then
+      self.ctx.showToast("warning", tostring(reason or "Pattern table layer is not available"))
+    end
+    self:updatePatternLayerToggleButton()
+    return
+  end
+  self:updatePatternLayerToggleButton()
+  self:updateOriginButtons()
+  if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
+  if self.window.patternLayerSoloMode == true then
+    setStatus(self.ctx, "Pattern layer mode: on")
+  else
+    setStatus(self.ctx, "Pattern layer mode: off")
+  end
 end
 
 -- Handle previous layer
@@ -130,8 +182,7 @@ function PPUFrameToolbar:_onPrevLayer()
   self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
   
-  local current = self.window:getActiveLayerIndex()
-  local total = self.window:getLayerCount()
+  local current, total = getLayerDisplayProgress(self.window)
   setStatus(self.ctx, string.format("Layer %d/%d", current, total))
   if self.window.isPatternTableInteractionLocked then
     local locked, reason = self.window:isPatternTableInteractionLocked(current)
@@ -150,8 +201,7 @@ function PPUFrameToolbar:_onNextLayer()
   self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
   
-  local current = self.window:getActiveLayerIndex()
-  local total = self.window:getLayerCount()
+  local current, total = getLayerDisplayProgress(self.window)
   setStatus(self.ctx, string.format("Layer %d/%d", current, total))
   if self.window.isPatternTableInteractionLocked then
     local locked, reason = self.window:isPatternTableInteractionLocked(current)
@@ -344,9 +394,34 @@ end
 -- Empty updateIcons method
 function PPUFrameToolbar:updateIcons()
   self:updatePatternRangeButton()
+  self:updatePatternLayerToggleButton()
   self:updateRangeButton()
   self:updateSpriteButton()
   self:updateOriginButtons()
+end
+
+function PPUFrameToolbar:updatePatternLayerToggleButton()
+  local button = self.patternLayerToggleButton
+  if not button then return end
+  button.icon = images.icons.icon_pattern_table or images.icons.icon_nametable_range or button.icon
+  local enabled = (self.window and self.window.findPatternReferenceLayerIndex and self.window:findPatternReferenceLayerIndex() ~= nil)
+  button.enabled = true
+  local active = self.window and self.window.patternLayerSoloMode == true
+  if active then
+    button.bgColor = colors.green
+    button.contentColor = colors.white
+    button.tooltip = "Return to tile/sprite layers"
+  else
+    if enabled then
+      button.bgColor = nil
+      button.contentColor = colors.white
+      button.tooltip = "Show pattern table layer only"
+    else
+      button.bgColor = colors.gray20
+      button.contentColor = colors.white
+      button.tooltip = "Pattern table layer is not available"
+    end
+  end
 end
 
 function PPUFrameToolbar:updatePatternRangeButton()

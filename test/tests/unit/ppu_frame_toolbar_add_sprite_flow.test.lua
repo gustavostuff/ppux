@@ -164,3 +164,77 @@ describe("ppu_frame_toolbar.lua - sprite origin controls", function()
     expect(toolbar.toggleOriginGuidesButton.bgColor).toBeTruthy()
   end)
 end)
+
+describe("ppu_frame_toolbar.lua - pattern layer toggle", function()
+  it("toggles pattern layer solo mode when runtime layer exists", function()
+    local statusText = nil
+    local win = makeWindow({
+      { kind = "tile", items = {} },
+      { kind = "sprite", items = {} },
+      { kind = "tile", items = {}, _runtimePatternTableRefLayer = true },
+    }, 1)
+    win.patternLayerSoloMode = false
+    win.drawOnlyActiveLayer = false
+    function win:findPatternReferenceLayerIndex()
+      return 3
+    end
+    function win:setPatternLayerSoloMode(enabled)
+      self.patternLayerSoloMode = (enabled == true)
+      if self.patternLayerSoloMode then
+        self.drawOnlyActiveLayer = true
+        self.activeLayer = 3
+      else
+        self.drawOnlyActiveLayer = false
+        self.activeLayer = 1
+      end
+      return true
+    end
+
+    local toolbar = PPUFrameToolbar.new(win, {
+      app = {},
+      setStatus = function(text) statusText = text end,
+    }, { getFocus = function() return win end })
+
+    toolbar:_onTogglePatternLayerSolo()
+    expect(win.patternLayerSoloMode).toBe(true)
+    expect(win.activeLayer).toBe(3)
+    expect(statusText).toBe("Pattern layer mode: on")
+
+    toolbar:_onTogglePatternLayerSolo()
+    expect(win.patternLayerSoloMode).toBe(false)
+    expect(win.activeLayer).toBe(1)
+    expect(statusText).toBe("Pattern layer mode: off")
+  end)
+
+  it("shows warning when pattern layer solo mode is unavailable", function()
+    local statusText = nil
+    local toastKind = nil
+    local toastText = nil
+    local win = makeWindow({
+      { kind = "tile", items = {} },
+      { kind = "sprite", items = {} },
+    }, 1)
+    win.patternLayerSoloMode = false
+    function win:findPatternReferenceLayerIndex()
+      return nil
+    end
+    function win:setPatternLayerSoloMode()
+      return false, "Pattern table layer is not available"
+    end
+
+    local toolbar = PPUFrameToolbar.new(win, {
+      app = {},
+      setStatus = function(text) statusText = text end,
+      showToast = function(kind, text)
+        toastKind = kind
+        toastText = text
+      end,
+    }, { getFocus = function() return win end })
+
+    toolbar:_onTogglePatternLayerSolo()
+    expect(win.patternLayerSoloMode).toBe(false)
+    expect(statusText).toBe("Pattern table layer is not available")
+    expect(toastKind).toBe("warning")
+    expect(toastText).toBe("Pattern table layer is not available")
+  end)
+end)

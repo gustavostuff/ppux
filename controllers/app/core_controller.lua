@@ -2384,6 +2384,15 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
     initialFrom = initialFrom,
     initialTo = initialTo,
     onConfirm = function(bankText, pageValue, fromText, toText, targetWindow)
+      local function activatePatternLayerView()
+        if targetWindow and targetWindow.setPatternLayerSoloMode then
+          targetWindow:setPatternLayerSoloMode(true)
+        end
+        if targetWindow and targetWindow.specializedToolbar and targetWindow.specializedToolbar.updateIcons then
+          targetWindow.specializedToolbar:updateIcons()
+        end
+      end
+
       local layer, layerIndex = getPpuPatternTableTargetLayer(targetWindow)
       if not layer then
         local message = "PPU frame window is missing a target tile layer"
@@ -2439,6 +2448,7 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
         local message = string.format("Range exceeds 256 logical tiles (%d/256)", nextTotal)
         self:setStatus(message)
         self:showToast("error", message)
+        activatePatternLayerView()
         return false
       end
       layer.patternTable.ranges[#layer.patternTable.ranges + 1] = {
@@ -2468,6 +2478,7 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
       if targetWindow.specializedToolbar and targetWindow.specializedToolbar.updateIcons then
         targetWindow.specializedToolbar:updateIcons()
       end
+      activatePatternLayerView()
 
       local afterState = snapshotPpuFrameRangeState and snapshotPpuFrameRangeState(targetWindow, layerIndex) or nil
       if self.undoRedo and self.undoRedo.addPpuFrameRangeEvent

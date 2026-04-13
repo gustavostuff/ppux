@@ -230,6 +230,10 @@ function M.handleInactiveLayerOpacity(ctx, utils, key, focus)
   if key ~= "up" and key ~= "down" then return false end
   if not focus then return false end
   if WindowCaps.isChrLike(focus) or WindowCaps.isAnyPaletteWindow(focus) then return false end
+  if WindowCaps.isPpuFrame(focus) and focus.patternLayerSoloMode == true then
+    setStatus(ctx, "Inactive layer opacity is disabled in pattern layer mode")
+    return true
+  end
   if not (focus.layers and focus.getActiveLayerIndex) then return false end
 
   local step = 0.2

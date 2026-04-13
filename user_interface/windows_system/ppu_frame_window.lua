@@ -610,6 +610,7 @@ function PPUFrameWindow.new(x, y, zoom, data)
 
   self.kind       = "ppu_frame"
   self.showSpriteOriginGuides = (data.showSpriteOriginGuides == true)
+  self.patternLayerSoloMode = (data.patternLayerSoloMode == true)
   self._nametableLayerCanvas = {}
   self.nametableBytes     = {}   -- table of numbers 0..255, length = cols*rows (or fewer)
   self.nametableAttrBytes = {}   -- table of numbers 0..255, length = 256
@@ -646,6 +647,7 @@ function PPUFrameWindow.new(x, y, zoom, data)
 
   -- Seed layer metadata from the current window-level state
   self:syncNametableLayerMetadata()
+  self:setPatternLayerSoloMode(self.patternLayerSoloMode)
 
   return self
 end
@@ -1299,6 +1301,131 @@ function PPUFrameWindow:renderCell(col, row, x, y, w, h, layerIndex, layerAlpha)
 
   ShaderPaletteController.releaseShader()
   love.graphics.setColor(colors.white)
+end
+
+function PPUFrameWindow:findPatternReferenceLayerIndex()
+  for i, layer in ipairs(self.layers or {}) do
+    if layer and layer._runtimePatternTableRefLayer == true then
+      return i
+    end
+  end
+  return nil
+end
+
+function PPUFrameWindow:getNormalInteractiveLayerIndices()
+  local out = {}
+  local nametableLayer, nametableIndex = getNametableLayer(self)
+  if nametableLayer and nametableIndex then
+    out[#out + 1] = nametableIndex
+  end
+  for i, layer in ipairs(self.layers or {}) do
+    if layer and layer.kind == "sprite" then
+      out[#out + 1] = i
+      break
+    end
+  end
+  return out
+end
+
+function PPUFrameWindow:getAllowedLayerIndicesForNavigation()
+  if self.patternLayerSoloMode == true then
+    local patternIndex = self:findPatternReferenceLayerIndex()
+    if patternIndex then
+      return { patternIndex }
+    end
+    return {}
+  end
+  return self:getNormalInteractiveLayerIndices()
+end
+
+local function containsIndex(list, value)
+  for _, v in ipairs(list or {}) do
+    if v == value then
+      return true
+    end
+  end
+  return false
+end
+
+function PPUFrameWindow:isLayerAllowedInCurrentMode(layerIndex)
+  local allowed = self:getAllowedLayerIndicesForNavigation()
+  return containsIndex(allowed, layerIndex)
+end
+
+function PPUFrameWindow:isLayerVisibleInMode(layerIndex)
+  return self:isLayerAllowedInCurrentMode(layerIndex)
+end
+
+function PPUFrameWindow:_resolveAllowedLayerIndex(requestedIndex)
+  local allowed = self:getAllowedLayerIndicesForNavigation()
+  if #allowed == 0 then
+    return nil, allowed
+  end
+  if type(requestedIndex) == "number" and containsIndex(allowed, requestedIndex) then
+    return requestedIndex, allowed
+  end
+  return allowed[1], allowed
+end
+
+function PPUFrameWindow:setPatternLayerSoloMode(enabled)
+  local nextEnabled = (enabled == true)
+  if nextEnabled then
+    local patternIndex = self:findPatternReferenceLayerIndex()
+    if not patternIndex then
+      self.patternLayerSoloMode = false
+      self.drawOnlyActiveLayer = false
+      return false, "Pattern table layer is not available"
+    end
+    self.patternLayerSoloMode = true
+    self.drawOnlyActiveLayer = true
+    Window.setActiveLayerIndex(self, patternIndex)
+    return true
+  end
+
+  self.patternLayerSoloMode = false
+  self.drawOnlyActiveLayer = false
+  local fallbackIndex = self:_resolveAllowedLayerIndex(self.activeLayer)
+  if fallbackIndex then
+    Window.setActiveLayerIndex(self, fallbackIndex)
+  end
+  return true
+end
+
+function PPUFrameWindow:setActiveLayerIndex(i)
+  local resolved = self:_resolveAllowedLayerIndex(i)
+  if resolved then
+    Window.setActiveLayerIndex(self, resolved)
+  end
+end
+
+function PPUFrameWindow:nextLayer()
+  local allowed = self:getAllowedLayerIndicesForNavigation()
+  if #allowed == 0 then return end
+  local current = self:getActiveLayerIndex()
+  local currentPos = 1
+  for idx, layerIndex in ipairs(allowed) do
+    if layerIndex == current then
+      currentPos = idx
+      break
+    end
+  end
+  local nextPos = (currentPos % #allowed) + 1
+  Window.setActiveLayerIndex(self, allowed[nextPos])
+end
+
+function PPUFrameWindow:prevLayer()
+  local allowed = self:getAllowedLayerIndicesForNavigation()
+  if #allowed == 0 then return end
+  local current = self:getActiveLayerIndex()
+  local currentPos = 1
+  for idx, layerIndex in ipairs(allowed) do
+    if layerIndex == current then
+      currentPos = idx
+      break
+    end
+  end
+  local prevPos = ((currentPos - 2) % #allowed) + 1
+  Window.setActiveLayerIndex(self, allowed[prevPos])
 end
 
 function PPUFrameWindow:draw()
