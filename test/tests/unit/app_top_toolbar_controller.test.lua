@@ -47,6 +47,9 @@ describe("app_top_toolbar_controller.lua", function()
       showOpenProjectModal = function() end,
       showNewWindowModal = function() end,
       showSaveOptionsModal = function() end,
+      getClipboardToolbarActionState = function()
+        return { allowed = true }
+      end,
       setStatus = function() end,
       showToast = function() end,
     }
@@ -55,9 +58,85 @@ describe("app_top_toolbar_controller.lua", function()
     local openButton = app._appTopQuickButtons.open
     local newButton = app._appTopQuickButtons.newWindow
     local saveButton = app._appTopQuickButtons.save
+    local copyButton = app._appTopQuickButtons.copy
+    local cutButton = app._appTopQuickButtons.cut
+    local pasteButton = app._appTopQuickButtons.paste
 
     expect(openButton.x).toBe(0)
     expect(newButton.x).toBe(openButton.w)
     expect(saveButton.x).toBe(openButton.w + newButton.w)
+    expect(copyButton.x).toBe(openButton.w + newButton.w + saveButton.w)
+    expect(cutButton.x).toBe(copyButton.x + copyButton.w)
+    expect(pasteButton.x).toBe(cutButton.x + cutButton.w)
+  end)
+
+  it("routes copy/cut/paste buttons through shared app clipboard actions", function()
+    local actions = {}
+    local app = {
+      canvas = {
+        getWidth = function() return 640 end,
+        getHeight = function() return 360 end,
+      },
+      separateToolbar = false,
+      hasLoadedROM = function() return true end,
+      showOpenProjectModal = function() end,
+      showNewWindowModal = function() end,
+      showSaveOptionsModal = function() end,
+      performClipboardToolbarAction = function(_, action)
+        actions[#actions + 1] = action
+      end,
+      getClipboardToolbarActionState = function()
+        return { allowed = true }
+      end,
+      setStatus = function() end,
+      showToast = function() end,
+    }
+
+    AppTopToolbarController.syncLayout(app)
+    local copyButton = app._appTopQuickButtons.copy
+    local cutButton = app._appTopQuickButtons.cut
+    local pasteButton = app._appTopQuickButtons.paste
+
+    local function click(button)
+      local x = button.x + math.floor(button.w * 0.5)
+      local y = button.y + math.floor(button.h * 0.5)
+      expect(AppTopToolbarController.mousepressed(app, x, y, 1)).toBe(true)
+      AppTopToolbarController.mousereleasedQuickButtons(app, x, y, 1)
+    end
+
+    click(copyButton)
+    click(cutButton)
+    click(pasteButton)
+
+    expect(actions[1]).toBe("copy")
+    expect(actions[2]).toBe("cut")
+    expect(actions[3]).toBe("paste")
+  end)
+
+  it("updates clipboard button enabled state from capability checks", function()
+    local app = {
+      canvas = {
+        getWidth = function() return 640 end,
+        getHeight = function() return 360 end,
+      },
+      separateToolbar = false,
+      hasLoadedROM = function() return true end,
+      showOpenProjectModal = function() end,
+      showNewWindowModal = function() end,
+      showSaveOptionsModal = function() end,
+      getClipboardToolbarActionState = function(_, action)
+        if action == "paste" then
+          return { allowed = false, reason = "Clipboard is empty" }
+        end
+        return { allowed = true }
+      end,
+      setStatus = function() end,
+      showToast = function() end,
+    }
+
+    AppTopToolbarController.syncLayout(app)
+    expect(app._appTopQuickButtons.copy.enabled).toBe(true)
+    expect(app._appTopQuickButtons.cut.enabled).toBe(true)
+    expect(app._appTopQuickButtons.paste.enabled).toBe(false)
   end)
 end)

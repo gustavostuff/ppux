@@ -107,6 +107,48 @@ local function ensureQuickButtons(app)
       w = cell,
       h = cell,
     }),
+    copy = Button.new({
+      icon = images.icons.icon_copy or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      tooltip = "Copy",
+      action = function()
+        if app.performClipboardToolbarAction then
+          app:performClipboardToolbarAction("copy")
+        end
+      end,
+      x = 0,
+      y = 0,
+      w = cell,
+      h = cell,
+      enabled = false,
+    }),
+    cut = Button.new({
+      icon = images.icons.icon_cut or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      tooltip = "Cut",
+      action = function()
+        if app.performClipboardToolbarAction then
+          app:performClipboardToolbarAction("cut")
+        end
+      end,
+      x = 0,
+      y = 0,
+      w = cell,
+      h = cell,
+      enabled = false,
+    }),
+    paste = Button.new({
+      icon = images.icons.icon_paste or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      tooltip = "Paste",
+      action = function()
+        if app.performClipboardToolbarAction then
+          app:performClipboardToolbarAction("paste")
+        end
+      end,
+      x = 0,
+      y = 0,
+      w = cell,
+      h = cell,
+      enabled = false,
+    }),
   }
 end
 
@@ -119,8 +161,29 @@ local function quickButtonOrder(app)
   if hasOpenProject(app) then
     order[#order + 1] = "newWindow"
     order[#order + 1] = "save"
+    order[#order + 1] = "copy"
+    order[#order + 1] = "cut"
+    order[#order + 1] = "paste"
   end
   return order
+end
+
+local function updateClipboardButtonStates(app)
+  if not (app and app._appTopQuickButtons) then
+    return
+  end
+  local actions = {
+    copy = "copy",
+    cut = "cut",
+    paste = "paste",
+  }
+  for key, action in pairs(actions) do
+    local button = app._appTopQuickButtons[key]
+    if button then
+      local state = app.getClipboardToolbarActionState and app:getClipboardToolbarActionState(action) or nil
+      button.enabled = not not (state and state.allowed)
+    end
+  end
 end
 
 function M.clearDockLayouts(app)
@@ -156,6 +219,7 @@ function M.syncLayout(app)
       x = x + b.w + GAP
     end
   end
+  updateClipboardButtonStates(app)
 
   local totalH = math.max(MIN_BAR_H, topY + cell + PAD_Y)
   local dockedWin = nil
@@ -324,7 +388,7 @@ function M.mousepressed(app, px, py, button)
     return false
   end
   local b = pointInQuickButton(app, px, py)
-  if b and button == 1 then
+  if b and button == 1 and b.enabled ~= false then
     b.pressed = true
     app._appTopPressedButton = b
     if b.action then

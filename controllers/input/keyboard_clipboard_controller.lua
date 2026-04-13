@@ -15,6 +15,13 @@ local function setStatus(ctx, text)
   end
 end
 
+local function showWarning(ctx, text)
+  setStatus(ctx, text)
+  if ctx and ctx.app and type(ctx.app.showToast) == "function" then
+    ctx.app:showToast("warning", text)
+  end
+end
+
 function M.reset()
   clipboard = nil
 end
@@ -168,20 +175,49 @@ local function pasteTileClipboard(ctx, focus, layer, layerIndex, data)
   local firstCol, firstRow = nil, nil
   local tilesPool = ctx.app and ctx.app.appEditState and ctx.app.appEditState.tilesPool
 
+  local function copyPixelsByValue(dstTile, srcTile)
+    if not (dstTile and srcTile and dstTile.pixels and srcTile.pixels) then
+      return false
+    end
+    local changed = false
+    for i = 1, 64 do
+      local v = srcTile.pixels[i]
+      if v == nil then v = 0 end
+      if dstTile.pixels[i] ~= v then
+        dstTile.pixels[i] = v
+        changed = true
+      end
+    end
+    return changed
+  end
+
   for _, entry in ipairs(data.entries) do
     local col = anchorCol + (entry.offsetCol or 0)
     local row = anchorRow + (entry.offsetRow or 0)
     if col >= 0 and col < cols and row >= 0 and row < rows then
+      local applied = false
       if WindowCaps.isPpuFrame(focus) and focus.setNametableByteAt and entry.byte ~= nil then
         focus:setNametableByteAt(col, row, entry.byte, tilesPool, layerIndex)
+        applied = true
+      elseif WindowCaps.isChrLike(focus) then
+        local srcItem = materializeClipboardTileItem(data, entry.item, layerIndex)
+        local dstItem = nil
+        if focus.get then
+          dstItem = focus:get(col, row, layerIndex)
+        end
+        applied = copyPixelsByValue(dstItem, srcItem)
       elseif focus.set then
         focus:set(col, row, materializeClipboardTileItem(data, entry.item, layerIndex), layerIndex)
+        applied = true
       end
-      local idx = (row * cols + col) + 1
-      selectedSet[idx] = true
-      count = count + 1
-      if not firstCol then
-        firstCol, firstRow = col, row
+
+      if applied then
+        local idx = (row * cols + col) + 1
+        selectedSet[idx] = true
+        count = count + 1
+        if not firstCol then
+          firstCol, firstRow = col, row
+        end
       end
     end
   end
@@ -242,17 +278,143 @@ local function pasteSpriteClipboard(focus, layer, data)
   return #newIndices
 end
 
-function M.handleCopySelection(ctx, utils, key, focus)
-  if key ~= "c" and key ~= "C" then return false end
-  if not (utils.ctrlDown and utils.ctrlDown()) then return false end
-  if (utils.altDown and utils.altDown()) or (utils.shiftDown and utils.shiftDown()) then return false end
-  if ctx.getMode() == "edit" then return false end
-  if not (focus and focus.layers and focus.getActiveLayerIndex) then return true end
-
+local function getActiveLayer(focus)
+  if not (focus and focus.layers and focus.getActiveLayerIndex) then
+    return nil, nil
+  end
   local layerIndex = focus:getActiveLayerIndex()
   local layer = focus.layers[layerIndex]
-  if not layer then return true end
+  return layerIndex, layer
+end
 
+local function restrictionMessage(action, focus, layer)
+  if not (focus and layer and layer.kind == "sprite") then
+    return nil
+  end
+  if WindowCaps.isOamAnimation(focus) then
+    if action == "paste" then
+      return "Cannot add sprites to OAM animation windows"
+    end
+    if action == "copy" then
+      return "Cannot copy sprites in OAM animation windows"
+    end
+    if action == "cut" then
+      return "Cannot cut sprites in OAM animation windows"
+    end
+    return "Clipboard is disabled for sprite layers in OAM animation windows"
+  end
+  if WindowCaps.isPpuFrame(focus) then
+    if action == "copy" then
+      return "Cannot copy sprites in PPU frame windows"
+    end
+    if action == "cut" then
+      return "Cannot cut sprites in PPU frame windows"
+    end
+    if action == "paste" then
+      return "Cannot paste sprites in PPU frame windows"
+    end
+    return "Clipboard is disabled for sprite layers in PPU frame windows"
+  end
+  return nil
+end
+
+function M.getActionAvailability(ctx, focus, action)
+  local layerIndex, layer = getActiveLayer(focus)
+  if not layer then
+    return { allowed = false, reason = "No active layer selected", layerIndex = layerIndex, layer = layer }
+  end
+  if layer.kind ~= "tile" and layer.kind ~= "sprite" then
+    return { allowed = false, reason = "Clipboard is not available for this layer type", layerIndex = layerIndex, layer = layer }
+  end
+
+  local restriction = restrictionMessage(action, focus, layer)
+  if restriction then
+    return { allowed = false, reason = restriction, layerIndex = layerIndex, layer = layer, restricted = true }
+  end
+
+  if action == "paste" then
+    if not clipboard or not clipboard.kind then
+      return { allowed = false, reason = "Clipboard is empty", layerIndex = layerIndex, layer = layer }
+    end
+    if clipboard.kind ~= layer.kind then
+      return { allowed = false, reason = "Clipboard content does not match active layer type", layerIndex = layerIndex, layer = layer }
+    end
+  end
+
+  return { allowed = true, layerIndex = layerIndex, layer = layer }
+end
+
+local function cutChrTileSelection(ctx, focus, layer, layerIndex)
+  local fallbackCol, fallbackRow = nil, nil
+  if focus.getSelected then
+    fallbackCol, fallbackRow = focus:getSelected()
+  end
+  local cells = MultiSelectController.getSelectedTileCells(focus, layerIndex, fallbackCol, fallbackRow)
+  if #cells == 0 then
+    return nil
+  end
+
+  local cleared = 0
+  for _, cell in ipairs(cells) do
+    local tile = focus.get and focus:get(cell.col, cell.row, layerIndex) or nil
+    if tile and tile.pixels then
+      local changed = false
+      for i = 1, 64 do
+        if tile.pixels[i] ~= 0 then
+          tile.pixels[i] = 0
+          changed = true
+        end
+      end
+      if changed then
+        cleared = cleared + 1
+      end
+    end
+  end
+
+  layer.multiTileSelection = nil
+  if focus.clearSelected then
+    focus:clearSelected(layerIndex)
+  end
+  if cleared == 0 then
+    return nil
+  end
+  if ctx and ctx.app and ctx.app.markUnsaved then
+    ctx.app:markUnsaved("tile_move")
+  end
+  return { count = cleared }
+end
+
+local function freezeTileClipboardItems(data, layerIndex)
+  if not (data and data.entries) then
+    return data
+  end
+  for _, entry in ipairs(data.entries) do
+    local source = materializeClipboardTileItem(data, entry.item, layerIndex)
+    if source and source.pixels then
+      local snapPixels = {}
+      for i = 1, 64 do
+        local v = source.pixels[i]
+        if v == nil then v = 0 end
+        snapPixels[i] = v
+      end
+      entry.item = { pixels = snapPixels }
+    end
+  end
+  data.sourceWin = nil
+  return data
+end
+
+local function doCopy(ctx, focus)
+  local avail = M.getActionAvailability(ctx, focus, "copy")
+  if not avail.allowed then
+    if avail.restricted then
+      showWarning(ctx, avail.reason)
+    end
+    return true
+  end
+
+  local layerIndex = avail.layerIndex
+  local layer = avail.layer
   if layer.kind == "tile" then
     clipboard = captureTileClipboard(focus, layer, layerIndex)
     if clipboard and clipboard.count > 0 then
@@ -276,22 +438,19 @@ function M.handleCopySelection(ctx, utils, key, focus)
   return true
 end
 
-function M.handlePasteSelection(ctx, utils, key, focus)
-  if key ~= "v" and key ~= "V" then return false end
-  if not (utils.ctrlDown and utils.ctrlDown()) then return false end
-  if (utils.altDown and utils.altDown()) or (utils.shiftDown and utils.shiftDown()) then return false end
-  if ctx.getMode() == "edit" then return false end
-  if not (focus and focus.layers and focus.getActiveLayerIndex) then return true end
-
-  if not clipboard or not clipboard.kind then
-    setStatus(ctx, "Clipboard is empty")
+local function doPaste(ctx, focus)
+  local avail = M.getActionAvailability(ctx, focus, "paste")
+  if not avail.allowed then
+    if avail.restricted then
+      showWarning(ctx, avail.reason)
+    else
+      setStatus(ctx, avail.reason)
+    end
     return true
   end
 
-  local layerIndex = focus:getActiveLayerIndex()
-  local layer = focus.layers[layerIndex]
-  if not layer then return true end
-
+  local layerIndex = avail.layerIndex
+  local layer = avail.layer
   local pastedCount = 0
   if clipboard.kind == "tile" and layer.kind == "tile" then
     pastedCount = pasteTileClipboard(ctx, focus, layer, layerIndex, clipboard)
@@ -307,10 +466,6 @@ function M.handlePasteSelection(ctx, utils, key, focus)
   end
 
   if clipboard.kind == "sprite" and layer.kind == "sprite" then
-    if WindowCaps.isOamAnimation(focus) then
-      setStatus(ctx, "Cannot add sprites to OAM animation windows")
-      return true
-    end
     pastedCount = pasteSpriteClipboard(focus, layer, clipboard)
     if pastedCount > 0 and ctx.app and ctx.app.markUnsaved then
       ctx.app:markUnsaved("sprite_move")
@@ -325,6 +480,119 @@ function M.handlePasteSelection(ctx, utils, key, focus)
 
   setStatus(ctx, "Clipboard content does not match active layer type")
   return true
+end
+
+local function doCut(ctx, focus)
+  local avail = M.getActionAvailability(ctx, focus, "cut")
+  if not avail.allowed then
+    if avail.restricted then
+      showWarning(ctx, avail.reason)
+    else
+      setStatus(ctx, avail.reason)
+    end
+    return true
+  end
+
+  local layerIndex = avail.layerIndex
+  local layer = avail.layer
+  if layer.kind == "tile" then
+    local copied = captureTileClipboard(focus, layer, layerIndex)
+    if not (copied and copied.count and copied.count > 0) then
+      setStatus(ctx, "No tiles selected to cut")
+      return true
+    end
+    if WindowCaps.isChrLike(focus) then
+      copied = freezeTileClipboardItems(copied, layerIndex)
+    end
+    clipboard = copied
+
+    local result = nil
+    if WindowCaps.isChrLike(focus) then
+      result = cutChrTileSelection(ctx, focus, layer, layerIndex)
+    else
+      local fallbackCol, fallbackRow = nil, nil
+      if focus.getSelected then
+        fallbackCol, fallbackRow = focus:getSelected()
+      end
+      result = MultiSelectController.deleteTileSelection(
+        focus,
+        layerIndex,
+        fallbackCol,
+        fallbackRow,
+        ctx and ctx.app or nil,
+        ctx and ctx.app and ctx.app.undoRedo or nil
+      )
+      if result and result.count and result.count > 0 and ctx and ctx.app and ctx.app.markUnsaved then
+        ctx.app:markUnsaved("tile_move")
+      end
+    end
+    if result and result.count and result.count > 0 then
+      setStatus(ctx, (result.count == 1) and "Cut 1 tile" or string.format("Cut %d tiles", result.count))
+    else
+      setStatus(ctx, "Nothing cut")
+    end
+    return true
+  end
+
+  if layer.kind == "sprite" then
+    local copied = captureSpriteClipboard(focus, layer)
+    if not (copied and copied.count and copied.count > 0) then
+      setStatus(ctx, "No sprites selected to cut")
+      return true
+    end
+    clipboard = copied
+    local result = MultiSelectController.deleteSpriteSelection(focus, layerIndex, ctx and ctx.app and ctx.app.undoRedo or nil)
+    if result and result.count and result.count > 0 then
+      if ctx and ctx.app and ctx.app.markUnsaved then
+        ctx.app:markUnsaved("sprite_move")
+      end
+      setStatus(ctx, (result.count == 1) and "Cut 1 sprite" or string.format("Cut %d sprites", result.count))
+    elseif result and result.status then
+      showWarning(ctx, result.status)
+    else
+      setStatus(ctx, "Nothing cut")
+    end
+    return true
+  end
+
+  return true
+end
+
+function M.performClipboardAction(ctx, focus, action)
+  if action == "copy" then
+    return doCopy(ctx, focus)
+  end
+  if action == "cut" then
+    return doCut(ctx, focus)
+  end
+  if action == "paste" then
+    return doPaste(ctx, focus)
+  end
+  return false
+end
+
+function M.handleCopySelection(ctx, utils, key, focus)
+  if key ~= "c" and key ~= "C" then return false end
+  if not (utils.ctrlDown and utils.ctrlDown()) then return false end
+  if (utils.altDown and utils.altDown()) or (utils.shiftDown and utils.shiftDown()) then return false end
+  if ctx.getMode() == "edit" then return false end
+  return M.performClipboardAction(ctx, focus, "copy")
+end
+
+function M.handleCutSelection(ctx, utils, key, focus)
+  if key ~= "x" and key ~= "X" then return false end
+  if not (utils.ctrlDown and utils.ctrlDown()) then return false end
+  if (utils.altDown and utils.altDown()) or (utils.shiftDown and utils.shiftDown()) then return false end
+  if ctx.getMode() == "edit" then return false end
+  return M.performClipboardAction(ctx, focus, "cut")
+end
+
+function M.handlePasteSelection(ctx, utils, key, focus)
+  if key ~= "v" and key ~= "V" then return false end
+  if not (utils.ctrlDown and utils.ctrlDown()) then return false end
+  if (utils.altDown and utils.altDown()) or (utils.shiftDown and utils.shiftDown()) then return false end
+  if ctx.getMode() == "edit" then return false end
+  return M.performClipboardAction(ctx, focus, "paste")
 end
 
 return M

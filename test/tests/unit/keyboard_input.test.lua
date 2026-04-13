@@ -761,6 +761,87 @@ describe("keyboard_input.lua - ctrl+c / ctrl+v", function()
     expect(unsavedEvents[1]).toBe("sprite_move")
   end)
 
+  it("cuts selected tiles with ctrl+x and pastes with ctrl+v using shared clipboard flow", function()
+    local status = nil
+    local unsavedEvents = {}
+    local ctrl = true
+    local cols, rows = 4, 4
+    local sourceLayer = {
+      kind = "tile",
+      items = {
+        [1] = { id = "cut-me" },
+      },
+      multiTileSelection = { [1] = true },
+      removedCells = {},
+    }
+
+    local sourceWin = {
+      kind = "static_art",
+      cols = cols,
+      rows = rows,
+      layers = { sourceLayer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 0, 0, 1 end,
+      clearSelected = function() end,
+      get = function(_, c, r)
+        return sourceLayer.items[(r * cols + c) + 1]
+      end,
+      markCellRemoved = function(_, c, r, _)
+        sourceLayer.removedCells[(r * cols + c) + 1] = true
+      end,
+    }
+
+    local targetLayer = { kind = "tile" }
+    local targetWin = {
+      kind = "static_art",
+      cols = cols,
+      rows = rows,
+      layers = { targetLayer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 0, 0, 1 end,
+      clearSelected = function() end,
+      setSelected = function() end,
+      set = function(_, c, r, item, _)
+        targetLayer.items = targetLayer.items or {}
+        targetLayer.items[(r * cols + c) + 1] = item
+      end,
+    }
+
+    local focus = sourceWin
+    local app = {
+      markUnsaved = function(_, eventType)
+        unsavedEvents[#unsavedEvents + 1] = eventType
+      end,
+    }
+    local ctx = {
+      getMode = function() return "tile" end,
+      setMode = function() end,
+      getFocus = function() return focus end,
+      setStatus = function(msg) status = msg end,
+      setColor = function() end,
+      wm = function() return nil end,
+      app = app,
+    }
+
+    KeyboardInput.setup(ctx, {
+      ctrlDown = function() return ctrl end,
+      shiftDown = function() return false end,
+      altDown = function() return false end,
+    })
+
+    KeyboardInput.keypressed("x", ctx.app)
+    expect(status).toBe("Cut 1 tile")
+    expect(sourceLayer.removedCells[1]).toBe(true)
+
+    focus = targetWin
+    KeyboardInput.keypressed("v", ctx.app)
+    expect(status).toBe("Pasted 1 tile at center")
+    expect(targetLayer.items).toBeTruthy()
+    expect(#unsavedEvents).toBe(2)
+    expect(unsavedEvents[1]).toBe("tile_move")
+    expect(unsavedEvents[2]).toBe("tile_move")
+  end)
+
   it("applies sprite paste rules by window kind (static/animation allow, oam blocks)", function()
     local cases = {
       { kind = "static_art", expectPasted = true, expectedStatus = "Pasted 1 sprite at center" },

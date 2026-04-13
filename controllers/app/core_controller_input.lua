@@ -5,6 +5,7 @@ local CursorsController = require("controllers.input_support.cursors_controller"
 local ResolutionController = require("controllers.app.resolution_controller")
 local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 local AppSettingsController = require("controllers.app.settings_controller")
+local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
 local UserInput = require("controllers.input")
 
 return function(AppCoreController)
@@ -675,6 +676,20 @@ function AppCoreController:textinput(text)
     self.textFieldDemoModal:textinput(text)
     return
   end
+end
+
+------------------------------------------------------------
+
+function AppCoreController:getClipboardToolbarActionState(action)
+  local ctx = _G.ctx or self:_buildCtx()
+  local focus = (self.wm and self.wm.getFocus and self.wm:getFocus()) or nil
+  return KeyboardClipboardController.getActionAvailability(ctx, focus, action)
+end
+
+function AppCoreController:performClipboardToolbarAction(action)
+  local ctx = _G.ctx or self:_buildCtx()
+  local focus = (self.wm and self.wm.getFocus and self.wm:getFocus()) or nil
+  return KeyboardClipboardController.performClipboardAction(ctx, focus, action)
 end
 
 ------------------------------------------------------------
