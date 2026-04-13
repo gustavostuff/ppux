@@ -1,4 +1,4 @@
-![](https://github.com/gustavostuff/nes-art-editor-v3/blob/main/img/readme_images/logo_v2.png)
+![](img/readme_images/logo_v2.png)
 
 ## Open Source NES Art Editor
 
@@ -15,7 +15,7 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
 - [Basic Usage](#basic-usage)
   - [Getting started](#getting-started)
   - [Windows system](#windows-system)
-  - [Toolbars](#specialized-toolbars)
+  - [Toolbars](#toolbars)
   - [Palette windows](#palette-windows)
   - [Main controls](#main-controls)
   - [Tile mode](#tile-mode)
@@ -26,6 +26,7 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
   - [DB contribution tracker](#db-contribution-tracker)
   - [Lua project mapping](#lua-project-mapping)
   - [PPU frame windows](#ppu-frame-windows)
+  - [PPU frame editing notes](#ppu-frame-editing-notes)
   - [OAM animation windows](#oam-animation-windows)
   - [ROM palette windows](#rom-palette-windows)
   - [Window references between entries](#window-references-between-entries)
@@ -47,11 +48,9 @@ Create a folder, place your ROM inside it, then drag the ROM into PPUX. After th
 2. Open a DB layout
 3. Open a *.lua or *.ppux user project (if any)
 
+NOTE: You can also open a project any time from the top app toolbar (`Open` button). This opens the **Open Project** browser modal.
+
 If a ROM has no DB entry yet, it can still be used normally. DB entries are just curated starting points. That said, any user can "pick" a game and start working on a user project that can be used for a new DB entry Pull Request. [See this section](#db-contribution-tracker).
-
-Example with an animation for Dr. Mario, this can be done in 2 or 3 minutes:
-
-<img src="img/readme_images/dr_mario_animation.gif" alt="">
 
 ### Windows system
 
@@ -62,10 +61,10 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 | CHR Banks              | <img src="img/readme_images/windows_system_table/icon_chr_window.png" alt="CHR Banks taskbar icon">                      | Primary source window for normal CHR bank data                                                           |
 | ROM Banks              | <img src="img/readme_images/windows_system_table/icon_rom_window.png" alt="ROM Banks taskbar icon">                      | Same as CHR Banks, but loads the whole ROM                                                               |
 | Static Art (tiles)     | <img src="img/readme_images/windows_system_table/icon_static_tile_window.png" alt="Static Art tiles taskbar icon">       | Single-layer tile composition window for mockups and UI pieces                                           |
-| Animation (tiles)      | <img src="img/readme_images/windows_system_table/anim_02.gif" alt="Animation tiles taskbar icon">                        | Tile animation window where each layer acts as a frame                                                   |
+| Animation (tiles)      | <img src="img/readme_images/windows_system_table/icon_animated_tile_window.gif" alt="Animation tiles taskbar icon">                        | Tile animation window where each layer acts as a frame                                                   |
 | Static Art (sprites)   | <img src="img/readme_images/windows_system_table/icon_static_sprite_window.png" alt="Static Art sprites taskbar icon">   | Single-layer sprite composition window with pixel-level placement                                        |
-| Animation (sprites)    | <img src="img/readme_images/windows_system_table/anim_03.gif" alt="Animation sprites taskbar icon">                      | Sprite animation window for frame-by-frame sprite layouts                                                |
-| OAM Animation          | <img src="img/readme_images/windows_system_table/anim_01.gif" alt="OAM Animation taskbar icon">                          | ROM-backed sprite animation view based on OAM data                                                       |
+| Animation (sprites)    | <img src="img/readme_images/windows_system_table/icon_animated_sprite_window.gif" alt="Animation sprites taskbar icon">                      | Sprite animation window for frame-by-frame sprite layouts                                                |
+| OAM Animation          | <img src="img/readme_images/windows_system_table/icon_oam_animated_window.gif" alt="OAM Animation taskbar icon">                          | ROM-backed sprite animation view based on OAM data                                                       |
 | Global palette         | <img src="img/readme_images/windows_system_table/icon_palette_window.png" alt="Global palette taskbar icon">             | Global palette window for items without an assigned ROM palette                                          |
 | ROM palette            | <img src="img/readme_images/windows_system_table/icon_rom_palette_window.png" alt="ROM palette taskbar icon">            | ROM palette editor tied to ROM addresses                                                                 |
 | PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view for screens assembled closer to how the game actually renders them  |
@@ -77,7 +76,7 @@ Notes:
 
 * ROM Banks is the fallback source browser, useful for Games that use CHR RAM data (like Megaman 2, for instance) and, as mentioned above, it will load the whole ROM, so be careful on unintentional non-graphics pixel edits.
 
-* You can create a window from **Main Menu > Windows > New Window** (or `Ctrl + N`) and pick the kind you want. ROM-backed fields (like ROM addresses) are filled in through the modals and property flows in the UI.
+* You can create a window from **New Window** (`Ctrl + N`) when a project/ROM is open (top toolbar button and taskbar menu entry).
 
 ### Toolbars
 
@@ -150,45 +149,37 @@ Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface)
 
 <img src="img/readme_images/toolbars/global_palette.png" alt="Global palette specialized toolbar">
 
-1. **Compact / normal view**
-2. **Set as active palette** — for painting where no ROM palette applies
+1. **Previous grouped slot** (when Grouped palettes is enabled)
+2. **Next grouped slot** (when Grouped palettes is enabled)
+3. **Compact / normal view**
+4. **Set as active palette** — for painting where no ROM palette applies
 
 #### ROM palette toolbar
 
 <img src="img/readme_images/toolbars/rom_palette.png" alt="ROM palette specialized toolbar">
 
-1. **Palette link handle (source)** — drag to destinations; **right-click** for **Jump To Linked Layer**, **Move All Links To**, **Remove all links**, etc.
-2. **Compact / normal view**
+1. **Previous grouped slot** (when Grouped palettes is enabled)
+2. **Next grouped slot** (when Grouped palettes is enabled)
+3. **Palette link handle (source)** — drag to destinations; **right-click** for **Jump To Linked Layer**, **Move All Links To**, **Remove all links**, etc.
+4. **Compact / normal view**
 
 Consumers of a ROM palette use **their** toolbar connect control; **right-click** for **Link to palette**, **Jump to linked palette**, **Remove this link**.
 
-#### PPU Frame — tile layer active
+#### PPU Frame toolbar
 
-<img src="img/readme_images/toolbars/ppu_frame_tile_layer_toolbar.png" alt="PPU Frame toolbar with tile layer active">
-
-Sprite-only controls are **hidden**.
+<img src="img/readme_images/toolbars/ppu_frame_tile_layer_toolbar.png" alt="PPU Frame toolbar">
 
 1. **Previous layer** — `Shift` + `Down`
 2. **Next layer** — `Shift` + `Up`
-3. **Nametable range** — compressed nametable **start/end** ROM addresses (warning styling until set)
-4. **Add sprite** — creates sprite layer if needed, otherwise adds a sprite (tooltip follows)
-5. **Glass / empty tile** — show/hide the empty-tile preview for the nametable
+3. **Add tile range** — appends a logical pattern-table range (bank/page/from/to)
+4. **Nametable range** — compressed nametable **start/end** ROM addresses
+5. **Add sprite** — creates sprite layer if needed, otherwise adds a sprite
+6. **Pattern layer toggle** — isolates the runtime pattern-table layer when enabled
+7. **Toggle origin guides** — available on sprite layers
 
-#### PPU Frame — sprite layer active
-
-<img src="img/readme_images/toolbars/ppu_frame_sprite_layer_toolbar.png" alt="PPU Frame toolbar with sprite layer active">
-
-**Glass** control **hidden**.
-
-1. **Previous layer** — `Shift` + `Down`
-2. **Next layer** — `Shift` + `Up`
-3. **Nametable range** — same modal for the screen’s tile layer without switching away
-4. **Add sprite**
-5. **Toggle origin guides** — **Shift + right-drag** moves **origin X/Y** ([PPU frame windows](#ppu-frame-windows))
+When **Pattern layer toggle** is ON, only the pattern reference layer is visible/navigable. When OFF, normal tile/sprite navigation resumes.
 
 #### Pattern table builder toolbar
-
-No PNG yet (e.g. `pattern_table_toolbar.png`).
 
 1. **Previous layer** — `Shift` + `Down`
 2. **Next layer** — `Shift` + `Up`
@@ -202,6 +193,7 @@ There are 2 kinds:
 
 * `Global palette`: the fallback palette for content that does not have a ROM palette linked to it. Use this for mockups, freeform art, and anything with no specific in-game palette assigned.
 * `ROM palette`: a real 4x4 palette window backed by ROM data. It can be linked to specific windows and layers, to use the actual in-game palette through palette links.
+* Optional **Grouped palettes** mode (Settings): keeps one logical Global palette window and one logical ROM palette window visible at a time, with toolbar arrows to cycle palette slots.
 
 In practice:
 
@@ -246,6 +238,8 @@ While a drag is in progress, the UI still reflects valid drop targets as before.
 - `Ctrl + G`: toggle the focused window grid
 - `Ctrl + R`: toggle shader rendering for the focused layer
 - `Ctrl + Z` / `Ctrl + Y`: undo / redo
+- `Ctrl + C` / `Ctrl + X` / `Ctrl + V`: copy / cut / paste selection
+  - In `ppu_frame` and `oam_animation` windows, clipboard actions are blocked on sprite layers
 - `Right click` or `middle click` drag: move windows
 - taskbar: focus, restore, and manage windows
 
@@ -261,7 +255,7 @@ Tile mode is for selection, drag and drop and tile-level editing in general.
 - `Delete` / `Backspace` to remove selection where supported
 - arrows to move tile selections
 - `Shift + Up/Down` to switch layers in **multi-layer** windows (animations, PPU Frame, OAM Animation, pattern builder, etc.): **`Up` = next layer, `Down` = previous**. **Static Art** windows stay single-layer and do not use layer switching shortcuts.
-- `Ctrl + Up/Down` to change inactive-layer opacity
+- `Ctrl + Up/Down` to change inactive-layer opacity (disabled in PPU Frame pattern-layer-only mode)
 - `1` to `4` to assign palette numbers where supported
 - `H` / `V` to mirror selected sprites
 - bank windows: `Left/Right` switch banks, `M` toggles `8x8` / `8x16`
@@ -323,15 +317,7 @@ The DB lets PPUX recognize specific ROMs and open a tailored starting workspace 
 
 DB entries are matched by ROM SHA-1 and can define open windows, relevant CHR banks, palette windows, ROM-backed views, and the initial workspace arrangement. If no DB entry exists, PPUX falls back to a default layout. User projects (*.lua and *.ppux) take priority over DB defaults.
 
-Current list of games
-
-* Contra (Japan) is in progress  - About 20%
-
-* Kirby's Adventure (USA) (Rev 1) - Not started yet
-
-* The Guardian Legend (USA) - Not started yet
-
-NOTE: This is currenly in beta so please be patient while the list is still being expanded
+Coverage might change frequently; use the [DB contribution tracker](#db-contribution-tracker) for the current status and in-progress entries.
 
 ### DB contribution tracker
 
@@ -376,32 +362,15 @@ Best practice: keep the base ROM, edited ROM, and project files in the same fold
 
 Use **New Window > PPU Frame** and the in-app toolbars / context menus to edit nametables and sprites; saving the project persists layer state and nametable diffs.
 
-### Build packages
-
-To build a packaged Windows app from Windows, run:
-
-```bat
-scripts\windows\build_windows.bat
-```
-
-The packaged Windows app will be created only as `build\PPUX-<version>-win64.zip`.
-
-To build a packaged Linux app from Linux, run:
-
-```bash
-./scripts/unix/build_linux_appimage.sh
-```
-
-The packaged Linux app will be created as `build/PPUX-<version>-x86_64.AppImage`.
-
-You can also build for Windows and macOS from Linux using `./scripts/unix/build_all.sh` (macOS build not tested yet).
-
 ### PPU frame editing notes
 
 * **Empty / glass nametable cells** use `patternTable.glassTileIndex` on the tile layer when set; otherwise the empty byte defaults to **0** (pattern-table tile 0 within that layer’s bank and **page** — page 2 still uses nametable byte 0, which maps to the second CHR page in the tile pool). The **show/hide glass** toolbar toggle is persisted as **`showGlassTile`** on the window in saved layouts/projects.
 * Tile layers render from a **cached full-canvas** nametable view for performance; after heavy edits, use the normal refresh paths the UI offers if a screen looks stale.
 * For **sprites**, use **Add sprite** on the toolbar to bind OAM entries. Sprite items that share the same `startAddr` **stay in sync** with **OAM Animation** windows (and other PPU Frame sprite layers) so moving or reconfiguring one updates the linked entries.
 * **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. A plain **right-click** still opens the usual context menus when you are not dragging.
+* **Pattern layer mode**: use the pattern-table toggle button to isolate the runtime pattern reference layer. In this mode, tile/sprite layers are hidden from navigation and `Ctrl + Up/Down` inactive-layer opacity is disabled.
+* **Pattern range UX**: adding a pattern range updates the reference layer immediately and switches to pattern-layer mode to review the new logical range quickly.
+* **Pattern hover aid**: hovering a tile in pattern-layer mode highlights all tiles in the same logical range with a translucent overlay.
 
 <img src="img/readme_images/ui_new_window_ppu_frame_placeholder.png" alt="New Window: PPU Frame placeholder">
 
@@ -616,12 +585,44 @@ You can also build for Windows and macOS from Linux using `./scripts/unix/build_
 
 ### Unit testing
 
-PPUX includes a unit test suite. See [Unit Testing](docs/test/UNIT_TESTING.md).
+PPUX includes a unit test suite.
+
+From repo root:
+
+```bash
+./scripts/unix/run_unit_tests.sh
+```
+
+On Windows:
+
+```bat
+scripts\windows\run_unit_tests.bat
+```
+
+See [Unit Testing](docs/test/UNIT_TESTING.md) for details and alternatives.
 
 ### E2E testing
 
-PPUX also includes visible end-to-end test scenarios that boot the real app. See [E2E Testing](docs/test/E2E_TESTING.md).
+PPUX also includes visible end-to-end test scenarios that boot the real app.
+
+Run full suite:
+
+```bash
+./scripts/unix/run_e2e_tests.sh
+```
+
+On Windows:
+
+```bat
+scripts\windows\run_e2e_tests.bat
+```
+
+Run a single scenario:
+
+```bash
+./scripts/unix/run_e2e_demo.sh modals
+```
+
+See [E2E Testing](docs/test/E2E_TESTING.md) for scenario details and options.
 
 ---
-
-**Detailed video tutorials are planned.**

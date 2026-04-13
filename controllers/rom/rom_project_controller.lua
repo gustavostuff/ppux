@@ -830,7 +830,7 @@ local function loadFromProject(app, project)
   end
   local refsOpened = openRuntimePatternTableRefs()
 
-  app:setStatus("Loaded project")
+  app:setStatus("Loaded user project")
   
   -- Create toolbars for all windows
   pulseLoading(app, "Creating toolbars...")

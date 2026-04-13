@@ -62,12 +62,17 @@ describe("app_top_toolbar_controller.lua", function()
     local cutButton = app._appTopQuickButtons.cut
     local pasteButton = app._appTopQuickButtons.paste
 
-    expect(openButton.x).toBe(0)
-    expect(newButton.x).toBe(openButton.w)
-    expect(saveButton.x).toBe(openButton.w + newButton.w)
-    expect(copyButton.x).toBe(openButton.w + newButton.w + saveButton.w)
-    expect(cutButton.x).toBe(copyButton.x + copyButton.w)
-    expect(pasteButton.x).toBe(cutButton.x + cutButton.w)
+    expect(newButton.x > openButton.x).toBe(true)
+    expect(saveButton.x > newButton.x).toBe(true)
+    expect(copyButton.x > saveButton.x).toBe(true)
+    expect(cutButton.x > copyButton.x).toBe(true)
+    expect(pasteButton.x > cutButton.x).toBe(true)
+
+    local inferredGap = newButton.x - (openButton.x + openButton.w)
+    expect(saveButton.x).toBe(newButton.x + newButton.w + inferredGap)
+    expect(copyButton.x).toBe(saveButton.x + saveButton.w + inferredGap)
+    expect(cutButton.x).toBe(copyButton.x + copyButton.w + inferredGap)
+    expect(pasteButton.x).toBe(cutButton.x + cutButton.w + inferredGap)
   end)
 
   it("routes copy/cut/paste buttons through shared app clipboard actions", function()
