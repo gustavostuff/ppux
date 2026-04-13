@@ -99,7 +99,7 @@ describe("keyboard_clipboard_controller.lua - CHR virtual handles", function()
     expect(statuses[#statuses]).toBe("Copied 1 tile")
 
     expect(KeyboardClipboardController.handlePasteSelection(ctx, utils, "v", targetWin)).toBe(true)
-    expect(pasted).toNotBeNil()
+    expect(pasted ~= nil).toBe(true)
     expect(pasted.col).toBe(1)
     expect(pasted.row).toBe(1)
     expect(pasted.layerIndex).toBe(1)

@@ -680,16 +680,40 @@ end
 
 ------------------------------------------------------------
 
+local function resolveClipboardActionFocus(app, ctx)
+  if ctx and type(ctx.getFocus) == "function" then
+    return ctx.getFocus()
+  end
+  if app and app.wm and app.wm.getFocus then
+    return app.wm:getFocus() or app.winBank
+  end
+  return app and app.winBank or nil
+end
+
 function AppCoreController:getClipboardToolbarActionState(action)
   local ctx = _G.ctx or self:_buildCtx()
-  local focus = (self.wm and self.wm.getFocus and self.wm:getFocus()) or nil
+  local focus = resolveClipboardActionFocus(self, ctx)
   return KeyboardClipboardController.getActionAvailability(ctx, focus, action)
 end
 
-function AppCoreController:performClipboardToolbarAction(action)
+function AppCoreController:performClipboardToolbarAction(action, targetWin, targetLayerIndex, opts)
   local ctx = _G.ctx or self:_buildCtx()
-  local focus = (self.wm and self.wm.getFocus and self.wm:getFocus()) or nil
-  return KeyboardClipboardController.performClipboardAction(ctx, focus, action)
+  local focus = targetWin or resolveClipboardActionFocus(self, ctx)
+  local actionOpts = opts or {}
+  if type(targetLayerIndex) == "number" then
+    actionOpts.layerIndex = targetLayerIndex
+    if focus then
+      if focus.setActiveLayerIndex then
+        focus:setActiveLayerIndex(targetLayerIndex)
+      else
+        focus.activeLayer = targetLayerIndex
+      end
+    end
+  end
+  if targetWin and self.wm and self.wm.setFocus then
+    self.wm:setFocus(targetWin)
+  end
+  return KeyboardClipboardController.performClipboardAction(ctx, focus, action, actionOpts)
 end
 
 ------------------------------------------------------------

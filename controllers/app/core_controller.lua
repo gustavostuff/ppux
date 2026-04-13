@@ -28,6 +28,7 @@ local UiScale = require("user_interface.ui_scale")
 local images = require("images")
 local katsudo = require("lib.katsudo")
 local UserInput = require("controllers.input")
+local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
 local TableUtils = require("utils.table_utils")
 local PatternTableMapping = require("utils.pattern_table_mapping")
 
@@ -919,6 +920,65 @@ function AppCoreController:_appendJumpToLinkedPaletteMenuItem(items, win, layerI
   return items
 end
 
+function AppCoreController:_appendPasteContextMenuItem(items, context)
+  -- Paste is intentionally scoped to art/tile context menus (PPU/select-in-CHR/CHR bank).
+  -- Palette-link and OAM-empty-space menus keep their existing specialized options only.
+  if type(items) ~= "table" then
+    return items
+  end
+  if not (context and context.win and type(context.layerIndex) == "number") then
+    return items
+  end
+
+  local layer = context.layer
+    or (context.win.getLayer and context.win:getLayer(context.layerIndex))
+    or (context.win.layers and context.win.layers[context.layerIndex])
+  if not layer then
+    return items
+  end
+
+  local fakeCtx = {
+    app = self,
+  }
+  local availability = KeyboardClipboardController.getActionAvailability(
+    fakeCtx,
+    context.win,
+    "paste",
+    { layerIndex = context.layerIndex }
+  )
+  if not (availability and availability.allowed and KeyboardClipboardController.hasClipboardData()) then
+    return items
+  end
+
+  local pasteOpts = {}
+  if layer.kind == "tile" then
+    if type(context.col) == "number" and type(context.row) == "number" then
+      pasteOpts.anchorCol = context.col
+      pasteOpts.anchorRow = context.row
+    end
+  elseif layer.kind == "sprite" then
+    local item = context.item
+    if item then
+      local sx = item.worldX or item.baseX or item.x
+      local sy = item.worldY or item.baseY or item.y
+      if type(sx) == "number" and type(sy) == "number" then
+        pasteOpts.anchorX = sx
+        pasteOpts.anchorY = sy
+      end
+    end
+  end
+
+  items[#items + 1] = {
+    text = "Paste",
+    callback = function()
+      if self.performClipboardToolbarAction then
+        self:performClipboardToolbarAction("paste", context.win, context.layerIndex, pasteOpts)
+      end
+    end,
+  }
+  return items
+end
+
 function AppCoreController:showPaletteLinkSourceContextMenu(win, x, y)
   if not (self.paletteLinkContextMenu and win and type(x) == "number" and type(y) == "number") then
     return false
@@ -1239,6 +1299,7 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
   if context and context.win and context.layerIndex then
     self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)
   end
+  self:_appendPasteContextMenuItem(items, context)
   return items
 end
 
@@ -1357,6 +1418,7 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
   if context and context.win and context.layerIndex then
     self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)
   end
+  self:_appendPasteContextMenuItem(items, context)
   return items
 end
 
@@ -1407,6 +1469,7 @@ function AppCoreController:_buildChrBankTileContextMenuItems(context)
       end,
     },
   }
+  self:_appendPasteContextMenuItem(items, context)
   return items
 end
 

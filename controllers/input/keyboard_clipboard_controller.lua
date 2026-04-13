@@ -22,6 +22,17 @@ local function showWarning(ctx, text)
   end
 end
 
+local function resolveScaledMouse(ctx)
+  if not (ctx and type(ctx.scaledMouse) == "function") then
+    return nil, nil
+  end
+  local mx, my = ctx.scaledMouse()
+  if type(mx) ~= "number" or type(my) ~= "number" then
+    return nil, nil
+  end
+  return mx, my
+end
+
 function M.reset()
   clipboard = nil
 end
@@ -161,15 +172,29 @@ local function captureSpriteClipboard(win, layer)
   }
 end
 
-local function pasteTileClipboard(ctx, focus, layer, layerIndex, data)
+local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
   if not (focus and layer and layer.kind == "tile" and data and data.entries) then return 0 end
 
   local cols = focus.cols or 0
   local rows = focus.rows or 0
   if cols <= 0 or rows <= 0 then return 0 end
 
-  local anchorCol = math.floor((cols - (data.width or 1)) / 2)
-  local anchorRow = math.floor((rows - (data.height or 1)) / 2)
+  local anchorCol = (opts and type(opts.anchorCol) == "number") and math.floor(opts.anchorCol)
+  local anchorRow = (opts and type(opts.anchorRow) == "number") and math.floor(opts.anchorRow)
+  if anchorCol == nil or anchorRow == nil then
+    local mx, my = resolveScaledMouse(ctx)
+    if mx ~= nil and my ~= nil and focus.toGridCoords then
+      local ok, col, row = focus:toGridCoords(mx, my)
+      if ok then
+        anchorCol = col
+        anchorRow = row
+      end
+    end
+  end
+  if anchorCol == nil or anchorRow == nil then
+    anchorCol = math.floor((cols - (data.width or 1)) / 2)
+    anchorRow = math.floor((rows - (data.height or 1)) / 2)
+  end
   local selectedSet = {}
   local count = 0
   local firstCol, firstRow = nil, nil
@@ -237,15 +262,31 @@ local function pasteTileClipboard(ctx, focus, layer, layerIndex, data)
   return count
 end
 
-local function pasteSpriteClipboard(focus, layer, data)
+local function pasteSpriteClipboard(ctx, focus, layer, data, opts)
   if not (focus and layer and layer.kind == "sprite" and data and data.entries) then return 0 end
 
   layer.items = layer.items or {}
 
   local layerPixelW = math.max(1, (focus.cols or 0) * (focus.cellW or 8))
   local layerPixelH = math.max(1, (focus.rows or 0) * (focus.cellH or 8))
-  local anchorX = math.floor((layerPixelW - (data.widthPx or 1)) / 2)
-  local anchorY = math.floor((layerPixelH - (data.heightPx or 1)) / 2)
+  local anchorX = (opts and type(opts.anchorX) == "number") and math.floor(opts.anchorX)
+  local anchorY = (opts and type(opts.anchorY) == "number") and math.floor(opts.anchorY)
+  if anchorX == nil or anchorY == nil then
+    local mx, my = resolveScaledMouse(ctx)
+    if mx ~= nil and my ~= nil and focus.toGridCoords then
+      local ok, col, row, lx, ly = focus:toGridCoords(mx, my)
+      if ok then
+        local cellW = focus.cellW or 8
+        local cellH = focus.cellH or 8
+        anchorX = (col * cellW) + (lx or 0)
+        anchorY = (row * cellH) + (ly or 0)
+      end
+    end
+  end
+  if anchorX == nil or anchorY == nil then
+    anchorX = math.floor((layerPixelW - (data.widthPx or 1)) / 2)
+    anchorY = math.floor((layerPixelH - (data.heightPx or 1)) / 2)
+  end
 
   local newIndices = {}
   for _, entry in ipairs(data.entries) do
@@ -278,11 +319,17 @@ local function pasteSpriteClipboard(focus, layer, data)
   return #newIndices
 end
 
-local function getActiveLayer(focus)
-  if not (focus and focus.layers and focus.getActiveLayerIndex) then
+local function getActiveLayer(focus, opts)
+  if not (focus and focus.layers) then
     return nil, nil
   end
-  local layerIndex = focus:getActiveLayerIndex()
+  local layerIndex = opts and opts.layerIndex
+  if type(layerIndex) ~= "number" then
+    if not focus.getActiveLayerIndex then
+      return nil, nil
+    end
+    layerIndex = focus:getActiveLayerIndex()
+  end
   local layer = focus.layers[layerIndex]
   return layerIndex, layer
 end
@@ -318,10 +365,13 @@ local function restrictionMessage(action, focus, layer)
   return nil
 end
 
-function M.getActionAvailability(ctx, focus, action)
-  local layerIndex, layer = getActiveLayer(focus)
+function M.getActionAvailability(ctx, focus, action, opts)
+  if not focus then
+    return { allowed = false, reason = "No focused window", noFocus = true, layerIndex = nil, layer = nil }
+  end
+  local layerIndex, layer = getActiveLayer(focus, opts)
   if not layer then
-    return { allowed = false, reason = "No active layer selected", layerIndex = layerIndex, layer = layer }
+    return { allowed = false, reason = "No active layer selected", layerIndex = layerIndex, layer = layer, noLayer = true }
   end
   if layer.kind ~= "tile" and layer.kind ~= "sprite" then
     return { allowed = false, reason = "Clipboard is not available for this layer type", layerIndex = layerIndex, layer = layer }
@@ -438,10 +488,10 @@ local function doCopy(ctx, focus)
   return true
 end
 
-local function doPaste(ctx, focus)
-  local avail = M.getActionAvailability(ctx, focus, "paste")
+local function doPaste(ctx, focus, opts)
+  local avail = M.getActionAvailability(ctx, focus, "paste", opts)
   if not avail.allowed then
-    if avail.restricted then
+    if avail.restricted or avail.noFocus then
       showWarning(ctx, avail.reason)
     else
       setStatus(ctx, avail.reason)
@@ -453,7 +503,7 @@ local function doPaste(ctx, focus)
   local layer = avail.layer
   local pastedCount = 0
   if clipboard.kind == "tile" and layer.kind == "tile" then
-    pastedCount = pasteTileClipboard(ctx, focus, layer, layerIndex, clipboard)
+    pastedCount = pasteTileClipboard(ctx, focus, layer, layerIndex, clipboard, opts)
     if pastedCount > 0 and ctx.app and ctx.app.markUnsaved then
       ctx.app:markUnsaved("tile_move")
     end
@@ -466,7 +516,7 @@ local function doPaste(ctx, focus)
   end
 
   if clipboard.kind == "sprite" and layer.kind == "sprite" then
-    pastedCount = pasteSpriteClipboard(focus, layer, clipboard)
+    pastedCount = pasteSpriteClipboard(ctx, focus, layer, clipboard, opts)
     if pastedCount > 0 and ctx.app and ctx.app.markUnsaved then
       ctx.app:markUnsaved("sprite_move")
     end
@@ -482,8 +532,8 @@ local function doPaste(ctx, focus)
   return true
 end
 
-local function doCut(ctx, focus)
-  local avail = M.getActionAvailability(ctx, focus, "cut")
+local function doCut(ctx, focus, opts)
+  local avail = M.getActionAvailability(ctx, focus, "cut", opts)
   if not avail.allowed then
     if avail.restricted then
       showWarning(ctx, avail.reason)
@@ -558,17 +608,21 @@ local function doCut(ctx, focus)
   return true
 end
 
-function M.performClipboardAction(ctx, focus, action)
+function M.performClipboardAction(ctx, focus, action, opts)
   if action == "copy" then
     return doCopy(ctx, focus)
   end
   if action == "cut" then
-    return doCut(ctx, focus)
+    return doCut(ctx, focus, opts)
   end
   if action == "paste" then
-    return doPaste(ctx, focus)
+    return doPaste(ctx, focus, opts)
   end
   return false
+end
+
+function M.hasClipboardData()
+  return clipboard ~= nil and clipboard.kind ~= nil
 end
 
 function M.handleCopySelection(ctx, utils, key, focus)

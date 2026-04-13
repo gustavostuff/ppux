@@ -101,9 +101,145 @@ describe("keyboard_clipboard_controller.lua - shared toolbar/keyboard actions", 
 
     expect(KeyboardClipboardController.performClipboardAction(ctx, targetWin, "paste")).toBe(true)
     expect(statuses[#statuses]).toBe("Pasted 1 tile at center")
-    expect(pasted).toNotBeNil()
+    expect(pasted ~= nil).toBe(true)
     expect(pasted.item.id).toBe(77)
     expect(unsavedReasons[1]).toBe("tile_move")
     expect(unsavedReasons[2]).toBe("tile_move")
+  end)
+
+  it("pastes tiles at cursor cell inside focused window", function()
+    local statuses = {}
+    local sourceLayer = {
+      kind = "tile",
+      items = { [1] = { id = 12 } },
+      multiTileSelection = { [1] = true },
+      removedCells = {},
+    }
+    local sourceWin = {
+      kind = "static_art",
+      cols = 1,
+      rows = 1,
+      layers = { sourceLayer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 0, 0, 1 end,
+      get = function() return sourceLayer.items[1] end,
+      markCellRemoved = function() end,
+      clearSelected = function() end,
+    }
+    local pasted = nil
+    local targetLayer = { kind = "tile" }
+    local targetWin = {
+      kind = "static_art",
+      cols = 8,
+      rows = 8,
+      layers = { targetLayer },
+      getActiveLayerIndex = function() return 1 end,
+      toGridCoords = function(_, x, y)
+        if x == 100 and y == 80 then
+          return true, 4, 3, 0, 0
+        end
+        return false
+      end,
+      set = function(_, col, row, item)
+        pasted = { col = col, row = row, item = item }
+      end,
+      setSelected = function() end,
+      clearSelected = function() end,
+    }
+    local ctx = {
+      setStatus = function(text) statuses[#statuses + 1] = text end,
+      scaledMouse = function() return 100, 80 end,
+      app = {},
+    }
+
+    expect(KeyboardClipboardController.performClipboardAction(ctx, sourceWin, "copy")).toBe(true)
+    expect(KeyboardClipboardController.performClipboardAction(ctx, targetWin, "paste")).toBe(true)
+    expect(pasted ~= nil).toBe(true)
+    expect(pasted.col).toBe(4)
+    expect(pasted.row).toBe(3)
+  end)
+
+  it("falls back to centered tile paste when cursor is outside layer area", function()
+    local sourceLayer = {
+      kind = "tile",
+      items = { [1] = { id = 99 } },
+      multiTileSelection = { [1] = true },
+      removedCells = {},
+    }
+    local sourceWin = {
+      kind = "static_art",
+      cols = 1,
+      rows = 1,
+      layers = { sourceLayer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 0, 0, 1 end,
+      get = function() return sourceLayer.items[1] end,
+      markCellRemoved = function() end,
+      clearSelected = function() end,
+    }
+    local pasted = nil
+    local targetLayer = { kind = "tile" }
+    local targetWin = {
+      kind = "static_art",
+      cols = 6,
+      rows = 6,
+      layers = { targetLayer },
+      getActiveLayerIndex = function() return 1 end,
+      toGridCoords = function() return false end,
+      set = function(_, col, row, item)
+        pasted = { col = col, row = row, item = item }
+      end,
+      setSelected = function() end,
+      clearSelected = function() end,
+    }
+    local ctx = {
+      scaledMouse = function() return 999, 999 end,
+      setStatus = function() end,
+      app = {},
+    }
+
+    expect(KeyboardClipboardController.performClipboardAction(ctx, sourceWin, "copy")).toBe(true)
+    expect(KeyboardClipboardController.performClipboardAction(ctx, targetWin, "paste")).toBe(true)
+    expect(pasted ~= nil).toBe(true)
+    expect(pasted.col).toBe(2)
+    expect(pasted.row).toBe(2)
+  end)
+
+  it("warns when paste is requested with no focused window", function()
+    local sourceLayer = {
+      kind = "tile",
+      items = { [1] = { id = 5 } },
+      multiTileSelection = { [1] = true },
+      removedCells = {},
+    }
+    local sourceWin = {
+      kind = "static_art",
+      cols = 1,
+      rows = 1,
+      layers = { sourceLayer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 0, 0, 1 end,
+      get = function() return sourceLayer.items[1] end,
+      markCellRemoved = function() end,
+      clearSelected = function() end,
+    }
+    local status = nil
+    local toastKind = nil
+    local toastText = nil
+    local ctx = {
+      setStatus = function(text) status = text end,
+      app = {
+        showToast = function(_, kind, text)
+          toastKind = kind
+          toastText = text
+        end,
+      },
+    }
+
+    expect(KeyboardClipboardController.performClipboardAction(ctx, sourceWin, "copy")).toBe(true)
+    expect(KeyboardClipboardController.performClipboardAction(ctx, nil, "paste")).toBe(true)
+    expect(status).toBe("No focused window")
+    expect(toastKind).toBe("warning")
+    expect(toastText).toBe("No focused window")
   end)
 end)
