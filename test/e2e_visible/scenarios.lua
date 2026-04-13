@@ -2602,6 +2602,558 @@ local function buildModalNavigationKeyboardOnlyScenario(harness, app, runner)
   return steps
 end
 
+local function buttonCenter(button)
+  assert(button, "expected button")
+  return button.x + math.floor(button.w * 0.5), button.y + math.floor(button.h * 0.5)
+end
+
+local function appQuickButtonCenter(key)
+  return function(_, currentApp)
+    local buttons = currentApp._appTopQuickButtons or {}
+    local button = assert(buttons[key], "expected app top quick button: " .. tostring(key))
+    return buttonCenter(button)
+  end
+end
+
+local function ppuToolbarButtonCenter(winKey, resolver)
+  return function(_, currentApp, currentRunner)
+    local win = assert(currentRunner[winKey], "expected PPU window for key: " .. tostring(winKey))
+    local toolbar = assert(win.specializedToolbar, "expected PPU specialized toolbar")
+    toolbar:updateIcons()
+    toolbar:updatePosition()
+    local button = resolver(toolbar, currentRunner, currentApp)
+    assert(button, "expected PPU toolbar button")
+    return buttonCenter(button)
+  end
+end
+
+local function menuRowCenterByText(menuResolver, text)
+  return function(_, currentApp, currentRunner)
+    local menu = assert(menuResolver(currentApp, currentRunner), "expected visible context menu")
+    assert(menu.isVisible and menu:isVisible(), "expected context menu to be visible")
+    local items = menu.visibleItems or {}
+    local targetRow = nil
+    for i, item in ipairs(items) do
+      if item and item.text == text then
+        targetRow = i
+        break
+      end
+    end
+    assert(targetRow, "expected context menu item: " .. tostring(text))
+    local anchorCol = (menu.activeSplitIconCell == true and (tonumber(menu.cols) or 1) > 1) and 2 or 1
+    local cell = assert(menu.panel:getCell(anchorCol, targetRow), "expected context menu row cell")
+    return cell.x + math.floor(cell.w * 0.5), cell.y + math.floor(cell.h * 0.5)
+  end
+end
+
+local function setFocusedTextFieldValue(field, value)
+  assert(field and field.setFocused and field.setText, "expected text field")
+  field:setFocused(true)
+  field:setText(tostring(value or ""))
+end
+
+local function setupDeterministicPpuFixture(currentApp, currentRunner)
+  local BankViewController = require("controllers.chr.bank_view_controller")
+  local NametableUtils = require("utils.nametable_utils")
+  local chr = require("chr")
+  local state = currentApp.appEditState or {}
+  assert(type(state.romRaw) == "string" and state.romRaw ~= "", "expected ROM bytes in app state")
+
+  BankViewController.ensureBankTiles(state, 1)
+
+  local nametable = {}
+  local attributes = {}
+  for i = 1, 32 * 30 do
+    nametable[i] = 0
+  end
+  for i = 1, 64 do
+    attributes[i] = 0
+  end
+  nametable[(4 * 32) + 4 + 1] = 6
+  nametable[(4 * 32) + 5 + 1] = 7
+  nametable[(5 * 32) + 4 + 1] = 22
+  nametable[(5 * 32) + 5 + 1] = 23
+
+  local compressed = NametableUtils.encode_decompressed_nametable(nametable, attributes, "konami")
+  assert(type(compressed) == "table" and #compressed > 0, "expected encoded nametable stream")
+  local startAddr = 0x40
+  local newRom, romErr = chr.writeBytesToRange(state.romRaw, startAddr, #compressed, compressed)
+  assert(newRom, "failed to write compressed nametable fixture: " .. tostring(romErr))
+  state.romRaw = newRom
+
+  local ppuWin = assert(currentApp.wm:createPPUFrameWindow({
+    title = "PPU Toolbar Fixture",
+    x = 328,
+    y = 70,
+    zoom = 2,
+    romRaw = state.romRaw,
+    bankIndex = 1,
+    pageIndex = 1,
+  }), "expected PPU frame window")
+  ppuWin.visibleCols = 10
+  ppuWin.visibleRows = 10
+  if ppuWin.setScroll then
+    ppuWin:setScroll(0, 0)
+  end
+
+  local layer = assert(ppuWin.layers and ppuWin.layers[1], "expected PPU tile layer")
+  layer.patternTable = {
+    ranges = {
+      { bank = 1, page = 1, tileRange = { from = 0, to = 255 } },
+    },
+  }
+  layer.nametableStartAddr = nil
+  layer.nametableEndAddr = nil
+  if currentApp._ensurePpuPatternTableReferenceLayer then
+    currentApp:_ensurePpuPatternTableReferenceLayer(ppuWin, 1, {
+      keepActiveLayer = true,
+    })
+  end
+
+  local oamWin = assert(currentApp.wm:createSpriteWindow({
+    animated = true,
+    oamBacked = true,
+    numFrames = 1,
+    title = "OAM Clipboard Fixture",
+    x = 40,
+    y = 184,
+    cols = 8,
+    rows = 8,
+    zoom = 2,
+    spriteMode = "8x8",
+  }), "expected OAM animation fixture window")
+
+  currentRunner.ppuFixtureWin = ppuWin
+  currentRunner.oamFixtureWin = oamWin
+  currentRunner.ppuFixtureRangeStart = startAddr
+  currentRunner.ppuFixtureRangeEnd = startAddr + #compressed - 1
+  currentRunner.ppuFixtureCompressedLen = #compressed
+  currentRunner.ppuFixtureExpectedTile = nametable[(4 * 32) + 4 + 1]
+
+  currentApp.wm:setFocus(ppuWin)
+  return ppuWin
+end
+
+local function buildClipboardMatrixScenario(harness, app, runner)
+  harness:loadROM(BubbleExample.getLoadPath())
+  local srcWin = BubbleExample.prepareBankWindow(assert(BubbleExample.findBankWindow(app), "expected CHR bank window"))
+  local staticTileWin = assert(BubbleExample.findStaticWindow(app), "expected static tile window")
+  BubbleExample.clearStaticWindow(staticTileWin)
+
+  local steps = {
+    pause("Start", 0.35),
+    call("Create sprite + PPU clipboard fixture windows", function(currentHarness, currentApp, currentRunner)
+      currentRunner.clipboardSpriteWin = assert(currentApp.wm:createSpriteWindow({
+        animated = false,
+        title = "Clipboard Sprite",
+        x = 304,
+        y = 184,
+        cols = 10,
+        rows = 8,
+        zoom = 2,
+      }), "expected clipboard sprite window")
+      setupDeterministicPpuFixture(currentApp, currentRunner)
+      currentApp.wm:setFocus(staticTileWin)
+    end),
+    pause("Observe created fixture windows", 0.45),
+  }
+
+  local function countTileItems(win)
+    local layer = win.layers and win.layers[1] or nil
+    local count = 0
+    for _, item in pairs(layer and layer.items or {}) do
+      if item ~= nil then
+        count = count + 1
+      end
+    end
+    return count
+  end
+
+  appendDrag(steps, "Place source tile A", function(h)
+    return h:windowCellCenter(srcWin, 0, 0)
+  end, function(h)
+    return h:windowCellCenter(staticTileWin, 1, 1)
+  end, { dragDuration = 0.12, postPause = 0.2 })
+
+  appendDrag(steps, "Place source tile B", function(h)
+    return h:windowCellCenter(srcWin, 1, 0)
+  end, function(h)
+    return h:windowCellCenter(staticTileWin, 2, 1)
+  end, { dragDuration = 0.12, postPause = 0.2 })
+
+  steps[#steps + 1] = call("Record source tile identity", function(_, currentApp, currentRunner)
+    currentApp.wm:setFocus(staticTileWin)
+    local item = assert(staticTileWin:get(1, 1, 1), "expected tile at 1,1")
+    currentRunner.clipboardSourceTileIndex = item.index
+    currentRunner.clipboardSourceTileBank = item._bankIndex
+  end)
+
+  appendClick(steps, "Select source tile for keyboard copy", function(h)
+    return h:windowCellCenter(staticTileWin, 1, 1)
+  end, { moveDuration = 0.08, postPause = 0.18 })
+  steps[#steps + 1] = call("Record tile count before keyboard paste", function(_, _, currentRunner)
+    currentRunner.clipboardTileCountBeforeKeyboardPaste = countTileItems(staticTileWin)
+  end)
+  steps[#steps + 1] = keyPress("Copy tile (Ctrl+C)", "c", { "lctrl" })
+  appendClick(steps, "Select tile paste target", function(h)
+    return h:windowCellCenter(staticTileWin, 4, 1)
+  end, { moveDuration = 0.08, postPause = 0.18 })
+  steps[#steps + 1] = keyPress("Paste tile (Ctrl+V)", "v", { "lctrl" })
+  steps[#steps + 1] = call("Assert keyboard tile paste", function(_, _, currentRunner)
+    local afterCount = countTileItems(staticTileWin)
+    assert(
+      afterCount > (currentRunner.clipboardTileCountBeforeKeyboardPaste or 0),
+      string.format("expected tile count to increase after paste (before=%d after=%d)",
+        tonumber(currentRunner.clipboardTileCountBeforeKeyboardPaste) or -1,
+        afterCount)
+    )
+  end)
+  steps[#steps + 1] = pause("Observe keyboard tile paste", 0.35)
+
+  appendClick(steps, "Select tile to cut", function(h)
+    return h:windowCellCenter(staticTileWin, 2, 1)
+  end, { moveDuration = 0.08, postPause = 0.18 })
+  steps[#steps + 1] = keyPress("Cut tile (Ctrl+X)", "x", { "lctrl" })
+  steps[#steps + 1] = call("Assert tile cut cleared source cell", function()
+    local afterCut = staticTileWin:get(2, 1, 1)
+    assert(afterCut == nil, "expected cut tile cell to be empty")
+  end)
+
+  appendClick(steps, "Select cut paste destination", function(h)
+    return h:windowCellCenter(staticTileWin, 5, 1)
+  end, { moveDuration = 0.08, postPause = 0.18 })
+  steps[#steps + 1] = keyPress("Paste cut tile (Ctrl+V)", "v", { "lctrl" })
+  steps[#steps + 1] = call("Assert cut-paste action executed", function(currentHarness)
+    local status = tostring(currentHarness:getStatusText() or "")
+    assert(status ~= "", "expected status feedback after cut/paste")
+  end)
+  steps[#steps + 1] = pause("Observe cut/paste tile move", 0.4)
+
+  appendClick(steps, "Select tile for toolbar copy", function(h)
+    return h:windowCellCenter(staticTileWin, 1, 1)
+  end, { moveDuration = 0.08, postPause = 0.18 })
+  appendClick(steps, "Toolbar copy click", appQuickButtonCenter("copy"), { moveDuration = 0.08, postPause = 0.15 })
+  steps[#steps + 1] = pause("Observe toolbar copy action parity", 0.25)
+
+  appendClick(steps, "Select tile for toolbar cut", function(h)
+    return h:windowCellCenter(staticTileWin, 4, 1)
+  end, { moveDuration = 0.08, postPause = 0.18 })
+  appendClick(steps, "Toolbar cut click", appQuickButtonCenter("cut"), { moveDuration = 0.08, postPause = 0.18 })
+  steps[#steps + 1] = call("Assert toolbar cut cleared tile", function()
+    assert(staticTileWin:get(4, 1, 1) == nil, "expected toolbar cut to clear source tile")
+  end)
+  steps[#steps + 1] = pause("Observe toolbar parity on tile clipboard", 0.45)
+
+  appendDrag(steps, "Place initial sprite from bank", function(h)
+    return h:windowCellCenter(srcWin, 6, 0)
+  end, function(h, _, currentRunner)
+    return h:windowCellCenter(currentRunner.clipboardSpriteWin, 1, 1)
+  end, { dragDuration = 0.12, postPause = 0.2 })
+  appendClick(steps, "Select sprite for copy", function(h, _, currentRunner)
+    return h:windowCellCenter(currentRunner.clipboardSpriteWin, 1, 1)
+  end, { moveDuration = 0.08, postPause = 0.15 })
+  steps[#steps + 1] = keyPress("Copy sprite (Ctrl+C)", "c", { "lctrl" })
+  steps[#steps + 1] = keyPress("Paste sprite (Ctrl+V)", "v", { "lctrl" })
+  steps[#steps + 1] = call("Assert sprite clipboard path executes", function(currentHarness)
+    local status = tostring(currentHarness:getStatusText() or "")
+    assert(status ~= "", "expected status feedback after sprite clipboard actions")
+  end)
+
+  steps[#steps + 1] = call("Attempt restricted paste on OAM sprite layer", function(_, currentApp, currentRunner)
+    local oam = assert(currentRunner.oamFixtureWin, "expected OAM fixture window")
+    currentApp.wm:setFocus(oam)
+    if oam.setActiveLayerIndex then
+      oam:setActiveLayerIndex(1)
+    else
+      oam.activeLayer = 1
+    end
+    local layer = oam.layers and oam.layers[1]
+    currentRunner.oamSpriteCountBeforePaste = #(layer and layer.items or {})
+  end)
+  steps[#steps + 1] = keyPress("Paste on OAM sprite layer (should block)", "v", { "lctrl" })
+  steps[#steps + 1] = call("Assert OAM sprite-layer paste restriction", function(currentHarness, _, currentRunner)
+    local oam = assert(currentRunner.oamFixtureWin, "expected OAM fixture window")
+    local layer = oam.layers and oam.layers[1]
+    assert(#(layer and layer.items or {}) == (currentRunner.oamSpriteCountBeforePaste or 0), "expected no sprite paste on OAM sprite layer")
+    assert(tostring(currentHarness:getStatusText() or "") ~= "", "expected status feedback after blocked OAM paste")
+  end)
+
+  steps[#steps + 1] = call("Attempt restricted paste on PPU sprite layer", function(_, currentApp, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture window")
+    currentApp.wm:setFocus(ppu)
+    if ppu.getSpriteLayers then
+      local spriteLayers = ppu:getSpriteLayers() or {}
+      if #spriteLayers == 0 and ppu.addLayer then
+        ppu:addLayer({ kind = "sprite", mode = "8x8", items = {}, name = "Sprite Layer" })
+        spriteLayers = ppu:getSpriteLayers() or {}
+      end
+      local info = assert(spriteLayers[1], "expected PPU sprite layer for restriction check")
+      if ppu.setActiveLayerIndex then
+        ppu:setActiveLayerIndex(info.index)
+      else
+        ppu.activeLayer = info.index
+      end
+      currentRunner.ppuSpriteLayerIndex = info.index
+    end
+  end)
+  steps[#steps + 1] = keyPress("Paste on PPU sprite layer (should block)", "v", { "lctrl" })
+  steps[#steps + 1] = call("Assert PPU sprite-layer paste restriction", function(currentHarness)
+    assert(tostring(currentHarness:getStatusText() or "") ~= "", "expected status feedback after blocked PPU paste")
+  end)
+
+  steps[#steps + 1] = call("Focus CHR bank for context-menu paste", function(_, currentApp)
+    currentApp.wm:setFocus(srcWin)
+  end)
+  appendClick(steps, "Copy CHR tile before context paste", function(h)
+    return h:windowCellCenter(srcWin, 0, 0)
+  end, { moveDuration = 0.08, postPause = 0.15 })
+  steps[#steps + 1] = keyPress("Copy CHR tile (Ctrl+C)", "c", { "lctrl" })
+  steps[#steps + 1] = call("Open CHR context menu with right click", function(currentHarness, currentApp)
+    local x, y = currentHarness:windowCellCenter(srcWin, 3, 0)
+    currentHarness:click(x, y, { button = 2, wait = false })
+    currentHarness:wait(0.14)
+    assert(currentApp.ppuTileContextMenu and currentApp.ppuTileContextMenu:isVisible(), "expected tile context menu to be visible")
+  end)
+  appendClick(steps, "Click Paste in context menu", menuRowCenterByText(function(currentApp)
+    return currentApp.ppuTileContextMenu
+  end, "Paste"), {
+    moveDuration = 0.08,
+    prePressPause = 0.05,
+    holdDuration = 0.05,
+    postPause = 0.2,
+  })
+  steps[#steps + 1] = pause("Observe context-menu paste path", 0.5)
+
+  return steps
+end
+
+local function buildPpuToolbarRangesSetupScenario(harness, app, runner)
+  harness:loadROM(BubbleExample.getLoadPath())
+  local steps = {
+    pause("Start", 0.35),
+    call("Create deterministic PPU fixture", function(_, currentApp, currentRunner)
+      setupDeterministicPpuFixture(currentApp, currentRunner)
+    end),
+    pause("Observe PPU fixture", 0.45),
+    call("Focus PPU fixture window", function(_, currentApp, currentRunner)
+      currentApp.wm:setFocus(currentRunner.ppuFixtureWin)
+      if currentRunner.ppuFixtureWin.setActiveLayerIndex then
+        currentRunner.ppuFixtureWin:setActiveLayerIndex(1)
+      end
+    end),
+  }
+
+  appendClick(steps, "Open PPU nametable range modal", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
+    return toolbar.rangeButton
+  end), { moveDuration = 0.1, postPause = 0.2 })
+
+  steps[#steps + 1] = call("Fill range modal and confirm", function(currentHarness, currentApp, currentRunner)
+    local modal = assert(currentApp.ppuFrameRangeModal, "expected ppuFrameRangeModal")
+    assert(modal:isVisible(), "expected PPU range modal visible")
+    setFocusedTextFieldValue(modal.startField, string.format("0x%06X", currentRunner.ppuFixtureRangeStart))
+    setFocusedTextFieldValue(modal.endField, string.format("0x%06X", currentRunner.ppuFixtureRangeEnd))
+    currentHarness:keyPress("return", { wait = false })
+    currentHarness:wait(0.16)
+  end)
+
+  steps[#steps + 1] = call("Assert nametable range applied and hydrated", function(_, _, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture window")
+    local layer = assert(ppu.layers and ppu.layers[1], "expected PPU tile layer")
+    assert(layer.nametableStartAddr == currentRunner.ppuFixtureRangeStart, "expected PPU nametable start address to match fixture")
+    assert(layer.nametableEndAddr == currentRunner.ppuFixtureRangeEnd, "expected PPU nametable end address to match fixture")
+    local tile = ppu:get(4, 4, 1)
+    assert(tile ~= nil, "expected hydrated tile after range setup")
+  end)
+  steps[#steps + 1] = pause("Observe hydrated range setup", 0.7)
+  return steps
+end
+
+local function buildPpuToolbarPatternRangesScenario(harness, app, runner)
+  harness:loadROM(BubbleExample.getLoadPath())
+  local steps = {
+    pause("Start", 0.35),
+    call("Create deterministic PPU fixture", function(_, currentApp, currentRunner)
+      setupDeterministicPpuFixture(currentApp, currentRunner)
+      local ppu = currentRunner.ppuFixtureWin
+      local layer = ppu.layers and ppu.layers[1]
+      layer.patternTable = { ranges = {} }
+      currentApp.wm:setFocus(ppu)
+    end),
+    pause("Observe clean pattern-range fixture", 0.45),
+  }
+
+  appendClick(steps, "Open Add tile range modal", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
+    return toolbar.addTileRangeButton
+  end), { moveDuration = 0.1, postPause = 0.2 })
+  steps[#steps + 1] = call("Add first pattern range", function(currentHarness, currentApp)
+    local modal = assert(currentApp.ppuFramePatternRangeModal, "expected ppuFramePatternRangeModal")
+    assert(modal:isVisible(), "expected pattern range modal visible")
+    setFocusedTextFieldValue(modal.bankField, "1")
+    setFocusedTextFieldValue(modal.fromField, "0")
+    setFocusedTextFieldValue(modal.toField, "31")
+    modal.pageSpinner:setValue(1)
+    currentHarness:keyPress("return", { wait = false })
+    currentHarness:wait(0.16)
+  end)
+  steps[#steps + 1] = call("Assert add-range auto enables pattern mode", function(_, _, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    local layer = assert(ppu.layers and ppu.layers[1], "expected tile layer")
+    local ranges = layer.patternTable and layer.patternTable.ranges or {}
+    assert(#ranges == 1, "expected one pattern range after first add")
+    assert(ppu.patternLayerSoloMode == true, "expected pattern layer solo mode after add range")
+  end)
+
+  appendClick(steps, "Open Add tile range modal again", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
+    return toolbar.addTileRangeButton
+  end), { moveDuration = 0.1, postPause = 0.2 })
+  steps[#steps + 1] = call("Add second pattern range", function(currentHarness, currentApp)
+    local modal = assert(currentApp.ppuFramePatternRangeModal, "expected ppuFramePatternRangeModal")
+    assert(modal:isVisible(), "expected pattern range modal visible for second add")
+    setFocusedTextFieldValue(modal.bankField, "1")
+    setFocusedTextFieldValue(modal.fromField, "32")
+    setFocusedTextFieldValue(modal.toField, "47")
+    modal.pageSpinner:setValue(1)
+    currentHarness:keyPress("return", { wait = false })
+    currentHarness:wait(0.16)
+  end)
+  steps[#steps + 1] = call("Assert second range appended", function(_, _, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    local layer = assert(ppu.layers and ppu.layers[1], "expected tile layer")
+    local ranges = layer.patternTable and layer.patternTable.ranges or {}
+    assert(#ranges == 2, "expected two pattern ranges after second add")
+  end)
+
+  appendClick(steps, "Toggle pattern layer mode off", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
+    return toolbar.patternLayerToggleButton
+  end), { moveDuration = 0.1, postPause = 0.2 })
+  steps[#steps + 1] = call("Assert normal mode restored", function(_, _, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    assert(ppu.patternLayerSoloMode ~= true, "expected pattern mode to be off")
+  end)
+
+  steps[#steps + 1] = keyPress("Navigate layer in normal mode", "up", { "lshift" })
+  steps[#steps + 1] = call("Assert normal navigation excludes pattern layer", function(_, _, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    local active = (ppu.getActiveLayerIndex and ppu:getActiveLayerIndex()) or ppu.activeLayer
+    if ppu.findPatternReferenceLayerIndex then
+      local patternIndex = ppu:findPatternReferenceLayerIndex()
+      assert(active ~= patternIndex, "expected normal mode navigation to skip pattern layer")
+    end
+  end)
+
+  appendClick(steps, "Toggle pattern layer mode on", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
+    return toolbar.patternLayerToggleButton
+  end), { moveDuration = 0.1, postPause = 0.2 })
+  steps[#steps + 1] = keyPress("Try layer navigation in pattern mode", "up", { "lshift" })
+  steps[#steps + 1] = call("Assert navigation locked to pattern layer", function(_, _, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    assert(ppu.patternLayerSoloMode == true, "expected pattern mode on")
+    if ppu.findPatternReferenceLayerIndex then
+      local patternIndex = ppu:findPatternReferenceLayerIndex()
+      local active = (ppu.getActiveLayerIndex and ppu:getActiveLayerIndex()) or ppu.activeLayer
+      assert(active == patternIndex, "expected active layer to remain pattern layer in solo mode")
+    end
+  end)
+
+  steps[#steps + 1] = keyPress("Undo last add-range event (remove range)", "z", { "lctrl" })
+  steps[#steps + 1] = call("Assert undo removed last range", function(_, _, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    local layer = assert(ppu.layers and ppu.layers[1], "expected tile layer")
+    local ranges = layer.patternTable and layer.patternTable.ranges or {}
+    assert(#ranges == 1, "expected undo to remove last added range")
+  end)
+  steps[#steps + 1] = pause("Observe pattern range workflow", 0.75)
+  return steps
+end
+
+local function buildPpuToolbarSpriteAndModeControlsScenario(harness, app, runner)
+  harness:loadROM(BubbleExample.getLoadPath())
+  local steps = {
+    pause("Start", 0.35),
+    call("Create deterministic PPU fixture", function(_, currentApp, currentRunner)
+      setupDeterministicPpuFixture(currentApp, currentRunner)
+      currentApp.wm:setFocus(currentRunner.ppuFixtureWin)
+    end),
+    pause("Observe sprite controls fixture", 0.45),
+  }
+
+  appendClick(steps, "Click Add sprite toolbar button", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
+    return toolbar.addSpriteButton
+  end), { moveDuration = 0.1, postPause = 0.2 })
+
+  steps[#steps + 1] = call("Handle sprite-layer mode modal when needed", function(currentHarness, currentApp)
+    local modeModal = currentApp.ppuFrameSpriteLayerModeModal
+    if modeModal and modeModal:isVisible() then
+      currentHarness:keyPress("return", { wait = false })
+      currentHarness:wait(0.14)
+      return
+    end
+  end)
+
+  appendClick(steps, "Open add sprite modal after layer creation", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
+    return toolbar.addSpriteButton
+  end), { moveDuration = 0.1, postPause = 0.2 })
+
+  steps[#steps + 1] = call("Fill add sprite modal and confirm", function(currentHarness, currentApp)
+    local modal = assert(currentApp.ppuFrameAddSpriteModal, "expected ppuFrameAddSpriteModal")
+    assert(modal:isVisible(), "expected add sprite modal visible after sprite layer exists")
+    setFocusedTextFieldValue(modal.bankField, "1")
+    setFocusedTextFieldValue(modal.tileField, "6")
+    setFocusedTextFieldValue(modal.oamStartField, "0x000020")
+    currentHarness:keyPress("return", { wait = false })
+    currentHarness:wait(0.18)
+  end)
+
+  steps[#steps + 1] = call("Assert sprite layer created/selected with item", function(_, currentApp, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    local spriteLayers = ppu.getSpriteLayers and ppu:getSpriteLayers() or {}
+    assert(#spriteLayers >= 1, "expected at least one sprite layer after add sprite")
+    local info = spriteLayers[1]
+    local layer = assert(info.layer, "expected sprite layer info")
+    assert(#(layer.items or {}) >= 1, "expected at least one sprite after add")
+    currentRunner.ppuSpriteLayerIndex = info.index
+    currentApp.wm:setFocus(ppu)
+  end)
+
+  appendClick(steps, "Toggle origin guides on", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
+    return toolbar.toggleOriginGuidesButton
+  end), { moveDuration = 0.1, postPause = 0.2 })
+  steps[#steps + 1] = call("Assert origin guides enabled", function(_, _, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    assert(ppu.showSpriteOriginGuides == true, "expected origin guides enabled")
+  end)
+  appendClick(steps, "Toggle origin guides off", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
+    return toolbar.toggleOriginGuidesButton
+  end), { moveDuration = 0.1, postPause = 0.2 })
+  steps[#steps + 1] = call("Assert origin guides disabled", function(_, _, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    assert(ppu.showSpriteOriginGuides ~= true, "expected origin guides disabled")
+  end)
+
+  appendClick(steps, "Enable pattern layer mode", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
+    return toolbar.patternLayerToggleButton
+  end), { moveDuration = 0.1, postPause = 0.2 })
+  steps[#steps + 1] = call("Assert pattern mode toggle action ran", function(currentHarness)
+    assert(tostring(currentHarness:getStatusText() or "") ~= "", "expected status feedback after enabling pattern mode")
+  end)
+  appendClick(steps, "Disable pattern layer mode", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
+    return toolbar.patternLayerToggleButton
+  end), { moveDuration = 0.1, postPause = 0.2 })
+  steps[#steps + 1] = call("Assert pattern mode disable action ran", function(currentHarness)
+    assert(tostring(currentHarness:getStatusText() or "") ~= "", "expected status feedback after disabling pattern mode")
+  end)
+
+  appendClick(steps, "Previous layer toolbar button", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
+    return toolbar.buttons and toolbar.buttons[1]
+  end), { moveDuration = 0.08, postPause = 0.15 })
+  appendClick(steps, "Next layer toolbar button", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
+    return toolbar.buttons and toolbar.buttons[2]
+  end), { moveDuration = 0.08, postPause = 0.2 })
+  steps[#steps + 1] = pause("Observe sprite and mode controls workflow", 0.75)
+
+  return steps
+end
+
 local SCENARIOS = {
   default_action_delay = {
     title = "Default Action Delay",
@@ -2679,6 +3231,22 @@ local SCENARIOS = {
     title = "Text Field Variants",
     build = buildTextFieldVariantsScenario,
   },
+  clipboard_matrix = {
+    title = "Clipboard Matrix",
+    build = buildClipboardMatrixScenario,
+  },
+  ppu_toolbar_ranges_setup = {
+    title = "PPU Toolbar Ranges Setup",
+    build = buildPpuToolbarRangesSetupScenario,
+  },
+  ppu_toolbar_pattern_ranges = {
+    title = "PPU Toolbar Pattern Ranges",
+    build = buildPpuToolbarPatternRangesScenario,
+  },
+  ppu_toolbar_sprite_and_mode_controls = {
+    title = "PPU Toolbar Sprite + Mode Controls",
+    build = buildPpuToolbarSpriteAndModeControlsScenario,
+  },
 }
 
 local SCENARIO_ALIASES = {
@@ -2701,6 +3269,10 @@ local SCENARIO_ALIASES = {
   window_resize_and_hover_priority_demo = "window_resize_and_hover_priority",
   modal_navigation_keyboard_only_demo = "modal_navigation_keyboard_only",
   text_field_variants_demo = "text_field_variants",
+  clipboard_matrix_demo = "clipboard_matrix",
+  ppu_toolbar_ranges_setup_demo = "ppu_toolbar_ranges_setup",
+  ppu_toolbar_pattern_ranges_demo = "ppu_toolbar_pattern_ranges",
+  ppu_toolbar_sprite_and_mode_controls_demo = "ppu_toolbar_sprite_and_mode_controls",
 }
 
 return {

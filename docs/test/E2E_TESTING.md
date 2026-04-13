@@ -40,7 +40,7 @@ You can also pass an optional speed multiplier:
 
 - scenario list: `scripts/unix/run_e2e_tests.sh` and `scripts/windows/run_e2e_tests.bat`
 - single-scenario launcher: `scripts/unix/run_e2e_demo.sh` and `scripts/windows/run_e2e_demo.bat`
-- visual scenario definitions: `test/e2e_visible_runner.lua`
+- visual scenario definitions: `test/e2e_visible/scenarios.lua`
 - visual timing config: `test/e2e_visual_config.lua`
 
 ## How visual E2E works
@@ -58,7 +58,7 @@ The real app is booted, the scenario runs on top of it, and an overlay shows the
 
 ## Adding a new visual E2E scenario
 
-1. Add a scenario to `test/e2e_visible_runner.lua`.
+1. Add a scenario to `test/e2e_visible/scenarios.lua`.
 2. Compose it from small visual steps.
 3. Run it with `./scripts/unix/run_e2e_demo.sh <scenario>` (or `scripts\windows\run_e2e_demo.bat <scenario>`).
 4. If it should be part of the standard suite, add it to `scripts/unix/run_e2e_tests.sh` and `scripts/windows/run_e2e_tests.bat`.
@@ -82,3 +82,7 @@ The real app is booted, the scenario runs on top of it, and an overlay shows the
 - `context_menus_and_submenus`
 - `window_resize_and_hover_priority`
 - `modal_navigation_keyboard_only`
+- `clipboard_matrix`
+- `ppu_toolbar_ranges_setup`
+- `ppu_toolbar_pattern_ranges`
+- `ppu_toolbar_sprite_and_mode_controls`

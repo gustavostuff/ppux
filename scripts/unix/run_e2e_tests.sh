@@ -25,6 +25,10 @@ SCENARIOS=(
   "window_resize_and_hover_priority"
   "modal_navigation_keyboard_only"
   "text_field_variants"
+  "clipboard_matrix"
+  "ppu_toolbar_ranges_setup"
+  "ppu_toolbar_pattern_ranges"
+  "ppu_toolbar_sprite_and_mode_controls"
 )
 pass_count=0
 fail_count=0
