@@ -4,7 +4,7 @@ local Palettes = require("palettes")
 local M = {}
 local ENABLE_LOADING_PRESENT_DELAY = true
 local LOADING_PRESENT_DELAY_SECONDS = 0.1
-local LOADING_LABEL_FONT_SIZE = 32
+local LOADING_LABEL_FONT_SIZE = 16
 local fallbackCanvas = nil
 local loadingFont = nil
 local cachedPaletteColors = nil
@@ -15,6 +15,9 @@ local function loadingScreenDisabled()
 end
 
 local function getLoadingFont(app)
+  if app and app.font then
+    return app.font
+  end
   if loadingFont then
     return loadingFont
   end

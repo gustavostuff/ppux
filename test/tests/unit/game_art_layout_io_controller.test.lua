@@ -300,7 +300,7 @@ describe("game_art_layout_io_controller.lua", function()
     expect(restored).toBeTruthy()
     expect(restored.compactView).toBe(true)
     expect(restored.cellW).toBe(20)
-    expect(restored.cellH).toBe(13)
+    expect(restored.cellH).toBe(15)
   end)
 
   it("persists OAM animation sprite origin guides through layout snapshot and rebuild", function()

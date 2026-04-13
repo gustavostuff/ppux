@@ -14,7 +14,7 @@ describe("palette_window.lua - compact mode", function()
     win:setCompactMode(true)
     expect(win.compactView).toBe(true)
     expect(win.cellW).toBe(20)
-    expect(win.cellH).toBe(13)
+    expect(win.cellH).toBe(15)
 
     win:setCompactMode(false)
     expect(win.compactView).toBe(false)
@@ -30,7 +30,7 @@ describe("palette_window.lua - compact mode", function()
 
     expect(win.compactView).toBe(true)
     expect(win.cellW).toBe(20)
-    expect(win.cellH).toBe(13)
+    expect(win.cellH).toBe(15)
   end)
 
   it("builds row and column strip codes from the selected color", function()

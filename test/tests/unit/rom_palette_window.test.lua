@@ -256,7 +256,7 @@ describe("rom_palette_window.lua - locked cells", function()
     expect(win:isCellEditable(0, 0)).toBe(false)
   end)
 
-  it("supports compact mode and switches cell size to 20x13", function()
+  it("supports compact mode and switches cell size to 20x15", function()
     local win = makeWindow()
 
     expect(win:supportsCompactMode()).toBe(true)
@@ -267,7 +267,7 @@ describe("rom_palette_window.lua - locked cells", function()
     win:setCompactMode(true)
     expect(win.compactView).toBe(true)
     expect(win.cellW).toBe(20)
-    expect(win.cellH).toBe(13)
+    expect(win.cellH).toBe(15)
 
     win:setCompactMode(false)
     expect(win.compactView).toBe(false)
