@@ -9,7 +9,7 @@ local Text = require("utils.text_utils")
 local M = {}
 
 local MIN_BAR_H = 15
-local PAD_X = 0
+local PAD_X = 3
 local PAD_Y = 0
 local GAP = 0
 local STATUS_AREA_RATIO = 0.5

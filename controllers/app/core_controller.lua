@@ -2019,8 +2019,40 @@ didPpuFrameRangeSettingsChange = function(beforeState, afterState)
     return false
   end
 
+  local function patternTableSignature(patternTable)
+    if type(patternTable) ~= "table" or type(patternTable.ranges) ~= "table" then
+      return ""
+    end
+    local parts = {}
+    for i, range in ipairs(patternTable.ranges) do
+      local from, to = parsePatternRangeBounds(range)
+      parts[#parts + 1] = string.format(
+        "%d:%d:%s:%s",
+        math.floor(tonumber(range.bank) or -1),
+        math.floor(tonumber(range.page) or -1),
+        tostring(from),
+        tostring(to)
+      )
+      if type(range.tileRange) == "table" then
+        parts[#parts + 1] = string.format(
+          "tr:%s:%s",
+          tostring(range.tileRange.from),
+          tostring(range.tileRange.to)
+        )
+      end
+      parts[#parts + 1] = ";"
+      if i >= 512 then
+        break
+      end
+    end
+    return table.concat(parts, "|")
+  end
+
   return beforeLayer.nametableStartAddr ~= afterLayer.nametableStartAddr
     or beforeLayer.nametableEndAddr ~= afterLayer.nametableEndAddr
+    or beforeLayer.noOverflowSupported ~= afterLayer.noOverflowSupported
+    or beforeLayer.codec ~= afterLayer.codec
+    or patternTableSignature(beforeLayer.patternTable) ~= patternTableSignature(afterLayer.patternTable)
 end
 
 local function getFirstPpuSpriteLayer(win)
@@ -2576,6 +2608,18 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
   local hydrated, _ = hydrateNametableLayerIfReady(self, win, layer, li)
   if not hydrated and win.invalidateNametableLayerCanvas then
     win:invalidateNametableLayerCanvas(li)
+  end
+
+  -- Keep runtime pattern-table reference layer in sync so undo/redo is visible
+  -- immediately when the PPU frame is in pattern-layer solo mode.
+  if self._ensurePpuPatternTableReferenceLayer and type(layer.patternTable) == "table" then
+    self:_ensurePpuPatternTableReferenceLayer({
+      win = win,
+      layer = layer,
+      layerIndex = li,
+    }, {
+      keepActiveLayer = true,
+    })
   end
 
   if win.syncNametableLayerMetadata then

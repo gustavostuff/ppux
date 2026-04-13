@@ -252,4 +252,35 @@ describe("core_controller.lua - contextual menu helpers", function()
 
     KeyboardClipboardController.getActionAvailability = oldGetActionAvailability
   end)
+
+  it("detects PPU range changes when pattern-table ranges are updated", function()
+    expect(type(didPpuFrameRangeSettingsChange)).toBe("function")
+
+    local beforeState = {
+      layerState = {
+        nametableStartAddr = 0x2000,
+        nametableEndAddr = 0x23BF,
+        patternTable = {
+          ranges = {
+            { bank = 1, page = 1, from = 0, to = 31 },
+          },
+        },
+      },
+    }
+    local afterState = {
+      layerState = {
+        nametableStartAddr = 0x2000,
+        nametableEndAddr = 0x23BF,
+        patternTable = {
+          ranges = {
+            { bank = 1, page = 1, from = 0, to = 31 },
+            { bank = 1, page = 2, from = 64, to = 79 },
+          },
+        },
+      },
+    }
+
+    local changed = didPpuFrameRangeSettingsChange(beforeState, afterState)
+    expect(changed).toBe(true)
+  end)
 end)

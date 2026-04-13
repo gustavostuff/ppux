@@ -214,6 +214,97 @@ local function patternTableLogicalSize(patternTable)
   return total, nil
 end
 
+local function getPatternLogicalRangeForIndex(patternTable, logicalIndex)
+  if type(patternTable) ~= "table" or type(patternTable.ranges) ~= "table" then
+    return nil, nil, nil
+  end
+  if type(logicalIndex) ~= "number" then
+    return nil, nil, nil
+  end
+
+  local cursor = 0
+  for i, range in ipairs(patternTable.ranges) do
+    local from, to = parsePatternRangeBounds(range)
+    if from ~= nil and to ~= nil then
+      local count = (to - from + 1)
+      local startLogical = cursor
+      local endLogical = cursor + count - 1
+      if logicalIndex >= startLogical and logicalIndex <= endLogical then
+        return i, startLogical, endLogical
+      end
+      cursor = cursor + count
+    end
+  end
+
+  return nil, nil, nil
+end
+
+local function getHoveredPatternRangeHighlight(self, layer)
+  if not (self and layer and layer._runtimePatternTableRefLayer == true) then
+    return nil
+  end
+
+  local gctx = rawget(_G, "ctx")
+  local scaledMouse = gctx and gctx.scaledMouse and gctx.scaledMouse() or nil
+  if not scaledMouse then
+    return nil
+  end
+
+  local wm = gctx and gctx.wm and gctx.wm() or nil
+  if wm and wm.windowAt and wm:windowAt(scaledMouse.x, scaledMouse.y) ~= self then
+    return nil
+  end
+
+  local ok, hoverCol, hoverRow = self:toGridCoords(scaledMouse.x, scaledMouse.y)
+  if not ok then
+    return nil
+  end
+
+  local logicalByCell = layer._runtimePatternTableLogicalByCell
+  local patternTableLayer = layer._runtimePatternTableRefTargetLayer
+  local patternTable = patternTableLayer and patternTableLayer.patternTable or nil
+  if type(logicalByCell) ~= "table" or type(patternTable) ~= "table" then
+    return nil
+  end
+
+  local hoverIdx = lin(self.cols or 32, hoverCol, hoverRow)
+  local hoverLogical = logicalByCell[hoverIdx]
+  if type(hoverLogical) ~= "number" then
+    return nil
+  end
+
+  local _, startLogical, endLogical = getPatternLogicalRangeForIndex(patternTable, hoverLogical)
+  if startLogical == nil or endLogical == nil then
+    return nil
+  end
+
+  return {
+    startLogical = startLogical,
+    endLogical = endLogical,
+    logicalByCell = logicalByCell,
+  }
+end
+
+local function drawPatternRangeHoverOverlay(self, cw, ch, c0, r0, c1, r1, rangeHighlight)
+  if not rangeHighlight then
+    return
+  end
+  love.graphics.setColor(1, 1, 1, 0.30)
+  for row = r0, r1 do
+    for col = c0, c1 do
+      local idx = lin(self.cols or 32, col, row)
+      local logical = rangeHighlight.logicalByCell[idx]
+      if type(logical) == "number"
+        and logical >= rangeHighlight.startLogical
+        and logical <= rangeHighlight.endLogical
+      then
+        love.graphics.rectangle("fill", col * cw, row * ch, cw - 1, ch - 1)
+      end
+    end
+  end
+  love.graphics.setColor(colors.white)
+end
+
 local function resolveOriginalCompressedSizeBudget(self, layer, startAddr)
   local resolvedStart = startAddr
   if type(resolvedStart) ~= "number" then
@@ -417,6 +508,7 @@ function PPUFrameWindow:drawVisibleNametableCells(renderCell, layerIndex)
   local r1 = math.min(self.rows - 1, vR1 + spill)
 
   local layerAlpha = (layer.opacity ~= nil) and layer.opacity or 1.0
+  local rangeHighlight = getHoveredPatternRangeHighlight(self, layer)
 
   for idx, item in pairs(layer.items or {}) do
     if item ~= nil then
@@ -431,6 +523,8 @@ function PPUFrameWindow:drawVisibleNametableCells(renderCell, layerIndex)
       end
     end
   end
+
+  drawPatternRangeHoverOverlay(self, cw, ch, c0, r0, c1, r1, rangeHighlight)
 
   love.graphics.pop()
   love.graphics.setScissor()
@@ -588,6 +682,14 @@ function PPUFrameWindow:drawNametableLayerCanvas(layerIndex)
   love.graphics.translate(-(self.scrollCol or 0) * cw, -(self.scrollRow or 0) * ch)
   love.graphics.setColor(1, 1, 1, layerOpacity)
   love.graphics.draw(state.canvas, 0, 0)
+  local rangeHighlight = getHoveredPatternRangeHighlight(self, layer)
+  if rangeHighlight then
+    local vC0 = self.scrollCol or 0
+    local vR0 = self.scrollRow or 0
+    local vC1 = math.min((self.cols or 32) - 1, vC0 + (self.visibleCols or 1) - 1)
+    local vR1 = math.min((self.rows or 30) - 1, vR0 + (self.visibleRows or 1) - 1)
+    drawPatternRangeHoverOverlay(self, cw, ch, vC0, vR0, vC1, vR1, rangeHighlight)
+  end
   love.graphics.pop()
   love.graphics.setScissor()
   love.graphics.setColor(colors.white)

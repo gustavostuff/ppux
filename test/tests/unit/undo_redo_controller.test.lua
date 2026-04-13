@@ -457,3 +457,36 @@ describe("UndoRedoController - window minimize", function()
     expect(wm:getFocus()).toBe(winA)
   end)
 end)
+
+describe("UndoRedoController - ppu frame range", function()
+  it("undos/redos ppu_frame_range events through applyPpuFrameRangeState", function()
+    local ur = UndoRedoController.new(10)
+
+    local win = { kind = "ppu_frame" }
+    local beforeState = { win = win, layerState = { patternTable = { ranges = {} } } }
+    local afterState = { win = win, layerState = { patternTable = { ranges = { { bank = 1, page = 1, from = 0, to = 15 } } } } }
+
+    local pushed = ur:addPpuFrameRangeEvent({
+      type = "ppu_frame_range",
+      win = win,
+      layerIndex = 1,
+      beforeState = beforeState,
+      afterState = afterState,
+    })
+    expect(pushed).toBe(true)
+
+    local appliedStates = {}
+    local app = {
+      applyPpuFrameRangeState = function(_, state)
+        appliedStates[#appliedStates + 1] = state
+        return true
+      end,
+    }
+
+    expect(ur:undo(app)).toBe(true)
+    expect(appliedStates[1]).toBe(beforeState)
+
+    expect(ur:redo(app)).toBe(true)
+    expect(appliedStates[2]).toBe(afterState)
+  end)
+end)
