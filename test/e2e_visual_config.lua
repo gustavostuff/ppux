@@ -3,7 +3,7 @@ local Config = {
   -- 1   = current/base speed
   -- 2   = 2x faster
   -- 0.5 = 2x slower
-  speedMultiplier = 1,
+  speedMultiplier = 8,
 }
 
 return Config

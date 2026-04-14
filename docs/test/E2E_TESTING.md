@@ -86,3 +86,16 @@ The real app is booted, the scenario runs on top of it, and an overlay shows the
 - `ppu_toolbar_ranges_setup`
 - `ppu_toolbar_pattern_ranges`
 - `ppu_toolbar_sprite_and_mode_controls`
+
+## Clipboard scenario matrix
+
+`clipboard_matrix` should cover this expected behavior:
+
+- tile window copy/cut/paste with single and multi-selection payloads
+- sprite window copy/cut/paste on supported sprite layers
+- CHR same-window copy/cut/paste with before/after pixel assertions
+- restricted sprite-layer clipboard paths in `ppu_frame` and `oam_animation`
+- context-menu paste visibility + invocation on compatible tile contexts
+- cursor anchor in-bounds behavior (top-left pivot for copied bounds)
+- out-of-bounds shift-to-fit behavior for left/right/top/bottom edge pastes
+- oversized payload cancellation (no partial clip/drop)

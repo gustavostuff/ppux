@@ -194,4 +194,80 @@ describe("keyboard_clipboard_controller.lua - CHR virtual handles", function()
     expect(targetTile.pixels[16]).toBe(sourceTile.pixels[16])
     expect(targetTile.pixels[64]).toBe(sourceTile.pixels[64])
   end)
+
+  it("supports CHR same-window copy, cut and paste by pixel value", function()
+    local statuses = {}
+    local tileA = { pixels = {} }
+    local tileB = { pixels = {} }
+    local tileC = { pixels = {} }
+    for i = 1, 64 do
+      tileA.pixels[i] = i % 4
+      tileB.pixels[i] = 0
+      tileC.pixels[i] = (i + 1) % 4
+    end
+
+    local sourceLayer = {
+      kind = "tile",
+      multiTileSelection = { [1] = true },
+      removedCells = {},
+    }
+    local chrWin = {
+      kind = "chr",
+      cols = 3,
+      rows = 1,
+      layers = { sourceLayer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 0, 0, 1 end,
+      getVirtualTileHandle = function(_, col)
+        local idx = (col == 0 and 1) or (col == 1 and 2) or 3
+        return { _virtual = true, index = idx, _bankIndex = 1 }
+      end,
+      materializeTileHandle = function(_, handle)
+        if handle.index == 1 then return tileA end
+        if handle.index == 2 then return tileB end
+        return tileC
+      end,
+      get = function(_, col)
+        if col == 0 then return tileA end
+        if col == 1 then return tileB end
+        return tileC
+      end,
+      setSelected = function() end,
+      clearSelected = function() end,
+      toGridCoords = function(_, x)
+        if x == 12 then return true, 1, 0, 0, 0 end
+        if x == 22 then return true, 2, 0, 0, 0 end
+        return false
+      end,
+    }
+    local ctx = {
+      getMode = function() return "tile" end,
+      setStatus = function(text) statuses[#statuses + 1] = text end,
+      scaledMouse = function() return { x = 12, y = 0 } end,
+      app = {
+        markUnsaved = function() end,
+      },
+    }
+    local utils = {
+      ctrlDown = function() return true end,
+      altDown = function() return false end,
+      shiftDown = function() return false end,
+    }
+
+    expect(KeyboardClipboardController.handleCopySelection(ctx, utils, "c", chrWin)).toBe(true)
+    expect(KeyboardClipboardController.handlePasteSelection(ctx, utils, "v", chrWin)).toBe(true)
+    expect(tileB.pixels[1]).toBe(tileA.pixels[1])
+    expect(tileB.pixels[64]).toBe(tileA.pixels[64])
+
+    sourceLayer.multiTileSelection = { [1] = true }
+    expect(KeyboardClipboardController.handleCutSelection(ctx, utils, "x", chrWin)).toBe(true)
+    expect(tileA.pixels[1]).toBe(0)
+    expect(tileA.pixels[64]).toBe(0)
+
+    ctx.scaledMouse = function() return { x = 22, y = 0 } end
+    expect(KeyboardClipboardController.handlePasteSelection(ctx, utils, "v", chrWin)).toBe(true)
+    expect(tileC.pixels[1]).toBe((1 % 4))
+    expect(tileC.pixels[64]).toBe((64 % 4))
+    expect(statuses[#statuses]).toBe("Pasted 1 tile at center")
+  end)
 end)

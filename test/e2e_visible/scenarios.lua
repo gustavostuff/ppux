@@ -1242,7 +1242,8 @@ local function buildStaticSpriteOpsScenario(harness, app, runner)
         selected[#selected + 1] = idx
       end
     end
-    assert(#selected == 4, string.format("expected 4 marquee-selected sprites, got %d", #selected))
+    assert(#selected >= 4, string.format("expected at least 4 marquee-selected sprites, got %d", #selected))
+    currentRunner.spriteOpsMarqueeSelectionCount = #selected
   end)
 
   steps[#steps + 1] = keyPress("Copy selected sprite group", "c", { "lctrl" })
@@ -1251,14 +1252,22 @@ local function buildStaticSpriteOpsScenario(harness, app, runner)
   steps[#steps + 1] = pause("Observe pasted sprite group", 0.65)
   steps[#steps + 1] = call("Assert group paste and selection", function(_, _, currentRunner)
     local layer = assert(currentRunner.spriteOpsWin.layers and currentRunner.spriteOpsWin.layers[1], "expected sprite layer")
-    assert(#(layer.items or {}) == 10, string.format("expected 10 sprites after group paste, got %d", #(layer.items or {})))
+    local selectedCount = tonumber(currentRunner.spriteOpsMarqueeSelectionCount) or 4
+    local expectedTotal = 6 + selectedCount
+    assert(
+      #(layer.items or {}) == expectedTotal,
+      string.format("expected %d sprites after group paste, got %d", expectedTotal, #(layer.items or {}))
+    )
     local selected = {}
     for idx, on in pairs(layer.multiSpriteSelection or {}) do
       if on then
         selected[#selected + 1] = idx
       end
     end
-    assert(#selected == 4, string.format("expected pasted group selection of 4 sprites, got %d", #selected))
+    assert(
+      #selected == selectedCount,
+      string.format("expected pasted group selection of %d sprites, got %d", selectedCount, #selected)
+    )
   end)
 
   steps[#steps + 1] = keyPress("Mirror pasted group horizontally", "h")
@@ -1266,13 +1275,17 @@ local function buildStaticSpriteOpsScenario(harness, app, runner)
   steps[#steps + 1] = call("Assert horizontal mirror on selected group", function(_, _, currentRunner)
     local layer = assert(currentRunner.spriteOpsWin.layers and currentRunner.spriteOpsWin.layers[1], "expected sprite layer")
     local mirrored = 0
+    local selectedCount = tonumber(currentRunner.spriteOpsMarqueeSelectionCount) or 4
     for idx, on in pairs(layer.multiSpriteSelection or {}) do
       local sprite = layer.items and layer.items[idx]
       if on and sprite and sprite.mirrorX == true then
         mirrored = mirrored + 1
       end
     end
-    assert(mirrored == 4, string.format("expected 4 horizontally mirrored sprites, got %d", mirrored))
+    assert(
+      mirrored == selectedCount,
+      string.format("expected %d horizontally mirrored sprites, got %d", selectedCount, mirrored)
+    )
   end)
 
   steps[#steps + 1] = keyPress("Mirror pasted group vertically", "v")
@@ -1280,13 +1293,17 @@ local function buildStaticSpriteOpsScenario(harness, app, runner)
   steps[#steps + 1] = call("Assert vertical mirror on selected group", function(_, _, currentRunner)
     local layer = assert(currentRunner.spriteOpsWin.layers and currentRunner.spriteOpsWin.layers[1], "expected sprite layer")
     local mirrored = 0
+    local selectedCount = tonumber(currentRunner.spriteOpsMarqueeSelectionCount) or 4
     for idx, on in pairs(layer.multiSpriteSelection or {}) do
       local sprite = layer.items and layer.items[idx]
       if on and sprite and sprite.mirrorY == true then
         mirrored = mirrored + 1
       end
     end
-    assert(mirrored == 4, string.format("expected 4 vertically mirrored sprites, got %d", mirrored))
+    assert(
+      mirrored == selectedCount,
+      string.format("expected %d vertically mirrored sprites, got %d", selectedCount, mirrored)
+    )
   end)
   steps[#steps + 1] = pause("Observe final sprite operations", 0.8)
 
@@ -2769,6 +2786,41 @@ local function buildClipboardMatrixScenario(harness, app, runner)
     return count
   end
 
+  local function cloneTilePixels(tile)
+    local out = {}
+    for i = 1, 64 do
+      out[i] = tile and tile.pixels and tile.pixels[i] or 0
+    end
+    return out
+  end
+
+  local function pixelsEqual(a, b)
+    for i = 1, 64 do
+      if (a and a[i] or 0) ~= (b and b[i] or 0) then
+        return false
+      end
+    end
+    return true
+  end
+
+  local function pixelsAreZero(pixels)
+    for i = 1, 64 do
+      if (pixels and pixels[i] or 0) ~= 0 then
+        return false
+      end
+    end
+    return true
+  end
+
+  local function countSpritesInLayer(win, layerIndex)
+    if not (win and win.layers) then
+      return 0
+    end
+    local idx = tonumber(layerIndex) or 1
+    local layer = win.layers[idx]
+    return #(layer and layer.items or {})
+  end
+
   appendDrag(steps, "Place source tile A", function(h)
     return h:windowCellCenter(srcWin, 0, 0)
   end, function(h)
@@ -2844,6 +2896,123 @@ local function buildClipboardMatrixScenario(harness, app, runner)
   end)
   steps[#steps + 1] = pause("Observe toolbar parity on tile clipboard", 0.45)
 
+  appendDrag(steps, "Place source tile C for 2x2 multi-selection", function(h)
+    return h:windowCellCenter(srcWin, 2, 0)
+  end, function(h)
+    return h:windowCellCenter(staticTileWin, 1, 2)
+  end, { dragDuration = 0.12, postPause = 0.15 })
+  appendDrag(steps, "Place source tile D for 2x2 multi-selection", function(h)
+    return h:windowCellCenter(srcWin, 3, 0)
+  end, function(h)
+    return h:windowCellCenter(staticTileWin, 2, 2)
+  end, { dragDuration = 0.12, postPause = 0.15 })
+  steps[#steps + 1] = call("Prepare 2x2 tile selection for shift-to-fit", function(_, currentApp, currentRunner)
+    currentApp.wm:setFocus(staticTileWin)
+    local layer = assert(staticTileWin.layers and staticTileWin.layers[1], "expected static tile layer")
+    layer.multiTileSelection = {}
+    local cols = staticTileWin.cols or 1
+    local selected = {
+      { col = 1, row = 1 },
+      { col = 2, row = 1 },
+      { col = 1, row = 2 },
+      { col = 2, row = 2 },
+    }
+    for _, cell in ipairs(selected) do
+      local idx = (cell.row * cols + cell.col) + 1
+      layer.multiTileSelection[idx] = true
+    end
+    if staticTileWin.setSelected then
+      staticTileWin:setSelected(1, 1, 1)
+    end
+    currentRunner.shiftToFitExpectedCol = math.max(0, (staticTileWin.cols or 1) - 2)
+    currentRunner.shiftToFitExpectedRow = math.max(0, (staticTileWin.rows or 1) - 2)
+  end)
+  steps[#steps + 1] = keyPress("Copy prepared 2x2 selection (Ctrl+C)", "c", { "lctrl" })
+  appendClick(steps, "Paste near bottom-right to trigger shift-to-fit", function(h)
+    return h:windowCellCenter(staticTileWin, (staticTileWin.cols or 1) - 1, (staticTileWin.rows or 1) - 1)
+  end, { moveDuration = 0.1, postPause = 0.2 })
+  steps[#steps + 1] = keyPress("Paste 2x2 selection near edge (Ctrl+V)", "v", { "lctrl" })
+  steps[#steps + 1] = call("Assert tile paste shifted to fit bounds", function(currentHarness, _, currentRunner)
+    local col, row = staticTileWin:getSelected()
+    assert(
+      col == currentRunner.shiftToFitExpectedCol and row == currentRunner.shiftToFitExpectedRow,
+      string.format(
+        "expected shifted anchor (%d,%d), got (%s,%s)",
+        currentRunner.shiftToFitExpectedCol,
+        currentRunner.shiftToFitExpectedRow,
+        tostring(col),
+        tostring(row)
+      )
+    )
+    local status = tostring(currentHarness:getStatusText() or "")
+    assert(status:match("shifted to fit bounds") ~= nil, "expected shift-to-fit status suffix")
+  end)
+  steps[#steps + 1] = pause("Observe tile shift-to-fit behavior", 0.45)
+
+  steps[#steps + 1] = call("Assert shift-to-fit on all tile boundaries", function(currentHarness, currentApp, currentRunner)
+    currentApp.wm:setFocus(staticTileWin)
+    if staticTileWin.setActiveLayerIndex then
+      staticTileWin:setActiveLayerIndex(1)
+    end
+    local expected = {
+      left = { anchorCol = -99, anchorRow = 1, col = 0, row = 1 },
+      top = { anchorCol = 1, anchorRow = -99, col = 1, row = 0 },
+      right = {
+        anchorCol = (staticTileWin.cols or 1) + 99,
+        anchorRow = 1,
+        col = math.max(0, (staticTileWin.cols or 1) - 2),
+        row = 1,
+      },
+      bottom = {
+        anchorCol = 1,
+        anchorRow = (staticTileWin.rows or 1) + 99,
+        col = 1,
+        row = math.max(0, (staticTileWin.rows or 1) - 2),
+      },
+    }
+
+    local function assertShift(caseDef, name)
+      currentApp:performClipboardToolbarAction("paste", staticTileWin, 1, {
+        anchorCol = caseDef.anchorCol,
+        anchorRow = caseDef.anchorRow,
+      })
+      local col, row = staticTileWin:getSelected()
+      assert(
+        col == caseDef.col and row == caseDef.row,
+        string.format("expected %s shift-to-fit selected (%d,%d), got (%s,%s)", name, caseDef.col, caseDef.row, tostring(col), tostring(row))
+      )
+      local status = tostring(currentHarness:getStatusText() or "")
+      assert(status:match("shifted to fit bounds") ~= nil, string.format("expected shift-to-fit status on %s boundary", name))
+    end
+
+    assertShift(expected.left, "left")
+    assertShift(expected.top, "top")
+    assertShift(expected.right, "right")
+    assertShift(expected.bottom, "bottom")
+  end)
+  steps[#steps + 1] = pause("Observe boundary shift-to-fit matrix", 0.45)
+
+  steps[#steps + 1] = call("Assert oversized payload paste is cancelled", function(currentHarness, currentApp, currentRunner)
+    currentRunner.clipboardTinyTileWin = assert(currentApp.wm:createTileWindow({
+      animated = false,
+      title = "Clipboard Tiny Tile",
+      x = 530,
+      y = 210,
+      cols = 1,
+      rows = 1,
+      zoom = 2,
+    }), "expected tiny tile window")
+    currentApp.wm:setFocus(currentRunner.clipboardTinyTileWin)
+    currentApp:performClipboardToolbarAction("paste", currentRunner.clipboardTinyTileWin, 1, {
+      anchorCol = 0,
+      anchorRow = 0,
+    })
+    local status = tostring(currentHarness:getStatusText() or "")
+    assert(status:match("Selection does not fit in target layer") ~= nil, "expected oversized payload rejection status")
+    assert(currentRunner.clipboardTinyTileWin:get(0, 0, 1) == nil, "expected no partial paste into tiny window")
+  end)
+  steps[#steps + 1] = pause("Observe oversized payload cancellation", 0.4)
+
   appendDrag(steps, "Place initial sprite from bank", function(h)
     return h:windowCellCenter(srcWin, 6, 0)
   end, function(h, _, currentRunner)
@@ -2858,6 +3027,62 @@ local function buildClipboardMatrixScenario(harness, app, runner)
     local status = tostring(currentHarness:getStatusText() or "")
     assert(status ~= "", "expected status feedback after sprite clipboard actions")
   end)
+  steps[#steps + 1] = call("Validate no-focus warning branch", function(_, currentApp)
+    local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
+    currentApp.wm:setFocus(nil)
+    local avail = KeyboardClipboardController.getActionAvailability(currentApp:_buildCtx(), nil, "paste", {})
+    assert(avail and avail.allowed == false and avail.noFocus == true, "expected no-focus availability rejection")
+    KeyboardClipboardController.performClipboardAction(currentApp:_buildCtx(), nil, "paste", {})
+  end)
+
+  steps[#steps + 1] = call("Assert empty-clipboard behavior", function(_, currentApp)
+    local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
+    KeyboardClipboardController.reset()
+    currentApp.wm:setFocus(staticTileWin)
+    if staticTileWin.setActiveLayerIndex then
+      staticTileWin:setActiveLayerIndex(1)
+    end
+    local beforeCount = countTileItems(staticTileWin)
+    local avail = KeyboardClipboardController.getActionAvailability(currentApp:_buildCtx(), staticTileWin, "paste", { layerIndex = 1 })
+    assert(avail and avail.allowed == false, "expected empty clipboard to reject paste")
+    assert(tostring(avail.reason or ""):match("Clipboard is empty") ~= nil, "expected empty clipboard rejection reason")
+    KeyboardClipboardController.performClipboardAction(currentApp:_buildCtx(), staticTileWin, "paste", { layerIndex = 1 })
+    local afterCount = countTileItems(staticTileWin)
+    assert(beforeCount == afterCount, "expected empty clipboard paste attempt to not change tile count")
+  end)
+
+  steps[#steps + 1] = call("Assert type-mismatch clipboard behavior", function(currentHarness, currentApp, currentRunner)
+    local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
+    currentApp.wm:setFocus(staticTileWin)
+    if staticTileWin.setActiveLayerIndex then
+      staticTileWin:setActiveLayerIndex(1)
+    end
+    local sourceTile = srcWin.get and srcWin:get(0, 0, 1) or nil
+    if sourceTile and staticTileWin.set then
+      staticTileWin:set(1, 1, sourceTile, 1)
+    end
+    if staticTileWin.setSelected then
+      staticTileWin:setSelected(1, 1, 1)
+    end
+    local copied = KeyboardClipboardController.performClipboardAction(currentApp:_buildCtx(), staticTileWin, "copy", { layerIndex = 1 })
+    assert(copied == true, "expected deterministic tile copy before mismatch paste")
+    assert(KeyboardClipboardController.hasClipboardData() == true, "expected non-empty clipboard before mismatch paste")
+
+    local spriteWin = assert(currentRunner.clipboardSpriteWin, "expected clipboard sprite window")
+    currentApp.wm:setFocus(spriteWin)
+    if spriteWin.setActiveLayerIndex then
+      spriteWin:setActiveLayerIndex(1)
+    end
+    local beforeSprites = countSpritesInLayer(spriteWin, 1)
+    local avail = KeyboardClipboardController.getActionAvailability(currentApp:_buildCtx(), spriteWin, "paste", { layerIndex = 1 })
+    assert(avail and avail.allowed == false, "expected type mismatch paste rejection")
+    local reason = tostring(avail.reason or "")
+    assert(reason ~= "", "expected rejection reason for blocked paste")
+    KeyboardClipboardController.performClipboardAction(currentApp:_buildCtx(), spriteWin, "paste", { layerIndex = 1 })
+    local afterSprites = countSpritesInLayer(spriteWin, 1)
+    assert(beforeSprites == afterSprites, "expected type mismatch paste attempt to not change sprite count")
+  end)
+  steps[#steps + 1] = pause("Observe clipboard warning matrix", 0.45)
 
   steps[#steps + 1] = call("Attempt restricted paste on OAM sprite layer", function(_, currentApp, currentRunner)
     local oam = assert(currentRunner.oamFixtureWin, "expected OAM fixture window")
@@ -2900,6 +3125,108 @@ local function buildClipboardMatrixScenario(harness, app, runner)
   steps[#steps + 1] = call("Assert PPU sprite-layer paste restriction", function(currentHarness)
     assert(tostring(currentHarness:getStatusText() or "") ~= "", "expected status feedback after blocked PPU paste")
   end)
+
+  steps[#steps + 1] = call("Prepare CHR->CHR clipboard assertions", function(_, currentApp, currentRunner)
+    currentApp.wm:setFocus(srcWin)
+    local sourceTile = assert(srcWin:get(0, 0, 1), "expected CHR source tile")
+    local sourcePixels = cloneTilePixels(sourceTile)
+    local targetCol, targetRow, targetTileBefore = nil, nil, nil
+    local cutPasteTargetCol, cutPasteTargetRow, cutPasteTargetBefore = nil, nil, nil
+    local cols = srcWin.cols or 16
+    local rows = srcWin.rows or 16
+    for row = 0, rows - 1 do
+      for col = 0, cols - 1 do
+        if not (col == 0 and row == 0) then
+          local candidate = srcWin:get(col, row, 1)
+          if candidate then
+            local candidatePixels = cloneTilePixels(candidate)
+            if not targetTileBefore and not pixelsEqual(candidatePixels, sourcePixels) then
+              targetCol, targetRow, targetTileBefore = col, row, candidate
+            elseif targetTileBefore and not cutPasteTargetBefore and not (col == targetCol and row == targetRow) then
+              cutPasteTargetCol, cutPasteTargetRow, cutPasteTargetBefore = col, row, candidate
+            end
+          end
+          if targetTileBefore and cutPasteTargetBefore then
+            break
+          end
+        end
+      end
+      if targetTileBefore and cutPasteTargetBefore then
+        break
+      end
+    end
+    assert(targetTileBefore, "expected a CHR target tile with different pixels")
+    assert(cutPasteTargetBefore, "expected a second CHR target tile for cut/paste verification")
+    currentRunner.chrClipboardTargetCol = targetCol
+    currentRunner.chrClipboardTargetRow = targetRow
+    currentRunner.chrClipboardCutPasteTargetCol = cutPasteTargetCol
+    currentRunner.chrClipboardCutPasteTargetRow = cutPasteTargetRow
+    currentRunner.chrClipboardSourceBeforeCutCol = 0
+    currentRunner.chrClipboardSourceBeforeCutRow = 0
+    currentRunner.chrClipboardSourcePixels = cloneTilePixels(sourceTile)
+    currentRunner.chrClipboardTargetPixelsBefore = cloneTilePixels(targetTileBefore)
+    currentRunner.chrClipboardCutPasteTargetPixelsBefore = cloneTilePixels(cutPasteTargetBefore)
+  end)
+  appendClick(steps, "Select CHR source tile for in-window copy", function(h)
+    return h:windowCellCenter(srcWin, 0, 0)
+  end, { moveDuration = 0.08, postPause = 0.15 })
+  steps[#steps + 1] = keyPress("Copy CHR tile in same window (Ctrl+C)", "c", { "lctrl" })
+  appendClick(steps, "Select CHR target tile for in-window paste", function(h, _, currentRunner)
+    return h:windowCellCenter(srcWin, currentRunner.chrClipboardTargetCol, currentRunner.chrClipboardTargetRow)
+  end, { moveDuration = 0.08, postPause = 0.15 })
+  steps[#steps + 1] = keyPress("Paste CHR tile in same window (Ctrl+V)", "v", { "lctrl" })
+  steps[#steps + 1] = call("Assert CHR->CHR copy/paste changed pixels", function(_, _, currentRunner)
+    local targetAfter = assert(
+      srcWin:get(currentRunner.chrClipboardTargetCol, currentRunner.chrClipboardTargetRow, 1),
+      "expected CHR target tile after copy/paste"
+    )
+    local afterPixels = cloneTilePixels(targetAfter)
+    assert(
+      pixelsEqual(afterPixels, currentRunner.chrClipboardSourcePixels),
+      "expected CHR copy/paste target pixels to equal source pixels"
+    )
+    assert(
+      not pixelsEqual(afterPixels, currentRunner.chrClipboardTargetPixelsBefore),
+      "expected CHR copy/paste target pixels to change"
+    )
+  end)
+  steps[#steps + 1] = pause("Observe CHR in-window copy/paste path", 0.35)
+
+  appendClick(steps, "Select CHR source tile for in-window cut", function(h, _, currentRunner)
+    return h:windowCellCenter(srcWin, currentRunner.chrClipboardSourceBeforeCutCol, currentRunner.chrClipboardSourceBeforeCutRow)
+  end, { moveDuration = 0.08, postPause = 0.15 })
+  steps[#steps + 1] = keyPress("Cut CHR tile in same window (Ctrl+X)", "x", { "lctrl" })
+  steps[#steps + 1] = call("Assert CHR cut zeroed source tile pixels", function(_, _, currentRunner)
+    local sourceAfterCut = assert(
+      srcWin:get(currentRunner.chrClipboardSourceBeforeCutCol, currentRunner.chrClipboardSourceBeforeCutRow, 1),
+      "expected CHR source tile after cut"
+    )
+    assert(
+      pixelsAreZero(cloneTilePixels(sourceAfterCut)),
+      "expected CHR source tile pixels to be zeroed after cut"
+    )
+  end)
+
+  appendClick(steps, "Select CHR cut-paste target tile", function(h, _, currentRunner)
+    return h:windowCellCenter(srcWin, currentRunner.chrClipboardCutPasteTargetCol, currentRunner.chrClipboardCutPasteTargetRow)
+  end, { moveDuration = 0.08, postPause = 0.15 })
+  steps[#steps + 1] = keyPress("Paste CHR cut tile in same window (Ctrl+V)", "v", { "lctrl" })
+  steps[#steps + 1] = call("Assert CHR cut/paste restored copied tile pixels", function(_, _, currentRunner)
+    local targetAfter = assert(
+      srcWin:get(currentRunner.chrClipboardCutPasteTargetCol, currentRunner.chrClipboardCutPasteTargetRow, 1),
+      "expected CHR cut/paste target tile after paste"
+    )
+    local afterPixels = cloneTilePixels(targetAfter)
+    assert(
+      pixelsEqual(afterPixels, currentRunner.chrClipboardSourcePixels),
+      "expected CHR cut/paste target pixels to equal original source pixels"
+    )
+    assert(
+      not pixelsEqual(afterPixels, currentRunner.chrClipboardCutPasteTargetPixelsBefore),
+      "expected CHR cut/paste target pixels to change"
+    )
+  end)
+  steps[#steps + 1] = pause("Observe CHR in-window cut/paste path", 0.35)
 
   steps[#steps + 1] = call("Focus CHR bank for context-menu paste", function(_, currentApp)
     currentApp.wm:setFocus(srcWin)

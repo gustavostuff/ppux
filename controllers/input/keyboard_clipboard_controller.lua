@@ -26,7 +26,26 @@ local function resolveScaledMouse(ctx)
   if not (ctx and type(ctx.scaledMouse) == "function") then
     return nil, nil
   end
-  local mx, my = ctx.scaledMouse()
+  local a, b, c = ctx.scaledMouse()
+  -- Accept both tuple style (x, y) and table style ({x=..., y=...}).
+  -- Some call paths may also return (ok, x, y), so normalize that too.
+  if type(a) == "table" then
+    local mx = tonumber(a.x)
+    local my = tonumber(a.y)
+    if type(mx) == "number" and type(my) == "number" then
+      return mx, my
+    end
+    return nil, nil
+  end
+
+  local mx, my = a, b
+  if type(a) == "boolean" then
+    if a ~= true then
+      return nil, nil
+    end
+    mx, my = b, c
+  end
+
   if type(mx) ~= "number" or type(my) ~= "number" then
     return nil, nil
   end
@@ -172,16 +191,40 @@ local function captureSpriteClipboard(win, layer)
   }
 end
 
+local function fitAnchorToBounds(anchor, payloadSize, limitSize)
+  local payload = math.max(1, math.floor(tonumber(payloadSize) or 1))
+  local limit = math.max(0, math.floor(tonumber(limitSize) or 0))
+  if payload > limit then
+    return nil, true, "payload_too_large"
+  end
+
+  local fitted = math.floor(tonumber(anchor) or 0)
+  if fitted < 0 then
+    fitted = 0
+  end
+  local maxStart = math.max(0, limit - payload)
+  if fitted > maxStart then
+    fitted = maxStart
+  end
+  return fitted, (fitted ~= math.floor(tonumber(anchor) or 0)), nil
+end
+
 local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
-  if not (focus and layer and layer.kind == "tile" and data and data.entries) then return 0 end
+  if not (focus and layer and layer.kind == "tile" and data and data.entries) then
+    return { count = 0, shifted = false, source = "none" }
+  end
 
   local cols = focus.cols or 0
   local rows = focus.rows or 0
-  if cols <= 0 or rows <= 0 then return 0 end
+  if cols <= 0 or rows <= 0 then
+    return { count = 0, shifted = false, source = "none" }
+  end
 
   local anchorCol = (opts and type(opts.anchorCol) == "number") and math.floor(opts.anchorCol)
   local anchorRow = (opts and type(opts.anchorRow) == "number") and math.floor(opts.anchorRow)
+  local anchorSource = "explicit"
   if anchorCol == nil or anchorRow == nil then
+    anchorSource = "cursor"
     local mx, my = resolveScaledMouse(ctx)
     if mx ~= nil and my ~= nil and focus.toGridCoords then
       local ok, col, row = focus:toGridCoords(mx, my)
@@ -192,9 +235,24 @@ local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
     end
   end
   if anchorCol == nil or anchorRow == nil then
+    anchorSource = "center"
     anchorCol = math.floor((cols - (data.width or 1)) / 2)
     anchorRow = math.floor((rows - (data.height or 1)) / 2)
   end
+
+  local fittedCol, shiftedX, fitErrX = fitAnchorToBounds(anchorCol, data.width or 1, cols)
+  local fittedRow, shiftedY, fitErrY = fitAnchorToBounds(anchorRow, data.height or 1, rows)
+  if fitErrX == "payload_too_large" or fitErrY == "payload_too_large" then
+    return {
+      count = 0,
+      shifted = false,
+      source = anchorSource,
+      reason = "Selection does not fit in target layer",
+    }
+  end
+  anchorCol = fittedCol
+  anchorRow = fittedRow
+
   local selectedSet = {}
   local count = 0
   local firstCol, firstRow = nil, nil
@@ -259,11 +317,17 @@ local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
     focus:clearSelected(layerIndex)
   end
 
-  return count
+  return {
+    count = count,
+    shifted = (shiftedX == true or shiftedY == true),
+    source = anchorSource,
+  }
 end
 
 local function pasteSpriteClipboard(ctx, focus, layer, data, opts)
-  if not (focus and layer and layer.kind == "sprite" and data and data.entries) then return 0 end
+  if not (focus and layer and layer.kind == "sprite" and data and data.entries) then
+    return { count = 0, shifted = false, source = "none" }
+  end
 
   layer.items = layer.items or {}
 
@@ -271,7 +335,9 @@ local function pasteSpriteClipboard(ctx, focus, layer, data, opts)
   local layerPixelH = math.max(1, (focus.rows or 0) * (focus.cellH or 8))
   local anchorX = (opts and type(opts.anchorX) == "number") and math.floor(opts.anchorX)
   local anchorY = (opts and type(opts.anchorY) == "number") and math.floor(opts.anchorY)
+  local anchorSource = "explicit"
   if anchorX == nil or anchorY == nil then
+    anchorSource = "cursor"
     local mx, my = resolveScaledMouse(ctx)
     if mx ~= nil and my ~= nil and focus.toGridCoords then
       local ok, col, row, lx, ly = focus:toGridCoords(mx, my)
@@ -284,9 +350,23 @@ local function pasteSpriteClipboard(ctx, focus, layer, data, opts)
     end
   end
   if anchorX == nil or anchorY == nil then
+    anchorSource = "center"
     anchorX = math.floor((layerPixelW - (data.widthPx or 1)) / 2)
     anchorY = math.floor((layerPixelH - (data.heightPx or 1)) / 2)
   end
+
+  local fittedX, shiftedX, fitErrX = fitAnchorToBounds(anchorX, data.widthPx or 1, layerPixelW)
+  local fittedY, shiftedY, fitErrY = fitAnchorToBounds(anchorY, data.heightPx or 1, layerPixelH)
+  if fitErrX == "payload_too_large" or fitErrY == "payload_too_large" then
+    return {
+      count = 0,
+      shifted = false,
+      source = anchorSource,
+      reason = "Selection does not fit in target layer",
+    }
+  end
+  anchorX = fittedX
+  anchorY = fittedY
 
   local newIndices = {}
   for _, entry in ipairs(data.entries) do
@@ -316,7 +396,11 @@ local function pasteSpriteClipboard(ctx, focus, layer, data, opts)
     layer.hoverSpriteIndex = newIndices[1]
   end
 
-  return #newIndices
+  return {
+    count = #newIndices,
+    shifted = (shiftedX == true or shiftedY == true),
+    source = anchorSource,
+  }
 end
 
 local function getActiveLayer(focus, opts)
@@ -501,29 +585,44 @@ local function doPaste(ctx, focus, opts)
 
   local layerIndex = avail.layerIndex
   local layer = avail.layer
-  local pastedCount = 0
+  local pasteResult = {
+    count = 0,
+    shifted = false,
+    source = "none",
+    reason = nil,
+  }
   if clipboard.kind == "tile" and layer.kind == "tile" then
-    pastedCount = pasteTileClipboard(ctx, focus, layer, layerIndex, clipboard, opts)
+    pasteResult = pasteTileClipboard(ctx, focus, layer, layerIndex, clipboard, opts) or pasteResult
+    local pastedCount = tonumber(pasteResult.count) or 0
     if pastedCount > 0 and ctx.app and ctx.app.markUnsaved then
       ctx.app:markUnsaved("tile_move")
     end
     if pastedCount > 0 then
-      setStatus(ctx, (pastedCount == 1) and "Pasted 1 tile at center" or string.format("Pasted %d tiles at center", pastedCount))
+      local message = (pastedCount == 1) and "Pasted 1 tile at center" or string.format("Pasted %d tiles at center", pastedCount)
+      if pasteResult.shifted == true then
+        message = message .. " (shifted to fit bounds)"
+      end
+      setStatus(ctx, message)
     else
-      setStatus(ctx, "Nothing pasted")
+      setStatus(ctx, pasteResult.reason or "Nothing pasted")
     end
     return true
   end
 
   if clipboard.kind == "sprite" and layer.kind == "sprite" then
-    pastedCount = pasteSpriteClipboard(ctx, focus, layer, clipboard, opts)
+    pasteResult = pasteSpriteClipboard(ctx, focus, layer, clipboard, opts) or pasteResult
+    local pastedCount = tonumber(pasteResult.count) or 0
     if pastedCount > 0 and ctx.app and ctx.app.markUnsaved then
       ctx.app:markUnsaved("sprite_move")
     end
     if pastedCount > 0 then
-      setStatus(ctx, (pastedCount == 1) and "Pasted 1 sprite at center" or string.format("Pasted %d sprites at center", pastedCount))
+      local message = (pastedCount == 1) and "Pasted 1 sprite at center" or string.format("Pasted %d sprites at center", pastedCount)
+      if pasteResult.shifted == true then
+        message = message .. " (shifted to fit bounds)"
+      end
+      setStatus(ctx, message)
     else
-      setStatus(ctx, "Nothing pasted")
+      setStatus(ctx, pasteResult.reason or "Nothing pasted")
     end
     return true
   end

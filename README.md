@@ -243,6 +243,26 @@ While a drag is in progress, the UI still reflects valid drop targets as before.
 - `Right click` or `middle click` drag: move windows
 - taskbar: focus, restore, and manage windows
 
+### Clipboard behavior
+
+- **Window/layer eligibility**
+  - Tile layers in `static_art`, `animation`, `ppu_frame`, and `chr` windows: copy/cut/paste enabled.
+  - Sprite layers in `static_art` and `animation` windows: copy/cut/paste enabled.
+  - Sprite layers in `ppu_frame` and `oam_animation`: copy/cut/paste blocked with warning.
+- **Anchor policy**
+  - Multi-selection paste uses the copied selection bounding-box top-left as pivot.
+  - If the cursor is inside the focused target layer, paste anchors at cursor cell/pixel.
+  - If cursor is outside target layer bounds (or unavailable), paste falls back to centered placement.
+- **Out-of-bounds policy**
+  - Paste uses shift-to-fit: whole pasted payload is shifted to the nearest fully valid anchor.
+  - If payload is larger than target bounds, paste is cancelled.
+- **Cut semantics**
+  - Tile/sprite windows: cut removes selected items via normal deletion flow.
+  - CHR window: cut clears selected tile pixel values to `0` and stores copied pixels for paste.
+- **Feedback**
+  - No focused window, empty clipboard, layer-type mismatch, and restricted-layer cases produce status feedback.
+  - Shift-to-fit pastes include a status suffix indicating anchor adjustment.
+
 ### Tile mode
 
 <img src="img/readme_images/tile_mode_indicator.png" alt="">
