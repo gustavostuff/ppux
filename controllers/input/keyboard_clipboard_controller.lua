@@ -1,5 +1,8 @@
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local chr = require("chr")
+local GameArtController = require("controllers.game_art.game_art_controller")
+local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
 
 local M = {}
 
@@ -64,6 +67,58 @@ local function shallowCloneTable(src)
   return out
 end
 
+local function ensureAppEdits(app)
+  if not app then return nil end
+  if type(app.edits) ~= "table" then
+    app.edits = GameArtController.newEdits()
+  end
+  app.edits.banks = app.edits.banks or {}
+  return app.edits
+end
+
+local function syncChrTileMutation(tileRef, app)
+  if not (tileRef and tileRef.pixels and #tileRef.pixels == 64) then
+    return
+  end
+
+  if tileRef.refreshImage then
+    tileRef:refreshImage()
+  end
+
+  if tileRef._bankBytesRef and type(tileRef.index) == "number" then
+    for y = 0, 7 do
+      for x = 0, 7 do
+        local idx = y * 8 + x + 1
+        local pixelValue = tileRef.pixels[idx]
+        if pixelValue ~= nil then
+          chr.setTilePixel(tileRef._bankBytesRef, tileRef.index, x, y, pixelValue)
+        end
+      end
+    end
+  end
+
+  local bankIdx = tileRef._bankIndex
+  local tileIdx = tileRef.index
+  if type(bankIdx) ~= "number" or type(tileIdx) ~= "number" then
+    return
+  end
+  local edits = ensureAppEdits(app)
+  if not edits then
+    return
+  end
+  for y = 0, 7 do
+    for x = 0, 7 do
+      local idx = y * 8 + x + 1
+      local pixelValue = tileRef.pixels[idx]
+      if pixelValue == nil then pixelValue = 0 end
+      GameArtController.recordEdit(edits, bankIdx, tileIdx, x, y, pixelValue)
+    end
+  end
+
+  -- CHR/ROM bank windows render from cached bank canvases, so mark this tile dirty.
+  BankCanvasSupport.invalidateTile(app, bankIdx, tileIdx)
+end
+
 local function getClipboardTileItem(win, col, row, layerIndex)
   if not win then
     return nil
@@ -101,28 +156,60 @@ local function captureTileClipboard(win, layer, layerIndex)
   if win.getSelected then
     fallbackCol, fallbackRow = win:getSelected()
   end
-  local cells = MultiSelectController.getSelectedTileCells(win, layerIndex, fallbackCol, fallbackRow)
-  if #cells == 0 then return nil end
-
   local minCol, minRow = math.huge, math.huge
   local maxCol, maxRow = -math.huge, -math.huge
   local entries = {}
+  local isChr8x16 = WindowCaps.isChrLike(win) and win.orderMode == "oddEven"
 
-  for _, cell in ipairs(cells) do
-    local col, row = cell.col, cell.row
-    local idx = (row * (win.cols or 0) + col) + 1
-    local item = getClipboardTileItem(win, col, row, layerIndex)
-    if item ~= nil then
-      entries[#entries + 1] = {
-        col = col,
-        row = row,
-        item = item,
-        byte = (WindowCaps.isPpuFrame(win) and win.nametableBytes and win.nametableBytes[idx]) or nil,
-      }
-      minCol = math.min(minCol, col)
-      minRow = math.min(minRow, row)
-      maxCol = math.max(maxCol, col)
-      maxRow = math.max(maxRow, row)
+  if isChr8x16 then
+    local pairs = MultiSelectController.getSelectedChr8x16Pairs(win, layerIndex, fallbackCol, fallbackRow) or {}
+    if #pairs == 0 then return nil end
+    for _, pair in ipairs(pairs) do
+      local col = pair.col
+      if pair.topItem ~= nil and type(pair.topRow) == "number" then
+        entries[#entries + 1] = {
+          col = col,
+          row = pair.topRow,
+          item = pair.topItem,
+          byte = nil,
+        }
+        minCol = math.min(minCol, col)
+        minRow = math.min(minRow, pair.topRow)
+        maxCol = math.max(maxCol, col)
+        maxRow = math.max(maxRow, pair.topRow)
+      end
+      if pair.bottomItem ~= nil and type(pair.bottomRow) == "number" then
+        entries[#entries + 1] = {
+          col = col,
+          row = pair.bottomRow,
+          item = pair.bottomItem,
+          byte = nil,
+        }
+        minCol = math.min(minCol, col)
+        minRow = math.min(minRow, pair.bottomRow)
+        maxCol = math.max(maxCol, col)
+        maxRow = math.max(maxRow, pair.bottomRow)
+      end
+    end
+  else
+    local cells = MultiSelectController.getSelectedTileCells(win, layerIndex, fallbackCol, fallbackRow)
+    if #cells == 0 then return nil end
+    for _, cell in ipairs(cells) do
+      local col, row = cell.col, cell.row
+      local idx = (row * (win.cols or 0) + col) + 1
+      local item = getClipboardTileItem(win, col, row, layerIndex)
+      if item ~= nil then
+        entries[#entries + 1] = {
+          col = col,
+          row = row,
+          item = item,
+          byte = (WindowCaps.isPpuFrame(win) and win.nametableBytes and win.nametableBytes[idx]) or nil,
+        }
+        minCol = math.min(minCol, col)
+        minRow = math.min(minRow, row)
+        maxCol = math.max(maxCol, col)
+        maxRow = math.max(maxRow, row)
+      end
     end
   end
 
@@ -209,6 +296,22 @@ local function fitAnchorToBounds(anchor, payloadSize, limitSize)
   return fitted, (fitted ~= math.floor(tonumber(anchor) or 0)), nil
 end
 
+local function resolveTileSelectionAnchor(focus, layerIndex)
+  if not (focus and type(focus.getSelected) == "function") then
+    return nil, nil
+  end
+
+  local selCol, selRow, selLayer = focus:getSelected()
+  if type(selCol) ~= "number" or type(selRow) ~= "number" then
+    return nil, nil
+  end
+  if type(selLayer) == "number" and type(layerIndex) == "number" and selLayer ~= layerIndex then
+    return nil, nil
+  end
+
+  return math.floor(selCol), math.floor(selRow)
+end
+
 local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
   if not (focus and layer and layer.kind == "tile" and data and data.entries) then
     return { count = 0, shifted = false, source = "none" }
@@ -224,13 +327,24 @@ local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
   local anchorRow = (opts and type(opts.anchorRow) == "number") and math.floor(opts.anchorRow)
   local anchorSource = "explicit"
   if anchorCol == nil or anchorRow == nil then
-    anchorSource = "cursor"
-    local mx, my = resolveScaledMouse(ctx)
-    if mx ~= nil and my ~= nil and focus.toGridCoords then
-      local ok, col, row = focus:toGridCoords(mx, my)
-      if ok then
-        anchorCol = col
-        anchorRow = row
+    -- For scrolled viewports, prefer the actively selected cell. This avoids
+    -- paste landing on an unexpected offset cell when cursor-space and
+    -- scrolled grid-space disagree.
+    local hasScroll = ((focus.scrollCol or 0) ~= 0) or ((focus.scrollRow or 0) ~= 0)
+    if hasScroll then
+      anchorSource = "selection"
+      anchorCol, anchorRow = resolveTileSelectionAnchor(focus, layerIndex)
+    end
+
+    if anchorCol == nil or anchorRow == nil then
+      anchorSource = "cursor"
+      local mx, my = resolveScaledMouse(ctx)
+      if mx ~= nil and my ~= nil and focus.toGridCoords then
+        local ok, col, row = focus:toGridCoords(mx, my)
+        if ok then
+          anchorCol = col
+          anchorRow = row
+        end
       end
     end
   end
@@ -289,6 +403,9 @@ local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
           dstItem = focus:get(col, row, layerIndex)
         end
         applied = copyPixelsByValue(dstItem, srcItem)
+        if applied then
+          syncChrTileMutation(dstItem, ctx and ctx.app or nil)
+        end
       elseif focus.set then
         focus:set(col, row, materializeClipboardTileItem(data, entry.item, layerIndex), layerIndex)
         applied = true
@@ -500,6 +617,7 @@ local function cutChrTileSelection(ctx, focus, layer, layerIndex)
         end
       end
       if changed then
+          syncChrTileMutation(tile, ctx and ctx.app or nil)
         cleared = cleared + 1
       end
     end
