@@ -30,8 +30,6 @@ local function resolveScaledMouse(ctx)
     return nil, nil
   end
   local a, b, c = ctx.scaledMouse()
-  -- Accept both tuple style (x, y) and table style ({x=..., y=...}).
-  -- Some call paths may also return (ok, x, y), so normalize that too.
   if type(a) == "table" then
     local mx = tonumber(a.x)
     local my = tonumber(a.y)
@@ -48,7 +46,6 @@ local function resolveScaledMouse(ctx)
     end
     mx, my = b, c
   end
-
   if type(mx) ~= "number" or type(my) ~= "number" then
     return nil, nil
   end
@@ -74,6 +71,90 @@ local function ensureAppEdits(app)
   end
   app.edits.banks = app.edits.banks or {}
   return app.edits
+end
+
+local function beginUndoPaintEvent(undoRedo)
+  if not (undoRedo and undoRedo.startPaintEvent and undoRedo.finishPaintEvent and undoRedo.cancelPaintEvent and undoRedo.recordPixelChange) then
+    return nil
+  end
+  if undoRedo.activeEvent ~= nil then
+    return nil
+  end
+  undoRedo:startPaintEvent()
+  return {
+    undoRedo = undoRedo,
+    changed = false,
+  }
+end
+
+local function recordUndoChrPixelDiff(paintCtx, tileRef, beforePixels)
+  if not (paintCtx and paintCtx.undoRedo and tileRef and beforePixels and tileRef.pixels) then
+    return
+  end
+  local bankIdx = tileRef._bankIndex
+  local tileIdx = tileRef.index
+  if type(bankIdx) ~= "number" or type(tileIdx) ~= "number" then
+    return
+  end
+  for y = 0, 7 do
+    for x = 0, 7 do
+      local i = y * 8 + x + 1
+      local before = beforePixels[i] or 0
+      local after = tileRef.pixels[i] or 0
+      if before ~= after then
+        paintCtx.undoRedo:recordPixelChange(bankIdx, tileIdx, x, y, before, after)
+        paintCtx.changed = true
+      end
+    end
+  end
+end
+
+local function finishUndoPaintEvent(paintCtx)
+  if not (paintCtx and paintCtx.undoRedo) then
+    return false
+  end
+  if paintCtx.changed then
+    return paintCtx.undoRedo:finishPaintEvent()
+  end
+  paintCtx.undoRedo:cancelPaintEvent()
+  return false
+end
+
+local function snapshotTilePixels(tile)
+  if not (tile and tile.pixels) then
+    return nil
+  end
+  local out = {}
+  for i = 1, 64 do
+    out[i] = tile.pixels[i] or 0
+  end
+  return out
+end
+
+local function captureSpriteUndoState(sprite)
+  if not sprite then
+    return nil
+  end
+  return {
+    worldX = sprite.worldX,
+    worldY = sprite.worldY,
+    x = sprite.x,
+    y = sprite.y,
+    dx = sprite.dx,
+    dy = sprite.dy,
+    hasMoved = sprite.hasMoved,
+    removed = sprite.removed == true,
+    mirrorX = sprite.mirrorX,
+    mirrorY = sprite.mirrorY,
+    mirrorXSet = (sprite.mirrorX ~= nil),
+    mirrorYSet = (sprite.mirrorY ~= nil),
+    mirrorXOverrideSet = sprite._mirrorXOverrideSet == true,
+    mirrorYOverrideSet = sprite._mirrorYOverrideSet == true,
+    attr = sprite.attr,
+    attrSet = (sprite.attr ~= nil),
+    paletteNumber = sprite.paletteNumber,
+    paletteNumberSet = (sprite.paletteNumber ~= nil),
+  }
 end
 
 local function syncChrTileMutation(tileRef, app)
@@ -312,6 +393,33 @@ local function resolveTileSelectionAnchor(focus, layerIndex)
   return math.floor(selCol), math.floor(selRow)
 end
 
+local function resolveSpriteSelectionAnchor(layer)
+  if not layer then
+    return nil, nil
+  end
+  local SpriteController = require("controllers.sprite.sprite_controller")
+  local selected = SpriteController.getSelectedSpriteIndices(layer)
+  if #selected == 0 then
+    return nil, nil
+  end
+
+  local minX, minY = nil, nil
+  for _, idx in ipairs(selected) do
+    local s = layer.items and layer.items[idx]
+    if s and s.removed ~= true then
+      local x = s.worldX or s.baseX or s.x or 0
+      local y = s.worldY or s.baseY or s.y or 0
+      if minX == nil or x < minX then minX = x end
+      if minY == nil or y < minY then minY = y end
+    end
+  end
+
+  if minX == nil or minY == nil then
+    return nil, nil
+  end
+  return math.floor(minX), math.floor(minY)
+end
+
 local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
   if not (focus and layer and layer.kind == "tile" and data and data.entries) then
     return { count = 0, shifted = false, source = "none" }
@@ -323,35 +431,23 @@ local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
     return { count = 0, shifted = false, source = "none" }
   end
 
-  local anchorCol = (opts and type(opts.anchorCol) == "number") and math.floor(opts.anchorCol)
-  local anchorRow = (opts and type(opts.anchorRow) == "number") and math.floor(opts.anchorRow)
-  local anchorSource = "explicit"
+  local anchorCol, anchorRow = resolveTileSelectionAnchor(focus, layerIndex)
+  local anchorSource = "selection"
   if anchorCol == nil or anchorRow == nil then
-    -- For scrolled viewports, prefer the actively selected cell. This avoids
-    -- paste landing on an unexpected offset cell when cursor-space and
-    -- scrolled grid-space disagree.
-    local hasScroll = ((focus.scrollCol or 0) ~= 0) or ((focus.scrollRow or 0) ~= 0)
-    if hasScroll then
-      anchorSource = "selection"
-      anchorCol, anchorRow = resolveTileSelectionAnchor(focus, layerIndex)
-    end
-
-    if anchorCol == nil or anchorRow == nil then
-      anchorSource = "cursor"
-      local mx, my = resolveScaledMouse(ctx)
-      if mx ~= nil and my ~= nil and focus.toGridCoords then
-        local ok, col, row = focus:toGridCoords(mx, my)
-        if ok then
-          anchorCol = col
-          anchorRow = row
-        end
+    anchorSource = "cursor"
+    local mx, my = resolveScaledMouse(ctx)
+    if mx ~= nil and my ~= nil and focus.toGridCoords then
+      local ok, col, row = focus:toGridCoords(mx, my)
+      if ok then
+        anchorCol = col
+        anchorRow = row
       end
     end
-  end
-  if anchorCol == nil or anchorRow == nil then
-    anchorSource = "center"
-    anchorCol = math.floor((cols - (data.width or 1)) / 2)
-    anchorRow = math.floor((rows - (data.height or 1)) / 2)
+    if anchorCol == nil or anchorRow == nil then
+      anchorSource = "top_left"
+      anchorCol = 0
+      anchorRow = 0
+    end
   end
 
   local fittedCol, shiftedX, fitErrX = fitAnchorToBounds(anchorCol, data.width or 1, cols)
@@ -371,6 +467,29 @@ local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
   local count = 0
   local firstCol, firstRow = nil, nil
   local tilesPool = ctx.app and ctx.app.appEditState and ctx.app.appEditState.tilesPool
+  local undoRedo = ctx and ctx.app and ctx.app.undoRedo or nil
+  local undoPaintCtx = WindowCaps.isChrLike(focus) and beginUndoPaintEvent(undoRedo) or nil
+  local undoTileChanges = {}
+  local undoPpuChanges = {}
+  local seenTileChanges = {}
+
+  local function stageTileUndoCell(col, row, before)
+    if not undoRedo then
+      return
+    end
+    local key = tostring(col) .. ":" .. tostring(row)
+    if seenTileChanges[key] then
+      return
+    end
+    seenTileChanges[key] = true
+    undoTileChanges[#undoTileChanges + 1] = {
+      win = focus,
+      layerIndex = layerIndex,
+      col = col,
+      row = row,
+      before = before,
+    }
+  end
 
   local function copyPixelsByValue(dstTile, srcTile)
     if not (dstTile and srcTile and dstTile.pixels and srcTile.pixels) then
@@ -394,19 +513,39 @@ local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
     if col >= 0 and col < cols and row >= 0 and row < rows then
       local applied = false
       if WindowCaps.isPpuFrame(focus) and focus.setNametableByteAt and entry.byte ~= nil then
+        local idx = (row * cols + col) + 1
+        local beforeByte = focus.nametableBytes and focus.nametableBytes[idx] or nil
         focus:setNametableByteAt(col, row, entry.byte, tilesPool, layerIndex)
         applied = true
+        if undoRedo and beforeByte ~= entry.byte then
+          undoPpuChanges[#undoPpuChanges + 1] = {
+            win = focus,
+            layerIndex = layerIndex,
+            col = col,
+            row = row,
+            before = beforeByte,
+            after = entry.byte,
+            isNametableByte = true,
+            tilesPool = tilesPool,
+          }
+        end
       elseif WindowCaps.isChrLike(focus) then
         local srcItem = materializeClipboardTileItem(data, entry.item, layerIndex)
         local dstItem = nil
         if focus.get then
           dstItem = focus:get(col, row, layerIndex)
         end
+        local beforePixels = snapshotTilePixels(dstItem)
         applied = copyPixelsByValue(dstItem, srcItem)
         if applied then
+          if beforePixels ~= nil then
+            recordUndoChrPixelDiff(undoPaintCtx, dstItem, beforePixels)
+          end
           syncChrTileMutation(dstItem, ctx and ctx.app or nil)
         end
       elseif focus.set then
+        local beforeItem = focus.get and focus:get(col, row, layerIndex) or nil
+        stageTileUndoCell(col, row, beforeItem)
         focus:set(col, row, materializeClipboardTileItem(data, entry.item, layerIndex), layerIndex)
         applied = true
       end
@@ -434,6 +573,39 @@ local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
     focus:clearSelected(layerIndex)
   end
 
+  if #undoPpuChanges > 0 and undoRedo and undoRedo.addDragEvent then
+    undoRedo:addDragEvent({
+      type = "tile_drag",
+      mode = "copy",
+      changes = undoPpuChanges,
+      tilesPool = tilesPool,
+    })
+  elseif #undoTileChanges > 0 and undoRedo and undoRedo.addDragEvent then
+    local committed = {}
+    for _, rec in ipairs(undoTileChanges) do
+      local after = focus.get and focus:get(rec.col, rec.row, layerIndex) or nil
+      if rec.before ~= after then
+        committed[#committed + 1] = {
+          win = rec.win,
+          layerIndex = rec.layerIndex,
+          col = rec.col,
+          row = rec.row,
+          before = rec.before,
+          after = after,
+        }
+      end
+    end
+    if #committed > 0 then
+      undoRedo:addDragEvent({
+        type = "tile_drag",
+        mode = "copy",
+        changes = committed,
+      })
+    end
+  end
+
+  finishUndoPaintEvent(undoPaintCtx)
+
   return {
     count = count,
     shifted = (shiftedX == true or shiftedY == true),
@@ -450,9 +622,8 @@ local function pasteSpriteClipboard(ctx, focus, layer, data, opts)
 
   local layerPixelW = math.max(1, (focus.cols or 0) * (focus.cellW or 8))
   local layerPixelH = math.max(1, (focus.rows or 0) * (focus.cellH or 8))
-  local anchorX = (opts and type(opts.anchorX) == "number") and math.floor(opts.anchorX)
-  local anchorY = (opts and type(opts.anchorY) == "number") and math.floor(opts.anchorY)
-  local anchorSource = "explicit"
+  local anchorX, anchorY = resolveSpriteSelectionAnchor(layer)
+  local anchorSource = "selection"
   if anchorX == nil or anchorY == nil then
     anchorSource = "cursor"
     local mx, my = resolveScaledMouse(ctx)
@@ -465,11 +636,11 @@ local function pasteSpriteClipboard(ctx, focus, layer, data, opts)
         anchorY = (row * cellH) + (ly or 0)
       end
     end
-  end
-  if anchorX == nil or anchorY == nil then
-    anchorSource = "center"
-    anchorX = math.floor((layerPixelW - (data.widthPx or 1)) / 2)
-    anchorY = math.floor((layerPixelH - (data.heightPx or 1)) / 2)
+    if anchorX == nil or anchorY == nil then
+      anchorSource = "top_left"
+      anchorX = 0
+      anchorY = 0
+    end
   end
 
   local fittedX, shiftedX, fitErrX = fitAnchorToBounds(anchorX, data.widthPx or 1, layerPixelW)
@@ -486,6 +657,7 @@ local function pasteSpriteClipboard(ctx, focus, layer, data, opts)
   anchorY = fittedY
 
   local newIndices = {}
+  local undoActions = {}
   for _, entry in ipairs(data.entries) do
     local clone = shallowCloneTable(entry.sprite)
     clone.removed = false
@@ -504,6 +676,12 @@ local function pasteSpriteClipboard(ctx, focus, layer, data, opts)
 
     table.insert(layer.items, clone)
     newIndices[#newIndices + 1] = #layer.items
+    undoActions[#undoActions + 1] = {
+      win = focus,
+      sprite = clone,
+      before = { removed = true },
+      after = captureSpriteUndoState(clone),
+    }
   end
 
   if #newIndices > 0 then
@@ -511,6 +689,15 @@ local function pasteSpriteClipboard(ctx, focus, layer, data, opts)
     SpriteController.setSpriteSelection(layer, newIndices)
     layer.selectedSpriteIndex = newIndices[1]
     layer.hoverSpriteIndex = newIndices[1]
+  end
+
+  local undoRedo = ctx and ctx.app and ctx.app.undoRedo or nil
+  if #undoActions > 0 and undoRedo and undoRedo.addDragEvent then
+    undoRedo:addDragEvent({
+      type = "sprite_drag",
+      mode = "copy",
+      actions = undoActions,
+    })
   end
 
   return {
@@ -606,9 +793,12 @@ local function cutChrTileSelection(ctx, focus, layer, layerIndex)
   end
 
   local cleared = 0
+  local undoRedo = ctx and ctx.app and ctx.app.undoRedo or nil
+  local undoPaintCtx = beginUndoPaintEvent(undoRedo)
   for _, cell in ipairs(cells) do
     local tile = focus.get and focus:get(cell.col, cell.row, layerIndex) or nil
     if tile and tile.pixels then
+      local beforePixels = snapshotTilePixels(tile)
       local changed = false
       for i = 1, 64 do
         if tile.pixels[i] ~= 0 then
@@ -617,6 +807,9 @@ local function cutChrTileSelection(ctx, focus, layer, layerIndex)
         end
       end
       if changed then
+          if beforePixels ~= nil then
+            recordUndoChrPixelDiff(undoPaintCtx, tile, beforePixels)
+          end
           syncChrTileMutation(tile, ctx and ctx.app or nil)
         cleared = cleared + 1
       end
@@ -628,8 +821,10 @@ local function cutChrTileSelection(ctx, focus, layer, layerIndex)
     focus:clearSelected(layerIndex)
   end
   if cleared == 0 then
+    finishUndoPaintEvent(undoPaintCtx)
     return nil
   end
+  finishUndoPaintEvent(undoPaintCtx)
   if ctx and ctx.app and ctx.app.markUnsaved then
     ctx.app:markUnsaved("tile_move")
   end
@@ -716,7 +911,7 @@ local function doPaste(ctx, focus, opts)
       ctx.app:markUnsaved("tile_move")
     end
     if pastedCount > 0 then
-      local message = (pastedCount == 1) and "Pasted 1 tile at center" or string.format("Pasted %d tiles at center", pastedCount)
+      local message = (pastedCount == 1) and "Pasted 1 tile" or string.format("Pasted %d tiles", pastedCount)
       if pasteResult.shifted == true then
         message = message .. " (shifted to fit bounds)"
       end
@@ -734,7 +929,7 @@ local function doPaste(ctx, focus, opts)
       ctx.app:markUnsaved("sprite_move")
     end
     if pastedCount > 0 then
-      local message = (pastedCount == 1) and "Pasted 1 sprite at center" or string.format("Pasted %d sprites at center", pastedCount)
+      local message = (pastedCount == 1) and "Pasted 1 sprite" or string.format("Pasted %d sprites", pastedCount)
       if pasteResult.shifted == true then
         message = message .. " (shifted to fit bounds)"
       end
