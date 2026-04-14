@@ -103,7 +103,7 @@ function M.canApplyToTarget(targetWin, sourceWin)
   if not targetWin or targetWin == sourceWin then
     return false, "Palette link failed"
   end
-  if targetWin._closed or targetWin._minimized then
+  if targetWin._closed or targetWin._minimized or targetWin._groupHidden == true then
     return false, "Palette link failed"
   end
   if WindowCaps.isAnyPaletteWindow(targetWin) then
@@ -130,7 +130,7 @@ local function canMoveAllToPaletteTarget(targetWin, sourceWin, opts)
   if targetWin == sourceWin and not opts.allowSource then
     return false
   end
-  if targetWin._closed or targetWin._minimized then
+  if targetWin._closed or targetWin._minimized or targetWin._groupHidden == true then
     return false
   end
   return WindowCaps.isRomPaletteWindow(targetWin) == true
@@ -266,6 +266,7 @@ local function getRomPaletteAtPoint(wm, x, y, opts)
       and win ~= exclude
       and not win._closed
       and not win._minimized
+      and win._groupHidden ~= true
       and (isPointInWindowLinkHandle(win, x, y) or isPointInWindowDropArea(win, x, y))
     then
       return win
