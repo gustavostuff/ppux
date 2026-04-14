@@ -1,4 +1,5 @@
 local Renderer = {}
+local Text = require("utils.text_utils")
 
 local function elideText(font, text, maxW)
   if not font then return tostring(text or "") end
@@ -35,9 +36,8 @@ local function drawRow(state, cfg, entry, x, y, itemW)
   local lineY = y + math.floor((cfg.CARD_H - fontH) * 0.5)
   local bw = entry.bounds.w
   local bh = entry.bounds.h
-  love.graphics.setColor(1, 1, 1, 1)
   local rowText = string.format("%s  |  %dx%d", tostring(entry.rel or ""), bw, bh)
-  love.graphics.print(elideText(state.uiFont, rowText, textW), textX, lineY)
+  Text.print(elideText(state.uiFont, rowText, textW), textX, lineY, { color = { 1, 1, 1, 1 } })
 
   love.graphics.setColor(0.20, 0.20, 0.20, 1)
   love.graphics.line(x, y + cfg.CARD_H, x + itemW, y + cfg.CARD_H)
@@ -56,11 +56,9 @@ function Renderer.draw(state, cfg, clampScrollFn)
   local y = cfg.UI_PAD
   local lineH = (state.uiFont and state.uiFont:getHeight()) or 8
   local lineGap = 1
-  love.graphics.setColor(1, 1, 1, 1)
-  love.graphics.print("PPUX Icon Bounding Box Audit", cfg.UI_PAD, y)
+  Text.print("PPUX Icon Bounding Box Audit", cfg.UI_PAD, y, { color = { 1, 1, 1, 1 } })
   y = y + lineH + lineGap
-  love.graphics.setColor(0.85, 0.85, 0.85, 1)
-  love.graphics.print(
+  Text.print(
     string.format(
       "Scanned: %d | Oversized > %dx%d: %d | Errors: %d",
       #state.scanned,
@@ -70,7 +68,8 @@ function Renderer.draw(state, cfg, clampScrollFn)
       #state.scanErrors
     ),
     cfg.UI_PAD,
-    y
+    y,
+    { color = { 0.85, 0.85, 0.85, 1 } }
   )
   y = y + lineH + lineGap
 
@@ -85,8 +84,7 @@ function Renderer.draw(state, cfg, clampScrollFn)
   end
 
   if #state.oversized == 0 then
-    love.graphics.setColor(0.7, 1.0, 0.7, 1)
-    love.graphics.print("No oversized icons found.", cfg.UI_PAD, gridTop)
+    Text.print("No oversized icons found.", cfg.UI_PAD, gridTop, { color = { 0.7, 1.0, 0.7, 1 } })
   else
     local startX = cfg.UI_PAD
     for i, entry in ipairs(state.oversized) do

@@ -1,6 +1,7 @@
 local colors = require("app_colors")
 local images = require("images")
 local UiScale = require("user_interface.ui_scale")
+local Text = require("utils.text_utils")
 
 local NumericSpinner = {}
 NumericSpinner.__index = NumericSpinner
@@ -209,7 +210,7 @@ function NumericSpinner:draw()
   love.graphics.setColor(colors.white)
   drawIcon(self.minusIcon, minusX + (minusW - minusIconW) * 0.5, minusY + (minusH - minusIconH) * 0.5)
   drawIcon(self.plusIcon, plusX + (plusW - plusIconW) * 0.5, plusY + (plusH - plusIconH) * 0.5)
-  love.graphics.print(valueText, math.floor(valueX + (valueW - valueTextW) * 0.5), textY)
+  Text.print(valueText, math.floor(valueX + (valueW - valueTextW) * 0.5), textY, { color = colors.white })
 end
 
 return NumericSpinner

@@ -1,3 +1,5 @@
+local Text = require("utils.text_utils")
+
 local function install(TextField, utils)
   function TextField:_getVisualCursorPos()
     return self.cursorPos
@@ -100,7 +102,7 @@ local function install(TextField, utils)
         love.graphics.rectangle("fill", textX + startPixel, textY, math.max(1, endPixel - startPixel), font:getHeight())
       end
       love.graphics.setColor(utils.colors.white)
-      love.graphics.print(textStr, textX, textY)
+      Text.print(textStr, textX, textY, { color = utils.colors.white })
     end
 
     if self.focused then
@@ -126,8 +128,7 @@ local function install(TextField, utils)
           local symbolW = math.max(4, font:getWidth(symbol))
           love.graphics.setColor(utils.colors.white)
           love.graphics.rectangle("fill", cursorX, textY, symbolW, font:getHeight())
-          love.graphics.setColor(bgColor)
-          love.graphics.print(symbol, cursorX, textY)
+          Text.print(symbol, cursorX, textY, { color = bgColor })
         else
           love.graphics.setColor(utils.colors.white)
           love.graphics.rectangle("fill", cursorX, textY, 1, font:getHeight())

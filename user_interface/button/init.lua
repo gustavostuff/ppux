@@ -3,6 +3,7 @@
 
 local colors = require("app_colors")
 local UiScale = require("user_interface.ui_scale")
+local Text = require("utils.text_utils")
 
 local Button = {}
 Button.__index = Button
@@ -129,8 +130,9 @@ function Button:draw()
     local textY = self.y + (self.h - textH) / 2
     local a = contentAlpha()
     local r, g, b, aa = contentColorWithAlpha(a)
-    love.graphics.setColor(r, g, b, aa)
-    love.graphics.print(self.text, math.floor(textX), math.floor(textY))
+    Text.print(self.text, math.floor(textX), math.floor(textY), {
+      color = { r, g, b, aa },
+    })
     love.graphics.setColor(colors.white)
     return
   end
@@ -164,8 +166,9 @@ function Button:draw()
     love.graphics.setColor(r, g, b, a)
     drawIcon(self.icon, iconX, iconY)
 
-    love.graphics.setColor(r, g, b, a)
-    love.graphics.print(self.text, math.floor(textX), math.floor(textY))
+    Text.print(self.text, math.floor(textX), math.floor(textY), {
+      color = { r, g, b, a },
+    })
     love.graphics.setColor(colors.white)
     return
   end

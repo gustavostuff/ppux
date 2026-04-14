@@ -5,6 +5,7 @@ local E2EVisibleScenarios = require("test.e2e_visible.scenarios")
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
 local colors = require("app_colors")
 local Flux = require("lib.flux")
+local Text = require("utils.text_utils")
 
 local normalizeSpeedMultiplier = E2EVisibleSteps.normalizeSpeedMultiplier
 local applySpeedMultiplierToSteps = E2EVisibleSteps.applySpeedMultiplierToSteps
@@ -459,11 +460,9 @@ function VisibleE2ERunner:drawOverlay()
 
   love.graphics.setColor(0, 0, 0, 0.65)
   love.graphics.rectangle("fill", 8, 8, boxW, boxH)
-  love.graphics.setColor(colors.white)
-  love.graphics.print(title, 14, 12)
-  love.graphics.print(stepText, 14, 12 + font:getHeight() + 2)
-  love.graphics.setColor(1, 0.95, 0.2, 1)
-  love.graphics.print(escHint, 14, 12 + (font:getHeight() + 2) * 2)
+  Text.print(title, 14, 12, { color = colors.white, font = font })
+  Text.print(stepText, 14, 12 + font:getHeight() + 2, { color = colors.white, font = font })
+  Text.print(escHint, 14, 12 + (font:getHeight() + 2) * 2, { color = { 1, 0.95, 0.2, 1 }, font = font })
 
   local cursorCanvasX, cursorCanvasY = self.harness:getMouseCanvasPosition()
   local cursorScreenX, cursorScreenY = self.harness:canvasToScreen(cursorCanvasX, cursorCanvasY)
@@ -493,8 +492,7 @@ function VisibleE2ERunner:drawOverlay()
 
     love.graphics.setColor(0, 0, 0, 0.78)
     love.graphics.rectangle("fill", boxX, boxY, boxW, boxH)
-    love.graphics.setColor(colors.white)
-    love.graphics.print(titleText, boxX + padding, boxY + padding)
+    Text.print(titleText, boxX + padding, boxY + padding, { color = colors.white, font = font })
 
     self.abortButtonRects = {}
     for index, button in ipairs(self.abortButtons) do
@@ -511,7 +509,7 @@ function VisibleE2ERunner:drawOverlay()
       local labelW = font:getWidth(button.label)
       local labelX = bx + math.floor((buttonW - labelW) * 0.5)
       local labelY = by + math.floor((buttonH - font:getHeight()) * 0.5)
-      love.graphics.print(button.label, labelX, labelY)
+      Text.print(button.label, labelX, labelY, { color = colors.white, font = font })
     end
   else
     self.abortButtonRects = {}

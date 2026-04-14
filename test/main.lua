@@ -86,6 +86,7 @@ local function parseTestFilter()
 end
 
 _G.__PPUX_TEST_FILE_FILTER__ = parseTestFilter()
+local Text = require("utils.text_utils")
 
 -- Load all test files
 loadTestFile("tests/unit/chr.test")
@@ -435,9 +436,9 @@ function love.draw()
   love.graphics.setColor(0.6, 0.8, 1.0)
   love.graphics.setFont(font)
   if state.isComplete then
-    love.graphics.print("Test run complete", padding, y)
+    Text.print("Test run complete", padding, y, { color = { 0.6, 0.8, 1.0, 1 } })
   else
-    love.graphics.print("Running tests...", padding, y)
+    Text.print("Running tests...", padding, y, { color = { 0.6, 0.8, 1.0, 1 } })
   end
   y = y + lineHeight
 
@@ -460,55 +461,47 @@ function love.draw()
   local passedNumX = padding + font:getWidth(prefix1)
   local failedNumX = padding + font:getWidth(prefix2)
 
-  love.graphics.setColor(1.0, 1.0, 1.0)
-  love.graphics.print(summary, padding, y)
+  Text.print(summary, padding, y, { color = { 1.0, 1.0, 1.0, 1 } })
 
   if state.passedTests > 0 then
-    love.graphics.setColor(passedColor)
-    love.graphics.print(tostring(state.passedTests), passedNumX, y)
+    Text.print(tostring(state.passedTests), passedNumX, y, { color = { passedColor[1], passedColor[2], passedColor[3], 1 } })
   end
   if state.failedTests > 0 then
-    love.graphics.setColor(failedColor)
-    love.graphics.print(tostring(state.failedTests), failedNumX, y)
+    Text.print(tostring(state.failedTests), failedNumX, y, { color = { failedColor[1], failedColor[2], failedColor[3], 1 } })
   end
 
   y = y + lineHeight * 2
 
   if state.currentTask then
-    love.graphics.setColor(runningColor)
-    love.graphics.print("Now running:", padding, y)
+    Text.print("Now running:", padding, y, { color = { runningColor[1], runningColor[2], runningColor[3], 1 } })
     y = y + lineHeight
-    love.graphics.print(
+    Text.print(
       string.format("  %s > %s", state.currentTask.suitePath, state.currentTask.test.name),
       padding,
-      y
+      y,
+      { color = { runningColor[1], runningColor[2], runningColor[3], 1 } }
     )
     y = y + lineHeight
   end
 
   for _, entry in ipairs(state.liveLog or {}) do
     if entry.passed then
-      love.graphics.setColor(passedColor)
-      love.graphics.print(string.format("  (OK) %s > %s", entry.suite, entry.test), padding, y)
+      Text.print(string.format("  (OK) %s > %s", entry.suite, entry.test), padding, y, { color = { passedColor[1], passedColor[2], passedColor[3], 1 } })
     else
-      love.graphics.setColor(failedColor)
-      love.graphics.print(string.format("  (X) %s > %s", entry.suite, entry.test), padding, y)
+      Text.print(string.format("  (X) %s > %s", entry.suite, entry.test), padding, y, { color = { failedColor[1], failedColor[2], failedColor[3], 1 } })
     end
     y = y + lineHeight
   end
 
   if state.isComplete and #state.errors > 0 then
     y = y + lineHeight
-    love.graphics.setColor(failedColor)
-    love.graphics.print("Failed tests:", padding, y)
+    Text.print("Failed tests:", padding, y, { color = { failedColor[1], failedColor[2], failedColor[3], 1 } })
     y = y + lineHeight
 
     for _, err in ipairs(state.errors) do
-      love.graphics.setColor(0.8, 0.4, 0.4)
-      love.graphics.print(string.format("  %s > %s", err.suite, err.test), padding, y)
+      Text.print(string.format("  %s > %s", err.suite, err.test), padding, y, { color = { 0.8, 0.4, 0.4, 1 } })
       y = y + lineHeight
-      love.graphics.setColor(0.6, 0.6, 0.6)
-      love.graphics.print("    " .. err.error, padding, y)
+      Text.print("    " .. err.error, padding, y, { color = { 0.6, 0.6, 0.6, 1 } })
       y = y + lineHeight
     end
   end
@@ -516,11 +509,9 @@ function love.draw()
   if state.isComplete then
     y = y + lineHeight
     if state.failedTests == 0 then
-      love.graphics.setColor(passedColor)
-      love.graphics.print("All tests passed!", padding, y)
+      Text.print("All tests passed!", padding, y, { color = { passedColor[1], passedColor[2], passedColor[3], 1 } })
     else
-      love.graphics.setColor(failedColor)
-      love.graphics.print("Some tests failed.", padding, y)
+      Text.print("Some tests failed.", padding, y, { color = { failedColor[1], failedColor[2], failedColor[3], 1 } })
     end
   end
   

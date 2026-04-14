@@ -1,5 +1,5 @@
 -- text-utils.lua
--- Pixel-friendly text: default shadow; optional 8-direction black outline.
+-- Pixel-friendly text: optional shadow and optional 8-direction black outline.
 local Timer = require("utils.timer_utils")
 local colors = require("app_colors")
 
@@ -46,12 +46,13 @@ local function getCharWidth(font)
   return font:getWidth("M")
 end
 
--- Core: prints either shadowed (default) or outlined (data.outline==true)
+-- Core: prints with optional shadow and optional outline.
 local function printCore(text, x, y, data)
   data = data or {}
   local font        = data.font or love.graphics.getFont()
   local color       = data.color or colors.white
   local shadowColor = data.shadowColor or colors.black
+  local shadow      = data.shadow == true
   local dx          = (data.dx ~= nil) and data.dx or 1  -- shadow offset X
   local dy          = (data.dy ~= nil) and data.dy or 1  -- shadow offset Y
   local outline     = data.outline == true
@@ -84,7 +85,7 @@ local function printCore(text, x, y, data)
         love.graphics.print(text or "", x+vx, y+vy)
       end
     end
-  else
+  elseif shadow then
     -- bottom-right shadow
     setColor(shadowColor)
     if type(text) == "table" then

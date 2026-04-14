@@ -1,5 +1,6 @@
 local colors = require("app_colors")
 local Palettes = require("palettes")
+local Text = require("utils.text_utils")
 
 local M = {}
 local ENABLE_LOADING_PRESENT_DELAY = true
@@ -126,8 +127,10 @@ local function drawLoadingPattern(cw, ch, message, font)
   if font then
     love.graphics.setFont(font)
   end
-  love.graphics.setColor(colors.white)
-  love.graphics.printf(message or "Loading...", 0, cy + 90, cw, "center")
+  local label = message or "Loading..."
+  local textW = select(1, Text.measure(label, { font = font }))
+  local textX = math.floor((cw - textW) * 0.5)
+  Text.print(label, textX, cy + 90, { font = font, color = colors.white })
 end
 
 local function renderLoadingPatternToCanvas(canvas, message, font)

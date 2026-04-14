@@ -4,6 +4,7 @@
 local colors = require("app_colors")
 local Button = require("user_interface.button")
 local UiScale = require("user_interface.ui_scale")
+local Text = require("utils.text_utils")
 
 local images = require("images")
 local DebugController = require("controllers.dev.debug_controller")
@@ -582,7 +583,7 @@ function ToolbarBase:_drawLabel(label)
     local textH = font:getHeight()
     local textX = labelX + (labelW - textW) / 2  -- Center horizontally
     local textY = labelY + (labelH - textH) / 2  -- Center vertically
-    love.graphics.print(label.text, textX, textY)
+    Text.print(label.text, textX, textY, { color = colors.white })
   end
   
   love.graphics.setColor(colors.white)

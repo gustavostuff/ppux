@@ -1,4 +1,5 @@
 local colors = require("app_colors")
+local Text = require("utils.text_utils")
 
 local TooltipController = {}
 TooltipController.__index = TooltipController
@@ -139,8 +140,9 @@ function TooltipController:draw(canvasW, canvasH)
 
   love.graphics.setColor(bg[1], bg[2], bg[3], 1)
   love.graphics.rectangle("fill", x, y, boxW, boxH)
-  love.graphics.setColor(fg[1], fg[2], fg[3], 1)
-  love.graphics.print(text, math.floor(x + PADDING_X), math.floor(y + PADDING_Y))
+  Text.print(text, math.floor(x + PADDING_X), math.floor(y + PADDING_Y), {
+    color = { fg[1], fg[2], fg[3], 1 },
+  })
   love.graphics.setColor(colors.white)
 end
 
