@@ -532,6 +532,62 @@ describe("keyboard_clipboard_controller.lua - shared toolbar/keyboard actions", 
     expect(statuses[#statuses]:match("shifted to fit bounds") ~= nil).toBe(true)
   end)
 
+  it("uses explicit tile paste anchor when provided", function()
+    local sourceLayer = {
+      kind = "tile",
+      items = {
+        [1] = { id = "A" },
+        [2] = { id = "B" },
+      },
+      multiTileSelection = {
+        [1] = true,
+        [2] = true,
+      },
+      removedCells = {},
+    }
+    local sourceWin = {
+      kind = "static_art",
+      cols = 2,
+      rows = 1,
+      layers = { sourceLayer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 0, 0, 1 end,
+      get = function(_, col)
+        return (col == 0) and sourceLayer.items[1] or sourceLayer.items[2]
+      end,
+      clearSelected = function() end,
+    }
+    local writes = {}
+    local targetWin = {
+      kind = "static_art",
+      cols = 8,
+      rows = 8,
+      layers = { { kind = "tile" } },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 7, 7, 1 end, -- should be ignored when explicit anchor exists
+      set = function(_, col, row, item)
+        writes[#writes + 1] = { col = col, row = row, item = item }
+      end,
+      setSelected = function() end,
+      clearSelected = function() end,
+    }
+    local ctx = {
+      setStatus = function() end,
+      app = {},
+    }
+
+    expect(KeyboardClipboardController.performClipboardAction(ctx, sourceWin, "copy")).toBe(true)
+    expect(KeyboardClipboardController.performClipboardAction(ctx, targetWin, "paste", {
+      anchorCol = 0,
+      anchorRow = 1,
+    })).toBe(true)
+    expect(#writes).toBe(2)
+    expect(writes[1].col).toBe(0)
+    expect(writes[1].row).toBe(1)
+    expect(writes[2].col).toBe(1)
+    expect(writes[2].row).toBe(1)
+  end)
+
   it("uses sprite selection top-left as paste anchor", function()
     local sourceLayer = {
       kind = "sprite",

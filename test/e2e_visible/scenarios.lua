@@ -2821,6 +2821,17 @@ local function buildClipboardMatrixScenario(harness, app, runner)
     return #(layer and layer.items or {})
   end
 
+  local function getEditedTileMap(currentApp, bankIdx, tileIdx)
+    if not (currentApp and currentApp.edits and currentApp.edits.banks) then
+      return nil
+    end
+    local bank = currentApp.edits.banks[bankIdx]
+    if type(bank) ~= "table" then
+      return nil
+    end
+    return bank[tileIdx]
+  end
+
   appendDrag(steps, "Place source tile A", function(h)
     return h:windowCellCenter(srcWin, 0, 0)
   end, function(h)
@@ -2861,6 +2872,38 @@ local function buildClipboardMatrixScenario(harness, app, runner)
     )
   end)
   steps[#steps + 1] = pause("Observe keyboard tile paste", 0.35)
+
+  steps[#steps + 1] = call("Prepare no-selection tile cursor paste fallback", function(_, currentApp, currentRunner)
+    currentApp.wm:setFocus(staticTileWin)
+    local layer = staticTileWin.layers and staticTileWin.layers[1]
+    if layer then
+      layer.multiTileSelection = nil
+    end
+    if staticTileWin.clearSelected then
+      staticTileWin:clearSelected(1)
+    end
+    currentRunner.clipboardTileCursorTargetCol = 6
+    currentRunner.clipboardTileCursorTargetRow = 2
+  end)
+  steps[#steps + 1] = moveTo("Move cursor to tile fallback destination", function(h, _, currentRunner)
+    return h:windowCellCenter(staticTileWin, currentRunner.clipboardTileCursorTargetCol, currentRunner.clipboardTileCursorTargetRow)
+  end, 0.1)
+  steps[#steps + 1] = keyPress("Paste tile with no selection (Ctrl+V)", "v", { "lctrl" })
+  steps[#steps + 1] = call("Assert no-selection tile paste uses cursor position", function(_, _, currentRunner)
+    local pasted = staticTileWin:get(currentRunner.clipboardTileCursorTargetCol, currentRunner.clipboardTileCursorTargetRow, 1)
+    assert(pasted ~= nil, "expected tile pasted at cursor fallback destination")
+    assert(
+      pasted.index == currentRunner.clipboardSourceTileIndex and tonumber(pasted._bankIndex) == tonumber(currentRunner.clipboardSourceTileBank),
+      string.format(
+        "expected cursor-fallback pasted tile to match copied source (index=%s bank=%s), got (index=%s bank=%s)",
+        tostring(currentRunner.clipboardSourceTileIndex),
+        tostring(currentRunner.clipboardSourceTileBank),
+        tostring(pasted.index),
+        tostring(pasted._bankIndex)
+      )
+    )
+  end)
+  steps[#steps + 1] = pause("Observe no-selection tile cursor fallback", 0.35)
 
   appendClick(steps, "Select tile to cut", function(h)
     return h:windowCellCenter(staticTileWin, 2, 1)
@@ -3021,12 +3064,184 @@ local function buildClipboardMatrixScenario(harness, app, runner)
   appendClick(steps, "Select sprite for copy", function(h, _, currentRunner)
     return h:windowCellCenter(currentRunner.clipboardSpriteWin, 1, 1)
   end, { moveDuration = 0.08, postPause = 0.15 })
-  steps[#steps + 1] = keyPress("Copy sprite (Ctrl+C)", "c", { "lctrl" })
-  steps[#steps + 1] = keyPress("Paste sprite (Ctrl+V)", "v", { "lctrl" })
-  steps[#steps + 1] = call("Assert sprite clipboard path executes", function(currentHarness)
+  steps[#steps + 1] = call("Record sprite baseline before paste", function(_, _, currentRunner)
+    local spriteWin = assert(currentRunner.clipboardSpriteWin, "expected clipboard sprite window")
+    local spriteLayerIndex = nil
+    if spriteWin.getSpriteLayers then
+      local spriteLayers = spriteWin:getSpriteLayers() or {}
+      if #spriteLayers > 0 then
+        spriteLayerIndex = spriteLayers[1].index
+      end
+    end
+    if not spriteLayerIndex and spriteWin.layers then
+      for li, layerInfo in ipairs(spriteWin.layers) do
+        if layerInfo and layerInfo.kind == "sprite" then
+          spriteLayerIndex = li
+          break
+        end
+      end
+    end
+    assert(type(spriteLayerIndex) == "number", "expected sprite layer index in clipboard sprite window")
+    if spriteWin.setActiveLayerIndex then
+      spriteWin:setActiveLayerIndex(spriteLayerIndex)
+    else
+      spriteWin.activeLayer = spriteLayerIndex
+    end
+    local layer = assert(spriteWin.layers and spriteWin.layers[spriteLayerIndex], "expected sprite layer")
+    currentRunner.clipboardSpriteLayerIndex = spriteLayerIndex
+    layer.items = layer.items or {}
+    if #layer.items == 0 then
+      layer.items[1] = {
+        worldX = 8,
+        worldY = 8,
+        x = 8,
+        y = 8,
+        baseX = 8,
+        baseY = 8,
+        dx = 0,
+        dy = 0,
+        removed = false,
+      }
+    end
+    currentRunner.clipboardSpriteCountBeforePaste = #(layer.items or {})
+    local selected = nil
+    local selectedIndex = tonumber(layer.selectedSpriteIndex)
+    if selectedIndex and layer.items then
+      selected = layer.items[selectedIndex]
+    end
+    if not selected and layer.items then
+      for idx, item in ipairs(layer.items) do
+        if item and item.removed ~= true then
+          selected = item
+          selectedIndex = idx
+          break
+        end
+      end
+    end
+    assert(selected, "expected selected sprite before copy/paste")
+    layer.selectedSpriteIndex = selectedIndex
+    layer.multiSpriteSelection = { [selectedIndex] = true }
+    layer.multiSpriteSelectionOrder = { selectedIndex }
+    currentRunner.clipboardSpriteSelectedX = selected.worldX or selected.x or 0
+    currentRunner.clipboardSpriteSelectedY = selected.worldY or selected.y or 0
+  end)
+  steps[#steps + 1] = call("Copy sprite through clipboard controller", function(_, currentApp, currentRunner)
+    local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
+    local spriteWin = assert(currentRunner.clipboardSpriteWin, "expected clipboard sprite window")
+    currentApp.wm:setFocus(spriteWin)
+    local ok = KeyboardClipboardController.performClipboardAction(currentApp:_buildCtx(), spriteWin, "copy", {
+      layerIndex = currentRunner.clipboardSpriteLayerIndex,
+    })
+    assert(ok == true, "expected sprite copy action to execute")
+  end)
+  steps[#steps + 1] = call("Paste sprite through clipboard controller", function(_, currentApp, currentRunner)
+    local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
+    local spriteWin = assert(currentRunner.clipboardSpriteWin, "expected clipboard sprite window")
+    currentApp.wm:setFocus(spriteWin)
+    local ok = KeyboardClipboardController.performClipboardAction(currentApp:_buildCtx(), spriteWin, "paste", {
+      layerIndex = currentRunner.clipboardSpriteLayerIndex,
+    })
+    assert(ok == true, "expected sprite paste action to execute")
+  end)
+  steps[#steps + 1] = call("Assert sprite copy/paste count and coordinates", function(currentHarness, _, currentRunner)
+    local spriteWin = assert(currentRunner.clipboardSpriteWin, "expected clipboard sprite window")
+    local li = tonumber(currentRunner.clipboardSpriteLayerIndex) or 1
+    local layer = assert(spriteWin.layers and spriteWin.layers[li], "expected sprite layer")
+    local items = layer.items or {}
+    assert(
+      #items == (currentRunner.clipboardSpriteCountBeforePaste or 0) + 1,
+      string.format(
+        "expected sprite count +1 after paste (before=%d after=%d)",
+        tonumber(currentRunner.clipboardSpriteCountBeforePaste) or -1,
+        #items
+      )
+    )
+    local pasted = assert(items[#items], "expected pasted sprite at end of layer")
+    local px = pasted.worldX or pasted.x or 0
+    local py = pasted.worldY or pasted.y or 0
+    assert(
+      px == currentRunner.clipboardSpriteSelectedX and py == currentRunner.clipboardSpriteSelectedY,
+      string.format(
+        "expected selection-anchored sprite paste at (%d,%d), got (%s,%s)",
+        tonumber(currentRunner.clipboardSpriteSelectedX) or -1,
+        tonumber(currentRunner.clipboardSpriteSelectedY) or -1,
+        tostring(px),
+        tostring(py)
+      )
+    )
     local status = tostring(currentHarness:getStatusText() or "")
     assert(status ~= "", "expected status feedback after sprite clipboard actions")
   end)
+  steps[#steps + 1] = call("Prepare no-selection sprite cursor fallback", function(_, currentApp, currentRunner)
+    local spriteWin = assert(currentRunner.clipboardSpriteWin, "expected clipboard sprite window")
+    currentApp.wm:setFocus(spriteWin)
+    local li = tonumber(currentRunner.clipboardSpriteLayerIndex) or 1
+    if spriteWin.setActiveLayerIndex then
+      spriteWin:setActiveLayerIndex(li)
+    else
+      spriteWin.activeLayer = li
+    end
+    local layer = assert(spriteWin.layers and spriteWin.layers[li], "expected sprite layer")
+    layer.multiSpriteSelection = nil
+    layer.multiSpriteSelectionOrder = nil
+    layer.selectedSpriteIndex = nil
+    currentRunner.clipboardSpriteCountBeforeCursorFallback = #(layer.items or {})
+    currentRunner.clipboardSpriteCursorCol = 4
+    currentRunner.clipboardSpriteCursorRow = 2
+    currentRunner.clipboardSpriteCursorPx = 0
+    currentRunner.clipboardSpriteCursorPy = 0
+    local cellW = spriteWin.cellW or 8
+    local cellH = spriteWin.cellH or 8
+    currentRunner.clipboardSpriteCursorExpectedX = currentRunner.clipboardSpriteCursorCol * cellW + currentRunner.clipboardSpriteCursorPx
+    currentRunner.clipboardSpriteCursorExpectedY = currentRunner.clipboardSpriteCursorRow * cellH + currentRunner.clipboardSpriteCursorPy
+  end)
+  steps[#steps + 1] = moveTo("Move cursor to sprite fallback destination", function(h, _, currentRunner)
+    local spriteWin = assert(currentRunner.clipboardSpriteWin, "expected clipboard sprite window")
+    return h:windowPixelCenter(
+      spriteWin,
+      currentRunner.clipboardSpriteCursorCol,
+      currentRunner.clipboardSpriteCursorRow,
+      currentRunner.clipboardSpriteCursorPx,
+      currentRunner.clipboardSpriteCursorPy
+    )
+  end, 0.1)
+  steps[#steps + 1] = call("Paste sprite with no selection through clipboard controller", function(_, currentApp, currentRunner)
+    local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
+    local spriteWin = assert(currentRunner.clipboardSpriteWin, "expected clipboard sprite window")
+    currentApp.wm:setFocus(spriteWin)
+    local ok = KeyboardClipboardController.performClipboardAction(currentApp:_buildCtx(), spriteWin, "paste", {
+      layerIndex = currentRunner.clipboardSpriteLayerIndex,
+    })
+    assert(ok == true, "expected no-selection sprite paste action to execute")
+  end)
+  steps[#steps + 1] = call("Assert no-selection sprite paste uses cursor coordinates", function(_, _, currentRunner)
+    local spriteWin = assert(currentRunner.clipboardSpriteWin, "expected clipboard sprite window")
+    local li = tonumber(currentRunner.clipboardSpriteLayerIndex) or 1
+    local layer = assert(spriteWin.layers and spriteWin.layers[li], "expected sprite layer")
+    local items = layer.items or {}
+    assert(
+      #items == (currentRunner.clipboardSpriteCountBeforeCursorFallback or 0) + 1,
+      string.format(
+        "expected sprite count +1 after cursor fallback paste (before=%d after=%d)",
+        tonumber(currentRunner.clipboardSpriteCountBeforeCursorFallback) or -1,
+        #items
+      )
+    )
+    local pasted = assert(items[#items], "expected cursor-fallback pasted sprite")
+    local px = pasted.worldX or pasted.x or 0
+    local py = pasted.worldY or pasted.y or 0
+    assert(
+      px == currentRunner.clipboardSpriteCursorExpectedX and py == currentRunner.clipboardSpriteCursorExpectedY,
+      string.format(
+        "expected cursor-fallback sprite paste at (%d,%d), got (%s,%s)",
+        tonumber(currentRunner.clipboardSpriteCursorExpectedX) or -1,
+        tonumber(currentRunner.clipboardSpriteCursorExpectedY) or -1,
+        tostring(px),
+        tostring(py)
+      )
+    )
+  end)
+  steps[#steps + 1] = pause("Observe no-selection sprite cursor fallback", 0.35)
   steps[#steps + 1] = call("Validate no-focus warning branch", function(_, currentApp)
     local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
     currentApp.wm:setFocus(nil)
@@ -3190,6 +3405,25 @@ local function buildClipboardMatrixScenario(harness, app, runner)
       "expected CHR copy/paste target pixels to change"
     )
   end)
+  steps[#steps + 1] = call("Assert CHR->CHR paste marks destination tile edited", function(_, currentApp, currentRunner)
+    local targetAfter = assert(
+      srcWin:get(currentRunner.chrClipboardTargetCol, currentRunner.chrClipboardTargetRow, 1),
+      "expected CHR target tile for edit-mark assertion"
+    )
+    local bankIdx = tonumber(targetAfter._bankIndex)
+    local tileIdx = tonumber(targetAfter.index)
+    assert(type(bankIdx) == "number" and type(tileIdx) == "number", "expected CHR target tile bank/index metadata")
+    local edits = getEditedTileMap(currentApp, bankIdx, tileIdx)
+    assert(type(edits) == "table", string.format("expected edit marks for bank=%s tile=%s", tostring(bankIdx), tostring(tileIdx)))
+    assert(
+      edits["0_0"] == currentRunner.chrClipboardSourcePixels[1],
+      string.format("expected edited pixel 0_0=%s, got %s", tostring(currentRunner.chrClipboardSourcePixels[1]), tostring(edits["0_0"]))
+    )
+    assert(
+      edits["7_7"] == currentRunner.chrClipboardSourcePixels[64],
+      string.format("expected edited pixel 7_7=%s, got %s", tostring(currentRunner.chrClipboardSourcePixels[64]), tostring(edits["7_7"]))
+    )
+  end)
   steps[#steps + 1] = pause("Observe CHR in-window copy/paste path", 0.35)
 
   appendClick(steps, "Select CHR source tile for in-window cut", function(h, _, currentRunner)
@@ -3224,6 +3458,25 @@ local function buildClipboardMatrixScenario(harness, app, runner)
     assert(
       not pixelsEqual(afterPixels, currentRunner.chrClipboardCutPasteTargetPixelsBefore),
       "expected CHR cut/paste target pixels to change"
+    )
+  end)
+  steps[#steps + 1] = call("Assert CHR cut/paste marks destination tile edited", function(_, currentApp, currentRunner)
+    local targetAfter = assert(
+      srcWin:get(currentRunner.chrClipboardCutPasteTargetCol, currentRunner.chrClipboardCutPasteTargetRow, 1),
+      "expected CHR cut/paste target tile for edit-mark assertion"
+    )
+    local bankIdx = tonumber(targetAfter._bankIndex)
+    local tileIdx = tonumber(targetAfter.index)
+    assert(type(bankIdx) == "number" and type(tileIdx) == "number", "expected CHR cut/paste target tile bank/index metadata")
+    local edits = getEditedTileMap(currentApp, bankIdx, tileIdx)
+    assert(type(edits) == "table", string.format("expected edit marks for bank=%s tile=%s", tostring(bankIdx), tostring(tileIdx)))
+    assert(
+      edits["0_0"] == currentRunner.chrClipboardSourcePixels[1],
+      string.format("expected edited pixel 0_0=%s, got %s", tostring(currentRunner.chrClipboardSourcePixels[1]), tostring(edits["0_0"]))
+    )
+    assert(
+      edits["7_7"] == currentRunner.chrClipboardSourcePixels[64],
+      string.format("expected edited pixel 7_7=%s, got %s", tostring(currentRunner.chrClipboardSourcePixels[64]), tostring(edits["7_7"]))
     )
   end)
   steps[#steps + 1] = pause("Observe CHR in-window cut/paste path", 0.35)

@@ -431,8 +431,13 @@ local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
     return { count = 0, shifted = false, source = "none" }
   end
 
-  local anchorCol, anchorRow = resolveTileSelectionAnchor(focus, layerIndex)
-  local anchorSource = "selection"
+  local anchorCol = (opts and type(opts.anchorCol) == "number") and math.floor(opts.anchorCol) or nil
+  local anchorRow = (opts and type(opts.anchorRow) == "number") and math.floor(opts.anchorRow) or nil
+  local anchorSource = "explicit"
+  if anchorCol == nil or anchorRow == nil then
+    anchorCol, anchorRow = resolveTileSelectionAnchor(focus, layerIndex)
+    anchorSource = "selection"
+  end
   if anchorCol == nil or anchorRow == nil then
     anchorSource = "cursor"
     local mx, my = resolveScaledMouse(ctx)
@@ -622,8 +627,13 @@ local function pasteSpriteClipboard(ctx, focus, layer, data, opts)
 
   local layerPixelW = math.max(1, (focus.cols or 0) * (focus.cellW or 8))
   local layerPixelH = math.max(1, (focus.rows or 0) * (focus.cellH or 8))
-  local anchorX, anchorY = resolveSpriteSelectionAnchor(layer)
-  local anchorSource = "selection"
+  local anchorX = (opts and type(opts.anchorX) == "number") and math.floor(opts.anchorX) or nil
+  local anchorY = (opts and type(opts.anchorY) == "number") and math.floor(opts.anchorY) or nil
+  local anchorSource = "explicit"
+  if anchorX == nil or anchorY == nil then
+    anchorX, anchorY = resolveSpriteSelectionAnchor(layer)
+    anchorSource = "selection"
+  end
   if anchorX == nil or anchorY == nil then
     anchorSource = "cursor"
     local mx, my = resolveScaledMouse(ctx)
