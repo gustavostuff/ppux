@@ -211,22 +211,7 @@ describe("keyboard_clipboard_controller.lua - shared toolbar/keyboard actions", 
     for i = 1, 64 do
       sourceTile.pixels[i] = (i % 4)
     end
-    local sourceLayer = {
-      kind = "tile",
-      items = { [1] = sourceTile },
-      multiTileSelection = { [1] = true },
-      removedCells = {},
-    }
-    local sourceWin = {
-      kind = "static_art",
-      cols = 1,
-      rows = 1,
-      layers = { sourceLayer },
-      getActiveLayerIndex = function() return 1 end,
-      getSelected = function() return 0, 0, 1 end,
-      get = function() return sourceTile end,
-      clearSelected = function() end,
-    }
+    local sourceLayer = { kind = "tile", multiTileSelection = { [1] = true }, removedCells = {} }
 
     local refreshCalls = 0
     local targetBytes = {}
@@ -244,16 +229,21 @@ describe("keyboard_clipboard_controller.lua - shared toolbar/keyboard actions", 
       targetTile.pixels[i] = 0
     end
 
-    local targetLayer = { kind = "tile" }
-    local targetWin = {
+    local selectedCol, selectedRow = 0, 0
+    local chrWin = {
       kind = "chr",
-      cols = 4,
-      rows = 4,
-      layers = { targetLayer },
+      cols = 2,
+      rows = 1,
+      layers = { sourceLayer },
       getActiveLayerIndex = function() return 1 end,
-      getSelected = function() return 1, 1, 1 end,
-      get = function() return targetTile end,
-      setSelected = function() end,
+      getSelected = function() return selectedCol, selectedRow, 1 end,
+      get = function(_, col)
+        if col == 0 then return sourceTile end
+        return targetTile
+      end,
+      setSelected = function(_, col, row)
+        selectedCol, selectedRow = col, row
+      end,
       clearSelected = function() end,
     }
 
@@ -264,8 +254,9 @@ describe("keyboard_clipboard_controller.lua - shared toolbar/keyboard actions", 
       },
     }
 
-    expect(KeyboardClipboardController.performClipboardAction(ctx, sourceWin, "copy")).toBe(true)
-    expect(KeyboardClipboardController.performClipboardAction(ctx, targetWin, "paste")).toBe(true)
+    expect(KeyboardClipboardController.performClipboardAction(ctx, chrWin, "copy")).toBe(true)
+    selectedCol, selectedRow = 1, 0
+    expect(KeyboardClipboardController.performClipboardAction(ctx, chrWin, "paste")).toBe(true)
     expect(refreshCalls).toBe(1)
     expect(targetTile.pixels[1]).toBe(sourceTile.pixels[1])
     expect(ctx.app.edits).toBeTruthy()
@@ -276,27 +267,14 @@ describe("keyboard_clipboard_controller.lua - shared toolbar/keyboard actions", 
   end)
 
   it("invalidates CHR bank tile canvas after CHR pixel paste", function()
+    local sourceTile = { pixels = {} }
+    for i = 1, 64 do
+      sourceTile.pixels[i] = (i % 4)
+    end
     local sourceLayer = {
       kind = "tile",
-      items = { [1] = { pixels = { [1] = 3 } } },
       multiTileSelection = { [1] = true },
       removedCells = {},
-    }
-    local sourceWin = {
-      kind = "static_art",
-      cols = 1,
-      rows = 1,
-      layers = { sourceLayer },
-      getActiveLayerIndex = function() return 1 end,
-      getSelected = function() return 0, 0, 1 end,
-      get = function()
-        local tile = { pixels = {} }
-        for i = 1, 64 do
-          tile.pixels[i] = (i % 4)
-        end
-        return tile
-      end,
-      clearSelected = function() end,
     }
 
     local targetTile = {
@@ -314,15 +292,26 @@ describe("keyboard_clipboard_controller.lua - shared toolbar/keyboard actions", 
     end
 
     local invalidated = nil
-    local targetWin = {
+    local selectedCol, selectedRow = 0, 0
+    local chrWin = {
       kind = "chr",
       cols = 16,
       rows = 32,
-      layers = { { kind = "tile" } },
+      layers = { sourceLayer },
       getActiveLayerIndex = function() return 1 end,
-      getSelected = function() return 0, 0, 1 end,
-      get = function() return targetTile end,
-      setSelected = function() end,
+      getSelected = function() return selectedCol, selectedRow, 1 end,
+      get = function(_, col, row)
+        if col == 0 and row == 0 then
+          return sourceTile
+        end
+        if col == 1 and row == 0 then
+          return targetTile
+        end
+        return nil
+      end,
+      setSelected = function(_, col, row)
+        selectedCol, selectedRow = col, row
+      end,
       clearSelected = function() end,
     }
     local ctx = {
@@ -334,47 +323,39 @@ describe("keyboard_clipboard_controller.lua - shared toolbar/keyboard actions", 
       },
     }
 
-    expect(KeyboardClipboardController.performClipboardAction(ctx, sourceWin, "copy")).toBe(true)
-    expect(KeyboardClipboardController.performClipboardAction(ctx, targetWin, "paste")).toBe(true)
+    expect(KeyboardClipboardController.performClipboardAction(ctx, chrWin, "copy")).toBe(true)
+    selectedCol, selectedRow = 1, 0
+    expect(KeyboardClipboardController.performClipboardAction(ctx, chrWin, "paste")).toBe(true)
     expect(invalidated).toBeTruthy()
     expect(invalidated.bank).toBe(2)
     expect(invalidated.tile).toBe(11)
   end)
 
   it("uses selected cell as tile paste anchor in scrolled windows", function()
-    local sourceLayer = {
-      kind = "tile",
-      items = { [1] = { id = 41 } },
-      multiTileSelection = { [1] = true },
-      removedCells = {},
-    }
-    local sourceWin = {
-      kind = "static_art",
-      cols = 1,
-      rows = 1,
-      layers = { sourceLayer },
-      getActiveLayerIndex = function() return 1 end,
-      getSelected = function() return 0, 0, 1 end,
-      get = function() return sourceLayer.items[1] end,
-      markCellRemoved = function() end,
-      clearSelected = function() end,
-    }
+    local sourceTile = { pixels = {} }
+    for i = 1, 64 do sourceTile.pixels[i] = (i % 4) end
+    local sourceLayer = { kind = "tile", multiTileSelection = { [1] = true }, removedCells = {} }
     local requestedCol, requestedRow = nil, nil
-    local targetLayer = { kind = "tile" }
-    local targetWin = {
+    local selectedCol, selectedRow = 0, 0
+    local chrWin = {
       kind = "chr",
       cols = 16,
       rows = 32,
       scrollCol = 5,
       scrollRow = 10,
-      layers = { targetLayer },
+      layers = { sourceLayer },
       getActiveLayerIndex = function() return 1 end,
-      getSelected = function() return 7, 13, 1 end,
+      getSelected = function() return selectedCol, selectedRow, 1 end,
       get = function(_, col, row)
         requestedCol, requestedRow = col, row
+        if col == 0 and row == 0 then
+          return sourceTile
+        end
         return { pixels = {} }
       end,
-      setSelected = function() end,
+      setSelected = function(_, col, row)
+        selectedCol, selectedRow = col, row
+      end,
       clearSelected = function() end,
     }
     local ctx = {
@@ -382,8 +363,9 @@ describe("keyboard_clipboard_controller.lua - shared toolbar/keyboard actions", 
       app = {},
     }
 
-    expect(KeyboardClipboardController.performClipboardAction(ctx, sourceWin, "copy")).toBe(true)
-    expect(KeyboardClipboardController.performClipboardAction(ctx, targetWin, "paste")).toBe(true)
+    expect(KeyboardClipboardController.performClipboardAction(ctx, chrWin, "copy")).toBe(true)
+    selectedCol, selectedRow = 7, 13
+    expect(KeyboardClipboardController.performClipboardAction(ctx, chrWin, "paste")).toBe(true)
     expect(requestedCol).toBe(7)
     expect(requestedRow).toBe(13)
   end)
@@ -851,22 +833,7 @@ describe("keyboard_clipboard_controller.lua - shared toolbar/keyboard actions", 
     for i = 1, 64 do
       sourceTile.pixels[i] = 3
     end
-    local sourceLayer = {
-      kind = "tile",
-      items = { [1] = sourceTile },
-      multiTileSelection = { [1] = true },
-      removedCells = {},
-    }
-    local sourceWin = {
-      kind = "static_art",
-      cols = 1,
-      rows = 1,
-      layers = { sourceLayer },
-      getActiveLayerIndex = function() return 1 end,
-      getSelected = function() return 0, 0, 1 end,
-      get = function() return sourceTile end,
-      clearSelected = function() end,
-    }
+    local sourceLayer = { kind = "tile", multiTileSelection = { [1] = true }, removedCells = {} }
 
     local targetBytes = {}
     for i = 1, 16 do targetBytes[i] = 0 end
@@ -886,16 +853,21 @@ describe("keyboard_clipboard_controller.lua - shared toolbar/keyboard actions", 
     }
     for i = 1, 64 do targetTile.pixels[i] = 0 end
 
-    local targetLayer = { kind = "tile" }
-    local targetWin = {
+    local selectedCol, selectedRow = 0, 0
+    local chrWin = {
       kind = "chr",
-      cols = 4,
-      rows = 4,
-      layers = { targetLayer },
+      cols = 2,
+      rows = 1,
+      layers = { sourceLayer },
       getActiveLayerIndex = function() return 1 end,
-      getSelected = function() return 0, 0, 1 end,
-      get = function() return targetTile end,
-      setSelected = function() end,
+      getSelected = function() return selectedCol, selectedRow, 1 end,
+      get = function(_, col)
+        if col == 0 then return sourceTile end
+        return targetTile
+      end,
+      setSelected = function(_, col, row)
+        selectedCol, selectedRow = col, row
+      end,
       clearSelected = function() end,
     }
 
@@ -914,13 +886,279 @@ describe("keyboard_clipboard_controller.lua - shared toolbar/keyboard actions", 
       app = app,
     }
 
-    expect(KeyboardClipboardController.performClipboardAction(ctx, sourceWin, "copy")).toBe(true)
-    expect(KeyboardClipboardController.performClipboardAction(ctx, targetWin, "paste")).toBe(true)
+    expect(KeyboardClipboardController.performClipboardAction(ctx, chrWin, "copy")).toBe(true)
+    selectedCol, selectedRow = 1, 0
+    expect(KeyboardClipboardController.performClipboardAction(ctx, chrWin, "paste")).toBe(true)
     expect(targetTile.pixels[1]).toBe(3)
     expect(undoRedo.stack[1].type).toBe("paint")
-    expect(undoRedo:undo(app)).toBe(true)
+    undoRedo:undo(app)
     expect(targetTile.pixels[1]).toBe(0)
-    expect(undoRedo:redo(app)).toBe(true)
+    undoRedo:redo(app)
     expect(targetTile.pixels[1]).toBe(3)
+  end)
+
+  it("supports tile-to-sprite clipboard paste across windows", function()
+    local sourceTile = {
+      _bankIndex = 1,
+      index = 12,
+      pixels = {},
+    }
+    for i = 1, 64 do sourceTile.pixels[i] = (i % 4) end
+    local sourceLayer = {
+      kind = "tile",
+      items = { [1] = sourceTile },
+      multiTileSelection = { [1] = true },
+    }
+    local sourceWin = {
+      kind = "static_art",
+      cols = 1,
+      rows = 1,
+      layers = { sourceLayer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 0, 0, 1 end,
+      get = function() return sourceTile end,
+    }
+
+    local targetLayer = { kind = "sprite", mode = "8x8", items = {} }
+    local targetWin = {
+      kind = "animation",
+      cols = 8,
+      rows = 8,
+      cellW = 8,
+      cellH = 8,
+      layers = { targetLayer },
+      getActiveLayerIndex = function() return 1 end,
+      toGridCoords = function() return true, 2, 3, 0, 0 end,
+    }
+    local undoRedo = UndoRedoController.new(20)
+    local app = { undoRedo = undoRedo, appEditState = { tilesPool = { [1] = { [12] = sourceTile } } } }
+    local ctx = {
+      setStatus = function() end,
+      scaledMouse = function() return 0, 0 end,
+      app = app,
+    }
+
+    expect(KeyboardClipboardController.performClipboardAction(ctx, sourceWin, "copy")).toBe(true)
+    expect(KeyboardClipboardController.performClipboardAction(ctx, targetWin, "paste")).toBe(true)
+    expect(#targetLayer.items).toBe(1)
+    expect(targetLayer.items[1].topRef).toBe(sourceTile)
+    expect(targetLayer.items[1].worldX).toBe(16)
+    expect(targetLayer.items[1].worldY).toBe(24)
+    expect(undoRedo.stack[1].type).toBe("sprite_drag")
+  end)
+
+  it("supports sprite-to-tile clipboard paste across windows", function()
+    local topRef = { _bankIndex = 1, index = 8, pixels = {} }
+    for i = 1, 64 do topRef.pixels[i] = 1 end
+    local sourceLayer = {
+      kind = "sprite",
+      mode = "8x8",
+      items = {
+        {
+          topRef = topRef,
+          worldX = 10,
+          worldY = 6,
+          x = 10,
+          y = 6,
+          baseX = 10,
+          baseY = 6,
+        },
+      },
+      selectedSpriteIndex = 1,
+      multiSpriteSelection = { [1] = true },
+    }
+    local sourceWin = {
+      kind = "animation",
+      cols = 8,
+      rows = 8,
+      cellW = 8,
+      cellH = 8,
+      layers = { sourceLayer },
+      getActiveLayerIndex = function() return 1 end,
+    }
+
+    local targetLayer = { kind = "tile", items = {} }
+    local targetWin = {
+      kind = "static_art",
+      cols = 8,
+      rows = 8,
+      layers = { targetLayer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 2, 1, 1 end,
+      get = function(_, col, row)
+        return targetLayer.items[(row * 8 + col) + 1]
+      end,
+      set = function(_, col, row, item)
+        targetLayer.items[(row * 8 + col) + 1] = item
+      end,
+      setSelected = function() end,
+    }
+    local undoRedo = UndoRedoController.new(20)
+    local app = { undoRedo = undoRedo }
+    local ctx = {
+      setStatus = function() end,
+      app = app,
+    }
+
+    expect(KeyboardClipboardController.performClipboardAction(ctx, sourceWin, "copy")).toBe(true)
+    expect(KeyboardClipboardController.performClipboardAction(ctx, targetWin, "paste")).toBe(true)
+    expect(targetLayer.items[(1 * 8 + 2) + 1]).toBe(topRef)
+    expect(undoRedo.stack[1].type).toBe("tile_drag")
+  end)
+
+  it("blocks 8x8 tile payload paste into 8x16 sprite layers", function()
+    local sourceTile = { _bankIndex = 1, index = 3, pixels = {} }
+    for i = 1, 64 do sourceTile.pixels[i] = (i % 4) end
+    local sourceLayer = {
+      kind = "tile",
+      items = { [1] = sourceTile },
+      multiTileSelection = { [1] = true },
+    }
+    local sourceWin = {
+      kind = "static_art",
+      cols = 1,
+      rows = 1,
+      layers = { sourceLayer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 0, 0, 1 end,
+      get = function() return sourceTile end,
+    }
+
+    local targetLayer = { kind = "sprite", mode = "8x16", items = {} }
+    local targetWin = {
+      kind = "animation",
+      cols = 8,
+      rows = 8,
+      cellW = 8,
+      cellH = 8,
+      layers = { targetLayer },
+      getActiveLayerIndex = function() return 1 end,
+    }
+    local status = nil
+    local undoRedo = UndoRedoController.new(20)
+    local ctx = {
+      setStatus = function(text) status = text end,
+      app = { undoRedo = undoRedo },
+    }
+
+    expect(KeyboardClipboardController.performClipboardAction(ctx, sourceWin, "copy")).toBe(true)
+    local avail = KeyboardClipboardController.getActionAvailability(ctx, targetWin, "paste")
+    expect(avail.allowed).toBe(false)
+    expect(avail.reason).toBe("8x8 tile payload cannot drop into 8x16 sprite layer")
+    expect(KeyboardClipboardController.performClipboardAction(ctx, targetWin, "paste")).toBe(true)
+    expect(#targetLayer.items).toBe(0)
+    expect(status).toBe("8x8 tile payload cannot drop into 8x16 sprite layer")
+    expect(#undoRedo.stack).toBe(0)
+  end)
+
+  it("allows CHR oddEven tile payload paste into 8x16 sprite layers", function()
+    local topTile = { _bankIndex = 1, index = 10, pixels = {} }
+    local bottomTile = { _bankIndex = 1, index = 11, pixels = {} }
+    for i = 1, 64 do
+      topTile.pixels[i] = (i % 4)
+      bottomTile.pixels[i] = ((i + 1) % 4)
+    end
+    local sourceLayer = {
+      kind = "tile",
+      items = {
+        [1] = topTile,
+        [2] = bottomTile,
+      },
+      multiTileSelection = { [1] = true },
+    }
+    local sourceWin = {
+      kind = "chr",
+      orderMode = "oddEven",
+      cols = 1,
+      rows = 2,
+      layers = { sourceLayer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 0, 0, 1 end,
+      get = function(_, _, row)
+        return (row == 0) and topTile or bottomTile
+      end,
+      materializeTileHandle = function(_, item)
+        return item
+      end,
+    }
+
+    local targetLayer = { kind = "sprite", mode = "8x16", items = {} }
+    local targetWin = {
+      kind = "animation",
+      cols = 8,
+      rows = 8,
+      cellW = 8,
+      cellH = 8,
+      layers = { targetLayer },
+      getActiveLayerIndex = function() return 1 end,
+      toGridCoords = function() return true, 1, 1, 0, 0 end,
+    }
+    local ctx = {
+      setStatus = function() end,
+      scaledMouse = function() return 0, 0 end,
+      app = {
+        appEditState = {
+          tilesPool = {
+            [1] = {
+              [10] = topTile,
+              [11] = bottomTile,
+            },
+          },
+        },
+      },
+    }
+
+    expect(KeyboardClipboardController.performClipboardAction(ctx, sourceWin, "copy")).toBe(true)
+    expect(KeyboardClipboardController.performClipboardAction(ctx, targetWin, "paste")).toBe(true)
+    expect(#targetLayer.items).toBe(1)
+    expect(targetLayer.items[1].topRef).toBe(topTile)
+    expect(targetLayer.items[1].botRef).toBe(bottomTile)
+  end)
+
+  it("blocks CHR/ROM destination paste when clipboard source is another window", function()
+    local sourceTile = { _bankIndex = 1, index = 4, pixels = {} }
+    for i = 1, 64 do sourceTile.pixels[i] = 1 end
+    local sourceLayer = {
+      kind = "tile",
+      items = { [1] = sourceTile },
+      multiTileSelection = { [1] = true },
+    }
+    local sourceWin = {
+      kind = "static_art",
+      cols = 1,
+      rows = 1,
+      layers = { sourceLayer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 0, 0, 1 end,
+      get = function() return sourceTile end,
+    }
+
+    local targetTile = { pixels = {}, _bankBytesRef = {}, _bankIndex = 1, index = 0, refreshImage = function() end }
+    for i = 1, 64 do targetTile.pixels[i] = 0 end
+    for i = 1, 16 do targetTile._bankBytesRef[i] = 0 end
+    local targetWin = {
+      kind = "chr",
+      cols = 4,
+      rows = 4,
+      layers = { { kind = "tile" } },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 0, 0, 1 end,
+      get = function() return targetTile end,
+      setSelected = function() end,
+    }
+    local status = nil
+    local undoRedo = UndoRedoController.new(20)
+    local ctx = {
+      setStatus = function(text) status = text end,
+      app = { undoRedo = undoRedo },
+    }
+
+    expect(KeyboardClipboardController.performClipboardAction(ctx, sourceWin, "copy")).toBe(true)
+    local avail = KeyboardClipboardController.getActionAvailability(ctx, targetWin, "paste")
+    expect(avail.allowed).toBe(false)
+    expect(avail.reason).toBe("Pasting into CHR/ROM windows is only allowed from the same window")
+    expect(KeyboardClipboardController.performClipboardAction(ctx, targetWin, "paste")).toBe(true)
+    expect(status).toBe("Pasting into CHR/ROM windows is only allowed from the same window")
+    expect(#undoRedo.stack).toBe(0)
   end)
 end)

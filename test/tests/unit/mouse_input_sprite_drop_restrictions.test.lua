@@ -6,7 +6,8 @@ describe("mouse_input.lua - sprite drop restrictions", function()
   local originalAddSpriteToLayer
   local originalSetSpriteSelection
 
-  local function runDropScenario(targetKind)
+  local function runDropScenario(targetKind, opts)
+    opts = opts or {}
     local draggedTile = { index = 7, _bankIndex = 1 }
     local addCalls = 0
     local addArgs = nil
@@ -24,6 +25,7 @@ describe("mouse_input.lua - sprite drop restrictions", function()
     local srcLayer = { kind = "tile", items = { [1] = draggedTile } }
     local srcWin = {
       kind = "chr",
+      orderMode = opts.srcOrderMode,
       _closed = false,
       x = 0, y = 0, zoom = 1, cellW = 8, cellH = 8,
       cols = 1, rows = 1, scrollCol = 0, scrollRow = 0,
@@ -38,7 +40,7 @@ describe("mouse_input.lua - sprite drop restrictions", function()
       clearSelected = function() end,
     }
 
-    local dstLayer = { kind = "sprite", items = {} }
+    local dstLayer = { kind = "sprite", mode = opts.dstMode or "8x8", items = {} }
     local dstWin = {
       kind = targetKind,
       _closed = false,
@@ -153,5 +155,20 @@ describe("mouse_input.lua - sprite drop restrictions", function()
       expect(res.addArgs.tile).toBe(res.draggedTile)
       expect(res.app.statusText).toBe("")
     end
+  end)
+
+  it("blocks CHR 8x8 payload drop onto 8x16 sprite layers", function()
+    local res = runDropScenario("static_art", { dstMode = "8x16", srcOrderMode = "normal" })
+    expect(res.addCalls).toBe(0)
+    expect(#res.dstLayer.items).toBe(0)
+    expect(res.app.statusText).toBe("8x8 tile payload cannot drop into 8x16 sprite layer")
+  end)
+
+  it("allows CHR oddEven payload drop onto 8x16 sprite layers", function()
+    local res = runDropScenario("static_art", { dstMode = "8x16", srcOrderMode = "oddEven" })
+    expect(res.addCalls).toBe(1)
+    expect(res.selectionCalls).toBe(1)
+    expect(#res.dstLayer.items).toBe(1)
+    expect(res.app.statusText).toBe("")
   end)
 end)

@@ -110,7 +110,7 @@ describe("keyboard_clipboard_controller.lua - CHR virtual handles", function()
     expect(statuses[#statuses]).toBe("Pasted 1 tile")
   end)
 
-  it("pastes into CHR targets by pixel value without tile reference assignment", function()
+  it("pastes into CHR targets by pixel value without tile reference assignment (same window)", function()
     local statuses = {}
     local sourceTile = {
       pixels = {},
@@ -125,9 +125,10 @@ describe("keyboard_clipboard_controller.lua - CHR virtual handles", function()
       targetTile.pixels[i] = 0
     end
 
-    local sourceWin = {
+    local selectedCol, selectedRow = 1, 0
+    local chrWin = {
       kind = "chr",
-      cols = 1,
+      cols = 2,
       rows = 1,
       layers = {
         [1] = {
@@ -141,7 +142,7 @@ describe("keyboard_clipboard_controller.lua - CHR virtual handles", function()
         return 1
       end,
       getSelected = function()
-        return 0, 0, 1
+        return selectedCol, selectedRow, 1
       end,
       getVirtualTileHandle = function()
         return { _virtual = true, index = 1, _bankIndex = 1 }
@@ -149,25 +150,16 @@ describe("keyboard_clipboard_controller.lua - CHR virtual handles", function()
       materializeTileHandle = function()
         return sourceTile
       end,
-    }
-
-    local targetWin = {
-      kind = "chr",
-      cols = 1,
-      rows = 1,
-      layers = {
-        [1] = {
-          kind = "tile",
-        },
-      },
-      getActiveLayerIndex = function()
-        return 1
-      end,
-      get = function()
+      get = function(_, col)
+        if col == 0 then return sourceTile end
         return targetTile
       end,
-      setSelected = function() end,
-      clearSelected = function() end,
+      setSelected = function(_, col, row)
+        selectedCol, selectedRow = col, row
+      end,
+      clearSelected = function()
+        selectedCol, selectedRow = nil, nil
+      end,
     }
 
     local ctx = {
@@ -187,8 +179,9 @@ describe("keyboard_clipboard_controller.lua - CHR virtual handles", function()
       shiftDown = function() return false end,
     }
 
-    expect(KeyboardClipboardController.handleCopySelection(ctx, utils, "c", sourceWin)).toBe(true)
-    expect(KeyboardClipboardController.handlePasteSelection(ctx, utils, "v", targetWin)).toBe(true)
+    expect(KeyboardClipboardController.handleCopySelection(ctx, utils, "c", chrWin)).toBe(true)
+    selectedCol, selectedRow = 1, 0
+    expect(KeyboardClipboardController.handlePasteSelection(ctx, utils, "v", chrWin)).toBe(true)
     expect(statuses[#statuses]).toBe("Pasted 1 tile")
     expect(targetTile.pixels[1]).toBe(sourceTile.pixels[1])
     expect(targetTile.pixels[16]).toBe(sourceTile.pixels[16])
@@ -226,7 +219,8 @@ describe("keyboard_clipboard_controller.lua - CHR virtual handles", function()
       materializeTileHandle = function(_, handle)
         if handle.index == 1 then return tileA end
         if handle.index == 2 then return tileB end
-        return tileC
+        if handle.index == 3 then return tileC end
+        return nil
       end,
       get = function(_, col)
         if col == 0 then return tileA end
@@ -245,31 +239,26 @@ describe("keyboard_clipboard_controller.lua - CHR virtual handles", function()
         markUnsaved = function() end,
       },
     }
-    local utils = {
-      ctrlDown = function() return true end,
-      altDown = function() return false end,
-      shiftDown = function() return false end,
-    }
-
-    expect(KeyboardClipboardController.handleCopySelection(ctx, utils, "c", chrWin)).toBe(true)
-    expect(KeyboardClipboardController.handlePasteSelection(ctx, utils, "v", chrWin)).toBe(true)
+    expect(KeyboardClipboardController.performClipboardAction(ctx, chrWin, "copy")).toBe(true)
+    selectedCol, selectedRow = 1, 0
+    expect(KeyboardClipboardController.performClipboardAction(ctx, chrWin, "paste")).toBe(true)
     expect(tileB.pixels[1]).toBe(tileA.pixels[1])
     expect(tileB.pixels[64]).toBe(tileA.pixels[64])
 
     sourceLayer.multiTileSelection = { [1] = true }
     selectedCol, selectedRow = 0, 0
-    expect(KeyboardClipboardController.handleCutSelection(ctx, utils, "x", chrWin)).toBe(true)
+    expect(KeyboardClipboardController.performClipboardAction(ctx, chrWin, "cut")).toBe(true)
     expect(tileA.pixels[1]).toBe(0)
     expect(tileA.pixels[64]).toBe(0)
 
     selectedCol, selectedRow = 2, 0
-    expect(KeyboardClipboardController.handlePasteSelection(ctx, utils, "v", chrWin)).toBe(true)
+    expect(KeyboardClipboardController.performClipboardAction(ctx, chrWin, "paste")).toBe(true)
     expect(tileC.pixels[1]).toBe((1 % 4))
     expect(tileC.pixels[64]).toBe((64 % 4))
     expect(statuses[#statuses]).toBe("Pasted 1 tile")
   end)
 
-  it("copies full 8x16 CHR pair from a single selected cell", function()
+  it("copies full 8x16 CHR pair from a single selected cell in same CHR window", function()
     local topSrc = { pixels = {} }
     local botSrc = { pixels = {} }
     local topDst = { pixels = {}, _bankBytesRef = {}, _bankIndex = 1, index = 20, refreshImage = function() end }
@@ -285,7 +274,8 @@ describe("keyboard_clipboard_controller.lua - CHR virtual handles", function()
       botDst._bankBytesRef[i] = 0
     end
 
-    local sourceWin = {
+    local selectedCol, selectedRow = 3, 10
+    local chrWin = {
       kind = "chr",
       orderMode = "oddEven",
       cols = 16,
@@ -294,7 +284,7 @@ describe("keyboard_clipboard_controller.lua - CHR virtual handles", function()
         [1] = { kind = "tile" },
       },
       getActiveLayerIndex = function() return 1 end,
-      getSelected = function() return 3, 10, 1 end, -- single selected cell
+      getSelected = function() return selectedCol, selectedRow, 1 end, -- single selected cell
       getVirtualTileHandle = function(_, col, row)
         if col ~= 3 then return nil end
         if row == 10 then return { _virtual = true, index = 100, _bankIndex = 1 } end
@@ -306,25 +296,17 @@ describe("keyboard_clipboard_controller.lua - CHR virtual handles", function()
         if handle.index == 101 then return botSrc end
         return nil
       end,
-    }
-
-    local targetWin = {
-      kind = "chr",
-      orderMode = "oddEven",
-      cols = 16,
-      rows = 32,
-      layers = {
-        [1] = { kind = "tile" },
-      },
-      getActiveLayerIndex = function() return 1 end,
-      getSelected = function() return 8, 20, 1 end,
       get = function(_, col, row)
+        if col == 3 and row == 10 then return topSrc end
+        if col == 3 and row == 11 then return botSrc end
         if col ~= 8 then return nil end
         if row == 20 then return topDst end
         if row == 21 then return botDst end
         return nil
       end,
-      setSelected = function() end,
+      setSelected = function(_, col, row)
+        selectedCol, selectedRow = col, row
+      end,
       clearSelected = function() end,
     }
 
@@ -342,8 +324,9 @@ describe("keyboard_clipboard_controller.lua - CHR virtual handles", function()
       shiftDown = function() return false end,
     }
 
-    expect(KeyboardClipboardController.handleCopySelection(ctx, utils, "c", sourceWin)).toBe(true)
-    expect(KeyboardClipboardController.handlePasteSelection(ctx, utils, "v", targetWin)).toBe(true)
+    expect(KeyboardClipboardController.handleCopySelection(ctx, utils, "c", chrWin)).toBe(true)
+    selectedCol, selectedRow = 8, 20
+    expect(KeyboardClipboardController.handlePasteSelection(ctx, utils, "v", chrWin)).toBe(true)
     expect(topDst.pixels[1]).toBe(1)
     expect(topDst.pixels[64]).toBe(1)
     expect(botDst.pixels[1]).toBe(2)

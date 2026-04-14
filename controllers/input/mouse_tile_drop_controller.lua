@@ -264,7 +264,7 @@ local function getTooltipTextForReason(reason)
     return "not enough area to drop"
   end
   if reason == "chr_8x8_multi_into_sprite_8x16" then
-    return "8x8 multi-selection cannot drop into 8x16 sprite layer"
+    return "8x8 tile payload cannot drop into 8x16 sprite layer"
   end
   return nil
 end
@@ -313,14 +313,12 @@ local function getChrGroupEntriesForDestination(group, layer)
   return group.entries
 end
 
-local function isBlockedChr8x8MultiToSprite8x16(group, layer)
+local function isBlockedChr8x8ToSprite8x16(group, layer)
   return layer
     and layer.kind == "sprite"
     and (layer.mode or "8x8") == "8x16"
     and group
     and group.sourceSelectionMode ~= "8x16"
-    and group.entries
-    and #group.entries > 1
 end
 
 local function buildChrGroupPlacements(dst, entries, anchorCol, anchorRow, anchorPixelX, anchorPixelY)
@@ -401,7 +399,7 @@ local function getChrGroupDropState(env, x, y, wm)
     reason = nil,
   }
 
-  if isBlockedChr8x8MultiToSprite8x16(drag.tileGroup, layer) then
+  if isBlockedChr8x8ToSprite8x16(drag.tileGroup, layer) then
     state.reason = "chr_8x8_multi_into_sprite_8x16"
     return state
   end
@@ -590,6 +588,11 @@ local function handleChrBankCopyToSpriteLayer(env, dst, x, y, drag, dstLayer)
     return false
   end
 
+  if (layer.mode or "8x8") == "8x16" and ((drag.srcWin and drag.srcWin.orderMode) ~= "oddEven") then
+    setStatusFromEnv(env, "8x8 tile payload cannot drop into 8x16 sprite layer")
+    return false
+  end
+
   if env.isSpriteLayerDropBlocked and env.isSpriteLayerDropBlocked(dst, layer, drag.srcWin) then
     setStatusFromEnv(env, "Cannot drop CHR tiles onto sprite layers in this window")
     return false
@@ -688,6 +691,11 @@ function M.handleTileDrop(env, x, y, wm)
   local app = env.ctx and env.ctx.app
   local undoRedo = app and app.undoRedo
   local recorder = makeTileDragRecorder(undoRedo, ((drag.copyMode or srcIsChr) and "copy") or "move")
+
+  if src and dst and src ~= dst and (not srcIsChr) then
+    env.clearDragState(false)
+    return true
+  end
 
   if src and dst and src == dst and WindowCaps.isChrLike(dst) and dst.swapCells then
     local ok, col, row = dst:toGridCoords(x, y)

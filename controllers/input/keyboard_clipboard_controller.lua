@@ -220,6 +220,11 @@ local function materializeClipboardTileItem(data, item, layerIndex)
   if item == nil then
     return nil
   end
+  -- Frozen/snapshotted clipboard payloads already contain concrete pixel data
+  -- and must not be rematerialized through source window virtual-handle hooks.
+  if type(item) == "table" and item.pixels and item._virtual ~= true and item.kind ~= "chr_virtual_tile" then
+    return item
+  end
   local sourceWin = data and data.sourceWin or nil
   if sourceWin and sourceWin.materializeTileHandle then
     local resolved = sourceWin:materializeTileHandle(item, layerIndex)
@@ -302,7 +307,8 @@ local function captureTileClipboard(win, layer, layerIndex)
 
   return {
     kind = "tile",
-    sourceWin = WindowCaps.isChrLike(win) and win or nil,
+    sourceWin = win,
+    sourceSelectionMode = isChr8x16 and "8x16" or "8x8",
     entries = entries,
     width = (maxCol - minCol) + 1,
     height = (maxRow - minRow) + 1,
@@ -352,11 +358,217 @@ local function captureSpriteClipboard(win, layer)
 
   return {
     kind = "sprite",
+    sourceWin = win,
+    sourceSelectionMode = layer.mode or "8x8",
     entries = entries,
     widthPx = math.max(1, maxRight - minX),
     heightPx = math.max(1, maxBottom - minY),
     count = #entries,
   }
+end
+
+local function buildSpriteClipboardFromTileClipboard(focus, layer, data)
+  if not (focus and layer and layer.kind == "sprite" and data and data.kind == "tile" and data.entries) then
+    return nil
+  end
+
+  local dstMode = layer.mode or "8x8"
+  local srcMode = data.sourceSelectionMode or "8x8"
+  local cellW = focus.cellW or 8
+  local cellH = focus.cellH or 8
+
+  local function makeSpriteEntry(topTile, bottomTile, relCol, relRow)
+    if not topTile then
+      return nil
+    end
+    return {
+      relX = (relCol or 0) * cellW,
+      relY = (relRow or 0) * cellH,
+      sprite = {
+        bank = topTile._bankIndex,
+        tile = topTile.index,
+        tileBelow = bottomTile and bottomTile.index or nil,
+        topRef = topTile,
+        botRef = bottomTile,
+        paletteNumber = nil,
+        mirrorX = false,
+        mirrorY = false,
+        x = 0,
+        y = 0,
+        worldX = 0,
+        worldY = 0,
+        baseX = 0,
+        baseY = 0,
+        dx = 0,
+        dy = 0,
+        hasMoved = false,
+        removed = false,
+      },
+    }
+  end
+
+  local entries = {}
+  if dstMode == "8x16" and srcMode == "8x16" then
+    local pairByKey = {}
+    for _, entry in ipairs(data.entries) do
+      local row = entry.offsetRow or 0
+      local topRow = row - (row % 2)
+      local key = tostring(entry.offsetCol or 0) .. ":" .. tostring(topRow)
+      local pair = pairByKey[key]
+      if not pair then
+        pair = {
+          relCol = entry.offsetCol or 0,
+          relRow = topRow,
+          top = nil,
+          bottom = nil,
+        }
+        pairByKey[key] = pair
+      end
+      if row % 2 == 0 then
+        pair.top = materializeClipboardTileItem(data, entry.item, nil)
+      else
+        pair.bottom = materializeClipboardTileItem(data, entry.item, nil)
+      end
+    end
+
+    for _, pair in pairs(pairByKey) do
+      if pair.top then
+        local spriteEntry = makeSpriteEntry(pair.top, pair.bottom, pair.relCol, pair.relRow)
+        if spriteEntry then
+          entries[#entries + 1] = spriteEntry
+        end
+      end
+    end
+    table.sort(entries, function(a, b)
+      if a.relY == b.relY then
+        return a.relX < b.relX
+      end
+      return a.relY < b.relY
+    end)
+  else
+    for _, entry in ipairs(data.entries) do
+      local topTile = materializeClipboardTileItem(data, entry.item, nil)
+      local spriteEntry = makeSpriteEntry(topTile, nil, entry.offsetCol or 0, entry.offsetRow or 0)
+      if spriteEntry then
+        entries[#entries + 1] = spriteEntry
+      end
+    end
+  end
+
+  if #entries == 0 then
+    return nil
+  end
+
+  local minRelX, minRelY = math.huge, math.huge
+  local maxRelX, maxRelY = -math.huge, -math.huge
+  local spriteHeight = (dstMode == "8x16") and (cellH * 2) or cellH
+  for _, entry in ipairs(entries) do
+    if entry.relX < minRelX then minRelX = entry.relX end
+    if entry.relY < minRelY then minRelY = entry.relY end
+    if entry.relX > maxRelX then maxRelX = entry.relX end
+    if entry.relY > maxRelY then maxRelY = entry.relY end
+  end
+  for _, entry in ipairs(entries) do
+    entry.relX = entry.relX - minRelX
+    entry.relY = entry.relY - minRelY
+  end
+
+  return {
+    kind = "sprite",
+    sourceWin = data.sourceWin,
+    sourceSelectionMode = srcMode,
+    entries = entries,
+    widthPx = (maxRelX - minRelX) + cellW,
+    heightPx = (maxRelY - minRelY) + spriteHeight,
+    count = #entries,
+  }
+end
+
+local function buildTileClipboardFromSpriteClipboard(focus, data)
+  if not (focus and data and data.kind == "sprite" and data.entries) then
+    return nil
+  end
+
+  local cellW = focus.cellW or 8
+  local cellH = focus.cellH or 8
+  local entries = {}
+  local minCol, minRow = math.huge, math.huge
+  local maxCol, maxRow = -math.huge, -math.huge
+
+  local function pushTileEntry(col, row, item)
+    if not item then
+      return
+    end
+    entries[#entries + 1] = {
+      col = col,
+      row = row,
+      item = item,
+      byte = nil,
+    }
+    if col < minCol then minCol = col end
+    if row < minRow then minRow = row end
+    if col > maxCol then maxCol = col end
+    if row > maxRow then maxRow = row end
+  end
+
+  for _, entry in ipairs(data.entries) do
+    local sprite = entry.sprite or {}
+    local relCol = math.floor(((entry.relX or 0) / cellW) + 0.00001)
+    local relRow = math.floor(((entry.relY or 0) / cellH) + 0.00001)
+    pushTileEntry(relCol, relRow, sprite.topRef)
+    if sprite.botRef then
+      pushTileEntry(relCol, relRow + 1, sprite.botRef)
+    end
+  end
+
+  if #entries == 0 then
+    return nil
+  end
+
+  for _, entry in ipairs(entries) do
+    entry.offsetCol = entry.col - minCol
+    entry.offsetRow = entry.row - minRow
+  end
+
+  return {
+    kind = "tile",
+    sourceWin = data.sourceWin,
+    sourceSelectionMode = "8x8",
+    entries = entries,
+    width = (maxCol - minCol) + 1,
+    height = (maxRow - minRow) + 1,
+    count = #entries,
+  }
+end
+
+local function getPasteCompatibilityError(focus, layer, data)
+  if not (focus and layer and data and data.kind) then
+    return "Clipboard content does not match active layer type"
+  end
+
+  if WindowCaps.isChrLike(focus) and data.sourceWin ~= focus then
+    return "Pasting into CHR/ROM windows is only allowed from the same window"
+  end
+
+  if layer.kind == "tile" then
+    if data.kind ~= "tile" and data.kind ~= "sprite" then
+      return "Clipboard content does not match active layer type"
+    end
+    return nil
+  end
+
+  if layer.kind == "sprite" then
+    if data.kind ~= "tile" and data.kind ~= "sprite" then
+      return "Clipboard content does not match active layer type"
+    end
+
+    if (layer.mode or "8x8") == "8x16" and data.kind == "tile" and (data.sourceSelectionMode or "8x8") ~= "8x16" then
+      return "8x8 tile payload cannot drop into 8x16 sprite layer"
+    end
+    return nil
+  end
+
+  return "Clipboard content does not match active layer type"
 end
 
 local function fitAnchorToBounds(anchor, payloadSize, limitSize)
@@ -784,8 +996,9 @@ function M.getActionAvailability(ctx, focus, action, opts)
     if not clipboard or not clipboard.kind then
       return { allowed = false, reason = "Clipboard is empty", layerIndex = layerIndex, layer = layer }
     end
-    if clipboard.kind ~= layer.kind then
-      return { allowed = false, reason = "Clipboard content does not match active layer type", layerIndex = layerIndex, layer = layer }
+    local compatibilityError = getPasteCompatibilityError(focus, layer, clipboard)
+    if compatibilityError then
+      return { allowed = false, reason = compatibilityError, layerIndex = layerIndex, layer = layer }
     end
   end
 
@@ -857,7 +1070,6 @@ local function freezeTileClipboardItems(data, layerIndex)
       entry.item = { pixels = snapPixels }
     end
   end
-  data.sourceWin = nil
   return data
 end
 
@@ -914,8 +1126,12 @@ local function doPaste(ctx, focus, opts)
     source = "none",
     reason = nil,
   }
-  if clipboard.kind == "tile" and layer.kind == "tile" then
-    pasteResult = pasteTileClipboard(ctx, focus, layer, layerIndex, clipboard, opts) or pasteResult
+  if layer.kind == "tile" then
+    local tileData = clipboard
+    if clipboard.kind == "sprite" then
+      tileData = buildTileClipboardFromSpriteClipboard(focus, clipboard)
+    end
+    pasteResult = pasteTileClipboard(ctx, focus, layer, layerIndex, tileData, opts) or pasteResult
     local pastedCount = tonumber(pasteResult.count) or 0
     if pastedCount > 0 and ctx.app and ctx.app.markUnsaved then
       ctx.app:markUnsaved("tile_move")
@@ -932,8 +1148,12 @@ local function doPaste(ctx, focus, opts)
     return true
   end
 
-  if clipboard.kind == "sprite" and layer.kind == "sprite" then
-    pasteResult = pasteSpriteClipboard(ctx, focus, layer, clipboard, opts) or pasteResult
+  if layer.kind == "sprite" then
+    local spriteData = clipboard
+    if clipboard.kind == "tile" then
+      spriteData = buildSpriteClipboardFromTileClipboard(focus, layer, clipboard)
+    end
+    pasteResult = pasteSpriteClipboard(ctx, focus, layer, spriteData, opts) or pasteResult
     local pastedCount = tonumber(pasteResult.count) or 0
     if pastedCount > 0 and ctx.app and ctx.app.markUnsaved then
       ctx.app:markUnsaved("sprite_move")

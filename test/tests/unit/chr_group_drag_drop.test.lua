@@ -153,7 +153,40 @@ describe("mouse_tile_drop_controller.lua - CHR grouped drag/drop", function()
     }, 8, 8, wm)
 
     expect(candidate).toBeTruthy()
-    expect(candidate.text).toBe("8x8 multi-selection cannot drop into 8x16 sprite layer")
+    expect(candidate.text).toBe("8x8 tile payload cannot drop into 8x16 sprite layer")
+  end)
+
+  it("blocks non-CHR inter-window tile drags", function()
+    local item = { id = "a" }
+    local srcWin = {
+      kind = "static_art",
+      layers = { { kind = "tile" } },
+      getActiveLayerIndex = function() return 1 end,
+    }
+    local dst, items = makeTileWindow(4, 4)
+    local wm = {
+      windowAt = function() return dst end,
+      setFocus = function() end,
+    }
+    local commit = nil
+    local handled = MouseTileDropController.handleTileDrop({
+      ctx = { app = {} },
+      drag = {
+        active = true,
+        item = item,
+        srcWin = srcWin,
+        srcLayer = 1,
+        srcCol = 0,
+        srcRow = 0,
+      },
+      clearDragState = function(value)
+        commit = value
+      end,
+    }, 8, 8, wm)
+
+    expect(handled).toBe(true)
+    expect(items[6]).toBeNil()
+    expect(commit).toBe(false)
   end)
 
   it("copies a CHR grouped drag into tile windows without removing the source", function()

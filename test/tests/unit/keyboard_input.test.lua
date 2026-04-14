@@ -910,6 +910,132 @@ describe("keyboard_input.lua - ctrl+c / ctrl+v", function()
       end
     end
   end)
+
+  it("allows cross-window tile-to-sprite paste via keyboard shortcuts", function()
+    local status = nil
+    local ctrl = true
+
+    local tile = { _bankIndex = 1, index = 6, pixels = {} }
+    for i = 1, 64 do tile.pixels[i] = (i % 4) end
+    local tileLayer = {
+      kind = "tile",
+      items = { [1] = tile },
+      multiTileSelection = { [1] = true },
+    }
+    local tileWin = {
+      kind = "static_art",
+      cols = 1,
+      rows = 1,
+      layers = { tileLayer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 0, 0, 1 end,
+      get = function() return tile end,
+    }
+
+    local spriteLayer = { kind = "sprite", mode = "8x8", items = {} }
+    local spriteWin = {
+      kind = "animation",
+      cols = 8,
+      rows = 8,
+      cellW = 8,
+      cellH = 8,
+      layers = { spriteLayer },
+      getActiveLayerIndex = function() return 1 end,
+      toGridCoords = function() return true, 1, 2, 0, 0 end,
+    }
+
+    local focus = tileWin
+    local ctx = {
+      getMode = function() return "tile" end,
+      setMode = function() end,
+      getFocus = function() return focus end,
+      setStatus = function(msg) status = msg end,
+      setColor = function() end,
+      wm = function() return nil end,
+      app = {},
+    }
+
+    KeyboardInput.setup(ctx, {
+      ctrlDown = function() return ctrl end,
+      shiftDown = function() return false end,
+      altDown = function() return false end,
+    })
+
+    KeyboardInput.keypressed("c", ctx.app)
+    focus = spriteWin
+    KeyboardInput.keypressed("v", ctx.app)
+
+    expect(#spriteLayer.items).toBe(1)
+    expect(spriteLayer.items[1].topRef).toBe(tile)
+    expect(status).toBe("Pasted 1 sprite")
+  end)
+
+  it("allows cross-window sprite-to-tile paste via keyboard shortcuts", function()
+    local status = nil
+    local ctrl = true
+
+    local topRef = { _bankIndex = 1, index = 9, pixels = {} }
+    for i = 1, 64 do topRef.pixels[i] = (i % 4) end
+    local spriteLayer = {
+      kind = "sprite",
+      mode = "8x8",
+      items = {
+        { topRef = topRef, worldX = 0, worldY = 0, x = 0, y = 0, baseX = 0, baseY = 0 },
+      },
+      selectedSpriteIndex = 1,
+      multiSpriteSelection = { [1] = true },
+    }
+    local spriteWin = {
+      kind = "animation",
+      cols = 8,
+      rows = 8,
+      cellW = 8,
+      cellH = 8,
+      layers = { spriteLayer },
+      getActiveLayerIndex = function() return 1 end,
+    }
+
+    local tileLayer = { kind = "tile", items = {} }
+    local tileWin = {
+      kind = "static_art",
+      cols = 8,
+      rows = 8,
+      layers = { tileLayer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 3, 1, 1 end,
+      get = function(_, c, r)
+        return tileLayer.items[(r * 8 + c) + 1]
+      end,
+      set = function(_, c, r, item)
+        tileLayer.items[(r * 8 + c) + 1] = item
+      end,
+      setSelected = function() end,
+    }
+
+    local focus = spriteWin
+    local ctx = {
+      getMode = function() return "tile" end,
+      setMode = function() end,
+      getFocus = function() return focus end,
+      setStatus = function(msg) status = msg end,
+      setColor = function() end,
+      wm = function() return nil end,
+      app = {},
+    }
+
+    KeyboardInput.setup(ctx, {
+      ctrlDown = function() return ctrl end,
+      shiftDown = function() return false end,
+      altDown = function() return false end,
+    })
+
+    KeyboardInput.keypressed("c", ctx.app)
+    focus = tileWin
+    KeyboardInput.keypressed("v", ctx.app)
+
+    expect(tileLayer.items[(1 * 8 + 3) + 1]).toBe(topRef)
+    expect(status).toBe("Pasted 1 tile")
+  end)
 end)
 
 describe("keyboard_input.lua - delete key on tile multi-selection", function()

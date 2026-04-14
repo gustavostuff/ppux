@@ -2769,6 +2769,15 @@ local function buildClipboardMatrixScenario(harness, app, runner)
         rows = 8,
         zoom = 2,
       }), "expected clipboard sprite window")
+      currentRunner.clipboardTileDropTargetWin = assert(currentApp.wm:createTileWindow({
+        animated = false,
+        title = "Clipboard Tile Drop Target",
+        x = 520,
+        y = 70,
+        cols = 8,
+        rows = 8,
+        zoom = 2,
+      }), "expected clipboard tile target window")
       setupDeterministicPpuFixture(currentApp, currentRunner)
       currentApp.wm:setFocus(staticTileWin)
     end),
@@ -2872,6 +2881,19 @@ local function buildClipboardMatrixScenario(harness, app, runner)
     )
   end)
   steps[#steps + 1] = pause("Observe keyboard tile paste", 0.35)
+
+  appendDrag(steps, "Attempt non-CHR inter-window tile drag (should block)", function(h)
+    return h:windowCellCenter(staticTileWin, 1, 1)
+  end, function(h, _, currentRunner)
+    local dst = assert(currentRunner.clipboardTileDropTargetWin, "expected tile drop target window")
+    return h:windowCellCenter(dst, 1, 1)
+  end, { dragDuration = 0.12, postPause = 0.18 })
+  steps[#steps + 1] = call("Assert non-CHR inter-window tile drag is blocked", function(_, _, currentRunner)
+    local dst = assert(currentRunner.clipboardTileDropTargetWin, "expected tile drop target window")
+    assert(dst:get(1, 1, 1) == nil, "expected blocked inter-window drag to leave destination empty")
+    assert(staticTileWin:get(1, 1, 1) ~= nil, "expected blocked inter-window drag to keep source tile")
+  end)
+  steps[#steps + 1] = pause("Observe blocked non-CHR inter-window drag", 0.3)
 
   steps[#steps + 1] = call("Prepare no-selection tile cursor paste fallback", function(_, currentApp, currentRunner)
     currentApp.wm:setFocus(staticTileWin)
@@ -3266,7 +3288,7 @@ local function buildClipboardMatrixScenario(harness, app, runner)
     assert(beforeCount == afterCount, "expected empty clipboard paste attempt to not change tile count")
   end)
 
-  steps[#steps + 1] = call("Assert type-mismatch clipboard behavior", function(currentHarness, currentApp, currentRunner)
+  steps[#steps + 1] = call("Assert tile-to-sprite clipboard interoperability", function(currentHarness, currentApp, currentRunner)
     local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
     currentApp.wm:setFocus(staticTileWin)
     if staticTileWin.setActiveLayerIndex then
@@ -3280,8 +3302,8 @@ local function buildClipboardMatrixScenario(harness, app, runner)
       staticTileWin:setSelected(1, 1, 1)
     end
     local copied = KeyboardClipboardController.performClipboardAction(currentApp:_buildCtx(), staticTileWin, "copy", { layerIndex = 1 })
-    assert(copied == true, "expected deterministic tile copy before mismatch paste")
-    assert(KeyboardClipboardController.hasClipboardData() == true, "expected non-empty clipboard before mismatch paste")
+    assert(copied == true, "expected deterministic tile copy before cross-type paste")
+    assert(KeyboardClipboardController.hasClipboardData() == true, "expected non-empty clipboard before cross-type paste")
 
     local spriteWin = assert(currentRunner.clipboardSpriteWin, "expected clipboard sprite window")
     currentApp.wm:setFocus(spriteWin)
@@ -3290,14 +3312,100 @@ local function buildClipboardMatrixScenario(harness, app, runner)
     end
     local beforeSprites = countSpritesInLayer(spriteWin, 1)
     local avail = KeyboardClipboardController.getActionAvailability(currentApp:_buildCtx(), spriteWin, "paste", { layerIndex = 1 })
-    assert(avail and avail.allowed == false, "expected type mismatch paste rejection")
-    local reason = tostring(avail.reason or "")
-    assert(reason ~= "", "expected rejection reason for blocked paste")
+    assert(avail and avail.allowed == true, "expected tile-to-sprite paste to be allowed")
     KeyboardClipboardController.performClipboardAction(currentApp:_buildCtx(), spriteWin, "paste", { layerIndex = 1 })
     local afterSprites = countSpritesInLayer(spriteWin, 1)
-    assert(beforeSprites == afterSprites, "expected type mismatch paste attempt to not change sprite count")
+    assert(afterSprites == beforeSprites + 1, "expected tile-to-sprite paste to add one sprite")
+    local status = tostring(currentHarness:getStatusText() or "")
+    assert(status:match("Pasted") ~= nil, "expected cross-type paste status message")
   end)
-  steps[#steps + 1] = pause("Observe clipboard warning matrix", 0.45)
+  steps[#steps + 1] = pause("Observe clipboard cross-type matrix", 0.45)
+
+  steps[#steps + 1] = call("Assert CHR destination is intra-window only", function(_, currentApp)
+    local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
+    currentApp.wm:setFocus(staticTileWin)
+    if staticTileWin.setActiveLayerIndex then
+      staticTileWin:setActiveLayerIndex(1)
+    end
+    if staticTileWin.setSelected then
+      staticTileWin:setSelected(1, 1, 1)
+    end
+    KeyboardClipboardController.performClipboardAction(currentApp:_buildCtx(), staticTileWin, "copy", { layerIndex = 1 })
+
+    currentApp.wm:setFocus(srcWin)
+    if srcWin.setActiveLayerIndex then
+      srcWin:setActiveLayerIndex(1)
+    end
+    if srcWin.setSelected then
+      srcWin:setSelected(2, 0, 1)
+    end
+    local avail = KeyboardClipboardController.getActionAvailability(currentApp:_buildCtx(), srcWin, "paste", { layerIndex = 1 })
+    assert(avail and avail.allowed == false, "expected CHR destination cross-window paste to be blocked")
+    assert(
+      tostring(avail.reason or ""):match("same window") ~= nil,
+      string.format("expected same-window CHR rejection reason, got '%s'", tostring(avail.reason))
+    )
+  end)
+
+  steps[#steps + 1] = call("Assert sprite8x16 blocks 8x8 tile payload and allows CHR oddEven payload", function(_, currentApp)
+    local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
+    local sprite8x16Win = assert(currentApp.wm:createSpriteWindow({
+      animated = false,
+      title = "Clipboard Sprite 8x16",
+      x = 520,
+      y = 184,
+      cols = 10,
+      rows = 8,
+      zoom = 2,
+      spriteMode = "8x16",
+    }), "expected sprite 8x16 fixture")
+    local li = (sprite8x16Win.getActiveLayerIndex and sprite8x16Win:getActiveLayerIndex()) or 1
+    local layer = assert(sprite8x16Win.layers and sprite8x16Win.layers[li], "expected sprite 8x16 layer")
+
+    currentApp.wm:setFocus(staticTileWin)
+    if staticTileWin.setActiveLayerIndex then
+      staticTileWin:setActiveLayerIndex(1)
+    end
+    if staticTileWin.setSelected then
+      staticTileWin:setSelected(1, 1, 1)
+    end
+    KeyboardClipboardController.performClipboardAction(currentApp:_buildCtx(), staticTileWin, "copy", { layerIndex = 1 })
+    local blockedAvail = KeyboardClipboardController.getActionAvailability(currentApp:_buildCtx(), sprite8x16Win, "paste", { layerIndex = li })
+    assert(blockedAvail and blockedAvail.allowed == false, "expected 8x8 tile payload to be blocked for sprite 8x16")
+    assert(
+      tostring(blockedAvail.reason or ""):match("8x8 tile payload") ~= nil,
+      string.format("expected 8x16 rejection reason, got '%s'", tostring(blockedAvail.reason))
+    )
+    local beforeBlocked = #(layer.items or {})
+    KeyboardClipboardController.performClipboardAction(currentApp:_buildCtx(), sprite8x16Win, "paste", { layerIndex = li })
+    assert(#(layer.items or {}) == beforeBlocked, "expected blocked 8x8 payload to not paste into sprite 8x16")
+
+    currentApp.wm:setFocus(srcWin)
+    local sourceLayer = assert(srcWin.layers and srcWin.layers[1], "expected CHR source layer")
+    if srcWin.setActiveLayerIndex then
+      srcWin:setActiveLayerIndex(1)
+    end
+    srcWin.orderMode = "oddEven"
+    sourceLayer.multiTileSelection = nil
+    if srcWin.setSelected then
+      srcWin:setSelected(0, 0, 1)
+    end
+    KeyboardClipboardController.performClipboardAction(currentApp:_buildCtx(), srcWin, "copy", { layerIndex = 1 })
+
+    currentApp.wm:setFocus(sprite8x16Win)
+    if sprite8x16Win.setActiveLayerIndex then
+      sprite8x16Win:setActiveLayerIndex(li)
+    end
+    local allowedAvail = KeyboardClipboardController.getActionAvailability(currentApp:_buildCtx(), sprite8x16Win, "paste", { layerIndex = li })
+    assert(allowedAvail and allowedAvail.allowed == true, "expected CHR oddEven payload to allow sprite 8x16 paste")
+    local beforeAllowed = #(layer.items or {})
+    KeyboardClipboardController.performClipboardAction(currentApp:_buildCtx(), sprite8x16Win, "paste", {
+      layerIndex = li,
+      anchorX = 8,
+      anchorY = 8,
+    })
+    assert(#(layer.items or {}) == beforeAllowed + 1, "expected CHR oddEven payload to paste into sprite 8x16")
+  end)
 
   steps[#steps + 1] = call("Attempt restricted paste on OAM sprite layer", function(_, currentApp, currentRunner)
     local oam = assert(currentRunner.oamFixtureWin, "expected OAM fixture window")

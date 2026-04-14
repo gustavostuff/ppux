@@ -229,6 +229,75 @@ describe("mouse_input.lua - tile ctrl+drag copy", function()
     expect(win:get(1, 0, 1)).toBeNil()
   end)
 
+  it("blocks non-CHR tile move drags across windows", function()
+    local ctrl = false
+    local srcWin = makeTileWindow()
+    local dstWin = makeTileWindow()
+    srcWin.x = 0
+    dstWin.x = 100
+    srcWin.toGridCoords = function(self, x)
+      local lx = x - self.x
+      if lx < 20 then
+        return true, 0, 0, 0, 0
+      elseif lx < 40 then
+        return true, 1, 0, 0, 0
+      end
+      return false
+    end
+    dstWin.toGridCoords = function(self, x)
+      local lx = x - self.x
+      if lx < 20 then
+        return true, 0, 0, 0, 0
+      elseif lx < 40 then
+        return true, 1, 0, 0, 0
+      end
+      return false
+    end
+    local tile = { id = "tileA" }
+    srcWin:set(0, 0, tile, 1)
+
+    local focused = nil
+    local wm = {
+      setFocus = function(_, w) focused = w end,
+      getFocus = function() return focused end,
+      windowAt = function(_, x)
+        if x < 80 then return srcWin end
+        if x < 160 then return dstWin end
+        return nil
+      end,
+      getWindows = function() return { srcWin, dstWin } end,
+    }
+
+    local ctx = {
+      getMode = function() return "tile" end,
+      wm = function() return wm end,
+    }
+
+    MouseInput.setup(ctx, {
+      pending = false,
+      active = false,
+      ghostAlpha = 0.5,
+    }, {}, {
+      ctrlDown = function() return ctrl end,
+      shiftDown = function() return false end,
+      altDown = function() return false end,
+      DRAG_TOL = 4,
+      pickByVisual = function(win, x, y, li)
+        if win == srcWin then
+          return true, 0, 0, srcWin:get(0, 0, li)
+        end
+        return false
+      end,
+    })
+
+    MouseInput.mousepressed(10, 10, 1)
+    MouseInput.mousemoved(120, 10, 110, 0)
+    MouseInput.mousereleased(120, 10, 1)
+
+    expect(srcWin:get(0, 0, 1)).toBe(tile)
+    expect(dstWin:get(0, 0, 1)).toBeNil()
+  end)
+
   it("records undo/redo for normal single-tile move drag", function()
     local ctrl = false
     local win = makeTileWindow()
