@@ -612,6 +612,7 @@ describe("keyboard_clipboard_controller.lua - shared toolbar/keyboard actions", 
         { worldX = 18, worldY = 12, x = 18, y = 12 },
       },
       selectedSpriteIndex = 1,
+      multiSpriteSelection = { [1] = true },
     }
     local targetWin = {
       kind = "static_art",
@@ -875,6 +876,13 @@ describe("keyboard_clipboard_controller.lua - shared toolbar/keyboard actions", 
       _bankIndex = 1,
       index = 0,
       refreshImage = function() end,
+      loadFromCHR = function(self, bankBytes, tileIndex)
+        local chr = require("chr")
+        local decoded = chr.decodeTile(bankBytes, tileIndex) or {}
+        for i = 1, 64 do
+          self.pixels[i] = decoded[i] or 0
+        end
+      end,
     }
     for i = 1, 64 do targetTile.pixels[i] = 0 end
 

@@ -613,7 +613,7 @@ describe("keyboard_input.lua - ctrl+a select all", function()
 end)
 
 describe("keyboard_input.lua - ctrl+c / ctrl+v", function()
-  it("copies selected tiles and pastes them centered in the active tile layer", function()
+  it("copies selected tiles and pastes them at the active selection anchor", function()
     local status = nil
     local unsavedEvents = {}
     local ctrl = true
@@ -675,6 +675,7 @@ describe("keyboard_input.lua - ctrl+c / ctrl+v", function()
     })
 
     KeyboardInput.keypressed("c", ctx.app)
+    selectedCol, selectedRow = 2, 1
     KeyboardInput.keypressed("v", ctx.app)
 
     local dstIdx1 = (1 * cols + 2) + 1 -- (2,1)
@@ -689,12 +690,12 @@ describe("keyboard_input.lua - ctrl+c / ctrl+v", function()
     expect(selectedCol).toBe(2)
     expect(selectedRow).toBe(1)
     expect(selectedLayer).toBe(1)
-    expect(status).toBe("Pasted 2 tiles at center")
+    expect(status).toBe("Pasted 2 tiles")
     expect(#unsavedEvents).toBe(1)
     expect(unsavedEvents[1]).toBe("tile_move")
   end)
 
-  it("copies selected sprites and pastes them centered in the active sprite layer", function()
+  it("copies selected sprites and pastes them at sprite selection bounds anchor", function()
     local status = nil
     local unsavedEvents = {}
     local ctrl = true
@@ -748,15 +749,15 @@ describe("keyboard_input.lua - ctrl+c / ctrl+v", function()
 
     local pastedA = layer.items[3]
     local pastedB = layer.items[4]
-    expect(pastedA.worldX).toBe(20)
-    expect(pastedA.worldY).toBe(24)
-    expect(pastedB.worldX).toBe(36)
-    expect(pastedB.worldY).toBe(32)
+    expect(pastedA.worldX).toBe(0)
+    expect(pastedA.worldY).toBe(0)
+    expect(pastedB.worldX).toBe(16)
+    expect(pastedB.worldY).toBe(8)
     expect(layer.multiSpriteSelection).toBeTruthy()
     expect(layer.multiSpriteSelection[3]).toBe(true)
     expect(layer.multiSpriteSelection[4]).toBe(true)
     expect(layer.selectedSpriteIndex).toBe(3)
-    expect(status).toBe("Pasted 2 sprites at center")
+    expect(status).toBe("Pasted 2 sprites")
     expect(#unsavedEvents).toBe(1)
     expect(unsavedEvents[1]).toBe("sprite_move")
   end)
@@ -835,7 +836,7 @@ describe("keyboard_input.lua - ctrl+c / ctrl+v", function()
 
     focus = targetWin
     KeyboardInput.keypressed("v", ctx.app)
-    expect(status).toBe("Pasted 1 tile at center")
+    expect(status).toBe("Pasted 1 tile")
     expect(targetLayer.items).toBeTruthy()
     expect(#unsavedEvents).toBe(2)
     expect(unsavedEvents[1]).toBe("tile_move")
@@ -844,8 +845,8 @@ describe("keyboard_input.lua - ctrl+c / ctrl+v", function()
 
   it("applies sprite paste rules by window kind (static/animation allow, oam blocks)", function()
     local cases = {
-      { kind = "static_art", expectPasted = true, expectedStatus = "Pasted 1 sprite at center" },
-      { kind = "animation", expectPasted = true, expectedStatus = "Pasted 1 sprite at center" },
+      { kind = "static_art", expectPasted = true, expectedStatus = "Pasted 1 sprite" },
+      { kind = "animation", expectPasted = true, expectedStatus = "Pasted 1 sprite" },
       { kind = "oam_animation", expectPasted = false, expectedStatus = "Cannot add sprites to OAM animation windows" },
     }
 
