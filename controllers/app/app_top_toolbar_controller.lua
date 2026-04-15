@@ -9,9 +9,10 @@ local Text = require("utils.text_utils")
 local M = {}
 
 local MIN_BAR_H = 15
-local PAD_X = 3
-local PAD_Y = 0
-local GAP = 0
+local OUTER_MARGIN = 3
+local SECTION_GAP = 3
+local BUTTON_GAP = 0
+local STATUS_BG_H = 15
 local STATUS_AREA_RATIO = 0.5
 
 local function measureDockedToolbarHeight(toolbar, cell)
@@ -208,23 +209,33 @@ function M.syncLayout(app)
 
   local cell = math.max(UiScale.menuCellSize(), MIN_BAR_H)
   local canvasW = app.canvas and app.canvas:getWidth() or 0
-  local statusLeftX = math.floor(canvasW * STATUS_AREA_RATIO)
-  local x = PAD_X
-  local topY = PAD_Y
+  local quickLeftX = OUTER_MARGIN
+  local x = quickLeftX
+  local topY = OUTER_MARGIN
+  local placedButtons = 0
 
   for _, key in ipairs(quickButtonOrder(app)) do
     local b = app._appTopQuickButtons[key]
     if b then
+      if placedButtons > 0 then
+        x = x + BUTTON_GAP
+      end
       b:setPosition(x, topY)
-      x = x + b.w + GAP
+      x = x + b.w
+      placedButtons = placedButtons + 1
     end
   end
   updateClipboardButtonStates(app)
 
-  local totalH = math.max(MIN_BAR_H, topY + cell + PAD_Y)
+  local quickRightX = x
+  local dockLeftX = quickRightX + SECTION_GAP
+  local minStatusLeftX = math.floor(canvasW * STATUS_AREA_RATIO)
+  local statusLeftX = math.max(minStatusLeftX, dockLeftX + SECTION_GAP)
+  local statusRightX = math.max(statusLeftX, canvasW - OUTER_MARGIN)
+
+  local totalH = math.max(MIN_BAR_H, topY + cell + OUTER_MARGIN)
   local dockedWin = nil
-  local dockLeftX = x + GAP
-  local dockRightX = math.max(dockLeftX, statusLeftX - 2)
+  local dockRightX = math.max(dockLeftX, statusLeftX - SECTION_GAP)
 
   if app.separateToolbar == true and app.wm and app.wm.getWindows then
     local maxDockedToolbarH = 0
@@ -236,7 +247,7 @@ function M.syncLayout(app)
         )
       end
     end
-    totalH = math.max(totalH, topY + maxDockedToolbarH + PAD_Y)
+    totalH = math.max(totalH, topY + maxDockedToolbarH + OUTER_MARGIN)
   end
 
   if app.separateToolbar == true and app.wm and app.wm.getFocus then
@@ -257,9 +268,13 @@ function M.syncLayout(app)
   app._appTopToolbarLayout = {
     totalH = totalH,
     dockedWin = dockedWin,
+    quickLeftX = quickLeftX,
+    quickRightX = quickRightX,
+    quickTopY = topY,
     dockLeftX = dockLeftX,
     dockRightX = dockRightX,
     statusLeftX = statusLeftX,
+    statusRightX = statusRightX,
     dockTopY = topY,
     cell = cell,
   }
@@ -292,11 +307,23 @@ function M.draw(app)
   local h = (lay and lay.totalH) or MIN_BAR_H
   local cw = app.canvas and app.canvas:getWidth() or 0
   local statusLeftX = (lay and lay.statusLeftX) or math.floor(cw * STATUS_AREA_RATIO)
+  local statusRightX = (lay and lay.statusRightX) or math.max(statusLeftX, cw - OUTER_MARGIN)
+  local statusW = math.max(0, statusRightX - statusLeftX)
+  local statusY = OUTER_MARGIN
+  local quickLeftX = (lay and lay.quickLeftX) or OUTER_MARGIN
+  local quickRightX = (lay and lay.quickRightX) or quickLeftX
+  local quickW = math.max(0, quickRightX - quickLeftX)
+  local quickY = (lay and lay.quickTopY) or OUTER_MARGIN
+  local topAreaBGOpacity = 0.75
 
-  love.graphics.setColor(colors.gray20)
+  love.graphics.setColor(colors.gray10[1], colors.gray10[2], colors.gray10[3], topAreaBGOpacity)
   love.graphics.rectangle("fill", 0, 0, cw, h)
   love.graphics.setColor(colors.gray10)
-  love.graphics.rectangle("fill", statusLeftX, 0, math.max(0, cw - statusLeftX), h)
+  if quickW > 0 then
+    love.graphics.rectangle("fill", quickLeftX, quickY, quickW, STATUS_BG_H)
+  end
+  love.graphics.setColor(colors.gray10)
+  love.graphics.rectangle("fill", statusLeftX, statusY, statusW, STATUS_BG_H)
   love.graphics.setColor(colors.white)
 
   ensureQuickButtons(app)
@@ -308,23 +335,21 @@ function M.draw(app)
   end
 
   if app.separateToolbar == true and lay and lay.dockedWin and lay.dockedWin.specializedToolbar then
-    love.graphics.setScissor(0, 0, math.max(0, statusLeftX - 2), h)
+    love.graphics.setScissor(lay.dockLeftX or 0, 0, math.max(0, (lay.dockRightX or statusLeftX) - (lay.dockLeftX or 0)), h)
     lay.dockedWin.specializedToolbar:draw()
     love.graphics.setScissor()
   end
 
   local statusText = tostring(app.lastEventText or app.statusText or "")
   local pad = 4
-  local textX = statusLeftX + pad
-  local textY = math.floor((h - love.graphics.getFont():getHeight()) / 2)
-  local textW = math.max(0, cw - statusLeftX - (pad * 2))
-  love.graphics.setScissor(statusLeftX, 0, math.max(0, cw - statusLeftX), h)
+  local textW = math.max(0, statusW - (pad * 2))
+  local textY = statusY + math.floor((STATUS_BG_H - love.graphics.getFont():getHeight()) / 2)
+  local textX = statusRightX - pad - love.graphics.getFont():getWidth(statusText)
+  love.graphics.setScissor(statusLeftX, statusY, statusW, STATUS_BG_H)
   love.graphics.setColor(colors.white)
-  Text.drawScrollingText(statusText, textX, textY, textW, {
-    speed = 8,
-    pause = 1,
-    key = "app_top_status",
-  })
+  if textW > 0 then
+    Text.print(statusText, textX, textY, { color = colors.white })
+  end
   love.graphics.setScissor()
   love.graphics.setColor(colors.white)
 end
