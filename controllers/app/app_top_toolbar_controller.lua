@@ -318,12 +318,12 @@ function M.draw(app)
 
   love.graphics.setColor(colors.gray10[1], colors.gray10[2], colors.gray10[3], topAreaBGOpacity)
   love.graphics.rectangle("fill", 0, 0, cw, h)
-  love.graphics.setColor(colors.gray10)
-  if quickW > 0 then
-    love.graphics.rectangle("fill", quickLeftX, quickY, quickW, STATUS_BG_H)
-  end
-  love.graphics.setColor(colors.gray10)
-  love.graphics.rectangle("fill", statusLeftX, statusY, statusW, STATUS_BG_H)
+  -- love.graphics.setColor(colors.gray10)
+  -- if quickW > 0 then
+  --   love.graphics.rectangle("fill", quickLeftX, quickY, quickW, STATUS_BG_H)
+  -- end
+  -- love.graphics.setColor(colors.gray10)
+  -- love.graphics.rectangle("fill", statusLeftX, statusY, statusW, STATUS_BG_H)
   love.graphics.setColor(colors.white)
 
   ensureQuickButtons(app)
