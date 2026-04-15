@@ -22,6 +22,17 @@ local function isButtonVisible(button)
   return button and button.hidden ~= true
 end
 
+local function drawRoundedToolbarStencil(x, y, w, h)
+  if w <= 0 or h <= 0 then
+    return false
+  end
+  love.graphics.stencil(function()
+    love.graphics.rectangle("fill", x, y, w, h, 2, 2)
+  end, "replace", 1, true)
+  love.graphics.setStencilTest("greater", 0)
+  return true
+end
+
 function ToolbarBase.new(window, data)
   data = data or {}
   _layerLabelId = _layerLabelId + 1
@@ -150,7 +161,7 @@ function ToolbarBase:updatePosition()
   self.h = self:_getToolbarHeight(hh)
 
   -- Position above the header bar (for specialized toolbars)
-  self.y = hy - self.h
+  self.y = hy - self.h - 1
 
   -- Re-layout buttons when position changes
   self:_layoutButtons()
@@ -500,67 +511,76 @@ function ToolbarBase:draw()
   self:updateIcons()
   self:updatePosition()
   
-  -- Draw background only behind occupied row spans.
-  love.graphics.setColor(colors.blue)
-  local rowHeight = self:_getRowHeight(self.h)
-  local rowWidths = self._layoutRowWidths or {}
-  local drewRow = false
-  for rowIndex, rowWidth in pairs(rowWidths) do
-    if rowWidth and rowWidth > 0 then
-      local bgWidth = rowWidth
-      if rowIndex == 1 then
-        local labelWidth = 0
-        for _, label in ipairs(self.labels) do
-          if not label.renderInContent then
-            labelWidth = labelWidth + label.width
+  local drawX = self.x - 1 -- minus 1 because of the window border
+  local drawY = self.y
+  local drawW = math.max(0, tonumber(self.w) or 0)
+  local drawH = math.max(0, tonumber(self.h) or 0)
+  local usingStencil = drawRoundedToolbarStencil(drawX, drawY, drawW, drawH)
+
+  local function drawToolbarContents()
+    -- Draw background only behind occupied row spans.
+    love.graphics.setColor(colors.blue)
+    local rowHeight = self:_getRowHeight(self.h)
+    local rowWidths = self._layoutRowWidths or {}
+    local drewRow = false
+    for rowIndex, rowWidth in pairs(rowWidths) do
+      if rowWidth and rowWidth > 0 then
+        local bgWidth = rowWidth
+        if rowIndex == 1 then
+          local labelWidth = 0
+          for _, label in ipairs(self.labels) do
+            if not label.renderInContent then
+              labelWidth = labelWidth + label.width
+            end
           end
+          bgWidth = labelWidth + rowWidth
         end
-        bgWidth = labelWidth + rowWidth
-      end
-      love.graphics.rectangle("fill",
-        self.x - 1, -- minus 1 because of the window border
-        self.y + ((rowIndex - 1) * rowHeight),
-        bgWidth,
-        rowHeight
-      )
-      drewRow = true
-    end
-  end
-  if not drewRow then
-    love.graphics.rectangle("fill",
-      self.x - 1,
-      self.y,
-      self.w,
-      self.h
-    )
-  end
-  love.graphics.setColor(colors.white)
-  
-  -- Update label text if update function is provided
-  for _, label in ipairs(self.labels) do
-    if label.updateFn then
-      label.text = label.updateFn() or label.text or ""
-    end
-  end
-  
-  -- Draw labels first (skip labels that render in content area)
-  for _, label in ipairs(self.labels) do
-    if not label.renderInContent then
-      self:_drawLabel(label)
-    end
-  end
-  
-  -- Draw buttons
-  for _, button in ipairs(self.buttons) do
-    if isButtonVisible(button) then
-      if button.paletteLinkHandle then
-        button.skipIconDraw = PaletteLinkController.shouldHidePaletteLinkHandleIconForWindow(self.window)
-        button:draw()
-        button.skipIconDraw = nil
-      else
-        button:draw()
+        love.graphics.rectangle("fill",
+          drawX,
+          self.y + ((rowIndex - 1) * rowHeight),
+          bgWidth,
+          rowHeight
+        )
+        drewRow = true
       end
     end
+    if not drewRow then
+      love.graphics.rectangle("fill", drawX, self.y, self.w, self.h)
+    end
+
+    love.graphics.setColor(colors.white)
+
+    -- Update label text if update function is provided
+    for _, label in ipairs(self.labels) do
+      if label.updateFn then
+        label.text = label.updateFn() or label.text or ""
+      end
+    end
+
+    -- Draw labels first (skip labels that render in content area)
+    for _, label in ipairs(self.labels) do
+      if not label.renderInContent then
+        self:_drawLabel(label)
+      end
+    end
+
+    -- Draw buttons
+    for _, button in ipairs(self.buttons) do
+      if isButtonVisible(button) then
+        if button.paletteLinkHandle then
+          button.skipIconDraw = PaletteLinkController.shouldHidePaletteLinkHandleIconForWindow(self.window)
+          button:draw()
+          button.skipIconDraw = nil
+        else
+          button:draw()
+        end
+      end
+    end
+  end
+
+  drawToolbarContents()
+  if usingStencil then
+    love.graphics.setStencilTest()
   end
 end
 

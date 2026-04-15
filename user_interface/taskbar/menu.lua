@@ -151,6 +151,7 @@ function M.install(Taskbar, Helpers)
       settings = images.icons.settings,
       windows = images.icons.icon_windows,
       recentProjects = images.icons.icon_clock,
+      recentProjectItem = images.icons.icon_circle,
       closeProject = images.icons.icon_x,
       quit = images.icons.icon_quit,
     }
@@ -189,6 +190,7 @@ function M.install(Taskbar, Helpers)
         label = ((folder ~= "" and folder) or dir or "?") .. "/" .. stem
       end
       entries[#entries + 1] = {
+        icon = (self._menuIcons and self._menuIcons.recentProjectItem) or nil,
         text = label,
         callback = function()
           if self.app and self.app.openRecentProject then

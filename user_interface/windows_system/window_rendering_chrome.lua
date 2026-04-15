@@ -111,7 +111,7 @@ function Window:drawHeader(isFocused)
   else
     love.graphics.setColor(colors.gray20)
   end
-  love.graphics.rectangle("fill", hx - 1, hy, hw + 2, hh)
+  love.graphics.rectangle("fill", hx - 1, hy, hw + 2, hh, 2)
 
   -- text color (important, otherwise it inherits the dark bg color)
   love.graphics.setColor(colors.white)

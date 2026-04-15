@@ -748,6 +748,12 @@ function AppCoreController:showEmptySpaceContextMenu(x, y)
   if not (self.emptySpaceContextMenu and type(x) == "number" and type(y) == "number") then
     return false
   end
+  if not self:hasLoadedROM() then
+    if self.emptySpaceContextMenu and self.emptySpaceContextMenu.hide then
+      self.emptySpaceContextMenu:hide()
+    end
+    return false
+  end
   self:_hideAllContextMenus()
   local cx, cy = self:contentPointToCanvasPoint(x, y)
   self.emptySpaceContextMenu:showAt(cx, cy, self:_buildEmptySpaceContextMenuItems())

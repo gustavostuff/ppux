@@ -1,5 +1,35 @@
 local colors = require("app_colors")
 
+local function drawPanelTitle(panel, utils)
+  if not (panel and panel.title and panel.title ~= "") then
+    return
+  end
+
+  local titleRowH = (panel.titleH > 0 and panel.titleH or panel.cellH)
+  local titleBgX = panel.x + panel.padding
+  local titleBgY = panel.y + panel.padding
+  local titleBgW = math.max(0, panel.w - (panel.padding * 2))
+  local titleBgH = math.max(0, titleRowH)
+  local titleBg = panel.titleBgColor or colors.gray20
+  local alpha = (type(titleBg) == "table" and type(titleBg[4]) == "number") and titleBg[4] or 1
+  local radius = math.max(0, tonumber(panel.titleCornerRadius) or 0)
+
+  love.graphics.setColor(titleBg[1] or colors.gray20[1], titleBg[2] or colors.gray20[2], titleBg[3] or colors.gray20[3], alpha)
+  love.graphics.rectangle("fill", titleBgX, titleBgY, titleBgW, titleBgH, radius, radius)
+
+  local font = love.graphics.getFont()
+  local titleW = font and font:getWidth(panel.title) or 0
+  local titleX = titleBgX + math.floor((titleBgW - titleW) * 0.5)
+  love.graphics.setColor(utils.colors.white[1], utils.colors.white[2], utils.colors.white[3], 1)
+  local titleY = titleBgY + math.floor((titleBgH - (font and font:getHeight() or 0)) * 0.5)
+  utils.Text.print(
+    panel.title,
+    titleX,
+    titleY,
+    { shadowColor = utils.colors.transparent }
+  )
+end
+
 local function install(Panel, utils)
   function Panel:draw()
     if not self.visible then return end
@@ -8,26 +38,7 @@ local function install(Panel, utils)
     love.graphics.setColor(bg[1], bg[2], bg[3], 1)
     love.graphics.rectangle("fill", self.x, self.y, self.w, self.h)
 
-    if self.title and self.title ~= "" then
-      local titleRowH = (self.titleH > 0 and self.titleH or self.cellH)
-      local titleBgX = self.x + self.padding
-      local titleBgY = self.y + self.padding
-      local titleBgW = math.max(0, self.w - (self.padding * 2))
-      local titleBgH = math.max(0, titleRowH)
-      love.graphics.setColor(colors.gray20)
-      love.graphics.rectangle("fill", titleBgX, titleBgY, titleBgW, titleBgH)
-      local font = love.graphics.getFont()
-      local titleW = font and font:getWidth(self.title) or 0
-      local titleX = titleBgX + math.floor((titleBgW - titleW) * 0.5)
-      love.graphics.setColor(utils.colors.white[1], utils.colors.white[2], utils.colors.white[3], 1)
-      local titleY = titleBgY + math.floor((titleBgH - (font and font:getHeight() or 0)) * 0.5)
-      utils.Text.print(
-        self.title,
-        titleX,
-        titleY,
-        { shadowColor = utils.colors.transparent }
-      )
-    end
+    drawPanelTitle(self, utils)
 
     if self.debugShowCells then
       local debugColor = self.debugCellColor or utils.colors.gray10

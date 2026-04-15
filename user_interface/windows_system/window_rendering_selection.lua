@@ -4,6 +4,7 @@ local Draw = require("utils.draw_utils")
 local SpriteController = require("controllers.sprite.sprite_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local SpaceHighlightController = require("controllers.window.space_highlight_controller")
+local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 local CanvasSpace = require("utils.canvas_space")
 
 local HOVER_OPACITY = 0.4
@@ -116,6 +117,36 @@ local function hoverBlockedByResizeHandle(wm, mouse)
   return wm:focusedResizeHandleAt(mouse.x, mouse.y) == true
 end
 
+local function hoverBlockedByAppChrome(ctx, mouse)
+  if not (ctx and mouse) then
+    return false
+  end
+  local app = ctx.app
+  if not app then
+    return false
+  end
+
+  local topToolbarBottomY = AppTopToolbarController.getContentOffsetY(app)
+  if type(topToolbarBottomY) == "number" and mouse.y < topToolbarBottomY then
+    return true
+  end
+
+  local taskbar = app.taskbar
+  if taskbar then
+    local taskbarTopY = nil
+    if type(taskbar.getTopY) == "function" then
+      taskbarTopY = taskbar:getTopY()
+    else
+      taskbarTopY = taskbar.y
+    end
+    if type(taskbarTopY) == "number" and mouse.y >= taskbarTopY then
+      return true
+    end
+  end
+
+  return false
+end
+
 function Window:highlightOverlappingSprites(overlayCtx, overlappingSpritesByKey)
   for _, sprite in pairs(overlappingSpritesByKey or {}) do
     local sx, sy, sw, sh = spriteScreenRect(self, sprite, overlayCtx)
@@ -210,6 +241,7 @@ function Window:drawSpriteSelectionOverlays(isFocused)
   local mouse = ctx.scaledMouse and ctx.scaledMouse() or nil
   local wm = ctx.wm and ctx.wm()
   local hoverBlocked = hoverBlockedByResizeHandle(wm, mouse)
+    or hoverBlockedByAppChrome(ctx, mouse)
   local hoveredWindow = (wm and mouse) and wm:windowAt(mouse.x, mouse.y) or nil
   local shouldShow = isFocused or ((not hoverBlocked) and hoveredWindow == self)
   if not shouldShow then return end
@@ -263,7 +295,9 @@ function Window:drawSpriteSelectionOverlays(isFocused)
       end,
     })
   end
-  self:highlightHoveredSprite(L, overlayCtx, overlappingKeys, spaceHighlightModel)
+  if not hoverBlocked then
+    self:highlightHoveredSprite(L, overlayCtx, overlappingKeys, spaceHighlightModel)
+  end
   self:highlightOverlappingSprites(overlayCtx, overlappingSpritesByKey)
 
   if prevScissor[1] then
@@ -357,8 +391,9 @@ function Window:drawTileSelectionOverlays(isFocused)
   local mouse = ctx.scaledMouse and ctx.scaledMouse() or nil
   local wm = ctx.wm and ctx.wm()
   local hoverBlocked = hoverBlockedByResizeHandle(wm, mouse)
+    or hoverBlockedByAppChrome(ctx, mouse)
   local hoveredWindow = (wm and mouse) and wm:windowAt(mouse.x, mouse.y) or nil
-  local showHover = isFocused or ((not hoverBlocked) and hoveredWindow == self)
+  local showHover = ((not hoverBlocked) and hoveredWindow == self)
 
   local L = self.layers and self.layers[self.activeLayer or 1]
   if not (L and L.kind ~= "sprite") then return end

@@ -138,6 +138,7 @@ function Panel.new(opts)
     visible = opts.visible == true,
     title = opts.title,
     titleH = opts.title and (opts.titleH or resolvedCellH) or 0,
+    titleCornerRadius = tonumber(opts.titleCornerRadius) or 0,
     bgColor = opts.bgColor or colors.gray20,
     titleBgColor = opts.titleBgColor or opts.bgColor or colors.gray20,
     borderColor = opts.borderColor or colors.white,

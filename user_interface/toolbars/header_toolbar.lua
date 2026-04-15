@@ -13,6 +13,19 @@ local HeaderToolbar = {}
 HeaderToolbar.__index = HeaderToolbar
 setmetatable(HeaderToolbar, { __index = ToolbarBase })
 
+local function beginRoundedToolbarStencil(x, y, w, h)
+  local ww = math.max(0, tonumber(w) or 0)
+  local hh = math.max(0, tonumber(h) or 0)
+  if ww <= 0 or hh <= 0 then
+    return false
+  end
+  love.graphics.stencil(function()
+    love.graphics.rectangle("fill", x, y, ww, hh, 2, 2)
+  end, "replace", 1, true)
+  love.graphics.setStencilTest("greater", 0)
+  return true
+end
+
 function HeaderToolbar.new(window, ctx, windowController)
   local self = setmetatable(ToolbarBase.new(window, {}), HeaderToolbar)
   
@@ -187,14 +200,20 @@ function HeaderToolbar:draw()
     end
   end
   
+  local usingStencil = beginRoundedToolbarStencil(self.x, self.y, self.w, self.h)
+
   -- Draw labels first
   for _, label in ipairs(self.labels) do
     self:_drawLabel(label)
   end
-  
+
   -- Draw buttons (no background - transparent on header)
   for _, button in ipairs(self.buttons) do
     button:draw()
+  end
+
+  if usingStencil then
+    love.graphics.setStencilTest()
   end
 end
 

@@ -40,6 +40,7 @@ function M.refreshMetrics()
   M.DEFAULT_PANEL_STYLE.cellW = Panel.DEFAULT_CELL_W
   M.DEFAULT_PANEL_STYLE.cellH = M.MODAL_BUTTON_H
   M.DEFAULT_PANEL_STYLE.titleH = M.DEFAULT_PANEL_STYLE.cellH
+  M.DEFAULT_PANEL_STYLE.titleCornerRadius = 2
   M.DEFAULT_PANEL_STYLE.bgColor = { 0.356, 0.424, 0.851 }
   local titleBg = copyColor(colors.gray20)
   if type(titleBg) == "table" then
@@ -81,6 +82,7 @@ function M.applyPanelDefaults(target)
     target.rowH = target.cellH
   end
   setTrackedDefault(target, "titleH", M.DEFAULT_PANEL_STYLE.titleH)
+  setTrackedDefault(target, "titleCornerRadius", M.DEFAULT_PANEL_STYLE.titleCornerRadius)
   setTrackedDefault(target, "bgColor", copyColor(M.DEFAULT_PANEL_STYLE.bgColor))
   setTrackedDefault(target, "titleBgColor", copyColor(M.DEFAULT_PANEL_STYLE.titleBgColor))
 end
@@ -99,6 +101,7 @@ function M.refreshTargetMetrics(target)
     target.rowH = target.cellH
   end
   setTrackedDefault(target, "titleH", M.DEFAULT_PANEL_STYLE.titleH)
+  setTrackedDefault(target, "titleCornerRadius", M.DEFAULT_PANEL_STYLE.titleCornerRadius)
   if target._uses_modal_default_bgColor == true then
     target.bgColor = copyColor(M.DEFAULT_PANEL_STYLE.bgColor)
   end
