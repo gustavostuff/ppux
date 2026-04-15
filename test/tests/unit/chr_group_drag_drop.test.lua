@@ -540,4 +540,127 @@ describe("mouse_tile_drop_controller.lua - CHR grouped drag/drop", function()
     expect(unsavedCalls).toBe(0)
     expect(clearedCommit).toBe(true)
   end)
+
+  it("swaps all entries for CHR grouped internal drags in the same window", function()
+    local function makeTile(index, seed)
+      local pixels = {}
+      for i = 1, 64 do
+        pixels[i] = (i + seed) % 4
+      end
+      return { index = index, _bankIndex = 1, pixels = pixels }
+    end
+
+    local srcA = makeTile(40, 0)
+    local srcB = makeTile(41, 1)
+    local dstA = makeTile(50, 2)
+    local dstB = makeTile(51, 3)
+    local swapCalls = {}
+    local undoCalls = {
+      started = 0,
+      recorded = 0,
+      finished = 0,
+      canceled = 0,
+    }
+    local grid = {
+      ["0,0"] = srcA,
+      ["1,0"] = srcB,
+      ["2,0"] = dstA,
+      ["3,0"] = dstB,
+    }
+    local dst = {
+      kind = "chr",
+      cols = 4,
+      rows = 2,
+      currentBank = 2,
+      x = 0, y = 0, zoom = 1, cellW = 8, cellH = 8,
+      layers = { { kind = "tile" } },
+      getActiveLayerIndex = function() return 1 end,
+      toGridCoords = function() return true, 2, 0 end,
+      get = function(_, col, row)
+        return grid[string.format("%d,%d", col, row)]
+      end,
+      swapCells = function(_, c1, r1, c2, r2)
+        swapCalls[#swapCalls + 1] = { c1 = c1, r1 = r1, c2 = c2, r2 = r2 }
+        local k1 = string.format("%d,%d", c1, r1)
+        local k2 = string.format("%d,%d", c2, r2)
+        grid[k1], grid[k2] = grid[k2], grid[k1]
+      end,
+      setSelected = function() end,
+    }
+    local undoRedo = {
+      activeEvent = nil,
+      startPaintEvent = function(self)
+        undoCalls.started = undoCalls.started + 1
+        self.activeEvent = {}
+      end,
+      recordPixelChange = function()
+        undoCalls.recorded = undoCalls.recorded + 1
+      end,
+      finishPaintEvent = function(self)
+        undoCalls.finished = undoCalls.finished + 1
+        self.activeEvent = nil
+        return true
+      end,
+      cancelPaintEvent = function(self)
+        undoCalls.canceled = undoCalls.canceled + 1
+        self.activeEvent = nil
+      end,
+    }
+    local wm = {
+      windowAt = function() return dst end,
+      setFocus = function() end,
+    }
+    local clearedCommit = nil
+
+    local handled = MouseTileDropController.handleTileDrop({
+      ctx = {
+        app = {
+          edits = {},
+          undoRedo = undoRedo,
+          appEditState = {},
+        },
+      },
+      drag = {
+        active = true,
+        item = srcA,
+        tileGroup = {
+          entries = {
+            { srcCol = 0, srcRow = 0, offsetCol = 0, offsetRow = 0, item = srcA },
+            { srcCol = 1, srcRow = 0, offsetCol = 1, offsetRow = 0, item = srcB },
+          },
+          sourceSelectionMode = "8x8",
+        },
+        srcWin = dst,
+        srcCol = 0,
+        srcRow = 0,
+        srcLayer = 1,
+      },
+      clearDragState = function(commit)
+        clearedCommit = commit
+      end,
+      markUnsaved = function() end,
+    }, 20, 4, wm)
+
+    expect(handled).toBe(true)
+    expect(#swapCalls).toBe(2)
+    expect(swapCalls[1].c1).toBe(0)
+    expect(swapCalls[1].r1).toBe(0)
+    expect(swapCalls[1].c2).toBe(2)
+    expect(swapCalls[1].r2).toBe(0)
+    expect(swapCalls[2].c1).toBe(1)
+    expect(swapCalls[2].r1).toBe(0)
+    expect(swapCalls[2].c2).toBe(3)
+    expect(swapCalls[2].r2).toBe(0)
+
+    expect(grid["0,0"]).toBe(dstA)
+    expect(grid["1,0"]).toBe(dstB)
+    expect(grid["2,0"]).toBe(srcA)
+    expect(grid["3,0"]).toBe(srcB)
+
+    expect(undoCalls.started).toBe(1)
+    expect(undoCalls.recorded).toBeGreaterThan(0)
+    expect(undoCalls.finished).toBe(1)
+    expect(undoCalls.canceled).toBe(0)
+    expect(clearedCommit).toBe(true)
+  end)
 end)

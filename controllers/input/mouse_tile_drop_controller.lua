@@ -86,6 +86,15 @@ local function buildChrSwapUndoContext(win, layerIndex, c1, r1, c2, r2)
   return pairs
 end
 
+local function appendChrSwapUndoPairs(dest, srcPairs)
+  if not (dest and srcPairs and #srcPairs > 0) then
+    return
+  end
+  for _, pair in ipairs(srcPairs) do
+    dest[#dest + 1] = pair
+  end
+end
+
 local function recordChrSwapAsPaintEvent(undoRedo, bankIdx, swapPairs)
   if not (
     undoRedo
@@ -703,9 +712,65 @@ function M.handleTileDrop(env, x, y, wm)
       local dstLayer = dst:getActiveLayerIndex() or drag.srcLayer or 1
       local edits = app and app.edits
       local bankIdx = dst.currentBank
-      local swapUndoContext = buildChrSwapUndoContext(dst, dstLayer, drag.srcCol, drag.srcRow, col, row)
-      dst:swapCells(drag.srcCol, drag.srcRow, col, row, edits, bankIdx, app and app.appEditState)
-      local recordedSwapPaint = recordChrSwapAsPaintEvent(undoRedo, bankIdx, swapUndoContext)
+      local swapUndoContext = {}
+      local swapped = false
+      local cols = tonumber(dst.cols) or 0
+      local rows = tonumber(dst.rows) or 0
+
+      local function isInBounds(c, r)
+        if cols <= 0 or rows <= 0 then
+          return true
+        end
+        return c >= 0 and c < cols and r >= 0 and r < rows
+      end
+
+      local function swapPair(srcCol, srcRow, dstCol, dstRow)
+        if not (
+          type(srcCol) == "number"
+          and type(srcRow) == "number"
+          and type(dstCol) == "number"
+          and type(dstRow) == "number"
+        ) then
+          return
+        end
+        if (srcCol == dstCol and srcRow == dstRow) then
+          return
+        end
+        if not (isInBounds(srcCol, srcRow) and isInBounds(dstCol, dstRow)) then
+          return
+        end
+
+        appendChrSwapUndoPairs(
+          swapUndoContext,
+          buildChrSwapUndoContext(dst, dstLayer, srcCol, srcRow, dstCol, dstRow)
+        )
+        dst:swapCells(srcCol, srcRow, dstCol, dstRow, edits, bankIdx, app and app.appEditState)
+        swapped = true
+      end
+
+      if drag.tileGroup and drag.tileGroup.entries and #drag.tileGroup.entries > 0 then
+        local swapEntries = drag.tileGroup.entries
+        if drag.tileGroup.sourceSelectionMode == "8x16"
+          and drag.tileGroup.spriteEntries
+          and #drag.tileGroup.spriteEntries > 0
+        then
+          -- 8x16 pair swaps are performed from top-half entries only;
+          -- swapCells handles both halves for oddEven mode.
+          swapEntries = drag.tileGroup.spriteEntries
+        end
+
+        for _, entry in ipairs(swapEntries) do
+          local srcCol = entry.srcCol
+          local srcRow = entry.srcRow
+          local dstCol = col + (entry.offsetCol or 0)
+          local dstRow = row + (entry.offsetRow or 0)
+          swapPair(srcCol, srcRow, dstCol, dstRow)
+        end
+      else
+        swapPair(drag.srcCol, drag.srcRow, col, row)
+      end
+
+      local recordedSwapPaint = swapped and recordChrSwapAsPaintEvent(undoRedo, bankIdx, swapUndoContext) or false
       if (not recordedSwapPaint) and env.markUnsaved then
         env.markUnsaved("tile_move")
       end
