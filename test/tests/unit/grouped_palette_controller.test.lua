@@ -111,4 +111,33 @@ describe("grouped_palette_controller.lua", function()
     expect(r2._groupHidden).toBe(true)
     expect(r3._groupHidden).toBe(false)
   end)
+
+  it("persists logical grouped window position from the active source window", function()
+    local app = { wm = WM.new() }
+    local wm = app.wm
+
+    local p1 = wm:createPaletteWindow({ title = "Palette 1" })
+    p1._id = "palette_01"
+    local p2 = wm:createPaletteWindow({ title = "Palette 2" })
+    p2._id = "palette_02"
+
+    local controller = GroupedPaletteController.new(app)
+    controller:setEnabled(true, {
+      enabled = true,
+      global = { activeSourceWindowId = "palette_02" },
+      rom = {},
+    })
+
+    -- Simulate user moving the visible grouped window while grouping is enabled.
+    p2.x = 177
+    p2.y = 91
+
+    local state = controller:getState()
+    expect(state).toBeTruthy()
+    expect(state.global).toBeTruthy()
+    expect(state.global.activeSourceWindowId).toBe("palette_02")
+    expect(state.global.logicalWindow).toBeTruthy()
+    expect(state.global.logicalWindow.x).toBe(177)
+    expect(state.global.logicalWindow.y).toBe(91)
+  end)
 end)

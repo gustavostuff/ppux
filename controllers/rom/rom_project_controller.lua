@@ -350,7 +350,7 @@ end
 
 local function closeProjectState(app)
   resetStateForNewROM(app)
-  app.statusText = "Drop an .nes ROM with CHR data"
+  app.statusText = "Drop an .nes ROM"
   app.lastEventText = app.statusText
   if app.taskbar and app.taskbar._refreshMenuItems then
     app.taskbar:_refreshMenuItems()

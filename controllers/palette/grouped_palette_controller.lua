@@ -85,6 +85,22 @@ function M:setState(raw)
 end
 
 function M:getState()
+  if self.enabled == true then
+    -- Keep logical window geometry in sync with the currently visible grouped
+    -- windows so project/layout saves persist the effective grouped position.
+    for _, groupKey in ipairs({ "global", "rom" }) do
+      local windows = self:_sourceWindowsForGroup(groupKey)
+      if #windows > 0 then
+        local active = self:_resolveActiveWindow(groupKey, windows)
+        if active then
+          local group = self.state[groupKey]
+          group.logicalWindow = self:_extractLogicalLayout(active)
+          group.activeSourceWindowId = active._id
+          group.activeIndex = indexOfWindow(windows, active)
+        end
+      end
+    end
+  end
   self.state.enabled = (self.enabled == true)
   return TableUtils.deepcopy(self.state)
 end
