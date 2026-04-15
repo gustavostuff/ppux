@@ -12,10 +12,10 @@ local function drawPanelTitle(panel, utils)
   local titleBgH = math.max(0, titleRowH)
   local titleBg = panel.titleBgColor or colors.gray20
   local alpha = (type(titleBg) == "table" and type(titleBg[4]) == "number") and titleBg[4] or 1
-  local radius = math.max(0, tonumber(panel.titleCornerRadius) or 0)
+  local radius = 2
 
   love.graphics.setColor(titleBg[1] or colors.gray20[1], titleBg[2] or colors.gray20[2], titleBg[3] or colors.gray20[3], alpha)
-  love.graphics.rectangle("fill", titleBgX, titleBgY, titleBgW, titleBgH, radius, radius)
+  love.graphics.rectangle("fill", titleBgX, titleBgY, titleBgW, titleBgH, radius)
 
   local font = love.graphics.getFont()
   local titleW = font and font:getWidth(panel.title) or 0
@@ -35,8 +35,9 @@ local function install(Panel, utils)
     if not self.visible then return end
 
     local bg = self.bgColor
+    local bgRadius = 2
     love.graphics.setColor(bg[1], bg[2], bg[3], 1)
-    love.graphics.rectangle("fill", self.x, self.y, self.w, self.h)
+    love.graphics.rectangle("fill", self.x, self.y, self.w, self.h, bgRadius)
 
     drawPanelTitle(self, utils)
 

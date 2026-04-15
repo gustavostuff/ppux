@@ -179,7 +179,7 @@ local STANDARD_CANVAS_W = 640
 local STANDARD_CANVAS_H = 360
 
 local STANDARD_FONT_SIZE = 16
-local STANDARD_EMPTY_FONT_SIZE = 32
+local STANDARD_EMPTY_FONT_SIZE = 16
 
 local function resolveCanvasSize(app)
   if app and app.canvas and app.canvas.getWidth and app.canvas.getHeight then
@@ -194,6 +194,8 @@ end
 
 local function loadAppFont(size)
   local candidates = {
+    "user_interface/fonts/AsepriteFont.ttf",
+    "../user_interface/fonts/AsepriteFont.ttf",
     "user_interface/fonts/proggy-tiny.ttf",
     "../user_interface/fonts/proggy-tiny.ttf",
     "user_interface/fonts/proggy-clean-sz.ttf",

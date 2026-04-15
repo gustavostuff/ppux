@@ -48,7 +48,7 @@ end
 
 -- Single low-level Love2D text draw primitive.
 local function rawPrint(text, x, y)
-  local EXTRA_Y = 1
+  local EXTRA_Y = -1
   love.graphics.print(text or "", x, y + EXTRA_Y)
 end
 

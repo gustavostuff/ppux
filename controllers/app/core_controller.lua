@@ -216,7 +216,7 @@ function AppCoreController.new()
   local self = setmetatable({}, AppCoreController)
 
   -- app state
-  self.statusText = "Drop an .nes ROM"
+  self.statusText = "Drop an .nes ROM or open an existing project"
   self.lastEventText = self.statusText
   self.crtModeEnabled = false
   self.mode = "tile"
