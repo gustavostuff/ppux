@@ -4,6 +4,7 @@ describe("settings_controller.lua - defaults", function()
   it("exposes the persisted base settings table", function()
     expect(AppSettingsController.defaults()).toEqual({
       skipSplash = false,
+      theme = "dark",
       tooltipsEnabled = true,
       canvasImageMode = "pixel_perfect",
       canvasFilter = "sharp",
@@ -58,6 +59,7 @@ describe("settings_controller.lua - persistence", function()
     expect(ok).toBe(true)
     expect(loaded).toEqual({
       skipSplash = true,
+      theme = "dark",
       tooltipsEnabled = false,
       canvasImageMode = "stretch",
       canvasFilter = "soft",

@@ -355,6 +355,12 @@ describe("mouse extracted controllers (smoke)", function()
       y = 34,
       dragging = false,
       getActiveLayerIndex = function() return 1 end,
+      toGridCoords = function(_, gx, gy)
+        if gx == 40 and gy == 55 then
+          return true, 1, 2
+        end
+        return false, 0, 0
+      end,
       mousepressed = function(self, x, y, button)
         if button == 2 or button == 3 then
           self.dragging = true
@@ -428,6 +434,9 @@ describe("mouse extracted controllers (smoke)", function()
       y = 8,
       dragging = false,
       getActiveLayerIndex = function() return 1 end,
+      toGridCoords = function()
+        return true, 0, 0
+      end,
       mousepressed = function(self, x, y, button)
         if button == 2 or button == 3 then
           self.dragging = true
@@ -491,6 +500,9 @@ describe("mouse extracted controllers (smoke)", function()
       y = 12,
       dragging = false,
       getActiveLayerIndex = function() return 1 end,
+      toGridCoords = function()
+        return true, 0, 0
+      end,
       mousepressed = function(self, x, y, button)
         if button == 2 or button == 3 then
           self.dragging = true

@@ -308,6 +308,9 @@ describe("mouse_input.lua - context menus on release", function()
       },
       getActiveLayerIndex = function() return 1 end,
       isInHeader = function() return false end,
+      toGridCoords = function()
+        return true, 0, 0
+      end,
       contains = function(_, x, y)
         return x >= 10 and x <= 210 and y >= 25 and y <= 180
       end,
