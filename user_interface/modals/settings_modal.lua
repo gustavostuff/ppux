@@ -29,7 +29,7 @@ end
 local function rebuildPanel(self)
   local rows = math.max(1, #(self.rows or {}) + 1)
   self.panel = Panel.new({
-    cols = 2,
+    cols = 3,
     rows = rows,
     cellW = self.cellW,
     cellH = self.cellH,
@@ -49,13 +49,15 @@ local function rebuildPanel(self)
   for _, row in ipairs(self.rows or {}) do
     self.panel:setCell(1, rowIndex, {
       text = (row.label or "") .. ":",
+      colspan = 2,
+      align = "right",
     })
     if row.buttonEntry then
-      self.panel:setCell(2, rowIndex, {
+      self.panel:setCell(3, rowIndex, {
         component = row.buttonEntry.button,
       })
     elseif row.valueText and row.valueText ~= "" then
-      self.panel:setCell(2, rowIndex, {
+      self.panel:setCell(3, rowIndex, {
         text = row.valueText,
         textColor = colors.yellow,
       })
@@ -65,7 +67,7 @@ local function rebuildPanel(self)
 
   self.panel:setCell(1, rows, {
     text = self.footerText,
-    colspan = 2,
+    colspan = 3,
   })
 end
 
@@ -199,7 +201,7 @@ function Dialog:_defaultRows()
     },
     {
       id = "canvas_filter",
-      label = "Filter",
+      label = "Canvas filter",
       buttonSpec = {
         id = "canvas_filter_toggle",
         text = (canvasFilter == "soft") and "Soft" or "Sharp",
@@ -230,7 +232,7 @@ function Dialog:_defaultRows()
     },
     {
       id = "separate_toolbar",
-      label = "Separate toolbar",
+      label = "Detached Window Toolbar",
       buttonSpec = {
         id = "separate_toolbar_toggle",
         text = (self.getSeparateToolbar and self.getSeparateToolbar() == true) and "On" or "Off",

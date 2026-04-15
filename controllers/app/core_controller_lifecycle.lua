@@ -177,15 +177,17 @@ end
 
 local STANDARD_CANVAS_W = 640
 local STANDARD_CANVAS_H = 360
-local CRT_CANVAS_W = 320
-local CRT_CANVAS_H = 180
 
 local STANDARD_FONT_SIZE = 16
 local STANDARD_EMPTY_FONT_SIZE = 32
 
-local function resolveCanvasSize(crtMode)
-  if crtMode == true then
-    return CRT_CANVAS_W, CRT_CANVAS_H
+local function resolveCanvasSize(app)
+  if app and app.canvas and app.canvas.getWidth and app.canvas.getHeight then
+    local w = tonumber(app.canvas:getWidth()) or STANDARD_CANVAS_W
+    local h = tonumber(app.canvas:getHeight()) or STANDARD_CANVAS_H
+    if w > 0 and h > 0 then
+      return w, h
+    end
   end
   return STANDARD_CANVAS_W, STANDARD_CANVAS_H
 end
@@ -213,7 +215,7 @@ local function initGraphics(self, opts)
   opts = opts or {}
   local crtMode = (opts.crtMode == true)
   local previousResolutionMode = ResolutionController.mode
-  local canvasW, canvasH = resolveCanvasSize(crtMode)
+  local canvasW, canvasH = resolveCanvasSize(self)
 
   self.canvas = love.graphics.newCanvas(canvasW, canvasH)
   self.canvas:setFilter("nearest", "nearest")

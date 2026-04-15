@@ -46,6 +46,22 @@ local function getCharWidth(font)
   return font:getWidth("M")
 end
 
+-- Single low-level Love2D text draw primitive.
+local function rawPrint(text, x, y)
+  local EXTRA_Y = 1
+  love.graphics.print(text or "", x, y + EXTRA_Y)
+end
+
+local function rawPrintBlock(text, x, y, lineHeight)
+  if type(text) == "table" then
+    for i = 1, #text do
+      rawPrint(text[i] or "", x, y + (i - 1) * lineHeight)
+    end
+    return
+  end
+  rawPrint(text or "", x, y)
+end
+
 -- Core: prints with optional shadow and optional outline.
 local function printCore(text, x, y, data)
   data = data or {}
@@ -76,13 +92,13 @@ local function printCore(text, x, y, data)
         local yy = y + (i-1)*lh
         for d=1,#dirs do
           local vx, vy = dirs[d][1], dirs[d][2]
-          love.graphics.print(text[i] or "", x+vx, yy+vy)
+          rawPrint(text[i] or "", x + vx, yy + vy)
         end
       end
     else
       for d=1,#dirs do
         local vx, vy = dirs[d][1], dirs[d][2]
-        love.graphics.print(text or "", x+vx, y+vy)
+        rawPrint(text or "", x + vx, y + vy)
       end
     end
   elseif shadow then
@@ -90,22 +106,16 @@ local function printCore(text, x, y, data)
     setColor(shadowColor)
     if type(text) == "table" then
       for i=1,n do
-        love.graphics.print(text[i] or "", x + dx, y + dy + (i-1)*lh)
+        rawPrint(text[i] or "", x + dx, y + dy + (i - 1) * lh)
       end
     else
-      love.graphics.print(text or "", x + dx, y + dy)
+      rawPrint(text or "", x + dx, y + dy)
     end
   end
 
   -- main fill
   setColor(color)
-  if type(text) == "table" then
-    for i=1,n do
-      love.graphics.print(text[i] or "", x, y + (i-1)*lh)
-    end
-  else
-    love.graphics.print(text or "", x, y)
-  end
+  rawPrintBlock(text, x, y, lh)
 
   if font ~= oldFont then love.graphics.setFont(oldFont) end
 end
@@ -242,7 +252,7 @@ function TU.drawScrollingText(text, x, y, width, opts)
 
   -- fits completely: no scrolling
   if len <= maxChars then
-    love.graphics.print(text, x, y)
+    rawPrint(text, x, y)
     scrollingState[key] = nil
     return 1, len
   end
@@ -321,7 +331,7 @@ function TU.drawScrollingText(text, x, y, width, opts)
   if endIdx > len then endIdx = len end
 
   local visible = text:sub(startIdx, endIdx)
-  love.graphics.print(visible, x, y)
+  rawPrint(visible, x, y)
 
   return startIdx, endIdx
 end

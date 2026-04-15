@@ -1,3 +1,5 @@
+local colors = require("app_colors")
+
 local function install(Panel, utils)
   function Panel:draw()
     if not self.visible then return end
@@ -8,13 +10,11 @@ local function install(Panel, utils)
 
     if self.title and self.title ~= "" then
       local titleRowH = (self.titleH > 0 and self.titleH or self.cellH)
-      local titleBg = self.titleBgColor or self.bgColor
       local titleBgX = self.x + self.padding
       local titleBgY = self.y + self.padding
       local titleBgW = math.max(0, self.w - (self.padding * 2))
       local titleBgH = math.max(0, titleRowH)
-      local titleAlpha = (type(titleBg) == "table" and type(titleBg[4]) == "number") and titleBg[4] or 1
-      love.graphics.setColor(titleBg[1], titleBg[2], titleBg[3], titleAlpha)
+      love.graphics.setColor(colors.gray20)
       love.graphics.rectangle("fill", titleBgX, titleBgY, titleBgW, titleBgH)
       local font = love.graphics.getFont()
       local titleW = font and font:getWidth(self.title) or 0
@@ -61,6 +61,9 @@ local function install(Panel, utils)
         if cell.align == "center" then
           local textW = font and font:getWidth(cell.text or "") or 0
           textX = math.floor(cell.x + (cell.w - textW) * 0.5)
+        elseif cell.align == "right" then
+          local textW = font and font:getWidth(cell.text or "") or 0
+          textX = math.floor((cell.x + cell.w) - labelMarginX - textW)
         end
         utils.Text.print(cell.text or "", textX, textY, { shadowColor = utils.colors.transparent })
       end
