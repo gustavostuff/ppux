@@ -334,6 +334,45 @@ describe("sprite_controller.lua - oam multi-drag bounds", function()
   end)
 end)
 
+describe("sprite_controller.lua - ppu sprite drag with origin offsets", function()
+  it("moves continuously (no invisible wall) in ppu_frame with origin offsets", function()
+    local layer = {
+      kind = "sprite",
+      mode = "8x8",
+      originX = 200,
+      originY = 0,
+      items = {
+        { bank = 0, tile = 1, baseX = 200, baseY = 20, worldX = 200, worldY = 20, x = 200, y = 20 },
+      },
+    }
+
+    local win = {
+      kind = "ppu_frame",
+      x = 0, y = 0,
+      cellW = 8, cellH = 8,
+      cols = 32, rows = 30,
+      visibleCols = 32, visibleRows = 30,
+      scrollCol = 0, scrollRow = 0,
+      getZoomLevel = function() return 1 end,
+      layers = { layer },
+      getActiveLayerIndex = function() return 1 end,
+    }
+
+    SpriteController.setSpriteSelection(layer, { 1 })
+
+    -- drawX = (originX + worldX) % 256 = (200 + 200) % 256 = 144
+    local _, anchorIndex, offsetX, offsetY = SpriteController.pickSpriteAt(win, 148, 24, 1)
+    expect(anchorIndex).toBe(1)
+
+    SpriteController.beginDrag(win, 1, anchorIndex, offsetX, offsetY, false)
+    SpriteController.updateDrag(149, 24)
+    SpriteController.finishDrag(false)
+
+    expect(layer.items[1].worldX).toBe(201)
+    expect(layer.items[1].worldY).toBe(20)
+  end)
+end)
+
 describe("sprite_controller.lua - drag undo/redo", function()
   it("undoes and redoes a normal sprite move drag", function()
     local win, layer = makeWin()

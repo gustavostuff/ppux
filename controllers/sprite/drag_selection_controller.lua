@@ -331,9 +331,10 @@ function SpriteDragSelectionController.updateDrag(SpriteController, mouseX, mous
   local desiredDX = desiredWorldX - anchorEntry.startWorldX
   local desiredDY = desiredWorldY - anchorEntry.startWorldY
   local clampedDX, clampedDY
-  if WindowCaps.isOamAnimation(win) then
-    -- OAM positions are byte-wrapped on ROM write-back, so runtime drag should
-    -- remain continuous (no hard walls in editor space).
+  if WindowCaps.isStartAddrSpriteSyncWindow(win) then
+    -- OAM/PPU sprite positions are byte-wrapped on ROM write-back; with origin
+    -- offsets enabled, hard clamping creates "invisible walls". Keep drag
+    -- continuous in editor space for both synced window kinds.
     clampedDX = desiredDX
     clampedDY = desiredDY
   else
