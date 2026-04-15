@@ -13,6 +13,7 @@ local MouseWindowChromeController = require("controllers.input.mouse_window_chro
 local MouseClickController = require("controllers.input.mouse_click_controller")
 local MouseMoveController = require("controllers.input.mouse_move_controller")
 local SpriteOriginDrag = require("controllers.sprite.sprite_origin_drag_controller")
+local PaletteLinkController = require("controllers.palette.palette_link_controller")
 
 local M = {}
 
@@ -287,6 +288,12 @@ function M.beginPaletteLinkContextFromAppTopBar(win, canvasX, canvasY, button)
   local wm = ctx and ctx.wm and ctx.wm() or nil
   if wm and wm.setFocus and win then
     wm:setFocus(win)
+  end
+  if button == 1 then
+    local tb = win and win.specializedToolbar
+    if tb and PaletteLinkController.tryHandleLinkHandleDoubleClickUnlink(tb, canvasX, canvasY, win, wm) then
+      return true
+    end
   end
   if WindowCaps.isRomPaletteWindow(win) then
     beginContextMenuClick("palette_link_source", canvasX, canvasY, button, win)

@@ -42,6 +42,7 @@ local function rebuildPanel(self)
     titleH = self.titleH,
     bgColor = self.bgColor,
     titleBgColor = self.titleBgColor,
+    _modalChromeOverBlue = self._modalChromeOverBlue == true,
   })
 
   local rowIndex = 1

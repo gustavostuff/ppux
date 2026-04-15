@@ -114,8 +114,8 @@ function Window:drawHeader(isFocused)
   end
   love.graphics.rectangle("fill", hx - 1, hy, hw + 2, hh, 2)
 
-  -- text color (important, otherwise it inherits the dark bg color)
-  local textColor = colors.textPrimary or colors.white
+  -- Title on blue chrome stays white in both themes.
+  local textColor = isFocused and colors.white or (colors.textPrimary or colors.white)
   love.graphics.setColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
 
   local ty = math.floor(hy + (hh - love.graphics.getFont():getHeight()) / 2)

@@ -21,14 +21,20 @@ local function drawPanelTitle(panel, utils)
   local font = love.graphics.getFont()
   local titleW = font and font:getWidth(panel.title) or 0
   local titleX = titleBgX + math.floor((titleBgW - titleW) * 0.5)
-  local titleTextColor = utils.colors.textPrimary or utils.colors.white
+  local titleOnBlue = panel._modalChromeOverBlue == true
+  local titleTextColor = titleOnBlue and utils.colors.white
+    or (utils.colors.textPrimary or utils.colors.white)
   love.graphics.setColor(titleTextColor[1], titleTextColor[2], titleTextColor[3], titleTextColor[4] or 1)
   local titleY = titleBgY + math.floor((titleBgH - (font and font:getHeight() or 0)) * 0.5)
   utils.Text.print(
     panel.title,
     titleX,
     titleY,
-    { shadowColor = utils.colors.transparent }
+    {
+      shadowColor = utils.colors.transparent,
+      color = titleTextColor,
+      literalColor = titleOnBlue,
+    }
   )
 end
 
@@ -60,13 +66,40 @@ local function install(Panel, utils)
       end
     end
 
+    local chromeWhite = self._modalChromeOverBlue == true
     for _, cell in ipairs(self:_iterCells()) do
       if cell.button then
-        cell.button:draw()
+        if chromeWhite then
+          local b = cell.button
+          local oc, oir = b.contentColor, b.iconRespectTheme
+          local prevLit = b.literalContentColor
+          b.contentColor = utils.colors.white
+          b.iconRespectTheme = false
+          b.literalContentColor = true
+          b:draw()
+          b.contentColor, b.iconRespectTheme = oc, oir
+          b.literalContentColor = prevLit
+        else
+          cell.button:draw()
+        end
       elseif cell.component and type(cell.component.draw) == "function" then
-        cell.component:draw()
+        local c = cell.component
+        local isButton = utils.Button and getmetatable(c) == utils.Button
+        if chromeWhite and isButton then
+          local oc, oir, olit = c.contentColor, c.iconRespectTheme, c.literalContentColor
+          c.contentColor = utils.colors.white
+          c.iconRespectTheme = false
+          c.literalContentColor = true
+          c:draw()
+          c.contentColor, c.iconRespectTheme, c.literalContentColor = oc, oir, olit
+        else
+          c:draw()
+        end
       elseif cell.kind == "label" then
-        local textColor = cell.textColor or utils.colors.textPrimary or utils.colors.white
+        local textColor = cell.textColor
+          or (chromeWhite and utils.colors.white)
+          or utils.colors.textPrimary
+          or utils.colors.white
         love.graphics.setColor(textColor[1], textColor[2], textColor[3], 1)
         local font = utils.getFont()
         local labelMarginX = math.floor(cell.h / 2)
@@ -79,7 +112,11 @@ local function install(Panel, utils)
           local textW = font and font:getWidth(cell.text or "") or 0
           textX = math.floor((cell.x + cell.w) - labelMarginX - textW)
         end
-        utils.Text.print(cell.text or "", textX, textY, { shadowColor = utils.colors.transparent })
+        utils.Text.print(cell.text or "", textX, textY, {
+          shadowColor = utils.colors.transparent,
+          color = textColor,
+          literalColor = chromeWhite,
+        })
       end
     end
 

@@ -96,7 +96,7 @@ function Button:draw()
 
   local function contentAlpha()
     if self.enabled == false then
-      return 0.2
+      return 0.12
     end
     if self.alwaysOpaqueContent then
       return 1.0
@@ -134,6 +134,7 @@ function Button:draw()
     local r, g, b, aa = contentColorWithAlpha(a)
     Text.print(self.text, math.floor(textX), math.floor(textY), {
       color = { r, g, b, aa },
+      literalColor = self.literalContentColor == true,
     })
     love.graphics.setColor(colors.white)
     return
@@ -170,6 +171,7 @@ function Button:draw()
 
     Text.print(self.text, math.floor(textX), math.floor(textY), {
       color = { r, g, b, a },
+      literalColor = self.literalContentColor == true,
     })
     love.graphics.setColor(colors.white)
     return

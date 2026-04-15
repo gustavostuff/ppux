@@ -584,8 +584,12 @@ local function maybeHandleDestinationDoubleClick(link, x, y)
   return unlinkPaletteConnectionForLayer(link.contentWin, link.paletteWin, activeLayer)
 end
 
+function M.tryHandleLinkHandleDoubleClickUnlink(toolbar, x, y, win, wm)
+  return maybeHandleDoubleClick(toolbar, x, y, win, wm)
+end
+
 function M.beginDrag(toolbar, button, x, y, win, wm)
-  if button ~= 1 then
+  if button ~= 2 then
     return false
   end
   if not (toolbar and win and isValidPaletteLinkHandle(toolbar, x, y)) then

@@ -106,6 +106,13 @@ function HeaderToolbar:_applyButtonBackgrounds()
   for _, button in ipairs(self.buttons) do
     button.bgColor = bg
     button.bgAlpha = 1
+    if isFocused then
+      button.contentColor = colors.white
+      button.iconRespectTheme = false
+    else
+      button.contentColor = nil
+      button.iconRespectTheme = nil
+    end
   end
 end
 

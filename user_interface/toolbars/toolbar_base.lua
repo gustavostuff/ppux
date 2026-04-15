@@ -565,9 +565,11 @@ function ToolbarBase:draw()
       end
     end
 
-    -- Draw buttons
+    -- Draw buttons (blue strip: keep icons white in light theme too)
     for _, button in ipairs(self.buttons) do
       if isButtonVisible(button) then
+        local prevIr = button.iconRespectTheme
+        button.iconRespectTheme = false
         if button.paletteLinkHandle then
           button.skipIconDraw = PaletteLinkController.shouldHidePaletteLinkHandleIconForWindow(self.window)
           button:draw()
@@ -575,6 +577,7 @@ function ToolbarBase:draw()
         else
           button:draw()
         end
+        button.iconRespectTheme = prevIr
       end
     end
   end

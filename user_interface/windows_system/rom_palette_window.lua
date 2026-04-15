@@ -553,9 +553,10 @@ function RomPaletteWindow:drawGrid()
 
       -- Always show codes for ROM palettes
       if editable then
-        Text.print(code, x + 3, y + 3, {
+        Text.print(code, x + 3, y, {
           color = getLabelTextColor(fillColor),
           shadowColor = colors.transparent,
+          literalColor = true,
         })
       end
 

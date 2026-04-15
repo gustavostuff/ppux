@@ -405,9 +405,10 @@ function PaletteWindow:drawGrid()
       love.graphics.rectangle("fill", x, y, cw, ch)
 
       if self.activePalette then
-        Text.print(code, x + 3, y + 3, {
+        Text.print(code, x + 3, y, {
           color = getLabelTextColor(rgb),
           shadowColor = colors.transparent,
+          literalColor = true,
         })
       end
 

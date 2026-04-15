@@ -780,23 +780,30 @@ local function handlePaletteLinkContextClick(env, button, x, y, win, wm)
     wm:setFocus(win)
   end
 
-  if button == 1 then
-    return PaletteLinkController.beginDrag(win.specializedToolbar, button, x, y, win, wm)
-  end
-
-  if WindowCaps.isRomPaletteWindow(win) then
-    env.beginContextMenuClick("palette_link_source", x, y, button, win)
+  if button == 1 or button == 3 then
+    if button == 1 then
+      if PaletteLinkController.tryHandleLinkHandleDoubleClickUnlink(win.specializedToolbar, x, y, win, wm) then
+        return true
+      end
+    end
+    if WindowCaps.isRomPaletteWindow(win) then
+      env.beginContextMenuClick("palette_link_source", x, y, button, win)
+      return true
+    end
+    if WindowCaps.isAnyPaletteWindow(win) or WindowCaps.isChrLike(win) then
+      return false
+    end
+    env.beginContextMenuClick("palette_link_destination", x, y, button, win, {
+      layerIndex = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1,
+    })
     return true
   end
 
-  if WindowCaps.isAnyPaletteWindow(win) or WindowCaps.isChrLike(win) then
-    return false
+  if button == 2 then
+    return PaletteLinkController.beginDrag(win.specializedToolbar, button, x, y, win, wm)
   end
 
-  env.beginContextMenuClick("palette_link_destination", x, y, button, win, {
-    layerIndex = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1,
-  })
-  return true
+  return false
 end
 
 function M.handleMousePressed(env, x, y, button)

@@ -5,14 +5,15 @@ local colors = require("app_colors")
 
 local TU = {}
 
-local function setColor(c)
+-- literalColor: when true, do not remap near-white to textPrimary (e.g. white on blue modal chrome).
+local function setColor(c, literalColor)
   local fallback = colors.textPrimary or colors.gray10 or colors.white
   if type(c) == "table" then
     local r = c[1] or 1
     local g = c[2] or 1
     local b = c[3] or 1
     local a = c[4] or 1
-    if r >= 0.95 and g >= 0.95 and b >= 0.95 then
+    if literalColor ~= true and r >= 0.95 and g >= 0.95 and b >= 0.95 then
       love.graphics.setColor(fallback[1], fallback[2], fallback[3], a)
       return
     end
@@ -74,6 +75,7 @@ end
 -- Core: prints with optional shadow and optional outline.
 local function printCore(text, x, y, data)
   data = data or {}
+  local literalColor = data.literalColor == true
   local font        = data.font or love.graphics.getFont()
   local color       = data.color or colors.textPrimary or colors.white
   local shadowColor = data.shadowColor or colors.black
@@ -123,7 +125,7 @@ local function printCore(text, x, y, data)
   end
 
   -- main fill
-  setColor(color)
+  setColor(color, literalColor)
   rawPrintBlock(text, x, y, lh)
 
   if font ~= oldFont then love.graphics.setFont(oldFont) end

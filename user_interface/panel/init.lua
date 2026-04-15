@@ -95,13 +95,17 @@ local function createButtonForCell(panel, cell)
     action = cell.action,
     tooltip = cell.tooltip or cell.text,
     alwaysOpaqueContent = cell.alwaysOpaqueContent == true,
+    normalContentAlpha = cell.normalContentAlpha,
     textAlign = cell.textAlign or cell.align or "left",
     contentPaddingX = cell.contentPaddingX or 6,
     iconTextGap = cell.iconTextGap or 5,
+    alignTextToContentPadding = cell.alignTextToContentPadding == true,
     enabled = cell.enabled ~= false,
     transparent = cell.transparent == true,
     bgColor = cell.bgColor,
     bgAlpha = cell.bgAlpha,
+    contentColor = cell.contentColor,
+    iconRespectTheme = cell.iconRespectTheme,
   })
 end
 
@@ -151,6 +155,7 @@ function Panel.new(opts)
     pressedButton = nil,
     pressedComponent = nil,
     focusedComponent = nil,
+    _modalChromeOverBlue = opts._modalChromeOverBlue == true,
   }, Panel)
 
   self:updateLayout()

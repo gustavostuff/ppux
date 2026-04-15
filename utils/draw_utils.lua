@@ -89,10 +89,9 @@ function M.drawIcon(icon, x, y, opts)
   local ky = tonumber(opts.ky) or 0
   local themedOverride = false
   local pr, pg, pb, pa
-  local theme = colors.getTheme and colors:getTheme() or "dark"
-  if theme == "light" and opts.respectTheme ~= false then
+  if opts.respectTheme ~= false then
     pr, pg, pb, pa = love.graphics.getColor()
-    local iconColor = colors.iconPrimary or colors.black
+    local iconColor = colors.iconPrimary or colors.white
     love.graphics.setColor(iconColor[1], iconColor[2], iconColor[3], pa or 1)
     themedOverride = true
   end

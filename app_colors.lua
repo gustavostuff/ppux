@@ -45,11 +45,8 @@ function colors:getTheme()
   return self._themeKey or "dark"
 end
 
---- Focused window / modal title bar / toolbar strip (theme-aware).
+--- Focused window / modal chrome (same accent in light and dark).
 function colors:focusedChromeColor()
-  if self:getTheme() == "light" then
-    return self.lightBlue
-  end
   return self.blue
 end
 
@@ -67,8 +64,8 @@ function colors:setTheme(themeKey)
   else
     self.gray10 = copyColor(_baseGray10)
     self.gray20 = copyColor(_baseGray20)
-    self.textPrimary = copyColor(_baseWhite)
-    self.iconPrimary = copyColor(_baseWhite)
+    self.textPrimary = copyColor(_baseGray75)
+    self.iconPrimary = copyColor(_baseGray75)
   end
 end
 

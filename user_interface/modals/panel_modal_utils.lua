@@ -84,6 +84,9 @@ function M.applyPanelDefaults(target)
   setTrackedDefault(target, "titleCornerRadius", M.DEFAULT_PANEL_STYLE.titleCornerRadius)
   setTrackedDefault(target, "bgColor", copyColor(M.DEFAULT_PANEL_STYLE.bgColor))
   setTrackedDefault(target, "titleBgColor", copyColor(M.DEFAULT_PANEL_STYLE.titleBgColor))
+  if target._uses_modal_default_bgColor == true then
+    target._modalChromeOverBlue = true
+  end
 end
 
 function M.refreshTargetMetrics(target)
@@ -107,6 +110,9 @@ function M.refreshTargetMetrics(target)
   end
   if target._uses_modal_default_titleBgColor == true then
     target.titleBgColor = copyColor(M.DEFAULT_PANEL_STYLE.titleBgColor)
+  end
+  if target._uses_modal_default_bgColor == true then
+    target._modalChromeOverBlue = true
   end
 end
 

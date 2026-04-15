@@ -425,7 +425,7 @@ function M.mousepressed(app, px, py, button)
     local focus = app.wm:getFocus()
     local tb = focus and focus.specializedToolbar
     if inDockArea(app, px) and focus and tb and PaletteLinkController.isPointInToolbarLinkHandle(tb, px, py) then
-      if button == 1 then
+      if button == 2 then
         if PaletteLinkController.beginDrag(tb, button, px, py, focus, app.wm) then
           return true
         end

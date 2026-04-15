@@ -2123,7 +2123,7 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
   local function appendClickPaletteHandle(steps, label, key)
     appendFocusWindow(steps, "Focus " .. tostring(key) .. " before palette handle click", key)
     appendClick(steps, label, paletteHandleCenterByKey(key), {
-      button = 2,
+      button = 1,
       moveDuration = 0.08,
       prePressPause = 0.06,
       holdDuration = 0.05,
