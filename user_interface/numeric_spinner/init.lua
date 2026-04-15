@@ -2,6 +2,7 @@ local colors = require("app_colors")
 local images = require("images")
 local UiScale = require("user_interface.ui_scale")
 local Text = require("utils.text_utils")
+local Draw = require("utils.draw_utils")
 
 local NumericSpinner = {}
 NumericSpinner.__index = NumericSpinner
@@ -25,7 +26,7 @@ local function drawIcon(icon, x, y)
     icon:draw(math.floor(x), math.floor(y))
     return
   end
-  love.graphics.draw(icon, math.floor(x), math.floor(y))
+  Draw.drawIcon(icon, x, y)
 end
 
 local function getFont()

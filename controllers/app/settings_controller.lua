@@ -8,6 +8,7 @@ local TableUtils = require("utils.table_utils")
 local SETTINGS_FILE = "settings.lua"
 local DEFAULT_SETTINGS = {
   skipSplash = false,
+  theme = "dark",
   tooltipsEnabled = true,
   canvasImageMode = "pixel_perfect",
   canvasFilter = "sharp",
@@ -82,6 +83,11 @@ local function normalizeCanvasFilterKey(key)
   return "sharp"
 end
 
+local function normalizeThemeKey(key)
+  if key == "light" then return "light" end
+  return "dark"
+end
+
 local function normalizePaletteLinksKey(key)
   if key == "always" then return "always" end
   if key == "on_hover" or key == "never" then return "on_hover" end
@@ -92,6 +98,7 @@ end
 local function withDefaults(data)
   local out = TableUtils.deepcopy(DEFAULT_SETTINGS)
   out.skipSplash = (data and data.skipSplash == true)
+  out.theme = normalizeThemeKey(data and data.theme)
   out.tooltipsEnabled = not (data and data.tooltipsEnabled == false)
   out.canvasImageMode = normalizeCanvasImageModeKey(data and data.canvasImageMode)
   out.canvasFilter = normalizeCanvasFilterKey(data and data.canvasFilter)
@@ -156,6 +163,7 @@ function AppSettingsController.save(opts)
   opts = opts or {}
   local data = readFile()
   if opts.skipSplash ~= nil then data.skipSplash = (opts.skipSplash == true) end
+  if opts.theme ~= nil then data.theme = normalizeThemeKey(opts.theme) end
   if opts.tooltipsEnabled ~= nil then data.tooltipsEnabled = (opts.tooltipsEnabled ~= false) end
   if opts.canvasImageMode ~= nil then data.canvasImageMode = opts.canvasImageMode end
   if opts.canvasFilter ~= nil then data.canvasFilter = opts.canvasFilter end

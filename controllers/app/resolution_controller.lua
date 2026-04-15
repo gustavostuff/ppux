@@ -30,6 +30,7 @@ function ResolutionController:init(canvas)
   self.canvasHeight = self.canvas:getHeight()
   self.canvasScaleX = 1
   self.canvasScaleY = 1
+  self.lockCanvasAspect = true
   self.defaultMode = self.modes.KEEP_ASPECT
   self.canvasCrtShaderEnabled = false
   self.canvasCrtFlat = (rawget(_G, "__PPUX_CRT_FLAT__") == true)
@@ -62,8 +63,9 @@ end
 function ResolutionController:recalculate()
   local w = love.graphics.getWidth()
   local h = love.graphics.getHeight()
+  local keepAspect = (self.lockCanvasAspect ~= false)
 
-  if self.mode == self.modes.KEEP_ASPECT then
+  if self.mode == self.modes.KEEP_ASPECT or (keepAspect and self.mode == self.modes.STRETCH) then
     self.canvasScaleX = w / self.canvasWidth
     self.canvasScaleY = h / self.canvasHeight
     self:normalizeScale()

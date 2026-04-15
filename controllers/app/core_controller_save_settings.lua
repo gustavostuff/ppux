@@ -5,6 +5,7 @@ local ResolutionController = require("controllers.app.resolution_controller")
 local SaveOptionsModal = require("user_interface.modals.save_options_modal")
 local SettingsModal = require("user_interface.modals.settings_modal")
 local TableUtils = require("utils.table_utils")
+local colors = require("app_colors")
 
 return function(AppCoreController)
 local function combineSaveMessages(projectRequested, projectOk, projectStatus, romRequested, romOk, romStatus)
@@ -682,6 +683,33 @@ function AppCoreController:_applyTooltipsEnabledSetting(enabled, saveSetting)
   return self.tooltipsEnabled
 end
 
+local function normalizeThemeKey(key)
+  if key == "light" then
+    return "light"
+  end
+  return "dark"
+end
+
+function AppCoreController:_getThemeForSettings()
+  if self.themeMode then
+    return normalizeThemeKey(self.themeMode)
+  end
+  local settings = AppSettingsController.load()
+  return normalizeThemeKey(settings and settings.theme)
+end
+
+function AppCoreController:_applyThemeSetting(themeKey, saveSetting)
+  local key = normalizeThemeKey(themeKey)
+  self.themeMode = key
+  if colors and colors.setTheme then
+    colors:setTheme(key)
+  end
+  if saveSetting ~= false then
+    AppSettingsController.save({ theme = key })
+  end
+  return key
+end
+
 function AppCoreController:showSettingsModal()
   if not self.settingsModal then
     self.settingsModal = SettingsModal.new()
@@ -699,6 +727,9 @@ function AppCoreController:showSettingsModal()
     end,
     getTooltipsEnabled = function()
       return appRef:_getTooltipsEnabledForSettings()
+    end,
+    getTheme = function()
+      return appRef:_getThemeForSettings()
     end,
     getPaletteLinks = function()
       return appRef:_getPaletteLinksForSettings()
@@ -737,6 +768,10 @@ function AppCoreController:showSettingsModal()
     onSetTooltipsEnabled = function(enabled)
       local applied = appRef:_applyTooltipsEnabledSetting(enabled, true)
       appRef:setStatus(string.format("Tooltips: %s", applied and "On" or "Off"))
+    end,
+    onSetTheme = function(themeKey)
+      local key = appRef:_applyThemeSetting(themeKey, true)
+      appRef:setStatus(string.format("Theme: %s", key == "light" and "Light" or "Dark"))
     end,
     onSetPaletteLinks = function(modeKey)
       local applied = appRef:_applyPaletteLinksSetting(modeKey, true)

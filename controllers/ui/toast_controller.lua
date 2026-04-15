@@ -3,6 +3,7 @@ local images = require("images")
 local Timer = require("utils.timer_utils")
 local UiScale = require("user_interface.ui_scale")
 local Text = require("utils.text_utils")
+local Draw = require("utils.draw_utils")
 
 local ToastController = {}
 ToastController.__index = ToastController
@@ -429,7 +430,7 @@ function ToastController:draw(canvasW, canvasH)
     local closeX, closeY = self:_closeRect(toast)
     love.graphics.setColor(style.fg[1], style.fg[2], style.fg[3], alpha)
     if icon then
-      love.graphics.draw(icon, closeX, closeY)
+      Draw.drawIcon(icon, closeX, closeY)
     elseif font then
       Text.print("x", closeX, closeY - 1, {
         color = { style.fg[1], style.fg[2], style.fg[3], alpha },

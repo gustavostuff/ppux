@@ -3,10 +3,11 @@ function love.conf(t)
   _G.__PPUX_CRT_FLAT__ = false
   _G.__PPUX_CRT_DISTORTION__ = 0.1
 
-  local baseW = 320
-  local baseH = 180
-  local windowW = baseW * 4
-  local windowH = baseH * 4
+  local baseW = 640
+  local baseH = 360
+  local defaultScale = 2
+  local windowW = baseW * defaultScale
+  local windowH = baseH * defaultScale
 
   t.identity = "ppux_0.1.0"           -- The name of the save directory (string)
   t.appendidentity = false            -- Search files in source directory before save directory (boolean)
@@ -24,7 +25,7 @@ function love.conf(t)
   t.window.width = windowW       -- The window width (number)
   t.window.height = windowH      -- The window height (number)
   t.window.borderless = false         -- Remove all border visuals from the window (boolean)
-  t.window.resizable = false   -- Let the window be user-resizable (boolean)
+  t.window.resizable = true   -- Let the window be user-resizable (boolean)
   t.window.minwidth = baseW             -- Minimum window width if the window is resizable (number)
   t.window.minheight = baseH            -- Minimum window height if the window is resizable (number)
   t.window.fullscreen = false         -- Enable fullscreen (boolean)

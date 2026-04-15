@@ -11,10 +11,9 @@ local function normalizeCanvasFilterKey(key)
   return "sharp"
 end
 
-local function normalizePaletteLinksKey(key)
-  if key == "on_hover" or key == "never" then return "on_hover" end
-  if key == "auto_hide" then return "auto_hide" end
-  return "always"
+local function normalizeThemeKey(key)
+  if key == "light" then return "light" end
+  return "dark"
 end
 
 local function makeButtonWidget(text)
@@ -92,6 +91,7 @@ function Dialog.new()
     onSetCanvasImageMode = nil,
     onSetCanvasFilter = nil,
     onSetTooltipsEnabled = nil,
+    onSetTheme = nil,
     onSetPaletteLinks = nil,
     onSetSeparateToolbar = nil,
     getScale = nil,
@@ -100,6 +100,7 @@ function Dialog.new()
     getCanvasImageMode = nil,
     getCanvasFilter = nil,
     getTooltipsEnabled = nil,
+    getTheme = nil,
     getPaletteLinks = nil,
     getSeparateToolbar = nil,
     extraRows = nil,
@@ -152,6 +153,7 @@ function Dialog:show(opts)
   self.onSetCanvasImageMode = opts.onSetCanvasImageMode
   self.onSetCanvasFilter = opts.onSetCanvasFilter
   self.onSetTooltipsEnabled = opts.onSetTooltipsEnabled
+  self.onSetTheme = opts.onSetTheme
   self.onSetPaletteLinks = opts.onSetPaletteLinks
   self.onSetSeparateToolbar = opts.onSetSeparateToolbar
   self.getScale = opts.getScale
@@ -160,6 +162,7 @@ function Dialog:show(opts)
   self.getCanvasImageMode = opts.getCanvasImageMode
   self.getCanvasFilter = opts.getCanvasFilter
   self.getTooltipsEnabled = opts.getTooltipsEnabled
+  self.getTheme = opts.getTheme
   self.getPaletteLinks = opts.getPaletteLinks
   self.getSeparateToolbar = opts.getSeparateToolbar
   self.extraRows = opts.extraRows
@@ -178,12 +181,7 @@ end
 function Dialog:_defaultRows()
   local canvasFilter = normalizeCanvasFilterKey(self.getCanvasFilter and self.getCanvasFilter() or nil)
   local tooltipsEnabled = not (self.getTooltipsEnabled and self.getTooltipsEnabled() == false)
-  local paletteLinks = normalizePaletteLinksKey(self.getPaletteLinks and self.getPaletteLinks() or nil)
-  local paletteLinksLabel = ({
-    always = "Always",
-    auto_hide = "Auto-hide",
-    on_hover = "On-hover",
-  })[paletteLinks] or "Always"
+  local theme = normalizeThemeKey(self.getTheme and self.getTheme() or nil)
 
   return {
     {
@@ -200,6 +198,19 @@ function Dialog:_defaultRows()
       },
     },
     {
+      id = "theme",
+      label = "Theme",
+      buttonSpec = {
+        id = "theme_toggle",
+        text = (theme == "light") and "Light" or "Dark",
+        action = function()
+          if self.onSetTheme then
+            self.onSetTheme((theme == "light") and "dark" or "light")
+          end
+        end,
+      },
+    },
+    {
       id = "canvas_filter",
       label = "Canvas filter",
       buttonSpec = {
@@ -208,24 +219,6 @@ function Dialog:_defaultRows()
         action = function()
           if self.onSetCanvasFilter then
             self.onSetCanvasFilter((canvasFilter == "soft") and "sharp" or "soft")
-          end
-        end,
-      },
-    },
-    {
-      id = "palette_links",
-      label = "Palette links",
-      buttonSpec = {
-        id = "palette_links_toggle",
-        text = paletteLinksLabel,
-        action = function()
-          local nextValue = ({
-            always = "auto_hide",
-            auto_hide = "on_hover",
-            on_hover = "always",
-          })[paletteLinks] or "always"
-          if self.onSetPaletteLinks then
-            self.onSetPaletteLinks(nextValue)
           end
         end,
       },
@@ -327,6 +320,7 @@ function Dialog:_activateButton(entry)
   if not entry or not entry.action then return false end
   entry.action()
   if self.visible then
+    ModalPanelUtils.refreshTargetMetrics(self)
     self:_rebuildRows()
   end
   return true

@@ -10,17 +10,19 @@ local function drawPanelTitle(panel, utils)
   local titleBgY = panel.y + panel.padding
   local titleBgW = math.max(0, panel.w - (panel.padding * 2))
   local titleBgH = math.max(0, titleRowH)
-  local titleBg = panel.titleBgColor or colors.gray20
+  local titleBg = panel.titleBgColor or colors:focusedChromeColor()
   local alpha = (type(titleBg) == "table" and type(titleBg[4]) == "number") and titleBg[4] or 1
   local radius = 2
 
-  love.graphics.setColor(titleBg[1] or colors.gray20[1], titleBg[2] or colors.gray20[2], titleBg[3] or colors.gray20[3], alpha)
+  local fallbackBg = colors:focusedChromeColor()
+  love.graphics.setColor(titleBg[1] or fallbackBg[1], titleBg[2] or fallbackBg[2], titleBg[3] or fallbackBg[3], alpha)
   love.graphics.rectangle("fill", titleBgX, titleBgY, titleBgW, titleBgH, radius)
 
   local font = love.graphics.getFont()
   local titleW = font and font:getWidth(panel.title) or 0
   local titleX = titleBgX + math.floor((titleBgW - titleW) * 0.5)
-  love.graphics.setColor(utils.colors.white[1], utils.colors.white[2], utils.colors.white[3], 1)
+  local titleTextColor = utils.colors.textPrimary or utils.colors.white
+  love.graphics.setColor(titleTextColor[1], titleTextColor[2], titleTextColor[3], titleTextColor[4] or 1)
   local titleY = titleBgY + math.floor((titleBgH - (font and font:getHeight() or 0)) * 0.5)
   utils.Text.print(
     panel.title,
@@ -64,7 +66,7 @@ local function install(Panel, utils)
       elseif cell.component and type(cell.component.draw) == "function" then
         cell.component:draw()
       elseif cell.kind == "label" then
-        local textColor = cell.textColor or utils.colors.white
+        local textColor = cell.textColor or utils.colors.textPrimary or utils.colors.white
         love.graphics.setColor(textColor[1], textColor[2], textColor[3], 1)
         local font = utils.getFont()
         local labelMarginX = math.floor(cell.h / 2)

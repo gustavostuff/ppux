@@ -96,7 +96,7 @@ function M.install(Taskbar, Helpers)
       mode = mode,
       label = isEdit and "Edit" or "Tile",
       bg = isEdit and MODE_BADGE_EDIT_BG or MODE_BADGE_TILE_BG,
-      textColor = isEdit and colors.black or colors.white,
+      textColor = colors.textPrimary or colors.white,
       icon = isEdit and self.modeEditIcon or self.modeTileIcon,
       useCursorShader = isEdit,
     }
@@ -194,11 +194,11 @@ function M.install(Taskbar, Helpers)
           love.graphics.setShader(shader)
         end
         love.graphics.setColor(colors.white)
-        love.graphics.draw(icon, layout.iconDrawX, layout.iconDrawY)
+        Draw.drawIcon(icon, layout.iconDrawX, layout.iconDrawY, { respectTheme = false })
         love.graphics.setShader()
       else
         love.graphics.setColor(colors.white)
-        love.graphics.draw(icon, layout.iconDrawX, layout.iconDrawY)
+        Draw.drawIcon(icon, layout.iconDrawX, layout.iconDrawY, { respectTheme = false })
       end
     end
 

@@ -80,7 +80,7 @@ end
 function ChrHeaderToolbar:_applyButtonBackgrounds()
   local focusedWindow = self.windowController and self.windowController.getFocus and self.windowController:getFocus() or nil
   local isFocused = (focusedWindow == self.window)
-  local bg = isFocused and colors.blue or colors.gray20
+  local bg = isFocused and colors:focusedChromeColor() or colors.gray20
   for _, button in ipairs(self.buttons) do
     button.bgColor = bg
     button.bgAlpha = 1

@@ -371,6 +371,9 @@ function AppCoreController:load()
 
   local settings = AppSettingsController.load()
   self.recentProjects = AppSettingsController.normalizeRecentProjects(settings and settings.recentProjects)
+  if self._applyThemeSetting then
+    self:_applyThemeSetting((settings and settings.theme) or "dark", false)
+  end
   self:_applyCanvasImageModeSetting((settings and settings.canvasImageMode) or "pixel_perfect", false)
   if settings and settings.canvasFilter ~= nil then
     self:_applyCanvasFilterSetting(settings.canvasFilter, false)

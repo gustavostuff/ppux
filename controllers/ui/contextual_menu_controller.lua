@@ -1,11 +1,19 @@
 local Panel = require("user_interface.panel")
 local UiScale = require("user_interface.ui_scale")
+local colors = require("app_colors")
 
 local ContextualMenuController = {}
 ContextualMenuController.__index = ContextualMenuController
 ContextualMenuController.TEXT_PADDING_X = 4
 ContextualMenuController.NORMAL_CONTENT_ALPHA = 0.7
 ContextualMenuController.CHILD_HOVER_GRACE_SECONDS = 0.18
+
+local function menuContentAlpha()
+  if colors.getTheme and colors:getTheme() == "light" then
+    return 1.0
+  end
+  return ContextualMenuController.NORMAL_CONTENT_ALPHA
+end
 
 local function nowSeconds()
   if love.timer and love.timer.getTime then
@@ -199,7 +207,7 @@ local function rebuildPanel(menu)
         kind = "button",
         icon = item.icon,
         text = nil,
-        normalContentAlpha = ContextualMenuController.NORMAL_CONTENT_ALPHA,
+        normalContentAlpha = menuContentAlpha(),
         transparent = item.transparent ~= false,
         enabled = item.enabled ~= false,
         tooltip = item.tooltip,
@@ -210,7 +218,7 @@ local function rebuildPanel(menu)
         kind = "button",
         text = makeDisplayText(item),
         colspan = cols - 1,
-        normalContentAlpha = ContextualMenuController.NORMAL_CONTENT_ALPHA,
+        normalContentAlpha = menuContentAlpha(),
         transparent = item.transparent ~= false,
         enabled = item.enabled ~= false,
         tooltip = item.tooltip,
@@ -231,7 +239,7 @@ local function rebuildPanel(menu)
         kind = "button",
         icon = item.icon,
         text = makeDisplayText(item),
-        normalContentAlpha = ContextualMenuController.NORMAL_CONTENT_ALPHA,
+        normalContentAlpha = menuContentAlpha(),
         transparent = item.transparent ~= false,
         enabled = item.enabled ~= false,
         tooltip = item.tooltip,

@@ -519,7 +519,8 @@ function ToolbarBase:draw()
 
   local function drawToolbarContents()
     -- Draw background only behind occupied row spans.
-    love.graphics.setColor(colors.blue)
+    local focusedColor = colors:focusedChromeColor()
+    love.graphics.setColor(focusedColor)
     local rowHeight = self:_getRowHeight(self.h)
     local rowWidths = self._layoutRowWidths or {}
     local drewRow = false

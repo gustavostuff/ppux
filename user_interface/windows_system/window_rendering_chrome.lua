@@ -106,15 +106,17 @@ function Window:drawHeader(isFocused)
   local text = self.title
 
   -- background bar
+  local focusColor = colors:focusedChromeColor()
   if isFocused then
-    love.graphics.setColor(colors.blue)
+    love.graphics.setColor(focusColor)
   else
     love.graphics.setColor(colors.gray20)
   end
   love.graphics.rectangle("fill", hx - 1, hy, hw + 2, hh, 2)
 
   -- text color (important, otherwise it inherits the dark bg color)
-  love.graphics.setColor(colors.white)
+  local textColor = colors.textPrimary or colors.white
+  love.graphics.setColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
 
   local ty = math.floor(hy + (hh - love.graphics.getFont():getHeight()) / 2)
 
@@ -141,8 +143,9 @@ function Window:drawBorder(isFocused)
   local x, y, w, h = self:getScreenRect()
 
   -- Border
+  local focusColor = colors:focusedChromeColor()
   if isFocused then
-    love.graphics.setColor(colors.blue)
+    love.graphics.setColor(focusColor)
   else
     love.graphics.setColor(colors.gray20)
   end
@@ -186,7 +189,8 @@ function Window:drawResizeHandle(isFocused, scaledMouse)
     if blocked then
       love.graphics.setColor(colors.yellow)
     elseif self.resizing or self:mouseOnResizeHandle(scaledMouse.x, scaledMouse.y) then
-      love.graphics.setColor(colors.blue)
+      local focusColor = colors:focusedChromeColor()
+      love.graphics.setColor(focusColor)
     else
       love.graphics.setColor(colors.gray20)
     end

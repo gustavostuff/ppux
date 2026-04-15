@@ -42,12 +42,9 @@ function M.refreshMetrics()
   M.DEFAULT_PANEL_STYLE.titleH = M.DEFAULT_PANEL_STYLE.cellH
   M.DEFAULT_PANEL_STYLE.bgCornerRadius = 2
   M.DEFAULT_PANEL_STYLE.titleCornerRadius = 2
-  M.DEFAULT_PANEL_STYLE.bgColor = { 0.356, 0.424, 0.851 }
-  local titleBg = copyColor(colors.gray20)
-  if type(titleBg) == "table" then
-    titleBg[4] = 0.4
-  end
-  M.DEFAULT_PANEL_STYLE.titleBgColor = titleBg
+  local styleColor = copyColor(colors:focusedChromeColor())
+  M.DEFAULT_PANEL_STYLE.bgColor = copyColor(styleColor)
+  M.DEFAULT_PANEL_STYLE.titleBgColor = copyColor(styleColor)
 end
 
 function M.centerPanel(panel, canvas)

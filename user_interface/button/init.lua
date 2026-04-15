@@ -4,6 +4,7 @@
 local colors = require("app_colors")
 local UiScale = require("user_interface.ui_scale")
 local Text = require("utils.text_utils")
+local Draw = require("utils.draw_utils")
 
 local Button = {}
 Button.__index = Button
@@ -16,7 +17,7 @@ local function iconSize(icon)
   return tonumber(icon.w) or 0, tonumber(icon.h) or 0
 end
 
-local function drawIcon(icon, x, y)
+local function drawIcon(icon, x, y, opts)
   local dx = math.floor(x)
   local dy = math.floor(y)
   if type(icon) == "table" then
@@ -25,7 +26,7 @@ local function drawIcon(icon, x, y)
     end
     return
   end
-  love.graphics.draw(icon, dx, dy)
+  Draw.drawIcon(icon, dx, dy, opts)
 end
 
 function Button.new(opts)
@@ -68,6 +69,7 @@ function Button.new(opts)
     bgColor = opts.bgColor,
     bgAlpha = (opts.bgAlpha ~= nil) and opts.bgAlpha or 1,
     contentColor = opts.contentColor,
+    iconRespectTheme = opts.iconRespectTheme,
     -- Additional properties can be stored here
     isCloseButton = opts.isCloseButton,
   }, Button)
@@ -164,7 +166,7 @@ function Button:draw()
     local iconAlpha = contentAlpha()
     local r, g, b, a = contentColorWithAlpha(iconAlpha)
     love.graphics.setColor(r, g, b, a)
-    drawIcon(self.icon, iconX, iconY)
+    drawIcon(self.icon, iconX, iconY, { respectTheme = self.iconRespectTheme })
 
     Text.print(self.text, math.floor(textX), math.floor(textY), {
       color = { r, g, b, a },
@@ -186,7 +188,7 @@ function Button:draw()
     local iconW, iconH = iconSize(self.icon)
     local iconX = self.x + (self.w - iconW) / 2  -- Center horizontally
     local iconY = self.y + (self.h - iconH) / 2  -- Center vertically
-    drawIcon(self.icon, iconX, iconY)
+    drawIcon(self.icon, iconX, iconY, { respectTheme = self.iconRespectTheme })
   end
   love.graphics.setColor(colors.white)
 end

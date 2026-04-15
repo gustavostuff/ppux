@@ -10,6 +10,9 @@ local Menu = require("user_interface.taskbar.menu")
 local Taskbar = {}
 Taskbar.__index = Taskbar
 
+local DEFAULT_CANVAS_W = 640
+local DEFAULT_CANVAS_H = 360
+
 ModeIndicator.install(Taskbar, Helpers)
 Minimized.install(Taskbar, Helpers)
 Menu.install(Taskbar, Helpers)
@@ -56,6 +59,7 @@ function Taskbar.new(app, data)
 
   local menuButton = Helpers.newTaskbarButton({
     icon = images.menu_button,
+    iconRespectTheme = false,
     tooltip = "Menu",
     action = function()
       self:toggleMenu()
@@ -77,8 +81,24 @@ function Taskbar.new(app, data)
 end
 
 function Taskbar:updateLayout(canvasW, canvasH)
-  self.w = canvasW or self.w
-  self.y = canvasH - self.h
+  local resolvedW = tonumber(canvasW)
+  local resolvedH = tonumber(canvasH)
+  if (not resolvedW or resolvedW <= 0) or (not resolvedH or resolvedH <= 0) then
+    local canvas = self.app and self.app.canvas or nil
+    if canvas and canvas.getWidth and canvas.getHeight then
+      resolvedW = tonumber(canvas:getWidth()) or resolvedW
+      resolvedH = tonumber(canvas:getHeight()) or resolvedH
+    end
+  end
+  if not resolvedW or resolvedW <= 0 then
+    resolvedW = (self.w and self.w > 0) and self.w or DEFAULT_CANVAS_W
+  end
+  if not resolvedH or resolvedH <= 0 then
+    resolvedH = (self.y and self.h and self.y >= 0) and (self.y + self.h) or DEFAULT_CANVAS_H
+  end
+
+  self.w = resolvedW
+  self.y = resolvedH - self.h
   if not (self.menuController and (self.menuController:isVisible() or self.menuController:hasPressedButton())) then
     self:_refreshMenuAvailability()
   end

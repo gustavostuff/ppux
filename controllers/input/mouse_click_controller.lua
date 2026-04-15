@@ -233,6 +233,19 @@ local function handleSpriteClick(env, button, x, y, win, wm)
 end
 
 local function handleRightButton(env, button, x, y, win, wm)
+  local function isInWindowContentArea(targetWin)
+    if not targetWin then
+      return false
+    end
+    if targetWin.isInContentArea then
+      return targetWin:isInContentArea(x, y) == true
+    end
+    if targetWin.toGridCoords then
+      return (select(1, targetWin:toGridCoords(x, y)) == true)
+    end
+    return false
+  end
+
   local function isOverToolbarControl(toolbar)
     if not toolbar then return false end
     if toolbar.updatePosition then
@@ -250,6 +263,9 @@ local function handleRightButton(env, button, x, y, win, wm)
     if not (win and WindowCaps.isPpuFrame(win) and env.beginContextMenuClick) then
       return false
     end
+    if not isInWindowContentArea(win) then
+      return false
+    end
 
     local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
     local layer = win.layers and win.layers[li] or nil
@@ -264,13 +280,8 @@ local function handleRightButton(env, button, x, y, win, wm)
       return false
     end
 
-    local pickByVisual = env.utils and env.utils.pickByVisual or nil
-    if type(pickByVisual) ~= "function" then
-      return false
-    end
-
-    local hit, col, row, item = pickByVisual(win, x, y, li)
-    if not (hit and item and type(col) == "number" and type(row) == "number") then
+    local ok, col, row = win:toGridCoords(x, y)
+    if not (ok and type(col) == "number" and type(row) == "number") then
       return false
     end
 
@@ -298,6 +309,9 @@ local function handleRightButton(env, button, x, y, win, wm)
     end
 
     if layer.kind == "tile" then
+      if not isInWindowContentArea(win) then
+        return false
+      end
       local pickByVisual = env.utils and env.utils.pickByVisual or nil
       if type(pickByVisual) ~= "function" then
         return false
@@ -317,6 +331,9 @@ local function handleRightButton(env, button, x, y, win, wm)
     end
 
     if layer.kind == "sprite" then
+      if not isInWindowContentArea(win) then
+        return false
+      end
       local pickedLayerIndex, itemIndex = SpriteController.pickSpriteAt(win, x, y, li)
       if not (type(pickedLayerIndex) == "number" and type(itemIndex) == "number") then
         return false
@@ -332,8 +349,16 @@ local function handleRightButton(env, button, x, y, win, wm)
     return false
   end
 
-  local function beginOamSpriteEmptySpaceContextClick()
-    if not (win and env.beginContextMenuClick and WindowCaps.isOamAnimation(win)) then
+  local function beginSpriteEmptySpaceContextClick()
+    if not (win and env.beginContextMenuClick) then
+      return false
+    end
+
+    if not (
+      WindowCaps.isPpuFrame(win)
+      or WindowCaps.isOamAnimation(win)
+      or WindowCaps.isStaticOrAnimationArt(win)
+    ) then
       return false
     end
 
@@ -356,7 +381,7 @@ local function handleRightButton(env, button, x, y, win, wm)
       return false
     end
 
-    env.beginContextMenuClick("oam_sprite_empty", x, y, button, win, {
+    env.beginContextMenuClick("sprite_empty", x, y, button, win, {
       layerIndex = li,
     })
     return true
@@ -412,7 +437,7 @@ local function handleRightButton(env, button, x, y, win, wm)
         win:mousepressed(x, y, button)
         return true
       end
-      if beginOamSpriteEmptySpaceContextClick() then
+      if beginSpriteEmptySpaceContextClick() then
         win:mousepressed(x, y, button)
         return true
       end

@@ -1018,12 +1018,9 @@ function AppCoreController:_buildPpuTileContext(win, layerIndex, col, row)
   local idx = ppuTileLinearIndex(win, col, row)
   local byteVal = win.nametableBytes and win.nametableBytes[idx] or nil
   local item = win.get and win:get(col, row, layerIndex) or nil
-  if type(byteVal) ~= "number" or not item then
-    return nil
-  end
 
   local sourceBank = tonumber(item._bankIndex)
-  if not sourceBank and type(layer.patternTable) == "table" then
+  if not sourceBank and type(byteVal) == "number" and type(layer.patternTable) == "table" then
     local map = PatternTableMapping.buildMap(layer.patternTable)
     local entry = map and map[clampByte(byteVal)] or nil
     sourceBank = entry and tonumber(entry.bank) or nil
@@ -1037,7 +1034,7 @@ function AppCoreController:_buildPpuTileContext(win, layerIndex, col, row)
     col = col,
     row = row,
     item = item,
-    byteVal = clampByte(byteVal),
+    byteVal = (type(byteVal) == "number") and clampByte(byteVal) or nil,
     tileIndex = normalizeTileIndex(item),
     sourceBank = sourceBank,
   }
@@ -1294,14 +1291,15 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
         end
       end,
     },
-    {
+  }
+  if context and context.tileIndex ~= nil then
+    items[#items + 1] = {
       text = "Select in CHR/ROM window",
-      enabled = context and context.tileIndex ~= nil,
       callback = function()
         self:_selectPpuTileInChrWindow(context)
       end,
-    },
-  }
+    }
+  end
   if context and context.win and context.layerIndex then
     self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)
   end
@@ -2249,7 +2247,7 @@ function AppCoreController:showPpuFrameAddSpriteModal(win)
 end
 
 function AppCoreController:_buildOamSpriteEmptySpaceContext(win, layerIndex)
-  if not (win and win.kind == "oam_animation" and type(layerIndex) == "number") then
+  if not (win and type(layerIndex) == "number") then
     return nil
   end
 
@@ -2262,25 +2260,33 @@ function AppCoreController:_buildOamSpriteEmptySpaceContext(win, layerIndex)
     win = win,
     layerIndex = layerIndex,
     layer = layer,
+    isOam = (win.kind == "oam_animation"),
   }
 end
 
 function AppCoreController:_buildOamSpriteEmptySpaceContextMenuItems(context)
-  return {
-    {
+  local items = {}
+  if context and context.isOam then
+    items[#items + 1] = {
       text = "Add new sprite",
-      enabled = context ~= nil,
+      enabled = true,
       callback = function()
-        if not context then
-          return false
-        end
         return self:showPpuFrameAddSpriteModal(context.win)
       end,
-    },
-  }
+    }
+  end
+  if context and context.win and context.layerIndex then
+    self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)
+    self:_appendPasteContextMenuItem(items, context)
+  end
+  return items
 end
 
 function AppCoreController:showOamSpriteEmptySpaceContextMenu(win, layerIndex, x, y)
+  return self:showSpriteEmptySpaceContextMenu(win, layerIndex, x, y)
+end
+
+function AppCoreController:showSpriteEmptySpaceContextMenu(win, layerIndex, x, y)
   if not (self.ppuTileContextMenu and type(x) == "number" and type(y) == "number") then
     return false
   end
@@ -2289,10 +2295,14 @@ function AppCoreController:showOamSpriteEmptySpaceContextMenu(win, layerIndex, x
   if not context then
     return false
   end
+  local items = self:_buildOamSpriteEmptySpaceContextMenuItems(context)
+  if not (type(items) == "table" and #items > 0) then
+    return false
+  end
 
   self:_hideAllContextMenus()
   local cx, cy = self:contentPointToCanvasPoint(x, y)
-  self.ppuTileContextMenu:showAt(cx, cy, self:_buildOamSpriteEmptySpaceContextMenuItems(context))
+  self.ppuTileContextMenu:showAt(cx, cy, items)
   return self.ppuTileContextMenu:isVisible()
 end
 

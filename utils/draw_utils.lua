@@ -2,6 +2,7 @@
 -- Helpers for drawing with repeating textures (animated by default).
 
 local Timer = require("utils.timer_utils")
+local colors = require("app_colors")
 
 local M = {}
 
@@ -68,6 +69,38 @@ vec4 effect(vec4 color, Image tex, vec2 texCoord, vec2 screenCoord)
 
 function M.getCursorShader()
   return cursorShader
+end
+
+-- Centralized icon renderer for assets under img/icons.
+-- Keep this as the single draw call path used by UI icon sites.
+function M.drawIcon(icon, x, y, opts)
+  if not icon then
+    return false
+  end
+  opts = opts or {}
+  local dx = math.floor(tonumber(x) or 0)
+  local dy = math.floor(tonumber(y) or 0)
+  local r = tonumber(opts.rotation) or 0
+  local sx = tonumber(opts.sx or opts.scaleX) or 1
+  local sy = tonumber(opts.sy or opts.scaleY) or sx
+  local ox = tonumber(opts.ox) or 0
+  local oy = tonumber(opts.oy) or 0
+  local kx = tonumber(opts.kx) or 0
+  local ky = tonumber(opts.ky) or 0
+  local themedOverride = false
+  local pr, pg, pb, pa
+  local theme = colors.getTheme and colors:getTheme() or "dark"
+  if theme == "light" and opts.respectTheme ~= false then
+    pr, pg, pb, pa = love.graphics.getColor()
+    local iconColor = colors.iconPrimary or colors.black
+    love.graphics.setColor(iconColor[1], iconColor[2], iconColor[3], pa or 1)
+    themedOverride = true
+  end
+  love.graphics.draw(icon, dx, dy, r, sx, sy, ox, oy, kx, ky)
+  if themedOverride then
+    love.graphics.setColor(pr or 1, pg or 1, pb or 1, pa or 1)
+  end
+  return true
 end
 
 -- Internal: compute animated offsets for an image.

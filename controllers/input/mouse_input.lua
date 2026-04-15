@@ -238,7 +238,16 @@ local function handleContextMenuRelease(button, x, y)
     return false
   end
 
-  if pending.kind == "oam_sprite_empty" then
+  if pending.kind == "sprite_empty" then
+    if app.showSpriteEmptySpaceContextMenu and pending.win then
+      app:showSpriteEmptySpaceContextMenu(
+        pending.win,
+        pending.layerIndex,
+        x,
+        y
+      )
+      return true
+    end
     if app.showOamSpriteEmptySpaceContextMenu and pending.win then
       app:showOamSpriteEmptySpaceContextMenu(
         pending.win,

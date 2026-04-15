@@ -6,10 +6,19 @@ local colors = require("app_colors")
 local TU = {}
 
 local function setColor(c)
+  local fallback = colors.textPrimary or colors.gray10 or colors.white
   if type(c) == "table" then
-    love.graphics.setColor(c[1] or 1, c[2] or 1, c[3] or 1, c[4] or 1)
+    local r = c[1] or 1
+    local g = c[2] or 1
+    local b = c[3] or 1
+    local a = c[4] or 1
+    if r >= 0.95 and g >= 0.95 and b >= 0.95 then
+      love.graphics.setColor(fallback[1], fallback[2], fallback[3], a)
+      return
+    end
+    love.graphics.setColor(r, g, b, a)
   else
-    love.graphics.setColor(colors.white)
+    love.graphics.setColor(fallback[1], fallback[2], fallback[3], fallback[4] or 1)
   end
 end
 
@@ -66,7 +75,7 @@ end
 local function printCore(text, x, y, data)
   data = data or {}
   local font        = data.font or love.graphics.getFont()
-  local color       = data.color or colors.white
+  local color       = data.color or colors.textPrimary or colors.white
   local shadowColor = data.shadowColor or colors.black
   local shadow      = data.shadow == true
   local dx          = (data.dx ~= nil) and data.dx or 1  -- shadow offset X
