@@ -141,6 +141,30 @@ local function recordChrSwapAsPaintEvent(undoRedo, bankIdx, swapPairs)
   end
 
   if not changed then
+    -- Fallback for environments/tests where swapCells swaps cell references
+    -- instead of mutating tile pixel arrays in-place.
+    for _, pair in ipairs(swapPairs) do
+      local tileA = pair.tileA
+      local tileB = pair.tileB
+      local beforeA = pair.beforeA
+      local beforeB = pair.beforeB
+      if tileA and tileB and beforeA and beforeB and type(tileA.index) == "number" and type(tileB.index) == "number" then
+        for i = 1, 64 do
+          local a = beforeA[i] or 0
+          local b = beforeB[i] or 0
+          if a ~= b then
+            local px = (i - 1) % 8
+            local py = math.floor((i - 1) / 8)
+            undoRedo:recordPixelChange(bankIdx, tileA.index, px, py, a, b)
+            undoRedo:recordPixelChange(bankIdx, tileB.index, px, py, b, a)
+            changed = true
+          end
+        end
+      end
+    end
+  end
+
+  if not changed then
     undoRedo:cancelPaintEvent()
     return false
   end
@@ -761,7 +785,13 @@ function M.handleTileDrop(env, x, y, wm)
 
         for _, entry in ipairs(swapEntries) do
           local srcCol = entry.srcCol
+          if type(srcCol) ~= "number" then
+            srcCol = (drag.srcCol or 0) + (entry.offsetCol or 0)
+          end
           local srcRow = entry.srcRow
+          if type(srcRow) ~= "number" then
+            srcRow = (drag.srcRow or 0) + (entry.offsetRow or 0)
+          end
           local dstCol = col + (entry.offsetCol or 0)
           local dstRow = row + (entry.offsetRow or 0)
           swapPair(srcCol, srcRow, dstCol, dstRow)
