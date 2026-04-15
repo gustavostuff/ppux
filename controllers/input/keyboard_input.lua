@@ -85,11 +85,11 @@ function M.keypressed(key, AppCoreControllerRef)
     end
   end
 
-  if key == "escape" then
-    DebugController.log("debug", "INPUT_ROUTE", "key=%s route=escape_quit", tostring(key))
-    love.event.quit()
-    return
-  end
+  -- if key == "escape" then
+  --   DebugController.log("debug", "INPUT_ROUTE", "key=%s route=escape_quit", tostring(key))
+  --   love.event.quit()
+  --   return
+  -- end
 
   if KeyboardDebugController.handleDebugKeys(ctx, utils, key) then
     DebugController.log("debug", "INPUT_ROUTE", "key=%s route=debug_keys", tostring(key))

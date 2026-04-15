@@ -188,6 +188,73 @@ describe("mouse_input.lua - context menus on release", function()
     expect(win.dragging).toBe(false)
   end)
 
+  it("does not open the window header context menu after a tiny right-button drag", function()
+    local headerMenuCalls = 0
+    local focusWin = nil
+    local win = makeHeaderWindow()
+    local wm = {
+      getFocus = function() return focusWin end,
+      setFocus = function(_, next) focusWin = next end,
+      windowAt = function(_, x, y)
+        if win:contains(x, y) then
+          return win
+        end
+        return nil
+      end,
+    }
+
+    MouseInput.setup({
+      wm = function() return wm end,
+      getMode = function() return "tile" end,
+      getPainting = function() return false end,
+      setPainting = function() end,
+      app = {
+        showWindowHeaderContextMenu = function()
+          headerMenuCalls = headerMenuCalls + 1
+        end,
+      },
+    }, { active = false, pending = false }, { active = false }, {})
+
+    MouseInput.mousepressed(40, 30, 2)
+    MouseInput.mousemoved(42, 30, 2, 0)
+    MouseInput.mousereleased(42, 30, 2)
+
+    expect(headerMenuCalls).toBe(0)
+  end)
+
+  it("does not open the window header context menu when release position differs without mousemoved", function()
+    local headerMenuCalls = 0
+    local focusWin = nil
+    local win = makeHeaderWindow()
+    local wm = {
+      getFocus = function() return focusWin end,
+      setFocus = function(_, next) focusWin = next end,
+      windowAt = function(_, x, y)
+        if win:contains(x, y) then
+          return win
+        end
+        return nil
+      end,
+    }
+
+    MouseInput.setup({
+      wm = function() return wm end,
+      getMode = function() return "tile" end,
+      getPainting = function() return false end,
+      setPainting = function() end,
+      app = {
+        showWindowHeaderContextMenu = function()
+          headerMenuCalls = headerMenuCalls + 1
+        end,
+      },
+    }, { active = false, pending = false }, { active = false }, {})
+
+    MouseInput.mousepressed(40, 30, 2)
+    MouseInput.mousereleased(50, 30, 2)
+
+    expect(headerMenuCalls).toBe(0)
+  end)
+
   it("opens the empty-space context menu on right-button release without movement", function()
     local emptyMenuCalls = 0
     local lastX = nil

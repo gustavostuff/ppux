@@ -24,7 +24,8 @@ local utils = {}
 local tileClick = { active = false }
 local spriteClick = { active = false }
 local contextClick = { active = false }
-local CONTEXT_MENU_DRAG_TOLERANCE = 4
+-- Treat as "no movement" only when coordinates match within float noise (no pixel-level drag tolerance).
+local CONTEXT_MENU_PRESS_RELEASE_EPS = 1e-6
 
 local function setStatus(text)
   if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
@@ -165,8 +166,9 @@ local function updateContextMenuDragState(x, y)
     return
   end
 
-  if math.abs((x or 0) - (contextClick.startX or 0)) > CONTEXT_MENU_DRAG_TOLERANCE
-      or math.abs((y or 0) - (contextClick.startY or 0)) > CONTEXT_MENU_DRAG_TOLERANCE then
+  local sx, sy = contextClick.startX or 0, contextClick.startY or 0
+  if math.abs((x or 0) - sx) > CONTEXT_MENU_PRESS_RELEASE_EPS
+      or math.abs((y or 0) - sy) > CONTEXT_MENU_PRESS_RELEASE_EPS then
     contextClick.moved = true
   end
 end
@@ -183,6 +185,11 @@ local function handleContextMenuRelease(button, x, y)
     return false
   end
   if pending.moved then
+    return false
+  end
+  local sx, sy = pending.startX or 0, pending.startY or 0
+  if math.abs((x or 0) - sx) > CONTEXT_MENU_PRESS_RELEASE_EPS
+      or math.abs((y or 0) - sy) > CONTEXT_MENU_PRESS_RELEASE_EPS then
     return false
   end
 

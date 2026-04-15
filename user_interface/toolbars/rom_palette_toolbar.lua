@@ -27,7 +27,7 @@ function RomPaletteToolbar.new(window, ctx, windowController)
     self:_onNavigate(1)
   end, "Next ROM palette")
 
-  self.linkButton = self:addButton(images.icons.icon_connect or images.icons.icon_pivot or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty, nil, "Palette link handle", {
+  self.linkButton = self:addButton(images.icons.icon_connect or images.icons.icon_pivot or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty, nil, "Palette link handle; right-drag to link layers; left-click for menu", {
     paletteLinkHandle = true,
   })
 
@@ -57,11 +57,11 @@ function RomPaletteToolbar:updateIcons()
     self.linkButton.bgColor = linkedCount > 0 and colors.green or colors.gray20
     if linkedCount > 0 then
       self.linkButton.tooltip = string.format(
-        "%d linked layer(s) (click for menu)",
+        "%d linked layer(s); right-drag to link or move; left-click for menu",
         linkedCount
       )
     else
-      self.linkButton.tooltip = "No linked layers (click for menu)"
+      self.linkButton.tooltip = "No linked layers; right-drag to link; left-click for menu"
     end
   end
   self:updateCompactIcon()
