@@ -2,7 +2,7 @@
 
 ## Open Source NES Art Editor
 
-Version: 0.0.9 (beta)
+Version: 0.1.0 (beta)
 
 <img src="img/readme_images/app_example.png" alt="">
 
@@ -237,7 +237,7 @@ While a drag is in progress, the UI still reflects valid drop targets as before.
 - `Space` (hold): **mapping highlight** — when a non–CHR/ROM layout window is focused, highlights tiles or sprites in the active layer that match the tile indices in the **current CHR/ROM bank**; matching cells are also emphasized in CHR/ROM bank windows for the same bank. Release `Space` to turn it off.
 - `Ctrl + G`: toggle the focused window grid
 - `Ctrl + R`: toggle shader rendering for the focused layer
-- `Ctrl + Z` / `Ctrl + Y`: undo / redo
+- `Ctrl + Z` / `Ctrl + Y`: undo / redo (see [Undo and redo](#undo-and-redo) for what is recorded)
 - `Ctrl + C` / `Ctrl + X` / `Ctrl + V`: copy / cut / paste selection
   - In `ppu_frame` and `oam_animation` windows, clipboard actions are blocked on sprite layers
 - `Right click` or `middle click` drag: move windows
@@ -297,7 +297,7 @@ Edit mode is for pixel-level editing.
 - `Ctrl + Alt + mouse wheel` also changes brush size
 - `Ctrl + R` toggles shader rendering for the focused layer
 - `Ctrl + G` toggles the focused window grid
-- `Ctrl + Z` / `Ctrl + Y`: undo / redo
+- `Ctrl + Z` / `Ctrl + Y`: undo / redo (same stack as [Undo and redo](#undo-and-redo))
 
 ### PNG drops
 
