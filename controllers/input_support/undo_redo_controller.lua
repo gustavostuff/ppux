@@ -12,6 +12,7 @@ local BankViewController = require("controllers.chr.bank_view_controller")
 local ChrDuplicateSync = require("controllers.chr.duplicate_sync_controller")
 local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
 local WindowCaps = require("controllers.window.window_capabilities")
+local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
 
 -- Create a new undo/redo manager
 function UndoRedoController.new(maxDepth)
@@ -202,11 +203,36 @@ function UndoRedoController:addDragEvent(event)
   if event.type ~= "tile_drag" and event.type ~= "sprite_drag" then return false end
   local pushed = self:_pushEvent(event)
   if pushed then
-    if event.type == "tile_drag" and (event.mode == nil or event.mode == "move") then
+    if event.type == "tile_drag" and (event.mode == nil or event.mode == "move" or event.mode == "palette") then
       self:_notifyUnsaved("tile_move")
-    elseif event.type == "sprite_drag" and (event.mode == nil or event.mode == "move" or event.mode == "mirror") then
+    elseif event.type == "sprite_drag"
+      and (
+        event.mode == nil
+        or event.mode == "move"
+        or event.mode == "mirror"
+        or event.mode == "copy"
+        or event.mode == "palette"
+      )
+    then
       self:_notifyUnsaved("sprite_move")
     end
+  end
+  return pushed
+end
+
+function UndoRedoController:addAnimationWindowStateEvent(event)
+  if not event or event.type ~= "animation_window_state" then
+    return false
+  end
+  if not (event.win and event.beforeState and event.afterState) then
+    return false
+  end
+  if AnimationWindowUndo.snapshotsEqual(event.beforeState, event.afterState) then
+    return false
+  end
+  local pushed = self:_pushEvent(event)
+  if pushed then
+    self:_notifyUnsaved("animation_timeline_change")
   end
   return pushed
 end
@@ -680,6 +706,26 @@ local function applyTileDragEvent(event, direction)
           row = ch.row,
           val = value,
         }
+      elseif ch.isPaletteNumber then
+        local L = win.layers and win.layers[li]
+        if L then
+          L.paletteNumbers = L.paletteNumbers or {}
+          local idx = ch.linearIndex
+          if type(idx) == "number" then
+            local val
+            if direction == "undo" then
+              val = ch.before
+            else
+              val = ch.after
+            end
+            if val == nil then
+              L.paletteNumbers[idx] = nil
+            else
+              L.paletteNumbers[idx] = val
+            end
+            applied = applied + 1
+          end
+        end
       elseif win.set then
         win:set(ch.col, ch.row, value, li)
         applied = applied + 1
@@ -1037,6 +1083,12 @@ function UndoRedoController:_applyEvent(event, direction, app)
     return applyWindowCreateEvent(event, direction, app)
   elseif event.type == "ppu_frame_range" then
     return applyPpuFrameRangeEvent(event, direction, app)
+  elseif event.type == "animation_window_state" then
+    local snap = (direction == "undo") and event.beforeState or event.afterState
+    if not (event.win and snap) then
+      return false
+    end
+    return AnimationWindowUndo.apply(event.win, snap)
   elseif event.type == "chr_tile_revert" then
     return applyChrTileRevertEvent(event, direction, app)
   elseif event.type == "window_minimize" then

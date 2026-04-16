@@ -21,6 +21,7 @@ local TextFieldDemoModal = require("user_interface.modals.text_field_demo_modal"
 local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local SpriteController = require("controllers.sprite.sprite_controller")
+local SpriteStateSnapshot = require("controllers.sprite.sprite_state_snapshot")
 local SimpleLoadingScreen = require("controllers.app.simple_loading_screen")
 local TooltipController = require("controllers.ui.tooltip_controller")
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
@@ -360,6 +361,7 @@ function AppCoreController.new()
     window_rename = true,
     palette_link_change = true,
     ppu_frame_range_change = true,
+    animation_timeline_change = true,
   }
 
   -- undo/redo
@@ -2276,6 +2278,39 @@ function AppCoreController:showPpuFrameAddSpriteModal(win)
         targetWindow:setActiveLayerIndex(spriteLayerIndex)
       else
         targetWindow.activeLayer = spriteLayerIndex
+      end
+
+      local sprite = spriteLayer.items[itemIndex]
+      if self.undoRedo and self.undoRedo.addDragEvent and sprite then
+        local afterState = SpriteStateSnapshot.captureSpriteState(sprite)
+        if afterState then
+          local beforeState = {
+            worldX = afterState.worldX,
+            worldY = afterState.worldY,
+            x = afterState.x,
+            y = afterState.y,
+            dx = afterState.dx,
+            dy = afterState.dy,
+            hasMoved = afterState.hasMoved,
+            removed = true,
+          }
+          if not SpriteStateSnapshot.statesEqual(beforeState, afterState) then
+            self.undoRedo:addDragEvent({
+              type = "sprite_drag",
+              mode = "copy",
+              actions = {
+                {
+                  win = targetWindow,
+                  layerIndex = spriteLayerIndex,
+                  sprite = sprite,
+                  created = true,
+                  before = beforeState,
+                  after = afterState,
+                },
+              },
+            })
+          end
+        end
       end
 
       self:markUnsaved("sprite_move")

@@ -71,6 +71,96 @@ describe("undo_redo_controller.lua - unsaved tracking", function()
     expect(events[#events]).toBe("sprite_remove")
   end)
 
+  it("marks tile palette drag as unsaved", function()
+    local undo = UndoRedoController.new(10)
+    local events = {}
+    undo:setUnsavedTracker(function(eventType)
+      events[#events + 1] = eventType
+    end)
+
+    local ok = undo:addDragEvent({
+      type = "tile_drag",
+      mode = "palette",
+      changes = {
+        {
+          win = { layers = { { paletteNumbers = {} } } }, _closed = false,
+          layerIndex = 1,
+          col = 0,
+          row = 0,
+          linearIndex = 0,
+          before = 1,
+          after = 2,
+          isPaletteNumber = true,
+        },
+      },
+    })
+
+    expect(ok).toBe(true)
+    expect(events[#events]).toBe("tile_move")
+  end)
+
+  it("marks sprite palette drag as unsaved", function()
+    local undo = UndoRedoController.new(10)
+    local events = {}
+    undo:setUnsavedTracker(function(eventType)
+      events[#events + 1] = eventType
+    end)
+
+    local ok = undo:addDragEvent({
+      type = "sprite_drag",
+      mode = "palette",
+      actions = {
+        { before = { paletteNumber = 1 }, after = { paletteNumber = 2 } },
+      },
+    })
+
+    expect(ok).toBe(true)
+    expect(events[#events]).toBe("sprite_move")
+  end)
+
+  it("marks sprite copy drag as unsaved", function()
+    local undo = UndoRedoController.new(10)
+    local events = {}
+    undo:setUnsavedTracker(function(eventType)
+      events[#events + 1] = eventType
+    end)
+
+    local ok = undo:addDragEvent({
+      type = "sprite_drag",
+      mode = "copy",
+      actions = {
+        { before = { removed = true }, after = { removed = false } },
+      },
+    })
+
+    expect(ok).toBe(true)
+    expect(events[#events]).toBe("sprite_move")
+  end)
+
+  it("marks animation timeline undo events as unsaved", function()
+    local undo = UndoRedoController.new(10)
+    local events = {}
+    undo:setUnsavedTracker(function(eventType)
+      events[#events + 1] = eventType
+    end)
+
+    local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
+    local win = { layers = { {} }, activeLayer = 1, frameDelays = {}, nonActiveLayerOpacity = 1.0 }
+    local beforeState = AnimationWindowUndo.snapshot(win)
+    table.insert(win.layers, {})
+    local afterState = AnimationWindowUndo.snapshot(win)
+
+    local ok = undo:addAnimationWindowStateEvent({
+      type = "animation_window_state",
+      win = win,
+      beforeState = beforeState,
+      afterState = afterState,
+    })
+
+    expect(ok).toBe(true)
+    expect(events[#events]).toBe("animation_timeline_change")
+  end)
+
   it("marks sprite mirror drag as unsaved", function()
     local undo = UndoRedoController.new(10)
     local events = {}

@@ -1,4 +1,5 @@
 local SpriteController = require("controllers.sprite.sprite_controller")
+local SpriteStateSnapshot = require("controllers.sprite.sprite_state_snapshot")
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 
@@ -516,6 +517,53 @@ local function getChrGroupDropState(env, x, y, wm)
   return state
 end
 
+local function recordSpriteLayerChrDropUndo(app, win, layerIndex, itemIndices)
+  local undoRedo = app and app.undoRedo
+  if not (undoRedo and undoRedo.addDragEvent and itemIndices and #itemIndices > 0) then
+    return
+  end
+  local layer = win and win.layers and win.layers[layerIndex]
+  if not (layer and layer.kind == "sprite") then
+    return
+  end
+  local actions = {}
+  for _, itemIdx in ipairs(itemIndices) do
+    local sprite = layer.items and layer.items[itemIdx]
+    if sprite then
+      local afterState = SpriteStateSnapshot.captureSpriteState(sprite)
+      if afterState then
+        local beforeState = {
+          worldX = afterState.worldX,
+          worldY = afterState.worldY,
+          x = afterState.x,
+          y = afterState.y,
+          dx = afterState.dx,
+          dy = afterState.dy,
+          hasMoved = afterState.hasMoved,
+          removed = true,
+        }
+        if not SpriteStateSnapshot.statesEqual(beforeState, afterState) then
+          actions[#actions + 1] = {
+            win = win,
+            layerIndex = layerIndex,
+            sprite = sprite,
+            created = true,
+            before = beforeState,
+            after = afterState,
+          }
+        end
+      end
+    end
+  end
+  if #actions > 0 then
+    undoRedo:addDragEvent({
+      type = "sprite_drag",
+      mode = "copy",
+      actions = actions,
+    })
+  end
+end
+
 local function applyChrGroupToSpriteLayer(state, tilesPool)
   if not (state and state.valid and state.layer and state.layer.kind == "sprite" and tilesPool) then
     return nil
@@ -669,6 +717,7 @@ local function handleChrBankCopyToSpriteLayer(env, dst, x, y, drag, dstLayer)
   if itemIndex then
     SpriteController.setSpriteSelection(layer, { itemIndex })
     layer.selectedSpriteIndex = itemIndex
+    recordSpriteLayerChrDropUndo(app, dst, dstLayer, { itemIndex })
     return true
   end
 
@@ -832,6 +881,7 @@ function M.handleTileDrop(env, x, y, wm)
       local tilesPool = app and app.appEditState and app.appEditState.tilesPool
       local itemIndices = applyChrGroupToSpriteLayer(chrGroupState, tilesPool)
       if itemIndices and #itemIndices > 0 then
+        recordSpriteLayerChrDropUndo(app, dst, dstLayer, itemIndices)
         wm:setFocus(dst)
         env.clearDragState(true)
         return true

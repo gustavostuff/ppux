@@ -389,6 +389,37 @@ function M.handleKey(key, focus, ctx, utils)
   local app = ctx.app
   local state = app and app.appEditState
   local tilesPool = state and state.tilesPool or {}
+  local undoRedo = app and app.undoRedo
+  local paintBegan = false
+  local function ensurePaintUndo()
+    if undoRedo and not paintBegan then
+      undoRedo:startPaintEvent()
+      paintBegan = true
+    end
+  end
+  local function snapshotTilePixels64(tileRef)
+    local p = {}
+    if tileRef and tileRef.pixels then
+      for i = 1, 64 do
+        p[i] = tileRef.pixels[i] or 0
+      end
+    end
+    return p
+  end
+  local function recordTilePixelsDiff(tileRef, before)
+    if not (undoRedo and tileRef and before and type(tileRef._bankIndex) == "number" and type(tileRef.index) == "number") then
+      return
+    end
+    for iy = 0, 7 do
+      for ix = 0, 7 do
+        local i = iy * 8 + ix + 1
+        local b, a = before[i] or 0, (tileRef.pixels and tileRef.pixels[i]) or 0
+        if b ~= a then
+          undoRedo:recordPixelChange(tileRef._bankIndex, tileRef.index, ix, iy, b, a)
+        end
+      end
+    end
+  end
   local changedTileRefs = {}
   local changedTileRefKeys = {}
 
@@ -443,19 +474,27 @@ function M.handleKey(key, focus, ctx, utils)
           if (not tRef) and target.bank == bankIdx and target.tileIndex == tileIdx then
             tRef = tile
           end
-          if tRef and offsetTileRefPixels(tRef, dx, dy, PIXEL_OFFSET_DEFAULTS) then
-            success = true
-            tileChanged = true
-            markChangedTileRef(tRef, target.bank, target.tileIndex)
+          if tRef then
+            local snap = snapshotTilePixels64(tRef)
+            if offsetTileRefPixels(tRef, dx, dy, PIXEL_OFFSET_DEFAULTS) then
+              ensurePaintUndo()
+              success = true
+              tileChanged = true
+              recordTilePixelsDiff(tRef, snap)
+              markChangedTileRef(tRef, target.bank, target.tileIndex)
+            end
           end
         end
         if tileChanged and state then
           ChrDuplicateSync.updateTiles(state, targets)
         end
       else
+        local snapSingle = snapshotTilePixels64(tile)
         tileChanged = offsetTileRefPixels(tile, dx, dy, PIXEL_OFFSET_DEFAULTS)
         if tileChanged then
+          ensurePaintUndo()
           success = true
+          recordTilePixelsDiff(tile, snapSingle)
           markChangedTileRef(tile, bankIdx, tileIdx)
         end
       end
@@ -486,7 +525,10 @@ function M.handleKey(key, focus, ctx, utils)
             end
             if tRef then
               if tRef ~= tileRef then
+                local snapCopy = snapshotTilePixels64(tRef)
                 copyTileRefPixels(tileRef, tRef)
+                ensurePaintUndo()
+                recordTilePixelsDiff(tRef, snapCopy)
               end
               markChangedTileRef(tRef, target.bank, target.tileIndex)
               propagated = true
@@ -507,9 +549,14 @@ function M.handleKey(key, focus, ctx, utils)
         local bottomItem = materializeFocusTile(focus, pair.bottomItem, li)
         local pairChanged = false
         if topItem and bottomItem then
+          local snapTopPair = snapshotTilePixels64(topItem)
+          local snapBotPair = snapshotTilePixels64(bottomItem)
           pairChanged = offsetTileRefPairPixels(topItem, bottomItem, dx, dy, PIXEL_OFFSET_DEFAULTS)
           if pairChanged then
+            ensurePaintUndo()
             success = true
+            recordTilePixelsDiff(topItem, snapTopPair)
+            recordTilePixelsDiff(bottomItem, snapBotPair)
             propagateTileRefToSyncGroup(topItem)
             propagateTileRefToSyncGroup(bottomItem)
           end
@@ -542,6 +589,9 @@ function M.handleKey(key, focus, ctx, utils)
 
     if success then
       recordChangedTilesToEdits()
+      if paintBegan and undoRedo then
+        undoRedo:finishPaintEvent()
+      end
       if app and app.markUnsaved then
         app:markUnsaved("pixel_edit")
       end
@@ -619,8 +669,13 @@ function M.handleKey(key, focus, ctx, utils)
         if sprite and sprite.removed ~= true then
           selectedSpritesCount = selectedSpritesCount + 1
           if sprite.topRef and sprite.botRef and not pairAlreadyProcessed(sprite.topRef, sprite.botRef) then
+            local snapTop16 = snapshotTilePixels64(sprite.topRef)
+            local snapBot16 = snapshotTilePixels64(sprite.botRef)
             if offsetSprite8x16Pixels(sprite, dx, dy, PIXEL_OFFSET_DEFAULTS) then
+              ensurePaintUndo()
               changed = true
+              recordTilePixelsDiff(sprite.topRef, snapTop16)
+              recordTilePixelsDiff(sprite.botRef, snapBot16)
               addChangedTarget(sprite.topRef._bankIndex, sprite.topRef.index)
               addChangedTarget(sprite.botRef._bankIndex, sprite.botRef.index)
               markChangedTileRef(sprite.topRef)
@@ -648,10 +703,15 @@ function M.handleKey(key, focus, ctx, utils)
           local keyId = string.format("%d:%d", target.bank, target.tileIndex)
           local poolBank = tilesPool[target.bank]
           local tRef = (poolBank and poolBank[target.tileIndex]) or fallbackRefs[keyId]
-          if tRef and offsetTileRefPixels(tRef, dx, dy, PIXEL_OFFSET_DEFAULTS) then
-            changed = true
-            addChangedTarget(target.bank, target.tileIndex)
-            markChangedTileRef(tRef, target.bank, target.tileIndex)
+          if tRef then
+            local snapSp = snapshotTilePixels64(tRef)
+            if offsetTileRefPixels(tRef, dx, dy, PIXEL_OFFSET_DEFAULTS) then
+              ensurePaintUndo()
+              changed = true
+              recordTilePixelsDiff(tRef, snapSp)
+              addChangedTarget(target.bank, target.tileIndex)
+              markChangedTileRef(tRef, target.bank, target.tileIndex)
+            end
           end
         end
       end
@@ -659,6 +719,9 @@ function M.handleKey(key, focus, ctx, utils)
 
     if not changed then return false end
     recordChangedTilesToEdits()
+    if paintBegan and undoRedo then
+      undoRedo:finishPaintEvent()
+    end
     if state and #changedTargets > 0 then
       ChrDuplicateSync.updateTiles(state, changedTargets)
     end

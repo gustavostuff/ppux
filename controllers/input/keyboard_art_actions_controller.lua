@@ -4,6 +4,7 @@ local DebugController = require("controllers.dev.debug_controller")
 local TileSpriteOffsetController = require("controllers.input_support.tile_sprite_offset_controller")
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local SpriteStateSnapshot = require("controllers.sprite.sprite_state_snapshot")
 
 local M = {}
 
@@ -34,7 +35,7 @@ local function materializeFocusTile(focus, item, layerIndex)
   return item
 end
 
-local function rotateTileWithSync(tile, direction, app, state, tilesPool, sourceWin)
+local function rotateTileWithSync(tile, direction, app, state, tilesPool, sourceWin, paintUndo)
   if not (tile and tile.pixels and type(tile.pixels) == "table" and #tile.pixels == 64) then
     return false, nil
   end
@@ -57,6 +58,14 @@ local function rotateTileWithSync(tile, direction, app, state, tilesPool, source
     end
 
     if tRef then
+      local snap = nil
+      if paintUndo and tRef.pixels and type(tRef.pixels) == "table" and type(tRef._bankIndex) == "number" and type(tRef.index) == "number" then
+        snap = {}
+        for i = 1, 64 do
+          snap[i] = tRef.pixels[i] or 0
+        end
+      end
+
       local rotated = false
       if tRef.rotatePaletteValues then
         rotated = tRef:rotatePaletteValues(direction)
@@ -83,6 +92,20 @@ local function rotateTileWithSync(tile, direction, app, state, tilesPool, source
         end
         rotated = true
       end
+
+      if snap and paintUndo and type(tRef._bankIndex) == "number" and type(tRef.index) == "number" then
+        for iy = 0, 7 do
+          for ix = 0, 7 do
+            local i = iy * 8 + ix + 1
+            local beforeV = snap[i] or 0
+            local afterV = (tRef.pixels and tRef.pixels[i]) or 0
+            if beforeV ~= afterV then
+              paintUndo:recordPixelChange(tRef._bankIndex, tRef.index, ix, iy, beforeV, afterV)
+            end
+          end
+        end
+      end
+
       rotatedThisTile = rotatedThisTile or rotated
     end
   end
@@ -114,6 +137,10 @@ function M.handleTileRotation(ctx, utils, key, focus)
   local app = ctx.app
   local state = app and app.appEditState
   local tilesPool = state and state.tilesPool or {}
+  local undoRedo = app and app.undoRedo
+  if undoRedo then
+    undoRedo:startPaintEvent()
+  end
 
   if isChr8x16Mode(focus) then
     local pairs = MultiSelectController.getSelectedChr8x16Pairs(focus, layerIndex, col, row)
@@ -125,7 +152,7 @@ function M.handleTileRotation(ctx, utils, key, focus)
         materializeFocusTile(focus, pair.topItem, layerIndex),
         materializeFocusTile(focus, pair.bottomItem, layerIndex),
       }) do
-        local rotated = rotateTileWithSync(tile, direction, app, state, tilesPool, focus)
+        local rotated = rotateTileWithSync(tile, direction, app, state, tilesPool, focus, undoRedo)
         rotatedThisUnit = rotatedThisUnit or rotated
         success = success or rotated
       end
@@ -145,7 +172,7 @@ function M.handleTileRotation(ctx, utils, key, focus)
 
     for _, cell in ipairs(cells) do
       local tile = focus:get(cell.col, cell.row, layerIndex)
-      local rotated = rotateTileWithSync(tile, direction, app, state, tilesPool, focus)
+      local rotated = rotateTileWithSync(tile, direction, app, state, tilesPool, focus, undoRedo)
       if rotated then
         success = true
         rotatedUnitsCount = rotatedUnitsCount + 1
@@ -154,6 +181,9 @@ function M.handleTileRotation(ctx, utils, key, focus)
   end
 
   if success then
+    if undoRedo then
+      undoRedo:finishPaintEvent()
+    end
     local dirText = (direction == 1) and "right" or "left"
     if rotatedUnitsCount > 1 then
       local unitLabel = isChr8x16Mode(focus) and "items" or "tiles"
@@ -164,6 +194,9 @@ function M.handleTileRotation(ctx, utils, key, focus)
     return true
   end
 
+  if undoRedo then
+    undoRedo:cancelPaintEvent()
+  end
   return false
 end
 
@@ -195,10 +228,16 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appCoreRef)
     local items = layer.items or {}
     local updated = 0
     local newRom = appEditState and appEditState.romRaw
+    local undoRedo = ctx and ctx.app and ctx.app.undoRedo
+    local trackedSprites = {}
+    local beforeBySprite = {}
 
     for _, idx in ipairs(selected) do
       local sprite = items[idx]
       if sprite and sprite.removed ~= true then
+        trackedSprites[#trackedSprites + 1] = sprite
+        beforeBySprite[sprite] = SpriteStateSnapshot.captureSpriteState(sprite)
+
         sprite.paletteNumber = paletteNum
 
         local curAttr = tonumber(sprite.attr) or 0
@@ -248,6 +287,34 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appCoreRef)
     end
 
     if updated > 0 then
+      if undoRedo and undoRedo.addDragEvent and #trackedSprites > 0 then
+        local actions = {}
+        for _, sprite in ipairs(trackedSprites) do
+          local beforeState = beforeBySprite[sprite]
+          local afterState = SpriteStateSnapshot.captureSpriteState(sprite)
+          if beforeState and afterState and not SpriteStateSnapshot.statesEqual(beforeState, afterState) then
+            actions[#actions + 1] = {
+              win = w,
+              layerIndex = li,
+              sprite = sprite,
+              before = beforeState,
+              after = afterState,
+            }
+          end
+        end
+        if #actions > 0 then
+          undoRedo:addDragEvent({
+            type = "sprite_drag",
+            mode = "palette",
+            sync = {
+              syncPosition = false,
+              syncVisual = true,
+              syncAttr = true,
+            },
+            actions = actions,
+          })
+        end
+      end
       local statusMsg = (updated > 1) and string.format("Sprite palettes set to %d", paletteNum)
         or string.format("Sprite palette set to %d", paletteNum)
       setStatus(ctx, statusMsg)
@@ -272,17 +339,46 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appCoreRef)
     beforeState = appCoreRef:snapshotPpuFrameUndoState(w, li)
   end
 
+  local cols = w.cols or 32
+  local paletteChanges = (not WindowCaps.isPpuFrame(w)) and {} or nil
+  local undoRedo = ctx and ctx.app and ctx.app.undoRedo
+
   local updated = 0
   for _, cell in ipairs(selectedCells) do
-    local success = NametableTilesController.setPaletteNumberForTile(w, layer, cell.col, cell.row, paletteNum)
-    if success then
-      updated = updated + 1
+    if paletteChanges then
+      local idx = cell.row * cols + cell.col
+      local beforePal = layer.paletteNumbers and layer.paletteNumbers[idx]
+      local success = NametableTilesController.setPaletteNumberForTile(w, layer, cell.col, cell.row, paletteNum)
+      if success then
+        updated = updated + 1
+        paletteChanges[#paletteChanges + 1] = {
+          win = w,
+          layerIndex = li,
+          col = cell.col,
+          row = cell.row,
+          linearIndex = idx,
+          before = beforePal,
+          after = paletteNum,
+          isPaletteNumber = true,
+        }
+      end
+    else
+      local success = NametableTilesController.setPaletteNumberForTile(w, layer, cell.col, cell.row, paletteNum)
+      if success then
+        updated = updated + 1
+      end
     end
   end
   if updated > 0 then
     if beforeState and appCoreRef.pushPpuFrameNametableUndoIfChanged and appCoreRef.snapshotPpuFrameUndoState then
       local afterState = appCoreRef:snapshotPpuFrameUndoState(w, li)
       appCoreRef:pushPpuFrameNametableUndoIfChanged(w, li, beforeState, afterState)
+    elseif paletteChanges and #paletteChanges > 0 and undoRedo and undoRedo.addDragEvent then
+      undoRedo:addDragEvent({
+        type = "tile_drag",
+        mode = "palette",
+        changes = paletteChanges,
+      })
     end
     if updated > 1 then
       setStatus(ctx, string.format("Tile palettes set to %d", paletteNum))

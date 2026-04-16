@@ -242,6 +242,80 @@ describe("UndoRedoController - paint and removal combos", function()
   end)
 end)
 
+describe("UndoRedoController - tile_drag palette numbers on static layers", function()
+  it("applies palette number changes on undo and redo", function()
+    local ur = UndoRedoController.new(10)
+    local layer = { kind = "tile", paletteNumbers = { [0] = 1 } }
+    local win = { cols = 8, rows = 8, layers = { layer }, _closed = false }
+
+    ur:addDragEvent({
+      type = "tile_drag",
+      mode = "palette",
+      changes = {
+        {
+          win = win,
+          layerIndex = 1,
+          col = 0,
+          row = 0,
+          linearIndex = 0,
+          before = 1,
+          after = 3,
+          isPaletteNumber = true,
+        },
+      },
+    })
+
+    layer.paletteNumbers[0] = 3
+    expect(ur:undo({})).toBe(true)
+    expect(layer.paletteNumbers[0]).toBe(1)
+
+    expect(ur:redo({})).toBe(true)
+    expect(layer.paletteNumbers[0]).toBe(3)
+  end)
+end)
+
+describe("UndoRedoController - animation_window_state", function()
+  it("restores layers and frame delays on undo", function()
+    local ur = UndoRedoController.new(10)
+    local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
+
+    local frameA = { name = "A" }
+    local frameB = { name = "B" }
+    local win = {
+      layers = { frameA },
+      activeLayer = 1,
+      frameDelays = { [1] = 0.1 },
+      nonActiveLayerOpacity = 1.0,
+      selectedByLayer = { [1] = nil },
+      updateLayerOpacities = function() end,
+    }
+
+    local beforeState = AnimationWindowUndo.snapshot(win)
+    win.layers = { frameA, frameB }
+    win.activeLayer = 2
+    win.frameDelays = { [1] = 0.2, [2] = 0.2 }
+    local afterState = AnimationWindowUndo.snapshot(win)
+
+    ur:addAnimationWindowStateEvent({
+      type = "animation_window_state",
+      win = win,
+      beforeState = beforeState,
+      afterState = afterState,
+    })
+
+    expect(#win.layers).toBe(2)
+    expect(ur:undo({})).toBe(true)
+    expect(#win.layers).toBe(1)
+    expect(win.activeLayer).toBe(1)
+    expect(win.frameDelays[1]).toBe(0.1)
+
+    expect(ur:redo({})).toBe(true)
+    expect(#win.layers).toBe(2)
+    expect(win.activeLayer).toBe(2)
+    expect(win.frameDelays[2]).toBe(0.2)
+  end)
+end)
+
 describe("UndoRedoController - sprite mirror drag events", function()
   it("undoes and redoes mirror fields with shared OAM sync options", function()
     local ur = UndoRedoController.new(10)

@@ -92,12 +92,24 @@ describe("keyboard_art_actions_controller.lua", function()
       updateTargets = targets
     end
 
+    local paint = { started = false, finished = false }
     local ctx = {
       setStatus = function(text)
         statusMessages[#statusMessages + 1] = text
       end,
       app = {
         syncDuplicateTiles = true,
+        undoRedo = {
+          startPaintEvent = function()
+            paint.started = true
+          end,
+          finishPaintEvent = function()
+            paint.finished = true
+            return true
+          end,
+          cancelPaintEvent = function() end,
+          recordPixelChange = function() end,
+        },
         appEditState = {
           tilesPool = {
             [1] = {
@@ -122,6 +134,8 @@ describe("keyboard_art_actions_controller.lua", function()
     expect(rotated[2].dir).toBe(1)
     expect(updateTargets).toBeTruthy()
     expect(#updateTargets).toBe(2)
+    expect(paint.started).toBe(true)
+    expect(paint.finished).toBe(true)
     expect(statusMessages[#statusMessages]).toBe("Rotated tile palette values right")
   end)
 
@@ -201,6 +215,13 @@ describe("keyboard_art_actions_controller.lua", function()
       selectedSpriteIndex = 1,
       items = {
         [1] = {
+          worldX = 0,
+          worldY = 0,
+          x = 0,
+          y = 0,
+          dx = 0,
+          dy = 0,
+          hasMoved = false,
           paletteNumber = 1,
           attr = 0xC0,
           mirrorX = true,
@@ -224,16 +245,27 @@ describe("keyboard_art_actions_controller.lua", function()
       return "patched-rom"
     end
 
+    local dragEvents = {}
     local ctx = {
       getMode = function() return "tile" end,
       setStatus = function(text)
         statusMessages[#statusMessages + 1] = text
       end,
+      app = {
+        undoRedo = {
+          addDragEvent = function(_, ev)
+            dragEvents[#dragEvents + 1] = ev
+          end,
+        },
+      },
     }
     local appEditState = { romRaw = "orig-rom" }
     local handled = KeyboardArtActionsController.handlePaletteNumberAssignment(ctx, "3", w, { appEditState = appEditState })
 
     expect(handled).toBeTruthy()
+    expect(#dragEvents).toBe(1)
+    expect(dragEvents[1].type).toBe("sprite_drag")
+    expect(dragEvents[1].mode).toBe("palette")
     expect(layer.items[1].paletteNumber).toBe(3)
     expect(layer.items[1].attr).toBe(0xC2)
     expect(#syncCalls).toBe(1)
@@ -257,20 +289,34 @@ describe("keyboard_art_actions_controller.lua", function()
 
     local layer = { kind = "tile", paletteData = {} }
     local w = {
+      kind = "static_art",
+      cols = 10,
       layers = { layer },
       getActiveLayerIndex = function() return 1 end,
       getSelected = function() return 2, 3, 1 end,
     }
+    local dragEvents = {}
     local ctx = {
       getMode = function() return "tile" end,
       setStatus = function(text)
         statusMessages[#statusMessages + 1] = text
       end,
+      app = {
+        undoRedo = {
+          addDragEvent = function(_, ev)
+            dragEvents[#dragEvents + 1] = ev
+          end,
+        },
+      },
     }
 
     local handled = KeyboardArtActionsController.handlePaletteNumberAssignment(ctx, "4", w, {})
 
     expect(handled).toBeTruthy()
+    expect(#dragEvents).toBe(1)
+    expect(dragEvents[1].type).toBe("tile_drag")
+    expect(dragEvents[1].mode).toBe("palette")
+    expect(dragEvents[1].changes[1].linearIndex).toBe(32)
     expect(#calls).toBe(1)
     expect(calls[1].col).toBe(2)
     expect(calls[1].row).toBe(3)

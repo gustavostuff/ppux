@@ -1,4 +1,5 @@
 local WindowCaps = require("controllers.window.window_capabilities")
+local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
 
 local M = {}
 
@@ -182,17 +183,36 @@ end
 function M.handleAnimationWindowKeys(ctx, key, focus)
   if not WindowCaps.isAnimationLike(focus) then return false end
 
+  local app = ctx and ctx.app
+  local undoRedo = app and app.undoRedo
+
+  local function pushAnimationUndoIfChanged(snapBefore)
+    local snapAfter = AnimationWindowUndo.snapshot(focus)
+    if undoRedo and undoRedo.addAnimationWindowStateEvent and not AnimationWindowUndo.snapshotsEqual(snapBefore, snapAfter) then
+      undoRedo:addAnimationWindowStateEvent({
+        type = "animation_window_state",
+        win = focus,
+        beforeState = snapBefore,
+        afterState = snapAfter,
+      })
+    end
+  end
+
   if key == "=" or key == "+" then
+    local snapBefore = AnimationWindowUndo.snapshot(focus)
     local newLayerIdx = focus:addLayerAfterActive({
       name = "Frame " .. (#focus.layers + 1),
     })
+    pushAnimationUndoIfChanged(snapBefore)
     setStatus(ctx, ("Added layer %d"):format(newLayerIdx))
     return true
   end
 
   if key == "-" or key == "_" then
+    local snapBefore = AnimationWindowUndo.snapshot(focus)
     local success = focus:removeActiveLayer()
     if success then
+      pushAnimationUndoIfChanged(snapBefore)
       setStatus(ctx, ("Removed layer, now on layer %d"):format(focus:getActiveLayerIndex()))
     else
       setStatus(ctx, "Cannot remove the last layer")
@@ -215,10 +235,24 @@ function M.handleAnimationDelayAdjust(ctx, utils, key, focus)
   if key ~= "left" and key ~= "right" then return false end
   if not focus.adjustAllFrameDelays then return false end
 
+  local app = ctx and ctx.app
+  local undoRedo = app and app.undoRedo
+  local snapBefore = AnimationWindowUndo.snapshot(focus)
+
   local direction = (key == "right") and 1 or -1
   local newDelay = focus:adjustAllFrameDelays(direction)
   if not newDelay then
     return false
+  end
+
+  local snapAfter = AnimationWindowUndo.snapshot(focus)
+  if undoRedo and undoRedo.addAnimationWindowStateEvent and not AnimationWindowUndo.snapshotsEqual(snapBefore, snapAfter) then
+    undoRedo:addAnimationWindowStateEvent({
+      type = "animation_window_state",
+      win = focus,
+      beforeState = snapBefore,
+      afterState = snapAfter,
+    })
   end
 
   setStatus(ctx, string.format("Frame delay: %.2fs (all frames)", newDelay))
@@ -236,6 +270,10 @@ function M.handleInactiveLayerOpacity(ctx, utils, key, focus)
   end
   if not (focus.layers and focus.getActiveLayerIndex) then return false end
 
+  local app = ctx and ctx.app
+  local undoRedo = app and app.undoRedo
+  local snapBefore = AnimationWindowUndo.snapshot(focus)
+
   local step = 0.2
   local dir = (key == "up") and 1 or -1
   local base = focus.nonActiveLayerOpacity or 1.0
@@ -249,6 +287,17 @@ function M.handleInactiveLayerOpacity(ctx, utils, key, focus)
       layer.opacity = 1.0
     end
   end
+
+  local snapAfter = AnimationWindowUndo.snapshot(focus)
+  if undoRedo and undoRedo.addAnimationWindowStateEvent and not AnimationWindowUndo.snapshotsEqual(snapBefore, snapAfter) then
+    undoRedo:addAnimationWindowStateEvent({
+      type = "animation_window_state",
+      win = focus,
+      beforeState = snapBefore,
+      afterState = snapAfter,
+    })
+  end
+
   setStatus(ctx, string.format("Inactive layers opacity: %.0f%%", newOpacity * 100))
   return true
 end

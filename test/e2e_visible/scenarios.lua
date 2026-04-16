@@ -2,6 +2,7 @@ local BubbleExample = require("test.e2e_bubble_example")
 local Steps = require("test.e2e_visible.steps")
 local Points = require("test.e2e_visible.points")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
+local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
 local images = require("images")
 
 local normalizeSpeedMultiplier = Steps.normalizeSpeedMultiplier
@@ -89,13 +90,18 @@ local function buildSubmenuPositionScenario(_, app)
       local anchorCol = (menu.activeSplitIconCell == true and (tonumber(menu.cols) or 1) > 1) and 2 or 1
       local anchorCell = assert(menu.panel:getCell(anchorCol, 1), "expected root anchor cell")
 
-      local expectedX = anchorCell.x + anchorCell.w
-      if (expectedX + childPanel.w) > bounds.w then
-        expectedX = anchorCell.x - childPanel.w
+      -- Match controllers/ui/contextual_menu_controller.resolveChildPosition (gap + inset).
+      local gap = tonumber(ContextualMenuController.PARENT_GAP_PX) or 2
+      local inset = gap
+      local expectedX = anchorCell.x + anchorCell.w + gap
+      local maxRight = bounds.w - inset
+      if (expectedX + childPanel.w) > maxRight then
+        expectedX = anchorCell.x - childPanel.w - gap
       end
 
       local expectedY = anchorCell.y
-      if (expectedY + childPanel.h) > bounds.h then
+      local maxBottom = bounds.h - inset
+      if (expectedY + childPanel.h) > maxBottom then
         expectedY = anchorCell.y + anchorCell.h - childPanel.h
       end
 
