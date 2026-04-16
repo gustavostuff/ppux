@@ -1641,6 +1641,70 @@ function AppCoreController:showChrBankTileContextMenu(win, col, row, x, y)
   return self.ppuTileContextMenu:isVisible()
 end
 
+function AppCoreController:_buildRomPaletteCellContextMenuItems(context)
+  local win = context and context.win
+  local col = context and context.col
+  local row = context and context.row
+  local selfRef = self
+  if not (win and type(col) == "number" and type(row) == "number") then
+    return {}
+  end
+
+  local editable = win.isCellEditable and win:isCellEditable(col, row)
+
+  return {
+    {
+      text = "Clear value",
+      enabled = editable == true,
+      callback = function()
+        selfRef:hideAppContextMenus()
+        if not editable then
+          return
+        end
+        local beforeState = captureRomPaletteAddressUndoState(win)
+        if not (win.clearRomCellBinding and win:clearRomCellBinding(col, row)) then
+          selfRef:setStatus("ROM palette cell cannot be cleared")
+          return
+        end
+        if selfRef.invalidatePpuFrameLayersAffectedByPaletteWin then
+          selfRef:invalidatePpuFrameLayersAffectedByPaletteWin(win)
+        end
+        if selfRef.undoRedo and selfRef.undoRedo.addRomPaletteAddressEvent then
+          selfRef.undoRedo:addRomPaletteAddressEvent({
+            type = "rom_palette_address",
+            win = win,
+            beforeState = beforeState,
+            afterState = captureRomPaletteAddressUndoState(win),
+          })
+        end
+        selfRef:setStatus(string.format("Cleared ROM palette cell (%d,%d)", col, row))
+      end,
+    },
+    {
+      text = "Change ROM address",
+      enabled = true,
+      callback = function()
+        selfRef:hideAppContextMenus()
+        if selfRef.showRomPaletteAddressModal then
+          selfRef:showRomPaletteAddressModal(win, col, row)
+        end
+      end,
+    },
+  }
+end
+
+function AppCoreController:showRomPaletteCellContextMenu(win, col, row, x, y)
+  if not (self.ppuTileContextMenu and win and type(col) == "number" and type(row) == "number" and type(x) == "number" and type(y) == "number") then
+    return false
+  end
+
+  local context = { win = win, col = col, row = row }
+  self:_hideAllContextMenus()
+  local cx, cy = self:contentPointToCanvasPoint(x, y)
+  self.ppuTileContextMenu:showAt(cx, cy, self:_buildRomPaletteCellContextMenuItems(context))
+  return self.ppuTileContextMenu:isVisible()
+end
+
 function AppCoreController:rebuildBankWindowItems()
   if not self.winBank or self.winBank.kind ~= "chr" then return end
   BankViewController.rebuildBankWindowItems(

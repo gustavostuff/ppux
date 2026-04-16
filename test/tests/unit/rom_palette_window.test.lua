@@ -140,21 +140,36 @@ describe("rom_palette_window.lua - locked cells", function()
     expect(win.codes2D[1][2]).toBe("0B")
   end)
 
-  it("syncs first-column edits across rows and marks palette unsaved", function()
+  it("syncs color edits to every cell that shares the same ROM address", function()
     local previousCtx = rawget(_G, "ctx")
     local markUnsavedCalls = 0
+    local sharedAddr = 0
+    local paletteData = {
+      romColors = {
+        [1] = { [1] = sharedAddr, [2] = 1, [3] = 2, [4] = 3 },
+        [2] = { [1] = sharedAddr, [2] = 5, [3] = 6, [4] = 7 },
+        [3] = { [1] = sharedAddr, [2] = 9, [3] = 10, [4] = 11 },
+        [4] = { [1] = sharedAddr, [2] = 13, [3] = 14, [4] = 15 },
+      },
+      userDefinedCode = {},
+    }
     _G.ctx = {
       app = {
         markUnsaved = function(_, reason)
           markUnsavedCalls = markUnsavedCalls + 1
           expect(reason).toBe("palette_color_change")
         end,
+        wm = {
+          getWindowsOfKind = function()
+            return {}
+          end,
+        },
       },
     }
 
     local win = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
-      title = "ROM Palette Universal BG",
-      paletteData = makeEditablePaletteData(),
+      title = "ROM Palette shared address",
+      paletteData = paletteData,
       romRaw = string.rep(string.char(0x07), 64),
     })
 
@@ -169,14 +184,8 @@ describe("rom_palette_window.lua - locked cells", function()
       expect(win.codes2D[row][0]).toBe("08")
     end
 
-    local b0 = chr.readByteFromAddress(win.romRaw, 0)
-    local b4 = chr.readByteFromAddress(win.romRaw, 4)
-    local b8 = chr.readByteFromAddress(win.romRaw, 8)
-    local b12 = chr.readByteFromAddress(win.romRaw, 12)
-    expect(b0).toBe(0x08)
-    expect(b4).toBe(0x08)
-    expect(b8).toBe(0x08)
-    expect(b12).toBe(0x08)
+    expect(chr.readByteFromAddress(win.romRaw, sharedAddr)).toBe(0x08)
+    expect(chr.readByteFromAddress(win.romRaw, 4)).toBe(0x07)
 
     expect(#win.paletteData.userDefinedCode).toBe(4)
     expect(win.paletteData.userDefinedCode[1].row).toBe(0)
@@ -184,6 +193,58 @@ describe("rom_palette_window.lua - locked cells", function()
     expect(win.paletteData.userDefinedCode[4].row).toBe(3)
     expect(win.paletteData.userDefinedCode[4].col).toBe(0)
     expect(markUnsavedCalls).toBe(1)
+  end)
+
+  it("syncs color edits across ROM palette windows that share a ROM address", function()
+    local previousCtx = rawget(_G, "ctx")
+    local sharedAddr = 2
+    local romRaw = string.rep(string.char(0x11), 64)
+    local winA = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
+      title = "ROM A",
+      paletteData = {
+        romColors = {
+          [1] = { [1] = false, [2] = sharedAddr, [3] = 3, [4] = 4 },
+          [2] = { [1] = false, [2] = 5, [3] = 6, [4] = 7 },
+          [3] = { [1] = false, [2] = 8, [3] = 9, [4] = 10 },
+          [4] = { [1] = false, [2] = 11, [3] = 12, [4] = 13 },
+        },
+        userDefinedCode = {},
+      },
+      romRaw = romRaw,
+    })
+    local winB = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
+      title = "ROM B",
+      paletteData = {
+        romColors = {
+          [1] = { [1] = false, [2] = 20, [3] = 21, [4] = 22 },
+          [2] = { [1] = false, [2] = sharedAddr, [3] = 24, [4] = 25 },
+          [3] = { [1] = false, [2] = 26, [3] = 27, [4] = 28 },
+          [4] = { [1] = false, [2] = 29, [3] = 30, [4] = 31 },
+        },
+        userDefinedCode = {},
+      },
+      romRaw = romRaw,
+    })
+    _G.ctx = {
+      app = {
+        wm = {
+          getWindowsOfKind = function()
+            return { winA, winB }
+          end,
+        },
+      },
+    }
+
+    local ok, err = pcall(function()
+      winA:setSelected(1, 0)
+      winA:adjustSelectedByArrows(1, 0) -- 11 -> 12
+    end)
+    _G.ctx = previousCtx
+    if not ok then error(err) end
+
+    expect(winA.codes2D[0][1]).toBe("12")
+    expect(winB.codes2D[1][1]).toBe("12")
+    expect(chr.readByteFromAddress(winA.romRaw, sharedAddr)).toBe(0x12)
   end)
 
   it("normalizes invalid black codes when writing to ROM and triggers update callback", function()
@@ -223,6 +284,26 @@ describe("rom_palette_window.lua - locked cells", function()
     expect(win.paletteData.userDefinedCode[2].code).toBe("0F")
     expect(win.paletteData.userDefinedCode[3].row).toBe(3)
     expect(win.paletteData.userDefinedCode[3].col).toBe(2)
+  end)
+
+  it("clearRomCellBinding locks the cell and drops user-defined overrides", function()
+    local win = makeWindow()
+    win:setSelected(1, 0)
+    expect(win:isCellEditable(1, 0)).toBe(true)
+
+    local cleared = win:clearRomCellBinding(1, 0)
+    expect(cleared).toBe(true)
+    expect(win:isCellEditable(1, 0)).toBe(false)
+    expect(win.codes2D[0][1]).toBe("0F")
+    expect(win.paletteData.romColors[1][2]).toBe(false)
+    local hasUser = false
+    for _, item in ipairs(win.paletteData.userDefinedCode or {}) do
+      if item.row == 0 and item.col == 1 then
+        hasUser = true
+        break
+      end
+    end
+    expect(hasUser).toBe(false)
   end)
 
   it("assigns a ROM address to a locked cell and loads its current code", function()

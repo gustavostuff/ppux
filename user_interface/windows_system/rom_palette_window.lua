@@ -71,7 +71,7 @@ local function markPaletteUnsaved()
   end
 end
 
-local function recordPaletteColorUndo(win, actions, beforePaletteData, afterPaletteData)
+local function recordPaletteColorUndo(actions, paletteStates)
   local gctx = rawget(_G, "ctx")
   local app = gctx and gctx.app
   if not (app and app.undoRedo and app.undoRedo.addPaletteColorEvent) then
@@ -80,13 +80,7 @@ local function recordPaletteColorUndo(win, actions, beforePaletteData, afterPale
   return app.undoRedo:addPaletteColorEvent({
     type = "palette_color",
     actions = actions,
-    paletteStates = {
-      {
-        win = win,
-        beforePaletteData = beforePaletteData,
-        afterPaletteData = afterPaletteData,
-      }
-    },
+    paletteStates = paletteStates or {},
   })
 end
 
@@ -105,6 +99,68 @@ function RomPaletteWindow:isCellEditable(col, row)
   local rowColors = self.paletteData.romColors[rowIndex]
   if not rowColors then return false end
   return type(rowColors[colIndex]) == "number"
+end
+
+-- ROM byte address backing an editable cell, or nil if locked / missing.
+function RomPaletteWindow:getRomByteAddress(col, row)
+  if not self:isCellEditable(col, row) then
+    return nil
+  end
+  local rowColors = self.paletteData.romColors[(row or 0) + 1]
+  local addr = rowColors and rowColors[(col or 0) + 1]
+  return type(addr) == "number" and addr or nil
+end
+
+local function getRomPaletteWindowsFromApp(app, primaryWin)
+  if app and app.wm and app.wm.getWindowsOfKind then
+    local list = app.wm:getWindowsOfKind("rom_palette")
+    if type(list) == "table" and #list > 0 then
+      return list
+    end
+  end
+  return primaryWin and { primaryWin } or {}
+end
+
+-- Every editable ROM palette cell (any window) that maps to the same ROM byte address.
+local function collectEditableCellsForRomAddress(primaryWin, app, romAddr)
+  local out = {}
+  if type(romAddr) ~= "number" then
+    return out
+  end
+  for _, w in ipairs(getRomPaletteWindowsFromApp(app, primaryWin)) do
+    local rows = w.rows or 4
+    local cols = w.cols or 4
+    for r = 0, rows - 1 do
+      for c = 0, cols - 1 do
+        if w.getRomByteAddress and w:getRomByteAddress(c, r) == romAddr then
+          out[#out + 1] = { win = w, col = c, row = r }
+        end
+      end
+    end
+  end
+  return out
+end
+
+-- Remove ROM backing for a cell (romColors slot becomes false), drop user override, show locked gray cell.
+function RomPaletteWindow:clearRomCellBinding(col, row)
+  if not self:isCellEditable(col, row) then
+    return false
+  end
+  self.paletteData = self.paletteData or {}
+  self.paletteData.romColors = self.paletteData.romColors or {}
+  local ri, ci = (row or 0) + 1, (col or 0) + 1
+  self.paletteData.romColors[ri] = self.paletteData.romColors[ri] or {}
+  self.paletteData.romColors[ri][ci] = false
+  self:removeUserDefinedCode(row, col)
+  self.codes2D[row] = self.codes2D[row] or {}
+  self.codes2D[row][col] = "0F"
+  self:set(col, row, "0F")
+  if self.selected and self.selected.col == col and self.selected.row == row and self.clearSelected then
+    self:clearSelected()
+  end
+  invalidateLinkedPpuFrames(self)
+  markPaletteUnsaved()
+  return true
 end
 
 function RomPaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
@@ -329,62 +385,67 @@ function RomPaletteWindow:adjustSelectedByArrows(dx, dy)
   if new == old then
     return
   end
-  local beforePaletteData = TableUtils.deepcopy(self.paletteData or {})
   local undoActions = {}
 
   DebugController.log("info", "ROM_PAL", "ROM Palette '%s' color adjusted at (%d,%d): %s -> %s", 
     self.title or "untitled", sc, sr, old, new)
 
-  -- If we're editing the first column, sync it across all rows (universal background)
-  if sc == 0 then
-    -- Update all rows' first column in the UI + ROM + userDefinedCode
-    local rows = self.rows or 4
-    for row = 0, rows - 1 do
-      if not self:isCellEditable(0, row) then
-        goto continue
-      end
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app
+  local romAddr = self:getRomByteAddress(sc, sr)
+  local cells = collectEditableCellsForRomAddress(self, app, romAddr)
+  if #cells == 0 then
+    return
+  end
 
-      local oldRowCode = self.codes2D[row] and self.codes2D[row][0] or old
-
-      -- Make sure the row exists
-      self.codes2D[row] = self.codes2D[row] or {}
-
-      self.codes2D[row][0] = new
-      self:set(0, row, new)
-
-      -- Write to ROM and save user-defined code for each row's first color
-      self:writeColorToROM(row, 0, new)
-      self:saveUserDefinedCode(row, 0, new)
-      undoActions[#undoActions + 1] = {
-        win = self,
-        row = row,
-        col = 0,
-        beforeCode = oldRowCode,
-        afterCode = new,
-      }
-      ::continue::
+  local paletteWinOrder = {}
+  local paletteWinSeen = {}
+  for _, cell in ipairs(cells) do
+    local w = cell.win
+    if w and not paletteWinSeen[w] then
+      paletteWinSeen[w] = true
+      paletteWinOrder[#paletteWinOrder + 1] = w
     end
-  else
-    -- Normal behavior for non-first columns
-    self.codes2D[sr][sc] = new
-    self:set(sc, sr, new)
+  end
 
-    -- Write to ROM
-    self:writeColorToROM(sr, sc, new)
-
-    -- Save to userDefinedCode
-    self:saveUserDefinedCode(sr, sc, new)
-    undoActions[#undoActions + 1] = {
-      win = self,
-      row = sr,
-      col = sc,
-      beforeCode = old,
-      afterCode = new,
+  local paletteStates = {}
+  for _, w in ipairs(paletteWinOrder) do
+    paletteStates[#paletteStates + 1] = {
+      win = w,
+      beforePaletteData = TableUtils.deepcopy(w.paletteData or {}),
+      afterPaletteData = nil,
     }
   end
 
-  recordPaletteColorUndo(self, undoActions, beforePaletteData, TableUtils.deepcopy(self.paletteData or {}))
-  invalidateLinkedPpuFrames(self)
+  for _, cell in ipairs(cells) do
+    local w, c, r = cell.win, cell.col, cell.row
+    w.codes2D = w.codes2D or {}
+    w.codes2D[r] = w.codes2D[r] or {}
+    local prevCode = w.codes2D[r][c]
+    if prevCode ~= new then
+      w.codes2D[r][c] = new
+      w:set(c, r, new)
+      w:writeColorToROM(r, c, new)
+      w:saveUserDefinedCode(r, c, new)
+      undoActions[#undoActions + 1] = {
+        win = w,
+        row = r,
+        col = c,
+        beforeCode = prevCode,
+        afterCode = new,
+      }
+    end
+  end
+
+  for _, st in ipairs(paletteStates) do
+    st.afterPaletteData = TableUtils.deepcopy(st.win.paletteData or {})
+  end
+
+  recordPaletteColorUndo(undoActions, paletteStates)
+
+  for _, w in ipairs(paletteWinOrder) do
+    invalidateLinkedPpuFrames(w)
+  end
   markPaletteUnsaved()
 end
 
@@ -424,6 +485,15 @@ function RomPaletteWindow:writeColorToROM(row, col, hexCode)
   -- Also update app state if available (for persistence across saves)
   if self._updateRomRawCallback then
     self._updateRomRawCallback(newRom)
+  end
+
+  -- Every ROM palette window keeps its own romRaw reference; chr.writeByteToAddress returns a new string.
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app
+  if app and app.wm and app.wm.getWindowsOfKind then
+    for _, w in ipairs(app.wm:getWindowsOfKind("rom_palette")) do
+      w.romRaw = newRom
+    end
   end
   
   DebugController.log("info", "ROM_PAL", "Wrote color %s (byte 0x%02X) to ROM address 0x%X", 

@@ -400,6 +400,32 @@ local function handleRightButton(env, button, x, y, win, wm)
         win:mousepressed(x, y, button)
         return true
       end
+
+      local function beginRomPaletteCellContextClick()
+        if not (win and WindowCaps.isRomPaletteWindow(win) and env.beginContextMenuClick) then
+          return false
+        end
+        if not isInWindowContentArea(win) then
+          return false
+        end
+        local okG, gc, gr = win:toGridCoords(x, y)
+        if not (okG and type(gc) == "number" and type(gr) == "number") then
+          return false
+        end
+        if gc < 0 or gr < 0 or gc >= (win.cols or 0) or gr >= (win.rows or 0) then
+          return false
+        end
+        env.beginContextMenuClick("rom_palette_cell", x, y, button, win, {
+          col = gc,
+          row = gr,
+        })
+        return true
+      end
+
+      if beginRomPaletteCellContextClick() then
+        win:mousepressed(x, y, button)
+        return true
+      end
       if beginSelectInChrContextClick() then
         win:mousepressed(x, y, button)
         return true
@@ -463,7 +489,11 @@ local function handlePaletteClick(env, button, x, y, win, wm)
 
   local ok, col, row = win:toGridCoords(x, y)
   if ok and col >= 0 and col < win.cols and row >= 0 and row < win.rows then
-    if WindowCaps.isRomPaletteWindow(win) and win.isCellEditable and not win:isCellEditable(col, row) then
+    if not WindowCaps.isRomPaletteWindow(win) then
+      clearRomPaletteCellClick()
+    end
+
+    if WindowCaps.isRomPaletteWindow(win) then
       local at = nowSeconds(env)
       local sameCell = romPaletteCellDoubleClick.win == win
         and romPaletteCellDoubleClick.col == col
@@ -480,11 +510,12 @@ local function handlePaletteClick(env, button, x, y, win, wm)
         return true
       end
       rememberRomPaletteCellClick(win, col, row, at)
-      setStatus(ctx, "Double-click to assign ROM palette address")
-      return true
-    end
 
-    clearRomPaletteCellClick()
+      if win.isCellEditable and not win:isCellEditable(col, row) then
+        setStatus(ctx, "Double-click to assign or change ROM palette address")
+        return true
+      end
+    end
 
     win:setSelected(col, row)
 
