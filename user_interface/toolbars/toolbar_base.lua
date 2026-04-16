@@ -278,17 +278,13 @@ function ToolbarBase:_layoutButtons()
   end
   self._layoutRowWidths = rowWidths
 
-  -- Center toolbar content in the window header (or dock slot). Drawing uses self.x - 1 as the
-  -- left edge, so contentLeft + 1 is stored in self.x to match the previous hx / hx-1 pairing.
+  -- Window-attached toolbars: center in the window header. Detached dock strip (app top bar slot,
+  -- CHR full-canvas bar): left-align at dock.leftX (3px after quick actions; see app_top_toolbar).
+  -- Drawing uses self.x - 1 as the left edge, so self.x = contentLeft + 1.
   local headerW = tonumber(hw) or 0
   local contentLeft
   if dock and type(dock.leftX) == "number" and type(dock.topY) == "number" then
-    if type(dock.rightX) == "number" and dock.rightX > dock.leftX then
-      local slotW = dock.rightX - dock.leftX
-      contentLeft = dock.leftX + math.floor((slotW - totalWidth) / 2)
-    else
-      contentLeft = hx - 1
-    end
+    contentLeft = dock.leftX
   else
     contentLeft = hx + math.floor((headerW - totalWidth) / 2)
   end

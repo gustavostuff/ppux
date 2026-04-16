@@ -73,6 +73,79 @@ describe("mouse_window_chrome_controller", function()
     expect(win.dy).toBe(41)
   end)
 
+  it("starts window drag on right click over a header toolbar control", function()
+    local win = {
+      _id = "w3",
+      _closed = false,
+      _minimized = false,
+      _collapsed = false,
+      x = 12,
+      y = 9,
+      dragging = false,
+      headerToolbar = {
+        updatePosition = function() end,
+        contains = function(_, x, y)
+          return x == 200 and y == 30
+        end,
+        getButtonAt = function()
+          return { w = 15, h = 15 }
+        end,
+        mousepressed = function()
+          return false
+        end,
+      },
+    }
+    local wm = {
+      setFocus = function() end,
+    }
+
+    local handled = MouseWindowChromeController.handleToolbarClicks(2, 200, 30, win, wm)
+
+    expect(handled).toBeTruthy()
+    expect(win.dragging).toBeTruthy()
+    expect(win.dx).toBe(188)
+    expect(win.dy).toBe(21)
+  end)
+
+  it("starts drag on docked specialized toolbar with right click on a button (separate toolbar)", function()
+    local previousCtx = rawget(_G, "ctx")
+    _G.ctx = {
+      app = { separateToolbar = true },
+    }
+    local win = {
+      _id = "dock",
+      _closed = false,
+      _minimized = false,
+      _collapsed = false,
+      x = 0,
+      y = 100,
+      dragging = false,
+      specializedToolbar = {
+        updatePosition = function() end,
+        contains = function(_, x, y)
+          return x == 180 and y == 8
+        end,
+        getButtonAt = function()
+          return { w = 15, h = 15 }
+        end,
+      },
+    }
+    local wm = {
+      getFocus = function()
+        return win
+      end,
+      setFocus = function() end,
+    }
+
+    local handled = MouseWindowChromeController.handleToolbarClicks(2, 180, 8, win, wm)
+    _G.ctx = previousCtx
+
+    expect(handled).toBeTruthy()
+    expect(win.dragging).toBeTruthy()
+    expect(win.dx).toBe(180)
+    expect(win.dy).toBe(-92)
+  end)
+
   it("triggers callback on double click over window title area", function()
     local renameCalls = 0
     local mousepressedCalls = 0

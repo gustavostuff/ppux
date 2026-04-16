@@ -389,9 +389,6 @@ local function handleRightButton(env, button, x, y, win, wm)
 
   if button == 2 or button == 3 then
     if win then
-      if isOverToolbarControl(win.specializedToolbar) or isOverToolbarControl(win.headerToolbar) then
-        return true
-      end
       wm:setFocus(win)
       if button == 2 then
         -- Do not forward right-click to Window:mousepressed — that starts window drag and fights origin drag.

@@ -173,7 +173,6 @@ function ChrToolbar:updatePosition()
   end
   local app = self.ctx and self.ctx.app
   if app and app.chrCanvasOnlyWindow == self.window and app.canvas then
-    local cw = app.canvas:getWidth()
     local _, _, _, hh = self.window:getHeaderRect()
     local rowH = self:_getRowHeight(hh)
     self.rowHeight = rowH
@@ -184,7 +183,12 @@ function ChrToolbar:updatePosition()
       app.chrCanvasOnlyToolbarY = ty
     end
     self.y = ty
-    self._dockLayout = { leftX = 0, topY = ty, rightX = cw, rowHeight = rowH }
+    local lay = app._appTopToolbarLayout
+    local dockLeftX = 3
+    if lay and type(lay.dockLeftX) == "number" then
+      dockLeftX = lay.dockLeftX
+    end
+    self._dockLayout = { leftX = dockLeftX, topY = ty, rowHeight = rowH }
     ToolbarBase._layoutButtons(self)
     self._dockLayout = nil
     local targetX = app.chrCanvasOnlyToolbarX

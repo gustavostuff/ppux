@@ -108,26 +108,11 @@ local function beginToolbarWindowDragIfNeeded(toolbar, button, x, y, win)
   if not toolbar:contains(x, y) then
     return false
   end
-  if (toolbar.getButtonAt and toolbar:getButtonAt(x, y))
-    or (toolbar.getLabelAt and toolbar:getLabelAt(x, y))
-  then
-    return false
-  end
+  -- Right/middle drag moves the window even from control buttons (minimize, collapse, close).
   win.dragging = true
   win.dx = x - win.x
   win.dy = y - win.y
   return true
-end
-
-local function isOverToolbarControl(toolbar, x, y)
-  if not toolbar then
-    return false
-  end
-  if toolbar.updatePosition then
-    toolbar:updatePosition()
-  end
-  return ((toolbar.getButtonAt and toolbar:getButtonAt(x, y)) ~= nil)
-    or ((toolbar.getLabelAt and toolbar:getLabelAt(x, y)) ~= nil)
 end
 
 function M.handleToolbarClicks(button, x, y, win, wm)
@@ -141,27 +126,30 @@ function M.handleToolbarClicks(button, x, y, win, wm)
     and wm.getFocus
     and win == wm:getFocus()
 
-  if not win._collapsed and win.specializedToolbar and not skipDockedSpec then
+  if not win._collapsed and win.specializedToolbar then
     local toolbar = win.specializedToolbar
-    if wm and wm.setFocus then
-      wm:setFocus(win)
-    end
-    if isWindowDragMouseButton(button) and isOverToolbarControl(toolbar, x, y) then
-      return true
-    end
-    if beginToolbarWindowDragIfNeeded(toolbar, button, x, y, win) then
-      return true
-    end
-    if toolbar.mousepressed and toolbar:mousepressed(x, y, button) then
-      return true
+    if not skipDockedSpec then
+      if wm and wm.setFocus then
+        wm:setFocus(win)
+      end
+      if beginToolbarWindowDragIfNeeded(toolbar, button, x, y, win) then
+        return true
+      end
+      if toolbar.mousepressed and toolbar:mousepressed(x, y, button) then
+        return true
+      end
+    elseif isWindowDragMouseButton(button) and toolbar.contains and toolbar:contains(x, y) then
+      if wm and wm.setFocus then
+        wm:setFocus(win)
+      end
+      if beginToolbarWindowDragIfNeeded(toolbar, button, x, y, win) then
+        return true
+      end
     end
   end
 
   if win.headerToolbar then
     local toolbar = win.headerToolbar
-    if isWindowDragMouseButton(button) and isOverToolbarControl(toolbar, x, y) then
-      return true
-    end
     if wm and wm.setFocus then
       wm:setFocus(win)
     end
