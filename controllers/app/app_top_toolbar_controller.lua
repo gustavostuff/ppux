@@ -108,6 +108,19 @@ local function ensureQuickButtons(app)
       w = cell,
       h = cell,
     }),
+    cloneWindow = Button.new({
+      icon = images.icons.icon_clone or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      tooltip = "Clone focused window",
+      action = withRom(app, function(a)
+        if a.cloneFocusedWindow then
+          a:cloneFocusedWindow()
+        end
+      end),
+      x = 0,
+      y = 0,
+      w = cell,
+      h = cell,
+    }),
     copy = Button.new({
       icon = images.icons.icon_copy or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
       tooltip = "Copy",
@@ -162,6 +175,7 @@ local function quickButtonOrder(app)
   if hasOpenProject(app) then
     order[#order + 1] = "newWindow"
     order[#order + 1] = "save"
+    order[#order + 1] = "cloneWindow"
     order[#order + 1] = "copy"
     order[#order + 1] = "cut"
     order[#order + 1] = "paste"

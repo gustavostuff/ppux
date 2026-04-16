@@ -106,8 +106,8 @@ end
 -------------------------------------------------------
 -- Snapshot layout (for writing back to DB or user layout)
 -------------------------------------------------------
-function M.snapshotLayout(wm, bankWindow, currentBank, app)
-  return GameArtLayoutIOController.snapshotLayout(wm, bankWindow, currentBank, app)
+function M.snapshotLayout(wm, bankWindow, currentBank, app, opts)
+  return GameArtLayoutIOController.snapshotLayout(wm, bankWindow, currentBank, app, opts)
 end
 
 -------------------------------------------------------

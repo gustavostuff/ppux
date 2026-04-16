@@ -47,6 +47,7 @@ describe("app_top_toolbar_controller.lua", function()
       showOpenProjectModal = function() end,
       showNewWindowModal = function() end,
       showSaveOptionsModal = function() end,
+      cloneFocusedWindow = function() end,
       getClipboardToolbarActionState = function()
         return { allowed = true }
       end,
@@ -58,19 +59,22 @@ describe("app_top_toolbar_controller.lua", function()
     local openButton = app._appTopQuickButtons.open
     local newButton = app._appTopQuickButtons.newWindow
     local saveButton = app._appTopQuickButtons.save
+    local cloneButton = app._appTopQuickButtons.cloneWindow
     local copyButton = app._appTopQuickButtons.copy
     local cutButton = app._appTopQuickButtons.cut
     local pasteButton = app._appTopQuickButtons.paste
 
     expect(newButton.x > openButton.x).toBe(true)
     expect(saveButton.x > newButton.x).toBe(true)
-    expect(copyButton.x > saveButton.x).toBe(true)
+    expect(cloneButton.x > saveButton.x).toBe(true)
+    expect(copyButton.x > cloneButton.x).toBe(true)
     expect(cutButton.x > copyButton.x).toBe(true)
     expect(pasteButton.x > cutButton.x).toBe(true)
 
     local inferredGap = newButton.x - (openButton.x + openButton.w)
     expect(saveButton.x).toBe(newButton.x + newButton.w + inferredGap)
-    expect(copyButton.x).toBe(saveButton.x + saveButton.w + inferredGap)
+    expect(cloneButton.x).toBe(saveButton.x + saveButton.w + inferredGap)
+    expect(copyButton.x).toBe(cloneButton.x + cloneButton.w + inferredGap)
     expect(cutButton.x).toBe(copyButton.x + copyButton.w + inferredGap)
     expect(pasteButton.x).toBe(cutButton.x + cutButton.w + inferredGap)
   end)

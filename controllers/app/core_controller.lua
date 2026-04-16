@@ -135,6 +135,28 @@ local function recordWindowCreateUndo(app, win, prevFocusedWin)
   })
 end
 
+local function allocateCloneWindowId(wm, entryKind)
+  local base = tostring(entryKind or "window"):gsub("[^%w_]+", "_")
+  if base == "" then
+    base = "window"
+  end
+  local n = 1
+  local candidate
+  repeat
+    candidate = string.format("%s_%d", base, n)
+    n = n + 1
+  until not wm:findWindowById(candidate)
+  return candidate
+end
+
+local function deriveCloneWindowTitle(title)
+  title = tostring(title or "Window")
+  if title:sub(-7) == " (copy)" then
+    return title
+  end
+  return title .. " (copy)"
+end
+
 local function captureRomPaletteAddressUndoState(win)
   return {
     paletteData = TableUtils.deepcopy((win and win.paletteData) or {}),
@@ -630,6 +652,93 @@ function AppCoreController:showNewWindowModal()
     end
     return mapped
   end)())
+  return true
+end
+
+function AppCoreController:cloneFocusedWindow()
+  if not self:hasLoadedROM() then
+    self:setStatus("Open a ROM before cloning a window.")
+    if self.showToast then
+      self:showToast("warning", self.statusText or "Open a ROM first.")
+    end
+    return false
+  end
+  local wm = self.wm
+  if not wm then
+    return false
+  end
+  local src = wm:getFocus()
+  if not src or src._closed == true then
+    self:setStatus("No window focused to clone.")
+    if self.showToast then
+      self:showToast("warning", self.statusText or "Focus a window first.")
+    end
+    return false
+  end
+  if src._runtimeOnly == true then
+    self:setStatus("This window cannot be cloned.")
+    return false
+  end
+
+  local GameArtController = require("controllers.game_art.game_art_controller")
+  local ToolbarController = require("controllers.window.toolbar_controller")
+  local ChrBackingController = require("controllers.rom.chr_backing_controller")
+
+  local state = self.appEditState
+  local layout = GameArtController.snapshotLayout(
+    wm,
+    self.winBank,
+    state and state.currentBank or 1,
+    self,
+    { onlyWindow = src }
+  )
+  if not layout or type(layout.windows) ~= "table" or #layout.windows ~= 1 then
+    self:setStatus("Could not clone this window.")
+    return false
+  end
+
+  local entry = TableUtils.deepcopy(layout.windows[1])
+  local entryKind = entry.kind or src.kind or "window"
+  entry.id = allocateCloneWindowId(wm, entryKind)
+  entry.title = deriveCloneWindowTitle(entry.title or src.title)
+  entry.x = (tonumber(entry.x) or 0) + 12
+  entry.y = (tonumber(entry.y) or 0) + 12
+
+  local partial = {
+    currentBank = layout.currentBank or (state and state.currentBank) or 1,
+    windows = { entry },
+  }
+
+  local prevFocus = src
+  local built, why = GameArtController.buildWindowsFromLayout(partial, {
+    wm = wm,
+    tilesPool = state and state.tilesPool or {},
+    ensureTiles = function(bankIdx)
+      BankViewController.ensureBankTiles(state, bankIdx)
+    end,
+    romRaw = state and state.romRaw or "",
+    chrBackingMode = ChrBackingController.getMode(state),
+  })
+
+  if not built then
+    self:setStatus("Clone failed: " .. tostring(why or "unknown"))
+    return false
+  end
+
+  local newWin = built.windowsById[entry.id]
+  if not newWin then
+    self:setStatus("Clone failed: window was not registered.")
+    return false
+  end
+
+  local ctx = rawget(_G, "ctx")
+  ToolbarController.createToolbarsForWindow(newWin, ctx, wm)
+  wm:setFocus(newWin)
+  recordWindowCreateUndo(self, newWin, prevFocus)
+  self:setStatus(string.format("Cloned window: %s", tostring(newWin.title or newWin._id)))
+  if self.showToast then
+    self:showToast("info", self.statusText)
+  end
   return true
 end
 

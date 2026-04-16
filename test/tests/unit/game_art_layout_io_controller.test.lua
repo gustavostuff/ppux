@@ -397,4 +397,31 @@ describe("game_art_layout_io_controller.lua", function()
     expect(snapshot.paletteGroupState.enabled).toBe(true)
     expect(snapshot.paletteGroupState.global.activeSourceWindowId).toBe("palette_01")
   end)
+
+  it("snapshotLayout onlyWindow omits paletteGroupState and captures one window", function()
+    local oldCtx = rawget(_G, "ctx")
+    _G.ctx = {
+      app = {
+        groupedPaletteWindows = true,
+        getPaletteGroupStateForSave = function()
+          return { version = 1, enabled = true, global = {}, rom = {} }
+        end,
+      },
+    }
+
+    local wm = require("controllers.window.window_controller").new()
+    local pal = wm:createPaletteWindow({ title = "P" })
+    pal._id = "palette_01"
+    local other = wm:createPaletteWindow({ title = "Q" })
+    other._id = "palette_02"
+    wm:setFocus(pal)
+
+    local snap = GameArtLayoutIOController.snapshotLayout(wm, nil, 1, _G.ctx.app, { onlyWindow = pal })
+    _G.ctx = oldCtx
+
+    expect(snap.paletteGroupState).toBeNil()
+    expect(#snap.windows).toBe(1)
+    expect(snap.windows[1].id).toBe("palette_01")
+    expect(snap.focusedWindowId).toBeNil()
+  end)
 end)

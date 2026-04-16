@@ -434,7 +434,9 @@ function M.getCompressedDataFrom(win)
   return nil
 end
 
-function M.snapshotLayout(wm, bankWindow, currentBank, appOpt)
+function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
+  opts = type(opts) == "table" and opts or {}
+  local onlyWindow = opts.onlyWindow
   local wins = wm:getWindows()
   if WindowCaps.isChrLike(bankWindow) then
     currentBank = bankWindow.currentBank or currentBank
@@ -446,11 +448,13 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt)
 
   local ctx = rawget(_G, "ctx")
   local app = appOpt or (ctx and ctx.app) or nil
-  do
-    if app and app.groupedPaletteWindows == true and app.getPaletteGroupStateForSave then
-      local paletteGroupState = app:getPaletteGroupStateForSave()
-      if type(paletteGroupState) == "table" then
-        out.paletteGroupState = TableUtils.deepcopy(paletteGroupState)
+  if not onlyWindow then
+    do
+      if app and app.groupedPaletteWindows == true and app.getPaletteGroupStateForSave then
+        local paletteGroupState = app:getPaletteGroupStateForSave()
+        if type(paletteGroupState) == "table" then
+          out.paletteGroupState = TableUtils.deepcopy(paletteGroupState)
+        end
       end
     end
   end
@@ -461,7 +465,11 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt)
     toolbarOy = tonumber(AppTopToolbarController.getContentOffsetY(app)) or 0
   end
 
-  for zi, w in ipairs(wins) do
+  local placedZ = 0
+  for _, w in ipairs(wins) do
+    if onlyWindow and w ~= onlyWindow then
+      goto continue
+    end
     if w._closed then
       goto continue
     end
@@ -469,6 +477,7 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt)
       goto continue
     end
     purgeRemovedTiles(w)
+    placedZ = placedZ + 1
     local isPalette = WindowCaps.isAnyPaletteWindow(w)
     local entryKind = WindowCaps.isRomPaletteWindow(w) and "rom_palette" or (isPalette and "palette" or (w.kind or "normal"))
     local entry = {
@@ -484,7 +493,7 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt)
       scrollCol   = w.scrollCol or 0,
       scrollRow   = w.scrollRow or 0,
       zoom  = w.zoom,
-      z     = zi * 10,
+      z     = placedZ * 10,
       collapsed = w._collapsed or false,
       minimized = w._minimized or false,
       showGrid = GridModeUtils.normalize(w.showGrid),
@@ -708,9 +717,11 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt)
     ::continue::
   end
 
-  local focused = wm:getFocus()
-  if focused and not focused._closed and focused._id then
-    out.focusedWindowId = focused._id
+  if not onlyWindow then
+    local focused = wm:getFocus()
+    if focused and not focused._closed and focused._id then
+      out.focusedWindowId = focused._id
+    end
   end
 
   return out
