@@ -33,4 +33,35 @@ describe("palette_link_controller.lua", function()
 
     expect(target).toBe(nil)
   end)
+
+  it("removeLinkForLayer uses the target layer's ROM link, not the active layer", function()
+    local wm = WM.new()
+    local contentWin = wm:createTileWindow({ title = "Two layers", x = 8, y = 8, numLayers = 2 })
+    local romA = wm:createRomPaletteWindow({ title = "ROM A", x = 220, y = 8 })
+    local romB = wm:createRomPaletteWindow({ title = "ROM B", x = 220, y = 80 })
+    contentWin.layers[1].paletteData = { winId = romA._id }
+    contentWin.layers[2].paletteData = { winId = romB._id }
+    contentWin.activeLayer = 1
+
+    local prev = rawget(_G, "ctx")
+    _G.ctx = {
+      app = {
+        wm = wm,
+        undoRedo = {
+          addPaletteLinkEvent = function()
+            return true
+          end,
+        },
+      },
+    }
+
+    expect(PaletteLinkController.getLinkedRomPaletteWindowForLayer(contentWin, wm, 1)).toBe(romA)
+    expect(PaletteLinkController.getLinkedRomPaletteWindowForLayer(contentWin, wm, 2)).toBe(romB)
+
+    PaletteLinkController.removeLinkForLayer(contentWin, 2)
+    expect(contentWin.layers[2].paletteData).toBeNil()
+    expect(contentWin.layers[1].paletteData and contentWin.layers[1].paletteData.winId).toBe(romA._id)
+
+    _G.ctx = prev
+  end)
 end)

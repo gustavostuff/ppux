@@ -187,8 +187,12 @@ local function getActiveLayer(win)
   return win and win.layers and win.layers[layerIndex] or nil, layerIndex
 end
 
-local function getActiveLayerLinkedPaletteWin(contentWin, wm)
-  local layer = getActiveLayer(contentWin)
+--- ROM palette window linked from a specific content layer (by index), if any.
+local function getLinkedRomPaletteWindowForLayer(contentWin, wm, layerIndex)
+  if not (contentWin and type(layerIndex) == "number") then
+    return nil
+  end
+  local layer = contentWin.layers and contentWin.layers[layerIndex] or nil
   local pd = layer and layer.paletteData or nil
   if not (wm and pd and pd.winId) then
     return nil
@@ -198,6 +202,10 @@ local function getActiveLayerLinkedPaletteWin(contentWin, wm)
     return linked
   end
   return nil
+end
+
+local function getActiveLayerLinkedPaletteWin(contentWin, wm)
+  return getLinkedRomPaletteWindowForLayer(contentWin, wm, getActiveLayerIndex(contentWin))
 end
 
 local function getRomPaletteWindows(wm)
@@ -1024,6 +1032,10 @@ function M.getActiveLayerLinkedPaletteWindow(contentWin, wm)
   return getActiveLayerLinkedPaletteWin(contentWin, wm)
 end
 
+function M.getLinkedRomPaletteWindowForLayer(contentWin, wm, layerIndex)
+  return getLinkedRomPaletteWindowForLayer(contentWin, wm, layerIndex)
+end
+
 function M.getLinkedTargetsForPalette(wm, paletteWin)
   return collectLinkedTargetsForPalette(wm, paletteWin)
 end
@@ -1049,7 +1061,7 @@ function M.removeLinkForLayer(contentWin, layerIndex)
     return false
   end
   local wm = getApp() and getApp().wm or nil
-  local paletteWin = getActiveLayerLinkedPaletteWin(contentWin, wm)
+  local paletteWin = getLinkedRomPaletteWindowForLayer(contentWin, wm, layerIndex)
   if not paletteWin then
     return false
   end

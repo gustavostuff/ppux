@@ -163,7 +163,7 @@ Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface)
 3. **Palette link handle (source)** — drag to destinations; **right-click** for **Jump To Linked Layer**, **Move All Links To**, **Remove all links**, etc.
 4. **Compact / normal view**
 
-Consumers of a ROM palette use **their** toolbar connect control; **right-click** for **Link to palette**, **Jump to linked palette**, **Remove this link**.
+Consumers of a ROM palette use **their** toolbar connect control; **right-click** for **Link to palette**, **Jump to linked palette**, **Remove ROM palette link**.
 
 #### PPU Frame toolbar
 
@@ -221,7 +221,8 @@ Palette links are created and managed from the **connect button** on toolbars (t
 **Context menus**
 
 * **ROM palette** (source): right-click the connect handle for **Jump To Linked Layer** (per target), **Move All Links To** (another ROM palette), **Remove all links**, and a read-only summary of how many layers are linked.
-* **Destination** windows (layers that consume a palette): right-click the connect handle for **Link to palette**, **Jump to linked palette**, and **Remove this link** when a link exists.
+* **Destination** windows (layers that consume a palette): right-click the connect handle for **Link to palette**, **Jump to linked palette**, and **Remove ROM palette link** when a link exists.
+* **Layer context** (PPU/static/OAM tile or sprite cells, select-in-CHR, CHR bank tiles, empty sprite area): the same **Jump to linked palette** and **Remove ROM palette link** entries appear when that **layer** has a ROM palette link (in addition to layer-specific items such as paste).
 
 While a drag is in progress, the UI still reflects valid drop targets as before.
 
@@ -492,7 +493,7 @@ Important fields are frame timing (`delaysPerLayer`), sprite frames (`layers`), 
 
 `rom_palette` windows are `4x4` palette editors backed directly by ROM addresses.
 
-Use the **connect button** on the ROM palette toolbar to drag links onto layers, and **right-click** it for source-side management (**Jump To Linked Layer**, **Move All Links To**, **Remove all links**). Toggle **compact mode** from the same toolbar when you want a denser view. Destination windows still use their own connect handle plus the contextual **Link to palette** / **Remove this link** entries documented in [Palette windows](#palette-windows).
+Use the **connect button** on the ROM palette toolbar to drag links onto layers, and **right-click** it for source-side management (**Jump To Linked Layer**, **Move All Links To**, **Remove all links**). Toggle **compact mode** from the same toolbar when you want a denser view. Destination windows still use their own connect handle plus the contextual **Link to palette** / **Remove ROM palette link** entries documented in [Palette windows](#palette-windows).
 
 Example:
 

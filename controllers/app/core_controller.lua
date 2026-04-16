@@ -993,8 +993,9 @@ function AppCoreController:_buildPaletteLinkDestinationContextMenuItems(contentW
       end,
     }
     items[#items + 1] = {
-      text = "Remove this link",
+      text = "Remove ROM palette link",
       callback = function()
+        self:hideAppContextMenus()
         PaletteLinkController.removeLinkForLayer(contentWin, layerIndex)
       end,
     }
@@ -1037,6 +1038,27 @@ function AppCoreController:_appendJumpToLinkedPaletteMenuItem(items, win, layerI
         self.wm:setFocus(paletteWin)
       end
       self:setStatus(string.format("Focused %s", tostring(paletteWin.title or "ROM Palette")))
+    end,
+  }
+  return items
+end
+
+function AppCoreController:_appendRemoveRomPaletteLinkMenuItem(items, win, layerIndex)
+  if type(items) ~= "table" then
+    return items
+  end
+  if not (win and type(layerIndex) == "number") then
+    return items
+  end
+  if not self:_resolveLinkedPaletteForLayer(win, layerIndex) then
+    return items
+  end
+  local selfRef = self
+  items[#items + 1] = {
+    text = "Remove ROM palette link",
+    callback = function()
+      selfRef:hideAppContextMenus()
+      PaletteLinkController.removeLinkForLayer(win, layerIndex)
     end,
   }
   return items
@@ -1418,6 +1440,7 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
   end
   if context and context.win and context.layerIndex then
     self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)
+    self:_appendRemoveRomPaletteLinkMenuItem(items, context.win, context.layerIndex)
   end
   self:_appendPasteContextMenuItem(items, context)
   return items
@@ -1537,6 +1560,7 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
   end
   if context and context.win and context.layerIndex then
     self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)
+    self:_appendRemoveRomPaletteLinkMenuItem(items, context.win, context.layerIndex)
   end
   self:_appendPasteContextMenuItem(items, context)
   return items
@@ -1589,6 +1613,10 @@ function AppCoreController:_buildChrBankTileContextMenuItems(context)
       end,
     },
   }
+  if context and context.win and context.layerIndex then
+    self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)
+    self:_appendRemoveRomPaletteLinkMenuItem(items, context.win, context.layerIndex)
+  end
   self:_appendPasteContextMenuItem(items, context)
   return items
 end
@@ -2582,6 +2610,7 @@ function AppCoreController:_buildOamSpriteEmptySpaceContextMenuItems(context)
   end
   if context and context.win and context.layerIndex then
     self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)
+    self:_appendRemoveRomPaletteLinkMenuItem(items, context.win, context.layerIndex)
     self:_appendPasteContextMenuItem(items, context)
   end
   return items

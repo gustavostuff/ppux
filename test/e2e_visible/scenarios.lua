@@ -2253,7 +2253,7 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
   steps[#steps + 1] = call("Assert linked destination menu items", assertPaletteLinkMenuTexts({
     "Link To Palette",
     "Jump to linked palette",
-    "Remove this link",
+    "Remove ROM palette link",
   }))
   appendClick(steps, "Choose Jump to linked palette on target3", paletteLinkMenuRowByText("Jump to linked palette"), {
     moveDuration = 0.08,
@@ -2300,7 +2300,7 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
     linkTarget4 = "romLinkPaletteBWin",
   }))
   appendClickPaletteHandle(steps, "Open palette link menu on target2", "linkTarget2")
-  appendClick(steps, "Choose Remove this link on target2", paletteLinkMenuRowByText("Remove this link"), {
+  appendClick(steps, "Choose Remove ROM palette link on target2", paletteLinkMenuRowByText("Remove ROM palette link"), {
     moveDuration = 0.08,
     prePressPause = 0.05,
     holdDuration = 0.05,
