@@ -858,6 +858,9 @@ local function loadFromDBLayout(app, sha)
   local layout = GameArtController.getLayout(sha)
   if not layout then return false end
   app.paletteGroupState = type(layout.paletteGroupState) == "table" and TableUtils.deepcopy(layout.paletteGroupState) or nil
+  if layout.syncDuplicateTiles ~= nil then
+    app.syncDuplicateTiles = layout.syncDuplicateTiles == true
+  end
   if not dbLayoutHasWindows(layout) then
     DebugController.log("info", "ROM", "DB layout is empty for SHA-1 %s; falling back to default layout", tostring(sha))
     return false

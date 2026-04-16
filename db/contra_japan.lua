@@ -8,7 +8,7 @@ return {
   focusedWindowId = "bank",
   kind = "project",
   projectVersion = 1,
-  syncDuplicateTiles = true,
+  syncDuplicateTiles = false,
   windows = {
     [1] = {
       activeLayer = 1,

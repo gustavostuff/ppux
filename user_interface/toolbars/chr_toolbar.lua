@@ -59,8 +59,8 @@ function ChrToolbar.new(window, ctx, windowController)
   end
 
   if not (window and window.isRomWindow == true) then
-    -- Sync duplicate tiles toggle (on by default)
-    self.syncButton = self:addButton(images.icons.icon_selected, function()
+    -- Sync duplicate tiles toggle (off by default; icon matches until updateSyncIcon runs).
+    self.syncButton = self:addButton(images.icons.icon_not_selected or images.icons.icon_selected, function()
       self:_onToggleSyncDuplicates()
     end, "Toggle sync duplicate tiles")
     self:updateSyncIcon()

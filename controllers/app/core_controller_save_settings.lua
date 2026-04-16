@@ -759,7 +759,9 @@ function AppCoreController:showSettingsModal()
         label = "Grouped palettes",
         buttonSpec = {
           id = "grouped_palette_windows_toggle",
-          text = appRef:_getGroupedPaletteWindowsForSettings() and "On" or "Off",
+          getText = function()
+            return appRef:_getGroupedPaletteWindowsForSettings() and "On" or "Off"
+          end,
           action = function()
             local enabled = not appRef:_getGroupedPaletteWindowsForSettings()
             local applied = appRef:_applyGroupedPaletteWindowsSetting(enabled, true)

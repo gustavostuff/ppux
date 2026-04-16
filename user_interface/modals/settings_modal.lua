@@ -295,6 +295,10 @@ function Dialog:_rebuildRows()
   local rowSpecs = self:_defaultRows()
   if self.extraRows then
     for _, row in ipairs(self.extraRows) do
+      local spec = row.buttonSpec
+      if spec and type(spec.getText) == "function" then
+        spec.text = spec.getText()
+      end
       rowSpecs[#rowSpecs + 1] = row
     end
   end
