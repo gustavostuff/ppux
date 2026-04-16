@@ -3,6 +3,7 @@ local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
 local Panel = require("user_interface.panel")
 local colors = require("app_colors")
 local images = require("images")
+local TU = require("utils.text_utils")
 
 local Dialog = {}
 Dialog.__index = Dialog
@@ -262,7 +263,7 @@ local function rebuildPanel(self)
     self.fileButtons[i].contentPaddingX = leftInset
   end
 
-  local rows = 1 + VISIBLE_FILE_ROWS + 1
+  local rows = 1 + 1 + VISIBLE_FILE_ROWS + 1
   self.panel = Panel.new({
     cols = MODAL_COLS,
     rows = rows,
@@ -285,10 +286,15 @@ local function rebuildPanel(self)
   self.panel:setCell(2, 1, { component = self.homeButton })
   self.panel:setCell(3, 1, { text = "" })
 
+  self.panel:setCell(1, 2, {
+    component = self.pathLabelComponent,
+    colspan = MODAL_COLS,
+  })
+
   for row = 1, VISIBLE_FILE_ROWS do
     for col = 1, FILE_COLS do
       local slot = ((row - 1) * FILE_COLS) + col
-      self.panel:setCell(col, row + 1, {
+      self.panel:setCell(col, row + 2, {
         component = self.fileButtons[slot],
       })
     end
@@ -330,8 +336,7 @@ function Dialog.new()
     icon = images.icons.icon_up,
     text = "Parent",
     h = ModalPanelUtils.MODAL_BUTTON_H,
-    transparent = false,
-    bgColor = colors.green,
+    transparent = true,
     textAlign = "left",
     contentPaddingX = 4,
     action = function()
@@ -342,8 +347,7 @@ function Dialog.new()
     icon = images.icons.icon_folder,
     text = "Home",
     h = ModalPanelUtils.MODAL_BUTTON_H,
-    transparent = false,
-    bgColor = colors.green,
+    transparent = true,
     textAlign = "left",
     contentPaddingX = 4,
     action = function()
@@ -358,6 +362,25 @@ function Dialog.new()
       self:_activateVisibleSlot(idx)
     end)
   end
+
+  self.pathLabelComponent = {
+    draw = function(component)
+      local font = love.graphics.getFont()
+      local fh = font and font:getHeight() or 0
+      local padX = math.floor(component.h / 2)
+      local textY = component.y + math.floor((component.h - fh) / 2)
+      local chromeWhite = self.panel and self.panel._modalChromeOverBlue == true
+      local c = chromeWhite and colors.white or (colors.textPrimary or colors.white)
+      love.graphics.setColor(c[1], c[2], c[3], c[4] or 1)
+      TU.drawScrollingText(
+        self.currentDir or "",
+        math.floor(component.x + padX),
+        math.floor(textY),
+        math.max(0, component.w - padX * 2),
+        { speed = 8, pause = 1 }
+      )
+    end,
+  }
 
   ModalPanelUtils.applyPanelDefaults(self)
   rebuildPanel(self)
@@ -643,15 +666,15 @@ function Dialog:_drawScrollIndicator()
   if totalRows <= VISIBLE_FILE_ROWS then
     return
   end
-  local firstCell = self.panel:getCell(1, 2)
-  local lastCell = self.panel:getCell(1, 1 + VISIBLE_FILE_ROWS)
+  local firstCell = self.panel:getCell(1, 3)
+  local lastCell = self.panel:getCell(1, 2 + VISIBLE_FILE_ROWS)
   if not firstCell or not lastCell then
     return
   end
   local trackTop = firstCell.y
   local trackBottom = lastCell.y + lastCell.h
   local trackH = math.max(1, trackBottom - trackTop)
-  local thirdCell = self.panel:getCell(MODAL_COLS, 2) or firstCell
+  local thirdCell = self.panel:getCell(MODAL_COLS, 3) or firstCell
   local trackX = thirdCell.x + thirdCell.w - SCROLLBAR_W - 1
   local maxOffset = self:_maxScrollOffset()
   local visibleFrac = VISIBLE_FILE_ROWS / math.max(1, totalRows)

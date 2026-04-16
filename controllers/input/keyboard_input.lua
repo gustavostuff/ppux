@@ -42,7 +42,7 @@ local focusHandlers = {
   { name = "cut_selection", fn = function(key, focus) return KeyboardClipboardController.handleCutSelection(ctx, utils, key, focus) end },
   { name = "paste_selection", fn = function(key, focus) return KeyboardClipboardController.handlePasteSelection(ctx, utils, key, focus) end },
   { name = "select_all", fn = function(key, focus) return KeyboardSelectionActionsController.handleSelectAll(ctx, utils, key, focus) end },
-  { name = "palette_number_assignment", fn = function(key, focus, appCoreControllerRef) return KeyboardArtActionsController.handlePaletteNumberAssignment(ctx, key, focus, appCoreControllerRef.appEditState) end },
+  { name = "palette_number_assignment", fn = function(key, focus, appCoreControllerRef) return KeyboardArtActionsController.handlePaletteNumberAssignment(ctx, key, focus, appCoreControllerRef) end },
   { name = "attr_mode_toggle", fn = function(key, focus) return KeyboardEditToggleController.handleAttrModeToggle(ctx, key, focus) end },
   { name = "shader_toggle", fn = function(key, focus) return KeyboardEditToggleController.handleShaderToggle(ctx, utils, key, focus) end },
   { name = "sprite_mirror", fn = function(key, focus) return KeyboardSelectionActionsController.handleSpriteMirror(ctx, key, focus) end },

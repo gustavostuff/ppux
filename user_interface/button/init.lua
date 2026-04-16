@@ -114,7 +114,7 @@ function Button:draw()
     if self.enabled == false then return end
     if not (self.hovered or self.focused) then return end
     love.graphics.setColor(0, 0, 0, 0.10)
-    love.graphics.rectangle("fill", self.x, self.y, self.w, self.h)
+    love.graphics.rectangle("fill", self.x, self.y, self.w, self.h, 2)
   end
 
   if not self.icon and self.text then

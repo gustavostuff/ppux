@@ -7,6 +7,9 @@ ContextualMenuController.TEXT_PADDING_X = 4
 -- Menu item text/icons: always full opacity (idle and hover).
 ContextualMenuController.NORMAL_CONTENT_ALPHA = 1.0
 ContextualMenuController.CHILD_HOVER_GRACE_SECONDS = 0.18
+-- Space between a menu and its parent (submenus, taskbar strip) and minimum inset from the
+-- clamp bounds edges (app canvas for core_controller menus; taskbar getBounds matches canvas BR).
+ContextualMenuController.PARENT_GAP_PX = 2
 
 local function nowSeconds()
   if love.timer and love.timer.getTime then
@@ -19,17 +22,24 @@ local function clampPosition(menu, x, y)
   local bounds = menu.getBounds and menu.getBounds() or nil
   local maxW = bounds and bounds.w or nil
   local maxH = bounds and bounds.h or nil
+  local inset = tonumber(ContextualMenuController.PARENT_GAP_PX) or 2
   local clampedX = math.floor(tonumber(x) or 0)
   local clampedY = math.floor(tonumber(y) or 0)
 
-  if clampedX < 0 then clampedX = 0 end
-  if clampedY < 0 then clampedY = 0 end
+  if clampedX < inset then clampedX = inset end
+  if clampedY < inset then clampedY = inset end
 
-  if maxW and menu.panel and (clampedX + menu.panel.w) > maxW then
-    clampedX = math.max(0, maxW - menu.panel.w)
+  if maxW and menu.panel then
+    local maxX = maxW - inset - menu.panel.w
+    if clampedX > maxX then
+      clampedX = math.max(inset, maxX)
+    end
   end
-  if maxH and menu.panel and (clampedY + menu.panel.h) > maxH then
-    clampedY = math.max(0, maxH - menu.panel.h)
+  if maxH and menu.panel then
+    local maxY = maxH - inset - menu.panel.h
+    if clampedY > maxY then
+      clampedY = math.max(inset, maxY)
+    end
   end
 
   return clampedX, clampedY
@@ -260,15 +270,19 @@ local function resolveChildPosition(parentMenu, anchorCell, childMenu)
     return 0, 0
   end
 
+  local gap = tonumber(ContextualMenuController.PARENT_GAP_PX) or 2
+  local inset = gap
   local bounds = parentMenu.getBounds and parentMenu.getBounds() or nil
-  local x = anchorCell.x + anchorCell.w
+  local x = anchorCell.x + anchorCell.w + gap
   local y = anchorCell.y
 
   if bounds then
-    if (x + childPanel.w) > bounds.w then
-      x = anchorCell.x - childPanel.w
+    local maxRight = bounds.w - inset
+    if (x + childPanel.w) > maxRight then
+      x = anchorCell.x - childPanel.w - gap
     end
-    if (y + childPanel.h) > bounds.h then
+    local maxBottom = bounds.h - inset
+    if (y + childPanel.h) > maxBottom then
       y = anchorCell.y + anchorCell.h - childPanel.h
     end
   end

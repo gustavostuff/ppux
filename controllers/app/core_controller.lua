@@ -2059,6 +2059,52 @@ didPpuFrameRangeSettingsChange = function(beforeState, afterState)
     or patternTableSignature(beforeLayer.patternTable) ~= patternTableSignature(afterLayer.patternTable)
 end
 
+local function numberArrayDiffers(a, b)
+  if type(a) ~= "table" or type(b) ~= "table" then
+    return a ~= b
+  end
+  if #a ~= #b then
+    return true
+  end
+  for i = 1, #a do
+    if (a[i] or 0) ~= (b[i] or 0) then
+      return true
+    end
+  end
+  return false
+end
+
+local function didPpuFrameNametableSnapshotDiffer(beforeState, afterState)
+  if not beforeState or not afterState then
+    return false
+  end
+  return numberArrayDiffers(beforeState.nametableBytes, afterState.nametableBytes)
+    or numberArrayDiffers(beforeState.nametableAttrBytes, afterState.nametableAttrBytes)
+end
+
+function AppCoreController:snapshotPpuFrameUndoState(win, layerIndex)
+  return snapshotPpuFrameRangeState(win, layerIndex)
+end
+
+function AppCoreController:pushPpuFrameNametableUndoIfChanged(win, layerIndex, beforeState, afterState)
+  if not (self.undoRedo and self.undoRedo.addPpuFrameRangeEvent) then
+    return
+  end
+  if not (win and win.kind == "ppu_frame" and beforeState and afterState) then
+    return
+  end
+  if not didPpuFrameNametableSnapshotDiffer(beforeState, afterState) then
+    return
+  end
+  self.undoRedo:addPpuFrameRangeEvent({
+    type = "ppu_frame_range",
+    win = win,
+    layerIndex = layerIndex,
+    beforeState = beforeState,
+    afterState = afterState,
+  })
+end
+
 local function getFirstPpuSpriteLayer(win)
   if not (win and win.getSpriteLayers) then return nil, nil end
   local spriteLayers = win:getSpriteLayers() or {}

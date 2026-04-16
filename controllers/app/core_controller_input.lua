@@ -271,6 +271,15 @@ function AppCoreController:keypressed(k)
     return
   end
 
+  -- Ctrl+O: Open project (same as top toolbar Open button)
+  if ctrlDown and k == "o" then
+    if self.showOpenProjectModal then
+      self:showOpenProjectModal()
+    end
+    refreshCursor(self)
+    return
+  end
+
   -- Pass appCore so input handlers can touch selection/etc later
   UserInput.keypressed(k, self)
   refreshCursor(self)

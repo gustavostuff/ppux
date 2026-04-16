@@ -364,6 +364,43 @@ describe("core_controller.lua - combined save flow", function()
     expect(status).toBe("Open a ROM before creating windows.")
   end)
 
+  it("opens open project modal from Ctrl+O", function()
+    local openCalls = 0
+    local oldIsDown = love.keyboard.isDown
+
+    love.keyboard.isDown = function(key)
+      return key == "lctrl" or key == "rctrl"
+    end
+
+    local app = setmetatable({
+      appEditState = {},
+      quitConfirmModal = { isVisible = function() return false end },
+      saveOptionsModal = { isVisible = function() return false end, handleKey = function() end },
+      genericActionsModal = { isVisible = function() return false end, handleKey = function() end },
+      settingsModal = { isVisible = function() return false end, handleKey = function() end },
+      newWindowTypeModal = { isVisible = function() return false end, handleKey = function() end },
+      newWindowModal = { isVisible = function() return false end, handleKey = function() end },
+      openProjectModal = { isVisible = function() return false end, handleKey = function() end },
+      renameWindowModal = { isVisible = function() return false end, handleKey = function() end },
+      romPaletteAddressModal = { isVisible = function() return false end, handleKey = function() end },
+      ppuFrameSpriteLayerModeModal = { isVisible = function() return false end, handleKey = function() end },
+      ppuFrameAddSpriteModal = { isVisible = function() return false end, handleKey = function() end },
+      ppuFrameRangeModal = { isVisible = function() return false end, handleKey = function() end },
+      ppuFramePatternRangeModal = { isVisible = function() return false end, handleKey = function() end },
+      textFieldDemoModal = { isVisible = function() return false end, handleKey = function() end },
+      splash = { isVisible = function() return false end, keypressed = function() end },
+      showOpenProjectModal = function()
+        openCalls = openCalls + 1
+      end,
+    }, AppCoreController)
+
+    app:keypressed("o")
+
+    love.keyboard.isDown = oldIsDown
+
+    expect(openCalls).toBe(1)
+  end)
+
   it("handles debug hotkeys before splash interception", function()
     local oldIsDown = love.keyboard.isDown
     local debugCalls = 0

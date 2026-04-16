@@ -167,7 +167,10 @@ function M.handleTileRotation(ctx, utils, key, focus)
   return false
 end
 
-function M.handlePaletteNumberAssignment(ctx, key, focus, appEditState)
+function M.handlePaletteNumberAssignment(ctx, key, focus, appCoreRef)
+  appCoreRef = appCoreRef or {}
+  local appEditState = appCoreRef.appEditState
+
   if key ~= "1" and key ~= "2" and key ~= "3" and key ~= "4" then return false end
   if ctx.getMode() == "edit" then return false end
 
@@ -264,6 +267,11 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appEditState)
   end
 
   local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
+  local beforeState
+  if WindowCaps.isPpuFrame(w) and appCoreRef.snapshotPpuFrameUndoState then
+    beforeState = appCoreRef:snapshotPpuFrameUndoState(w, li)
+  end
+
   local updated = 0
   for _, cell in ipairs(selectedCells) do
     local success = NametableTilesController.setPaletteNumberForTile(w, layer, cell.col, cell.row, paletteNum)
@@ -272,6 +280,10 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appEditState)
     end
   end
   if updated > 0 then
+    if beforeState and appCoreRef.pushPpuFrameNametableUndoIfChanged and appCoreRef.snapshotPpuFrameUndoState then
+      local afterState = appCoreRef:snapshotPpuFrameUndoState(w, li)
+      appCoreRef:pushPpuFrameNametableUndoIfChanged(w, li, beforeState, afterState)
+    end
     if updated > 1 then
       setStatus(ctx, string.format("Tile palettes set to %d", paletteNum))
     else

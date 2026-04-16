@@ -231,7 +231,7 @@ describe("keyboard_art_actions_controller.lua", function()
       end,
     }
     local appEditState = { romRaw = "orig-rom" }
-    local handled = KeyboardArtActionsController.handlePaletteNumberAssignment(ctx, "3", w, appEditState)
+    local handled = KeyboardArtActionsController.handlePaletteNumberAssignment(ctx, "3", w, { appEditState = appEditState })
 
     expect(handled).toBeTruthy()
     expect(layer.items[1].paletteNumber).toBe(3)
@@ -276,6 +276,70 @@ describe("keyboard_art_actions_controller.lua", function()
     expect(calls[1].row).toBe(3)
     expect(calls[1].paletteNum).toBe(4)
     expect(statusMessages[#statusMessages]).toBe("Tile palette set to 4")
+  end)
+
+  it("records undo for PPU frame tile palette assignment when nametable attrs change", function()
+    local undoEvents = {}
+    package.loaded["controllers.ppu.nametable_tiles_controller"] = nil
+    local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
+
+    local layer = { kind = "tile", paletteData = {} }
+    local attrBytes = {}
+    for i = 1, 64 do
+      attrBytes[i] = 0x00
+    end
+    local w = {
+      kind = "ppu_frame",
+      cols = 32,
+      rows = 30,
+      nametableAttrBytes = attrBytes,
+      nametableBytes = {},
+      layers = { layer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 0, 0, 1 end,
+    }
+
+    local ctx = {
+      getMode = function() return "tile" end,
+      setStatus = function() end,
+    }
+
+    local core = {
+      appEditState = {},
+      snapshotPpuFrameUndoState = function(_, win, li)
+        local attrCopy = {}
+        for i = 1, #(win.nametableAttrBytes or {}) do
+          attrCopy[i] = win.nametableAttrBytes[i]
+        end
+        return {
+          win = win,
+          layerIndex = li,
+          cols = win.cols,
+          rows = win.rows,
+          nametableStart = win.nametableStart,
+          nametableBytes = {},
+          nametableAttrBytes = attrCopy,
+          originalNametableBytes = {},
+          originalNametableAttrBytes = {},
+          originalCompressedBytes = {},
+          tileSwapsMap = {},
+          layerState = {
+            kind = layer.kind,
+            patternTable = { ranges = {} },
+          },
+        }
+      end,
+      pushPpuFrameNametableUndoIfChanged = function(self, win, li, beforeState, afterState)
+        undoEvents[#undoEvents + 1] = { win = win, li = li, beforeState = beforeState, afterState = afterState }
+      end,
+    }
+
+    local handled = KeyboardArtActionsController.handlePaletteNumberAssignment(ctx, "2", w, core)
+    expect(handled).toBeTruthy()
+    expect(w.nametableAttrBytes[1]).toBe(0x01)
+    expect(#undoEvents).toBe(1)
+    expect(undoEvents[1].beforeState.nametableAttrBytes[1]).toBe(0x00)
+    expect(undoEvents[1].afterState.nametableAttrBytes[1]).toBe(0x01)
   end)
 
   it("applies palette assignment to all selected tile cells", function()

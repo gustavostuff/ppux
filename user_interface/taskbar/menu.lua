@@ -162,7 +162,8 @@ function M.install(Taskbar, Helpers)
     local menuH = (self.menuController and self.menuController.panel and self.menuController.panel.h) or 0
     local menuW = (self.menuController and self.menuController.panel and self.menuController.panel.w) or 0
     local panelX = self.menuButton and self.menuButton.x or self.x
-    local panelY = self.y - menuH
+    local gap = ContextualMenuController.PARENT_GAP_PX or 2
+    local panelY = self.y - menuH - gap
     if panelY < 0 then
       panelY = 0
     end
