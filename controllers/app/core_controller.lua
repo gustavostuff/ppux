@@ -768,6 +768,14 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win)
   local collapseLabel = (win and win._collapsed == true) and "Expand" or "Collapse"
   return {
     {
+      text = "Rename",
+      enabled = win ~= nil and win._closed ~= true,
+      callback = function()
+        self:hideAppContextMenus()
+        self:showRenameWindowModal(win)
+      end,
+    },
+    {
       text = "Close",
       enabled = win ~= nil and win._closed ~= true,
       callback = function()
@@ -2312,6 +2320,9 @@ didPpuFrameRangeSettingsChange = function(beforeState, afterState)
     or beforeLayer.codec ~= afterLayer.codec
     or patternTableSignature(beforeLayer.patternTable) ~= patternTableSignature(afterLayer.patternTable)
 end
+
+-- Exposed for unit tests (module-local above).
+AppCoreController.didPpuFrameRangeSettingsChange = didPpuFrameRangeSettingsChange
 
 local function numberArrayDiffers(a, b)
   if type(a) ~= "table" or type(b) ~= "table" then

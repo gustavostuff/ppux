@@ -3,14 +3,19 @@ local KeyboardClipboardController = require("controllers.input.keyboard_clipboar
 
 describe("core_controller.lua - contextual menu helpers", function()
   it("shows the shared new window modal when a ROM is loaded", function()
-    local shownTitle = nil
-    local shownOptions = nil
+    local typeTitle = nil
+    local typeOptions = nil
     local app = setmetatable({
       hasLoadedROM = function() return true end,
-      newWindowModal = {
+      newWindowTypeModal = {
         show = function(_, title, options)
-          shownTitle = title
-          shownOptions = options
+          typeTitle = title
+          typeOptions = options
+        end,
+      },
+      newWindowModal = {
+        show = function()
+          error("newWindowModal should open only after a window type is chosen")
         end,
       },
     }, AppCoreController)
@@ -18,14 +23,16 @@ describe("core_controller.lua - contextual menu helpers", function()
     local ok = app:showNewWindowModal()
 
     expect(ok).toBe(true)
-    expect(shownTitle).toBe("New Window")
-    expect(type(shownOptions)).toBe("table")
-    expect(#shownOptions).toBe(7)
-    expect(shownOptions[1].text).toBe("Static Art window (tiles)")
-    expect(shownOptions[4].text).toBe("Animation window  (sprites)")
-    expect(shownOptions[5].text).toBe("Palette window")
-    expect(shownOptions[6].text).toBe("ROM Palette window")
-    expect(shownOptions[7].text).toBe("Pattern Table Builder")
+    expect(typeTitle).toBe("New Window")
+    expect(type(typeOptions)).toBe("table")
+    expect(#typeOptions).toBe(8)
+    expect(typeOptions[1].text).toBe("Static Art window (tiles)")
+    expect(typeOptions[4].text).toBe("Animation window  (sprites)")
+    expect(typeOptions[5].text).toBe("Palette window")
+    expect(typeOptions[6].text).toBe("ROM Palette window")
+    expect(typeOptions[7].text).toBe("PPU Frame window")
+    expect(typeOptions[8].text).toBe("OAM animation")
+    expect(type(typeOptions[1].callback)).toBe("function")
   end)
 
   it("refuses to show the new window modal when no ROM is loaded", function()
@@ -51,19 +58,33 @@ describe("core_controller.lua - contextual menu helpers", function()
   end)
 
   it("builds the window header context menu entries in the expected order", function()
-    local app = setmetatable({}, AppCoreController)
-    local items = app:_buildWindowHeaderContextMenuItems({
+    local renameCalls = 0
+    local app = setmetatable({
+      hideAppContextMenus = function() end,
+      showRenameWindowModal = function(_, w)
+        renameCalls = renameCalls + 1
+        expect(w.title).toBe("My window")
+      end,
+    }, AppCoreController)
+    local win = {
       _closed = false,
       _minimized = false,
-    })
+      title = "My window",
+    }
+    local items = app:_buildWindowHeaderContextMenuItems(win)
 
-    expect(#items).toBe(3)
-    expect(items[1].text).toBe("Close")
-    expect(items[2].text).toBe("Collapse")
-    expect(items[3].text).toBe("Minimize")
+    expect(#items).toBe(4)
+    expect(items[1].text).toBe("Rename")
+    expect(items[2].text).toBe("Close")
+    expect(items[3].text).toBe("Collapse")
+    expect(items[4].text).toBe("Minimize")
     expect(items[1].enabled).toBe(true)
     expect(items[2].enabled).toBe(true)
     expect(items[3].enabled).toBe(true)
+    expect(items[4].enabled).toBe(true)
+
+    items[1].callback()
+    expect(renameCalls).toBe(1)
   end)
 
   it("builds the empty-space context menu entries in the expected order", function()
@@ -254,7 +275,8 @@ describe("core_controller.lua - contextual menu helpers", function()
   end)
 
   it("detects PPU range changes when pattern-table ranges are updated", function()
-    expect(type(didPpuFrameRangeSettingsChange)).toBe("function")
+    local didChange = AppCoreController.didPpuFrameRangeSettingsChange
+    expect(type(didChange)).toBe("function")
 
     local beforeState = {
       layerState = {
@@ -280,7 +302,7 @@ describe("core_controller.lua - contextual menu helpers", function()
       },
     }
 
-    local changed = didPpuFrameRangeSettingsChange(beforeState, afterState)
+    local changed = didChange(beforeState, afterState)
     expect(changed).toBe(true)
   end)
 end)
