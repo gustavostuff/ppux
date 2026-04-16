@@ -108,6 +108,8 @@ describe("window_controller.lua - new window creation variants", function()
     expect(win.cols).toBe(4)
     expect(win.activePalette).toBe(true)
     expect(win.showGrid).toBe("chess")
+    expect(win.codes2D[0][0]).toBe("0F")
+    expect(win.codes2D[0][3]).toBe("0F")
     expect(wm:getFocus()).toBe(win)
   end)
 

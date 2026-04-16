@@ -10,7 +10,7 @@ describe("settings_controller.lua - defaults", function()
       canvasFilter = "sharp",
       paletteLinks = "auto_hide",
       separateToolbar = false,
-      groupedPaletteWindows = false,
+      groupedPaletteWindows = true,
       recentProjects = {},
     })
   end)

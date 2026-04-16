@@ -193,7 +193,7 @@ There are 2 kinds:
 
 * `Global palette`: the fallback palette for content that does not have a ROM palette linked to it. Use this for mockups, freeform art, and anything with no specific in-game palette assigned.
 * `ROM palette`: a real 4x4 palette window backed by ROM data. It can be linked to specific windows and layers, to use the actual in-game palette through palette links.
-* Optional **Grouped palettes** mode (Settings): keeps one logical Global palette window and one logical ROM palette window visible at a time, with toolbar arrows to cycle palette slots.
+* **Grouped palettes** mode (Settings) is **on** by default: one logical Global palette window and one logical ROM palette window stay visible at a time, with toolbar arrows to cycle slots. Turn it off in Settings if you prefer every palette window open at once.
 
 In practice:
 

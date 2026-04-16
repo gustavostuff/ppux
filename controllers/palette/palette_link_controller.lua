@@ -130,9 +130,10 @@ local function canMoveAllToPaletteTarget(targetWin, sourceWin, opts)
   if targetWin == sourceWin and not opts.allowSource then
     return false
   end
-  if targetWin._closed or targetWin._minimized or targetWin._groupHidden == true then
+  if targetWin._closed or targetWin._minimized then
     return false
   end
+  -- ROM palettes may be _groupHidden while another palette is active; move/link by id is still valid.
   return WindowCaps.isRomPaletteWindow(targetWin) == true
 end
 

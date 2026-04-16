@@ -519,7 +519,20 @@ function WM:bringToFront(win)
 end
 
 function WM:setFocus(win)
-  if win and (win._closed or win._minimized or win._groupHidden == true) then
+  if not win or win._closed or win._minimized then
+    return
+  end
+  -- Grouped palette mode hides non-active source palettes; focusing one must activate that slot first.
+  if win._groupHidden == true and WindowCaps.isAnyPaletteWindow(win) then
+    local ctx = rawget(_G, "ctx")
+    local app = ctx and ctx.app or nil
+    if app and app.groupedPaletteWindows == true and app.focusPaletteWindowWithGrouping then
+      app:focusPaletteWindowWithGrouping(win)
+    end
+    if win._groupHidden == true then
+      return
+    end
+  elseif win._groupHidden == true then
     return
   end
   if win and self.focused ~= win then
@@ -1032,6 +1045,15 @@ function WM:createPaletteWindow(opts)
   defaults.rows = opts.rows or 1
   defaults.zoom = opts.zoom or 1
 
+  local initCodes = opts.initCodes
+  if initCodes == nil then
+    initCodes = {}
+    local n = (defaults.rows or 1) * (defaults.cols or 4)
+    for i = 1, n do
+      initCodes[i] = "0F"
+    end
+  end
+
   local win = PaletteWindow.new(
     defaults.x,
     defaults.y,
@@ -1042,7 +1064,7 @@ function WM:createPaletteWindow(opts)
     {
       title = defaults.title,
       activePalette = (opts.activePalette ~= false),
-      initCodes = opts.initCodes,
+      initCodes = initCodes,
       compactView = (opts.compactView == true),
     }
   )

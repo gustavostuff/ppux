@@ -665,6 +665,10 @@ function AppCoreController:onWindowManagerWindowCreated(win)
   if not win then
     return false
   end
+  local WindowCaps = require("controllers.window.window_capabilities")
+  if WindowCaps.isGlobalPaletteWindow(win) or WindowCaps.isRomPaletteWindow(win) then
+    return self:focusPaletteWindowWithGrouping(win)
+  end
   self:refreshGroupedPaletteWindows()
   return true
 end

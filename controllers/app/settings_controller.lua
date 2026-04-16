@@ -14,7 +14,7 @@ local DEFAULT_SETTINGS = {
   canvasFilter = "sharp",
   paletteLinks = "auto_hide",
   separateToolbar = false,
-  groupedPaletteWindows = false,
+  groupedPaletteWindows = true,
   recentProjects = {},
 }
 
@@ -104,7 +104,7 @@ local function withDefaults(data)
   out.canvasFilter = normalizeCanvasFilterKey(data and data.canvasFilter)
   out.paletteLinks = normalizePaletteLinksKey(data and data.paletteLinks)
   out.separateToolbar = (data and data.separateToolbar == true)
-  out.groupedPaletteWindows = (data and data.groupedPaletteWindows == true)
+  out.groupedPaletteWindows = not (data and data.groupedPaletteWindows == false)
   out.recentProjects = normalizeRecentProjects(data and data.recentProjects)
   return out
 end
