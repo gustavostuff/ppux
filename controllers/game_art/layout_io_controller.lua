@@ -434,7 +434,7 @@ function M.getCompressedDataFrom(win)
   return nil
 end
 
-function M.snapshotLayout(wm, bankWindow, currentBank)
+function M.snapshotLayout(wm, bankWindow, currentBank, appOpt)
   local wins = wm:getWindows()
   if WindowCaps.isChrLike(bankWindow) then
     currentBank = bankWindow.currentBank or currentBank
@@ -444,10 +444,10 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
     windows = {}
   }
 
+  local ctx = rawget(_G, "ctx")
+  local app = appOpt or (ctx and ctx.app) or nil
   do
-    local ctx = rawget(_G, "ctx")
-    local app = ctx and ctx.app or nil
-    if app and app.getPaletteGroupStateForSave then
+    if app and app.groupedPaletteWindows == true and app.getPaletteGroupStateForSave then
       local paletteGroupState = app:getPaletteGroupStateForSave()
       if type(paletteGroupState) == "table" then
         out.paletteGroupState = TableUtils.deepcopy(paletteGroupState)
@@ -456,13 +456,9 @@ function M.snapshotLayout(wm, bankWindow, currentBank)
   end
 
   local toolbarOy = 0
-  do
-    local ctx = rawget(_G, "ctx")
-    local app = ctx and ctx.app
-    if app then
-      local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
-      toolbarOy = tonumber(AppTopToolbarController.getContentOffsetY(app)) or 0
-    end
+  if app then
+    local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
+    toolbarOy = tonumber(AppTopToolbarController.getContentOffsetY(app)) or 0
   end
 
   for zi, w in ipairs(wins) do

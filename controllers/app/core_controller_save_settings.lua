@@ -578,15 +578,19 @@ function AppCoreController:_applySeparateToolbarSetting(enabled, saveSetting)
 end
 
 function AppCoreController:_ensureGroupedPaletteController()
-  if self.groupedPaletteController then
-    return self.groupedPaletteController
-  end
   local GroupedPaletteController = require("controllers.palette.grouped_palette_controller")
-  self.groupedPaletteController = GroupedPaletteController.new(self)
-  if self.paletteGroupState then
-    self.groupedPaletteController:setState(self.paletteGroupState)
+  if not self.groupedPaletteController then
+    self.groupedPaletteController = GroupedPaletteController.new(self)
+    if self.paletteGroupState then
+      self.groupedPaletteController:setState(self.paletteGroupState)
+    end
   end
-  return self.groupedPaletteController
+  local c = self.groupedPaletteController
+  local wantEnabled = (self.groupedPaletteWindows == true)
+  if c.enabled ~= wantEnabled then
+    c:setEnabled(wantEnabled, self.paletteGroupState)
+  end
+  return c
 end
 
 function AppCoreController:_getGroupedPaletteWindowsForSettings()
@@ -602,10 +606,18 @@ function AppCoreController:isGroupedPaletteWindowsEnabled()
 end
 
 function AppCoreController:getPaletteGroupStateForSave()
-  if self.groupedPaletteController and self.groupedPaletteController.getState then
-    self.paletteGroupState = self.groupedPaletteController:getState()
+  if self.groupedPaletteWindows ~= true then
+    return nil
   end
-  return TableUtils.deepcopy(self.paletteGroupState)
+  local controller = self:_ensureGroupedPaletteController()
+  if not (controller and controller.getState) then
+    return nil
+  end
+  -- getState() copies controller.state and, when grouping is active, refreshes
+  -- logicalWindow (x,y,collapsed,...), activeIndex, and activeSourceWindowId
+  -- from the live WM so saves match the grouped palette chrome.
+  self.paletteGroupState = controller:getState()
+  return self.paletteGroupState
 end
 
 function AppCoreController:_applyGroupedPaletteWindowsSetting(enabled, saveSetting)

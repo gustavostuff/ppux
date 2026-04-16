@@ -340,6 +340,7 @@ describe("game_art_layout_io_controller.lua", function()
     local oldCtx = rawget(_G, "ctx")
     _G.ctx = {
       app = {
+        groupedPaletteWindows = true,
         getPaletteGroupStateForSave = function()
           return {
             version = 1,
@@ -363,12 +364,37 @@ describe("game_art_layout_io_controller.lua", function()
     local win = wm:createPaletteWindow({ title = "Palette A" })
     win._id = "palette_01"
 
-    local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1)
+    local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1, _G.ctx.app)
     _G.ctx = oldCtx
 
     expect(snapshot.paletteGroupState).toBeTruthy()
     expect(snapshot.paletteGroupState.enabled).toBe(true)
     expect(snapshot.paletteGroupState.global.activeSourceWindowId).toBe("palette_02")
     expect(snapshot.paletteGroupState.rom.activeSourceWindowId).toBe("rom_palette_01")
+  end)
+
+  it("uses app argument for paletteGroupState when ctx.app is unavailable", function()
+    local oldCtx = rawget(_G, "ctx")
+    _G.ctx = nil
+
+    local mockApp = {
+      groupedPaletteWindows = true,
+      getPaletteGroupStateForSave = function()
+        return {
+          version = 1,
+          enabled = true,
+          global = { activeSourceWindowId = "palette_01", activeIndex = 1, logicalWindow = {} },
+          rom = {},
+        }
+      end,
+    }
+
+    local wm = require("controllers.window.window_controller").new()
+    local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1, mockApp)
+    _G.ctx = oldCtx
+
+    expect(snapshot.paletteGroupState).toBeTruthy()
+    expect(snapshot.paletteGroupState.enabled).toBe(true)
+    expect(snapshot.paletteGroupState.global.activeSourceWindowId).toBe("palette_01")
   end)
 end)

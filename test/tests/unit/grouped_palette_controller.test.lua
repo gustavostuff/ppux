@@ -138,6 +138,31 @@ describe("grouped_palette_controller.lua", function()
     expect(state.global.activeSourceWindowId).toBe("palette_02")
     expect(state.global.logicalWindow).toBeTruthy()
     expect(state.global.logicalWindow.x).toBe(177)
-    expect(state.global.logicalWindow.y).toBe(91)
+    -- Y is stored toolbar-relative like layout window rows (see layout_io_controller).
+    expect(state.global.logicalWindow.yRelative).toBe(76)
+  end)
+
+  it("applies legacy logicalWindow.y as full-canvas Y when yRelative is absent", function()
+    local app = { wm = WM.new() }
+    local wm = app.wm
+
+    local p1 = wm:createPaletteWindow({ title = "Palette 1" })
+    p1._id = "palette_01"
+    local p2 = wm:createPaletteWindow({ title = "Palette 2" })
+    p2._id = "palette_02"
+
+    local controller = GroupedPaletteController.new(app)
+    controller:setEnabled(true, {
+      enabled = true,
+      global = {
+        activeSourceWindowId = "palette_02",
+        logicalWindow = { x = 50, y = 200, collapsed = true },
+      },
+      rom = {},
+    })
+
+    expect(p2.x).toBe(50)
+    expect(p2.y).toBe(200)
+    expect(p2._collapsed).toBe(true)
   end)
 end)

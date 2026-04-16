@@ -45,7 +45,7 @@ end
 
 function M.snapshotProject(wm, bankWindow, currentBank, edits, app)
   -- snapshotLayout now filters closed windows internally, no need to modify wm
-  local layout = M.snapshotLayout(wm, bankWindow, currentBank)
+  local layout = M.snapshotLayout(wm, bankWindow, currentBank, app)
 
   local editsForSave = edits or M.newEdits()
   local state = app and app.appEditState or nil
@@ -106,8 +106,8 @@ end
 -------------------------------------------------------
 -- Snapshot layout (for writing back to DB or user layout)
 -------------------------------------------------------
-function M.snapshotLayout(wm, bankWindow, currentBank)
-  return GameArtLayoutIOController.snapshotLayout(wm, bankWindow, currentBank)
+function M.snapshotLayout(wm, bankWindow, currentBank, app)
+  return GameArtLayoutIOController.snapshotLayout(wm, bankWindow, currentBank, app)
 end
 
 -------------------------------------------------------

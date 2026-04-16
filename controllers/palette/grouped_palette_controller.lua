@@ -1,7 +1,16 @@
 local TableUtils = require("utils.table_utils")
 local WindowCaps = require("controllers.window.window_capabilities")
+local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 
 local M = {}
+
+-- Layout files store window Y below the app top strip; logical grouped chrome must match.
+local function toolbarContentOffsetY(app)
+  if not app then
+    return 0
+  end
+  return tonumber(AppTopToolbarController.getContentOffsetY(app)) or 0
+end
 M.__index = M
 
 local function normalizeGroup(raw)
@@ -176,9 +185,14 @@ function M:_extractLogicalLayout(win)
   if not win then
     return {}
   end
+  local oy = toolbarContentOffsetY(self.app)
+  local yRel = nil
+  if type(win.y) == "number" then
+    yRel = win.y - oy
+  end
   return {
     x = win.x,
-    y = win.y,
+    yRelative = yRel,
     z = win._z,
     collapsed = (win._collapsed == true),
     minimized = (win._minimized == true),
@@ -192,7 +206,11 @@ function M:_applyLogicalLayout(win, logicalLayout)
   if type(logicalLayout.x) == "number" then
     win.x = logicalLayout.x
   end
-  if type(logicalLayout.y) == "number" then
+  local oy = toolbarContentOffsetY(self.app)
+  if type(logicalLayout.yRelative) == "number" then
+    win.y = logicalLayout.yRelative + oy
+  elseif type(logicalLayout.y) == "number" then
+    -- Legacy: full-canvas Y from older builds before yRelative.
     win.y = logicalLayout.y
   end
   if logicalLayout.collapsed ~= nil then
