@@ -7,6 +7,7 @@ local AppTopToolbarController = require("controllers.app.app_top_toolbar_control
 local AppSettingsController = require("controllers.app.settings_controller")
 local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
 local UserInput = require("controllers.input")
+local ChrCanvasOnlyMode = require("controllers.chr.chr_canvas_only_mode")
 
 return function(AppCoreController)
 ------------------------------------------------------------
@@ -254,6 +255,12 @@ function AppCoreController:keypressed(k)
     return
   end
 
+  if ChrCanvasOnlyMode.isActive(self) and k == "escape" then
+    self:clearChrCanvasOnlyMode()
+    refreshCursor(self)
+    return
+  end
+
   -- Check for Ctrl key combinations
   local ctrlDown = love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")
   
@@ -394,6 +401,12 @@ function AppCoreController:mousepressed(x, y, b)
     return
   end
 
+  if ChrCanvasOnlyMode.isActive(self) then
+    ChrCanvasOnlyMode.handleMousePressed(self, mouse.x, mouse.y, b, self.wm)
+    refreshCursor(self)
+    return
+  end
+
   if AppTopToolbarController.mousepressed(self, mouse.x, mouse.y, b) then
     refreshCursor(self)
     return
@@ -495,6 +508,12 @@ function AppCoreController:mousereleased(x, y, b)
   end
 
   if handleAppContextMenuMouseReleased(self, mouse.x, mouse.y, b) then
+    return
+  end
+
+  if ChrCanvasOnlyMode.isActive(self) then
+    ChrCanvasOnlyMode.handleMouseReleased(self, mouse.x, mouse.y, b, self.wm)
+    refreshCursor(self)
     return
   end
 
@@ -601,6 +620,18 @@ function AppCoreController:mousemoved(x, y, dx, dy)
     return
   end
 
+  if ChrCanvasOnlyMode.isActive(self) then
+    ChrCanvasOnlyMode.handleMouseMoved(
+      self,
+      mouse.x,
+      mouse.y,
+      dx / ResolutionController.canvasScaleX,
+      dy / ResolutionController.canvasScaleY,
+      self.wm
+    )
+    return
+  end
+
   if self.toastController then
     self.toastController:mousemoved(mouse.x, mouse.y)
   end
@@ -642,6 +673,11 @@ function AppCoreController:wheelmoved(dx, dy)
     if self.openProjectModal and self.openProjectModal:isVisible() and self.openProjectModal.wheelmoved then
       return self.openProjectModal:wheelmoved(dx, dy)
     end
+    return
+  end
+  if ChrCanvasOnlyMode.isActive(self) then
+    local mouse = ResolutionController:getScaledMouse(true)
+    ChrCanvasOnlyMode.handleWheel(self, dx, dy, mouse.x, mouse.y)
     return
   end
   if self.taskbar and self.taskbar.wheelmoved and self.taskbar:wheelmoved(dx, dy) then

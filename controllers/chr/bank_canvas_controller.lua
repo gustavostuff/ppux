@@ -241,6 +241,35 @@ function M:drawWindow(state, win, layerOpacity)
   return true
 end
 
+-- Full-canvas view: fixed (x,y,w,h) viewport, vertical scroll in NES pixels, uniform scale.
+function M:drawCanvasOnly(state, win, x, y, w, h, scrollYNesPixels, scale, layerOpacity)
+  if not (win and state) then
+    return false
+  end
+
+  local bankIdx = tonumber(win.currentBank) or tonumber(state.currentBank) or 1
+  if not self:ensureReady(state, bankIdx, win.orderMode or "normal") then
+    return false
+  end
+
+  local scrolly = math.floor(tonumber(scrollYNesPixels) or 0)
+  local s = tonumber(scale) or 1
+  if s <= 0 then
+    s = 1
+  end
+
+  love.graphics.push("all")
+  love.graphics.setColor(1, 1, 1, layerOpacity or 1.0)
+  CanvasSpace.setScissorFromContentRect(x, y, w, h)
+  love.graphics.translate(x, y)
+  love.graphics.scale(s, s)
+  love.graphics.translate(0, -scrolly)
+  love.graphics.draw(self.image, 0, 0)
+  love.graphics.pop()
+  love.graphics.setColor(1, 1, 1, 1)
+  return true
+end
+
 function M:drawTileHandle(state, handle, orderMode, x, y, sx, sy, alpha)
   if not (
     state

@@ -5,6 +5,9 @@ local ToolbarBase = require("user_interface.toolbars.toolbar_base")
 local images = require("images")
 local colors = require("app_colors")
 
+-- Experimental zero-distractions (canvas-only) mode; toolbar entry hidden until stabilized.
+local SHOW_ZERO_DISTRACTIONS_TOGGLE = false
+
 local ChrToolbar = {}
 ChrToolbar.__index = ChrToolbar
 setmetatable(ChrToolbar, { __index = ToolbarBase })
@@ -48,6 +51,13 @@ function ChrToolbar.new(window, ctx, windowController)
   end, "Sprite mode (height)")
   self:updateModeIcon()
 
+  self.canvasOnlyButton = self:addButton(images.icons.icon_compact_mode, function()
+    self:_onCanvasOnly()
+  end, "Toggle zero distractions mode")
+  if not SHOW_ZERO_DISTRACTIONS_TOGGLE then
+    self.canvasOnlyButton.hidden = true
+  end
+
   if not (window and window.isRomWindow == true) then
     -- Sync duplicate tiles toggle (on by default)
     self.syncButton = self:addButton(images.icons.icon_selected, function()
@@ -82,9 +92,24 @@ function ChrToolbar:updateSyncIcon()
   end
 end
 
+function ChrToolbar:updateCanvasOnlyIcon()
+  if not self.canvasOnlyButton or not self.ctx or not self.ctx.app or not self.window then
+    return
+  end
+  local app = self.ctx.app
+  if app.chrCanvasOnlyWindow == self.window then
+    self.canvasOnlyButton.icon = images.icons.icon_normal_mode or self.canvasOnlyButton.icon
+    self.canvasOnlyButton.tooltip = "Toggle zero distractions mode"
+  else
+    self.canvasOnlyButton.icon = images.icons.icon_compact_mode or self.canvasOnlyButton.icon
+    self.canvasOnlyButton.tooltip = "Toggle zero distractions mode"
+  end
+end
+
 function ChrToolbar:updateIcons()
   self:updateModeIcon()
   self:updateSyncIcon()
+  self:updateCanvasOnlyIcon()
 end
 
 function ChrToolbar:_onBankChange(delta)
@@ -127,6 +152,61 @@ function ChrToolbar:_onToggleMode()
   if self.ctx.app and self.ctx.app.setStatus then
     self.ctx.app:setStatus("Order mode: " .. ((self.window.orderMode == "normal") and "8x8" or "8x16"))
   end
+end
+
+function ChrToolbar:_onCanvasOnly()
+  if not self.ctx or not self.ctx.app or not self.window then
+    return
+  end
+  local app = self.ctx.app
+  if app.chrCanvasOnlyWindow == self.window then
+    app:clearChrCanvasOnlyMode()
+  else
+    app:setChrCanvasOnlyMode(self.window)
+  end
+  self:updateCanvasOnlyIcon()
+end
+
+function ChrToolbar:updatePosition()
+  if not self.window then
+    return
+  end
+  local app = self.ctx and self.ctx.app
+  if app and app.chrCanvasOnlyWindow == self.window and app.canvas then
+    local cw = app.canvas:getWidth()
+    local _, _, _, hh = self.window:getHeaderRect()
+    local rowH = self:_getRowHeight(hh)
+    self.rowHeight = rowH
+    self.h = self:_getToolbarHeight(hh)
+    local ty = app.chrCanvasOnlyToolbarY
+    if ty == nil then
+      ty = 4
+      app.chrCanvasOnlyToolbarY = ty
+    end
+    self.y = ty
+    self._dockLayout = { leftX = 0, topY = ty, rightX = cw, rowHeight = rowH }
+    ToolbarBase._layoutButtons(self)
+    self._dockLayout = nil
+    local targetX = app.chrCanvasOnlyToolbarX
+    if targetX == nil then
+      app.chrCanvasOnlyToolbarX = self.x
+    else
+      local dxn = targetX - self.x
+      if dxn ~= 0 then
+        for _, b in ipairs(self.buttons) do
+          b:setPosition(b.x + dxn, b.y)
+        end
+        for _, lab in ipairs(self.labels) do
+          if not lab.renderInContent then
+            lab.x = lab.x + dxn
+          end
+        end
+        self.x = targetX
+      end
+    end
+    return
+  end
+  ToolbarBase.updatePosition(self)
 end
 
 function ChrToolbar:_onToggleSyncDuplicates()

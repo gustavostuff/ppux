@@ -15,6 +15,7 @@ local Draw = require("utils.draw_utils")
 local colors = require("app_colors")
 local images = require("images")
 local CanvasSpace = require("utils.canvas_space")
+local ChrCanvasOnlyMode = require("controllers.chr.chr_canvas_only_mode")
 
 local function drawEmptyStatePrompt(app)
   if app:hasLoadedROM() then return end
@@ -1122,6 +1123,23 @@ end
 function AppCoreController:draw()  
   DebugController.perfBeginFrame()
   love.graphics.setCanvas({ self.canvas, depthstencil = true })
+  if ChrCanvasOnlyMode.isActive(self) then
+    ChrCanvasOnlyMode.draw(self)
+    if self.tooltipController and self.canvas then
+      self.tooltipController:draw(self.canvas:getWidth(), self.canvas:getHeight())
+    end
+    self.quitConfirmModal:draw(self.canvas)
+    CursorsController.draw(self)
+    love.graphics.setCanvas()
+    love.graphics.setColor(colors.white)
+    ResolutionController:renderCanvas(self.canvas)
+    if self.showDebugInfo then
+      drawHUD(self)
+    end
+    DebugController.perfEndFrame()
+    return
+  end
+
   love.graphics.clear(colors.gray10)
 
   -- Windows use full-canvas coordinates (y includes the top toolbar strip height).

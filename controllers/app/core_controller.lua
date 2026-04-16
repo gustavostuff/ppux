@@ -240,6 +240,11 @@ function AppCoreController.new()
     currentY = 0,
   }
 
+  self.chrCanvasOnlyWindow = nil
+  self.chrCanvasOnlyScrollY = 0
+  self.chrCanvasOnlyToolbarX = nil
+  self.chrCanvasOnlyToolbarY = nil
+
   -- rom state
   self.appEditState = {
     romRaw = nil,
@@ -1541,6 +1546,47 @@ function AppCoreController:paintAt(win, col, row, lx, ly, pickOnly)
   return BrushController.paintPixel(self, win, col, row, lx, ly, pickOnly)
 end
 
+function AppCoreController:setChrCanvasOnlyMode(win)
+  if not (win and win.kind == "chr") then
+    return
+  end
+  self.chrCanvasOnlyWindow = win
+  self.chrCanvasOnlyScrollY = math.floor((win.scrollRow or 0) * 8)
+  self.chrCanvasOnlyToolbarX = nil
+  self.chrCanvasOnlyToolbarY = nil
+  if self.wm and self.wm.setFocus then
+    self.wm:setFocus(win)
+  end
+  local ChrCanvasOnlyMode = require("controllers.chr.chr_canvas_only_mode")
+  ChrCanvasOnlyMode.clampScrollY(self)
+  self:setStatus("Canvas-only view (Esc to exit)")
+end
+
+function AppCoreController:clearChrCanvasOnlyMode()
+  if not self.chrCanvasOnlyWindow then
+    return
+  end
+  if self.isPainting and self.undoRedo and self.undoRedo.finishPaintEvent then
+    self.undoRedo:finishPaintEvent()
+  end
+  local win = self.chrCanvasOnlyWindow
+  local y = math.floor(tonumber(self.chrCanvasOnlyScrollY) or 0)
+  if win.setScroll then
+    win:setScroll(win.scrollCol or 0, math.floor(y / 8))
+  else
+    win.scrollRow = math.floor(y / 8)
+  end
+  self.chrCanvasOnlyWindow = nil
+  self.chrCanvasOnlyScrollY = 0
+  self.chrCanvasOnlyToolbarX = nil
+  self.chrCanvasOnlyToolbarY = nil
+  local c = rawget(_G, "ctx")
+  if c and c.setPainting then
+    c.setPainting(false)
+  end
+  self:setStatus("Exited canvas-only view")
+end
+
 function AppCoreController:setStatus(text)
   if text == nil then return end
   local message = tostring(text)
@@ -1598,6 +1644,11 @@ function AppCoreController:getTooltipCandidateAt(x, y)
       return modalCandidate
     end
     return nil
+  end
+
+  local ChrCanvasOnlyMode = require("controllers.chr.chr_canvas_only_mode")
+  if ChrCanvasOnlyMode.isActive(self) then
+    return ChrCanvasOnlyMode.getTooltipAt(self, x, y)
   end
 
   local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")

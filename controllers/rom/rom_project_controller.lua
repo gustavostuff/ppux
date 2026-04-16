@@ -349,6 +349,9 @@ local function resetStateForNewROM(app)
 end
 
 local function closeProjectState(app)
+  if app.clearChrCanvasOnlyMode then
+    app:clearChrCanvasOnlyMode()
+  end
   resetStateForNewROM(app)
   app.statusText = "Drop an .nes ROM or open a existing project"
   app.lastEventText = app.statusText
