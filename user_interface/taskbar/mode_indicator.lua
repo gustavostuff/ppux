@@ -96,7 +96,8 @@ function M.install(Taskbar, Helpers)
       mode = mode,
       label = isEdit and "Edit" or "Tile",
       bg = isEdit and MODE_BADGE_EDIT_BG or MODE_BADGE_TILE_BG,
-      textColor = colors.textPrimary or colors.white,
+      -- Fixed contrast on colored badges: ignore theme textPrimary.
+      textColor = isEdit and colors.black or colors.white,
       icon = isEdit and self.modeEditIcon or self.modeTileIcon,
       useCursorShader = isEdit,
     }
@@ -179,6 +180,8 @@ function M.install(Taskbar, Helpers)
     local textY = math.floor(layout.badgeY + (layout.badgeH - layout.textH) * 0.5)
     Text.print(data.label, textX, textY, {
       color = { tc[1], tc[2], tc[3], 1 },
+      -- text_utils remaps near-white to textPrimary unless literal; badge needs fixed colors.
+      literalColor = true,
     })
 
     local icon = data.icon

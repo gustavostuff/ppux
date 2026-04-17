@@ -26,11 +26,11 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
   - [DB contribution tracker](#db-contribution-tracker)
   - [Lua project mapping](#lua-project-mapping)
   - [PPU frame windows](#ppu-frame-windows)
+  - [Byte budget for PPU Frame windows](#byte-budget-for-ppu-frame-windows)
   - [PPU frame editing notes](#ppu-frame-editing-notes)
   - [OAM animation windows](#oam-animation-windows)
   - [ROM palette windows](#rom-palette-windows)
   - [Window references between entries](#window-references-between-entries)
-  - [Byte budget for PPU Frame windows](#byte-budget-for-ppu-frame-windows)
   - [Current nametable codec coverage](#current-nametable-codec-coverage)
   - [ROM patches](#rom-patches)
 - [Development](#development)
@@ -48,7 +48,7 @@ Create a folder, place your ROM inside it, then drag the ROM into PPUX. After th
 2. Open a DB layout
 3. Open a *.lua or *.ppux user project (if any)
 
-NOTE: You can also open a project any time from the top app toolbar (`Open` button). This opens the **Open Project** browser modal.
+NOTE: You can also open a project from the app toolbar or with `Ctrl + O`
 
 If a ROM has no DB entry yet, it can still be used normally. DB entries are just curated starting points. That said, any user can "pick" a game and start working on a user project that can be used for a new DB entry Pull Request. [See this section](#db-contribution-tracker).
 
@@ -76,8 +76,6 @@ Notes:
 
 * ROM Banks is the fallback source browser, useful for Games that use CHR RAM data (like Megaman 2, for instance) and, as mentioned above, it will load the whole ROM, so be careful on unintentional non-graphics pixel edits.
 
-* You can create a window from **New Window** (`Ctrl + N`) when a project/ROM is open (top toolbar button and taskbar menu entry).
-
 ### Toolbars
 
 Windows include a slim toolbar strip just above the header. It holds small icon buttons whose actions depend on the window type. Every control should show a tooltip on hover, but it still helps to spell out what each button does in the docs so people can learn the layout without hovering everything.
@@ -96,7 +94,7 @@ Windows include a slim toolbar strip just above the header. It holds small icon 
 
 <img src="img/readme_images/toolbars/rom_banks_toolbar.png" alt="ROM Banks specialized toolbar">
 
-Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface).
+Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface would make this dangerous).
 
 1. **Previous bank** — `Left`
 2. **Next bank** — `Right`
@@ -106,7 +104,7 @@ Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface)
 
 <img src="img/readme_images/toolbars/static_tiles_toolbar.png" alt="Static Art tiles specialized toolbar">
 
-1. **Palette link handle** — drag onto a **ROM palette** window (connect handle or anywhere on that window), **or** drag from the ROM palette’s handle onto this window; **right-click** for more specific options
+1. **Palette link handle** — Right click drag onto a **ROM palette** window, or from the ROM palette’s handle onto this window. Left click to link via a menu.
 
 #### Static Art (sprites) toolbar
 
@@ -114,11 +112,11 @@ Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface)
 
 1. **Palette link handle** — effectively same as Static Art for tiles
 
-#### Animation (tiles) toolbar
+#### Animation toolbar (for both sprites and tiles)
 
 <img src="img/readme_images/toolbars/animation_tile_toolbar.png" alt="Animation tiles specialized toolbar">
 
-**Animation (both tiles and sprites)**. **`Shift` + `Up` / `Down`** (`Up` → next frame, `Down` → previous). **`Shift` + `Left` / `Right`** adjusts **all frame delays** together when the window supports it.
+**Animation window**. **`Shift` + `Up` / `Down`** (`Up` → next frame, `Down` → previous). **`Shift` + `Left` / `Right`** adjusts frame delay.
 
 1. **Palette link handle**
 2. **Previous layer** — `Shift` + `Down`
@@ -133,7 +131,7 @@ Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface)
 
 <img src="img/readme_images/toolbars/oam_animation.png" alt="OAM Animation specialized toolbar">
 
-**`Shift` + `Up` / `Down`** steps frames (`Up` next, `Down` previous; disabled while playing). **`Shift` + `Left` / `Right`** adjusts **all frame delays** when supported.
+**`Shift` + `Up` / `Down`** steps frames (`Up` next, `Down` previous). **`Shift` + `Left` / `Right`** adjusts **all frame delays** when supported.
 
 1. **Palette link handle**
 2. **Previous layer** — `Shift` + `Down`
@@ -160,10 +158,8 @@ Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface)
 
 1. **Previous grouped slot** (when Grouped palettes is enabled)
 2. **Next grouped slot** (when Grouped palettes is enabled)
-3. **Palette link handle (source)** — drag to destinations; **right-click** for **Jump To Linked Layer**, **Move All Links To**, **Remove all links**, etc.
+3. **Palette link handle (source)** — right click to drag link or left click to set link via menus.
 4. **Compact / normal view**
-
-Consumers of a ROM palette use **their** toolbar connect control; **right-click** for **Link to palette**, **Jump to linked palette**, **Remove ROM palette link**.
 
 #### PPU Frame toolbar
 
@@ -179,12 +175,6 @@ Consumers of a ROM palette use **their** toolbar connect control; **right-click*
 
 When **Pattern layer toggle** is ON, only the pattern reference layer is visible/navigable. When OFF, normal tile/sprite navigation resumes.
 
-#### Pattern table builder toolbar
-
-1. **Previous layer** — `Shift` + `Down`
-2. **Next layer** — `Shift` + `Up`
-3. **Generate** — packed pattern table (toolbar shows **G**); status shows capacity / overflow
-
 ### Palette windows
 
 Palette windows are the palette editors/viewers used by the rest of the app.
@@ -193,36 +183,28 @@ There are 2 kinds:
 
 * `Global palette`: the fallback palette for content that does not have a ROM palette linked to it. Use this for mockups, freeform art, and anything with no specific in-game palette assigned.
 * `ROM palette`: a real 4x4 palette window backed by ROM data. It can be linked to specific windows and layers, to use the actual in-game palette through palette links.
-* **Grouped palettes** mode (Settings) is **on** by default: one logical Global palette window and one logical ROM palette window stay visible at a time, with toolbar arrows to cycle slots. Turn it off in Settings if you prefer every palette window open at once.
+* **Grouped palettes** mode (Settings) is **off** by default: every palette window can stay visible at once. Turn it **on** in Settings if you prefer one logical Global palette slot and one logical ROM palette slot, with toolbar arrows to cycle which source window fills each slot.
 
 In practice:
 
 * If an item or layer has no ROM palette assigned, it uses a `Global palette`.
 * If you want the colors to reflect actual game palette bytes, use a `ROM palette`.
-* Only `ROM palette` windows are meant to be linked to other windows.
+* Only `ROM palette` windows are meant to be explicitly linked to other windows.
 * Palette row numbers `1` to `4` select the row used by layers/items that support palette-number selection.
 * Click a color to select it for editing/painting.
 * In palette windows, arrow keys move the selected cell.
-* In palette windows, `Shift + arrows`, mouse wheel, and `Shift + mouse wheel` adjust colors.
+* `Shift + arrows`, mouse wheel, and `Shift + mouse wheel` adjust colors.
 
 |                | Normal mode | Compact mode |
 |----------------|-------------|--------------|
 | Global palette | <img src="img/readme_images/global_palette_normal.png" alt="Global palette normal mode"> | <img src="img/readme_images/global_palette_compact.png" alt="Global palette compact mode"> |
 | ROM palette    | <img src="img/readme_images/rom_palette_normal.png" alt="ROM palette normal mode"> | <img src="img/readme_images/rom_palette_compact.png" alt="ROM palette compact mode"> |
 
-Palette links are created and managed from the **connect button** on toolbars (the small **palette link handle**). **Persistent link lines are not drawn** anymore; you see a rubber-band line only while dragging from ROM palette into a layout window/layer.
-
 **Creating a link**
 
-* Drag from a **ROM palette** window’s connect handle and release over a destination window (or a specific layer target, depending on the window), **or**
+* Drag (right click) from a **ROM palette** window’s connect handle and release over a destination window, **or**
 * Drag from a **destination** window’s connect handle (**Static Art**, **Animation** tiles/sprites, **OAM Animation**, etc.) and release over a **ROM palette** window, **or**
-* On a destination window, right-click its palette connect handle and use **Link to palette** to pick a ROM palette.
-
-**Context menus**
-
-* **ROM palette** (source): right-click the connect handle for **Jump To Linked Layer** (per target), **Move All Links To** (another ROM palette), **Remove all links**, and a read-only summary of how many layers are linked.
-* **Destination** windows (layers that consume a palette): right-click the connect handle for **Link to palette**, **Jump to linked palette**, and **Remove ROM palette link** when a link exists.
-* **Layer context** (PPU/static/OAM tile or sprite cells, select-in-CHR, CHR bank tiles, empty sprite area): the same **Jump to linked palette** and **Remove ROM palette link** entries appear when that **layer** has a ROM palette link (in addition to layer-specific items such as paste).
+* Use left click for contextual menus
 
 ### Main controls
 
@@ -239,26 +221,6 @@ Palette links are created and managed from the **connect button** on toolbars (t
   - In `ppu_frame` and `oam_animation` windows, clipboard actions are blocked on sprite layers
 - `Right click` or `middle click` drag: move windows
 - taskbar: focus, restore, and manage windows
-
-### Clipboard behavior
-
-- **Window/layer eligibility**
-  - Tile layers in `static_art`, `animation`, `ppu_frame`, and `chr` windows: copy/cut/paste enabled.
-  - Sprite layers in `static_art` and `animation` windows: copy/cut/paste enabled.
-  - Sprite layers in `ppu_frame` and `oam_animation`: copy/cut/paste blocked with warning.
-- **Anchor policy**
-  - Multi-selection paste uses the copied selection bounding-box top-left as pivot.
-  - If the cursor is inside the focused target layer, paste anchors at cursor cell/pixel.
-  - If cursor is outside target layer bounds (or unavailable), paste falls back to centered placement.
-- **Out-of-bounds policy**
-  - Paste uses shift-to-fit: whole pasted payload is shifted to the nearest fully valid anchor.
-  - If payload is larger than target bounds, paste is cancelled.
-- **Cut semantics**
-  - Tile/sprite windows: cut removes selected items via normal deletion flow.
-  - CHR window: cut clears selected tile pixel values to `0` and stores copied pixels for paste.
-- **Feedback**
-  - No focused window, empty clipboard, layer-type mismatch, and restricted-layer cases produce status feedback.
-  - Shift-to-fit pastes include a status suffix indicating anchor adjustment.
 
 ### Tile mode
 
@@ -297,8 +259,6 @@ Edit mode is for pixel-level editing.
 - `Ctrl + Z` / `Ctrl + Y`: undo / redo (same stack as [Undo and redo](#undo-and-redo))
 
 ### PNG drops
-
-PNG import rules are documented here and linked from the [Basic Usage](#basic-usage) outline at the top of this file.
 
 You can drag and drop a PNG directly into PPUX. What happens depends on the window under the mouse, and sometimes on the focused window.
 
@@ -379,6 +339,22 @@ Best practice: keep the base ROM, edited ROM, and project files in the same fold
 
 Use **New Window > PPU Frame** and the in-app toolbars / context menus to edit nametables and sprites; saving the project persists layer state and nametable diffs.
 
+### Byte budget for PPU Frame windows
+
+PPU Frame tile layers support `noOverflowSupported = true`. This means the compressed nametable stream should stay within its original ROM byte budget.
+
+Why it matters: some games leave safe free space after the stream, and some do not.
+
+TMNT II is a good example of this: compressed byte ranges are packed tightly, so PPUX reads one nametable from a defined range while the next nametable begins immediately after it:
+
+<img src="img/readme_images/nametable_bytes_tmnt.png" alt="Nametable title screen TMNT II">
+
+Contra (J) example, where the byte "buffer" has plenty of space:
+
+<img src="img/readme_images/nametable_bytes_contra.png" alt="Nametable title screen Contra">
+
+PPUX warns when the compressed stream goes over budget and clears the warning if it returns to a valid size.
+
 ### PPU frame editing notes
 
 * **Empty / glass nametable cells** use `patternTable.glassTileIndex` on the tile layer when set; otherwise the empty byte defaults to **0** (pattern-table tile 0 within that layer’s bank and **page** — page 2 still uses nametable byte 0, which maps to the second CHR page in the tile pool). The **show/hide glass** toolbar toggle is persisted as **`showGlassTile`** on the window in saved layouts/projects.
@@ -426,22 +402,6 @@ Use **New Window > PPU Frame** and the in-app toolbars / context menus to edit n
 In tile layers, `nametableStartAddr` and `nametableEndAddr` define the ROM byte range used for the nametable data handled by that window (it's the same bytes read by an emulator when loading a specific nametable). The app reads from that range when loading the screen data, and writes back into the same range when saving changes.
 
 For sprite layers, `startAddr` is the most important field because it links the item to the 4 OAM bytes in ROM. The app uses byte 1 for Y position, byte 3 for attributes/palette/mirroring, and byte 4 for X position directly through the app UI. Byte 2 is the exception: in real hardware or emulators, its tile value is interpreted in PPU/VRAM space, not as a direct ROM-bank tile reference. Since the app does not know the final runtime VRAM page layout, bank and tile must also be specified explicitly so the correct source graphics can be resolved in the editor context.
-
-### Byte budget for PPU Frame windows
-
-PPU Frame tile layers support `noOverflowSupported = true`. This means the compressed nametable stream should stay within its original ROM byte budget.
-
-Why it matters: some games leave safe free space after the stream, and some do not.
-
-TMNT II is a good example of this: compressed byte ranges are packed tightly, so PPUX reads one nametable from a defined range while the next nametable begins immediately after it:
-
-<img src="img/readme_images/nametable_bytes_tmnt.png" alt="Nametable title screen TMNT II">
-
-Contra (J) example, where the byte "buffer" has plenty of space:
-
-<img src="img/readme_images/nametable_bytes_contra.png" alt="Nametable title screen Contra">
-
-PPUX warns when the compressed stream goes over budget and clears the warning if it returns to a valid size.
 
 ### Current nametable codec coverage
 
@@ -641,5 +601,9 @@ Run a single scenario:
 ```
 
 See [E2E Testing](docs/test/E2E_TESTING.md) for scenario details and options.
+
+:white_check_mark: All 694 unit tests are passing.
+
+:white_check_mark: All 22 E22 tests are passing.
 
 ---
