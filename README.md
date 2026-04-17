@@ -604,7 +604,5 @@ Run a single scenario:
 
 See [E2E Testing](docs/test/E2E_TESTING.md) for scenario details and options.
 
-Before a release, run the unit and E2E scripts above; both suites should pass (test counts change as the project grows).
-
 :white_check_mark: All 695 unit tests passing.
 :white_check_mark: All 22 E2E tests passing.

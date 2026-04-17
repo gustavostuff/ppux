@@ -397,6 +397,22 @@ function ToastController:mousereleased(x, y, button)
   return false
 end
 
+--- True if a visible toast of kind info/warning/error already shows this exact message.
+function ToastController:hasActiveInfoWarningErrorToastWithText(text)
+  text = tostring(text or "")
+  if text == "" then
+    return false
+  end
+  for i = 1, #self.toasts do
+    local toast = self.toasts[i]
+    local k = toast.kind
+    if (k == "error" or k == "warning" or k == "info") and tostring(toast.text or "") == text then
+      return true
+    end
+  end
+  return false
+end
+
 function ToastController:draw(canvasW, canvasH)
   if (canvasW and canvasW ~= self.canvasW) or (canvasH and canvasH ~= self.canvasH) then
     self:updateLayout(canvasW, canvasH)

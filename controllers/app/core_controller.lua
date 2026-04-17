@@ -1799,6 +1799,11 @@ end
 function AppCoreController:setStatus(text)
   if text == nil then return end
   local message = tostring(text)
+  if self.toastController and self.toastController:hasActiveInfoWarningErrorToastWithText(message) then
+    self.statusText = nil
+    self.lastEventText = nil
+    return
+  end
   self.statusText = message
   self.lastEventText = message
 end
@@ -1816,7 +1821,18 @@ end
 
 function AppCoreController:showToast(kind, text, opts)
   if not self.toastController then return nil end
-  return self.toastController:show(kind, text, opts)
+  local result = self.toastController:show(kind, text, opts)
+  local k = tostring(kind or "info")
+  if result and (k == "error" or k == "warning" or k == "info") then
+    local msg = tostring(text or "")
+    if tostring(self.statusText or "") == msg then
+      self.statusText = nil
+    end
+    if tostring(self.lastEventText or "") == msg then
+      self.lastEventText = nil
+    end
+  end
+  return result
 end
 
 function AppCoreController:beginSimpleLoading(message)

@@ -122,6 +122,18 @@ describe("toast_controller.lua", function()
     expect(toast.w).toBeLessThan(521)
   end)
 
+  it("hasActiveInfoWarningErrorToastWithText matches info, warning, and error only", function()
+    local controller = makeController()
+    expect(controller:hasActiveInfoWarningErrorToastWithText("Hello")).toBe(false)
+    expect(controller:hasActiveInfoWarningErrorToastWithText("")).toBe(false)
+    controller:show("info", "Hello")
+    expect(controller:hasActiveInfoWarningErrorToastWithText("Hello")).toBe(true)
+    controller:show("success", "Other")
+    expect(controller:hasActiveInfoWarningErrorToastWithText("Other")).toBe(false)
+    controller:show("warning", "Other")
+    expect(controller:hasActiveInfoWarningErrorToastWithText("Other")).toBe(true)
+  end)
+
   it("truncates with middle ellipsis when text does not fit even expanded width", function()
     local controller = makeController()
     local veryLongText = "Saved project: /home/g/Documents/super_long_workspace_name/projects/nes/very/deep/folder/structure/my_project_file_with_a_long_name.ppux"
