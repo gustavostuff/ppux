@@ -3,6 +3,7 @@ local colors = require("app_colors")
 local Button = require("user_interface.button")
 local images = require("images")
 local UiScale = require("user_interface.ui_scale")
+local WindowCaps = require("controllers.window.window_capabilities")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local Text = require("utils.text_utils")
 
@@ -59,6 +60,28 @@ local function ensureQuickButtons(app)
     end
   end
 
+  local function zoomFocusedByWheelStep(a, delta)
+    local wm = a.wm
+    if not wm or not wm.getFocus then
+      return
+    end
+    local focus = wm:getFocus()
+    if not focus or focus._closed or focus._minimized then
+      a:setStatus("No focused window to zoom.")
+      if a.showToast then
+        a:showToast("warning", a.statusText or "No focused window to zoom.")
+      end
+      return
+    end
+    if WindowCaps.isAnyPaletteWindow(focus) then
+      return
+    end
+    if focus.addZoomLevel then
+      wm:setFocus(focus)
+      focus:addZoomLevel(delta)
+    end
+  end
+
   local cell = math.max(UiScale.menuCellSize(), MIN_BAR_H)
 
   app._appTopQuickButtons = {
@@ -102,6 +125,28 @@ local function ensureQuickButtons(app)
       tooltip = "Save options",
       action = withRom(app, function(a)
         a:showSaveOptionsModal()
+      end),
+      x = 0,
+      y = 0,
+      w = cell,
+      h = cell,
+    }),
+    zoomOut = Button.new({
+      icon = images.icons.icon_zoom_out or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      tooltip = "Zoom out (Ctrl+scroll)",
+      action = withRom(app, function(a)
+        zoomFocusedByWheelStep(a, -1)
+      end),
+      x = 0,
+      y = 0,
+      w = cell,
+      h = cell,
+    }),
+    zoomIn = Button.new({
+      icon = images.icons.icon_zoom_in or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      tooltip = "Zoom in (Ctrl+scroll)",
+      action = withRom(app, function(a)
+        zoomFocusedByWheelStep(a, 1)
       end),
       x = 0,
       y = 0,
@@ -178,6 +223,8 @@ local function quickButtonOrder(app)
     order[#order + 1] = "copy"
     order[#order + 1] = "cut"
     order[#order + 1] = "paste"
+    order[#order + 1] = "zoomOut"
+    order[#order + 1] = "zoomIn"
     order[#order + 1] = "cloneWindow"
   end
   return order
@@ -199,6 +246,32 @@ local function updateClipboardButtonStates(app)
       button.enabled = not not (state and state.allowed)
     end
   end
+end
+
+local function updateZoomButtonStates(app)
+  if not (app and app._appTopQuickButtons) then
+    return
+  end
+  local zoomOut = app._appTopQuickButtons.zoomOut
+  local zoomIn = app._appTopQuickButtons.zoomIn
+  if not (zoomOut and zoomIn) then
+    return
+  end
+  local allow = false
+  local wm = app.wm
+  if wm and wm.getFocus then
+    local focus = wm:getFocus()
+    if focus
+      and not focus._closed
+      and not focus._minimized
+      and not WindowCaps.isAnyPaletteWindow(focus)
+      and type(focus.addZoomLevel) == "function"
+    then
+      allow = true
+    end
+  end
+  zoomOut.enabled = allow
+  zoomIn.enabled = allow
 end
 
 function M.clearDockLayouts(app)
@@ -240,6 +313,7 @@ function M.syncLayout(app)
     end
   end
   updateClipboardButtonStates(app)
+  updateZoomButtonStates(app)
 
   local quickRightX = x
   local dockLeftX = quickRightX + SECTION_GAP

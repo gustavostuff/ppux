@@ -60,6 +60,8 @@ describe("app_top_toolbar_controller.lua", function()
     local newButton = app._appTopQuickButtons.newWindow
     local saveButton = app._appTopQuickButtons.save
     local cloneButton = app._appTopQuickButtons.cloneWindow
+    local zoomOutButton = app._appTopQuickButtons.zoomOut
+    local zoomInButton = app._appTopQuickButtons.zoomIn
     local copyButton = app._appTopQuickButtons.copy
     local cutButton = app._appTopQuickButtons.cut
     local pasteButton = app._appTopQuickButtons.paste
@@ -69,14 +71,18 @@ describe("app_top_toolbar_controller.lua", function()
     expect(copyButton.x > saveButton.x).toBe(true)
     expect(cutButton.x > copyButton.x).toBe(true)
     expect(pasteButton.x > cutButton.x).toBe(true)
-    expect(cloneButton.x > pasteButton.x).toBe(true)
+    expect(zoomOutButton.x > pasteButton.x).toBe(true)
+    expect(zoomInButton.x > zoomOutButton.x).toBe(true)
+    expect(cloneButton.x > zoomInButton.x).toBe(true)
 
     local inferredGap = newButton.x - (openButton.x + openButton.w)
     expect(saveButton.x).toBe(newButton.x + newButton.w + inferredGap)
     expect(copyButton.x).toBe(saveButton.x + saveButton.w + inferredGap)
     expect(cutButton.x).toBe(copyButton.x + copyButton.w + inferredGap)
     expect(pasteButton.x).toBe(cutButton.x + cutButton.w + inferredGap)
-    expect(cloneButton.x).toBe(pasteButton.x + pasteButton.w + inferredGap)
+    expect(zoomOutButton.x).toBe(pasteButton.x + pasteButton.w + inferredGap)
+    expect(zoomInButton.x).toBe(zoomOutButton.x + zoomOutButton.w + inferredGap)
+    expect(cloneButton.x).toBe(zoomInButton.x + zoomInButton.w + inferredGap)
   end)
 
   it("routes copy/cut/paste buttons through shared app clipboard actions", function()
@@ -147,5 +153,52 @@ describe("app_top_toolbar_controller.lua", function()
     expect(app._appTopQuickButtons.copy.enabled).toBe(true)
     expect(app._appTopQuickButtons.cut.enabled).toBe(true)
     expect(app._appTopQuickButtons.paste.enabled).toBe(false)
+  end)
+
+  it("disables zoom quick buttons when focus is any palette window", function()
+    local function makeApp(focus)
+      return {
+        canvas = {
+          getWidth = function() return 640 end,
+          getHeight = function() return 360 end,
+        },
+        separateToolbar = false,
+        hasLoadedROM = function() return true end,
+        showOpenProjectModal = function() end,
+        showNewWindowModal = function() end,
+        showSaveOptionsModal = function() end,
+        wm = { getFocus = function() return focus end },
+        getClipboardToolbarActionState = function()
+          return { allowed = true }
+        end,
+        setStatus = function() end,
+        showToast = function() end,
+      }
+    end
+
+    local paletteCases = {
+      { kind = "rom_palette", addZoomLevel = function() end },
+      { kind = "palette", addZoomLevel = function() end },
+      { isPalette = true, addZoomLevel = function() end },
+    }
+    for _, focus in ipairs(paletteCases) do
+      focus._closed = false
+      focus._minimized = false
+      local app = makeApp(focus)
+      AppTopToolbarController.syncLayout(app)
+      expect(app._appTopQuickButtons.zoomOut.enabled).toBe(false)
+      expect(app._appTopQuickButtons.zoomIn.enabled).toBe(false)
+    end
+
+    local chrFocus = {
+      kind = "chr",
+      _closed = false,
+      _minimized = false,
+      addZoomLevel = function() end,
+    }
+    local appChr = makeApp(chrFocus)
+    AppTopToolbarController.syncLayout(appChr)
+    expect(appChr._appTopQuickButtons.zoomOut.enabled).toBe(true)
+    expect(appChr._appTopQuickButtons.zoomIn.enabled).toBe(true)
   end)
 end)
