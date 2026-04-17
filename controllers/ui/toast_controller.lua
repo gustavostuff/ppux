@@ -20,19 +20,13 @@ local TOAST_H = 24
 local TOAST_PAD_X = 8
 local CLOSE_PAD_RIGHT = 6
 
+-- Background only; foreground is always colors.white except warning (colors.black).
+-- Text uses literalColor so near-white is not remapped to theme textPrimary.
 local TYPE_STYLES = {
-  info = {
-    bg = colors.blue,
-    fg = colors.white,
-  },
-  warning = {
-    bg = colors.yellow,
-    fg = colors.black,
-  },
-  error = {
-    bg = colors.red,
-    fg = colors.white,
-  },
+  info = { bg = colors.blue },
+  warning = { bg = colors.yellow },
+  error = { bg = colors.red },
+  success = { bg = colors.green },
 }
 
 local function pointInRect(px, py, x, y, w, h)
@@ -91,6 +85,13 @@ end
 
 local function toastStyle(kind)
   return TYPE_STYLES[kind] or TYPE_STYLES.info
+end
+
+local function toastForegroundRgb(kind)
+  if kind == "warning" then
+    return colors.black[1], colors.black[2], colors.black[3]
+  end
+  return colors.white[1], colors.white[2], colors.white[3]
 end
 
 local function closeIconSize()
@@ -415,6 +416,7 @@ function ToastController:draw(canvasW, canvasH)
     love.graphics.setColor(style.bg[1], style.bg[2], style.bg[3], alpha)
     love.graphics.rectangle("fill", x, y, toast.w, toast.h)
 
+    local fr, fg, fb = toastForegroundRgb(toast.kind)
     if font then
       local textX = x + TOAST_PAD_X
       local textY = y + math.floor((toast.h - font:getHeight()) * 0.5)
@@ -423,17 +425,19 @@ function ToastController:draw(canvasW, canvasH)
       local message = truncateToWidth(toast.text, messageMaxW)
 
       Text.print(message, textX, textY, {
-        color = { style.fg[1], style.fg[2], style.fg[3], alpha },
+        color = { fr, fg, fb, alpha },
+        literalColor = true,
       })
     end
 
     local closeX, closeY = self:_closeRect(toast)
-    love.graphics.setColor(style.fg[1], style.fg[2], style.fg[3], alpha)
+    love.graphics.setColor(fr, fg, fb, alpha)
     if icon then
-      Draw.drawIcon(icon, closeX, closeY)
+      Draw.drawIcon(icon, closeX, closeY, { respectTheme = false })
     elseif font then
       Text.print("x", closeX, closeY - 1, {
-        color = { style.fg[1], style.fg[2], style.fg[3], alpha },
+        color = { fr, fg, fb, alpha },
+        literalColor = true,
       })
     end
   end

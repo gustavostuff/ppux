@@ -1019,6 +1019,9 @@ local function drawNonModalOverlays(app)
     end
     app.e2eOverlayMenu:draw()
   end
+end
+
+local function drawToasts(app)
   if app.toastController and app.canvas then
     app.toastController:draw(app.canvas:getWidth(), app.canvas:getHeight())
   end
@@ -1060,6 +1063,7 @@ local function drawOverlays(app)
   if app.textFieldDemoModal then
     app.textFieldDemoModal:draw(app.canvas)
   end
+  drawToasts(app)
 end
 
 local function drawStatus(app)
@@ -1129,6 +1133,7 @@ function AppCoreController:draw()
       self.tooltipController:draw(self.canvas:getWidth(), self.canvas:getHeight())
     end
     self.quitConfirmModal:draw(self.canvas)
+    drawToasts(self)
     CursorsController.draw(self)
     love.graphics.setCanvas()
     love.graphics.setColor(colors.white)
