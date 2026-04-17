@@ -718,6 +718,7 @@ local function handleChrBankCopyToSpriteLayer(env, dst, x, y, drag, dstLayer)
     SpriteController.setSpriteSelection(layer, { itemIndex })
     layer.selectedSpriteIndex = itemIndex
     recordSpriteLayerChrDropUndo(app, dst, dstLayer, { itemIndex })
+    setStatusFromEnv(env, "")
     return true
   end
 
@@ -883,6 +884,7 @@ function M.handleTileDrop(env, x, y, wm)
       if itemIndices and #itemIndices > 0 then
         recordSpriteLayerChrDropUndo(app, dst, dstLayer, itemIndices)
         wm:setFocus(dst)
+        setStatusFromEnv(env, "")
         env.clearDragState(true)
         return true
       end
