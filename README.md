@@ -364,10 +364,6 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
 * **Pattern range UX**: adding a pattern range updates the reference layer immediately and switches to pattern-layer mode to review the new logical range quickly.
 * **Pattern hover aid**: hovering a tile in pattern-layer mode highlights all tiles in the same logical range with a translucent overlay.
 
-<img src="img/readme_images/ui_new_window_ppu_frame_placeholder.png" alt="New Window: PPU Frame placeholder">
-
-<img src="img/readme_images/ui_ppu_frame_toolbar_modal_placeholder.png" alt="PPU Frame toolbar and modal placeholder">
-
 **Project file sketch** (what the UI ultimately saves) — useful when diffing projects or contributing DB entries:
 
 ```lua
