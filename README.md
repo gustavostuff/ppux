@@ -167,7 +167,7 @@ Consumers of a ROM palette use **their** toolbar connect control; **right-click*
 
 #### PPU Frame toolbar
 
-<img src="img/readme_images/toolbars/ppu_frame_tile_layer_toolbar.png" alt="PPU Frame toolbar">
+<img src="img/readme_images/toolbars/ppu_frame_sprite_layer_toolbar.png" alt="PPU Frame toolbar">
 
 1. **Previous layer** — `Shift` + `Down`
 2. **Next layer** — `Shift` + `Up`
@@ -210,7 +210,7 @@ In practice:
 | Global palette | <img src="img/readme_images/global_palette_normal.png" alt="Global palette normal mode"> | <img src="img/readme_images/global_palette_compact.png" alt="Global palette compact mode"> |
 | ROM palette    | <img src="img/readme_images/rom_palette_normal.png" alt="ROM palette normal mode"> | <img src="img/readme_images/rom_palette_compact.png" alt="ROM palette compact mode"> |
 
-Palette links are created and managed from the **connect button** on toolbars (the small **palette link handle**). **Persistent link lines are not drawn** anymore; you see a rubber-band line only while dragging.
+Palette links are created and managed from the **connect button** on toolbars (the small **palette link handle**). **Persistent link lines are not drawn** anymore; you see a rubber-band line only while dragging from ROM palette into a layout window/layer.
 
 **Creating a link**
 
@@ -223,10 +223,6 @@ Palette links are created and managed from the **connect button** on toolbars (t
 * **ROM palette** (source): right-click the connect handle for **Jump To Linked Layer** (per target), **Move All Links To** (another ROM palette), **Remove all links**, and a read-only summary of how many layers are linked.
 * **Destination** windows (layers that consume a palette): right-click the connect handle for **Link to palette**, **Jump to linked palette**, and **Remove ROM palette link** when a link exists.
 * **Layer context** (PPU/static/OAM tile or sprite cells, select-in-CHR, CHR bank tiles, empty sprite area): the same **Jump to linked palette** and **Remove ROM palette link** entries appear when that **layer** has a ROM palette link (in addition to layer-specific items such as paste).
-
-While a drag is in progress, the UI still reflects valid drop targets as before.
-
-<img src="img/readme_images/palette_link_example.png" alt="ROM palette link drag and drop example">
 
 ### Main controls
 

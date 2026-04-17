@@ -175,10 +175,10 @@ local function quickButtonOrder(app)
   if hasOpenProject(app) then
     order[#order + 1] = "newWindow"
     order[#order + 1] = "save"
-    order[#order + 1] = "cloneWindow"
     order[#order + 1] = "copy"
     order[#order + 1] = "cut"
     order[#order + 1] = "paste"
+    order[#order + 1] = "cloneWindow"
   end
   return order
 end

@@ -21,7 +21,7 @@ function love.conf(t)
   t.audio.mixwithsystem = true        -- Keep background music playing when opening LOVE (boolean, iOS and Android only)
 
   t.window.title = "PPUX"             -- The window title (string)
-  t.window.icon = nil                 -- Filepath to an image to use as the window's icon (string)
+  t.window.icon = 'icon.png'                 -- Filepath to an image to use as the window's icon (string)
   t.window.width = windowW            -- The window width (number)
   t.window.height = windowH           -- The window height (number)
   t.window.borderless = false         -- Remove all border visuals from the window (boolean)
