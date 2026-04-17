@@ -147,18 +147,19 @@ describe("rom_project_controller.lua - PNG drop routing", function()
     end
   end)
 
-  it("prefers focused sprite window with selection over CHR target under mouse", function()
+  it("routes PNG to CHR when pointer is over CHR even if focused window has sprite selection", function()
     local focusedSpriteWin = makeWin("animation", "anim", {
       spriteLayer({ selectedOrder = { 1 }, selectedSpriteIndex = 1 }),
     })
     local chrWin = makeWin("chr", "bank", {})
+    chrWin.getSelected = function() return 0, 0 end
     local app = makeApp(focusedSpriteWin, chrWin)
 
     RomProjectController.handleFileDropped(app, makeFile("sheet.png"))
 
-    expect(#calls.sprite).toBe(1)
-    expect(calls.sprite[1].win).toBe(focusedSpriteWin)
-    expect(#calls.chr).toBe(0)
+    expect(#calls.chr).toBe(1)
+    expect(calls.chr[1].win).toBe(chrWin)
+    expect(#calls.sprite).toBe(0)
     expect(#calls.ppu).toBe(0)
   end)
 
@@ -223,6 +224,20 @@ describe("rom_project_controller.lua - PNG drop routing", function()
     expect(calls.sprite[1].win).toBe(ppuWin)
     expect(#calls.ppu).toBe(0)
     expect(#calls.chr).toBe(0)
+  end)
+
+  it("uses focused window as drop target when pointer is not over any window", function()
+    local animWin = makeWin("animation", "anim", {
+      spriteLayer({ selectedOrder = { 1 }, selectedSpriteIndex = 1 }),
+    })
+    local app = makeApp(animWin, nil)
+
+    RomProjectController.handleFileDropped(app, makeFile("sheet.png"))
+
+    expect(#calls.sprite).toBe(1)
+    expect(calls.sprite[1].win).toBe(animWin)
+    expect(#calls.chr).toBe(0)
+    expect(#calls.ppu).toBe(0)
   end)
 
   it("routes PNG to CHR import for CHR window when no sprite target is available", function()

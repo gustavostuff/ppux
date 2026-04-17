@@ -1425,51 +1425,9 @@ function M.handleFileDropped(app, file)
       return false
     end
 
-    local function windowHasSelectedSprite(win)
-      if not (win and win.layers) then return false end
-      for i, L in ipairs(win.layers) do
-        if L and L.kind == "sprite" then
-          local selected = SpriteController.getSelectedSpriteIndicesInOrder(L)
-          if #selected > 0 then
-            DebugController.log(
-              "info",
-              "PNG_DROP",
-              "windowHasSelectedSprite(%s)=true on layer %d selectedCount=%d",
-              fmtWin(win),
-              tonumber(i) or -1,
-              #selected
-            )
-            return true
-          end
-          local idx = L.selectedSpriteIndex
-          if type(idx) == "number" then
-            local s = L.items and L.items[idx]
-            if s and s.removed ~= true then
-              DebugController.log(
-                "info",
-                "PNG_DROP",
-                "windowHasSelectedSprite(%s)=true via selectedSpriteIndex=%d on layer %d",
-                fmtWin(win),
-                idx,
-                tonumber(i) or -1
-              )
-              return true
-            end
-          end
-        end
-      end
-      DebugController.log("info", "PNG_DROP", "windowHasSelectedSprite(%s)=false", fmtWin(win))
-      return false
-    end
-
-    local spriteTargetWin = nil
-    if windowHasSelectedSprite(focusedWin) then
-      spriteTargetWin = focusedWin
-    elseif windowHasSpriteLayer(targetWin) then
-      spriteTargetWin = targetWin
-    elseif windowHasSpriteLayer(focusedWin) then
-      spriteTargetWin = focusedWin
-    end
+    -- Sprite PNG import always uses the same window as the drop target (under mouse),
+    -- or the focused window only when the pointer is not over any window (targetWin fallback).
+    local spriteTargetWin = windowHasSpriteLayer(targetWin) and targetWin or nil
     DebugController.log("info", "PNG_DROP", "spriteTargetWin=%s", fmtWin(spriteTargetWin))
     
     -- Handle PNG drop on sprite window (any window with active sprite layer)

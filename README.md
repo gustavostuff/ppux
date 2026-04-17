@@ -28,10 +28,10 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
   - [PPU frame windows](#ppu-frame-windows)
   - [Byte budget for PPU Frame windows](#byte-budget-for-ppu-frame-windows)
   - [PPU frame editing notes](#ppu-frame-editing-notes)
+  - [Current nametable codec coverage](#current-nametable-codec-coverage)
   - [OAM animation windows](#oam-animation-windows)
   - [ROM palette windows](#rom-palette-windows)
   - [Window references between entries](#window-references-between-entries)
-  - [Current nametable codec coverage](#current-nametable-codec-coverage)
   - [ROM patches](#rom-patches)
 - [Development](#development)
   - [Build packages](#build-packages)
@@ -233,7 +233,7 @@ Tile mode is for selection, drag and drop and tile-level editing in general.
 - `Ctrl + A` to select all
 - `Delete` / `Backspace` to remove selection where supported
 - arrows to move tile selections
-- `Shift + Up/Down` to switch layers in **multi-layer** windows (animations, PPU Frame, OAM Animation, pattern builder, etc.): **`Up` = next layer, `Down` = previous**. **Static Art** windows stay single-layer and do not use layer switching shortcuts.
+- `Shift + Up/Down` to switch layers in **multi-layer** windows (animations, PPU Frame, OAM Animation, etc.): **`Up` = next layer, `Down` = previous**. **Static Art** windows stay single-layer and do not use layer switching shortcuts.
 - `Ctrl + Up/Down` to change inactive-layer opacity (disabled in PPU Frame pattern-layer-only mode)
 - `1` to `4` to assign palette numbers where supported
 - `H` / `V` to mirror selected sprites
@@ -260,11 +260,12 @@ Edit mode is for pixel-level editing.
 
 ### PNG drops
 
-You can drag and drop a PNG directly into PPUX. What happens depends on the window under the mouse, and sometimes on the focused window.
+You can drag and drop a PNG directly into PPUX. The drop is always applied to the window **under the mouse**. If the pointer is not over any window, the **focused** window is used as the drop target instead.
 
-Sprite windows:
+Sprite PNG import (Static Art, Animation, OAM Animation, or **PPU Frame with the sprite layer active**):
 
-* If the target window has a sprite layer, the PNG is treated as a sprite import.
+* **Static Art**, **Animation**, and **OAM Animation**: a window qualifies if it has **any** sprite layer.
+* **PPU Frame**: a window qualifies for sprite import only when the **active layer** is the **sprite** layer. If the active layer is the **tile** layer, the drop is **not** treated as a sprite import—even if a sprite overlay exists on another layer.
 * If you have selected sprites, PPUX imports into those sprites in selection order.
 * If no sprites are selected, PPUX imports into the layer's sprites from first to last.
 * The PNG must use at most 4 total colors including transparency, or at most 3 non-transparent colors.
@@ -273,18 +274,15 @@ Sprite windows:
 * Fully transparent frames are skipped.
 * When importing into an unselected sprite layer, PPUX also repositions sprites to match the frame grid automatically.
 
-PPU Frame windows:
+PPU Frame windows (nametable unscramble):
 
-* Dropping a PNG on a `ppu_frame` window runs the nametable unscramble/import flow for that screen (it matches the PNG against the current patterns in CHR/ROM window and tries to automatically build the actual nametable layout)
+* When the drop is **not** handled as sprite import (tile layer active on `ppu_frame`, or another window type), dropping on a **`ppu_frame`** window **under the mouse** runs the **nametable unscramble** flow for that screen: it matches the PNG against the current patterns in CHR/ROM and tries to build the nametable layout automatically. This is a powerful/time-saving piece of functionality but it's hard to explain exactly how it works, video tutorials will probably be more useful (soon to be made).
 
 CHR and ROM bank windows:
 
-* Dropping a PNG on a CHR-like source window imports the image into the selected tile position, or the top-left if nothing is selected.
+* Dropping a PNG on a CHR-like window **under the mouse** imports the image into the selected tile position, or the top-left if nothing is selected.
 
-Notes:
-
-* PNG drops edit the project/app state and are written out when you save, just like normal tile or sprite pixel edits.
-* If the PNG does not meet the color or size rules, PPUX shows a status message explaining why it was rejected.
+Note: PNG drops aren't currently supported for tile layouts (except for the tiles in CHR/ROM Bank windows)
 
 ## Advanced
 
@@ -357,9 +355,10 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
 
 ### PPU frame editing notes
 
-* **Empty / glass nametable cells** use `patternTable.glassTileIndex` on the tile layer when set; otherwise the empty byte defaults to **0** (pattern-table tile 0 within that layer’s bank and **page** — page 2 still uses nametable byte 0, which maps to the second CHR page in the tile pool). The **show/hide glass** toolbar toggle is persisted as **`showGlassTile`** on the window in saved layouts/projects.
+* **Empty nametable cells** use nametable byte **0** by default, which resolves to pattern-table **tile 0** for that layer’s bank and **page** (page 2 still uses byte 0, mapping to the second CHR page in the tile pool).
 * Tile layers render from a **cached full-canvas** nametable view for performance; after heavy edits, use the normal refresh paths the UI offers if a screen looks stale.
 * For **sprites**, use **Add sprite** on the toolbar to bind OAM entries. Sprite items that share the same `startAddr` **stay in sync** with **OAM Animation** windows (and other PPU Frame sprite layers) so moving or reconfiguring one updates the linked entries.
+* **Nametable range sync:** PPU Frame windows that share the same `nametableStartAddr` and `nametableEndAddr` keep their uncompressed nametable + attribute bytes (and ROM slice) aligned when you edit the tile layer in any one of them—similar to sprite `startAddr` sync.
 * **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. A plain **right-click** still opens the usual context menus when you are not dragging.
 * **Pattern layer mode**: use the pattern-table toggle button to isolate the runtime pattern reference layer. In this mode, tile/sprite layers are hidden from navigation and `Ctrl + Up/Down` inactive-layer opacity is disabled.
 * **Pattern range UX**: adding a pattern range updates the reference layer immediately and switches to pattern-layer mode to review the new logical range quickly.
@@ -375,13 +374,17 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
 {
   kind = "ppu_frame",
   id = "ppu_01",
-  showGlassTile = true, -- optional; persisted; omit defaults to showing glass for empty cells
   layers = {
     [1] = {
       kind = "tile",
       bank = 9,
-      page = 1,            -- 1 or 2; with no patternTable.glassTileIndex, empty cells use nametable byte 0 (tile 0 on this page)
-      patternTable = { glassTileIndex = 0 }, -- optional; logical index (0..511)
+      page = 1,            -- 1 or 2; empty cells use nametable byte 0 → tile 0 on this page
+      patternTable = {
+        ranges = {
+          { bank = 9, page = 1, tileRange = { from = 0, to = 255 } },
+          ...
+        },
+      },
       nametableEndAddr = 0x01329B,
       nametableStartAddr = 0x013110,
       paletteData = { winId = "rom_palette_01" }
@@ -394,7 +397,6 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
         ...
       }
     },
-    ...
   }
 }
 ```
@@ -602,8 +604,7 @@ Run a single scenario:
 
 See [E2E Testing](docs/test/E2E_TESTING.md) for scenario details and options.
 
-:white_check_mark: All 694 unit tests are passing.
+Before a release, run the unit and E2E scripts above; both suites should pass (test counts change as the project grows).
 
-:white_check_mark: All 22 E22 tests are passing.
-
----
+:white:check_mark: All 695 unit tests passing.
+:white:check_mark: All 22 E2E tests passing.
