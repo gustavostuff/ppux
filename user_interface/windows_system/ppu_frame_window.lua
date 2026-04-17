@@ -1362,10 +1362,22 @@ function PPUFrameWindow:updateCompressedBytesInROM()
 
   self.romRaw = newRom
   self.originalTotalByteNumber = #bytesToWrite
+
+  do
+    local gctx = rawget(_G, "ctx")
+    local app = gctx and gctx.app or nil
+    if app and app.appEditState then
+      app.appEditState.romRaw = newRom
+    end
+  end
   
   DebugController.log("info", "NT_VERIFICATION", "Successfully wrote %d bytes to ROM at address %d", #bytesToWrite, startAddr)
 
   self:syncNametableLayerMetadata()
+
+  if NametableTilesController.syncPeerPpuFrameNametableWindows then
+    NametableTilesController.syncPeerPpuFrameNametableWindows(self, layer, {})
+  end
 
   return true
 end

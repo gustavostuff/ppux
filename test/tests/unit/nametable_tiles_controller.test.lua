@@ -788,5 +788,85 @@ describe("nametable_tiles_controller.lua", function()
       expect(calls[3].text).toBe("Nametable data (302 bytes) larger than original (301 bytes)")
     end)
   end)
+
+  describe("syncPeerPpuFrameNametableWindows", function()
+    it("copies nametable, attributes, ROM reference, and tileSwaps for matching windows", function()
+      local layerA = {
+        kind = "tile",
+        nametableStartAddr = 0x1000,
+        nametableEndAddr = 0x1100,
+        codec = "konami",
+      }
+      local layerB = {
+        kind = "tile",
+        nametableStartAddr = 0x1000,
+        nametableEndAddr = 0x1100,
+        codec = "konami",
+      }
+      local rom = string.rep("\0", 0x2000)
+      local winA = {
+        kind = "ppu_frame",
+        title = "A",
+        _closed = false,
+        layers = { layerA },
+        cols = 32,
+        rows = 30,
+        nametableBytes = {},
+        nametableAttrBytes = {},
+        romRaw = rom,
+        _nametableCompressedSize = 50,
+        _nametableOriginalSize = 257,
+        originalTotalByteNumber = 257,
+      }
+      local winB = {
+        kind = "ppu_frame",
+        title = "B",
+        _closed = false,
+        layers = { layerB },
+        cols = 32,
+        rows = 30,
+        nametableBytes = {},
+        nametableAttrBytes = {},
+        romRaw = "old-rom",
+        _originalNametableBytes = {},
+        _tileSwaps = {},
+      }
+      for i = 1, 960 do
+        winA.nametableBytes[i] = 0x00
+        winB.nametableBytes[i] = 0x00
+      end
+      for i = 1, 64 do
+        winA.nametableAttrBytes[i] = 0
+        winB.nametableAttrBytes[i] = 0
+      end
+      for i = 1, 960 do
+        winB._originalNametableBytes[i] = 0x00
+      end
+      winA.nametableBytes[100] = 0xAB
+      winB.nametableBytes[100] = 0x11
+      winA.nametableAttrBytes[3] = 0x55
+      winB.nametableAttrBytes[3] = 0x00
+
+      local refreshed = false
+      function winB:refreshNametableVisuals()
+        refreshed = true
+      end
+      function winB:syncNametableLayerMetadata() end
+
+      local n = NametableTilesController.syncPeerPpuFrameNametableWindows(winA, layerA, {
+        windows = { winA, winB },
+      })
+      expect(n).toBe(1)
+      expect(winB.nametableBytes[100]).toBe(0xAB)
+      expect(winB.nametableAttrBytes[3]).toBe(0x55)
+      expect(winB.romRaw).toBe(rom)
+      expect(winB._nametableCompressedSize).toBe(50)
+      expect(refreshed).toBe(true)
+      expect(winB._tileSwaps[100]).toBe(0xAB)
+      expect(layerB.userDefinedAttrs).toBe(
+        string.rep("00", 2) .. "55" .. string.rep("00", 61)
+      )
+    end)
+  end)
   
 end)

@@ -1108,4 +1108,204 @@ function M._setPaletteNumberForPPUFrame(win, layer, col, row, paletteNum, cols, 
   return true
 end
 
+----------------------------------------------------------------------
+-- Multi-window sync: same compressed nametable range in ROM
+----------------------------------------------------------------------
+
+local function collectPpuFrameWindows(sourceWin, opts)
+  local out = {}
+  local seen = {}
+
+  local function add(win)
+    if not win or seen[win] then
+      return
+    end
+    seen[win] = true
+    out[#out + 1] = win
+  end
+
+  opts = opts or {}
+  if type(opts.windows) == "table" then
+    for _, win in ipairs(opts.windows) do
+      add(win)
+    end
+  else
+    local ctx = rawget(_G, "ctx")
+    local app = ctx and ctx.app or nil
+    local wm = opts.wm
+      or (sourceWin and sourceWin._wm)
+      or (app and app.wm)
+      or nil
+    if wm and wm.getWindows then
+      for _, win in ipairs(wm:getWindows() or {}) do
+        add(win)
+      end
+    end
+  end
+
+  if #out == 0 then
+    add(sourceWin)
+  end
+
+  local filtered = {}
+  for _, win in ipairs(out) do
+    if WindowCaps.isPpuFrame(win) and not win._closed then
+      filtered[#filtered + 1] = win
+    end
+  end
+  return filtered
+end
+
+local function findPeerNametableLayer(peer, startAddr, endAddr)
+  for _, L in ipairs(peer.layers or {}) do
+    if L
+      and L.kind == "tile"
+      and L._runtimePatternTableRefLayer ~= true
+      and type(L.nametableStartAddr) == "number"
+      and type(L.nametableEndAddr) == "number"
+      and L.nametableStartAddr == startAddr
+      and L.nametableEndAddr == endAddr
+    then
+      return L
+    end
+  end
+  return nil
+end
+
+local function rebuildTileSwapsFromOriginals(win)
+  local origTbl = win._originalNametableBytes
+  if type(origTbl) ~= "table" or #origTbl == 0 then
+    return
+  end
+  win._tileSwaps = {}
+  for i = 1, #(win.nametableBytes or {}) do
+    local orig = origTbl[i]
+    local cur = win.nametableBytes[i]
+    if orig ~= nil and cur ~= orig then
+      win._tileSwaps[i] = cur
+    end
+  end
+end
+
+--- After sourceWin writes compressed nametable bytes to ROM, push the same
+--- uncompressed nametable + attribute state (and romRaw) into every other
+--- PPU frame window that references the same nametableStartAddr/nametableEndAddr.
+---
+--- This mirrors SpriteTransformController.syncSharedOAMSpriteState: one edit
+--- path updates ROM once; peers receive a byte-level snapshot so every UI
+--- entry point stays covered without duplicating tool logic.
+---
+--- Returns the number of peer windows updated (excluding sourceWin).
+function M.syncPeerPpuFrameNametableWindows(sourceWin, sourceLayer, opts)
+  if not WindowCaps.isPpuFrame(sourceWin) then
+    return 0
+  end
+  if not (sourceLayer and sourceLayer.kind == "tile") then
+    return 0
+  end
+  if sourceLayer._runtimePatternTableRefLayer == true then
+    return 0
+  end
+  local startAddr = sourceLayer.nametableStartAddr
+  local endAddr = sourceLayer.nametableEndAddr
+  if type(startAddr) ~= "number" or type(endAddr) ~= "number" then
+    return 0
+  end
+
+  opts = opts or {}
+  local srcNt = sourceWin.nametableBytes or {}
+  local srcAt = sourceWin.nametableAttrBytes or {}
+  if #srcNt == 0 then
+    return 0
+  end
+
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app or nil
+  local tilesPool = opts.tilesPool
+  if tilesPool == nil and app and app.appEditState then
+    tilesPool = app.appEditState.tilesPool
+  end
+
+  local updated = 0
+  for _, peer in ipairs(collectPpuFrameWindows(sourceWin, opts)) do
+    if peer ~= sourceWin then
+      local peerLayer = findPeerNametableLayer(peer, startAddr, endAddr)
+      if peerLayer then
+        if (peerLayer.codec or "konami") ~= (sourceLayer.codec or "konami") then
+          DebugController.log(
+            "warning",
+            "NTM",
+            "Nametable peer sync: codec mismatch on window '%s' (peer=%s source=%s); still copying bytes/ROM",
+            tostring(peer.title or ""),
+            tostring(peerLayer.codec or "konami"),
+            tostring(sourceLayer.codec or "konami")
+          )
+        end
+
+        if #srcNt ~= #(peer.nametableBytes or {}) then
+          DebugController.log(
+            "warning",
+            "NTM",
+            "Nametable peer sync: nametable length mismatch (%d vs %d), skip peer '%s'",
+            #srcNt,
+            #(peer.nametableBytes or {}),
+            tostring(peer.title or "")
+          )
+        elseif #srcAt ~= #(peer.nametableAttrBytes or {}) then
+          DebugController.log(
+            "warning",
+            "NTM",
+            "Nametable peer sync: attribute length mismatch (%d vs %d), skip peer '%s'",
+            #srcAt,
+            #(peer.nametableAttrBytes or {}),
+            tostring(peer.title or "")
+          )
+        else
+          peer.nametableBytes = peer.nametableBytes or {}
+          for i = 1, #srcNt do
+            peer.nametableBytes[i] = srcNt[i]
+          end
+          peer.nametableAttrBytes = peer.nametableAttrBytes or {}
+          for i = 1, #srcAt do
+            peer.nametableAttrBytes[i] = srcAt[i]
+          end
+
+          peer.romRaw = sourceWin.romRaw
+          if type(sourceWin._nametableCompressedSize) == "number" then
+            peer._nametableCompressedSize = sourceWin._nametableCompressedSize
+          end
+          if type(sourceWin._nametableOriginalSize) == "number" then
+            peer._nametableOriginalSize = sourceWin._nametableOriginalSize
+          end
+          if type(sourceWin.originalTotalByteNumber) == "number" then
+            peer.originalTotalByteNumber = sourceWin.originalTotalByteNumber
+          end
+
+          rebuildTileSwapsFromOriginals(peer)
+
+          local attrsHex = attrsToHexString(peer.nametableAttrBytes)
+          if attrsHex then
+            peerLayer.userDefinedAttrs = attrsHex
+          end
+
+          local peerLi = findLayerIndex(peer, peerLayer) or 1
+          if peer.refreshNametableVisuals then
+            peer:refreshNametableVisuals(tilesPool, peerLi)
+          else
+            M.extractPaletteNumbersFromAttributes(peer, peerLayer, peer.cols or 32, peer.rows or 30)
+          end
+
+          if peer.syncNametableLayerMetadata then
+            peer:syncNametableLayerMetadata()
+          end
+
+          updated = updated + 1
+        end
+      end
+    end
+  end
+
+  return updated
+end
+
 return M
