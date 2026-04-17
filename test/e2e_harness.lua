@@ -225,8 +225,25 @@ function E2EHarness:getApp()
   return self.app
 end
 
+--- Text shown in the status strip and/or surfaced as a toast (matches user-visible feedback).
 function E2EHarness:getStatusText()
-  return self.app and self.app.statusText or nil
+  local app = self.app
+  if not app then
+    return nil
+  end
+  local bar = tostring(app.lastEventText or app.statusText or "")
+  if bar ~= "" then
+    return bar
+  end
+  local tc = app.toastController
+  if tc and type(tc.toasts) == "table" and #tc.toasts > 0 then
+    local newest = tc.toasts[1]
+    local txt = newest and newest.text
+    if txt and tostring(txt) ~= "" then
+      return tostring(txt)
+    end
+  end
+  return nil
 end
 
 function E2EHarness:getFocusedWindow()
