@@ -83,6 +83,86 @@ local function showSelectedTileLabel(ctx, win, col, row, item)
   end
 end
 
+-- PPU nametable cell (1..cols*rows, denom 960 for 32×30) + CHR pattern index (0..511) + 0-based bank.
+local function setPpuTilePickStatus(ctx, win, col, row, item)
+  if not (WindowCaps.isPpuFrame(win) and item) then
+    return
+  end
+  local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+  local layer = win.layers and win.layers[li]
+  if not (layer and layer.kind == "tile") then
+    return
+  end
+  if layer._runtimePatternTableRefLayer == true then
+    return
+  end
+
+  local cols = math.max(1, math.floor(tonumber(win.cols) or 32))
+  local rows = math.max(1, math.floor(tonumber(win.rows) or 30))
+  local c = math.floor(col or 0)
+  local r = math.floor(row or 0)
+  if c < 0 or r < 0 or c >= cols or r >= rows then
+    return
+  end
+
+  local totalCells = cols * rows
+  local slot0 = r * cols + c
+
+  local chrIdx = math.floor(tonumber(item.index) or 0) % 512
+  local bankRaw = math.floor(tonumber(item._bankIndex) or 1)
+  local bank0 = math.max(0, bankRaw - 1)
+
+  local app = ctx and ctx.app
+  local targetWin = app and app.winBank
+  local isRom = targetWin and targetWin.kind == "chr" and targetWin.isRomWindow == true
+  local where = isRom and "CHR by ROM" or "CHR window"
+
+  if totalCells == 960 then
+    setStatus(ctx, string.format(
+      "tile %d/960, %d in %s (bank %d)",
+      slot0,
+      chrIdx,
+      where,
+      bank0
+    ))
+  else
+    setStatus(ctx, string.format(
+      "tile %d/%d, %d in %s (bank %d)",
+      slot0,
+      math.max(0, totalCells - 1),
+      chrIdx,
+      where,
+      bank0
+    ))
+  end
+end
+
+-- CHR/ROM bank window: full tile index and offset within the 256-tile pattern page.
+local function setChrTilePickStatus(ctx, win, col, row, item)
+  if not (WindowCaps.isChrLike(win) and item) then
+    return
+  end
+
+  local cols = math.max(1, math.floor(tonumber(win.cols) or 16))
+  local idx
+  if type(item.index) == "number" then
+    idx = math.floor(item.index)
+  else
+    idx = math.floor(row or 0) * cols + math.floor(col or 0)
+  end
+  idx = math.max(0, idx)
+
+  local page = math.floor(idx / 256) + 1
+  local rel = idx % 256
+
+  setStatus(ctx, string.format("Tile %d (page %d, index %d relative to page)", idx, page, rel))
+end
+
+local function setTilePickStatus(ctx, win, col, row, item)
+  setPpuTilePickStatus(ctx, win, col, row, item)
+  setChrTilePickStatus(ctx, win, col, row, item)
+end
+
 local function isTileMultiSelectWindow(env, win, layerIdx)
   local ctx = env.ctx
   if ctx.getMode() ~= "tile" then return false end
@@ -730,6 +810,7 @@ local function handleTileSelection(env, button, x, y, win, wm)
       win:setSelected(vcol, vrow, layerIdx)
     end
     showSelectedTileLabel(ctx, win, vcol, vrow, vitem)
+    setTilePickStatus(ctx, win, vcol, vrow, vitem)
     startTileDrag(env, win, vcol, vrow, layerIdx, vitem, wm, x, y, ctrlDown, tileGroup)
     return true
   end
@@ -769,6 +850,7 @@ local function handleTileSelection(env, button, x, y, win, wm)
         win:setSelected(col, row, layerIdx)
       end
       showSelectedTileLabel(ctx, win, col, row, item)
+      setTilePickStatus(ctx, win, col, row, item)
       startTileDrag(env, win, col, row, layerIdx, item, wm, x, y, ctrlDown, tileGroup)
     else
       setTileClick({ active = false })
