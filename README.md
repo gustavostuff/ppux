@@ -6,7 +6,7 @@ Version: 0.1.0
 
 <img src="img/readme_images/app_example.png" alt="">
 
-Edit NES graphics in game-aware context instead of rebuilding screens by hand.
+Edit NES graphics as the player sees them. No tile puzzle solving.
 
 PPUX uses an in-app [database](#database) plus project files to understand banks, palettes, sprite layouts, animations, and other ROM-specific structures.
 
