@@ -1570,6 +1570,28 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
     self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)
     self:_appendRemoveRomPaletteLinkMenuItem(items, context.win, context.layerIndex)
   end
+  if context and context.layer and context.layer.kind == "sprite"
+      and context.win and context.win.kind == "oam_animation"
+      and type(context.itemIndex) == "number" then
+    items[#items + 1] = {
+      text = "Remove sprite",
+      enabled = true,
+      callback = function()
+        local MultiSelectController = require("controllers.input_support.multi_select_controller")
+        local result = MultiSelectController.deleteSpriteSelection(
+          context.win,
+          context.layerIndex,
+          self.undoRedo,
+          { indices = { context.itemIndex } }
+        )
+        if result and result.status then
+          self:setStatus(result.status)
+        elseif not result then
+          self:setStatus("Could not remove sprite")
+        end
+      end,
+    }
+  end
   self:_appendPasteContextMenuItem(items, context)
   return items
 end
@@ -2634,6 +2656,40 @@ function AppCoreController:_buildOamSpriteEmptySpaceContextMenuItems(context)
         return self:showPpuFrameAddSpriteModal(context.win)
       end,
     }
+
+    local layer = context.layer
+    if layer and layer.kind == "sprite" then
+      local SpriteController = require("controllers.sprite.sprite_controller")
+      local selected = SpriteController and SpriteController.getSelectedSpriteIndices(layer) or {}
+      if #selected == 0 and layer.selectedSpriteIndex then
+        selected = { layer.selectedSpriteIndex }
+      end
+      local hasRemovable = false
+      for _, idx in ipairs(selected) do
+        local s = layer.items and layer.items[idx]
+        if s and s.removed ~= true then
+          hasRemovable = true
+          break
+        end
+      end
+      if hasRemovable then
+        items[#items + 1] = {
+          text = "Remove selected sprites",
+          enabled = true,
+          callback = function()
+            local MultiSelectController = require("controllers.input_support.multi_select_controller")
+            local result = MultiSelectController.deleteSpriteSelection(
+              context.win,
+              context.layerIndex,
+              self.undoRedo
+            )
+            if result and result.status then
+              self:setStatus(result.status)
+            end
+          end,
+        }
+      end
+    end
   end
   if context and context.win and context.layerIndex then
     self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)

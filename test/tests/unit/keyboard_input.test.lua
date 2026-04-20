@@ -4,11 +4,11 @@ local Tile = require("user_interface.windows_system.tile_item")
 local Window = require("user_interface.windows_system.window")
 
 describe("keyboard_input.lua - delete key on sprite selections", function()
-  it("applies sprite delete rules by window kind (static/animation allow, oam blocks)", function()
+  it("applies sprite delete rules by window kind (static/animation/oam allow)", function()
     local cases = {
       { kind = "static_art", expectBlocked = false, expectedStatus = "Deleted sprite" },
       { kind = "animation", expectBlocked = false, expectedStatus = "Deleted sprite" },
-      { kind = "oam_animation", expectBlocked = true, expectedStatus = "Cannot delete sprites in OAM animation windows" },
+      { kind = "oam_animation", expectBlocked = false, expectedStatus = "Deleted sprite" },
     }
 
     for _, case in ipairs(cases) do

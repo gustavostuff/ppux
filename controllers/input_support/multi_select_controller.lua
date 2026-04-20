@@ -207,21 +207,21 @@ function M.selectSpritesInRect(win, layerIndex, rect, append)
   layer.selectedSpriteIndex = order[1]
 end
 
-function M.deleteSpriteSelection(win, layerIndex, undoRedo)
+function M.deleteSpriteSelection(win, layerIndex, undoRedo, opts)
+  opts = opts or {}
   if not (win and layerIndex and win.layers) then return nil end
-  if WindowCaps.isOamAnimation(win) then
-    return {
-      count = 0,
-      status = "Cannot delete sprites in OAM animation windows",
-    }
-  end
   local layer = win.layers[layerIndex]
   if not (layer and layer.kind == "sprite") then return nil end
 
   local SpriteController = require("controllers.sprite.sprite_controller")
-  local selected = SpriteController and SpriteController.getSelectedSpriteIndices(layer) or {}
-  if (#selected == 0) and layer.selectedSpriteIndex then
-    selected = { layer.selectedSpriteIndex }
+  local selected
+  if type(opts.indices) == "table" and #opts.indices > 0 then
+    selected = opts.indices
+  else
+    selected = SpriteController and SpriteController.getSelectedSpriteIndices(layer) or {}
+    if (#selected == 0) and layer.selectedSpriteIndex then
+      selected = { layer.selectedSpriteIndex }
+    end
   end
   if #selected == 0 then return nil end
 

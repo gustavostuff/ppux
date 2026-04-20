@@ -207,8 +207,8 @@ describe("multi_select_controller.lua - ppu tile group drag", function()
   end)
 end)
 
-describe("multi_select_controller.lua - oam animation sprite deletion restriction", function()
-  it("blocks sprite deletion in oam_animation windows", function()
+describe("multi_select_controller.lua - oam animation sprite deletion", function()
+  it("deletes selected sprites in oam_animation windows", function()
     local layer = {
       kind = "sprite",
       items = {
@@ -224,10 +224,31 @@ describe("multi_select_controller.lua - oam animation sprite deletion restrictio
     local result = MultiSelectController.deleteSpriteSelection(win, 1, nil)
 
     expect(result).toBeTruthy()
-    expect(result.count).toBe(0)
-    expect(result.status).toBe("Cannot delete sprites in OAM animation windows")
-    expect(layer.items[1].removed).toBe(false)
-    expect(layer.selectedSpriteIndex).toBe(1)
+    expect(result.count).toBe(1)
+    expect(result.status).toBe("Deleted sprite")
+    expect(layer.items[1].removed).toBe(true)
+    expect(layer.selectedSpriteIndex).toBeNil()
+  end)
+
+  it("does not remove sprites on other layers that share the same OAM startAddr", function()
+    local sharedA = { bank = 0, tile = 1, startAddr = 0x1234 }
+    local sharedB = { bank = 0, tile = 1, startAddr = 0x1234 }
+    local other = { bank = 0, tile = 2, startAddr = 0x9999 }
+    local layer1 = { kind = "sprite", items = { sharedA }, selectedSpriteIndex = 1 }
+    local layer2 = { kind = "sprite", items = { other } }
+    local layer3 = { kind = "sprite", items = { sharedB } }
+    local win = {
+      kind = "oam_animation",
+      layers = { layer1, layer2, layer3 },
+    }
+
+    local result = MultiSelectController.deleteSpriteSelection(win, 1, nil)
+
+    expect(result).toBeTruthy()
+    expect(result.count).toBe(1)
+    expect(sharedA.removed).toBe(true)
+    expect(sharedB.removed).toBeNil()
+    expect(other.removed).toBeNil()
   end)
 end)
 

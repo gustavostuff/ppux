@@ -97,10 +97,6 @@ local function ensureQuickButtons(app)
           return
         end
         app:showNewWindowModal()
-        app:setStatus("New window — choose a type")
-        if app.showToast then
-          app:showToast("info", "New window — choose a type")
-        end
       end,
       x = 0,
       y = 0,

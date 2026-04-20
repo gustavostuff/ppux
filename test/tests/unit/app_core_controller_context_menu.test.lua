@@ -137,6 +137,38 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(addCalls).toBe(1)
   end)
 
+  it("adds Remove selected sprites to OAM empty-space menu when sprites are selected", function()
+    local app = setmetatable({
+      showPpuFrameAddSpriteModal = function()
+        return true
+      end,
+      undoRedo = {
+        addRemovalEvent = function() end,
+      },
+      setStatus = function() end,
+    }, AppCoreController)
+
+    local layer = {
+      kind = "sprite",
+      items = {
+        { bank = 0, tile = 1 },
+      },
+      selectedSpriteIndex = 1,
+    }
+    local context = app:_buildOamSpriteEmptySpaceContext({
+      kind = "oam_animation",
+      layers = { layer },
+    }, 1)
+
+    local items = app:_buildOamSpriteEmptySpaceContextMenuItems(context)
+    expect(#items).toBeGreaterThanOrEqual(2)
+    expect(items[1].text).toBe("Add new sprite")
+    expect(items[2].text).toBe("Remove selected sprites")
+    expect(items[2].enabled).toBe(true)
+    items[2].callback()
+    expect(layer.items[1].removed).toBe(true)
+  end)
+
   it("adds Paste to PPU/select/CHR context menus only when clipboard paste is allowed", function()
     local oldHasClipboardData = KeyboardClipboardController.hasClipboardData
     local oldGetActionAvailability = KeyboardClipboardController.getActionAvailability
