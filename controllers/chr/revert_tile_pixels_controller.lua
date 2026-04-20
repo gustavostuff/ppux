@@ -5,6 +5,7 @@ local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
 local BankViewController = require("controllers.chr.bank_view_controller")
 local ChrDuplicateSync = require("controllers.chr.duplicate_sync_controller")
 local GameArtEditsController = require("controllers.game_art.edits_controller")
+local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 
 local M = {}
@@ -90,57 +91,147 @@ local function normalizeItemTileIndex(item)
   return tileIndex
 end
 
---- Returns list of 0-based tile indices to revert for a context menu target.
-function M.collectTileIndicesForContext(context)
-  if not (context and context.layer) then
-    return nil, nil
+local function tileItemAt(win, layerIndex, col, row)
+  if not win then
+    return nil
   end
+  if win.get then
+    local item = win:get(col, row, layerIndex)
+    if item then
+      return item
+    end
+  end
+  if win.getVirtualTileHandle and win.materializeTileHandle then
+    local h = win:getVirtualTileHandle(col, row, layerIndex)
+    if h then
+      return win:materializeTileHandle(h, layerIndex)
+    end
+  end
+  return nil
+end
 
-  local bankIdx = tonumber(context.sourceBank)
-  if not bankIdx then
-    return nil, nil
+local function bankForTileItem(item, layer, win, contextSourceBank)
+  return tonumber(item and item._bankIndex)
+    or tonumber(contextSourceBank)
+    or tonumber(layer and layer.bank)
+    or tonumber(win and win.currentBank)
+    or 1
+end
+
+local function appendChrOddEvenPairTargets(win, layer, layerIndex, col, row, contextSourceBank, out, seen)
+  local topRow = row - (row % 2)
+  if not win.getTileIndexAt then
+    return
+  end
+  local a = win:getTileIndexAt(col, topRow)
+  local b = win:getTileIndexAt(col, topRow + 1)
+  if a == nil or b == nil then
+    return
+  end
+  local itemTop = tileItemAt(win, layerIndex, col, topRow)
+  local bank = bankForTileItem(itemTop, layer, win, contextSourceBank)
+  local function add(ti)
+    local key = bank .. ":" .. ti
+    if seen[key] then
+      return
+    end
+    seen[key] = true
+    out[#out + 1] = { bank = bank, tileIndex = ti }
+  end
+  add(a)
+  add(b)
+end
+
+local function appendNormalTileTarget(win, layer, layerIndex, col, row, contextSourceBank, out, seen)
+  local item = tileItemAt(win, layerIndex, col, row)
+  if not item then
+    return
+  end
+  local idx = normalizeItemTileIndex(item)
+  if idx == nil then
+    return
+  end
+  local bank = bankForTileItem(item, layer, win, contextSourceBank)
+  local key = bank .. ":" .. idx
+  if seen[key] then
+    return
+  end
+  seen[key] = true
+  out[#out + 1] = { bank = bank, tileIndex = idx }
+end
+
+--- Returns a list of { bank = number, tileIndex = number } (0-based tile, 1-based bank) to revert.
+--- Respects tile multi-selection when the context menu is opened on a cell inside `multiTileSelection`.
+function M.collectTileRevertPairs(context)
+  if not (context and context.layer) then
+    return nil
   end
 
   local layer = context.layer
   local item = context.item
   local win = context.win
+  local defaultBank = tonumber(context.sourceBank) or 1
+
+  local out = {}
+  local seen = {}
 
   if layer.kind == "sprite" then
+    local bankIdx = defaultBank
     local mode = layer.mode or "8x8"
     if mode == "8x16" then
       local top, bot = resolve8x16Pair(item and item.tile, item and item.tileBelow)
       if top == nil then
-        return nil, bankIdx
+        return nil
       end
-      return { top, bot }, bankIdx
+      out[1] = { bank = bankIdx, tileIndex = top }
+      out[2] = { bank = bankIdx, tileIndex = bot }
+      return out
     end
     local idx = normalizeItemTileIndex(item)
     if idx == nil then
-      return nil, bankIdx
+      return nil
     end
-    return { idx }, bankIdx
+    out[1] = { bank = bankIdx, tileIndex = idx }
+    return out
   end
 
-  if layer.kind == "tile" then
-    if WindowCaps.isChrLike(win) and win.orderMode == "oddEven" and type(context.col) == "number" and type(context.row) == "number" then
-      local topRow = context.row - (context.row % 2)
-      local li = context.layerIndex or 1
-      if win.getTileIndexAt then
-        local a = win:getTileIndexAt(context.col, topRow)
-        local b = win:getTileIndexAt(context.col, topRow + 1)
-        if a ~= nil and b ~= nil then
-          return { a, b }, bankIdx
-        end
-      end
-    end
-    local idx = normalizeItemTileIndex(item)
-    if idx == nil then
-      return nil, bankIdx
-    end
-    return { idx }, bankIdx
+  if layer.kind ~= "tile" or not win then
+    return nil
   end
 
-  return nil, bankIdx
+  local li = context.layerIndex or (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+  if type(context.col) ~= "number" or type(context.row) ~= "number" then
+    return nil
+  end
+
+  local cells
+  if MultiSelectController.isTileCellSelected(win, li, context.col, context.row) then
+    cells = MultiSelectController.getSelectedTileCells(win, li, nil, nil)
+  end
+  if not cells or #cells == 0 then
+    local cols = win.cols or 0
+    cells = {
+      {
+        col = context.col,
+        row = context.row,
+        idx = (context.row * cols + context.col) + 1,
+      },
+    }
+  end
+
+  for _, cell in ipairs(cells) do
+    local col, row = cell.col, cell.row
+    if WindowCaps.isChrLike(win) and win.orderMode == "oddEven" then
+      appendChrOddEvenPairTargets(win, layer, li, col, row, defaultBank, out, seen)
+    else
+      appendNormalTileTarget(win, layer, li, col, row, defaultBank, out, seen)
+    end
+  end
+
+  if #out == 0 then
+    return nil
+  end
+  return out
 end
 
 function M.hasOriginalBaseline(app)
@@ -152,29 +243,35 @@ function M.canRevertContext(app, context)
   if not M.hasOriginalBaseline(app) then
     return false
   end
-  local indices, bankIdx = M.collectTileIndicesForContext(context)
-  if not indices or not bankIdx then
+  local pairs = M.collectTileRevertPairs(context)
+  if not pairs then
     return false
   end
   local state = app.appEditState
-  local orig = state.originalChrBanksBytes[bankIdx]
-  local cur = state.chrBanksBytes[bankIdx]
-  if not (orig and cur) then
-    return false
-  end
-  for _, tileIndex0 in ipairs(indices) do
-    if not tileBytesMatch(orig, cur, tileIndex0) then
-      return true
+  for _, p in ipairs(pairs) do
+    local bankIdx = math.floor(tonumber(p.bank) or 0)
+    local tileIndex0 = math.floor(tonumber(p.tileIndex) or -1)
+    if bankIdx >= 1 and tileIndex0 >= 0 and tileIndex0 < 512 then
+      local orig = state.originalChrBanksBytes[bankIdx]
+      local cur = state.chrBanksBytes[bankIdx]
+      if orig and cur and not tileBytesMatch(orig, cur, tileIndex0) then
+        return true
+      end
     end
   end
   return false
 end
 
---- Copy original CHR bytes for listed 0-based tile indices into current banks, refresh pool + canvas.
-function M.revertTiles(app, bankIdx, tileIndices0)
+--- Copy original CHR bytes for each { bank, tileIndex } pair into current banks, refresh pool + canvas.
+--- One undo event for the whole operation.
+function M.revertTilePairs(app, pairs)
   if not (app and app.appEditState) then
     return false, "no app state"
   end
+  if type(pairs) ~= "table" or #pairs == 0 then
+    return false, "no tiles"
+  end
+
   local state = app.appEditState
   local origBanks = state.originalChrBanksBytes
   local curBanks = state.chrBanksBytes
@@ -182,37 +279,33 @@ function M.revertTiles(app, bankIdx, tileIndices0)
     return false, "no original CHR baseline"
   end
 
-  bankIdx = math.floor(tonumber(bankIdx) or 0)
-  if bankIdx < 1 then
-    return false, "bad bank"
-  end
-
-  local origBank = origBanks[bankIdx]
-  local curBank = curBanks[bankIdx]
-  if not (origBank and curBank) then
-    return false, "bank not loaded"
-  end
-
-  local seen = {}
+  local globalSeen = {}
   local targets = {}
   local undoTiles = {}
-  for _, ti in ipairs(tileIndices0 or {}) do
-    local tileIndex0 = math.floor(tonumber(ti) or -1)
-    if tileIndex0 >= 0 and tileIndex0 < 512 and not seen[tileIndex0] then
-      seen[tileIndex0] = true
-      if not tileBytesMatch(origBank, curBank, tileIndex0) then
-        undoTiles[#undoTiles + 1] = {
-          bank = bankIdx,
-          tileIndex = tileIndex0,
-          before = cloneTile16FromBank(curBank, tileIndex0),
-          after = cloneTile16FromBank(origBank, tileIndex0),
-        }
-        copyTile16(origBank, curBank, tileIndex0)
-        if app.edits then
-          GameArtEditsController.resyncTileEditsForTile(app.edits, origBank, curBank, bankIdx, tileIndex0)
+
+  for _, p in ipairs(pairs) do
+    local bankIdx = math.floor(tonumber(p.bank) or 0)
+    local tileIndex0 = math.floor(tonumber(p.tileIndex) or -1)
+    if bankIdx >= 1 and tileIndex0 >= 0 and tileIndex0 < 512 then
+      local gkey = bankIdx .. ":" .. tileIndex0
+      if not globalSeen[gkey] then
+        globalSeen[gkey] = true
+        local origBank = origBanks[bankIdx]
+        local curBank = curBanks[bankIdx]
+        if origBank and curBank and not tileBytesMatch(origBank, curBank, tileIndex0) then
+          undoTiles[#undoTiles + 1] = {
+            bank = bankIdx,
+            tileIndex = tileIndex0,
+            before = cloneTile16FromBank(curBank, tileIndex0),
+            after = cloneTile16FromBank(origBank, tileIndex0),
+          }
+          copyTile16(origBank, curBank, tileIndex0)
+          if app.edits then
+            GameArtEditsController.resyncTileEditsForTile(app.edits, origBank, curBank, bankIdx, tileIndex0)
+          end
+          refreshTileRef(state, bankIdx, tileIndex0)
+          targets[#targets + 1] = { bank = bankIdx, tileIndex = tileIndex0 }
         end
-        refreshTileRef(state, bankIdx, tileIndex0)
-        targets[#targets + 1] = { bank = bankIdx, tileIndex = tileIndex0 }
       end
     end
   end
@@ -238,12 +331,28 @@ function M.revertTiles(app, bankIdx, tileIndices0)
   return true, nil, targets
 end
 
+--- Copy original CHR bytes for listed 0-based tile indices into current banks, refresh pool + canvas.
+function M.revertTiles(app, bankIdx, tileIndices0)
+  bankIdx = math.floor(tonumber(bankIdx) or 0)
+  if bankIdx < 1 then
+    return false, "bad bank"
+  end
+  local pairs = {}
+  for _, ti in ipairs(tileIndices0 or {}) do
+    local t0 = math.floor(tonumber(ti) or -1)
+    if t0 >= 0 and t0 < 512 then
+      pairs[#pairs + 1] = { bank = bankIdx, tileIndex = t0 }
+    end
+  end
+  return M.revertTilePairs(app, pairs)
+end
+
 function M.revertForContext(app, context)
-  local indices, bankIdx = M.collectTileIndicesForContext(context)
-  if not indices then
+  local pairs = M.collectTileRevertPairs(context)
+  if not pairs then
     return false, "no tiles"
   end
-  return M.revertTiles(app, bankIdx, indices)
+  return M.revertTilePairs(app, pairs)
 end
 
 return M
