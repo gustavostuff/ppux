@@ -84,9 +84,10 @@ describe("game_art_rom_patch_controller.lua", function()
       { addresses = { 0x20, 0x22 }, values = { 0xAA, 0xBB }, reason = "list" },
       { from = 0x30, to = 0x31, values = { 0xCC, 0xDD }, reason = "range" },
       { addresses = { from = 0x40, to = 0x41, 0x99 }, values = { 0xEE, 0xEF }, reason = "range-priority" },
+      { addresses = { from = 0x50 }, values = { 0x11, 0x22 }, reason = "inferred-to" },
     })
 
-    expect(#normalized).toBe(3)
+    expect(#normalized).toBe(4)
     expect(normalized[1].addresses[1]).toBe(0x20)
     expect(normalized[1].values[2]).toBe(0xBB)
     expect(normalized[2].addresses.from).toBe(0x30)
@@ -95,6 +96,10 @@ describe("game_art_rom_patch_controller.lua", function()
     expect(normalized[3].addresses.to).toBe(0x41)
     expect(normalized[3].values[1]).toBe(0xEE)
     expect(normalized[3].values[2]).toBe(0xEF)
+    expect(normalized[4].addresses.from).toBe(0x50)
+    expect(normalized[4].addresses.to).toBeNil()
+    expect(normalized[4].values[1]).toBe(0x11)
+    expect(normalized[4].values[2]).toBe(0x22)
   end)
 end)
 

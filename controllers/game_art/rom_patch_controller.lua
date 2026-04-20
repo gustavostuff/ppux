@@ -56,6 +56,10 @@ local function normalizePatchValues(values, count)
 end
 
 local function normalizeRangeSequenceRomPatchEntry(entry, reason)
+  local toSpecifiedOnEntry = entry.to ~= nil
+  local toSpecifiedOnAddresses = type(entry.addresses) == "table" and entry.addresses.to ~= nil
+  local persistTo = toSpecifiedOnEntry or toSpecifiedOnAddresses
+
   local from = normalizePatchAddress(entry.from)
   local to = normalizePatchAddress(entry.to)
 
@@ -68,21 +72,35 @@ local function normalizeRangeSequenceRomPatchEntry(entry, reason)
     end
   end
 
-  if not from or not to or to < from then
+  if not from then
     return nil
   end
 
-  local count = to - from + 1
-  local values = normalizePatchValues(entry.values, count)
-  if not values then
-    return nil
+  local values
+  local addressesOut = { from = from }
+
+  if persistTo then
+    if to == nil or to < from then
+      return nil
+    end
+    local count = to - from + 1
+    values = normalizePatchValues(entry.values, count)
+    if not values then
+      return nil
+    end
+    addressesOut.to = to
+  else
+    values = normalizePatchValues(entry.values)
+    if not values then
+      return nil
+    end
+    if #values == 0 then
+      return nil
+    end
   end
 
   return {
-    addresses = {
-      from = from,
-      to = to,
-    },
+    addresses = addressesOut,
     values = values,
     reason = reason,
   }

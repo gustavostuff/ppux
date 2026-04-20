@@ -9,6 +9,8 @@ describe("game_art_controller.lua - romPatches", function()
       { addresses = { from = 0x20, to = 0x22 }, values = { 0x30, 0x31, 0x32 }, reason = "valid range sequence" },
       { addresses = { 0x40, 0x42 }, values = { 0x50, 0x51 }, reason = "valid address list sequence" },
       { from = 0x60, to = 0x61, values = { 0x70, 0x71 }, reason = "valid top-level range sequence" },
+      { addresses = { from = 0x61 }, values = { 0x71, 0x72 }, reason = "range sequence infers to from values" },
+      { from = 0x62, values = { 0x73, 0x74, 0x75 }, reason = "top-level from only infers to" },
       {
         addresses = { from = 0x80, to = 0x81, 0x90, 0x91 },
         values = { 0xA0, 0xA1 },
@@ -22,13 +24,15 @@ describe("game_art_controller.lua - romPatches", function()
       { addresses = { from = 0x40, to = 0x41 }, values = { 0x50 }, reason = "bad range length" },
       { addresses = { from = 0x42, to = 0x43 }, values = { 0x100, 0x10 }, reason = "bad range value" },
       { addresses = { from = 0x50, to = 0x4F }, values = { 0x01, 0x02 }, reason = "inverted range" },
+      { addresses = { from = 0x51 }, values = {}, reason = "from only with empty values" },
+      { from = 0x52, values = {}, reason = "top-level from only with empty values" },
       { from = 0x70, to = 0x71, values = { 0x01 }, reason = "bad top-level range length" },
       { address = 0x44, value = 0x10, addresses = { 0x45 }, values = { 0x11 }, reason = "mixed formats" },
       { address = 0x40, value = 0x7F, reason = "valid 2" },
     })
 
     expect(normalized).toBeTruthy()
-    expect(#normalized).toBe(6)
+    expect(#normalized).toBe(8)
     expect(normalized[1].address).toBe(0x10)
     expect(normalized[1].value).toBe(0x2A)
     expect(normalized[1].reason).toBe("valid")
@@ -48,20 +52,31 @@ describe("game_art_controller.lua - romPatches", function()
     expect(normalized[4].values[1]).toBe(0x70)
     expect(normalized[4].values[2]).toBe(0x71)
     expect(normalized[4].reason).toBe("valid top-level range sequence")
-    expect(normalized[5].addresses.from).toBe(0x80)
-    expect(normalized[5].addresses.to).toBe(0x81)
-    expect(normalized[5].values[1]).toBe(0xA0)
-    expect(normalized[5].values[2]).toBe(0xA1)
-    expect(normalized[5].reason).toBe("range fields win over address list")
-    expect(normalized[6].address).toBe(0x40)
-    expect(normalized[6].value).toBe(0x7F)
+    expect(normalized[5].addresses.from).toBe(0x61)
+    expect(normalized[5].addresses.to).toBeNil()
+    expect(normalized[5].values[1]).toBe(0x71)
+    expect(normalized[5].values[2]).toBe(0x72)
+    expect(normalized[5].reason).toBe("range sequence infers to from values")
+    expect(normalized[6].addresses.from).toBe(0x62)
+    expect(normalized[6].addresses.to).toBeNil()
+    expect(normalized[6].values[1]).toBe(0x73)
+    expect(normalized[6].values[2]).toBe(0x74)
+    expect(normalized[6].values[3]).toBe(0x75)
+    expect(normalized[6].reason).toBe("top-level from only infers to")
+    expect(normalized[7].addresses.from).toBe(0x80)
+    expect(normalized[7].addresses.to).toBe(0x81)
+    expect(normalized[7].values[1]).toBe(0xA0)
+    expect(normalized[7].values[2]).toBe(0xA1)
+    expect(normalized[7].reason).toBe("range fields win over address list")
+    expect(normalized[8].address).toBe(0x40)
+    expect(normalized[8].value).toBe(0x7F)
   end)
 
   it("applies single, range-sequence, and address-list patches directly to romRaw bytes", function()
     local romRaw = string.char(0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06)
     local patched, err, applied = GameArtController.applyRomPatches(romRaw, {
       { address = 0, value = 0x99, reason = "patch first byte" },
-      { addresses = { from = 1, to = 3 }, values = { 0xAA, 0xBB, 0xCC }, reason = "patch range bytes" },
+      { addresses = { from = 1 }, values = { 0xAA, 0xBB, 0xCC }, reason = "patch range bytes" },
       { addresses = { 5, 6 }, values = { 0xDD, 0xEE }, reason = "patch explicit addresses" },
       { address = 9999, value = 0xCC, reason = "out of bounds" }, -- ignored
     })
@@ -85,7 +100,7 @@ describe("game_art_controller.lua - romPatches", function()
       appEditState = {
         romPatches = {
           { address = 0x1234, value = 0x0F, reason = "keep black" },
-          { addresses = { from = 0x2000, to = 0x2001 }, values = { 0x80, 0x81 }, reason = "sequence" },
+          { addresses = { from = 0x2000 }, values = { 0x80, 0x81 }, reason = "sequence" },
           { addresses = { 0x3000, 0x3003 }, values = { 0x82, 0x83 }, reason = "list sequence" },
         },
       },
@@ -97,7 +112,7 @@ describe("game_art_controller.lua - romPatches", function()
     expect(project.romPatches[1].value).toBe(0x0F)
     expect(project.romPatches[1].reason).toBe("keep black")
     expect(project.romPatches[2].addresses.from).toBe(0x2000)
-    expect(project.romPatches[2].addresses.to).toBe(0x2001)
+    expect(project.romPatches[2].addresses.to).toBeNil()
     expect(project.romPatches[2].values[1]).toBe(0x80)
     expect(project.romPatches[2].values[2]).toBe(0x81)
     expect(project.romPatches[2].reason).toBe("sequence")
