@@ -206,6 +206,41 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(editCalls).toBe(1)
   end)
 
+  it("puts Edit sprite first on PPU frame sprite select-in-CHR context menu", function()
+    local editCalls = 0
+    local app = setmetatable({
+      showPpuFrameAddSpriteModal = function(_, targetWin, opts)
+        editCalls = editCalls + 1
+        expect(targetWin.kind).toBe("ppu_frame")
+        expect(opts and opts.editSprite).toBeTruthy()
+        expect(opts.editSprite.layerIndex).toBe(2)
+        expect(opts.editSprite.itemIndex).toBe(1)
+        return true
+      end,
+    }, AppCoreController)
+
+    local win = { kind = "ppu_frame", layers = {} }
+    local layer = {
+      kind = "sprite",
+      items = {
+        { bank = 1, tile = 5, startAddr = 0x300 },
+      },
+    }
+    local context = {
+      win = win,
+      layerIndex = 2,
+      layer = layer,
+      itemIndex = 1,
+      item = layer.items[1],
+      tileIndex = 5,
+    }
+
+    local items = app:_buildSelectInChrContextMenuItems(context)
+    expect(items[1].text).toBe("Edit sprite")
+    items[1].callback()
+    expect(editCalls).toBe(1)
+  end)
+
   it("adds Paste to PPU/select/CHR context menus only when clipboard paste is allowed", function()
     local oldHasClipboardData = KeyboardClipboardController.hasClipboardData
     local oldGetActionAvailability = KeyboardClipboardController.getActionAvailability

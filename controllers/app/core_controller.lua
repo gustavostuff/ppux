@@ -1559,7 +1559,8 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
     },
   }
   if context and context.layer and context.layer.kind == "sprite"
-      and context.win and context.win.kind == "oam_animation"
+      and context.win
+      and (context.win.kind == "oam_animation" or context.win.kind == "ppu_frame")
       and type(context.itemIndex) == "number" then
     table.insert(items, 1, {
       text = "Edit sprite",
@@ -2573,7 +2574,7 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
   local editSprite = modalOpts.editSprite
   local editLayerIndex, editItemIndex = nil, nil
   local isEdit = false
-  if win.kind == "oam_animation"
+  if (win.kind == "oam_animation" or win.kind == "ppu_frame")
       and editSprite
       and type(editSprite.layerIndex) == "number"
       and type(editSprite.itemIndex) == "number" then
@@ -2639,11 +2640,17 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
         return false
       end
 
-      local oamStart, oamErr = parseHexAddress(oamStartText)
-      if not oamStart then
-        self:setStatus(oamErr)
-        self:showToast("error", oamErr)
-        return false
+      local trimmedOam = tostring(oamStartText or ""):match("^%s*(.-)%s*$")
+      local oamStart, oamErr
+      if isEdit and trimmedOam == "" then
+        oamStart = nil
+      else
+        oamStart, oamErr = parseHexAddress(oamStartText)
+        if not oamStart then
+          self:setStatus(oamErr)
+          self:showToast("error", oamErr)
+          return false
+        end
       end
 
       local state = self.appEditState or {}
@@ -2750,12 +2757,20 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
         end
 
         self:markUnsaved("sprite_move")
-        self:setStatus(string.format(
-          "Updated sprite at OAM 0x%06X (bank %d, tile %d)",
-          oamStart,
-          bankNumber,
-          tileNumber
-        ))
+        if type(oamStart) == "number" then
+          self:setStatus(string.format(
+            "Updated sprite at OAM 0x%06X (bank %d, tile %d)",
+            oamStart,
+            bankNumber,
+            tileNumber
+          ))
+        else
+          self:setStatus(string.format(
+            "Updated sprite (bank %d, tile %d)",
+            bankNumber,
+            tileNumber
+          ))
+        end
         return true
       end
 

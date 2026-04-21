@@ -313,7 +313,8 @@ local function handleSpriteClick(env, button, x, y, win, wm)
     showSelectedTileLabel(ctx, win, 0, 0, L.items and L.items[targetIndex] or nil)
 
     local finalSprite = L.items and L.items[targetIndex] or nil
-    if WindowCaps.isOamAnimation(win) and not shiftDown and not ctrlDown
+    local spriteEditWin = WindowCaps.isOamAnimation(win) or WindowCaps.isPpuFrame(win)
+    if spriteEditWin and not shiftDown and not ctrlDown
         and finalSprite and finalSprite.removed ~= true then
       local at = nowSeconds(env)
       local sameSprite = oamSpriteEditDoubleClick.win == win
@@ -335,7 +336,7 @@ local function handleSpriteClick(env, button, x, y, win, wm)
         return true
       end
       rememberOamSpriteEditClick(win, layerIndex, finalSprite, at)
-    elseif not WindowCaps.isOamAnimation(win) then
+    elseif not spriteEditWin then
       clearOamSpriteEditClick()
     end
 
