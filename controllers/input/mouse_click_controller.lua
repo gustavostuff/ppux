@@ -13,6 +13,29 @@ local romPaletteCellDoubleClick = {
 }
 local ROM_PALETTE_DOUBLE_CLICK_SECONDS = 0.35
 
+local oamSpriteEditDoubleClick = {
+  win = nil,
+  layerIndex = nil,
+  sprite = nil,
+  at = -math.huge,
+}
+local OAM_SPRITE_EDIT_DOUBLE_CLICK_SECONDS = 0.35
+
+local function rememberOamSpriteEditClick(win, layerIndex, sprite, at)
+  oamSpriteEditDoubleClick.win = win
+  oamSpriteEditDoubleClick.layerIndex = layerIndex
+  oamSpriteEditDoubleClick.sprite = sprite
+  oamSpriteEditDoubleClick.at = at or -math.huge
+end
+
+local function clearOamSpriteEditClick()
+  rememberOamSpriteEditClick(nil, nil, nil, -math.huge)
+end
+
+function M._resetOamSpriteEditDoubleClickState()
+  clearOamSpriteEditClick()
+end
+
 local function setStatus(ctx, text)
   if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
     ctx.app:setStatus(text)
@@ -237,6 +260,7 @@ local function handleSpriteClick(env, button, x, y, win, wm)
   local ctrlDown = utils.ctrlDown and utils.ctrlDown()
 
   if shiftDown and isSpriteMultiSelectWindow(env, win, li) then
+    clearOamSpriteEditClick()
     setSpriteClick({ active = false })
     wm:setFocus(win)
     SpriteController.startSpriteMarquee(win, li, x, y, false)
@@ -266,6 +290,7 @@ local function handleSpriteClick(env, button, x, y, win, wm)
     end
 
     if ctrlDown then
+      clearOamSpriteEditClick()
       if not contains then
         local nextSel = {}
         for _, idx in ipairs(currentSelOrdered) do
@@ -287,6 +312,33 @@ local function handleSpriteClick(env, button, x, y, win, wm)
     L.hoverSpriteIndex = targetIndex
     showSelectedTileLabel(ctx, win, 0, 0, L.items and L.items[targetIndex] or nil)
 
+    local finalSprite = L.items and L.items[targetIndex] or nil
+    if WindowCaps.isOamAnimation(win) and not shiftDown and not ctrlDown
+        and finalSprite and finalSprite.removed ~= true then
+      local at = nowSeconds(env)
+      local sameSprite = oamSpriteEditDoubleClick.win == win
+        and oamSpriteEditDoubleClick.layerIndex == layerIndex
+        and oamSpriteEditDoubleClick.sprite == finalSprite
+      local prevAt = oamSpriteEditDoubleClick.at or -math.huge
+      if sameSprite and ((at - prevAt) <= OAM_SPRITE_EDIT_DOUBLE_CLICK_SECONDS) then
+        clearOamSpriteEditClick()
+        setSpriteClick({ active = false })
+        local app = ctx and ctx.app or nil
+        if app and app.showPpuFrameAddSpriteModal then
+          app:showPpuFrameAddSpriteModal(win, {
+            editSprite = {
+              layerIndex = layerIndex,
+              itemIndex = targetIndex,
+            },
+          })
+        end
+        return true
+      end
+      rememberOamSpriteEditClick(win, layerIndex, finalSprite, at)
+    elseif not WindowCaps.isOamAnimation(win) then
+      clearOamSpriteEditClick()
+    end
+
     if not shiftDown then
       setSpriteClick({
         active = true,
@@ -306,6 +358,7 @@ local function handleSpriteClick(env, button, x, y, win, wm)
     return true
   end
 
+  clearOamSpriteEditClick()
   setSpriteClick({ active = false })
   SpriteController.clearSpriteSelection(L)
   L.hoverSpriteIndex = nil

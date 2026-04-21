@@ -32,6 +32,7 @@ local UserInput = require("controllers.input")
 local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
 local TableUtils = require("utils.table_utils")
 local PatternTableMapping = require("utils.pattern_table_mapping")
+local WindowCaps = require("controllers.window.window_capabilities")
 
 local AppCoreController = {}
 AppCoreController.__index = AppCoreController
@@ -1557,6 +1558,22 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
       end,
     },
   }
+  if context and context.layer and context.layer.kind == "sprite"
+      and context.win and context.win.kind == "oam_animation"
+      and type(context.itemIndex) == "number" then
+    table.insert(items, 1, {
+      text = "Edit sprite",
+      enabled = true,
+      callback = function()
+        return self:showPpuFrameAddSpriteModal(context.win, {
+          editSprite = {
+            layerIndex = context.layerIndex,
+            itemIndex = context.itemIndex,
+          },
+        })
+      end,
+    })
+  end
   if context and context.layer and context.layer._runtimePatternTableRefLayer == true then
     items[#items + 1] = {
       text = "Remove tile range at this tile",
@@ -2465,6 +2482,72 @@ local function getInitialPpuSpriteModalValues(app)
   return tostring(bankNumber), tostring(tileNumber), ""
 end
 
+-- After changing `item.tile` (or bank), drop explicit bottom index so 8x16 hydration
+-- recomputes the NES pair (even top + top+1) instead of keeping a stale tileBelow.
+local function reset8x16SpriteTilePairAfterChrEdit(layer, item)
+  if layer and layer.kind == "sprite" and layer.mode == "8x16" and item then
+    item.tileBelow = nil
+  end
+end
+
+local function hydrateUniqueSpriteLayers(layersSet, romRaw, tilesPool, appEditState)
+  for layer in pairs(layersSet) do
+    if layer and layer.kind == "sprite" then
+      SpriteController.hydrateSpriteLayer(layer, {
+        romRaw = romRaw,
+        tilesPool = tilesPool,
+        appEditState = appEditState,
+        keepWorld = true,
+      })
+    end
+  end
+end
+
+local function collectSpritesSharingOamStartAddr(app, oldStartAddr)
+  local entries = {}
+  if type(oldStartAddr) ~= "number" then
+    return entries
+  end
+  local wm = app and app.wm
+  if not (wm and wm.getWindows) then
+    return entries
+  end
+  for _, w in ipairs(wm:getWindows() or {}) do
+    if WindowCaps.isStartAddrSpriteSyncWindow(w) and not w._closed then
+      for li, layer in ipairs(w.layers or {}) do
+        if layer and layer.kind == "sprite" then
+          for _, it in ipairs(layer.items or {}) do
+            if it and it.removed ~= true
+                and type(it.startAddr) == "number"
+                and it.startAddr == oldStartAddr then
+              entries[#entries + 1] = {
+                win = w,
+                layerIndex = li,
+                layer = layer,
+                sprite = it,
+              }
+            end
+          end
+        end
+      end
+    end
+  end
+  return entries
+end
+
+-- Updates every non-removed sprite item sharing oldStartAddr (PPU frame + OAM windows).
+local function patchSharedOamSpriteBinding(app, oldStartAddr, bankNumber, tileNumber, oamStart)
+  local layersToHydrate = {}
+  for _, e in ipairs(collectSpritesSharingOamStartAddr(app, oldStartAddr)) do
+    e.sprite.bank = bankNumber
+    e.sprite.tile = tileNumber
+    e.sprite.startAddr = oamStart
+    reset8x16SpriteTilePairAfterChrEdit(e.layer, e.sprite)
+    layersToHydrate[e.layer] = true
+  end
+  return layersToHydrate
+end
+
 function AppCoreController:showPpuFrameSpriteLayerModeModal(win, opts)
   if not (self.ppuFrameSpriteLayerModeModal and win and win.kind == "ppu_frame") then
     return false
@@ -2481,15 +2564,45 @@ function AppCoreController:showPpuFrameSpriteLayerModeModal(win, opts)
   return true
 end
 
-function AppCoreController:showPpuFrameAddSpriteModal(win)
+function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
   if not (self.ppuFrameAddSpriteModal and win and (win.kind == "ppu_frame" or win.kind == "oam_animation")) then
     return false
   end
 
-  local initialBank, initialTile, initialOamStart = getInitialPpuSpriteModalValues(self)
+  modalOpts = modalOpts or {}
+  local editSprite = modalOpts.editSprite
+  local editLayerIndex, editItemIndex = nil, nil
+  local isEdit = false
+  if win.kind == "oam_animation"
+      and editSprite
+      and type(editSprite.layerIndex) == "number"
+      and type(editSprite.itemIndex) == "number" then
+    editLayerIndex = editSprite.layerIndex
+    editItemIndex = editSprite.itemIndex
+    isEdit = true
+  end
+
+  local initialBank, initialTile, initialOamStart
+  if isEdit then
+    local editLayer = win.layers and win.layers[editLayerIndex] or nil
+    local editItem = editLayer and editLayer.items and editLayer.items[editItemIndex] or nil
+    if not (editLayer and editLayer.kind == "sprite" and editItem and editItem.removed ~= true) then
+      return false
+    end
+    initialBank = tostring(tonumber(editItem.bank) or 1)
+    initialTile = tostring(tonumber(editItem.tile) or 0)
+    initialOamStart = (type(editItem.startAddr) == "number")
+        and string.format("0x%06X", editItem.startAddr) or ""
+  else
+    initialBank, initialTile, initialOamStart = getInitialPpuSpriteModalValues(self)
+  end
+
+  local modalTitle = modalOpts.title or (isEdit and "Edit sprite" or "Add sprite")
+  local primaryButtonText = modalOpts.primaryButtonText or (isEdit and "Save" or "Add")
 
   self.ppuFrameAddSpriteModal:show({
-    title = "Add sprite",
+    title = modalTitle,
+    primaryButtonText = primaryButtonText,
     window = win,
     initialBank = initialBank,
     initialTile = initialTile,
@@ -2553,6 +2666,97 @@ function AppCoreController:showPpuFrameAddSpriteModal(win)
         self:setStatus(message)
         self:showToast("error", message)
         return false
+      end
+
+      if isEdit then
+        local layer = targetWindow.layers and targetWindow.layers[editLayerIndex] or nil
+        local sprite = layer and layer.items and layer.items[editItemIndex] or nil
+        if not (layer and layer.kind == "sprite" and sprite and sprite.removed ~= true) then
+          self:setStatus("Could not find sprite to update")
+          return false
+        end
+
+        local oldStartAddr = sprite.startAddr
+        local entries
+        if type(oldStartAddr) == "number" then
+          entries = collectSpritesSharingOamStartAddr(self, oldStartAddr)
+        else
+          entries = {
+            {
+              win = targetWindow,
+              layerIndex = editLayerIndex,
+              layer = layer,
+              sprite = sprite,
+            },
+          }
+        end
+
+        local beforeBySprite = {}
+        for _, e in ipairs(entries) do
+          beforeBySprite[e.sprite] = SpriteStateSnapshot.captureSpriteBindingState(e.sprite)
+        end
+
+        local layersToHydrate = {}
+        if type(oldStartAddr) == "number" then
+          layersToHydrate = patchSharedOamSpriteBinding(
+            self,
+            oldStartAddr,
+            bankNumber,
+            tileNumber,
+            oamStart
+          )
+        else
+          sprite.bank = bankNumber
+          sprite.tile = tileNumber
+          sprite.startAddr = oamStart
+          reset8x16SpriteTilePairAfterChrEdit(layer, sprite)
+          layersToHydrate[layer] = true
+        end
+
+        hydrateUniqueSpriteLayers(layersToHydrate, romRaw, tilesPool, state)
+
+        local bindingActions = {}
+        for _, e in ipairs(entries) do
+          local spr = e.sprite
+          local before = beforeBySprite[spr]
+          local after = SpriteStateSnapshot.captureSpriteBindingState(spr)
+          if before and after and not SpriteStateSnapshot.bindingStatesEqual(before, after) then
+            bindingActions[#bindingActions + 1] = {
+              win = e.win,
+              layerIndex = e.layerIndex,
+              sprite = spr,
+              before = before,
+              after = after,
+            }
+          end
+        end
+        if #bindingActions > 0 and self.undoRedo and self.undoRedo.addDragEvent then
+          self.undoRedo:addDragEvent({
+            type = "sprite_drag",
+            mode = "sprite_binding",
+            actions = bindingActions,
+          })
+        end
+
+        layer.selectedSpriteIndex = editItemIndex
+        layer.multiSpriteSelection = nil
+        layer.multiSpriteSelectionOrder = nil
+        layer.hoverSpriteIndex = editItemIndex
+
+        if targetWindow.setActiveLayerIndex then
+          targetWindow:setActiveLayerIndex(editLayerIndex)
+        else
+          targetWindow.activeLayer = editLayerIndex
+        end
+
+        self:markUnsaved("sprite_move")
+        self:setStatus(string.format(
+          "Updated sprite at OAM 0x%06X (bank %d, tile %d)",
+          oamStart,
+          bankNumber,
+          tileNumber
+        ))
+        return true
       end
 
       spriteLayer.items = spriteLayer.items or {}

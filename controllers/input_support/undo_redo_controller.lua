@@ -212,6 +212,7 @@ function UndoRedoController:addDragEvent(event)
         or event.mode == "mirror"
         or event.mode == "copy"
         or event.mode == "palette"
+        or event.mode == "sprite_binding"
       )
     then
       self:_notifyUnsaved("sprite_move")
@@ -625,9 +626,58 @@ local function applySpriteState(sprite, state)
   return true
 end
 
-local function applySpriteDragEvent(event, direction)
+local function applySpriteBindingState(sprite, state)
+  if not (sprite and state) then
+    return false
+  end
+  sprite.bank = state.bank
+  sprite.tile = state.tile
+  sprite.startAddr = state.startAddr
+  sprite.tileBelow = state.tileBelow
+  return true
+end
+
+local function applySpriteDragEvent(event, direction, app)
   if not (event and event.type == "sprite_drag" and event.actions) then
     return false
+  end
+
+  if event.mode == "sprite_binding" then
+    local SpriteController = require("controllers.sprite.sprite_controller")
+    local layersToHydrate = {}
+    local applied = 0
+    for _, act in ipairs(event.actions) do
+      local sprite = act.sprite
+      if sprite then
+        local state = (direction == "undo") and act.before or act.after
+        if applySpriteBindingState(sprite, state) then
+          applied = applied + 1
+          local win = act.win
+          local li = act.layerIndex
+          if win and win.layers and type(li) == "number" then
+            local layer = win.layers[li]
+            if layer and layer.kind == "sprite" then
+              layersToHydrate[layer] = true
+            end
+          end
+        end
+      end
+    end
+    if applied == 0 then
+      return false
+    end
+    local editState = app and app.appEditState
+    local romRaw = (editState and editState.romRaw) or ""
+    local tilesPool = editState and editState.tilesPool
+    for layer in pairs(layersToHydrate) do
+      SpriteController.hydrateSpriteLayer(layer, {
+        romRaw = romRaw,
+        tilesPool = tilesPool,
+        appEditState = editState,
+        keepWorld = true,
+      })
+    end
+    return true
   end
 
   local sync = event.sync or {}
@@ -1070,7 +1120,7 @@ function UndoRedoController:_applyEvent(event, direction, app)
   elseif event.type == "tile_drag" then
     return applyTileDragEvent(event, direction)
   elseif event.type == "sprite_drag" then
-    return applySpriteDragEvent(event, direction)
+    return applySpriteDragEvent(event, direction, app)
   elseif event.type == "palette_color" then
     return applyPaletteColorEvent(event, direction)
   elseif event.type == "window_rename" then

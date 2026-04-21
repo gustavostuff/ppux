@@ -180,6 +180,29 @@ describe("undo_redo_controller.lua - unsaved tracking", function()
     expect(events[#events]).toBe("sprite_move")
   end)
 
+  it("marks sprite_binding edit as unsaved", function()
+    local undo = UndoRedoController.new(10)
+    local events = {}
+    undo:setUnsavedTracker(function(eventType)
+      events[#events + 1] = eventType
+    end)
+
+    local ok = undo:addDragEvent({
+      type = "sprite_drag",
+      mode = "sprite_binding",
+      actions = {
+        {
+          sprite = {},
+          before = { bank = 1, tile = 0, startAddr = 0x100, tileBelow = nil },
+          after = { bank = 1, tile = 1, startAddr = 0x100, tileBelow = nil },
+        },
+      },
+    })
+
+    expect(ok).toBe(true)
+    expect(events[#events]).toBe("sprite_move")
+  end)
+
   it("marks window close as unsaved", function()
     local undo = UndoRedoController.new(10)
     local events = {}

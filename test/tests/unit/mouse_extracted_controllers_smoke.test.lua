@@ -12,12 +12,18 @@ describe("mouse extracted controllers (smoke)", function()
     if MouseClickController._resetRomPaletteDoubleClickState then
       MouseClickController._resetRomPaletteDoubleClickState()
     end
+    if MouseClickController._resetOamSpriteEditDoubleClickState then
+      MouseClickController._resetOamSpriteEditDoubleClickState()
+    end
   end)
 
   afterEach(function()
     ResolutionController.getScaledMouse = originals.getScaledMouse
     if MouseClickController._resetRomPaletteDoubleClickState then
       MouseClickController._resetRomPaletteDoubleClickState()
+    end
+    if MouseClickController._resetOamSpriteEditDoubleClickState then
+      MouseClickController._resetOamSpriteEditDoubleClickState()
     end
   end)
 

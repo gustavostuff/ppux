@@ -28,6 +28,29 @@ function M.captureSpriteState(sprite)
   }
 end
 
+-- CHR / OAM slot fields for edit-sprite modal undo (bank, tile, startAddr, tileBelow).
+function M.captureSpriteBindingState(sprite)
+  if not sprite then
+    return nil
+  end
+  return {
+    bank = sprite.bank,
+    tile = sprite.tile,
+    startAddr = sprite.startAddr,
+    tileBelow = sprite.tileBelow,
+  }
+end
+
+function M.bindingStatesEqual(a, b)
+  if not (a and b) then
+    return false
+  end
+  return a.bank == b.bank
+    and a.tile == b.tile
+    and a.startAddr == b.startAddr
+    and a.tileBelow == b.tileBelow
+end
+
 function M.statesEqual(a, b)
   if not (a and b) then
     return false

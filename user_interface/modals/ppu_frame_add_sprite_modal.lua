@@ -119,6 +119,8 @@ function Dialog:show(opts)
   self.onCancel = opts.onCancel
   self.visible = true
 
+  self.addButton.text = opts.primaryButtonText or "Add"
+
   self.bankField:setText(opts.initialBank or "")
   self.tileField:setText(opts.initialTile or "")
   self.oamStartField:setText(opts.initialOamStart or "")

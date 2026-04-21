@@ -395,6 +395,61 @@ describe("UndoRedoController - sprite mirror drag events", function()
   end)
 end)
 
+describe("UndoRedoController - sprite binding (edit sprite modal)", function()
+  it("undoes and redoes bank, tile, startAddr, and tileBelow", function()
+    local ur = UndoRedoController.new(10)
+    local layer = { kind = "sprite", mode = "8x8", items = {} }
+    local s = {
+      bank = 2,
+      tile = 20,
+      startAddr = 0x0200,
+      tileBelow = nil,
+    }
+    layer.items[1] = s
+    local win = { kind = "oam_animation", layers = { layer } }
+
+    local ok = ur:addDragEvent({
+      type = "sprite_drag",
+      mode = "sprite_binding",
+      actions = {
+        {
+          win = win,
+          layerIndex = 1,
+          sprite = s,
+          before = {
+            bank = 1,
+            tile = 10,
+            startAddr = 0x0100,
+            tileBelow = nil,
+          },
+          after = {
+            bank = 2,
+            tile = 20,
+            startAddr = 0x0200,
+            tileBelow = nil,
+          },
+        },
+      },
+    })
+
+    expect(ok).toBe(true)
+    expect(s.bank).toBe(2)
+    expect(s.tile).toBe(20)
+    expect(s.startAddr).toBe(0x0200)
+
+    local app = { appEditState = { romRaw = "", tilesPool = {} } }
+    expect(ur:undo(app)).toBe(true)
+    expect(s.bank).toBe(1)
+    expect(s.tile).toBe(10)
+    expect(s.startAddr).toBe(0x0100)
+
+    expect(ur:redo(app)).toBe(true)
+    expect(s.bank).toBe(2)
+    expect(s.tile).toBe(20)
+    expect(s.startAddr).toBe(0x0200)
+  end)
+end)
+
 describe("UndoRedoController - window close", function()
   it("undos/redos a closed window and restores prior focus", function()
     local ur = UndoRedoController.new(10)
