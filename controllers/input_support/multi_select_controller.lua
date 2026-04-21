@@ -1,5 +1,6 @@
 local M = {}
 local WindowCaps = require("controllers.window.window_capabilities")
+local PatternTableMapping = require("utils.pattern_table_mapping")
 
 local SPRITE_X_RANGE = 256
 local SPRITE_Y_RANGE = 256
@@ -74,6 +75,55 @@ local function materializeTileInteractionItem(win, item, layerIdx)
     end
   end
   return item
+end
+
+local function clampByte(byteVal)
+  local v = math.floor(tonumber(byteVal) or 0)
+  if v < 0 then return 0 end
+  if v > 255 then return 255 end
+  return v
+end
+
+local function normalizeChrTileIndex(item)
+  local tileIndex = item and tonumber(item.index) or nil
+  if type(tileIndex) ~= "number" then
+    tileIndex = item and tonumber(item.tile) or nil
+  end
+  if type(tileIndex) ~= "number" and item and item.topRef then
+    tileIndex = tonumber(item.topRef.index)
+  end
+  if type(tileIndex) ~= "number" then
+    return nil
+  end
+  tileIndex = math.floor(tileIndex)
+  if tileIndex < 0 then
+    return nil
+  end
+  if tileIndex >= 512 then
+    tileIndex = tileIndex % 512
+  end
+  return tileIndex
+end
+
+local function tileSourceBankAt(win, layer, col, row, item)
+  local sourceBank = tonumber(item and item._bankIndex)
+  if not sourceBank and win.kind == "ppu_frame" and win.nametableBytes then
+    local idx = row * (win.cols or 0) + col + 1
+    local byteVal = win.nametableBytes[idx]
+    if type(byteVal) == "number" and type(layer.patternTable) == "table" then
+      local map = PatternTableMapping.buildMap(layer.patternTable)
+      local entry = map and map[clampByte(byteVal)] or nil
+      sourceBank = entry and tonumber(entry.bank) or nil
+    end
+  end
+  return sourceBank or 1
+end
+
+local function spriteSourceBank(item, layer)
+  return tonumber(item and item.bank)
+    or tonumber(layer and layer.bank)
+    or tonumber(item and item.topRef and item.topRef._bankIndex)
+    or 1
 end
 
 local function wrapSpriteContentPosition(origin, world, range)
@@ -1111,6 +1161,128 @@ function M.getTileMarquee()
     return tileMarquee
   end
   return nil
+end
+
+--- Select every tile cell or sprite on the layer whose CHR identity matches refBank + refTileIndex
+--- (same semantics as select-in-CHR context). Updates multi-tile or multi-sprite selection state.
+function M.selectAllChrReferences(win, layerIndex, refBank, refTileIndex)
+  refBank = tonumber(refBank)
+  refTileIndex = tonumber(refTileIndex)
+  if not (win and win.layers and type(layerIndex) == "number" and refBank and refTileIndex) then
+    return false, 0
+  end
+
+  local layer = win.layers[layerIndex]
+  if not layer then
+    return false, 0
+  end
+
+  if layer.kind == "tile" then
+    local cols = win.cols or 0
+    local rows = win.rows or 0
+    if cols <= 0 or rows <= 0 then
+      return false, 0
+    end
+
+    local removedCells = (WindowCaps.isPpuFrame(win) and layer.kind == "tile") and nil or layer.removedCells
+    local selected = {}
+    local count = 0
+
+    for row = 0, rows - 1 do
+      for col = 0, cols - 1 do
+        local idx = row * cols + col + 1
+        if not (removedCells and removedCells[idx]) then
+          local item = getTileInteractionItem(win, col, row, layerIndex)
+          item = materializeTileInteractionItem(win, item, layerIndex)
+          if item then
+            local bank = tileSourceBankAt(win, layer, col, row, item)
+            local t = normalizeChrTileIndex(item)
+            if bank == refBank and t == refTileIndex then
+              selected[idx] = true
+              count = count + 1
+            end
+          end
+        end
+      end
+    end
+
+    if count == 0 then
+      layer.multiTileSelection = nil
+      if win.clearSelected then
+        win:clearSelected(layerIndex)
+      end
+      return true, 0
+    end
+
+    layer.multiTileSelection = selected
+
+    local firstCol, firstRow = nil, nil
+    for row = 0, rows - 1 do
+      for col = 0, cols - 1 do
+        local idx = row * cols + col + 1
+        if selected[idx] then
+          firstCol, firstRow = col, row
+          break
+        end
+      end
+      if firstCol then
+        break
+      end
+    end
+    if firstCol and win.setSelected then
+      win:setSelected(firstCol, firstRow, layerIndex)
+    end
+    return true, count
+  end
+
+  if layer.kind == "sprite" then
+    layer.multiSpriteSelection = nil
+    layer.multiSpriteSelectionOrder = nil
+    layer.selectedSpriteIndex = nil
+
+    local originX = layer.originX or 0
+    local originY = layer.originY or 0
+    local sel = {}
+    local hitEntries = {}
+
+    for idx, s in ipairs(layer.items or {}) do
+      if s and s.removed ~= true then
+        local bank = spriteSourceBank(s, layer)
+        local t = normalizeChrTileIndex(s)
+        if bank == refBank and t == refTileIndex then
+          sel[idx] = true
+          local wx = s.worldX or s.baseX or s.x or 0
+          local wy = s.worldY or s.baseY or s.y or 0
+          local sx = wrapSpriteContentPosition(originX, wx, SPRITE_X_RANGE)
+          local sy = wrapSpriteContentPosition(originY, wy, SPRITE_Y_RANGE)
+          hitEntries[#hitEntries + 1] = { idx = idx, sx = sx, sy = sy }
+        end
+      end
+    end
+
+    local count = #hitEntries
+    if count == 0 then
+      return true, 0
+    end
+
+    table.sort(hitEntries, function(a, b)
+      if a.sy ~= b.sy then return a.sy < b.sy end
+      if a.sx ~= b.sx then return a.sx < b.sx end
+      return a.idx < b.idx
+    end)
+
+    local order = {}
+    for _, hit in ipairs(hitEntries) do
+      order[#order + 1] = hit.idx
+    end
+
+    layer.multiSpriteSelection = sel
+    layer.multiSpriteSelectionOrder = order
+    layer.selectedSpriteIndex = order[1]
+    return true, count
+  end
+
+  return false, 0
 end
 
 function M.reset()

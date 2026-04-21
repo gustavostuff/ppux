@@ -1459,6 +1459,32 @@ function AppCoreController:_selectPpuTileInChrWindow(context)
   return true
 end
 
+function AppCoreController:_selectAllReferencesFromContext(context)
+  if not context then
+    return false
+  end
+  self:hideAppContextMenus()
+  local MultiSelectController = require("controllers.input_support.multi_select_controller")
+  local ok, count = MultiSelectController.selectAllChrReferences(
+    context.win,
+    context.layerIndex,
+    tonumber(context.sourceBank) or 1,
+    context.tileIndex
+  )
+  if not ok then
+    self:setStatus("Could not select references")
+    return false
+  end
+  if count == 0 then
+    self:setStatus("No matching references")
+  elseif count == 1 then
+    self:setStatus("Selected 1 reference")
+  else
+    self:setStatus(string.format("Selected %d references", count))
+  end
+  return true
+end
+
 function AppCoreController:_buildPpuTileContextMenuItems(context)
   local items = {
     {
@@ -1579,6 +1605,16 @@ function AppCoreController:_removePpuPatternRangeFromRuntimeReference(context)
 end
 
 function AppCoreController:_buildSelectInChrContextMenuItems(context)
+  local canSelectAllRefs = false
+  if context and context.win and context.layer then
+    local win = context.win
+    local layer = context.layer
+    canSelectAllRefs = (layer.kind == "tile" or layer.kind == "sprite")
+      and not WindowCaps.isPpuFrame(win)
+      and not WindowCaps.isChrLike(win)
+      and type(context.tileIndex) == "number"
+  end
+
   local items = {
     {
       text = "Undo pixel edits",
@@ -1597,6 +1633,13 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
       enabled = context and context.tileIndex ~= nil,
       callback = function()
         self:_selectPpuTileInChrWindow(context)
+      end,
+    },
+    {
+      text = "Select all references",
+      enabled = canSelectAllRefs,
+      callback = function()
+        self:_selectAllReferencesFromContext(context)
       end,
     },
   }
