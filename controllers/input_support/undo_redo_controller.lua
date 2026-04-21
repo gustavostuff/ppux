@@ -13,6 +13,7 @@ local ChrDuplicateSync = require("controllers.chr.duplicate_sync_controller")
 local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
 local WindowCaps = require("controllers.window.window_capabilities")
 local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
+local GridLayoutUndo = require("controllers.input_support.grid_layout_undo")
 
 -- Create a new undo/redo manager
 function UndoRedoController.new(maxDepth)
@@ -236,6 +237,19 @@ function UndoRedoController:addAnimationWindowStateEvent(event)
     self:_notifyUnsaved("animation_timeline_change")
   end
   return pushed
+end
+
+function UndoRedoController:addGridLayoutEvent(event)
+  if not event or event.type ~= "grid_layout" then
+    return false
+  end
+  if not (event.win and event.beforeState and event.afterState) then
+    return false
+  end
+  if GridLayoutUndo.snapshotsEqual(event.beforeState, event.afterState) then
+    return false
+  end
+  return self:_pushEvent(event)
 end
 
 -- Add a window close event to the undo stack.
@@ -1139,6 +1153,12 @@ function UndoRedoController:_applyEvent(event, direction, app)
       return false
     end
     return AnimationWindowUndo.apply(event.win, snap)
+  elseif event.type == "grid_layout" then
+    local snap = (direction == "undo") and event.beforeState or event.afterState
+    if not (event.win and snap) then
+      return false
+    end
+    return GridLayoutUndo.apply(event.win, snap)
   elseif event.type == "chr_tile_revert" then
     return applyChrTileRevertEvent(event, direction, app)
   elseif event.type == "window_minimize" then

@@ -48,6 +48,7 @@ describe("app_top_toolbar_controller.lua", function()
       showNewWindowModal = function() end,
       showSaveOptionsModal = function() end,
       cloneFocusedWindow = function() end,
+      resizeFocusedWindowGrid = function() end,
       getClipboardToolbarActionState = function()
         return { allowed = true }
       end,
@@ -62,6 +63,8 @@ describe("app_top_toolbar_controller.lua", function()
     local cloneButton = app._appTopQuickButtons.cloneWindow
     local zoomOutButton = app._appTopQuickButtons.zoomOut
     local zoomInButton = app._appTopQuickButtons.zoomIn
+    local addGridColumnButton = app._appTopQuickButtons.addGridColumn
+    local addGridRowButton = app._appTopQuickButtons.addGridRow
     local copyButton = app._appTopQuickButtons.copy
     local cutButton = app._appTopQuickButtons.cut
     local pasteButton = app._appTopQuickButtons.paste
@@ -73,7 +76,9 @@ describe("app_top_toolbar_controller.lua", function()
     expect(pasteButton.x > cutButton.x).toBe(true)
     expect(zoomOutButton.x > pasteButton.x).toBe(true)
     expect(zoomInButton.x > zoomOutButton.x).toBe(true)
-    expect(cloneButton.x > zoomInButton.x).toBe(true)
+    expect(addGridColumnButton.x > zoomInButton.x).toBe(true)
+    expect(addGridRowButton.x > addGridColumnButton.x).toBe(true)
+    expect(cloneButton.x > addGridRowButton.x).toBe(true)
 
     local inferredGap = newButton.x - (openButton.x + openButton.w)
     expect(saveButton.x).toBe(newButton.x + newButton.w + inferredGap)
@@ -82,7 +87,9 @@ describe("app_top_toolbar_controller.lua", function()
     expect(pasteButton.x).toBe(cutButton.x + cutButton.w + inferredGap)
     expect(zoomOutButton.x).toBe(pasteButton.x + pasteButton.w + inferredGap)
     expect(zoomInButton.x).toBe(zoomOutButton.x + zoomOutButton.w + inferredGap)
-    expect(cloneButton.x).toBe(zoomInButton.x + zoomInButton.w + inferredGap)
+    expect(addGridColumnButton.x).toBe(zoomInButton.x + zoomInButton.w + inferredGap)
+    expect(addGridRowButton.x).toBe(addGridColumnButton.x + addGridColumnButton.w + inferredGap)
+    expect(cloneButton.x).toBe(addGridRowButton.x + addGridRowButton.w + inferredGap)
   end)
 
   it("routes copy/cut/paste buttons through shared app clipboard actions", function()

@@ -656,6 +656,48 @@ function AppCoreController:showNewWindowModal()
   return true
 end
 
+function AppCoreController:resizeFocusedWindowGrid(opts)
+  opts = opts or {}
+  local WindowGridResizeController = require("controllers.window.window_grid_resize_controller")
+  local GridLayoutUndo = require("controllers.input_support.grid_layout_undo")
+  local wm = self.wm
+  local win = wm and wm.getFocus and wm:getFocus() or nil
+  local snapBefore = nil
+  if win and not win._closed and not win._minimized and WindowGridResizeController.isGridResizeWindow(win) then
+    snapBefore = GridLayoutUndo.snapshot(win)
+  end
+
+  local ok, err = WindowGridResizeController.applyFocusedResize(self, opts)
+  if ok then
+    if snapBefore and self.undoRedo and self.undoRedo.addGridLayoutEvent then
+      local snapAfter = GridLayoutUndo.snapshot(win)
+      self.undoRedo:addGridLayoutEvent({
+        type = "grid_layout",
+        win = win,
+        beforeState = snapBefore,
+        afterState = snapAfter,
+      })
+    end
+    local msg = "Grid updated."
+    if opts.addColumn then
+      msg = "Added column."
+    elseif opts.addRow then
+      msg = "Added row."
+    elseif opts.removeColumn then
+      msg = "Removed last column."
+    elseif opts.removeRow then
+      msg = "Removed last row."
+    end
+    self:setStatus(msg)
+  else
+    self:setStatus(err or "Could not resize grid.")
+    if self.showToast then
+      self:showToast("warning", self.statusText or err or "")
+    end
+  end
+  return ok
+end
+
 function AppCoreController:cloneFocusedWindow()
   if not self:hasLoadedROM() then
     self:setStatus("Open a ROM before cloning a window.")

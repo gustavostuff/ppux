@@ -16,6 +16,15 @@ local BUTTON_GAP = 0
 local STATUS_BG_H = 15
 local STATUS_AREA_RATIO = 0.5
 
+-- Unit tests and some harnesses stub `love` without `keyboard`; treat as no modifiers.
+local function isShiftHeld()
+  local kb = love and love.keyboard
+  if not (kb and type(kb.isDown) == "function") then
+    return false
+  end
+  return kb.isDown("lshift") or kb.isDown("rshift")
+end
+
 local function measureDockedToolbarHeight(toolbar, cell)
   if not toolbar then
     return 0
@@ -149,6 +158,42 @@ local function ensureQuickButtons(app)
       w = cell,
       h = cell,
     }),
+    addGridColumn = Button.new({
+      icon = images.icons.icon_new_col or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      tooltip = "Add column to the right",
+      action = withRom(app, function(a)
+        local shift = isShiftHeld()
+        if a.resizeFocusedWindowGrid then
+          a:resizeFocusedWindowGrid({
+            addColumn = not shift,
+            removeColumn = shift,
+          })
+        end
+      end),
+      x = 0,
+      y = 0,
+      w = cell,
+      h = cell,
+      enabled = false,
+    }),
+    addGridRow = Button.new({
+      icon = images.icons.icon_new_row or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      tooltip = "Add row below",
+      action = withRom(app, function(a)
+        local shift = isShiftHeld()
+        if a.resizeFocusedWindowGrid then
+          a:resizeFocusedWindowGrid({
+            addRow = not shift,
+            removeRow = shift,
+          })
+        end
+      end),
+      x = 0,
+      y = 0,
+      w = cell,
+      h = cell,
+      enabled = false,
+    }),
     cloneWindow = Button.new({
       icon = images.icons.icon_clone or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
       tooltip = "Clone focused window",
@@ -221,6 +266,8 @@ local function quickButtonOrder(app)
     order[#order + 1] = "paste"
     order[#order + 1] = "zoomOut"
     order[#order + 1] = "zoomIn"
+    order[#order + 1] = "addGridColumn"
+    order[#order + 1] = "addGridRow"
     order[#order + 1] = "cloneWindow"
   end
   return order
@@ -270,6 +317,44 @@ local function updateZoomButtonStates(app)
   zoomIn.enabled = allow
 end
 
+local function updateGridResizeButtons(app)
+  if not (app and app._appTopQuickButtons) then
+    return
+  end
+  local colBtn = app._appTopQuickButtons.addGridColumn
+  local rowBtn = app._appTopQuickButtons.addGridRow
+  if not (colBtn and rowBtn) then
+    return
+  end
+  local WindowGridResizeController = require("controllers.window.window_grid_resize_controller")
+  local shift = isShiftHeld()
+  local wm = app.wm
+  local focus = wm and wm.getFocus and wm:getFocus() or nil
+  local allow = WindowGridResizeController.isGridResizeWindow(focus)
+
+  colBtn.enabled = allow
+  rowBtn.enabled = allow
+
+  if allow then
+    if shift then
+      colBtn.icon = images.icons.icon_remove_col or colBtn.icon
+      colBtn.tooltip = "Remove last column (Shift)"
+      rowBtn.icon = images.icons.icon_remove_row or rowBtn.icon
+      rowBtn.tooltip = "Remove last row (Shift)"
+    else
+      colBtn.icon = images.icons.icon_new_col or colBtn.icon
+      colBtn.tooltip = "Add column to the right"
+      rowBtn.icon = images.icons.icon_new_row or rowBtn.icon
+      rowBtn.tooltip = "Add row below"
+    end
+  else
+    colBtn.icon = images.icons.icon_new_col or colBtn.icon
+    colBtn.tooltip = "Add column to the right"
+    rowBtn.icon = images.icons.icon_new_row or rowBtn.icon
+    rowBtn.tooltip = "Add row below"
+  end
+end
+
 function M.clearDockLayouts(app)
   if not (app and app.wm and app.wm.getWindows) then
     return
@@ -310,6 +395,7 @@ function M.syncLayout(app)
   end
   updateClipboardButtonStates(app)
   updateZoomButtonStates(app)
+  updateGridResizeButtons(app)
 
   local quickRightX = x
   local dockLeftX = quickRightX + SECTION_GAP

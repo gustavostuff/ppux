@@ -11,6 +11,7 @@ SCENARIOS=(
   "modals"
   "boot_and_drag"
   "animation_playback"
+  "grid_resize_toolbar"
   "tile_edit_roundtrip"
   "brush_paint_tools"
   "new_window_variants"

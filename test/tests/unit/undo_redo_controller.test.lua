@@ -316,6 +316,62 @@ describe("UndoRedoController - animation_window_state", function()
   end)
 end)
 
+describe("UndoRedoController - grid_layout", function()
+  it("undoes and redoes grid dimensions and tile layer maps", function()
+    local ur = UndoRedoController.new(10)
+    local GridLayoutUndo = require("controllers.input_support.grid_layout_undo")
+    local tileRef = { index = 5 }
+    local win = {
+      kind = "animation",
+      cols = 8,
+      rows = 8,
+      visibleCols = 8,
+      visibleRows = 8,
+      scrollCol = 0,
+      scrollRow = 0,
+      activeLayer = 1,
+      selectedByLayer = {},
+      setScroll = function(self, c, r)
+        self.scrollCol = c
+        self.scrollRow = r
+      end,
+      updateLayerOpacities = function() end,
+      layers = {
+        {
+          kind = "tile",
+          items = { [17] = tileRef },
+          paletteNumbers = { [13] = 2 },
+        },
+      },
+    }
+
+    local beforeState = GridLayoutUndo.snapshot(win)
+    win.cols = 9
+    win.visibleCols = 9
+    win.layers[1].items = { [18] = tileRef }
+    win.layers[1].paletteNumbers = { [14] = 2 }
+    local afterState = GridLayoutUndo.snapshot(win)
+
+    ur:addGridLayoutEvent({
+      type = "grid_layout",
+      win = win,
+      beforeState = beforeState,
+      afterState = afterState,
+    })
+
+    expect(win.cols).toBe(9)
+    expect(ur:undo({})).toBe(true)
+    expect(win.cols).toBe(8)
+    expect(win.layers[1].items[17]).toBe(tileRef)
+    expect(win.layers[1].paletteNumbers[13]).toBe(2)
+
+    expect(ur:redo({})).toBe(true)
+    expect(win.cols).toBe(9)
+    expect(win.layers[1].items[18]).toBe(tileRef)
+    expect(win.layers[1].paletteNumbers[14]).toBe(2)
+  end)
+end)
+
 describe("UndoRedoController - sprite mirror drag events", function()
   it("undoes and redoes mirror fields with shared OAM sync options", function()
     local ur = UndoRedoController.new(10)
