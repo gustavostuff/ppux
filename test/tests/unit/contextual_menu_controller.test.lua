@@ -100,6 +100,20 @@ describe("contextual_menu_controller.lua", function()
     expect(menu.childMenu).toBeNil()
   end)
 
+  it("does not open when every item is disabled (nothing renderable)", function()
+    local menu = ContextualMenuController.new({
+      getBounds = function()
+        return { w = 320, h = 240 }
+      end,
+      cellH = 15,
+    })
+    local opened = menu:showAt(10, 10, {
+      { text = "Hidden", enabled = false },
+    })
+    expect(opened).toBe(false)
+    expect(menu:isVisible()).toBe(false)
+  end)
+
   it("waits briefly before switching to a different parent item with children", function()
     local menu = makeMenu()
     menu:setItems({

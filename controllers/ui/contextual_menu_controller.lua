@@ -71,6 +71,17 @@ local function iconWidth(icon)
   return tonumber(icon.w) or 0
 end
 
+-- Items with enabled == false are omitted when the panel is built (same rule everywhere).
+local function countRenderableMenuItems(items)
+  local n = 0
+  for _, item in ipairs(items or {}) do
+    if item and item.enabled ~= false then
+      n = n + 1
+    end
+  end
+  return n
+end
+
 local function visibleItems(menu)
   local out = {}
   for _, item in ipairs(menu.items or {}) do
@@ -349,7 +360,12 @@ function ContextualMenuController:setItems(items)
   self.childHoverGraceUntil = nil
   self.pendingChildRow = nil
   hideChild(self)
+  if countRenderableMenuItems(self.items) == 0 then
+    self:hide()
+    return false
+  end
   rebuildPanel(self)
+  return true
 end
 
 function ContextualMenuController:setCellSize(cellW, cellH)
@@ -387,11 +403,16 @@ function ContextualMenuController:showAt(x, y, items)
     self.items = items
     rebuildPanel(self)
   end
+  if countRenderableMenuItems(self.items) == 0 then
+    self:hide()
+    return false
+  end
   self.visible = true
   if self.panel then
     self.panel:setVisible(true)
   end
   self:setPosition(x, y)
+  return true
 end
 
 function ContextualMenuController:setPosition(x, y)
@@ -407,7 +428,7 @@ function ContextualMenuController:toggleAt(x, y, items)
     return false
   end
   self:showAt(x, y, items)
-  return true
+  return self:isVisible()
 end
 
 function ContextualMenuController:_childItemsFor(item)
@@ -460,7 +481,7 @@ function ContextualMenuController:_openChildForRow(row)
 
   hideChild(self)
 
-  self.childMenu = ContextualMenuController.new({
+  local childMenu = ContextualMenuController.new({
     parentMenu = self,
     rootMenu = self.rootMenu or self,
     getBounds = self.getBounds,
@@ -475,11 +496,17 @@ function ContextualMenuController:_openChildForRow(row)
     bgColor = self.bgColor,
     splitIconCell = self.splitIconCell,
   })
+  if not childMenu:setItems(childItems) then
+    return false
+  end
+  self.childMenu = childMenu
   self.activeChildItem = item
-  self.childMenu:setItems(childItems)
   self:_clearChildHoverGrace()
   local childX, childY = resolveChildPosition(self, cell, self.childMenu)
-  self.childMenu:showAt(childX, childY)
+  if not self.childMenu:showAt(childX, childY) then
+    hideChild(self)
+    return false
+  end
 
   return true
 end
