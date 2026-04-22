@@ -1,5 +1,6 @@
 local SpriteController = require("controllers.sprite.sprite_controller")
 local SpriteOriginDrag = require("controllers.sprite.sprite_origin_drag_controller")
+local CursorsController = require("controllers.input_support.cursors_controller")
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
@@ -530,6 +531,43 @@ local function handleRightButton(env, button, x, y, win, wm)
           return true
         end
       end
+
+      local function tryEditModeRightClickColorPick()
+        local ctx = env.ctx
+        if not ctx or ctx.getMode() ~= "edit" then
+          return false
+        end
+        local utils = env.utils or {}
+        if utils.altDown and utils.altDown() then
+          return false
+        end
+        local app = ctx.app
+        if not app then
+          return false
+        end
+        local hitWin = wm:windowAt(x, y)
+        if not hitWin then
+          return false
+        end
+        if not CursorsController.isHoveringEditableContentAt(app, x, y) then
+          return false
+        end
+        if not hitWin.toGridCoords then
+          return false
+        end
+        local ok, col, row, lx, ly = hitWin:toGridCoords(x, y)
+        if not ok then
+          return false
+        end
+        ctx.paintAt(hitWin, col, row, lx, ly, true)
+        return true
+      end
+
+      if tryEditModeRightClickColorPick() then
+        win:mousepressed(x, y, button)
+        return true
+      end
+
       if beginPpuTileContextClick() then
         win:mousepressed(x, y, button)
         return true

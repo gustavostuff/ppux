@@ -186,11 +186,12 @@ local function anyModalVisible(app)
     or (app and app.splash and app.splash.isVisible and app.splash:isVisible())
 end
 
-local function isHoveringEditableContent(app)
+--- True when (mx,my) is over artwork that can be painted with the pencil (sprite hit, tile cell with
+--- content, or canvas layer). Uses the same rules as edit-mode pencil cursor eligibility.
+function CursorsController.isHoveringEditableContentAt(app, mx, my)
   local wm = app and app.wm
   if not (wm and wm.windowAt) then return false end
 
-  local mx, my = getMouseCanvasPosition()
   if type(mx) ~= "number" or type(my) ~= "number" then return false end
 
   local win = wm:windowAt(mx, my)
@@ -231,6 +232,11 @@ local function isHoveringEditableContent(app)
   end
 
   return false
+end
+
+local function isHoveringEditableContent(app)
+  local mx, my = getMouseCanvasPosition()
+  return CursorsController.isHoveringEditableContentAt(app, mx, my)
 end
 
 local function isHoveringInteractiveUI(app)
