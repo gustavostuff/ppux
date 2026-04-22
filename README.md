@@ -250,6 +250,7 @@ Edit mode is for pixel-level editing.
 - `Shift + click` draws a line from the last painted/clicked point
 - `R` toggles the rectangle fill tool
 - hold `G` and left click or drag to grab a color
+- right-click also grabs the color under the cursor; **Alt + right-click** opens the menu shown in Tile mode
 - hold `F` and left click to flood fill
 - `1` to `4` to choose the active color
 - `Alt + 1/2/3/4` to change brush size presets
@@ -359,7 +360,7 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
 * Tile layers render from a **cached full-canvas** nametable view for performance; after heavy edits, use the normal refresh paths the UI offers if a screen looks stale.
 * For **sprites**, use **Add sprite** on the toolbar to bind OAM entries. Sprite items that share the same `startAddr` **stay in sync** with **OAM Animation** windows (and other PPU Frame sprite layers) so moving or reconfiguring one updates the linked entries.
 * **Nametable range sync:** PPU Frame windows that share the same `nametableStartAddr` and `nametableEndAddr` keep their uncompressed nametable + attribute bytes (and ROM slice) aligned when you edit the tile layer in any one of them—similar to sprite `startAddr` sync.
-* **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. A plain **right-click** still opens the usual context menus when you are not dragging.
+* **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. When you are not dragging, **right-click** behaves like elsewhere (in **edit mode** over paintable pixels, **Alt + right-click** opens the menu if you want the menu instead of sampling a color—see [Edit mode](#edit-mode)).
 * **Pattern layer mode**: use the pattern-table toggle button to isolate the runtime pattern reference layer. In this mode, tile/sprite layers are hidden from navigation and `Ctrl + Up/Down` inactive-layer opacity is disabled.
 * **Pattern range UX**: adding a pattern range updates the reference layer immediately and switches to pattern-layer mode to review the new logical range quickly.
 * **Pattern hover aid**: hovering a tile in pattern-layer mode highlights all tiles in the same logical range with a translucent overlay.

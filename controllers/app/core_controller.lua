@@ -1514,6 +1514,13 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
         self:_selectPpuTileInChrWindow(context)
       end,
     }
+    items[#items + 1] = {
+      text = "Select all references",
+      enabled = true,
+      callback = function()
+        self:_selectAllReferencesFromContext(context)
+      end,
+    }
   end
   if context and context.win and context.layerIndex then
     self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)
