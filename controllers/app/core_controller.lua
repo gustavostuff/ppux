@@ -1681,7 +1681,8 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
     self:_appendRemoveRomPaletteLinkMenuItem(items, context.win, context.layerIndex)
   end
   if context and context.layer and context.layer.kind == "sprite"
-      and context.win and context.win.kind == "oam_animation"
+      and context.win
+      and (context.win.kind == "oam_animation" or context.win.kind == "ppu_frame")
       and type(context.itemIndex) == "number" then
     items[#items + 1] = {
       text = "Remove sprite",
