@@ -387,6 +387,13 @@ local function drawTileLayer(app, w, layerIndex, isFocused)
     end
   end
 
+  if not isPPUFrame and layer and layer.kind == "tile" and w.drawTileLayerCanvas then
+    local handledLayoutCanvas = w:drawTileLayerCanvas(app, layerIndex)
+    if handledLayoutCanvas then
+      return
+    end
+  end
+
   if isPPUFrame and not attrMode and w.drawVisibleNametableCells then
     local handled = w:drawVisibleNametableCells(function(col, row, x, y, cw, ch, li, layerOpacity, item, zeroBasedIdx)
       drawTileLayerCell(app, w, layer, col, row, x, y, cw, ch, zeroBasedIdx, li, isPalWindow, layerOpacity, item)

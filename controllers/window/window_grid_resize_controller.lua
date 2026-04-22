@@ -242,6 +242,9 @@ function M.addColumn(win)
     win:setScroll(win.scrollCol or 0, win.scrollRow or 0)
   end
   clampSelectionsAfterGridChange(win)
+  if win.invalidateAllTileLayerCanvases then
+    win:invalidateAllTileLayerCanvases()
+  end
   return true
 end
 
@@ -264,6 +267,9 @@ function M.removeLastColumn(win)
     win:setScroll(win.scrollCol or 0, win.scrollRow or 0)
   end
   clampSelectionsAfterGridChange(win)
+  if win.invalidateAllTileLayerCanvases then
+    win:invalidateAllTileLayerCanvases()
+  end
   return true
 end
 
@@ -276,6 +282,9 @@ function M.addRow(win)
     win:setScroll(win.scrollCol or 0, win.scrollRow or 0)
   end
   clampSelectionsAfterGridChange(win)
+  if win.invalidateAllTileLayerCanvases then
+    win:invalidateAllTileLayerCanvases()
+  end
   return true
 end
 
@@ -312,6 +321,9 @@ function M.removeLastRow(win)
     win:setScroll(win.scrollCol or 0, win.scrollRow or 0)
   end
   clampSelectionsAfterGridChange(win)
+  if win.invalidateAllTileLayerCanvases then
+    win:invalidateAllTileLayerCanvases()
+  end
   return true
 end
 

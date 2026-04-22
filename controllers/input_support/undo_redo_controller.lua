@@ -414,6 +414,9 @@ local function applyPaletteLinkEvent(event, direction)
       if app and app.invalidatePpuFramePaletteLayer then
         app:invalidatePpuFramePaletteLayer(win, li)
       end
+      if layer.kind == "tile" and win.invalidateTileLayerCanvas then
+        win:invalidateTileLayerCanvas(li)
+      end
       applied = applied + 1
     end
   end
@@ -734,6 +737,21 @@ local function applySpriteDragEvent(event, direction, app)
   return applied > 0
 end
 
+local function invalidateTileLayerCanvasAfterPaletteUndo(win, li, ch)
+  if not (win and win.invalidateTileLayerCanvas) then
+    return
+  end
+  local cols = win.cols or 1
+  if type(ch.col) == "number" and type(ch.row) == "number" then
+    win:invalidateTileLayerCanvas(li, ch.col, ch.row)
+  elseif type(ch.linearIndex) == "number" then
+    local idx = ch.linearIndex
+    local col = idx % cols
+    local row = math.floor(idx / cols)
+    win:invalidateTileLayerCanvas(li, col, row)
+  end
+end
+
 local function applyTileDragEvent(event, direction)
   if not (event and event.type == "tile_drag" and event.changes) then
     return false
@@ -787,6 +805,7 @@ local function applyTileDragEvent(event, direction)
             else
               L.paletteNumbers[idx] = val
             end
+            invalidateTileLayerCanvasAfterPaletteUndo(win, li, ch)
             applied = applied + 1
           end
         end
@@ -797,6 +816,9 @@ local function applyTileDragEvent(event, direction)
         local idx = (ch.row * (win.cols or 0) + ch.col) + 1
         win.layers[li].items = win.layers[li].items or {}
         win.layers[li].items[idx] = value
+        if win.invalidateTileLayerCanvas then
+          win:invalidateTileLayerCanvas(li, ch.col, ch.row)
+        end
         applied = applied + 1
       end
     end

@@ -350,6 +350,9 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appCoreRef)
       local beforePal = layer.paletteNumbers and layer.paletteNumbers[idx]
       local success = NametableTilesController.setPaletteNumberForTile(w, layer, cell.col, cell.row, paletteNum)
       if success then
+        if w.invalidateTileLayerCanvas then
+          w:invalidateTileLayerCanvas(li, cell.col, cell.row)
+        end
         updated = updated + 1
         paletteChanges[#paletteChanges + 1] = {
           win = w,

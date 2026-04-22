@@ -159,6 +159,9 @@ function Window:set(col, row, item, layerIndex)
   -- Note: We no longer use item.removed for tiles since they're shared references
   -- Sprites may still use removed flag (they're not shared), but that's handled separately
   L.items[i] = item
+  if L.kind == "tile" and self.invalidateTileLayerCanvas then
+    self:invalidateTileLayerCanvas(layerIndex, col, row)
+  end
 end
 
 -- legacy API, left here for compatibility
@@ -185,6 +188,9 @@ function Window:remove(col, row, layerIndex, item)
   if item == nil or v == item then
     -- Just set to nil - don't mark shared tile objects as removed
     L.items[i] = nil
+    if L.kind == "tile" and self.invalidateTileLayerCanvas then
+      self:invalidateTileLayerCanvas(layerIndex, col, row)
+    end
   end
 end
 
@@ -197,6 +203,9 @@ function Window:removeAt(col, row, layerIndex, stackIndex)
   -- since tiles are shared references to tilesPool, marking them as removed
   -- would affect all windows that use the same tile
   L.items[i] = nil
+  if L.kind == "tile" and self.invalidateTileLayerCanvas then
+    self:invalidateTileLayerCanvas(layerIndex, col, row)
+  end
 end
 
 -- Kept for API compatibility; no-op in single-item mode.
@@ -211,6 +220,9 @@ function Window:clear(col, row, layerIndex)
   -- since tiles are shared references to tilesPool, marking them as removed
   -- would affect all windows that use the same tile
   L.items[i] = nil
+  if L.kind == "tile" and self.invalidateTileLayerCanvas then
+    self:invalidateTileLayerCanvas(layerIndex, col, row)
+  end
 end
 
 function Window:getLayerSelection(layerIndex)
@@ -279,6 +291,9 @@ function Window:markCellRemoved(col, row, layerIndex)
   local i = idxBy(self.cols, col, row)
   L.removedCells = L.removedCells or {}
   L.removedCells[i] = true
+  if L.kind == "tile" and self.invalidateTileLayerCanvas then
+    self:invalidateTileLayerCanvas(layerIndex, col, row)
+  end
 end
 
 function Window:clearRemovedCell(col, row, layerIndex)
@@ -286,6 +301,10 @@ function Window:clearRemovedCell(col, row, layerIndex)
   if not removedCells then return end
   local i = idxBy(self.cols, col, row)
   removedCells[i] = nil
+  local L = self:getLayer(layerIndex)
+  if L and L.kind == "tile" and self.invalidateTileLayerCanvas then
+    self:invalidateTileLayerCanvas(layerIndex, col, row)
+  end
 end
 
 end

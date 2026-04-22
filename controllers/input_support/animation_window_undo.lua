@@ -78,6 +78,9 @@ function M.apply(win, snap)
   if win.isPlaying and win.scheduleNextFrame then
     win:scheduleNextFrame()
   end
+  if win.invalidateAllTileLayerCanvases then
+    win:invalidateAllTileLayerCanvases()
+  end
   return true
 end
 
