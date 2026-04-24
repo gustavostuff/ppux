@@ -9,39 +9,20 @@ local Window = require("user_interface.windows_system.window")
 local chr = require("chr")
 local DebugController = require("controllers.dev.debug_controller")
 local colors = require("app_colors")
-local UiScale = require("user_interface.ui_scale")
 local TableUtils = require("utils.table_utils")
 local CanvasSpace = require("utils.canvas_space")
+local PaletteEdit = require("utils.palette_edit_helpers")
 
 local RomPaletteWindow = {}
 RomPaletteWindow.__index = RomPaletteWindow
 setmetatable(RomPaletteWindow, { __index = PaletteWindow })
 
-local NORMAL_CELL_W, NORMAL_CELL_H = 32, 24
-local COMPACT_CELL_W, COMPACT_CELL_H = 20, 15
-
-local function clamp(n,a,b) if n<a then return a elseif n>b then return b else return n end end
-local function hex2(n) return string.format("%02X", n) end
-
-local function getLabelTextColor(rgb)
-  rgb = rgb or colors.black
-  local r, g, b = rgb[1] or 0, rgb[2] or 0, rgb[3] or 0
-  local luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
-  local base = (luminance >= 0.5) and colors.black or colors.white
-  if luminance >= 0.5 then
-    return { base[1], base[2], base[3], 0.5 }
-  end
-  return { base[1], base[2], base[3], 0.5 }
-end
-
-local function nibbleAdjust(code, dx, dy)
-  local v  = tonumber(code,16) or 0
-  local hi = math.floor(v/16)
-  local lo = v % 16
-  hi = clamp(hi + (dy or 0), 0, 3)
-  lo = clamp(lo + (dx or 0), 0, 15)
-  return hex2(hi*16+lo)
-end
+local hex2 = PaletteEdit.hex2
+local getLabelTextColor = PaletteEdit.getLabelTextColor
+local nibbleAdjust = PaletteEdit.nibbleAdjust
+local markPaletteUnsaved = PaletteEdit.markPaletteUnsaved
+local recordPaletteColorUndo = PaletteEdit.recordPaletteColorUndo
+local invalidateLinkedPpuFrames = PaletteEdit.invalidateLinkedPpuFrames
 
 local INVALID_BLACK_CODES = {
   ["0D"] = true, ["0E"] = true,
@@ -61,35 +42,6 @@ end
 -- Convert hex code string to byte value (0-255)
 local function hexCodeToByte(hexCode)
   return tonumber(hexCode, 16) or 0
-end
-
-local function markPaletteUnsaved()
-  local gctx = rawget(_G, "ctx")
-  local app = gctx and gctx.app
-  if app and app.markUnsaved then
-    app:markUnsaved("palette_color_change")
-  end
-end
-
-local function recordPaletteColorUndo(actions, paletteStates)
-  local gctx = rawget(_G, "ctx")
-  local app = gctx and gctx.app
-  if not (app and app.undoRedo and app.undoRedo.addPaletteColorEvent) then
-    return false
-  end
-  return app.undoRedo:addPaletteColorEvent({
-    type = "palette_color",
-    actions = actions,
-    paletteStates = paletteStates or {},
-  })
-end
-
-local function invalidateLinkedPpuFrames(paletteWin)
-  local gctx = rawget(_G, "ctx")
-  local app = gctx and gctx.app
-  if app and app.invalidatePpuFrameLayersAffectedByPaletteWin then
-    app:invalidatePpuFrameLayersAffectedByPaletteWin(paletteWin)
-  end
 end
 
 function RomPaletteWindow:isCellEditable(col, row)
@@ -187,11 +139,7 @@ function RomPaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
   self.isPalette = true  -- Inherit palette behavior
   self.romRaw = data.romRaw  -- Store ROM reference
   self.compactView = (data.compactView == true)
-  self.normalCellW = NORMAL_CELL_W
-  self.normalCellH = NORMAL_CELL_H
-  self.compactCellW = COMPACT_CELL_W
-  self.compactCellH = COMPACT_CELL_H
-  
+
   -- Store paletteData structure (contains romColors addresses and userDefinedCode)
   self.paletteData = data.paletteData or {}
   
@@ -207,22 +155,6 @@ function RomPaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
   self:setCompactMode(self.compactView)
   
   return self
-end
-
-function RomPaletteWindow:supportsCompactMode()
-  return true
-end
-
-function RomPaletteWindow:setCompactMode(enabled)
-  self.compactView = (enabled == true)
-  if self.compactView then
-    self.cellW = self.compactCellW
-    self.cellH = self.compactCellH
-  else
-    self.cellW = self.normalCellW
-    self.cellH = self.normalCellH
-  end
-  return self.compactView
 end
 
 -- Initialize codes2D from ROM bytes (if available) or userDefinedCode
