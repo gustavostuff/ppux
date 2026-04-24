@@ -81,6 +81,10 @@ function Window:setZoomLevel(level, pivotX, pivotY)
 
   self.zoom = newZ
   DebugController.log("info", "WIN", "Window '%s' zoom changed: %.1f -> %.1f", self.title or "untitled", oldZ, newZ)
+
+  if self.invalidateAllTileLayerCanvases then
+    self:invalidateAllTileLayerCanvases()
+  end
 end
 
 function Window:addZoomLevel(delta, pivotX, pivotY)

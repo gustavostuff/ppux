@@ -3618,6 +3618,23 @@ function AppCoreController:invalidateAllPpuFrameNametableCanvases()
   return touched
 end
 
+-- Offscreen tile caches (static_art / animation) can go blank after GPU/window changes; force full repaint.
+function AppCoreController:invalidateAllStaticAnimationTileLayerCanvases()
+  if not (self.wm and self.wm.getWindows) then
+    return false
+  end
+
+  local touched = false
+  for _, win in ipairs(self.wm:getWindows() or {}) do
+    if win and win.invalidateAllTileLayerCanvases then
+      win:invalidateAllTileLayerCanvases()
+      touched = true
+    end
+  end
+
+  return touched
+end
+
 require("controllers.app.core_controller_save_settings")(AppCoreController)
 require("controllers.app.core_controller_lifecycle")(AppCoreController)
 require("controllers.app.core_controller_input")(AppCoreController)

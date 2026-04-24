@@ -428,6 +428,10 @@ function AppCoreController:setCrtModeEnabled(enabled)
 
   initGraphics(self, { crtMode = target })
 
+  if self.invalidateAllStaticAnimationTileLayerCanvases then
+    self:invalidateAllStaticAnimationTileLayerCanvases()
+  end
+
   if imageModeKey and self._applyCanvasImageModeSetting then
     self:_applyCanvasImageModeSetting(imageModeKey, false)
   else

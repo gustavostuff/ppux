@@ -19,6 +19,9 @@ local function invalidateVolatileWindowCanvases(app)
   if app and app.invalidateAllPpuFrameNametableCanvases then
     app:invalidateAllPpuFrameNametableCanvases()
   end
+  if app and app.invalidateAllStaticAnimationTileLayerCanvases then
+    app:invalidateAllStaticAnimationTileLayerCanvases()
+  end
 end
 
 local function copyWindowFlags(flags)

@@ -914,6 +914,9 @@ local function applyRemovalEvent(event, direction, app)
           else
             L.removedCells[idx] = true
           end
+          if win.invalidateTileLayerCanvas then
+            win:invalidateTileLayerCanvas(li, act.col, act.row)
+          end
           applied = applied + 1
         end
       end
