@@ -1,4 +1,6 @@
 local Shared = require("controllers.app.core_controller_shared")
+local TableUtils = require("utils.table_utils")
+local BankViewController = require("controllers.chr.bank_view_controller")
 local images = require("images")
 local katsudo = require("lib.katsudo")
 local UiScale = require("user_interface.ui_scale")
