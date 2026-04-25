@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
-"""One-off: split test/e2e_visible/scenarios.lua into scenarios/*.lua (run from repo root)."""
+"""Legacy one-off: split monolithic test/e2e_visible/scenarios.lua into scenarios/*.lua.
+
+The repo no longer ships scenarios.lua; after that split, definitions.lua was further
+split by scripts/_split_definitions_builders.py (builders/, prelude, scenario_aliases).
+Do not run this script unless you restore the old single-file scenarios.lua input.
+"""
 from pathlib import Path
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "test" / "e2e_visible" / "scenarios.lua"
@@ -193,6 +199,9 @@ local SCENARIOS = {
 
 
 def main() -> None:
+    if not SRC.exists():
+        print("error: missing", SRC, "(legacy splitter input); see docstring.", file=sys.stderr)
+        sys.exit(1)
     text = SRC.read_text(encoding="utf-8")
     lines = text.splitlines(keepends=True)
 

@@ -40,7 +40,7 @@ You can also pass an optional speed multiplier:
 
 - scenario list: `scripts/unix/run_e2e_tests.sh` and `scripts/windows/run_e2e_tests.bat`
 - single-scenario launcher: `scripts/unix/run_e2e_demo.sh` and `scripts/windows/run_e2e_demo.bat`
-- visual scenario definitions: `test/e2e_visible/scenarios/` (see `definitions.lua`, `common.lua`, `helpers.lua`; entry is `init.lua` for `require("test.e2e_visible.scenarios")`)
+- visual scenario definitions: `test/e2e_visible/scenarios/` (`init.lua` → `definitions.lua` merges `builders/*.lua`; shared bindings in `prelude.lua`, `common.lua`, `helpers.lua`; aliases in `scenario_aliases.lua`)
 - visual timing config: `test/e2e_visual_config.lua`
 
 ## How visual E2E works
@@ -58,7 +58,7 @@ The real app is booted, the scenario runs on top of it, and an overlay shows the
 
 ## Adding a new visual E2E scenario
 
-1. Add a scenario in `test/e2e_visible/scenarios/definitions.lua` (and register it in the `SCENARIOS` table there).
+1. Add the builder in the thematic file under `test/e2e_visible/scenarios/builders/` (or a new builder module), return `{ your_key = { title = "...", build = yourBuildFn } }` from that module, and add a `merge(scenarios, require(...))` line in `definitions.lua` if you added a new file. Add demo aliases in `scenario_aliases.lua` when needed.
 2. Compose it from small visual steps.
 3. Run it with `./scripts/unix/run_e2e_demo.sh <scenario>` (or `scripts\windows\run_e2e_demo.bat <scenario>`).
 4. If it should be part of the standard suite, add it to `scripts/unix/run_e2e_tests.sh` and `scripts/windows/run_e2e_tests.bat`.

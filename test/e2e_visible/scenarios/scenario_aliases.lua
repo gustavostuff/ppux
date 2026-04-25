@@ -1,0 +1,30 @@
+-- Alias map for visible E2E scenario names.
+local SCENARIO_ALIASES = {
+  all_modals = "modals",
+  tile_drag_demo = "boot_and_drag",
+  animation_playback_demo = "animation_playback",
+  grid_resize_toolbar_demo = "grid_resize_toolbar",
+  tile_edit_roundtrip_demo = "tile_edit_roundtrip",
+  brush_paint_lines = "brush_paint_tools",
+  brush_paint_lines_demo = "brush_paint_tools",
+  new_window_variants_demo = "new_window_variants",
+  palette_shader_preview_demo = "palette_shader_preview",
+  static_sprite_ops_demo = "static_sprite_ops",
+  undo_redo_events_demo = "undo_redo_events",
+  palette_edit_roundtrip_demo = "palette_edit_roundtrip",
+  rom_palette_links_demo = "rom_palette_links",
+  rom_palette_link_interactions_demo = "rom_palette_link_interactions",
+  save_reload_persistence_demo = "save_reload_persistence",
+  submenu_positions_demo = "submenu_positions",
+  context_menus_and_submenus_demo = "context_menus_and_submenus",
+  window_resize_and_hover_priority_demo = "window_resize_and_hover_priority",
+  modal_navigation_keyboard_only_demo = "modal_navigation_keyboard_only",
+  text_field_variants_demo = "text_field_variants",
+  clipboard_matrix_demo = "clipboard_matrix",
+  clipboard_intra_inter_paths_demo = "clipboard_intra_inter_paths",
+  ppu_toolbar_ranges_setup_demo = "ppu_toolbar_ranges_setup",
+  ppu_toolbar_pattern_ranges_demo = "ppu_toolbar_pattern_ranges",
+  ppu_toolbar_sprite_and_mode_controls_demo = "ppu_toolbar_sprite_and_mode_controls",
+}
+
+return SCENARIO_ALIASES

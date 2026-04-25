@@ -36,7 +36,7 @@ NOTE: This is an AI-generated doc, a plan to improve unit and E2E testing covera
 
 ### 3) Open Project + browser UX
 - **Why critical**: Core workflow currently not strongly represented in visual E2E.
-- **Files**: [test/e2e_visible/scenarios/](/home/g/Repos/ppux/test/e2e_visible/scenarios/) (`definitions.lua`, etc.)
+- **Files**: [test/e2e_visible/scenarios/](/home/g/Repos/ppux/test/e2e_visible/scenarios/) (`builders/`, `definitions.lua`, etc.)
 - **Add tests (E2E)**:
   - Open from toolbar, navigate directories, open fixture project, assert loaded windows/status.
   - Invalid project selection path with explicit error and modal close behavior.
@@ -44,7 +44,7 @@ NOTE: This is an AI-generated doc, a plan to improve unit and E2E testing covera
 
 ### 4) OAM/animated sprite flows
 - **Why critical**: User-facing workflows exist but are only partially covered via fixture side effects.
-- **Files**: [test/e2e_visible/scenarios/](/home/g/Repos/ppux/test/e2e_visible/scenarios/) (`definitions.lua`, etc.)
+- **Files**: [test/e2e_visible/scenarios/](/home/g/Repos/ppux/test/e2e_visible/scenarios/) (`builders/`, `definitions.lua`, etc.)
 - **Add tests (E2E)**:
   - Dedicated OAM animation scenario: frame/layer navigation, play/pause, sprite add/remove smoke.
   - Animated sprite window creation + frame controls smoke.
