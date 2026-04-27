@@ -956,10 +956,25 @@ function M.applyTileDragGroup(win, layerIdx, group, anchorCol, anchorRow, opts)
       end
     end
 
-    if (not copyMode) then
+    local sameWin = (srcWin == win)
+    local function beginRomBatchIf(w)
+      if type(w.beginNametableRomBatch) == "function" then
+        w:beginNametableRomBatch()
+      end
+    end
+    local function endRomBatchIf(w)
+      if type(w.endNametableRomBatch) == "function" then
+        w:endNametableRomBatch()
+      end
+    end
+
+    -- Avoid N× full recompress + peer full-grid refresh: batch clears then writes; for two
+    -- windows flush source after clears so peers pick up clears before destination writes.
+    if not copyMode then
+      beginRomBatchIf(srcWin)
       for _, p in ipairs(placementBytes) do
         local skipClear = false
-        if srcWin == win then
+        if sameWin then
           -- Same grid: do not clear a source cell that is also a drop target for another tile.
           skipClear = destSet[p.srcIdx] == true
         end
@@ -967,6 +982,13 @@ function M.applyTileDragGroup(win, layerIdx, group, anchorCol, anchorRow, opts)
           srcWin:setNametableByteAt(p.srcCol, p.srcRow, transparentByte, tilesPool, srcLayer)
         end
       end
+      if not sameWin then
+        endRomBatchIf(srcWin)
+      end
+    end
+
+    if copyMode or not sameWin then
+      beginRomBatchIf(win)
     end
 
     for _, p in ipairs(placementBytes) do
@@ -978,6 +1000,8 @@ function M.applyTileDragGroup(win, layerIdx, group, anchorCol, anchorRow, opts)
         firstCol, firstRow = p.col, p.row
       end
     end
+
+    endRomBatchIf(win)
 
     if placed > 1 then
       layer.multiTileSelection = selectedSet

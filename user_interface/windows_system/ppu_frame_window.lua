@@ -1137,6 +1137,26 @@ end
 -- Set a specific nametable byte, refresh the visual tile (if tilesPool is provided),
 -- and update ROM/diff bookkeeping. This bypasses PPUFrameWindow:set() to avoid
 -- re-translating tiles back into bytes.
+--- Suppress per-cell ROM compress + peer sync until endNametableRomBatch (multi-cell edits).
+function PPUFrameWindow:beginNametableRomBatch()
+  self._nametableRomBatchDepth = (self._nametableRomBatchDepth or 0) + 1
+end
+
+--- Pair with beginNametableRomBatch; last matching end runs updateCompressedBytesInROM once.
+function PPUFrameWindow:endNametableRomBatch()
+  local d = (self._nametableRomBatchDepth or 0) - 1
+  if d < 0 then
+    d = 0
+  end
+  self._nametableRomBatchDepth = d
+  if d == 0 then
+    local ok, err = self:updateCompressedBytesInROM()
+    if not ok then
+      DebugController.log("info", "PPU", "Update failed after endNametableRomBatch: %s", tostring(err))
+    end
+  end
+end
+
 function PPUFrameWindow:setNametableByteAt(col, row, byteVal, tilesPool, layerIndex)
   local idx = lin(self.cols, col, row)
   if not self.nametableBytes or idx < 1 or idx > #self.nametableBytes then
@@ -1155,9 +1175,11 @@ function PPUFrameWindow:setNametableByteAt(col, row, byteVal, tilesPool, layerIn
   self:syncNametableVisualCell(col, row, v, tilesPool, li)
   self:invalidateNametableLayerCanvas(li, col, row)
 
-  local ok, err = self:updateCompressedBytesInROM()
-  if not ok then
-    DebugController.log("info", "PPU", "Update failed after setNametableByteAt: %s", tostring(err))
+  if (self._nametableRomBatchDepth or 0) <= 0 then
+    local ok, err = self:updateCompressedBytesInROM()
+    if not ok then
+      DebugController.log("info", "PPU", "Update failed after setNametableByteAt: %s", tostring(err))
+    end
   end
 end
 
