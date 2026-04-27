@@ -2,7 +2,7 @@
 
 ## Open Source NES Art Editor
 
-Beta 0.1.0
+Beta 0.1.1
 
 <img src="img/readme_images/app_example.png" alt="">
 
@@ -356,7 +356,7 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
 
 ### PPU frame editing notes
 
-* **Empty nametable cells** use nametable byte **0** by default, which resolves to pattern-table **tile 0** for that layer’s bank and **page** (page 2 still uses byte 0, mapping to the second CHR page in the tile pool).
+* **Empty nametable cells** use nametable byte **0** by default, which resolves to pattern-table **tile 0** using the layer’s **`patternTable.ranges`** (each range contributes bank, page, and tile index span; extra ranges widen which CHR tiles the nametable can point at—byte `0` is still tile index 0 within that combined mapping).
 * Tile layers render from a **cached full-canvas** nametable view for performance; after heavy edits, use the normal refresh paths the UI offers if a screen looks stale.
 * For **sprites**, use **Add sprite** on the toolbar to bind OAM entries. Sprite items that share the same `startAddr` **stay in sync** with **OAM Animation** windows (and other PPU Frame sprite layers) so moving or reconfiguring one updates the linked entries.
 * **Nametable range sync:** PPU Frame windows that share the same `nametableStartAddr` and `nametableEndAddr` keep their uncompressed nametable + attribute bytes (and ROM slice) aligned when you edit the tile layer in any one of them—similar to sprite `startAddr` sync.
@@ -374,8 +374,6 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
   layers = {
     [1] = {
       kind = "tile",
-      bank = 9,
-      page = 1,            -- 1 or 2; empty cells use nametable byte 0 → tile 0 on this page
       patternTable = {
         ranges = {
           { bank = 9, page = 1, tileRange = { from = 0, to = 255 } },
@@ -398,9 +396,9 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
 }
 ```
 
-In tile layers, `nametableStartAddr` and `nametableEndAddr` define the ROM byte range used for the nametable data handled by that window (it's the same bytes read by an emulator when loading a specific nametable). The app reads from that range when loading the screen data, and writes back into the same range when saving changes.
+In tile layers, `nametableStartAddr` and `nametableEndAddr` define the ROM byte range used for the nametable data handled by that window (it's the same bytes read by an emulator when loading a specific nametable). The app reads from that range when loading the screen data, and writes back into the same range when saving changes. CHR **bank** and **page** for tiles come from **`patternTable.ranges`**.
 
-For sprite layers, `startAddr` is the most important field because it links the item to the 4 OAM bytes in ROM. The app uses byte 1 for Y position, byte 3 for attributes/palette/mirroring, and byte 4 for X position directly through the app UI. Byte 2 is the exception: in real hardware or emulators, its tile value is interpreted in PPU/VRAM space, not as a direct ROM-bank tile reference. Since the app does not know the final runtime VRAM page layout, bank and tile must also be specified explicitly so the correct source graphics can be resolved in the editor context.
+For sprite layers, `startAddr` is the most important field because it links the item to the 4 OAM bytes in ROM. The app uses byte 1 for Y position, byte 3 for attributes/palette/mirroring, and byte 4 for X position directly through the app UI. Byte 2 is the exception: in real hardware or emulators, its tile value is interpreted in PPU/VRAM space, not as a direct ROM-bank tile reference. Since the app does not know the final runtime VRAM page layout, **`bank` and `tile` on each sprite item** must also be specified explicitly so the correct source graphics can be resolved in the editor context.
 
 ### Current nametable codec coverage
 
@@ -500,7 +498,9 @@ One ROM address, one new byte.
 }
 ```
 
-#### 2. Contiguous range (`addresses.from` / `addresses.to` + `values`)
+#### 2. Contiguous range (`addresses.from` / optional `addresses.to` + `values`)
+
+If `addresses.to` is omitted, it is derived from `addresses.from` and the number of entries in `values` (`to = from + #values - 1`). If you include `to`, the inclusive byte count must match `#values` (i.e. `to = from + #values - 1`).
 
 ```lua
 {

@@ -173,6 +173,26 @@ local function recordChrSwapAsPaintEvent(undoRedo, bankIdx, swapPairs)
   return undoRedo:finishPaintEvent() and true or false
 end
 
+local function ppuNametableTileLayer(win, layerIndex)
+  if not WindowCaps.isPpuFrame(win) then
+    return false
+  end
+  local L = win.layers and win.layers[layerIndex]
+  return L and L.kind == "tile"
+end
+
+local function ppuNametableByteAt(win, col, row)
+  if not (win and win.nametableBytes) then
+    return nil
+  end
+  local cols = tonumber(win.cols) or 0
+  if cols <= 0 then
+    return nil
+  end
+  local idx = row * cols + col + 1
+  return win.nametableBytes[idx]
+end
+
 local function makeTileDragRecorder(undoRedo, mode)
   if not (undoRedo and undoRedo.addDragEvent) then return nil end
 
@@ -190,9 +210,17 @@ local function makeTileDragRecorder(undoRedo, mode)
     local key = keyFor(win, layerIndex, col, row)
     if byKey[key] then return end
 
-    local before = beforeOverride
-    if before == nil and win.get then
-      before = win:get(col, row, layerIndex)
+    local before
+    if ppuNametableTileLayer(win, layerIndex) then
+      before = ppuNametableByteAt(win, col, row)
+      if before == nil then
+        before = 0
+      end
+    else
+      before = beforeOverride
+      if before == nil and win.get then
+        before = win:get(col, row, layerIndex)
+      end
     end
 
     local rec = {
@@ -210,12 +238,17 @@ local function makeTileDragRecorder(undoRedo, mode)
     local changes = {}
 
     for _, rec in ipairs(order) do
-      local after = nil
-      if rec.win and rec.win.get then
+      local after
+      if ppuNametableTileLayer(rec.win, rec.layerIndex) then
+        after = ppuNametableByteAt(rec.win, rec.col, rec.row)
+        if after == nil then
+          after = 0
+        end
+      elseif rec.win and rec.win.get then
         after = rec.win:get(rec.col, rec.row, rec.layerIndex)
       end
       if rec.before ~= after then
-        changes[#changes + 1] = {
+        local ch = {
           win = rec.win,
           layerIndex = rec.layerIndex,
           col = rec.col,
@@ -223,13 +256,20 @@ local function makeTileDragRecorder(undoRedo, mode)
           before = rec.before,
           after = after,
         }
+        if ppuNametableTileLayer(rec.win, rec.layerIndex) then
+          ch.isNametableByte = true
+        end
+        changes[#changes + 1] = ch
       end
     end
 
     if #changes > 0 then
+      local gctx = rawget(_G, "ctx")
+      local tilesPool = gctx and gctx.app and gctx.app.appEditState and gctx.app.appEditState.tilesPool
       undoRedo:addDragEvent({
         type = "tile_drag",
         mode = mode or "move",
+        tilesPool = tilesPool,
         changes = changes,
       })
     end
