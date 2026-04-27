@@ -416,8 +416,6 @@ PPUX currently includes one nametable codec implementation aimed at Konami-style
 4. Items that share a `startAddr` **sync** with **PPU Frame** sprite layers (and other OAM windows) so OAM edits stay consistent everywhere that references the same bytes.
 5. **Origin** and **origin guides** behave like PPU Frame sprite layers: **Shift + right-click drag** moves `originX` / `originY`; the dotted-line button toggles guides.
 
-<img src="img/readme_images/toolbars/oam_animation.png" alt="OAM Animation toolbar">
-
 **Project file sketch:**
 
 ```lua
