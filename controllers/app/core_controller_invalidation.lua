@@ -159,18 +159,28 @@ local function ppuLayerUsesPaletteWin(layer, paletteWin)
 end
 
 function AppCoreController:invalidatePpuFramePaletteLayer(win, layerIndex)
-  if not (win and win.kind == "ppu_frame" and win.layers and win.invalidateNametableLayerCanvas) then
+  if not (win and win.layers) then
     return false
   end
 
+  local WindowCaps = require("controllers.window.window_capabilities")
   local li = tonumber(layerIndex) or (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
   local layer = win.layers[li]
   if not (layer and layer.kind == "tile") then
     return false
   end
 
-  win:invalidateNametableLayerCanvas(li)
-  return true
+  if win.kind == "ppu_frame" and win.invalidateNametableLayerCanvas then
+    win:invalidateNametableLayerCanvas(li)
+    return true
+  end
+
+  if WindowCaps.isStaticOrAnimationArt(win) and win.invalidateTileLayerCanvas then
+    win:invalidateTileLayerCanvas(li)
+    return true
+  end
+
+  return false
 end
 
 function AppCoreController:invalidateTileLayerCanvasesAffectedByPaletteWin(paletteWin)

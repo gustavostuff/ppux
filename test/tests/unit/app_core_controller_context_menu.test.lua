@@ -241,6 +241,35 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(editCalls).toBe(1)
   end)
 
+  it("builds tile-layer empty-space context menu with palette link actions when linked", function()
+    local paletteWin = { kind = "rom_palette", _id = 42, title = "P" }
+    local app = setmetatable({
+      wm = {
+        findWindowById = function(_, id)
+          if id == 42 then
+            return paletteWin
+          end
+          return nil
+        end,
+      },
+    }, AppCoreController)
+
+    local win = {
+      kind = "static_art",
+      _id = "w1",
+      layers = {
+        { kind = "tile", paletteData = { winId = 42 } },
+      },
+    }
+    local context = app:_buildTileLayerEmptySpaceContext(win, 1, 2, 3)
+    expect(context).toBeTruthy()
+    expect(context.layerIndex).toBe(1)
+    local items = app:_buildTileLayerEmptySpaceContextMenuItems(context)
+    expect(#items).toBeGreaterThanOrEqual(2)
+    expect(items[1].text).toBe("Jump to linked palette")
+    expect(items[2].text).toBe("Remove ROM palette link")
+  end)
+
   it("adds Paste to PPU/select/CHR context menus only when clipboard paste is allowed", function()
     local oldHasClipboardData = KeyboardClipboardController.hasClipboardData
     local oldGetActionAvailability = KeyboardClipboardController.getActionAvailability

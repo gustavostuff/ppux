@@ -679,6 +679,53 @@ function AppCoreController:showSpriteEmptySpaceContextMenu(win, layerIndex, x, y
   return self.ppuTileContextMenu:isVisible()
 end
 
+function AppCoreController:_buildTileLayerEmptySpaceContext(win, layerIndex, col, row)
+  if not (win and WindowCaps.isStaticOrAnimationArt(win) and type(layerIndex) == "number") then
+    return nil
+  end
+  local layer = win.getLayer and win:getLayer(layerIndex) or (win.layers and win.layers[layerIndex])
+  if not (layer and layer.kind == "tile") then
+    return nil
+  end
+  return {
+    win = win,
+    layerIndex = layerIndex,
+    layer = layer,
+    col = col,
+    row = row,
+  }
+end
+
+function AppCoreController:_buildTileLayerEmptySpaceContextMenuItems(context)
+  local items = {}
+  if context and context.win and type(context.layerIndex) == "number" then
+    self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)
+    self:_appendRemoveRomPaletteLinkMenuItem(items, context.win, context.layerIndex)
+    self:_appendPasteContextMenuItem(items, context)
+  end
+  return items
+end
+
+function AppCoreController:showTileLayerEmptySpaceContextMenu(win, layerIndex, col, row, x, y)
+  if not (self.ppuTileContextMenu and type(x) == "number" and type(y) == "number") then
+    return false
+  end
+
+  local context = self:_buildTileLayerEmptySpaceContext(win, layerIndex, col, row)
+  if not context then
+    return false
+  end
+  local items = self:_buildTileLayerEmptySpaceContextMenuItems(context)
+  if not (type(items) == "table" and #items > 0) then
+    return false
+  end
+
+  self:_hideAllContextMenus()
+  local cx, cy = self:contentPointToCanvasPoint(x, y)
+  self.ppuTileContextMenu:showAt(cx, cy, items)
+  return self.ppuTileContextMenu:isVisible()
+end
+
 function AppCoreController:showPpuFrameRangeModal(win)
   if not (self.ppuFrameRangeModal and win and win.kind == "ppu_frame") then
     return false

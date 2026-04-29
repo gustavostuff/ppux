@@ -222,6 +222,21 @@ local function handleContextMenuRelease(button, x, y)
     return false
   end
 
+  if pending.kind == "tile_empty" then
+    if app.showTileLayerEmptySpaceContextMenu and pending.win then
+      app:showTileLayerEmptySpaceContextMenu(
+        pending.win,
+        pending.layerIndex,
+        pending.col,
+        pending.row,
+        x,
+        y
+      )
+      return true
+    end
+    return false
+  end
+
   if pending.kind == "select_in_chr" then
     if app.showSelectInChrContextMenu and pending.win then
       app:showSelectInChrContextMenu(

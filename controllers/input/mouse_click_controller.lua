@@ -522,6 +522,47 @@ local function handleRightButton(env, button, x, y, win, wm)
     return true
   end
 
+  local function beginTileEmptySpaceContextClick()
+    if not (win and env.beginContextMenuClick) then
+      return false
+    end
+    if not WindowCaps.isStaticOrAnimationArt(win) then
+      return false
+    end
+
+    local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+    local layer = win.layers and win.layers[li] or nil
+    if not (layer and layer.kind == "tile") then
+      return false
+    end
+    if not isInWindowContentArea(win) then
+      return false
+    end
+    if not win.toGridCoords then
+      return false
+    end
+    local ok, col, row = win:toGridCoords(x, y)
+    if not (ok and type(col) == "number" and type(row) == "number") then
+      return false
+    end
+
+    local pickByVisual = env.utils and env.utils.pickByVisual or nil
+    if type(pickByVisual) ~= "function" then
+      return false
+    end
+    local hit, _, _, item = pickByVisual(win, x, y, li)
+    if hit and item then
+      return false
+    end
+
+    env.beginContextMenuClick("tile_empty", x, y, button, win, {
+      layerIndex = li,
+      col = col,
+      row = row,
+    })
+    return true
+  end
+
   if button == 2 or button == 3 then
     if win then
       wm:setFocus(win)
@@ -599,6 +640,10 @@ local function handleRightButton(env, button, x, y, win, wm)
         return true
       end
       if beginSelectInChrContextClick() then
+        win:mousepressed(x, y, button)
+        return true
+      end
+      if beginTileEmptySpaceContextClick() then
         win:mousepressed(x, y, button)
         return true
       end
