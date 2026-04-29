@@ -272,4 +272,11 @@ function M.beginPaletteLinkContextFromAppTopBar(win, canvasX, canvasY, button)
   return false
 end
 
+function M.beginTaskbarMinimizedWindowContextMenu(win, canvasX, canvasY, button)
+  if MouseInput.beginTaskbarMinimizedWindowContextMenu then
+    return MouseInput.beginTaskbarMinimizedWindowContextMenu(win, canvasX, canvasY, button)
+  end
+  return false
+end
+
 return M

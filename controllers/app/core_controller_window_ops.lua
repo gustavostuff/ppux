@@ -407,9 +407,12 @@ function AppCoreController:_collapseAllWindowsFromMenu()
   return true
 end
 
-function AppCoreController:_buildWindowHeaderContextMenuItems(win)
+function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
+  opts = opts or {}
+  local forMinimizedTaskbar = (opts.forMinimizedTaskbarButton == true)
   local collapseLabel = (win and win._collapsed == true) and "Expand" or "Collapse"
-  return {
+
+  local items = {
     {
       text = "Rename",
       enabled = win ~= nil and win._closed ~= true,
@@ -449,7 +452,21 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win)
         end
       end,
     },
-    {
+  }
+
+  if forMinimizedTaskbar and win and win._minimized == true then
+    items[#items + 1] = {
+      text = "Maximize",
+      enabled = win._closed ~= true,
+      callback = function()
+        self:hideAppContextMenus()
+        if self.wm and self.wm.restoreMinimizedWindow and self.wm:restoreMinimizedWindow(win) then
+          self:setStatus("Window restored")
+        end
+      end,
+    }
+  else
+    items[#items + 1] = {
       text = "Minimize",
       enabled = win ~= nil and win._closed ~= true and win._minimized ~= true,
       callback = function()
@@ -463,8 +480,10 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win)
           self:setStatus("Window minimized")
         end
       end,
-    },
-  }
+    }
+  end
+
+  return items
 end
 
 function AppCoreController:_buildEmptySpaceContextMenuItems()
@@ -501,13 +520,13 @@ function AppCoreController:_buildEmptySpaceContextMenuItems()
   }
 end
 
-function AppCoreController:showWindowHeaderContextMenu(win, x, y)
+function AppCoreController:showWindowHeaderContextMenu(win, x, y, opts)
   if not (self.windowHeaderContextMenu and win and type(x) == "number" and type(y) == "number") then
     return false
   end
   self:_hideAllContextMenus()
   local cx, cy = self:contentPointToCanvasPoint(x, y)
-  self.windowHeaderContextMenu:showAt(cx, cy, self:_buildWindowHeaderContextMenuItems(win))
+  self.windowHeaderContextMenu:showAt(cx, cy, self:_buildWindowHeaderContextMenuItems(win, opts))
   return self.windowHeaderContextMenu:isVisible()
 end
 

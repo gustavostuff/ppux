@@ -87,6 +87,17 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(renameCalls).toBe(1)
   end)
 
+  it("builds taskbar minimized header menu with Maximize replacing Minimize", function()
+    local app = setmetatable({}, AppCoreController)
+    local win = { kind = "static_art", title = "T", _minimized = true, _closed = false }
+    local items = app:_buildWindowHeaderContextMenuItems(win, { forMinimizedTaskbarButton = true })
+    expect(#items).toBe(4)
+    expect(items[3].text).toBe("Collapse")
+    expect(items[3].enabled).toBe(false)
+    expect(items[4].text).toBe("Maximize")
+    expect(items[4].enabled).toBe(true)
+  end)
+
   it("builds the empty-space context menu entries in the expected order", function()
     local app = setmetatable({
       hasLoadedROM = function() return true end,

@@ -2,6 +2,7 @@ local colors = require("app_colors")
 local images = require("images")
 local UiScale = require("user_interface.ui_scale")
 
+local UserInput = require("controllers.input.input")
 local Helpers = require("user_interface.taskbar.helpers")
 local ModeIndicator = require("user_interface.taskbar.mode_indicator")
 local Minimized = require("user_interface.taskbar.minimized")
@@ -249,6 +250,18 @@ function Taskbar:mousepressed(x, y, button)
       self.menuController:hide()
     end
     return false
+  end
+
+  if button == 2 or button == 3 then
+    local btn = self:getButtonAt(x, y)
+    if btn and btn.isMinimizedWindowButton and btn.minimizedWindow then
+      if self.app and self.app.hideAppContextMenus then
+        self.app:hideAppContextMenus()
+      end
+      if UserInput.beginTaskbarMinimizedWindowContextMenu(btn.minimizedWindow, x, y, button) then
+        return true
+      end
+    end
   end
 
   if button == 1 then

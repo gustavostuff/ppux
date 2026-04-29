@@ -200,7 +200,8 @@ local function handleContextMenuRelease(button, x, y)
 
   if pending.kind == "window_header" then
     if app.showWindowHeaderContextMenu and pending.win then
-      app:showWindowHeaderContextMenu(pending.win, x, y)
+      local opts = pending.forMinimizedTaskbarButton and { forMinimizedTaskbarButton = true } or nil
+      app:showWindowHeaderContextMenu(pending.win, x, y, opts)
       return true
     end
     return false
@@ -312,6 +313,17 @@ local function handleContextMenuRelease(button, x, y)
 end
 
 --- Palette link handle on the app-top docked toolbar (canvas coordinates throughout).
+function M.beginTaskbarMinimizedWindowContextMenu(win, canvasX, canvasY, button)
+  if button ~= 2 and button ~= 3 then
+    return false
+  end
+  if not (win and ctx) then
+    return false
+  end
+  beginContextMenuClick("window_header", canvasX, canvasY, button, win, { forMinimizedTaskbarButton = true })
+  return true
+end
+
 function M.beginPaletteLinkContextFromAppTopBar(win, canvasX, canvasY, button)
   if button ~= 1 and button ~= 2 and button ~= 3 then
     return false
