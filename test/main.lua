@@ -196,7 +196,6 @@ local slowReportPrinted = false
 local scrollbar = {
   width = 14,
   margin = 5,
-  top = 10,
   bottom = 10,
   minThumbHeight = 20,
   dragging = false,
@@ -215,21 +214,60 @@ local function clampScroll(value, maxScroll)
   return value
 end
 
+--- Pixels from top for title + summary + optional "running" line (not scrolled).
+local function getHeaderBottomY(state)
+  local y = padding + lineHeight -- title
+  y = y + lineHeight -- summary
+  if state.isRunning and state.currentTask then
+    y = y + lineHeight -- current test (single line)
+  end
+  return y
+end
+
+--- Height of the scrollable failures region (viewport).
+local function getScrollViewportHeight(state)
+  local screenH = love.graphics.getHeight()
+  local headerBottom = getHeaderBottomY(state)
+  local h = screenH - headerBottom - scrollbar.bottom
+  if h < 1 then
+    h = 1
+  end
+  return h, headerBottom
+end
+
+--- Total height of scrollable content: failure entries + optional footer line.
+local function calculateScrollContentHeight(state)
+  local y = 0
+  if #(state.errors or {}) > 0 then
+    y = y + lineHeight -- "Failures:"
+    for _ in ipairs(state.errors) do
+      y = y + lineHeight * 2
+    end
+  end
+  if state.isComplete then
+    y = y + lineHeight
+  end
+  return math.max(y, 1)
+end
+
 local function getScrollbarMetrics()
   local state = TestFramework.getState()
   local screenWidth = love.graphics.getWidth()
   local screenHeight = love.graphics.getHeight()
-  local totalHeight = calculateTotalHeight(state)
-  local maxScroll = math.max(0, totalHeight - screenHeight + padding * 2)
+  local viewportH, headerBottom = getScrollViewportHeight(state)
+  local totalHeight = calculateScrollContentHeight(state)
+  local maxScroll = math.max(0, totalHeight - viewportH)
 
   local trackX = screenWidth - scrollbar.width - scrollbar.margin
-  local trackY = scrollbar.top
-  local trackH = screenHeight - scrollbar.top - scrollbar.bottom
-  if trackH < 1 then trackH = 1 end
+  local trackY = headerBottom
+  local trackH = viewportH
+  if trackH < 1 then
+    trackH = 1
+  end
 
   local thumbHeight = trackH
   if totalHeight > 0 then
-    thumbHeight = math.max(scrollbar.minThumbHeight, trackH * (screenHeight / totalHeight))
+    thumbHeight = math.max(scrollbar.minThumbHeight, trackH * (viewportH / totalHeight))
   end
   if thumbHeight > trackH then
     thumbHeight = trackH
@@ -241,6 +279,8 @@ local function getScrollbarMetrics()
   return {
     state = state,
     screenHeight = screenHeight,
+    headerBottom = headerBottom,
+    viewportH = viewportH,
     totalHeight = totalHeight,
     maxScroll = maxScroll,
     trackX = trackX,
@@ -323,10 +363,13 @@ function love.update(dt)
   TestFramework.updateRun(testsPerFrame)
 
   local state = TestFramework.getState()
+  local m = getScrollbarMetrics()
   if state.isRunning then
-    local maxScroll = math.max(0, calculateTotalHeight(state) - love.graphics.getHeight() + padding * 2)
-    scrollY = clampScroll(maxScroll, maxScroll)
-  elseif state.isComplete and not slowReportPrinted then
+    scrollY = clampScroll(m.maxScroll, m.maxScroll)
+  else
+    scrollY = clampScroll(scrollY, m.maxScroll)
+  end
+  if state.isComplete and not slowReportPrinted then
     printSlowestTestsReport(10)
     slowReportPrinted = true
   end
@@ -334,16 +377,15 @@ end
 
 function love.wheelmoved(x, y)
   scrollY = scrollY - y * 30
-  local state = TestFramework.getState()
-  local maxScroll = math.max(0, calculateTotalHeight(state) - love.graphics.getHeight() + padding * 2)
-  scrollY = clampScroll(scrollY, maxScroll)
+  local m = getScrollbarMetrics()
+  scrollY = clampScroll(scrollY, m.maxScroll)
 end
 
 function love.mousepressed(x, y, button)
   if button ~= 1 then return end
 
   local metrics = getScrollbarMetrics()
-  if metrics.totalHeight <= metrics.screenHeight then return end
+  if metrics.maxScroll <= 0 then return end
 
   local inTrack = x >= metrics.trackX and x <= (metrics.trackX + scrollbar.width)
     and y >= metrics.trackY and y <= (metrics.trackY + metrics.trackH)
@@ -372,84 +414,52 @@ function love.mousereleased(x, y, button)
   end
 end
 
--- Calculate total height needed for all test results
-function calculateTotalHeight(state)
-  local y = padding
-  y = y + lineHeight -- Title
-  y = y + lineHeight -- Summary line
-  y = y + lineHeight -- Blank line
-
-  if state.currentTask then
-    y = y + lineHeight
-    y = y + lineHeight
-  end
-
-  for _ in ipairs(state.liveLog or {}) do
-    y = y + lineHeight
-  end
-
-  if state.isComplete and #state.errors > 0 then
-    y = y + lineHeight * 2
-    for _ in ipairs(state.errors) do
-      y = y + lineHeight * 2
-    end
-  end
-
-  if state.isComplete then
-    y = y + lineHeight * 2
-  end
-
-  return y
-end
-
--- Draw scroll indicators
+-- Draw scrollbar for the failures viewport (only when content overflows).
 local function drawScrollIndicators()
   local metrics = getScrollbarMetrics()
-  
-  -- Draw scroll indicators (arrows) if content extends beyond viewport
-  if metrics.totalHeight > metrics.screenHeight then
-    love.graphics.setColor(0.8, 0.8, 0.8, 0.7)
-    love.graphics.setFont(font)
-    
-    -- Background track
-    love.graphics.setColor(0.3, 0.3, 0.3, 0.5)
-    love.graphics.rectangle("fill", metrics.trackX, metrics.trackY, scrollbar.width, metrics.trackH)
-    
-    -- Scrollbar thumb
-    love.graphics.setColor(0.6, 0.6, 0.6, 0.8)
-    love.graphics.rectangle("fill", metrics.trackX, metrics.thumbY, scrollbar.width, metrics.thumbHeight)
-    
-    -- Thumb border
-    love.graphics.setColor(0.4, 0.4, 0.4, 0.9)
-    love.graphics.rectangle("line", metrics.trackX, metrics.thumbY, scrollbar.width, metrics.thumbHeight)
+  if metrics.maxScroll <= 0 then
+    return
   end
+
+  love.graphics.setFont(font)
+
+  love.graphics.setColor(0.3, 0.3, 0.3, 0.55)
+  love.graphics.rectangle("fill", metrics.trackX, metrics.trackY, scrollbar.width, metrics.trackH)
+
+  love.graphics.setColor(0.6, 0.6, 0.6, 0.85)
+  love.graphics.rectangle("fill", metrics.trackX, metrics.thumbY, scrollbar.width, metrics.thumbHeight)
+
+  love.graphics.setColor(0.4, 0.4, 0.4, 0.9)
+  love.graphics.rectangle("line", metrics.trackX, metrics.thumbY, scrollbar.width, metrics.thumbHeight)
+  love.graphics.rectangle("line", metrics.trackX, metrics.trackY, scrollbar.width, metrics.trackH)
 end
 
 function love.draw()
   local state = TestFramework.getState()
-  
+  local screenW = love.graphics.getWidth()
+  local screenH = love.graphics.getHeight()
+  local metrics = getScrollbarMetrics()
+  local headerBottom = metrics.headerBottom
+  local viewportH = metrics.viewportH
+
   love.graphics.setColor(0.1, 0.1, 0.1)
-  love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
-  
-  love.graphics.push()
-  love.graphics.translate(0, -scrollY)
-  
-  local y = padding
-  
-  -- Title
-  love.graphics.setColor(0.6, 0.8, 1.0)
+  love.graphics.rectangle("fill", 0, 0, screenW, screenH)
+
   love.graphics.setFont(font)
+
+  local passedColor = { 0.2, 0.8, 0.2 }
+  local failedColor = { 0.8, 0.2, 0.2 }
+  local runningColor = { 1.0, 0.85, 0.35 }
+
+  -- Fixed header: title, summary, current test (not scrolled).
+  local y = padding
+
   if state.isComplete then
     Text.print("Test run complete", padding, y, { color = { 0.6, 0.8, 1.0, 1 } })
   else
     Text.print("Running tests...", padding, y, { color = { 0.6, 0.8, 1.0, 1 } })
   end
   y = y + lineHeight
-
-  -- Summary
-  local passedColor = {0.2, 0.8, 0.2}
-  local failedColor = {0.8, 0.2, 0.2}
-  local runningColor = {1.0, 0.85, 0.35}
 
   local completedTests = state.passedTests + state.failedTests
   local summary = string.format(
@@ -473,55 +483,50 @@ function love.draw()
   if state.failedTests > 0 then
     Text.print(tostring(state.failedTests), failedNumX, y, { color = { failedColor[1], failedColor[2], failedColor[3], 1 } })
   end
+  y = y + lineHeight
 
-  y = y + lineHeight * 2
-
-  if state.currentTask then
-    Text.print("Now running:", padding, y, { color = { runningColor[1], runningColor[2], runningColor[3], 1 } })
-    y = y + lineHeight
+  if state.isRunning and state.currentTask then
     Text.print(
-      string.format("  %s > %s", state.currentTask.suitePath, state.currentTask.test.name),
+      string.format(
+        "Running: %s > %s",
+        state.currentTask.suitePath,
+        state.currentTask.test.name
+      ),
       padding,
       y,
       { color = { runningColor[1], runningColor[2], runningColor[3], 1 } }
     )
-    y = y + lineHeight
   end
 
-  for _, entry in ipairs(state.liveLog or {}) do
-    if entry.passed then
-      Text.print(string.format("  (OK) %s > %s", entry.suite, entry.test), padding, y, { color = { passedColor[1], passedColor[2], passedColor[3], 1 } })
-    else
-      Text.print(string.format("  (X) %s > %s", entry.suite, entry.test), padding, y, { color = { failedColor[1], failedColor[2], failedColor[3], 1 } })
-    end
-    y = y + lineHeight
-  end
+  -- Failures (+ footer) scroll inside the viewport below the header.
+  love.graphics.setScissor(0, headerBottom, screenW, viewportH)
+  love.graphics.push()
+  love.graphics.translate(0, headerBottom - scrollY)
 
-  if state.isComplete and #state.errors > 0 then
-    y = y + lineHeight
-    Text.print("Failed tests:", padding, y, { color = { failedColor[1], failedColor[2], failedColor[3], 1 } })
+  y = 0
+  if #(state.errors or {}) > 0 then
+    Text.print("Failures:", padding, y, { color = { failedColor[1], failedColor[2], failedColor[3], 1 } })
     y = y + lineHeight
 
     for _, err in ipairs(state.errors) do
       Text.print(string.format("  %s > %s", err.suite, err.test), padding, y, { color = { 0.8, 0.4, 0.4, 1 } })
       y = y + lineHeight
-      Text.print("    " .. err.error, padding, y, { color = { 0.6, 0.6, 0.6, 1 } })
+      Text.print("    " .. tostring(err.error), padding, y, { color = { 0.6, 0.6, 0.6, 1 } })
       y = y + lineHeight
     end
   end
 
   if state.isComplete then
-    y = y + lineHeight
     if state.failedTests == 0 then
       Text.print("All tests passed!", padding, y, { color = { passedColor[1], passedColor[2], passedColor[3], 1 } })
     else
       Text.print("Some tests failed.", padding, y, { color = { failedColor[1], failedColor[2], failedColor[3], 1 } })
     end
   end
-  
+
   love.graphics.pop()
-  
-  -- Draw scroll indicators (after popping transform so they're fixed on screen)
+  love.graphics.setScissor()
+
   if state.isComplete or state.isRunning then
     drawScrollIndicators()
   end
