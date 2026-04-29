@@ -142,7 +142,10 @@ local function handleAppContextMenuMouseMoved(app, x, y)
   return visible
 end
 
-local function handleAlwaysAvailableWindowShortcuts(app, key)
+local function handleAlwaysAvailableWindowShortcuts(app, key, keyRepeat)
+  if keyRepeat then
+    return false
+  end
   local ctx = app:_buildCtx()
   local utils = {
     ctrlDown = function()
@@ -165,10 +168,14 @@ local function handleAlwaysAvailableWindowShortcuts(app, key)
   return false
 end
 
-function AppCoreController:keypressed(k)
+function AppCoreController:keypressed(k, scancode, isrepeat)
+  local keyRepeat = isrepeat == true
+
   if k == "f1" then
-    self.showDebugInfo = not (self.showDebugInfo == true)
-    self:setStatus(self.showDebugInfo and "Debug info enabled" or "Debug info disabled")
+    if not keyRepeat then
+      self.showDebugInfo = not (self.showDebugInfo == true)
+      self:setStatus(self.showDebugInfo and "Debug info enabled" or "Debug info disabled")
+    end
     return
   end
 
@@ -181,11 +188,11 @@ function AppCoreController:keypressed(k)
       return love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
     end,
   }
-  if KeyboardDebugController.handleDebugKeys(debugCtx, debugUtils, k) then
+  if not keyRepeat and KeyboardDebugController.handleDebugKeys(debugCtx, debugUtils, k) then
     return
   end
 
-  if handleAlwaysAvailableWindowShortcuts(self, k) then
+  if handleAlwaysAvailableWindowShortcuts(self, k, keyRepeat) then
     return
   end
 
@@ -265,21 +272,21 @@ function AppCoreController:keypressed(k)
   local ctrlDown = love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")
   
   -- Ctrl+S: Save dialog (project, ROM, or both)
-  if ctrlDown and k == "s" then
+  if ctrlDown and k == "s" and not keyRepeat then
     self:showSaveOptionsModal()
     refreshCursor(self)
     return
   end
   
   -- Ctrl+N: New window dialog
-  if ctrlDown and k == "n" then
+  if ctrlDown and k == "n" and not keyRepeat then
     self:showNewWindowModal()
     refreshCursor(self)
     return
   end
 
   -- Ctrl+O: Open project (same as top toolbar Open button)
-  if ctrlDown and k == "o" then
+  if ctrlDown and k == "o" and not keyRepeat then
     if self.showOpenProjectModal then
       self:showOpenProjectModal()
     end
@@ -288,7 +295,7 @@ function AppCoreController:keypressed(k)
   end
 
   -- Pass appCore so input handlers can touch selection/etc later
-  UserInput.keypressed(k, self)
+  UserInput.keypressed(k, self, keyRepeat)
   refreshCursor(self)
 end
 

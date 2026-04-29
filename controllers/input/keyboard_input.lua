@@ -74,7 +74,9 @@ function M.setup(context, utilities)
 end
 
 -- ===== Keyboard =====
-function M.keypressed(key, AppCoreControllerRef)
+function M.keypressed(key, AppCoreControllerRef, keyRepeat)
+  keyRepeat = keyRepeat == true
+
   if KeyboardModifierHintController.isModifierKey(key) then
     DebugController.log("debug", "INPUT_ROUTE", "key=%s route=modifier_hint", tostring(key))
     KeyboardModifierHintController.updateStatus(ctx, utils)
@@ -96,7 +98,7 @@ function M.keypressed(key, AppCoreControllerRef)
     return
   end
 
-  if runFirstTrue("global", globalShortcutHandlers, key, nil, AppCoreControllerRef) then
+  if not keyRepeat and runFirstTrue("global", globalShortcutHandlers, key, nil, AppCoreControllerRef) then
     return
   end
 

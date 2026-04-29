@@ -215,8 +215,8 @@ function M.resetRuntimeState()
 end
 
 -- Keyboard event handler
-function M.keypressed(key, AppCoreControllerRef)
-  return KeyboardInput.keypressed(key, AppCoreControllerRef)
+function M.keypressed(key, AppCoreControllerRef, keyRepeat)
+  return KeyboardInput.keypressed(key, AppCoreControllerRef, keyRepeat)
 end
 
 function M.keyreleased(key, AppCoreControllerRef)

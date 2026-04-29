@@ -72,6 +72,10 @@ function love.load(arg)
     lastPolledMouseX, lastPolledMouseY = love.mouse.getPosition()
   end
 
+  if love.keyboard and love.keyboard.setKeyRepeat then
+    love.keyboard.setKeyRepeat(true)
+  end
+
   -- Re-assert startup mode in case initialization touched window flags and
   -- silently restored vsync defaults.
   applyHighSpeedPaintMode(highSpeedPaintMode)
@@ -229,7 +233,7 @@ function love.keypressed(k, scancode, isrepeat)
     crtModeToggleLatched = true
     return
   end
-  app:keypressed(k)
+  app:keypressed(k, scancode, isrepeat)
 end
 
 function love.keyreleased(k)
