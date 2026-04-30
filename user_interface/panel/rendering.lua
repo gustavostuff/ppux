@@ -44,8 +44,11 @@ local function install(Panel, utils)
 
     local bg = self.bgColor
     local bgRadius = 2
-    love.graphics.setColor(bg[1], bg[2], bg[3], 1)
-    love.graphics.rectangle("fill", self.x, self.y, self.w, self.h, bgRadius)
+    local bgAlpha = (type(bg) == "table" and type(bg[4]) == "number") and bg[4] or 1
+    if bgAlpha > 0 then
+      love.graphics.setColor(bg[1] or 0, bg[2] or 0, bg[3] or 0, bgAlpha)
+      love.graphics.rectangle("fill", self.x, self.y, self.w, self.h, bgRadius)
+    end
 
     drawPanelTitle(self, utils)
 

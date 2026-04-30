@@ -1,6 +1,6 @@
 -- Dropdown: trigger uses Button; list uses ContextualMenuController.
 --
--- Items: each entry is { value = number (required), text = string (required), onPick?, enabled?, embed? }.
+-- Items: each entry is { value = number (required), text = string (required for non-embed; embed may use ""), onPick?, enabled?, embed? }.
 --   embed (optional): a UI object with draw / contains / mousepressed / mousereleased / mousemoved / getWidth /
 --   getHeight / setPosition (e.g. ColorPickerMatrix). Renders as the menu row body; no automatic close on that row.
 -- opts.default (optional): pick initial selection by matching item.value (number) or item.text (string).
@@ -8,7 +8,7 @@
 -- If opts.default is omitted, the first item is selected.
 -- opts.closeMenuOnItemPick (default true): when false, picking a normal text row runs onPick/selection but does not
 --   close the menu; call :closeMenu() from onPick or when an embedded widget finishes (e.g. color onChange).
--- opts.menuCellW / opts.menuCellH: optional menu panel cell size (defaults to cell height from opts.cellH or scale).
+-- opts.menuBgColor: optional panel fill for the dropdown list (default gray20); use {r,g,b,a} with a=0 for transparent.
 local Button = require("user_interface.button")
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
 local UiScale = require("user_interface.ui_scale")
@@ -24,7 +24,7 @@ local function assertItemShape(it, index)
     error(string.format("dropdown item %d: value must be a number", index))
   end
   local text = it.text
-  if text == nil or tostring(text) == "" then
+  if text == nil or (not it.embed and tostring(text) == "") then
     error(string.format("dropdown item %d: text label is required", index))
   end
   if it.embed ~= nil and type(it.embed) ~= "table" then
@@ -97,6 +97,7 @@ function Dropdown.new(opts)
     colGap = opts.colGap or 0,
     rowGap = opts.rowGap or 1,
     splitIconCell = false,
+    bgColor = opts.menuBgColor,
   })
 
   local self = setmetatable({

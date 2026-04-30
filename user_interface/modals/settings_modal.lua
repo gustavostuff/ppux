@@ -1,5 +1,5 @@
 local Button = require("user_interface.button")
-local ColorPickerMatrix = require("user_interface.color_picker_matrix")
+local ColorPickerDropdown = require("user_interface.color_picker_dropdown")
 local Dropdown = require("user_interface.dropdown")
 local Panel = require("user_interface.panel")
 local colors = require("app_colors")
@@ -134,29 +134,13 @@ function Dialog.new()
       { value = 4, text = "Durian" },
     },
   })
-  local colorPickerDdRef = { nil }
-  local testColorPicker = ColorPickerMatrix.new({
-    onChange = function()
-      local d = colorPickerDdRef[1]
-      if d then
-        d:closeMenu()
-      end
-    end,
-  })
-  self._testColorPickerDropdown = Dropdown.new({
+  self._testColorPickerDropdown = ColorPickerDropdown.new({
     tooltip = "Test color picker (demo; does not change settings)",
-    default = "Test color picker",
-    closeMenuOnItemPick = false,
     getBounds = function()
       local w, h = love.graphics.getDimensions()
       return { w = w, h = h }
     end,
-    menuCellH = testColorPicker:getHeight(),
-    items = {
-      { value = 1, text = "Test color picker", embed = testColorPicker },
-    },
   })
-  colorPickerDdRef[1] = self._testColorPickerDropdown
   rebuildPanel(self)
   return self
 end
@@ -221,6 +205,14 @@ function Dialog:getTooltipAt(x, y)
     end
   end
   return self.panel:getTooltipAt(x, y)
+end
+
+function Dialog:isHoveringColorPickerSwatchAt(px, py)
+  local d = self._testColorPickerDropdown
+  if not (self.visible and d and type(d.wantsHandCursorAt) == "function") then
+    return false
+  end
+  return d:wantsHandCursorAt(px, py)
 end
 
 function Dialog:show(opts)

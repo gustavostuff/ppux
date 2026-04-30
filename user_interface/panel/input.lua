@@ -64,12 +64,12 @@ local function install(Panel, utils)
 
   function Panel:mousemoved(x, y)
     if not self.visible then return end
-    local hovered = self:getButtonAt(x, y)
+    local hovered = self:getButtonAt(x, y) or self:getComponentAt(x, y)
     for _, cell in ipairs(self:_iterCells()) do
       if cell.button then
         cell.button.hovered = (cell.button == hovered)
       end
-      if cell.component and cell.component.action then
+      if cell.component then
         cell.component.hovered = (cell.component == hovered)
       end
       if cell.component and type(cell.component.mousemoved) == "function" then

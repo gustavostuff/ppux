@@ -1,9 +1,18 @@
--- Standalone HSV color picker: 10×8 panel grid.
--- Col 1: brightness (value) for the current hue/saturation.
--- Col 2: non-interactive spacer.
--- Cols 3–10: hue × saturation matrix (hue left→right, saturation top→full / bottom→none).
+-- Standalone color picker: 10×8 panel grid.
+-- Col 1: lightness (HSL L) for the current hue/saturation from the matrix.
+-- Col 2: non-interactive spacer (no drawing).
+-- Cols 3–10: hue × saturation at fixed L=0.5 (HSL); vertical axis is saturation (full at top, none at bottom).
+-- onChange / getSelected still report h, s, v as HSV [0,1] derived from the resulting RGB.
 local Panel = require("user_interface.panel")
 local colors = require("app_colors")
+local Draw = require("utils.draw_utils")
+local images = require("images")
+
+-- Same timing as tile/sprite selection overlays (window_rendering_selection.lua).
+local SELECTION_RECT_ANIM = {
+  stepPx = 1,
+  intervalSeconds = 0.1,
+}
 
 local GRID_COLS = 10
 local GRID_ROWS = 8
@@ -45,15 +54,80 @@ local function hsvToRgb(h, s, v)
   return v, p, q
 end
 
+local function hslToRgb(h, s, l)
+  h = h % 1
+  if s <= 0 then
+    return l, l, l
+  end
+  local function hue2rgb(p, q, t)
+    if t < 0 then
+      t = t + 1
+    end
+    if t > 1 then
+      t = t - 1
+    end
+    if t < 1 / 6 then
+      return p + (q - p) * 6 * t
+    end
+    if t < 1 / 2 then
+      return q
+    end
+    if t < 2 / 3 then
+      return p + (q - p) * (2 / 3 - t) * 6
+    end
+    return p
+  end
+  local q = (l < 0.5) and (l * (1 + s)) or (l + s - l * s)
+  local p = 2 * l - q
+  return hue2rgb(p, q, h + 1 / 3), hue2rgb(p, q, h), hue2rgb(p, q, h - 1 / 3)
+end
+
+local function rgbToHsl(r, g, b)
+  local max = math.max(r, g, b)
+  local min = math.min(r, g, b)
+  local d = max - min
+  local l = (max + min) * 0.5
+  if d <= 1e-10 then
+    return 0, 0, l
+  end
+  local s = (l > 0.5) and (d / (2 - max - min)) or (d / (max + min))
+  local h
+  if max == min then
+    h = 0
+  elseif max == r then
+    h = ((g - b) / d + (g < b and 6 or 0)) / 6
+  elseif max == g then
+    h = ((b - r) / d + 2) / 6
+  else
+    h = ((r - g) / d + 4) / 6
+  end
+  return h % 1, s, l
+end
+
+local function rgbToHsv(r, g, b)
+  local max = math.max(r, g, b)
+  local min = math.min(r, g, b)
+  local d = max - min
+  local v = max
+  local s = (max > 0) and (d / max) or 0
+  local h = 0
+  if d > 1e-10 then
+    if max == r then
+      h = (((g - b) / d) % 6) / 6
+    elseif max == g then
+      h = ((b - r) / d + 2) / 6
+    else
+      h = ((r - g) / d + 4) / 6
+    end
+    h = h % 1
+  end
+  return h, s, v
+end
+
 local function makeSpacerComponent()
   return {
     enabled = true,
-    draw = function(self)
-      love.graphics.setColor(0, 0, 0, 0.06)
-      love.graphics.rectangle("fill", self.x, self.y, self.w, self.h)
-      love.graphics.setColor(1, 1, 1, 0.12)
-      love.graphics.rectangle("line", self.x, self.y, self.w, self.h)
-    end,
+    draw = function() end,
     contains = function()
       return false
     end,
@@ -63,6 +137,7 @@ end
 local function makeSwatchComponent(getRgbFn, onPickReleased)
   local self = {
     enabled = true,
+    hovered = false,
     x = 0,
     y = 0,
     w = 0,
@@ -73,8 +148,18 @@ local function makeSwatchComponent(getRgbFn, onPickReleased)
       a = a or 1
       love.graphics.setColor(r, g, b, a)
       love.graphics.rectangle("fill", component.x, component.y, component.w, component.h)
-      love.graphics.setColor(0, 0, 0, 0.35)
-      love.graphics.rectangle("line", component.x, component.y, component.w, component.h)
+      if component.hovered and images.pattern_a then
+        love.graphics.setColor(1, 1, 1, 1)
+        Draw.drawRepeatingImageAnimated(
+          images.pattern_a,
+          math.floor(component.x),
+          math.floor(component.y),
+          component.w,
+          component.h,
+          SELECTION_RECT_ANIM
+        )
+      end
+      love.graphics.setColor(1, 1, 1, 1)
     end,
     contains = function(component, px, py)
       return px >= component.x
@@ -118,7 +203,7 @@ function ColorPickerMatrix.new(opts)
     _cellH = cellH,
     _hueIndex = nil,
     _satRow = nil,
-    _v = 1,
+    _lightness = 1,
     _brightComponents = {},
   }, ColorPickerMatrix)
 
@@ -134,6 +219,7 @@ function ColorPickerMatrix.new(opts)
     bgColor = bg,
   })
 
+  -- HSL hue [0,1) and HSL saturation [0,1] for the matrix slice at L = 0.5.
   local function hueSatFromIndices(hueIndex, satRow)
     local h = (hueIndex - 1) / MATRIX_COLS
     local s = (GRID_ROWS - satRow) / (GRID_ROWS - 1)
@@ -150,26 +236,32 @@ function ColorPickerMatrix.new(opts)
     return 0, 0
   end
 
-  local function brightnessVForRow(row)
+  local function lightnessForRow(row)
     return (GRID_ROWS - row) / (GRID_ROWS - 1)
   end
 
   local function emitChange()
-    local h, s = currentHueSat()
-    local v = clamp01(self._v or 1)
+    local r, g, b
+    local hsvH, hsvS, hsvV
     if not self._hueIndex then
-      h, s, v = 0, 0, clamp01(self._v or 1)
+      local l = clamp01(self._lightness or 1)
+      r, g, b = l, l, l
+      hsvH, hsvS, hsvV = rgbToHsv(r, g, b)
+    else
+      local h, s = currentHueSat()
+      local l = clamp01(self._lightness or 0.5)
+      r, g, b = hslToRgb(h, s, l)
+      hsvH, hsvS, hsvV = rgbToHsv(r, g, b)
     end
-    local r, g, b = hsvToRgb(h, s, v)
     if self.onChange then
       self.onChange({
         r = r,
         g = g,
         b = b,
         a = 1,
-        h = h,
-        s = s,
-        v = v,
+        h = hsvH,
+        s = hsvS,
+        v = hsvV,
       })
     end
   end
@@ -179,12 +271,12 @@ function ColorPickerMatrix.new(opts)
     for row = 1, GRID_ROWS do
       local comp = self._brightComponents[row]
       if comp then
-        local vv = brightnessVForRow(row)
+        local Lrow = lightnessForRow(row)
         local r, g, b
         if self._hueIndex then
-          r, g, b = hsvToRgb(h, s, vv)
+          r, g, b = hslToRgb(h, s, Lrow)
         else
-          r, g, b = vv, vv, vv
+          r, g, b = Lrow, Lrow, Lrow
         end
         comp._rgb = { r, g, b, 1 }
         comp.getRgb = function()
@@ -195,14 +287,14 @@ function ColorPickerMatrix.new(opts)
   end
 
   function self:_pickBrightnessRow(row)
-    self._v = brightnessVForRow(row)
+    self._lightness = lightnessForRow(row)
     emitChange()
   end
 
   function self:_pickMatrixCell(hueIndex, satRow)
     self._hueIndex = hueIndex
     self._satRow = satRow
-    self._v = 1
+    self._lightness = 0.5
     self:_refreshBrightnessSwatches()
     emitChange()
   end
@@ -231,7 +323,7 @@ function ColorPickerMatrix.new(opts)
       local hueIndex = mc
       local satRow = row
       local h, s = hueSatFromIndices(hueIndex, satRow)
-      local r, g, b = hsvToRgb(h, s, 1)
+      local r, g, b = hslToRgb(h, s, 0.5)
       local fn = function()
         return r, g, b, 1
       end
@@ -249,9 +341,11 @@ function ColorPickerMatrix.new(opts)
     local ih = clamp01(opts.initialHSV.h or 0)
     local is = clamp01(opts.initialHSV.s or 1)
     local iv = opts.initialHSV.v ~= nil and clamp01(opts.initialHSV.v) or 1
-    self._hueIndex = math.max(1, math.min(MATRIX_COLS, math.floor(ih * MATRIX_COLS) + 1))
-    self._satRow = math.max(1, math.min(GRID_ROWS, GRID_ROWS - math.floor(is * (GRID_ROWS - 1))))
-    self._v = iv
+    local r0, g0, b0 = hsvToRgb(ih, is, iv)
+    local hh, ss, ll = rgbToHsl(r0, g0, b0)
+    self._hueIndex = math.max(1, math.min(MATRIX_COLS, math.floor(hh * MATRIX_COLS) + 1))
+    self._satRow = math.max(1, math.min(GRID_ROWS, GRID_ROWS - math.floor(ss * (GRID_ROWS - 1))))
+    self._lightness = ll
     self:_refreshBrightnessSwatches()
     emitChange()
   end
@@ -271,27 +365,28 @@ function ColorPickerMatrix:isVisible()
 end
 
 function ColorPickerMatrix:getSelected()
-  local h, s = 0, 0
+  local r, g, b
   if self._hueIndex and self._satRow then
-    h = (self._hueIndex - 1) / MATRIX_COLS
-    s = (GRID_ROWS - self._satRow) / (GRID_ROWS - 1)
+    local h = (self._hueIndex - 1) / MATRIX_COLS
+    local s = (GRID_ROWS - self._satRow) / (GRID_ROWS - 1)
     if GRID_ROWS == 1 then
       s = 1
     end
+    local l = clamp01(self._lightness or 0.5)
+    r, g, b = hslToRgb(h, s, l)
+  else
+    local l = clamp01(self._lightness or 1)
+    r, g, b = l, l, l
   end
-  local v = clamp01(self._v or 1)
-  if not self._hueIndex then
-    h, s, v = 0, 0, v
-  end
-  local r, g, b = hsvToRgb(h, s, v)
+  local hsvH, hsvS, hsvV = rgbToHsv(r, g, b)
   return {
     r = r,
     g = g,
     b = b,
     a = 1,
-    h = h,
-    s = s,
-    v = v,
+    h = hsvH,
+    s = hsvS,
+    v = hsvV,
   }
 end
 
@@ -311,6 +406,28 @@ end
 
 function ColorPickerMatrix:contains(px, py)
   return self.panel and self.panel:contains(px, py) or false
+end
+
+--- True when (px,py) is over a clickable color swatch (brightness column or hue×sat grid, not spacer).
+function ColorPickerMatrix:wantsHandCursorAt(px, py)
+  if not self.visible or not self.panel then
+    return false
+  end
+  if not self.panel:contains(px, py) then
+    return false
+  end
+  local cell = self.panel:getCellAt(px, py)
+  if not cell or not cell.component then
+    return false
+  end
+  local col = cell.col
+  if col == SPACER_COL then
+    return false
+  end
+  if col == BRIGHT_COL then
+    return true
+  end
+  return col >= MATRIX_FIRST_COL and col <= MATRIX_FIRST_COL + MATRIX_COLS - 1
 end
 
 function ColorPickerMatrix:draw()

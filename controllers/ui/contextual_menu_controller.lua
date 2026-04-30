@@ -147,7 +147,6 @@ local function resolveCellWidth(menu)
     local width
     if item.component and item.menuWidthFromComponentOnly then
       width = (type(item.component.getWidth) == "function" and tonumber(item.component:getWidth())) or 0
-      width = width + leftInset + rightInset
     else
       width = textWidth(text) + leftInset + rightInset
       local iw = iconWidth(item.icon)
