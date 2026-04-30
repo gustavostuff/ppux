@@ -1,4 +1,5 @@
 local Button = require("user_interface.button")
+local Dropdown = require("user_interface.dropdown")
 local Panel = require("user_interface.panel")
 local colors = require("app_colors")
 local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
@@ -52,7 +53,11 @@ local function rebuildPanel(self)
       colspan = 2,
       align = "right",
     })
-    if row.buttonEntry then
+    if row.dropdown then
+      self.panel:setCell(3, rowIndex, {
+        component = row.dropdown,
+      })
+    elseif row.buttonEntry then
       self.panel:setCell(3, rowIndex, {
         component = row.buttonEntry.button,
       })
@@ -109,9 +114,38 @@ function Dialog.new()
     cellPaddingX = nil,
     cellPaddingY = nil,
     panel = nil,
+    _demoDropdown = nil,
+    _demoDropdown2 = nil,
   }, Dialog)
 
   ModalPanelUtils.applyPanelDefaults(self)
+  self._demoDropdown = Dropdown.new({
+    tooltip = "Demo dropdown (no effect on settings)",
+    default = "Banana",
+    getBounds = function()
+      local w, h = love.graphics.getDimensions()
+      return { w = w, h = h }
+    end,
+    items = {
+      { value = 1, text = "Apple" },
+      { value = 2, text = "Banana" },
+      { value = 3, text = "Cherry" },
+      { value = 4, text = "Durian" },
+    },
+  })
+  self._demoDropdown2 = Dropdown.new({
+    tooltip = "Second demo dropdown (no effect on settings)",
+    default = 2,
+    getBounds = function()
+      local w, h = love.graphics.getDimensions()
+      return { w = w, h = h }
+    end,
+    items = {
+      { value = 1, text = "Small" },
+      { value = 2, text = "Medium" },
+      { value = 3, text = "Large" },
+    },
+  })
   rebuildPanel(self)
   return self
 end
@@ -120,7 +154,27 @@ function Dialog:isVisible()
   return self.visible
 end
 
+local function forEachDemoDropdown(self, fn)
+  for _, d in ipairs({ self._demoDropdown, self._demoDropdown2 }) do
+    if d then
+      fn(d)
+    end
+  end
+end
+
+local function anyDemoDropdown(self, pred)
+  for _, d in ipairs({ self._demoDropdown, self._demoDropdown2 }) do
+    if d and pred(d) then
+      return true
+    end
+  end
+  return false
+end
+
 function Dialog:hide()
+  forEachDemoDropdown(self, function(d)
+    d:closeMenu()
+  end)
   self.visible = false
   self.pressedButton = nil
   self.rows = {}
@@ -132,6 +186,11 @@ function Dialog:hide()
 end
 
 function Dialog:_containsBox(x, y)
+  if anyDemoDropdown(self, function(d)
+    return d:isMenuVisible() and d.menu:contains(x, y)
+  end) then
+    return true
+  end
   if self.panel and self._boxX then
     return self.panel:contains(x, y)
   end
@@ -141,6 +200,14 @@ end
 function Dialog:getTooltipAt(x, y)
   if not self.visible or not self.panel or not self:_containsBox(x, y) then
     return nil
+  end
+  for _, d in ipairs({ self._demoDropdown, self._demoDropdown2 }) do
+    if d and d:isMenuVisible() then
+      local tip = d.menu:getTooltipAt(x, y)
+      if tip then
+        return tip
+      end
+    end
   end
   return self.panel:getTooltipAt(x, y)
 end
@@ -169,6 +236,13 @@ function Dialog:show(opts)
   self.extraRows = opts.extraRows
   self.visible = true
   self.pressedButton = nil
+  local boundsFn = opts.getMenuBounds or function()
+    local w, h = love.graphics.getDimensions()
+    return { w = w, h = h }
+  end
+  forEachDemoDropdown(self, function(d)
+    d:setGetBounds(boundsFn)
+  end)
   self:_rebuildRows()
 end
 
@@ -250,22 +324,32 @@ function Dialog:_normalizeRows(rowSpecs)
   end
 
   for _, rowSpec in ipairs(rowSpecs or {}) do
-    local buttonEntry = nil
-    if rowSpec.buttonSpec then
-      buttonEntry = {
-        id = rowSpec.buttonSpec.id,
-        action = rowSpec.buttonSpec.action,
-        button = makeButtonWidget(rowSpec.buttonSpec.text or ""),
+    if rowSpec.dropdown then
+      rows[#rows + 1] = {
+        id = rowSpec.id,
+        label = rowSpec.label or "",
+        valueText = nil,
+        buttonEntry = nil,
+        dropdown = rowSpec.dropdown,
       }
-      buttons[#buttons + 1] = buttonEntry
-    end
+    else
+      local buttonEntry = nil
+      if rowSpec.buttonSpec then
+        buttonEntry = {
+          id = rowSpec.buttonSpec.id,
+          action = rowSpec.buttonSpec.action,
+          button = makeButtonWidget(rowSpec.buttonSpec.text or ""),
+        }
+        buttons[#buttons + 1] = buttonEntry
+      end
 
-    rows[#rows + 1] = {
-      id = rowSpec.id,
-      label = rowSpec.label or "",
-      valueText = rowSpec.valueText,
-      buttonEntry = buttonEntry,
-    }
+      rows[#rows + 1] = {
+        id = rowSpec.id,
+        label = rowSpec.label or "",
+        valueText = rowSpec.valueText,
+        buttonEntry = buttonEntry,
+      }
+    end
   end
 
   self.rows = rows
@@ -302,6 +386,16 @@ function Dialog:_rebuildRows()
       rowSpecs[#rowSpecs + 1] = row
     end
   end
+  rowSpecs[#rowSpecs + 1] = {
+    id = "demo_dropdown",
+    label = "Demo dropdown",
+    dropdown = self._demoDropdown,
+  }
+  rowSpecs[#rowSpecs + 1] = {
+    id = "demo_dropdown_size",
+    label = "Demo size",
+    dropdown = self._demoDropdown2,
+  }
   self:_normalizeRows(rowSpecs)
 end
 
@@ -358,6 +452,13 @@ end
 function Dialog:mousepressed(x, y, button)
   if not self.visible then return false end
   if button ~= 1 then return true end
+
+  if anyDemoDropdown(self, function(d)
+    return d:handleMousePressed(x, y, button)
+  end) then
+    return true
+  end
+
   if not self:_containsBox(x, y) then
     self:hide()
     return true
@@ -381,6 +482,12 @@ function Dialog:mousereleased(x, y, button)
   if not self.visible then return false end
   if button ~= 1 then return true end
 
+  if anyDemoDropdown(self, function(d)
+    return d:handleMouseReleased(x, y, button)
+  end) then
+    return true
+  end
+
   local pressed = self.pressedButton
   self.pressedButton = nil
   for _, entry in ipairs(self.buttons or {}) do
@@ -395,6 +502,9 @@ end
 
 function Dialog:mousemoved(x, y)
   if not self.visible then return false end
+  forEachDemoDropdown(self, function(d)
+    d:mousemoved(x, y)
+  end)
   for _, entry in ipairs(self.buttons or {}) do
     entry.button.hovered = entry.button:contains(x, y)
   end
@@ -408,6 +518,9 @@ function Dialog:draw(canvas)
   ModalPanelUtils.drawBackdrop(canvas)
   self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)
   self.panel:draw()
+  forEachDemoDropdown(self, function(d)
+    d:drawMenu()
+  end)
 end
 
 return Dialog

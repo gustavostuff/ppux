@@ -735,6 +735,12 @@ function AppCoreController:showSettingsModal()
 
   self.settingsModal:show({
     title = "Settings",
+    getMenuBounds = function()
+      return {
+        w = appRef.canvas:getWidth(),
+        h = appRef.canvas:getHeight(),
+      }
+    end,
     getCanvasImageMode = function()
       return appRef:_getCanvasImageModeForSettings()
     end,
