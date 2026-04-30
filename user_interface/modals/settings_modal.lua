@@ -1,4 +1,5 @@
 local Button = require("user_interface.button")
+local ColorPickerMatrix = require("user_interface.color_picker_matrix")
 local Dropdown = require("user_interface.dropdown")
 local Panel = require("user_interface.panel")
 local colors = require("app_colors")
@@ -115,7 +116,7 @@ function Dialog.new()
     cellPaddingY = nil,
     panel = nil,
     _demoDropdown = nil,
-    _demoDropdown2 = nil,
+    _testColorPickerDropdown = nil,
   }, Dialog)
 
   ModalPanelUtils.applyPanelDefaults(self)
@@ -133,19 +134,29 @@ function Dialog.new()
       { value = 4, text = "Durian" },
     },
   })
-  self._demoDropdown2 = Dropdown.new({
-    tooltip = "Second demo dropdown (no effect on settings)",
-    default = 2,
+  local colorPickerDdRef = { nil }
+  local testColorPicker = ColorPickerMatrix.new({
+    onChange = function()
+      local d = colorPickerDdRef[1]
+      if d then
+        d:closeMenu()
+      end
+    end,
+  })
+  self._testColorPickerDropdown = Dropdown.new({
+    tooltip = "Test color picker (demo; does not change settings)",
+    default = "Test color picker",
+    closeMenuOnItemPick = false,
     getBounds = function()
       local w, h = love.graphics.getDimensions()
       return { w = w, h = h }
     end,
+    menuCellH = testColorPicker:getHeight(),
     items = {
-      { value = 1, text = "Small" },
-      { value = 2, text = "Medium" },
-      { value = 3, text = "Large" },
+      { value = 1, text = "Test color picker", embed = testColorPicker },
     },
   })
+  colorPickerDdRef[1] = self._testColorPickerDropdown
   rebuildPanel(self)
   return self
 end
@@ -155,7 +166,7 @@ function Dialog:isVisible()
 end
 
 local function forEachDemoDropdown(self, fn)
-  for _, d in ipairs({ self._demoDropdown, self._demoDropdown2 }) do
+  for _, d in ipairs({ self._demoDropdown, self._testColorPickerDropdown }) do
     if d then
       fn(d)
     end
@@ -163,7 +174,7 @@ local function forEachDemoDropdown(self, fn)
 end
 
 local function anyDemoDropdown(self, pred)
-  for _, d in ipairs({ self._demoDropdown, self._demoDropdown2 }) do
+  for _, d in ipairs({ self._demoDropdown, self._testColorPickerDropdown }) do
     if d and pred(d) then
       return true
     end
@@ -201,7 +212,7 @@ function Dialog:getTooltipAt(x, y)
   if not self.visible or not self.panel or not self:_containsBox(x, y) then
     return nil
   end
-  for _, d in ipairs({ self._demoDropdown, self._demoDropdown2 }) do
+  for _, d in ipairs({ self._demoDropdown, self._testColorPickerDropdown }) do
     if d and d:isMenuVisible() then
       local tip = d.menu:getTooltipAt(x, y)
       if tip then
@@ -392,9 +403,9 @@ function Dialog:_rebuildRows()
     dropdown = self._demoDropdown,
   }
   rowSpecs[#rowSpecs + 1] = {
-    id = "demo_dropdown_size",
-    label = "Demo size",
-    dropdown = self._demoDropdown2,
+    id = "test_color_picker",
+    label = "Test color picker",
+    dropdown = self._testColorPickerDropdown,
   }
   self:_normalizeRows(rowSpecs)
 end

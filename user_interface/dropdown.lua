@@ -1,9 +1,14 @@
 -- Dropdown: trigger uses Button; list uses ContextualMenuController.
 --
--- Items: each entry is { value = number (required), text = string (required), onPick?, enabled? }.
+-- Items: each entry is { value = number (required), text = string (required), onPick?, enabled?, embed? }.
+--   embed (optional): a UI object with draw / contains / mousepressed / mousereleased / mousemoved / getWidth /
+--   getHeight / setPosition (e.g. ColorPickerMatrix). Renders as the menu row body; no automatic close on that row.
 -- opts.default (optional): pick initial selection by matching item.value (number) or item.text (string).
 --   If default is a string, label match is tried first, then tonumber(default) vs item.value.
 -- If opts.default is omitted, the first item is selected.
+-- opts.closeMenuOnItemPick (default true): when false, picking a normal text row runs onPick/selection but does not
+--   close the menu; call :closeMenu() from onPick or when an embedded widget finishes (e.g. color onChange).
+-- opts.menuCellW / opts.menuCellH: optional menu panel cell size (defaults to cell height from opts.cellH or scale).
 local Button = require("user_interface.button")
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
 local UiScale = require("user_interface.ui_scale")
@@ -21,6 +26,9 @@ local function assertItemShape(it, index)
   local text = it.text
   if text == nil or tostring(text) == "" then
     error(string.format("dropdown item %d: text label is required", index))
+  end
+  if it.embed ~= nil and type(it.embed) ~= "table" then
+    error(string.format("dropdown item %d: embed must be a table (component)", index))
   end
 end
 
@@ -75,14 +83,16 @@ function Dropdown.new(opts)
   })
 
   local cell = tonumber(opts.cellH) or UiScale.menuCellSize()
+  local menuCellW = tonumber(opts.menuCellW) or tonumber(opts.cellW) or cell
+  local menuCellH = tonumber(opts.menuCellH) or cell
   local menu = ContextualMenuController.new({
     getBounds = opts.getBounds or function()
       local w, h = love.graphics.getDimensions()
       return { w = w, h = h }
     end,
     cols = opts.menuCols or 8,
-    cellW = opts.cellW or cell,
-    cellH = cell,
+    cellW = menuCellW,
+    cellH = menuCellH,
     padding = (opts.menuPadding ~= nil) and opts.menuPadding or 0,
     colGap = opts.colGap or 0,
     rowGap = opts.rowGap or 1,
@@ -100,6 +110,7 @@ function Dropdown.new(opts)
     selectedValue = nil,
     selectedText = nil,
     enabled = opts.enabled ~= false,
+    _closeMenuOnItemPick = opts.closeMenuOnItemPick ~= false,
     -- Panel treats components with .action as hover-capable for hit testing.
     action = function() end,
   }, Dropdown)
@@ -147,16 +158,29 @@ function Dropdown:setItems(items)
   for _, entry in ipairs(self._items) do
     local it = entry
     local text = tostring(it.text)
-    self._menuItems[#self._menuItems + 1] = {
-      text = text,
-      enabled = it.enabled ~= false,
-      action = function()
-        if it.onPick then
-          it.onPick(it)
-        end
-        applySelection(self, it)
-      end,
-    }
+    if it.embed then
+      self._menuItems[#self._menuItems + 1] = {
+        text = text,
+        enabled = it.enabled ~= false,
+        component = it.embed,
+        menuWidthFromComponentOnly = true,
+      }
+    else
+      local menuItem = {
+        text = text,
+        enabled = it.enabled ~= false,
+        action = function()
+          if it.onPick then
+            it.onPick(it)
+          end
+          applySelection(self, it)
+        end,
+      }
+      if not self._closeMenuOnItemPick then
+        menuItem.keepMenuOpen = true
+      end
+      self._menuItems[#self._menuItems + 1] = menuItem
+    end
   end
 end
 

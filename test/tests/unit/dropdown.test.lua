@@ -154,4 +154,44 @@ describe("user_interface/dropdown.lua", function()
     end)
     expect(d.menu.getBounds()).toBe(bounds)
   end)
+
+  it("embed item exposes component on synthesized menu row", function()
+    local embed = {
+      draw = function() end,
+      contains = function() return false end,
+      getWidth = function()
+        return 40
+      end,
+      getHeight = function()
+        return 30
+      end,
+    }
+    local d = Dropdown.new({
+      getBounds = function()
+        return { w = 400, h = 300 }
+      end,
+      menuCellH = 30,
+      items = {
+        { value = 1, text = "Picker", embed = embed },
+      },
+    })
+    expect(d._menuItems[1].component).toBe(embed)
+    expect(d._menuItems[1].menuWidthFromComponentOnly).toBe(true)
+    expect(d._menuItems[1].action).toBeNil()
+  end)
+
+  it("closeMenuOnItemPick false sets keepMenuOpen on normal menu items", function()
+    local d = Dropdown.new({
+      getBounds = function()
+        return { w = 400, h = 300 }
+      end,
+      closeMenuOnItemPick = false,
+      items = {
+        { value = 1, text = "A" },
+        { value = 2, text = "B" },
+      },
+    })
+    expect(d._menuItems[1].keepMenuOpen).toBe(true)
+    expect(d._menuItems[2].keepMenuOpen).toBe(true)
+  end)
 end)

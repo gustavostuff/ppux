@@ -144,10 +144,19 @@ local function resolveCellWidth(menu)
 
   for _, item in ipairs(items) do
     local text = makeDisplayText(item)
-    local width = textWidth(text) + leftInset + rightInset
-    local iw = iconWidth(item.icon)
-    if iw > 0 then
-      width = width + iw + 5
+    local width
+    if item.component and item.menuWidthFromComponentOnly then
+      width = (type(item.component.getWidth) == "function" and tonumber(item.component:getWidth())) or 0
+      width = width + leftInset + rightInset
+    else
+      width = textWidth(text) + leftInset + rightInset
+      local iw = iconWidth(item.icon)
+      if iw > 0 then
+        width = width + iw + 5
+      end
+      if item.component and type(item.component.getWidth) == "function" then
+        width = math.max(width, tonumber(item.component:getWidth()) or 0)
+      end
     end
     resolved = math.max(resolved, math.floor(width + 0.5))
   end
@@ -165,6 +174,9 @@ local function makeItemAction(menu, item, row)
       item.callback()
     elseif item.action then
       item.action()
+    end
+    if item.keepMenuOpen == true then
+      return
     end
     menu:hideRoot()
   end
@@ -215,8 +227,18 @@ local function rebuildPanel(menu)
 
   local leftInset = ContextualMenuController.TEXT_PADDING_X
   for i, item in ipairs(items) do
-    local action = makeItemAction(menu, item, i)
-    if splitIconCell then
+    if item.component then
+      panel:setCell(1, i, {
+        component = item.component,
+        enabled = item.enabled ~= false,
+        tooltip = item.tooltip,
+      })
+      local cell = panel:getCell(1, i)
+      if cell then
+        cell.menuItem = item
+      end
+    elseif splitIconCell then
+      local action = makeItemAction(menu, item, i)
       panel:setCell(1, i, {
         kind = "button",
         icon = item.icon,
@@ -249,6 +271,7 @@ local function rebuildPanel(menu)
         textCell.menuItem = item
       end
     else
+      local action = makeItemAction(menu, item, i)
       panel:setCell(1, i, {
         kind = "button",
         icon = item.icon,
