@@ -1,12 +1,16 @@
 local Button = require("user_interface.button")
-local ColorPickerDropdown = require("user_interface.color_picker_dropdown")
-local Dropdown = require("user_interface.dropdown")
+local AppearanceSwatch = require("user_interface.modals.appearance_color_swatch")
+local ModalTabBar = require("user_interface.modals.modal_tab_bar")
 local Panel = require("user_interface.panel")
 local colors = require("app_colors")
 local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
 
 local Dialog = {}
 Dialog.__index = Dialog
+
+-- Tab row + body rows + footer; minimum body rows fits current defaults + one extraRow; grows with General if needed.
+local SETTINGS_TAB_ROW = 1
+local SETTINGS_MIN_CONTENT_ROWS = 5
 
 local function normalizeCanvasFilterKey(key)
   if key == "soft" then return "soft" end
@@ -27,11 +31,89 @@ local function makeButtonWidget(text)
   })
 end
 
-local function rebuildPanel(self)
-  local rows = math.max(1, #(self.rows or {}) + 1)
+-- Appearance tab: column headers + row labels + six placeholder swatches (matches UI mock).
+local function layoutAppearanceContent(self, contentStart, footerRow)
+  local r = contentStart
+  self.panel:setCell(1, r, {
+    kind = "label",
+    text = "",
+    align = "left",
+  })
+  self.panel:setCell(2, r, {
+    kind = "label",
+    text = "Dark mode",
+    align = "center",
+  })
+  self.panel:setCell(3, r, {
+    kind = "label",
+    text = "Light mode",
+    align = "center",
+  })
+  r = r + 1
+
+  local dataRows = {
+    {
+      label = "Focused",
+      darkId = "dark_focused",
+      lightId = "light_focused",
+      darkC = colors.blue,
+      lightC = colors.blue,
+    },
+    {
+      label = "Non-focused",
+      darkId = "dark_non_focused",
+      lightId = "light_non_focused",
+      darkC = colors.gray10,
+      lightC = colors.gray75,
+    },
+    {
+      label = "Text/Icons",
+      darkId = "dark_text_icons",
+      lightId = "light_text_icons",
+      darkC = colors.white,
+      lightC = colors.gray20,
+    },
+  }
+
+  for _, spec in ipairs(dataRows) do
+    self.panel:setCell(1, r, {
+      kind = "label",
+      text = spec.label,
+      align = "right",
+    })
+    self.panel:setCell(2, r, {
+      component = AppearanceSwatch.new({
+        slotId = spec.darkId,
+        color = spec.darkC,
+      }),
+    })
+    self.panel:setCell(3, r, {
+      component = AppearanceSwatch.new({
+        slotId = spec.lightId,
+        color = spec.lightC,
+      }),
+    })
+    r = r + 1
+  end
+
+  while r < footerRow do
+    self.panel:setCell(1, r, {
+      kind = "label",
+      text = "",
+      colspan = 3,
+      align = "left",
+    })
+    r = r + 1
+  end
+end
+
+function Dialog:_rebuildPanelGrid()
+  local bodyRows = math.max(SETTINGS_MIN_CONTENT_ROWS, self._generalContentRowCount or SETTINGS_MIN_CONTENT_ROWS)
+  local footerRow = SETTINGS_TAB_ROW + bodyRows + 1
+  local totalRows = footerRow
   self.panel = Panel.new({
     cols = 3,
-    rows = rows,
+    rows = totalRows,
     cellW = self.cellW,
     cellH = self.cellH,
     padding = self.padding,
@@ -47,31 +129,52 @@ local function rebuildPanel(self)
     _modalChromeOverBlue = self._modalChromeOverBlue == true,
   })
 
-  local rowIndex = 1
-  for _, row in ipairs(self.rows or {}) do
-    self.panel:setCell(1, rowIndex, {
-      text = (row.label or "") .. ":",
-      colspan = 2,
-      align = "right",
-    })
-    if row.dropdown then
-      self.panel:setCell(3, rowIndex, {
-        component = row.dropdown,
+  self._tabBar:setActiveId(self._activeTabId)
+  self.panel:setCell(1, SETTINGS_TAB_ROW, {
+    colspan = 2,
+    component = self._tabBar,
+  })
+
+  local contentStart = SETTINGS_TAB_ROW + 1
+
+  if self._activeTabId == "appearance" then
+    layoutAppearanceContent(self, contentStart, footerRow)
+  else
+    local rowIndex = contentStart
+    for _, row in ipairs(self.rows or {}) do
+      self.panel:setCell(1, rowIndex, {
+        text = (row.label or "") .. ":",
+        colspan = 2,
+        align = "right",
       })
-    elseif row.buttonEntry then
-      self.panel:setCell(3, rowIndex, {
-        component = row.buttonEntry.button,
-      })
-    elseif row.valueText and row.valueText ~= "" then
-      self.panel:setCell(3, rowIndex, {
-        text = row.valueText,
-        textColor = colors.yellow,
-      })
+      if row.dropdown then
+        self.panel:setCell(3, rowIndex, {
+          component = row.dropdown,
+        })
+      elseif row.buttonEntry then
+        self.panel:setCell(3, rowIndex, {
+          component = row.buttonEntry.button,
+        })
+      elseif row.valueText and row.valueText ~= "" then
+        self.panel:setCell(3, rowIndex, {
+          text = row.valueText,
+          textColor = colors.yellow,
+        })
+      end
+      rowIndex = rowIndex + 1
     end
-    rowIndex = rowIndex + 1
+    while rowIndex < footerRow do
+      self.panel:setCell(1, rowIndex, {
+        kind = "label",
+        text = "",
+        colspan = 3,
+        align = "left",
+      })
+      rowIndex = rowIndex + 1
+    end
   end
 
-  self.panel:setCell(1, rows, {
+  self.panel:setCell(1, footerRow, {
     text = self.footerText,
     colspan = 3,
   })
@@ -115,33 +218,26 @@ function Dialog.new()
     cellPaddingX = nil,
     cellPaddingY = nil,
     panel = nil,
-    _demoDropdown = nil,
-    _testColorPickerDropdown = nil,
+    _activeTabId = "general",
+    _tabBar = nil,
+    _generalContentRowCount = SETTINGS_MIN_CONTENT_ROWS,
   }, Dialog)
 
   ModalPanelUtils.applyPanelDefaults(self)
-  self._demoDropdown = Dropdown.new({
-    tooltip = "Demo dropdown (no effect on settings)",
-    default = "Banana",
-    getBounds = function()
-      local w, h = love.graphics.getDimensions()
-      return { w = w, h = h }
-    end,
-    items = {
-      { value = 1, text = "Apple" },
-      { value = 2, text = "Banana" },
-      { value = 3, text = "Cherry" },
-      { value = 4, text = "Durian" },
+  self._tabBar = ModalTabBar.new({
+    chromeOverBlue = true,
+    tabs = {
+      { id = "general", label = "General" },
+      { id = "appearance", label = "Appearance" },
     },
-  })
-  self._testColorPickerDropdown = ColorPickerDropdown.new({
-    tooltip = "Test color picker (demo; does not change settings)",
-    getBounds = function()
-      local w, h = love.graphics.getDimensions()
-      return { w = w, h = h }
+    onSelect = function(id)
+      if self._activeTabId ~= id then
+        self._activeTabId = id
+        self:_rebuildRows()
+      end
     end,
   })
-  rebuildPanel(self)
+  self:_rebuildPanelGrid()
   return self
 end
 
@@ -149,31 +245,12 @@ function Dialog:isVisible()
   return self.visible
 end
 
-local function forEachDemoDropdown(self, fn)
-  for _, d in ipairs({ self._demoDropdown, self._testColorPickerDropdown }) do
-    if d then
-      fn(d)
-    end
-  end
-end
-
-local function anyDemoDropdown(self, pred)
-  for _, d in ipairs({ self._demoDropdown, self._testColorPickerDropdown }) do
-    if d and pred(d) then
-      return true
-    end
-  end
-  return false
-end
-
 function Dialog:hide()
-  forEachDemoDropdown(self, function(d)
-    d:closeMenu()
-  end)
   self.visible = false
   self.pressedButton = nil
   self.rows = {}
   self.buttons = {}
+  self._activeTabId = "general"
   if self.panel then
     self.panel:setVisible(false)
   end
@@ -181,11 +258,6 @@ function Dialog:hide()
 end
 
 function Dialog:_containsBox(x, y)
-  if anyDemoDropdown(self, function(d)
-    return d:isMenuVisible() and d.menu:contains(x, y)
-  end) then
-    return true
-  end
   if self.panel and self._boxX then
     return self.panel:contains(x, y)
   end
@@ -196,23 +268,7 @@ function Dialog:getTooltipAt(x, y)
   if not self.visible or not self.panel or not self:_containsBox(x, y) then
     return nil
   end
-  for _, d in ipairs({ self._demoDropdown, self._testColorPickerDropdown }) do
-    if d and d:isMenuVisible() then
-      local tip = d.menu:getTooltipAt(x, y)
-      if tip then
-        return tip
-      end
-    end
-  end
   return self.panel:getTooltipAt(x, y)
-end
-
-function Dialog:isHoveringColorPickerSwatchAt(px, py)
-  local d = self._testColorPickerDropdown
-  if not (self.visible and d and type(d.wantsHandCursorAt) == "function") then
-    return false
-  end
-  return d:wantsHandCursorAt(px, py)
 end
 
 function Dialog:show(opts)
@@ -239,13 +295,7 @@ function Dialog:show(opts)
   self.extraRows = opts.extraRows
   self.visible = true
   self.pressedButton = nil
-  local boundsFn = opts.getMenuBounds or function()
-    local w, h = love.graphics.getDimensions()
-    return { w = w, h = h }
-  end
-  forEachDemoDropdown(self, function(d)
-    d:setGetBounds(boundsFn)
-  end)
+  self._activeTabId = "general"
   self:_rebuildRows()
 end
 
@@ -357,10 +407,11 @@ function Dialog:_normalizeRows(rowSpecs)
 
   self.rows = rows
   self.buttons = buttons
+  self._generalContentRowCount = math.max(SETTINGS_MIN_CONTENT_ROWS, #rows)
 
   if #self.buttons == 0 then
     self.focusedButtonIndex = 1
-    rebuildPanel(self)
+    self:_rebuildPanelGrid()
     return
   end
 
@@ -375,10 +426,18 @@ function Dialog:_normalizeRows(rowSpecs)
   end
   self.focusedButtonIndex = math.max(1, math.min(focusIndex, #self.buttons))
   self:_syncFocus()
-  rebuildPanel(self)
+  self:_rebuildPanelGrid()
 end
 
 function Dialog:_rebuildRows()
+  if self._activeTabId == "appearance" then
+    self.rows = {}
+    self.buttons = {}
+    self.focusedButtonIndex = 1
+    self:_rebuildPanelGrid()
+    return
+  end
+
   local rowSpecs = self:_defaultRows()
   if self.extraRows then
     for _, row in ipairs(self.extraRows) do
@@ -389,16 +448,6 @@ function Dialog:_rebuildRows()
       rowSpecs[#rowSpecs + 1] = row
     end
   end
-  rowSpecs[#rowSpecs + 1] = {
-    id = "demo_dropdown",
-    label = "Demo dropdown",
-    dropdown = self._demoDropdown,
-  }
-  rowSpecs[#rowSpecs + 1] = {
-    id = "test_color_picker",
-    label = "Test color picker",
-    dropdown = self._testColorPickerDropdown,
-  }
   self:_normalizeRows(rowSpecs)
 end
 
@@ -409,7 +458,9 @@ function Dialog:_syncFocus()
 end
 
 function Dialog:_focusNext(step)
-  if not self.visible or #self.buttons == 0 then return end
+  if not self.visible or not self.buttons or #self.buttons == 0 then
+    return
+  end
   step = step or 1
   local count = #self.buttons
   local idx = self.focusedButtonIndex or 1
@@ -438,6 +489,9 @@ function Dialog:handleKey(key)
     self:hide()
     return true
   end
+  if not self.buttons or #self.buttons == 0 then
+    return false
+  end
   if key == "tab" or key == "right" or key == "down" then
     self:_focusNext(1)
     return true
@@ -456,14 +510,16 @@ function Dialog:mousepressed(x, y, button)
   if not self.visible then return false end
   if button ~= 1 then return true end
 
-  if anyDemoDropdown(self, function(d)
-    return d:handleMousePressed(x, y, button)
-  end) then
+  if not self:_containsBox(x, y) then
+    self:hide()
     return true
   end
 
-  if not self:_containsBox(x, y) then
-    self:hide()
+  if self._tabBar:mousepressed(x, y, button) then
+    return true
+  end
+
+  if self._activeTabId ~= "general" then
     return true
   end
 
@@ -485,12 +541,6 @@ function Dialog:mousereleased(x, y, button)
   if not self.visible then return false end
   if button ~= 1 then return true end
 
-  if anyDemoDropdown(self, function(d)
-    return d:handleMouseReleased(x, y, button)
-  end) then
-    return true
-  end
-
   local pressed = self.pressedButton
   self.pressedButton = nil
   for _, entry in ipairs(self.buttons or {}) do
@@ -505,9 +555,7 @@ end
 
 function Dialog:mousemoved(x, y)
   if not self.visible then return false end
-  forEachDemoDropdown(self, function(d)
-    d:mousemoved(x, y)
-  end)
+  self._tabBar:mousemoved(x, y)
   for _, entry in ipairs(self.buttons or {}) do
     entry.button.hovered = entry.button:contains(x, y)
   end
@@ -516,14 +564,11 @@ end
 
 function Dialog:draw(canvas)
   if not self.visible then return end
-  rebuildPanel(self)
+  self:_rebuildPanelGrid()
   self.panel:setVisible(true)
   ModalPanelUtils.drawBackdrop(canvas)
   self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)
   self.panel:draw()
-  forEachDemoDropdown(self, function(d)
-    d:drawMenu()
-  end)
 end
 
 return Dialog
