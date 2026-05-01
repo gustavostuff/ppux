@@ -10,7 +10,7 @@ local Text = require("utils.text_utils")
 local M = {}
 
 local MIN_BAR_H = 15
-local OUTER_MARGIN = 3
+local OUTER_MARGIN = 0
 local SECTION_GAP = 3
 local BUTTON_GAP = 0
 local STATUS_BG_H = 15
@@ -516,7 +516,7 @@ function M.draw(app)
   local textW = math.max(0, statusW - (pad * 2))
   local textY = statusY + math.floor((STATUS_BG_H - love.graphics.getFont():getHeight()) / 2)
   local textX = statusRightX - pad - love.graphics.getFont():getWidth(statusText)
-  local statusTint = colors:inkForSurface(barBg, colors:chromeTextIconsColor())
+  local statusTint = colors:chromeTextIconsColor()
   love.graphics.setScissor(statusLeftX, statusY, statusW, STATUS_BG_H)
   love.graphics.setColor(statusTint[1], statusTint[2], statusTint[3], statusTint[4] or 1)
   if textW > 0 then

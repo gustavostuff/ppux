@@ -574,7 +574,7 @@ function ToolbarBase:draw()
       love.graphics.rectangle("fill", drawX, self.y, self.w, self.h)
     end
 
-    local chromeInk = colors:inkForSurface(focusedColor, colors:chromeTextIconsColor())
+    local chromeInk = colors:chromeTextIconsColor()
     love.graphics.setColor(chromeInk[1], chromeInk[2], chromeInk[3], chromeInk[4] or 1)
 
     -- Update label text if update function is provided
@@ -597,12 +597,7 @@ function ToolbarBase:draw()
         local prevIr = button.iconRespectTheme
         local prevCc = button.contentColor
         local prevLit = button.literalContentColor
-        local prevSurf = nil
-        local appliedToolbarSurf = false
         if shouldUseChromeTextTint(button) then
-          prevSurf = button.iconContrastSurfaceBg
-          button.iconContrastSurfaceBg = focusedColor
-          appliedToolbarSurf = true
           button.contentColor = colors:chromeTextIconsColor()
           button.literalContentColor = true
         end
@@ -617,9 +612,6 @@ function ToolbarBase:draw()
         button.iconRespectTheme = prevIr
         button.contentColor = prevCc
         button.literalContentColor = prevLit
-        if appliedToolbarSurf then
-          button.iconContrastSurfaceBg = prevSurf
-        end
       end
     end
   end
@@ -641,18 +633,17 @@ function ToolbarBase:_drawLabel(label)
   local labelX = x + (w - labelW) / 2  -- Center horizontally within allocated width
   local labelY = y + (h - labelH) / 2  -- Center vertically
   
-  local textColor
+  local textColor = colors:chromeTextIconsColor()
   local literal = true
   if self.window and self.windowController and self.windowController.getFocus then
     if self.windowController:getFocus() ~= self.window then
-      local ubg = colors:chromeBackgroundUnfocused()
-      textColor = colors:inkForSurface(ubg, colors.textPrimary or colors.white)
+      textColor = colors.textPrimary or textColor
       literal = false
     else
-      textColor = colors:inkForSurface(colors:focusedChromeColor(), colors:chromeTextIconsColor())
+      textColor = colors:chromeTextIconsColor()
     end
   else
-    textColor = colors:inkForSurface(colors:focusedChromeColor(), colors:chromeTextIconsColor())
+    textColor = colors:chromeTextIconsColor()
   end
 
   love.graphics.setColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)

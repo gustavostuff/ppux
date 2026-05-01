@@ -71,7 +71,6 @@ function Button.new(opts)
     contentColor = opts.contentColor,
     iconRespectTheme = opts.iconRespectTheme,
     literalContentColor = opts.literalContentColor == true,
-    iconContrastSurfaceBg = opts.iconContrastSurfaceBg,
     skipIconContrastAdapt = opts.skipIconContrastAdapt == true,
     -- Additional properties can be stored here
     isCloseButton = opts.isCloseButton,
@@ -113,26 +112,13 @@ function Button:draw()
     return c[1], c[2], c[3], alpha
   end
 
-  --- Icons are bitmap white-fill; tint via multiply. On light chrome, use dark ink for contrast.
-  local function contrastSurfaceRgb()
-    local surf = self.iconContrastSurfaceBg
-    if not surf and self.bgColor then
-      surf = self.bgColor
-    end
-    if not surf then
-      surf = colors:focusedChromeColor()
-    end
-    return surf
-  end
-
+  --- Icons are bitmap white-fill; tint via multiply. With literal + contentColor, use contentColor (Appearance).
   local function iconInkRgba(alpha)
     if self.skipIconContrastAdapt == true then
       return colors.white[1], colors.white[2], colors.white[3], alpha
     end
     if self.literalContentColor == true and self.contentColor then
-      local surf = contrastSurfaceRgb()
-      local ink = colors:inkForSurface(surf, self.contentColor)
-      return ink[1], ink[2], ink[3], alpha
+      return self.contentColor[1], self.contentColor[2], self.contentColor[3], alpha
     end
     if self.iconRespectTheme == false then
       return colors.white[1], colors.white[2], colors.white[3], alpha
@@ -163,10 +149,6 @@ function Button:draw()
     local textY = self.y + (self.h - textH) / 2
     local a = contentAlpha()
     local r, g, b, aa = contentColorWithAlpha(a)
-    if self.literalContentColor == true and self.contentColor and self.skipIconContrastAdapt ~= true then
-      local ink = colors:inkForSurface(contrastSurfaceRgb(), self.contentColor)
-      r, g, b = ink[1], ink[2], ink[3]
-    end
     Text.print(self.text, math.floor(textX), math.floor(textY), {
       color = { r, g, b, aa },
       literalColor = self.literalContentColor == true,
@@ -205,10 +187,6 @@ function Button:draw()
     love.graphics.setColor(ir, ig, ib, ia)
     drawIcon(self.icon, iconX, iconY, { respectTheme = false })
 
-    if self.literalContentColor == true and self.contentColor and self.skipIconContrastAdapt ~= true then
-      local ink = colors:inkForSurface(contrastSurfaceRgb(), self.contentColor)
-      r, g, b = ink[1], ink[2], ink[3]
-    end
     Text.print(self.text, math.floor(textX), math.floor(textY), {
       color = { r, g, b, a },
       literalColor = self.literalContentColor == true,

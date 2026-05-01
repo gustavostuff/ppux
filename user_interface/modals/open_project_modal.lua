@@ -370,9 +370,7 @@ function Dialog.new()
       local padX = math.floor(component.h / 2)
       local textY = component.y + math.floor((component.h - fh) / 2)
       local chromeWhite = self.panel and self.panel._modalChromeOverBlue == true
-      local surf = (self.panel and self.panel.bgColor) or colors:focusedChromeColor()
-      local preferred = chromeWhite and colors:chromeTextIconsColor() or (colors.textPrimary or colors.white)
-      local c = chromeWhite and colors:inkForSurface(surf, preferred) or preferred
+      local c = chromeWhite and colors:chromeTextIconsColor() or (colors.textPrimary or colors.white)
       love.graphics.setColor(c[1], c[2], c[3], c[4] or 1)
       TU.drawScrollingText(
         self.currentDir or "",
@@ -685,9 +683,7 @@ function Dialog:_drawScrollIndicator()
   local thumbY = math.floor(trackTop + ((trackH - thumbH) * offsetFrac))
 
   local chrome = self.panel and self.panel._modalChromeOverBlue == true
-  local surf = self.panel and self.panel.bgColor or colors:focusedChromeColor()
-  local preferred = chrome and colors:chromeTextIconsColor() or colors.white
-  local c = chrome and colors:inkForSurface(surf, preferred) or colors.white
+  local c = chrome and colors:chromeTextIconsColor() or colors.white
   love.graphics.setColor(c[1], c[2], c[3], 1)
   love.graphics.rectangle("fill", trackX, thumbY, SCROLLBAR_W, thumbH)
   love.graphics.setColor(colors.white)

@@ -114,10 +114,13 @@ function Window:drawHeader(isFocused)
   end
   love.graphics.rectangle("fill", hx - 1, hy, hw + 2, hh, 2)
 
-  -- Title on chrome: adaptive ink from actual header fill.
-  local bgColor = isFocused and colors:focusedChromeColor() or colors:chromeBackgroundUnfocused()
-  local preferred = isFocused and colors:chromeTextIconsColor() or (colors.textPrimary or colors.white)
-  local textColor = colors:inkForSurface(bgColor, preferred)
+  -- Title on chrome: use Appearance “Text/Icons” when focused; body text when not.
+  local textColor
+  if isFocused then
+    textColor = colors:chromeTextIconsColor()
+  else
+    textColor = colors.textPrimary or colors.white
+  end
   love.graphics.setColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
 
   local ty = math.floor(hy + (hh - love.graphics.getFont():getHeight()) / 2)
