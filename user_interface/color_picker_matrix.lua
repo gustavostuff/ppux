@@ -134,7 +134,7 @@ local function makeSpacerComponent()
   }
 end
 
-local function makeSwatchComponent(getRgbFn, onPickReleased)
+local function makeSwatchComponent(getRgbFn, onPickReleased, isSelectedFn)
   local self = {
     enabled = true,
     hovered = false,
@@ -148,16 +148,28 @@ local function makeSwatchComponent(getRgbFn, onPickReleased)
       a = a or 1
       love.graphics.setColor(r, g, b, a)
       love.graphics.rectangle("fill", component.x, component.y, component.w, component.h)
-      if component.hovered and images.pattern_a then
-        love.graphics.setColor(1, 1, 1, 1)
-        Draw.drawRepeatingImageAnimated(
-          images.pattern_a,
-          math.floor(component.x),
-          math.floor(component.y),
-          component.w,
-          component.h,
-          SELECTION_RECT_ANIM
-        )
+      if images.pattern_a then
+        if component.hovered then
+          love.graphics.setColor(1, 1, 1, 1)
+          Draw.drawRepeatingImageAnimated(
+            images.pattern_a,
+            math.floor(component.x),
+            math.floor(component.y),
+            component.w,
+            component.h,
+            SELECTION_RECT_ANIM
+          )
+        elseif isSelectedFn and isSelectedFn() then
+          love.graphics.setColor(1, 1, 1, 0.5)
+          Draw.drawRepeatingImageAnimated(
+            images.pattern_a,
+            math.floor(component.x),
+            math.floor(component.y),
+            component.w,
+            component.h,
+            SELECTION_RECT_ANIM
+          )
+        end
       end
       love.graphics.setColor(1, 1, 1, 1)
     end,
@@ -309,6 +321,9 @@ function ColorPickerMatrix.new(opts)
       return 1, 1, 1, 1
     end, function()
       self:_pickBrightnessRow(rrow)
+    end, function()
+      local L = clamp01(self._lightness or 1)
+      return math.abs(L - lightnessForRow(rrow)) < 1e-4
     end)
     brightComp._rgb = { 1, 1, 1, 1 }
     brightComp.getRgb = function()
@@ -333,6 +348,8 @@ function ColorPickerMatrix.new(opts)
       end
       local matComp = makeSwatchComponent(fn, function()
         self:_pickMatrixCell(hueIndex, satRow)
+      end, function()
+        return self._hueIndex == hueIndex and self._satRow == satRow
       end)
       panel:setCell(MATRIX_FIRST_COL + mc - 1, row, { component = matComp })
     end

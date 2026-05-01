@@ -11,7 +11,7 @@ local M = {}
 
 local MIN_BAR_H = 15
 local OUTER_MARGIN = 0
-local SECTION_GAP = 3
+local SECTION_GAP = 0
 local BUTTON_GAP = 0
 local STATUS_BG_H = 15
 local STATUS_AREA_RATIO = 0.5

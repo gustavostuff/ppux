@@ -9,6 +9,7 @@
 -- opts.closeMenuOnItemPick (default true): when false, picking a normal text row runs onPick/selection but does not
 --   close the menu; call :closeMenu() from onPick or when an embedded widget finishes (e.g. color onChange).
 -- opts.menuBgColor: optional panel fill for the dropdown list (default gray20); use {r,g,b,a} with a=0 for transparent.
+-- opts.onBeforeOpenMenu (optional): function(dropdownSelf) invoked just before the list is shown (e.g. close other dropdowns).
 local Button = require("user_interface.button")
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
 local UiScale = require("user_interface.ui_scale")
@@ -112,6 +113,7 @@ function Dropdown.new(opts)
     selectedText = nil,
     enabled = opts.enabled ~= false,
     _closeMenuOnItemPick = opts.closeMenuOnItemPick ~= false,
+    onBeforeOpenMenu = opts.onBeforeOpenMenu,
     -- Panel treats components with .action as hover-capable for hit testing.
     action = function() end,
   }, Dropdown)
@@ -220,6 +222,9 @@ end
 function Dropdown:openMenu()
   if not self.menu or #self._menuItems == 0 then
     return false
+  end
+  if self.onBeforeOpenMenu then
+    self.onBeforeOpenMenu(self)
   end
   local x, y = self:_anchorMenuPosition()
   return self.menu:showAt(x, y, self._menuItems)

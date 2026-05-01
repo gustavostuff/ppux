@@ -738,6 +738,35 @@ function AppCoreController:_applyAppearanceChromeFromSettings(appearanceChrome)
   end
 end
 
+--- Reset General + Appearance settings controlled by the settings modal to file defaults.
+--- Preserves recent projects list and skip-splash preference.
+function AppCoreController:resetSettingsModalPreferencesToDefaults()
+  local cur = AppSettingsController.load()
+  local recentProjects = cur and cur.recentProjects
+  local skipSplash = cur and cur.skipSplash == true
+  local D = AppSettingsController.defaults()
+  self:_applyThemeSetting(D.theme, false)
+  self:_applyTooltipsEnabledSetting(D.tooltipsEnabled, false)
+  self:_applyCanvasImageModeSetting(D.canvasImageMode, false)
+  self:_applyCanvasFilterSetting(D.canvasFilter, false)
+  self:_applyPaletteLinksSetting(D.paletteLinks, false)
+  self:_applySeparateToolbarSetting(D.separateToolbar, false)
+  self:_applyGroupedPaletteWindowsSetting(D.groupedPaletteWindows, false)
+  self:_applyAppearanceChromeFromSettings({})
+  AppSettingsController.save({
+    theme = D.theme,
+    tooltipsEnabled = D.tooltipsEnabled,
+    canvasImageMode = D.canvasImageMode,
+    canvasFilter = D.canvasFilter,
+    paletteLinks = D.paletteLinks,
+    separateToolbar = D.separateToolbar,
+    groupedPaletteWindows = D.groupedPaletteWindows,
+    appearanceChrome = {},
+    recentProjects = recentProjects,
+    skipSplash = skipSplash,
+  })
+end
+
 function AppCoreController:showSettingsModal()
   if not self.settingsModal then
     self.settingsModal = SettingsModal.new()
@@ -831,6 +860,10 @@ function AppCoreController:showSettingsModal()
       AppSettingsController.save({ appearanceChrome = colors:getAppearanceChromeOverridesForSave() })
       ModalPanelUtils.refreshModalChromeFromAppearanceChange(appRef)
       appRef:setStatus("Chrome color saved")
+    end,
+    onResetAll = function()
+      appRef:resetSettingsModalPreferencesToDefaults()
+      appRef:setStatus("Settings reset to defaults")
     end,
   })
 end

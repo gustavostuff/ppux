@@ -84,6 +84,7 @@ function ColorPickerDropdown.new(opts)
     tooltip = opts.tooltip or "",
     enabled = opts.enabled,
     default = opts.default,
+    onBeforeOpenMenu = opts.onBeforeOpenMenu,
     items = {
       {
         value = opts.itemValue or 1,
