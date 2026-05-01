@@ -258,11 +258,18 @@ function AppSettingsController.save(opts)
   if opts.separateToolbar ~= nil then data.separateToolbar = (opts.separateToolbar == true) end
   if opts.groupedPaletteWindows ~= nil then data.groupedPaletteWindows = (opts.groupedPaletteWindows == true) end
   if opts.recentProjects ~= nil then data.recentProjects = normalizeRecentProjects(opts.recentProjects) end
+  -- appearanceChrome: merge into existing file data by default (partial updates from UI).
+  -- mergeAppearanceChrome = false: replace chrome from opts.appearanceChrome only (e.g. reset with {}).
   if opts.appearanceChrome ~= nil then
-    local prev = type(data.appearanceChrome) == "table" and data.appearanceChrome or {}
-    local merged = TableUtils.deepcopy(prev)
-    for k, v in pairs(opts.appearanceChrome) do
-      merged[k] = v
+    local merged
+    if opts.mergeAppearanceChrome == false then
+      merged = TableUtils.deepcopy(opts.appearanceChrome)
+    else
+      local prev = type(data.appearanceChrome) == "table" and data.appearanceChrome or {}
+      merged = TableUtils.deepcopy(prev)
+      for k, v in pairs(opts.appearanceChrome) do
+        merged[k] = v
+      end
     end
     data.appearanceChrome = normalizeAppearanceChrome(merged)
   end

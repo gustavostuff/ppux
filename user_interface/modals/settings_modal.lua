@@ -121,6 +121,17 @@ local function anyAppearancePickerMenu(self, pred)
   return found
 end
 
+--- First color picker whose dropdown menu is open (only one should be; see onBeforeOpenMenu).
+local function appearancePickerWithOpenMenu(self)
+  for _, slotId in ipairs(APPEARANCE_PICKER_SLOT_IDS) do
+    local p = self._appearancePickers and self._appearancePickers[slotId]
+    if p and p:isMenuVisible() then
+      return p
+    end
+  end
+  return nil
+end
+
 --- Settings Appearance: only one color-picker menu at a time.
 function Dialog:_closeOtherAppearancePickers(keepSlotId)
   for _, slotId in ipairs(APPEARANCE_PICKER_SLOT_IDS) do
@@ -431,6 +442,10 @@ end
 function Dialog:isHoveringColorPickerSwatchAt(px, py)
   if not self.visible or self._activeTabId ~= "appearance" then
     return false
+  end
+  local openPicker = appearancePickerWithOpenMenu(self)
+  if openPicker and type(openPicker.wantsHandCursorAt) == "function" then
+    return openPicker:wantsHandCursorAt(px, py)
   end
   for _, p in pairs(self._appearancePickers or {}) do
     if p and type(p.wantsHandCursorAt) == "function" and p:wantsHandCursorAt(px, py) then
@@ -762,10 +777,17 @@ function Dialog:mousepressed(x, y, button)
   end
 
   if self._activeTabId == "appearance" then
-    for _, slotId in ipairs(APPEARANCE_PICKER_SLOT_IDS) do
-      local p = self._appearancePickers and self._appearancePickers[slotId]
-      if p and p:handleMousePressed(x, y, button) then
+    local openPicker = appearancePickerWithOpenMenu(self)
+    if openPicker then
+      if openPicker:handleMousePressed(x, y, button) then
         return true
+      end
+    else
+      for _, slotId in ipairs(APPEARANCE_PICKER_SLOT_IDS) do
+        local p = self._appearancePickers and self._appearancePickers[slotId]
+        if p and p:handleMousePressed(x, y, button) then
+          return true
+        end
       end
     end
   end
@@ -803,10 +825,17 @@ function Dialog:mousereleased(x, y, button)
   if button ~= 1 then return true end
 
   if self._activeTabId == "appearance" then
-    for _, slotId in ipairs(APPEARANCE_PICKER_SLOT_IDS) do
-      local p = self._appearancePickers and self._appearancePickers[slotId]
-      if p and p:handleMouseReleased(x, y, button) then
+    local openPicker = appearancePickerWithOpenMenu(self)
+    if openPicker then
+      if openPicker:handleMouseReleased(x, y, button) then
         return true
+      end
+    else
+      for _, slotId in ipairs(APPEARANCE_PICKER_SLOT_IDS) do
+        local p = self._appearancePickers and self._appearancePickers[slotId]
+        if p and p:handleMouseReleased(x, y, button) then
+          return true
+        end
       end
     end
   end
@@ -843,9 +872,14 @@ end
 function Dialog:mousemoved(x, y)
   if not self.visible then return false end
   if self._activeTabId == "appearance" then
-    forEachAppearancePicker(self, function(p)
-      p:mousemoved(x, y)
-    end)
+    local openPicker = appearancePickerWithOpenMenu(self)
+    if openPicker then
+      openPicker:mousemoved(x, y)
+    else
+      forEachAppearancePicker(self, function(p)
+        p:mousemoved(x, y)
+      end)
+    end
   end
   self._tabBar:mousemoved(x, y)
   if self._resetAllButton then

@@ -2,6 +2,7 @@
 -- marching-ants border using the same pattern as tile/sprite selection overlays) and whose menu
 -- embeds a ColorPickerMatrix. The list panel uses a transparent background by default so no grey strip
 -- appears beside the matrix; override with opts.menuBgColor.
+-- opts.menuOpenAbove (default true): place the matrix above the trigger; set false to prefer below (same as Dropdown).
 local Button = require("user_interface.button")
 local ColorPickerMatrix = require("user_interface.color_picker_matrix")
 local Dropdown = require("user_interface.dropdown")
@@ -87,6 +88,7 @@ function ColorPickerDropdown.new(opts)
     getBounds = opts.getBounds,
     menuCellH = picker:getHeight(),
     menuCellW = opts.menuCellW,
+    menuOpenAbove = opts.menuOpenAbove ~= false,
     menuBgColor = opts.menuBgColor or colors.transparent,
     closeMenuOnItemPick = opts.closeMenuOnItemPick,
     tooltip = opts.tooltip or "",

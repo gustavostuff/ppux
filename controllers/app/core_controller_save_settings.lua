@@ -762,6 +762,7 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
     separateToolbar = D.separateToolbar,
     groupedPaletteWindows = D.groupedPaletteWindows,
     appearanceChrome = {},
+    mergeAppearanceChrome = false,
     recentProjects = recentProjects,
     skipSplash = skipSplash,
   })
@@ -811,45 +812,28 @@ function AppCoreController:showSettingsModal()
           end,
           action = function()
             local enabled = not appRef:_getGroupedPaletteWindowsForSettings()
-            local applied = appRef:_applyGroupedPaletteWindowsSetting(enabled, true)
-            appRef:setStatus(string.format("Grouped palettes: %s", applied and "On" or "Off"))
+            appRef:_applyGroupedPaletteWindowsSetting(enabled, true)
           end,
         },
       },
     },
     onSetCanvasImageMode = function(modeKey)
-      local key = appRef:_applyCanvasImageModeSetting(modeKey, true)
-      local labels = {
-        pixel_perfect = "Pixel Perfect",
-        stretch = "Stretch",
-        keep_aspect = "Keep Aspect Ratio",
-      }
-      appRef:setStatus(string.format("Canvas image: %s", labels[key] or key))
+      appRef:_applyCanvasImageModeSetting(modeKey, true)
     end,
     onSetCanvasFilter = function(filterKey)
-      local key = appRef:_applyCanvasFilterSetting(filterKey, true)
-      appRef:setStatus(string.format("Canvas filter: %s", key == "soft" and "Soft" or "Sharp"))
+      appRef:_applyCanvasFilterSetting(filterKey, true)
     end,
     onSetTooltipsEnabled = function(enabled)
-      local applied = appRef:_applyTooltipsEnabledSetting(enabled, true)
-      appRef:setStatus(string.format("Tooltips: %s", applied and "On" or "Off"))
+      appRef:_applyTooltipsEnabledSetting(enabled, true)
     end,
     onSetTheme = function(themeKey)
-      local key = appRef:_applyThemeSetting(themeKey, true)
-      appRef:setStatus(string.format("Theme: %s", key == "light" and "Light" or "Dark"))
+      appRef:_applyThemeSetting(themeKey, true)
     end,
     onSetPaletteLinks = function(modeKey)
-      local applied = appRef:_applyPaletteLinksSetting(modeKey, true)
-      local labels = {
-        always = "Always",
-        auto_hide = "Auto-hide",
-        on_hover = "On-hover",
-      }
-      appRef:setStatus(string.format("Palette links: %s", labels[applied] or applied))
+      appRef:_applyPaletteLinksSetting(modeKey, true)
     end,
     onSetSeparateToolbar = function(enabled)
-      local applied = appRef:_applySeparateToolbarSetting(enabled, true)
-      appRef:setStatus(string.format("Separate toolbar: %s", applied and "On" or "Off"))
+      appRef:_applySeparateToolbarSetting(enabled, true)
     end,
     getAppearanceChromeRgb = function(slotId)
       local c = colors:appearanceChromeResolved(slotId)
@@ -859,11 +843,9 @@ function AppCoreController:showSettingsModal()
       colors:setAppearanceChromeOverride(slotId, rgb)
       AppSettingsController.save({ appearanceChrome = colors:getAppearanceChromeOverridesForSave() })
       ModalPanelUtils.refreshModalChromeFromAppearanceChange(appRef)
-      appRef:setStatus("Chrome color saved")
     end,
     onResetAll = function()
       appRef:resetSettingsModalPreferencesToDefaults()
-      appRef:setStatus("Settings reset to defaults")
     end,
   })
 end
