@@ -117,9 +117,9 @@ function Window:drawHeader(isFocused)
   -- Title on chrome: use Appearance “Text/Icons” when focused; body text when not.
   local textColor
   if isFocused then
-    textColor = colors:chromeTextIconsColor()
+    textColor = colors:chromeTextIconsColorFocused()
   else
-    textColor = colors.textPrimary or colors.white
+    textColor = colors:chromeTextIconsColorNonFocused()
   end
   love.graphics.setColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
 

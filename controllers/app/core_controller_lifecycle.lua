@@ -244,7 +244,7 @@ local function initGraphics(self, opts)
   end
   -- ResolutionController:setMode(ResolutionController.PIXEL_PERFECT)
 
-  love.graphics.setBackgroundColor(colors.gray10)
+  colors:syncLoveGraphicsBackground()
   love.graphics.setDefaultFilter("nearest", "nearest")
   love.graphics.setLineStyle("rough")
   love.graphics.setLineWidth(2)

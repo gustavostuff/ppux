@@ -114,7 +114,10 @@ function M:draw()
 
   local font = self:_font()
   local textH = font and font:getHeight() or self.h
-  local base = self.chromeOverBlue and colors:chromeTextIconsColor() or (colors.textPrimary or colors.white)
+  local idleRgb = self.chromeOverBlue and colors:chromeTextIconsColorNonFocused()
+    or (colors.textPrimary or colors.white)
+  local hotRgb = self.chromeOverBlue and colors:chromeTextIconsColorFocused()
+    or (colors.textPrimary or colors.white)
 
   for i = 1, n do
     local sx, sy, sw, sh = self:_segmentBounds(i)
@@ -126,14 +129,28 @@ function M:draw()
     local tx = sx + PAD_X
     local ty = sy + math.floor((sh - textH) * 0.5)
 
+    local c = idleRgb
     local a = 1.0
-    if not active then
-      a = hover and HOVER_ALPHA or IDLE_ALPHA
+    if self.chromeOverBlue then
+      if active then
+        c = hotRgb
+        a = 1.0
+      elseif hover then
+        c = hotRgb
+        a = HOVER_ALPHA
+      else
+        c = idleRgb
+        a = IDLE_ALPHA
+      end
+    else
+      if not active then
+        a = hover and HOVER_ALPHA or IDLE_ALPHA
+      end
     end
 
     Text.print(label, tx, ty, {
       shadowColor = colors.transparent,
-      color = { base[1], base[2], base[3], (base[4] or 1) * a },
+      color = { c[1], c[2], c[3], (c[4] or 1) * a },
       literalColor = self.chromeOverBlue == true,
     })
   end

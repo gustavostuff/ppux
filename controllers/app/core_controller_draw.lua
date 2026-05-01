@@ -1152,7 +1152,8 @@ function AppCoreController:draw()
     return
   end
 
-  love.graphics.clear(colors.gray10)
+  local bg = colors:appWorkspaceFill()
+  love.graphics.clear(bg[1], bg[2], bg[3], 1)
 
   -- Windows use full-canvas coordinates (y includes the top toolbar strip height).
   drawWindows(self)

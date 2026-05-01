@@ -91,14 +91,16 @@ function M.install(Taskbar, Helpers)
     local wm = self.app and self.app.wm
     local focused = wm and wm.getFocus and wm:getFocus() or nil
     button.focused = (focused == win)
+    local hot = button.hovered or button.pressed
+    local ink = hot and colors:chromeTextIconsColorFocused() or colors:chromeTextIconsColorNonFocused()
     if focused == win then
       button.bgColor = colors:focusedChromeColor()
-      button.contentColor = colors:chromeTextIconsColor()
+      button.contentColor = ink
       button.literalContentColor = true
       button.iconRespectTheme = false
     else
       button.bgColor = nil
-      button.contentColor = colors:chromeTextIconsColor()
+      button.contentColor = ink
       button.literalContentColor = true
       button.iconRespectTheme = false
     end

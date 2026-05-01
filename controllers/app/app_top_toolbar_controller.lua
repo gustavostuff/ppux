@@ -359,7 +359,8 @@ local function styleAppTopChromeButton(button)
   if not button then
     return
   end
-  button.contentColor = colors:chromeTextIconsColor()
+  local hot = button.hovered or button.pressed
+  button.contentColor = hot and colors:chromeTextIconsColorFocused() or colors:chromeTextIconsColorNonFocused()
   button.literalContentColor = true
   button.iconRespectTheme = false
 end
@@ -516,7 +517,7 @@ function M.draw(app)
   local textW = math.max(0, statusW - (pad * 2))
   local textY = statusY + math.floor((STATUS_BG_H - love.graphics.getFont():getHeight()) / 2)
   local textX = statusRightX - pad - love.graphics.getFont():getWidth(statusText)
-  local statusTint = colors:chromeTextIconsColor()
+  local statusTint = colors:chromeTextIconsColorNonFocused()
   love.graphics.setScissor(statusLeftX, statusY, statusW, STATUS_BG_H)
   love.graphics.setColor(statusTint[1], statusTint[2], statusTint[3], statusTint[4] or 1)
   if textW > 0 then

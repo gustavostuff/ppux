@@ -13,7 +13,7 @@ Dialog.__index = Dialog
 
 -- Tab row + body rows + footer; minimum body rows fits current defaults + Appearance sample rows + padding.
 local SETTINGS_TAB_ROW = 1
-local SETTINGS_MIN_CONTENT_ROWS = 7
+local SETTINGS_MIN_CONTENT_ROWS = 8
 
 local function normalizeCanvasFilterKey(key)
   if key == "soft" then return "soft" end
@@ -35,15 +35,31 @@ local function makeButtonWidget(text)
 end
 
 local APPEARANCE_ROW_SLOTS = {
+  { label = "Background", darkId = "dark_background", lightId = "light_background" },
   { label = "Focused", darkId = "dark_focused", lightId = "light_focused" },
   { label = "Non-focused", darkId = "dark_non_focused", lightId = "light_non_focused" },
-  { label = "Text/Icons", darkId = "dark_text_icons", lightId = "light_text_icons" },
+  { label = "Text/icons - focused", darkId = "dark_text_icons_focused", lightId = "light_text_icons_focused" },
+  { label = "Text/icons - non-focused", darkId = "dark_text_icons_non_focused", lightId = "light_text_icons_non_focused" },
+}
+
+local APPEARANCE_PICKER_SLOT_IDS = {
+  "dark_background",
+  "light_background",
+  "dark_focused",
+  "light_focused",
+  "dark_non_focused",
+  "light_non_focused",
+  "dark_text_icons_focused",
+  "light_text_icons_focused",
+  "dark_text_icons_non_focused",
+  "light_text_icons_non_focused",
 }
 
 --- Small read-only preview of window chrome (Appearance slots, including overrides).
 local function newAppearanceChromeSample(modePrefix, stateKind)
   local bgSlot = modePrefix .. "_" .. stateKind
-  local textSlot = modePrefix .. "_text_icons"
+  local textSuffix = (stateKind == "focused") and "focused" or "non_focused"
+  local textSlot = modePrefix .. "_text_icons_" .. textSuffix
   local sampleLabel = "Text"
   local icon = images.icons and images.icons.icon_clone or nil
   return {
@@ -87,14 +103,7 @@ local function forEachAppearancePicker(self, fn)
   if not self._appearancePickers then
     return
   end
-  for _, slotId in ipairs({
-    "dark_focused",
-    "light_focused",
-    "dark_non_focused",
-    "light_non_focused",
-    "dark_text_icons",
-    "light_text_icons",
-  }) do
+  for _, slotId in ipairs(APPEARANCE_PICKER_SLOT_IDS) do
     local p = self._appearancePickers[slotId]
     if p then
       fn(p)
@@ -114,14 +123,7 @@ end
 
 --- Settings Appearance: only one color-picker menu at a time.
 function Dialog:_closeOtherAppearancePickers(keepSlotId)
-  for _, slotId in ipairs({
-    "dark_focused",
-    "light_focused",
-    "dark_non_focused",
-    "light_non_focused",
-    "dark_text_icons",
-    "light_text_icons",
-  }) do
+  for _, slotId in ipairs(APPEARANCE_PICKER_SLOT_IDS) do
     if slotId ~= keepSlotId then
       local p = self._appearancePickers[slotId]
       if p and p.closeMenu then
@@ -137,14 +139,7 @@ function Dialog:syncAppearancePickersFromAppColors()
   if not self._appearancePickers then
     return
   end
-  for _, slotId in ipairs({
-    "dark_focused",
-    "light_focused",
-    "dark_non_focused",
-    "light_non_focused",
-    "dark_text_icons",
-    "light_text_icons",
-  }) do
+  for _, slotId in ipairs(APPEARANCE_PICKER_SLOT_IDS) do
     local picker = self._appearancePickers[slotId]
     if picker and picker.setSelectedFromRgb then
       local rgb = self.getAppearanceChromeRgb and self.getAppearanceChromeRgb(slotId)
@@ -162,7 +157,7 @@ function Dialog:syncAppearancePickersFromAppColors()
   end
 end
 
--- Appearance tab: column headers + row labels + six color picker dropdowns.
+-- Appearance tab: column headers + row labels + eight color picker dropdowns.
 local function layoutAppearanceContent(self, contentStart, footerRow)
   local r = contentStart
   self.panel:setCell(1, r, {
@@ -366,22 +361,19 @@ function Dialog.new()
   end
 
   local slotTooltips = {
+    dark_background = "Dark mode: workspace background",
+    light_background = "Light mode: workspace background",
     dark_focused = "Dark mode: focused window chrome",
     light_focused = "Light mode: focused window chrome",
     dark_non_focused = "Dark mode: unfocused window chrome",
     light_non_focused = "Light mode: unfocused window chrome",
-    dark_text_icons = "Dark mode: text & icons on chrome",
-    light_text_icons = "Light mode: text & icons on chrome",
+    dark_text_icons_focused = "Dark mode: toolbar/menu text when hovered",
+    light_text_icons_focused = "Light mode: toolbar/menu text when hovered",
+    dark_text_icons_non_focused = "Dark mode: toolbar/menu text (default)",
+    light_text_icons_non_focused = "Light mode: toolbar/menu text (default)",
   }
 
-  for _, slotId in ipairs({
-    "dark_focused",
-    "light_focused",
-    "dark_non_focused",
-    "light_non_focused",
-    "dark_text_icons",
-    "light_text_icons",
-  }) do
+  for _, slotId in ipairs(APPEARANCE_PICKER_SLOT_IDS) do
     local sid = slotId
     self._appearancePickers[slotId] = ColorPickerDropdown.new({
       getBounds = stubBounds,
@@ -403,7 +395,7 @@ function Dialog.new()
     chromeOverBlue = true,
     tabs = {
       { id = "general", label = "General" },
-      { id = "appearance", label = "Appearance" },
+      { id = "appearance", label = "Colors" },
     },
     onSelect = function(id)
       if self._activeTabId ~= id then
@@ -770,14 +762,7 @@ function Dialog:mousepressed(x, y, button)
   end
 
   if self._activeTabId == "appearance" then
-    for _, slotId in ipairs({
-      "dark_focused",
-      "light_focused",
-      "dark_non_focused",
-      "light_non_focused",
-      "dark_text_icons",
-      "light_text_icons",
-    }) do
+    for _, slotId in ipairs(APPEARANCE_PICKER_SLOT_IDS) do
       local p = self._appearancePickers and self._appearancePickers[slotId]
       if p and p:handleMousePressed(x, y, button) then
         return true
@@ -818,14 +803,7 @@ function Dialog:mousereleased(x, y, button)
   if button ~= 1 then return true end
 
   if self._activeTabId == "appearance" then
-    for _, slotId in ipairs({
-      "dark_focused",
-      "light_focused",
-      "dark_non_focused",
-      "light_non_focused",
-      "dark_text_icons",
-      "light_text_icons",
-    }) do
+    for _, slotId in ipairs(APPEARANCE_PICKER_SLOT_IDS) do
       local p = self._appearancePickers and self._appearancePickers[slotId]
       if p and p:handleMouseReleased(x, y, button) then
         return true

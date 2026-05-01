@@ -26,7 +26,7 @@ for k, v in pairs(colors) do
   }
 end
 
--- #5b6ee1 — default for both dark_focused and light_focused (not theme-remapped grays).
+-- #5b6ee1 — default dark focused window chrome (light focused chrome builtin is white; see _appearanceChromeBuiltinDefault).
 local _CHROME_FOCUSED_DEFAULT = copyColor(colors.blue)
 
 local _baseGray10 = copyColor(colors.gray10)
@@ -58,25 +58,46 @@ local function clampCh(x)
 end
 
 function colors:_appearanceChromeBuiltinDefault(slotId)
-  if slotId == "dark_focused" or slotId == "light_focused" then
+  -- Defaults match curated appearanceChrome from in-app Colors settings (0–1 RGB).
+  if slotId == "dark_background" then
+    return { 0.24489795918367, 0.26530612244898, 0.3265306122449 }
+  end
+  if slotId == "light_background" then
+    return { 0.71428571428571, 0.71428571428571, 0.71428571428571 }
+  end
+  if slotId == "dark_focused" then
     return copyColor(_CHROME_FOCUSED_DEFAULT)
   end
+  if slotId == "light_focused" then
+    return { 1, 1, 1 }
+  end
   if slotId == "dark_non_focused" then
-    return copyColor(self.gray20)
+    return { 0.42857142857143, 0.42857142857143, 0.42857142857143 }
   end
   if slotId == "light_non_focused" then
-    return copyColor(self.gray75)
+    return { 0.85714285714286, 0.85714285714286, 0.85714285714286 }
   end
-  if slotId == "dark_text_icons" then
+  if slotId == "dark_text_icons_focused" then
     return copyColor(self.white)
   end
-  if slotId == "light_text_icons" then
-    return copyColor(self.gray20)
+  if slotId == "dark_text_icons_non_focused" then
+    return { 0.71428571428571, 0.71428571428571, 0.71428571428571 }
+  end
+  if slotId == "light_text_icons_focused" then
+    return { 0.28571428571429, 0.28571428571429, 0.28571428571429 }
+  end
+  if slotId == "light_text_icons_non_focused" then
+    return { 0.42857142857143, 0.42857142857143, 0.42857142857143 }
   end
   return copyColor(_CHROME_FOCUSED_DEFAULT)
 end
 
 function colors:appearanceChromeResolved(slotId)
+  if slotId == "dark_text_icons" then
+    slotId = "dark_text_icons_focused"
+  elseif slotId == "light_text_icons" then
+    slotId = "light_text_icons_focused"
+  end
   local o = self._appearanceChromeOverrides[slotId]
   if type(o) == "table" then
     local r = clampCh(tonumber(o[1] ~= nil and o[1] or o.r))
@@ -101,10 +122,35 @@ function colors:chromeBackgroundUnfocused()
   return copyColor(self:appearanceChromeResolved(prefix .. "_non_focused"))
 end
 
---- Title / icon color on focused chrome (Appearance tab “Text/Icons” column).
-function colors:chromeTextIconsColor()
+--- Strong chrome ink (window title when focused, modal title, hover on global chrome UI).
+function colors:chromeTextIconsColorFocused()
   local prefix = (self:getTheme() == "light") and "light" or "dark"
-  return copyColor(self:appearanceChromeResolved(prefix .. "_text_icons"))
+  return copyColor(self:appearanceChromeResolved(prefix .. "_text_icons_focused"))
+end
+
+--- Muted chrome ink (taskbar, toolbars, menus by default; unfocused window titles).
+function colors:chromeTextIconsColorNonFocused()
+  local prefix = (self:getTheme() == "light") and "light" or "dark"
+  return copyColor(self:appearanceChromeResolved(prefix .. "_text_icons_non_focused"))
+end
+
+--- Backward-compatible alias for chromeTextIconsColorFocused().
+function colors:chromeTextIconsColor()
+  return self:chromeTextIconsColorFocused()
+end
+
+--- Main workspace fill behind windows (per UI theme: dark vs light slot).
+function colors:appWorkspaceFill()
+  local prefix = (self:getTheme() == "light") and "light" or "dark"
+  return copyColor(self:appearanceChromeResolved(prefix .. "_background"))
+end
+
+function colors:syncLoveGraphicsBackground()
+  if not (love and love.graphics and love.graphics.setBackgroundColor) then
+    return
+  end
+  local c = self:appWorkspaceFill()
+  love.graphics.setBackgroundColor(c[1], c[2], c[3])
 end
 
 function colors:setAppearanceChromeOverrides(table)

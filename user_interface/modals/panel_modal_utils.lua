@@ -143,6 +143,9 @@ function M.refreshModalChromeFromAppearanceChange(app)
       M.refreshTargetMetrics(modal)
     end
   end
+  if colors.syncLoveGraphicsBackground then
+    colors:syncLoveGraphicsBackground()
+  end
 end
 
 M.refreshMetrics()

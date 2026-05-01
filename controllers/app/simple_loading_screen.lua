@@ -120,7 +120,8 @@ local function drawLoadingPattern(cw, ch, message, font)
   local cx = math.floor(cw * 0.5)
   local cy = math.floor(ch * 0.5) - 8
 
-  love.graphics.clear(colors.gray10)
+  local bg = colors:appWorkspaceFill()
+  love.graphics.clear(bg[1], bg[2], bg[3], 1)
   drawRandomSquares(cw, ch)
 
   if font then
@@ -150,7 +151,8 @@ function M.present(message, app)
   local label = message or "Loading..."
   love.graphics.push("all")
   love.graphics.origin()
-  love.graphics.clear(colors.gray10)
+  local bg = colors:appWorkspaceFill()
+  love.graphics.clear(bg[1], bg[2], bg[3], 1)
 
   local font = getLoadingFont(app)
   local canvas = ensureFallbackCanvas(love.graphics.getWidth(), love.graphics.getHeight())

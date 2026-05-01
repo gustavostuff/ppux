@@ -1,5 +1,12 @@
 local colors = require("app_colors")
 
+local function chromeInkForModalButton(b)
+  if b and (b.hovered or b.pressed or b.focused) then
+    return colors:chromeTextIconsColorFocused()
+  end
+  return colors:chromeTextIconsColorNonFocused()
+end
+
 local function drawPanelTitle(panel, utils)
   if not (panel and panel.title and panel.title ~= "") then
     return
@@ -22,7 +29,7 @@ local function drawPanelTitle(panel, utils)
   local titleW = font and font:getWidth(panel.title) or 0
   local titleX = titleBgX + math.floor((titleBgW - titleW) * 0.5)
   local titleOnBlue = panel._modalChromeOverBlue == true
-  local titleTextColor = titleOnBlue and colors:chromeTextIconsColor()
+  local titleTextColor = titleOnBlue and colors:chromeTextIconsColorFocused()
     or (utils.colors.textPrimary or utils.colors.white)
   love.graphics.setColor(titleTextColor[1], titleTextColor[2], titleTextColor[3], titleTextColor[4] or 1)
   local titleY = titleBgY + math.floor((titleBgH - (font and font:getHeight() or 0)) * 0.5)
@@ -76,7 +83,7 @@ local function install(Panel, utils)
           local b = cell.button
           local oc, oir = b.contentColor, b.iconRespectTheme
           local prevLit = b.literalContentColor
-          b.contentColor = colors:chromeTextIconsColor()
+          b.contentColor = chromeInkForModalButton(b)
           b.iconRespectTheme = false
           b.literalContentColor = true
           b:draw()
@@ -90,7 +97,7 @@ local function install(Panel, utils)
         local isButton = utils.Button and getmetatable(c) == utils.Button
         if chromeWhite and isButton then
           local oc, oir, olit = c.contentColor, c.iconRespectTheme, c.literalContentColor
-          c.contentColor = colors:chromeTextIconsColor()
+          c.contentColor = chromeInkForModalButton(c)
           c.iconRespectTheme = false
           c.literalContentColor = true
           c:draw()
@@ -100,7 +107,7 @@ local function install(Panel, utils)
         end
       elseif cell.kind == "label" then
         local textColor = cell.textColor
-          or (chromeWhite and colors:chromeTextIconsColor())
+          or (chromeWhite and colors:chromeTextIconsColorNonFocused())
           or utils.colors.textPrimary
           or utils.colors.white
         love.graphics.setColor(textColor[1], textColor[2], textColor[3], 1)

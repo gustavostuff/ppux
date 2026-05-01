@@ -96,12 +96,16 @@ local function normalizePaletteLinksKey(key)
 end
 
 local APPEARANCE_CHROME_SLOTS = {
+  "dark_background",
+  "light_background",
   "dark_focused",
   "light_focused",
   "dark_non_focused",
   "light_non_focused",
-  "dark_text_icons",
-  "light_text_icons",
+  "dark_text_icons_focused",
+  "light_text_icons_focused",
+  "dark_text_icons_non_focused",
+  "light_text_icons_non_focused",
 }
 
 -- Older builds / mistaken saves sometimes stored neutral gray for "focused" chrome; defaults are #5b6ee1.
@@ -137,6 +141,26 @@ local function normalizeAppearanceChrome(data)
           -- Drop so appearanceChromeResolved uses builtin focused blue.
         else
           out[id] = { r, g, b }
+        end
+      end
+    end
+  end
+  -- Older saves used a single {dark,light}_text_icons for all chrome ink.
+  for _, mode in ipairs({ "dark", "light" }) do
+    local kF = mode .. "_text_icons_focused"
+    local kN = mode .. "_text_icons_non_focused"
+    if not out[kF] and not out[kN] then
+      local e = data[mode .. "_text_icons"]
+      if type(e) == "table" then
+        local r = tonumber(e[1] ~= nil and e[1] or e.r)
+        local g = tonumber(e[2] ~= nil and e[2] or e.g)
+        local b = tonumber(e[3] ~= nil and e[3] or e.b)
+        if r and g and b then
+          r = math.max(0, math.min(1, r))
+          g = math.max(0, math.min(1, g))
+          b = math.max(0, math.min(1, b))
+          out[kF] = { r, g, b }
+          out[kN] = { r, g, b }
         end
       end
     end

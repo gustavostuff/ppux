@@ -574,7 +574,7 @@ function ToolbarBase:draw()
       love.graphics.rectangle("fill", drawX, self.y, self.w, self.h)
     end
 
-    local chromeInk = colors:chromeTextIconsColor()
+    local chromeInk = colors:chromeTextIconsColorNonFocused()
     love.graphics.setColor(chromeInk[1], chromeInk[2], chromeInk[3], chromeInk[4] or 1)
 
     -- Update label text if update function is provided
@@ -598,7 +598,9 @@ function ToolbarBase:draw()
         local prevCc = button.contentColor
         local prevLit = button.literalContentColor
         if shouldUseChromeTextTint(button) then
-          button.contentColor = colors:chromeTextIconsColor()
+          local hot = button.hovered or button.pressed or button.focused
+          button.contentColor = hot and colors:chromeTextIconsColorFocused()
+            or colors:chromeTextIconsColorNonFocused()
           button.literalContentColor = true
         end
         button.iconRespectTheme = false
@@ -633,17 +635,17 @@ function ToolbarBase:_drawLabel(label)
   local labelX = x + (w - labelW) / 2  -- Center horizontally within allocated width
   local labelY = y + (h - labelH) / 2  -- Center vertically
   
-  local textColor = colors:chromeTextIconsColor()
+  local textColor = colors:chromeTextIconsColorNonFocused()
   local literal = true
   if self.window and self.windowController and self.windowController.getFocus then
     if self.windowController:getFocus() ~= self.window then
       textColor = colors.textPrimary or textColor
       literal = false
     else
-      textColor = colors:chromeTextIconsColor()
+      textColor = colors:chromeTextIconsColorNonFocused()
     end
   else
-    textColor = colors:chromeTextIconsColor()
+    textColor = colors:chromeTextIconsColorNonFocused()
   end
 
   love.graphics.setColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
