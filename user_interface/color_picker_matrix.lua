@@ -524,4 +524,16 @@ function ColorPickerMatrix:mousemoved(x, y)
   self.panel:mousemoved(x, y)
 end
 
+--- One discrete HSL lightness step (0–1), matching column 1 of the picker (`GRID_ROWS` bands).
+function ColorPickerMatrix.lightnessStep01()
+  return 1 / (GRID_ROWS - 1)
+end
+
+--- Shift RGB in HSL space by N brightness-column steps (+1 = one square up, -1 = one down).
+function ColorPickerMatrix.adjustRgbLightnessByPickerSteps(r, g, b, deltaSteps)
+  local h, s, l = rgbToHsl(r, g, b)
+  l = clamp01(l + (tonumber(deltaSteps) or 0) * ColorPickerMatrix.lightnessStep01())
+  return hslToRgb(h, s, l)
+end
+
 return ColorPickerMatrix

@@ -313,6 +313,12 @@ function Dialog:_rebuildPanelGrid()
   self.panel:setCell(3, footerRow, {
     component = self._resetAllButton,
   })
+
+  self.panel._tabbedModalChrome = true
+  self.panel._tabbedModalTabBar = self._tabBar
+  self.panel._tabbedModalTabRow = SETTINGS_TAB_ROW
+  self.panel._tabbedModalContentStartRow = SETTINGS_TAB_ROW + 1
+  self.panel._tabbedModalFooterRow = footerRow
 end
 
 function Dialog.new()
@@ -362,6 +368,7 @@ function Dialog.new()
     onAppearanceChromeChange = nil,
     onResetAll = nil,
     pressedResetAll = nil,
+    _settingsTabbedChrome = true,
   }, Dialog)
 
   ModalPanelUtils.applyPanelDefaults(self)

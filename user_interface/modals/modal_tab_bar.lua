@@ -1,5 +1,6 @@
 -- Horizontal tab strip for modals (mouse-only switching for now).
--- Compact, left-aligned text tabs (no panel chrome per segment).
+-- With chromeOverBlue, tab labels only: panel paints active tab + content + footer as one "normal"
+-- chrome surface (see panel rendering._tabbedModalChrome).
 local colors = require("app_colors")
 local Text = require("utils.text_utils")
 
@@ -7,7 +8,7 @@ local M = {}
 M.__index = M
 
 local PAD_X = 6
-local GAP = 14
+local GAP = 0
 local IDLE_ALPHA = 0.42
 local HOVER_ALPHA = 0.72
 
@@ -61,6 +62,17 @@ function M:_segmentBounds(i)
     x = x + tw + GAP
   end
   return self.x, self.y, 0, self.h
+end
+
+--- Screen-space bounds (x, y, w, h) of the active tab label area, or nil.
+function M:getActiveSegmentBounds()
+  for i = 1, #(self.tabs or {}) do
+    local t = self.tabs[i]
+    if t and t.id == self.activeId then
+      return self:_segmentBounds(i)
+    end
+  end
+  return nil
 end
 
 function M:_hitSegment(px, py)
@@ -125,7 +137,6 @@ function M:draw()
     local active = tab and tab.id == self.activeId
     local hover = (self._hoverIndex == i)
     local label = tab and tab.label or ""
-    local lw = font and font:getWidth(label) or 0
     local tx = sx + PAD_X
     local ty = sy + math.floor((sh - textH) * 0.5)
 
@@ -140,7 +151,7 @@ function M:draw()
         a = HOVER_ALPHA
       else
         c = idleRgb
-        a = IDLE_ALPHA
+        a = 1.0
       end
     else
       if not active then

@@ -1,6 +1,7 @@
 local colors = require("app_colors")
 local Panel = require("user_interface.panel")
 local UiScale = require("user_interface.ui_scale")
+local ColorPickerMatrix = require("user_interface.color_picker_matrix")
 
 local M = {}
 
@@ -113,6 +114,12 @@ function M.refreshTargetMetrics(target)
   end
   if target._uses_modal_default_bgColor == true then
     target._modalChromeOverBlue = true
+  end
+  if target._settingsTabbedChrome == true then
+    local fc = colors:focusedChromeColor()
+    local dr, dg, db = ColorPickerMatrix.adjustRgbLightnessByPickerSteps(fc[1], fc[2], fc[3], -1)
+    target.bgColor = { dr, dg, db }
+    target.titleBgColor = { dr, dg, db }
   end
 end
 

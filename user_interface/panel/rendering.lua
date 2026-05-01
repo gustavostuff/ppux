@@ -45,6 +45,74 @@ local function drawPanelTitle(panel, utils)
   )
 end
 
+--- Tabbed modal (settings): paint one continuous "normal" chrome (focused fill) for content + footer,
+--- plus active tab row segment and row-gap under it. Outer panel + title use darker chrome (panel.bgColor).
+local function rectBandForRows(panel, rowFirst, rowLast)
+  local l, r = math.huge, -math.huge
+  local topY, botY = math.huge, -math.huge
+  for _, cell in ipairs(panel:_iterCells()) do
+    if cell.row >= rowFirst and cell.row <= rowLast then
+      l = math.min(l, cell.x)
+      r = math.max(r, cell.x + cell.w)
+      topY = math.min(topY, cell.y)
+      botY = math.max(botY, cell.y + cell.h)
+    end
+  end
+  if l == math.huge then
+    return nil
+  end
+  return l, r, topY, botY
+end
+
+local function findTabBarCell(panel, tabBar, tabRow)
+  for _, cell in ipairs(panel:_iterCells()) do
+    if cell.row == tabRow and cell.component == tabBar then
+      return cell
+    end
+  end
+  return nil
+end
+
+local function drawTabbedModalNormalSurface(panel)
+  if panel._tabbedModalChrome ~= true then
+    return
+  end
+  local tabBar = panel._tabbedModalTabBar
+  local content0 = panel._tabbedModalContentStartRow
+  local footerR = panel._tabbedModalFooterRow
+  local tabRow = panel._tabbedModalTabRow
+  if not (tabBar and content0 and footerR and tabRow and type(tabBar.getActiveSegmentBounds) == "function") then
+    return
+  end
+  local l, r, topY, botY = rectBandForRows(panel, content0, footerR)
+  if not l then
+    return
+  end
+  local fc = colors:focusedChromeColor()
+  local nr, ng, nb = fc[1], fc[2], fc[3]
+  love.graphics.setColor(nr, ng, nb, 1)
+  love.graphics.rectangle("fill", l, topY, r - l, botY - topY)
+
+  local tabCell = findTabBarCell(panel, tabBar, tabRow)
+  if not tabCell then
+    love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
+    return
+  end
+  local sx, sy, sw, sh = tabBar:getActiveSegmentBounds()
+  if not sw or sw <= 0 then
+    love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
+    return
+  end
+  love.graphics.setColor(nr, ng, nb, 1)
+  love.graphics.rectangle("fill", sx, tabCell.y, sw, tabCell.h)
+  local gapY = tabCell.y + tabCell.h
+  local gapH = topY - gapY
+  if gapH > 0 then
+    love.graphics.rectangle("fill", sx, gapY, sw, gapH)
+  end
+  love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
+end
+
 local function install(Panel, utils)
   function Panel:draw()
     if not self.visible then return end
@@ -58,6 +126,8 @@ local function install(Panel, utils)
     end
 
     drawPanelTitle(self, utils)
+
+    drawTabbedModalNormalSurface(self)
 
     if self.debugShowCells then
       local debugColor = self.debugCellColor or utils.colors.gray10
