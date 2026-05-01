@@ -26,15 +26,53 @@ for k, v in pairs(colors) do
   }
 end
 
--- #5b6ee1 — default dark focused window chrome (light focused chrome builtin is white; see _appearanceChromeBuiltinDefault).
-local _CHROME_FOCUSED_DEFAULT = copyColor(colors.blue)
-
 local _baseGray10 = copyColor(colors.gray10)
 local _baseGray20 = copyColor(colors.gray20)
 local _baseGray50 = copyColor(colors.gray50)
 local _baseGray75 = copyColor(colors.gray75)
 local _baseWhite = copyColor(colors.white)
 local _baseBlack = copyColor(colors.black)
+
+--- Default appearance chrome (hex, no #). Used as fallback when a slot is missing from settings.
+local defaultAppColors = {
+  dark_background = "3E4453",
+  light_background = "ACB1C1",
+  dark_focused = "242424",
+  light_focused = "DBDBDB",
+  dark_non_focused = "494949",
+  light_non_focused = "929292",
+  dark_text_icons_focused = "FFFFFF",
+  light_text_icons_focused = "494949",
+  dark_text_icons_non_focused = "B6B6B6",
+  light_text_icons_non_focused = "242424",
+}
+
+local function hex6ToRgb01(hex)
+  local s = tostring(hex or ""):gsub("^#", ""):upper()
+  if #s ~= 6 then
+    return nil
+  end
+  local r = tonumber(s:sub(1, 2), 16)
+  local g = tonumber(s:sub(3, 4), 16)
+  local b = tonumber(s:sub(5, 6), 16)
+  if not (r and g and b) then
+    return nil
+  end
+  return { r / 255, g / 255, b / 255 }
+end
+
+colors.defaultAppColors = defaultAppColors
+
+function colors.defaultAppearanceChromeAsRgb()
+  local out = {}
+  for slotId, hex in pairs(defaultAppColors) do
+    local rgb = hex6ToRgb01(hex)
+    if rgb then
+      out[slotId] = { rgb[1], rgb[2], rgb[3] }
+    end
+  end
+  return out
+end
 
 function colors:withBrightness(key, brightness)
   return {
@@ -58,38 +96,16 @@ local function clampCh(x)
 end
 
 function colors:_appearanceChromeBuiltinDefault(slotId)
-  -- Defaults match curated appearanceChrome from in-app Colors settings (0–1 RGB).
-  if slotId == "dark_background" then
-    return { 0.24489795918367, 0.26530612244898, 0.3265306122449 }
+  local hex = defaultAppColors[slotId]
+  local rgb = hex and hex6ToRgb01(hex)
+  if rgb then
+    return copyColor(rgb)
   end
-  if slotId == "light_background" then
-    return { 0.71428571428571, 0.71428571428571, 0.71428571428571 }
+  rgb = hex6ToRgb01(defaultAppColors.dark_background)
+  if rgb then
+    return copyColor(rgb)
   end
-  if slotId == "dark_focused" then
-    return copyColor(_CHROME_FOCUSED_DEFAULT)
-  end
-  if slotId == "light_focused" then
-    return { 1, 1, 1 }
-  end
-  if slotId == "dark_non_focused" then
-    return { 0.42857142857143, 0.42857142857143, 0.42857142857143 }
-  end
-  if slotId == "light_non_focused" then
-    return { 0.85714285714286, 0.85714285714286, 0.85714285714286 }
-  end
-  if slotId == "dark_text_icons_focused" then
-    return copyColor(self.white)
-  end
-  if slotId == "dark_text_icons_non_focused" then
-    return { 0.71428571428571, 0.71428571428571, 0.71428571428571 }
-  end
-  if slotId == "light_text_icons_focused" then
-    return { 0.28571428571429, 0.28571428571429, 0.28571428571429 }
-  end
-  if slotId == "light_text_icons_non_focused" then
-    return { 0.42857142857143, 0.42857142857143, 0.42857142857143 }
-  end
-  return copyColor(_CHROME_FOCUSED_DEFAULT)
+  return copyColor(_baseGray10)
 end
 
 function colors:appearanceChromeResolved(slotId)

@@ -341,10 +341,20 @@ function ColorPickerMatrix.new(opts)
     for mc = 1, MATRIX_COLS do
       local hueIndex = mc
       local satRow = row
-      local h, s = hueSatFromIndices(hueIndex, satRow)
-      local r, g, b = hslToRgb(h, s, 0.5)
+      -- Matrix column is a hue×sat slice at L=0.5 for picking reference; the *selected* cell uses
+      -- the current _lightness so the swatch / hex match the highlighted square when opening synced RGB.
       local fn = function()
-        return r, g, b, 1
+        if self._swatchPinRgb and self._hueIndex == hueIndex and self._satRow == satRow then
+          local p = self._swatchPinRgb
+          return p[1], p[2], p[3], p[4] or 1
+        end
+        local h, s = hueSatFromIndices(hueIndex, satRow)
+        local L = 0.5
+        if self._hueIndex == hueIndex and self._satRow == satRow then
+          L = clamp01(self._lightness or 0.5)
+        end
+        local rr, gg, bb = hslToRgb(h, s, L)
+        return rr, gg, bb, 1
       end
       local matComp = makeSwatchComponent(fn, function()
         self:_pickMatrixCell(hueIndex, satRow)

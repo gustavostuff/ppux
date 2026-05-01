@@ -5,6 +5,7 @@ local AppSettingsController = {}
 AppSettingsController.__index = AppSettingsController
 
 local TableUtils = require("utils.table_utils")
+local AppColors = require("app_colors")
 local SETTINGS_FILE = "settings.lua"
 local DEFAULT_SETTINGS = {
   skipSplash = false,
@@ -108,7 +109,8 @@ local APPEARANCE_CHROME_SLOTS = {
   "light_text_icons_non_focused",
 }
 
--- Older builds / mistaken saves sometimes stored neutral gray for "focused" chrome; defaults are #5b6ee1.
+-- Older builds sometimes stored mid neutral gray for "focused" chrome by mistake; drop so defaults apply.
+-- Do not treat dark near-blacks (e.g. #242424) or near-whites as legacy.
 local function isLegacyNeutralFocusedChrome(r, g, b)
   local maxc = math.max(r, g, b)
   local minc = math.min(r, g, b)
@@ -119,16 +121,17 @@ local function isLegacyNeutralFocusedChrome(r, g, b)
   if lum <= 0.11 or lum >= 0.9 then
     return false
   end
+  if lum < 0.22 or lum > 0.78 then
+    return false
+  end
   return true
 end
 
 local function normalizeAppearanceChrome(data)
   local out = {}
-  if type(data) ~= "table" then
-    return out
-  end
+  local raw = type(data) == "table" and data or {}
   for _, id in ipairs(APPEARANCE_CHROME_SLOTS) do
-    local e = data[id]
+    local e = raw[id]
     if type(e) == "table" then
       local r = tonumber(e[1] ~= nil and e[1] or e.r)
       local g = tonumber(e[2] ~= nil and e[2] or e.g)
@@ -138,7 +141,7 @@ local function normalizeAppearanceChrome(data)
         g = math.max(0, math.min(1, g))
         b = math.max(0, math.min(1, b))
         if (id == "dark_focused" or id == "light_focused") and isLegacyNeutralFocusedChrome(r, g, b) then
-          -- Drop so appearanceChromeResolved uses builtin focused blue.
+          -- Drop so defaults apply.
         else
           out[id] = { r, g, b }
         end
@@ -150,7 +153,7 @@ local function normalizeAppearanceChrome(data)
     local kF = mode .. "_text_icons_focused"
     local kN = mode .. "_text_icons_non_focused"
     if not out[kF] and not out[kN] then
-      local e = data[mode .. "_text_icons"]
+      local e = raw[mode .. "_text_icons"]
       if type(e) == "table" then
         local r = tonumber(e[1] ~= nil and e[1] or e.r)
         local g = tonumber(e[2] ~= nil and e[2] or e.g)
@@ -162,6 +165,16 @@ local function normalizeAppearanceChrome(data)
           out[kF] = { r, g, b }
           out[kN] = { r, g, b }
         end
+      end
+    end
+  end
+  -- Fill any missing slot from app default hex palette (first run or partial saves).
+  local defRgb = AppColors.defaultAppearanceChromeAsRgb and AppColors.defaultAppearanceChromeAsRgb() or nil
+  if defRgb then
+    for _, id in ipairs(APPEARANCE_CHROME_SLOTS) do
+      if not out[id] and defRgb[id] then
+        local e = defRgb[id]
+        out[id] = { e[1], e[2], e[3] }
       end
     end
   end
@@ -245,7 +258,14 @@ function AppSettingsController.save(opts)
   if opts.separateToolbar ~= nil then data.separateToolbar = (opts.separateToolbar == true) end
   if opts.groupedPaletteWindows ~= nil then data.groupedPaletteWindows = (opts.groupedPaletteWindows == true) end
   if opts.recentProjects ~= nil then data.recentProjects = normalizeRecentProjects(opts.recentProjects) end
-  if opts.appearanceChrome ~= nil then data.appearanceChrome = normalizeAppearanceChrome(opts.appearanceChrome) end
+  if opts.appearanceChrome ~= nil then
+    local prev = type(data.appearanceChrome) == "table" and data.appearanceChrome or {}
+    local merged = TableUtils.deepcopy(prev)
+    for k, v in pairs(opts.appearanceChrome) do
+      merged[k] = v
+    end
+    data.appearanceChrome = normalizeAppearanceChrome(merged)
+  end
   return writeFile(data)
 end
 

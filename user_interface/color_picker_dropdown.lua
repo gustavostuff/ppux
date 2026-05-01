@@ -16,6 +16,14 @@ local SELECTION_RECT_ANIM = {
   intervalSeconds = 0.1,
 }
 
+local function rgbChannelToByte(c)
+  return math.max(0, math.min(255, math.floor((tonumber(c) or 0) * 255 + 0.5)))
+end
+
+local function rgbToHex8(r, g, b)
+  return string.format("#%02X%02X%02X", rgbChannelToByte(r), rgbChannelToByte(g), rgbChannelToByte(b))
+end
+
 local function makeSwatchIcon(matrix)
   return {
     getWidth = function()
@@ -97,6 +105,10 @@ function ColorPickerDropdown.new(opts)
   local prev = dd.trigger
   local trigger = Button.new({
     icon = makeSwatchIcon(picker),
+    text = "",
+    textAlign = "left",
+    contentPaddingX = 4,
+    iconTextGap = 6,
     transparent = true,
     tooltip = opts.tooltip or "",
     w = prev.w,
@@ -107,10 +119,13 @@ function ColorPickerDropdown.new(opts)
   trigger:setPosition(prev.x, prev.y)
 
   local function triggerDraw(self)
-    local saved = self.text
-    self.text = nil
+    local fill = picker.getSwatchFill and picker:getSwatchFill() or picker:getSelected()
+    if fill then
+      self.text = rgbToHex8(fill.r, fill.g, fill.b)
+    else
+      self.text = ""
+    end
     Button.draw(self)
-    self.text = saved
   end
   trigger.draw = triggerDraw
 

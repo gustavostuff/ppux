@@ -38,8 +38,8 @@ local APPEARANCE_ROW_SLOTS = {
   { label = "Background", darkId = "dark_background", lightId = "light_background" },
   { label = "Focused", darkId = "dark_focused", lightId = "light_focused" },
   { label = "Non-focused", darkId = "dark_non_focused", lightId = "light_non_focused" },
-  { label = "Text/icons - focused", darkId = "dark_text_icons_focused", lightId = "light_text_icons_focused" },
-  { label = "Text/icons - non-focused", darkId = "dark_text_icons_non_focused", lightId = "light_text_icons_non_focused" },
+  { label = "Text focused", darkId = "dark_text_icons_focused", lightId = "light_text_icons_focused" },
+  { label = "Text non-focused", darkId = "dark_text_icons_non_focused", lightId = "light_text_icons_non_focused" },
 }
 
 local APPEARANCE_PICKER_SLOT_IDS = {
