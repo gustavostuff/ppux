@@ -205,6 +205,8 @@ function ColorPickerMatrix.new(opts)
     _satRow = nil,
     _lightness = 1,
     _brightComponents = {},
+    -- Exact RGB for the closed swatch; cleared when the user picks on the matrix (grid quantizes hue/sat).
+    _swatchPinRgb = nil,
   }, ColorPickerMatrix)
 
   local panel = Panel.new({
@@ -287,11 +289,13 @@ function ColorPickerMatrix.new(opts)
   end
 
   function self:_pickBrightnessRow(row)
+    self._swatchPinRgb = nil
     self._lightness = lightnessForRow(row)
     emitChange()
   end
 
   function self:_pickMatrixCell(hueIndex, satRow)
+    self._swatchPinRgb = nil
     self._hueIndex = hueIndex
     self._satRow = satRow
     self._lightness = 0.5
@@ -348,6 +352,7 @@ function ColorPickerMatrix.new(opts)
     self._lightness = ll
     self:_refreshBrightnessSwatches()
     emitChange()
+    self._swatchPinRgb = { r0, g0, b0, 1 }
   end
 
   function self:setSelectedFromRgb(r, g, b, opts)
@@ -355,6 +360,7 @@ function ColorPickerMatrix.new(opts)
     r = clamp01(tonumber(r) or 0)
     g = clamp01(tonumber(g) or 0)
     b = clamp01(tonumber(b) or 0)
+    self._swatchPinRgb = { r, g, b, 1 }
     local hh, ss, ll = rgbToHsl(r, g, b)
     self._hueIndex = math.max(1, math.min(MATRIX_COLS, math.floor(hh * MATRIX_COLS) + 1))
     self._satRow = math.max(1, math.min(GRID_ROWS, GRID_ROWS - math.floor(ss * (GRID_ROWS - 1))))
@@ -377,6 +383,24 @@ end
 
 function ColorPickerMatrix:isVisible()
   return self.visible ~= false
+end
+
+--- RGB for the dropdown trigger swatch (exact when synced from app; otherwise same as getSelected).
+function ColorPickerMatrix:getSwatchFill()
+  local pin = self._swatchPinRgb
+  if pin then
+    local h, s, v = rgbToHsv(pin[1], pin[2], pin[3])
+    return {
+      r = pin[1],
+      g = pin[2],
+      b = pin[3],
+      a = pin[4] or 1,
+      h = h,
+      s = s,
+      v = v,
+    }
+  end
+  return self:getSelected()
 end
 
 function ColorPickerMatrix:getSelected()

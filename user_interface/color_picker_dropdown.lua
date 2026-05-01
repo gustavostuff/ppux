@@ -25,7 +25,8 @@ local function makeSwatchIcon(matrix)
       return SWATCH_PX
     end,
     draw = function(_, ix, iy)
-      local s = matrix:getSelected()
+      local fill = matrix.getSwatchFill and matrix:getSwatchFill() or matrix:getSelected()
+      local s = fill
       local fx = math.floor(ix)
       local fy = math.floor(iy)
       love.graphics.setColor(s.r, s.g, s.b, s.a or 1)

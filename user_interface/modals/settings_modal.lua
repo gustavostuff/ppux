@@ -276,12 +276,12 @@ function Dialog.new()
   end
 
   local slotTooltips = {
-    dark_focused = "Dark mode — focused window chrome",
-    light_focused = "Light mode — focused window chrome",
-    dark_non_focused = "Dark mode — unfocused window chrome",
-    light_non_focused = "Light mode — unfocused window chrome",
-    dark_text_icons = "Dark mode — text & icons on chrome",
-    light_text_icons = "Light mode — text & icons on chrome",
+    dark_focused = "Dark mode: focused window chrome",
+    light_focused = "Light mode: focused window chrome",
+    dark_non_focused = "Dark mode: unfocused window chrome",
+    light_non_focused = "Light mode: unfocused window chrome",
+    dark_text_icons = "Dark mode: text & icons on chrome",
+    light_text_icons = "Light mode: text & icons on chrome",
   }
 
   for _, slotId in ipairs({

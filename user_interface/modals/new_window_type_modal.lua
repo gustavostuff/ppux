@@ -45,6 +45,7 @@ local function rebuildPanel(self)
       transparent = true,
       textAlign = "left",
       contentPaddingX = leftInset,
+      skipIconContrastAdapt = true,
       action = function()
         local callback = option and option.callback or nil
         self:hide()

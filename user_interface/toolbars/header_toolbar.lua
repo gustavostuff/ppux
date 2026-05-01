@@ -113,7 +113,7 @@ function HeaderToolbar:_applyButtonBackgrounds()
     else
       button.contentColor = colors.textPrimary
       button.iconRespectTheme = false
-      button.literalContentColor = false
+      button.literalContentColor = true
     end
   end
 end

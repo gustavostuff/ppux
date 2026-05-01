@@ -107,6 +107,43 @@ function colors:chromeTextIconsColor()
   return copyColor(self:appearanceChromeResolved(prefix .. "_text_icons"))
 end
 
+local function linearizeSrgbChannel(c)
+  c = tonumber(c) or 0
+  if c <= 0.03928 then
+    return c / 12.92
+  end
+  return math.pow((c + 0.055) / 1.055, 2.4)
+end
+
+--- WCAG relative luminance for sRGB channels in 0–1 (no alpha).
+function colors:relativeLuminance(rgb)
+  if type(rgb) ~= "table" then
+    return 0
+  end
+  local r = linearizeSrgbChannel(rgb[1])
+  local g = linearizeSrgbChannel(rgb[2])
+  local b = linearizeSrgbChannel(rgb[3])
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+end
+
+--- True when a solid fill is light enough that light-gray/white ink disappears.
+function colors:isLightSurface(rgb, threshold)
+  threshold = tonumber(threshold) or 0.55
+  return self:relativeLuminance(rgb) >= threshold
+end
+
+--- Pick ink (icons/text) for a solid surface: black on light fills, else preferred (e.g. Appearance chrome text).
+function colors:inkForSurface(surfaceRgb, preferredInkRgb)
+  preferredInkRgb = preferredInkRgb or self.white
+  if type(surfaceRgb) ~= "table" then
+    return copyColor(preferredInkRgb)
+  end
+  if self:isLightSurface(surfaceRgb) then
+    return copyColor(self.black)
+  end
+  return copyColor(preferredInkRgb)
+end
+
 function colors:setAppearanceChromeOverrides(table)
   self._appearanceChromeOverrides = {}
   if type(table) ~= "table" then

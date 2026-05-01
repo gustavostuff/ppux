@@ -104,6 +104,20 @@ local APPEARANCE_CHROME_SLOTS = {
   "light_text_icons",
 }
 
+-- Older builds / mistaken saves sometimes stored neutral gray for "focused" chrome; defaults are #5b6ee1.
+local function isLegacyNeutralFocusedChrome(r, g, b)
+  local maxc = math.max(r, g, b)
+  local minc = math.min(r, g, b)
+  if (maxc - minc) > 0.045 then
+    return false
+  end
+  local lum = (maxc + minc) * 0.5
+  if lum <= 0.11 or lum >= 0.9 then
+    return false
+  end
+  return true
+end
+
 local function normalizeAppearanceChrome(data)
   local out = {}
   if type(data) ~= "table" then
@@ -119,7 +133,11 @@ local function normalizeAppearanceChrome(data)
         r = math.max(0, math.min(1, r))
         g = math.max(0, math.min(1, g))
         b = math.max(0, math.min(1, b))
-        out[id] = { r, g, b }
+        if (id == "dark_focused" or id == "light_focused") and isLegacyNeutralFocusedChrome(r, g, b) then
+          -- Drop so appearanceChromeResolved uses builtin focused blue.
+        else
+          out[id] = { r, g, b }
+        end
       end
     end
   end

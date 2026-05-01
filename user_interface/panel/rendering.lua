@@ -22,8 +22,11 @@ local function drawPanelTitle(panel, utils)
   local titleW = font and font:getWidth(panel.title) or 0
   local titleX = titleBgX + math.floor((titleBgW - titleW) * 0.5)
   local titleOnBlue = panel._modalChromeOverBlue == true
-  local titleTextColor = titleOnBlue and colors:chromeTextIconsColor()
+  local preferredTitle = titleOnBlue and colors:chromeTextIconsColor()
     or (utils.colors.textPrimary or utils.colors.white)
+  local titleTextColor = titleOnBlue
+    and colors:inkForSurface(titleBg, preferredTitle)
+    or preferredTitle
   love.graphics.setColor(titleTextColor[1], titleTextColor[2], titleTextColor[3], titleTextColor[4] or 1)
   local titleY = titleBgY + math.floor((titleBgH - (font and font:getHeight() or 0)) * 0.5)
   utils.Text.print(
@@ -70,18 +73,22 @@ local function install(Panel, utils)
     end
 
     local chromeWhite = self._modalChromeOverBlue == true
+    local modalSurface = self.bgColor or colors:focusedChromeColor()
     for _, cell in ipairs(self:_iterCells()) do
       if cell.button then
         if chromeWhite then
           local b = cell.button
           local oc, oir = b.contentColor, b.iconRespectTheme
           local prevLit = b.literalContentColor
+          local prevSurf = b.iconContrastSurfaceBg
+          b.iconContrastSurfaceBg = modalSurface
           b.contentColor = colors:chromeTextIconsColor()
           b.iconRespectTheme = false
           b.literalContentColor = true
           b:draw()
           b.contentColor, b.iconRespectTheme = oc, oir
           b.literalContentColor = prevLit
+          b.iconContrastSurfaceBg = prevSurf
         else
           cell.button:draw()
         end
@@ -90,17 +97,20 @@ local function install(Panel, utils)
         local isButton = utils.Button and getmetatable(c) == utils.Button
         if chromeWhite and isButton then
           local oc, oir, olit = c.contentColor, c.iconRespectTheme, c.literalContentColor
+          local prevSurf = c.iconContrastSurfaceBg
+          c.iconContrastSurfaceBg = modalSurface
           c.contentColor = colors:chromeTextIconsColor()
           c.iconRespectTheme = false
           c.literalContentColor = true
           c:draw()
           c.contentColor, c.iconRespectTheme, c.literalContentColor = oc, oir, olit
+          c.iconContrastSurfaceBg = prevSurf
         else
           c:draw()
         end
       elseif cell.kind == "label" then
         local textColor = cell.textColor
-          or (chromeWhite and colors:chromeTextIconsColor())
+          or (chromeWhite and colors:inkForSurface(modalSurface, colors:chromeTextIconsColor()))
           or utils.colors.textPrimary
           or utils.colors.white
         love.graphics.setColor(textColor[1], textColor[2], textColor[3], 1)
