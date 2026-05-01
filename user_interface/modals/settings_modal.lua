@@ -2,15 +2,16 @@ local Button = require("user_interface.button")
 local ColorPickerDropdown = require("user_interface.color_picker_dropdown")
 local ModalTabBar = require("user_interface.modals.modal_tab_bar")
 local Panel = require("user_interface.panel")
+local Text = require("utils.text_utils")
 local colors = require("app_colors")
 local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
 
 local Dialog = {}
 Dialog.__index = Dialog
 
--- Tab row + body rows + footer; minimum body rows fits current defaults + one extraRow; grows with General if needed.
+-- Tab row + body rows + footer; minimum body rows fits current defaults + Appearance sample rows + padding.
 local SETTINGS_TAB_ROW = 1
-local SETTINGS_MIN_CONTENT_ROWS = 5
+local SETTINGS_MIN_CONTENT_ROWS = 7
 
 local function normalizeCanvasFilterKey(key)
   if key == "soft" then return "soft" end
@@ -36,6 +37,33 @@ local APPEARANCE_ROW_SLOTS = {
   { label = "Non-focused", darkId = "dark_non_focused", lightId = "light_non_focused" },
   { label = "Text/Icons", darkId = "dark_text_icons", lightId = "light_text_icons" },
 }
+
+--- Small read-only preview of window chrome (Appearance slots, including overrides).
+local function newAppearanceChromeSample(modePrefix, stateKind)
+  local bgSlot = modePrefix .. "_" .. stateKind
+  local textSlot = modePrefix .. "_text_icons"
+  local sampleText = (stateKind == "focused") and "Focused chrome" or "Unfocused chrome"
+  return {
+    contains = function()
+      return false
+    end,
+    draw = function(self)
+      local bg = colors:appearanceChromeResolved(bgSlot)
+      local tc = colors:appearanceChromeResolved(textSlot)
+      love.graphics.setColor(bg[1], bg[2], bg[3], 1)
+      love.graphics.rectangle("fill", self.x, self.y, self.w, self.h, 2, 2)
+      local font = love.graphics.getFont()
+      local fh = font and font:getHeight() or 12
+      local textY = math.floor(self.y + (self.h - fh) * 0.5)
+      local pad = 4
+      Text.print(sampleText, math.floor(self.x + pad), textY, {
+        color = tc,
+        literalColor = true,
+      })
+      love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
+    end,
+  }
+end
 
 local function forEachAppearancePicker(self, fn)
   if not self._appearancePickers then
@@ -128,6 +156,24 @@ local function layoutAppearanceContent(self, contentStart, footerRow)
     })
     self.panel:setCell(3, r, {
       component = self._appearancePickers[spec.lightId],
+    })
+    r = r + 1
+  end
+
+  for _, sample in ipairs({
+    { label = "Sample focused", kind = "focused" },
+    { label = "Sample non-focused", kind = "non_focused" },
+  }) do
+    self.panel:setCell(1, r, {
+      kind = "label",
+      text = sample.label,
+      align = "right",
+    })
+    self.panel:setCell(2, r, {
+      component = newAppearanceChromeSample("dark", sample.kind),
+    })
+    self.panel:setCell(3, r, {
+      component = newAppearanceChromeSample("light", sample.kind),
     })
     r = r + 1
   end
