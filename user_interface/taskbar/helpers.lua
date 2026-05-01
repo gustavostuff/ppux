@@ -114,7 +114,9 @@ end
 
 function M.newTaskbarButton(opts)
   opts = opts or {}
-  opts.alwaysOpaqueContent = true
+  if opts.alwaysOpaqueContent == nil then
+    opts.alwaysOpaqueContent = true
+  end
   -- Taskbar icons stay white-multiply; do not auto-switch to black on light chrome.
   opts.skipIconContrastAdapt = true
   return Button.new(opts)

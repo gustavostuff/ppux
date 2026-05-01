@@ -72,6 +72,8 @@ function Button.new(opts)
     iconRespectTheme = opts.iconRespectTheme,
     literalContentColor = opts.literalContentColor == true,
     skipIconContrastAdapt = opts.skipIconContrastAdapt == true,
+    -- When true, hover/focus underlay only draws for hover/press (not keyboard/window "focused" alone).
+    underlayOnHoverOnly = opts.underlayOnHoverOnly == true,
     -- Additional properties can be stored here
     isCloseButton = opts.isCloseButton,
   }, Button)
@@ -129,7 +131,13 @@ function Button:draw()
 
   local function drawHoverFocusUnderlay()
     if self.enabled == false then return end
-    if not (self.hovered or self.focused) then return end
+    local show
+    if self.underlayOnHoverOnly then
+      show = self.hovered or self.pressed
+    else
+      show = self.hovered or self.pressed or self.focused
+    end
+    if not show then return end
     love.graphics.setColor(0, 0, 0, 0.10)
     love.graphics.rectangle("fill", self.x, self.y, self.w, self.h, 2)
   end

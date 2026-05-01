@@ -408,6 +408,14 @@ describe("taskbar.lua - minimized windows strip", function()
     local b2 = buttonForWindow(taskbar, w2)
     expect(b1).toBeTruthy()
     expect(b2).toBeTruthy()
+    expect(b1.alwaysOpaqueContent).toBe(false)
+    expect(b2.alwaysOpaqueContent).toBe(false)
+    expect(b1.normalContentAlpha).toBe(0.5)
+    expect(b2.normalContentAlpha).toBe(0.5)
+    expect(b1.underlayOnHoverOnly).toBe(true)
+    expect(b2.underlayOnHoverOnly).toBe(true)
+    expect(b1.bgColor).toBeNil()
+    expect(b2.bgColor).toBeNil()
     expect(b1.focused).toBeFalsy()
     expect(b2.focused).toBeTruthy()
 
@@ -416,6 +424,8 @@ describe("taskbar.lua - minimized windows strip", function()
 
     b1 = buttonForWindow(taskbar, w1)
     b2 = buttonForWindow(taskbar, w2)
+    expect(b1.bgColor).toBeNil()
+    expect(b2.bgColor).toBeNil()
     expect(b1.focused).toBeTruthy()
     expect(b2.focused).toBeFalsy()
   end)
@@ -604,7 +614,9 @@ describe("taskbar.lua - minimized windows strip", function()
     taskbar:updateLayout(320, 240)
 
     for _, button in ipairs(taskbar.buttons) do
-      expect(button.alwaysOpaqueContent).toBe(true)
+      if not button.isMinimizedWindowButton then
+        expect(button.alwaysOpaqueContent).toBe(true)
+      end
     end
 
     local panel = mainMenuPanel(taskbar)

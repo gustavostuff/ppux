@@ -91,19 +91,15 @@ function M.install(Taskbar, Helpers)
     local wm = self.app and self.app.wm
     local focused = wm and wm.getFocus and wm:getFocus() or nil
     button.focused = (focused == win)
+    button.alwaysOpaqueContent = false
+    button.normalContentAlpha = 0.5
+    button.underlayOnHoverOnly = true
+    button.bgColor = nil
     local hot = button.hovered or button.pressed
     local ink = hot and colors:chromeTextIconsColorFocused() or colors:chromeTextIconsColorNonFocused()
-    if focused == win then
-      button.bgColor = colors:focusedChromeColor()
-      button.contentColor = ink
-      button.literalContentColor = true
-      button.iconRespectTheme = false
-    else
-      button.bgColor = nil
-      button.contentColor = ink
-      button.literalContentColor = true
-      button.iconRespectTheme = false
-    end
+    button.contentColor = ink
+    button.literalContentColor = true
+    button.iconRespectTheme = false
     if win._minimized then
       button.tooltip = string.format("Restore %s", tostring(win.title or "window"))
     elseif focused == win then
