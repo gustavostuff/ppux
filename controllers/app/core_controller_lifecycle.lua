@@ -374,6 +374,9 @@ function AppCoreController:load()
   if self._applyThemeSetting then
     self:_applyThemeSetting((settings and settings.theme) or "dark", false)
   end
+  if self._applyAppearanceChromeFromSettings then
+    self:_applyAppearanceChromeFromSettings(settings and settings.appearanceChrome)
+  end
   self:_applyCanvasImageModeSetting((settings and settings.canvasImageMode) or "pixel_perfect", false)
   if settings and settings.canvasFilter ~= nil then
     self:_applyCanvasFilterSetting(settings.canvasFilter, false)

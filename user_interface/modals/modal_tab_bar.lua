@@ -114,7 +114,7 @@ function M:draw()
 
   local font = self:_font()
   local textH = font and font:getHeight() or self.h
-  local base = self.chromeOverBlue and colors.white or (colors.textPrimary or colors.white)
+  local base = self.chromeOverBlue and colors:chromeTextIconsColor() or (colors.textPrimary or colors.white)
 
   for i = 1, n do
     local sx, sy, sw, sh = self:_segmentBounds(i)

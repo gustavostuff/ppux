@@ -1,5 +1,6 @@
 local Panel = require("user_interface.panel")
 local UiScale = require("user_interface.ui_scale")
+local colors = require("app_colors")
 
 local ContextualMenuController = {}
 ContextualMenuController.__index = ContextualMenuController
@@ -187,6 +188,11 @@ local function rebuildPanel(menu)
   local splitIconCell = menuUsesSplitIconCell(menu)
   local cols = splitIconCell and math.max(2, math.floor(tonumber(menu.cols) or 8)) or 1
   local cellW = resolveCellWidth(menu)
+  local panelBg = menu.bgColor or colors:focusedChromeColor()
+  local modalChrome = menu._modalChromeOverBlue
+  if modalChrome == nil then
+    modalChrome = true
+  end
   local panel
 
   if splitIconCell then
@@ -201,7 +207,8 @@ local function rebuildPanel(menu)
       cellPaddingX = menu.cellPaddingX,
       cellPaddingY = menu.cellPaddingY,
       visible = menu.visible,
-      bgColor = menu.bgColor,
+      bgColor = panelBg,
+      _modalChromeOverBlue = modalChrome,
     })
     panel.cellWidths = {}
     panel.cellWidths[1] = menu.cellH
@@ -220,7 +227,8 @@ local function rebuildPanel(menu)
       cellPaddingX = menu.cellPaddingX,
       cellPaddingY = menu.cellPaddingY,
       visible = menu.visible,
-      bgColor = menu.bgColor,
+      bgColor = panelBg,
+      _modalChromeOverBlue = modalChrome,
     })
   end
 
@@ -346,6 +354,7 @@ function ContextualMenuController.new(opts)
     cellPaddingX = opts.cellPaddingX,
     cellPaddingY = opts.cellPaddingY,
     bgColor = opts.bgColor,
+    _modalChromeOverBlue = opts._modalChromeOverBlue,
     splitIconCell = (opts.splitIconCell ~= false),
     childHoverGraceSeconds = tonumber(opts.childHoverGraceSeconds) or ContextualMenuController.CHILD_HOVER_GRACE_SECONDS,
     childHoverGraceUntil = nil,
@@ -516,6 +525,7 @@ function ContextualMenuController:_openChildForRow(row)
     cellPaddingX = self.cellPaddingX,
     cellPaddingY = self.cellPaddingY,
     bgColor = self.bgColor,
+    _modalChromeOverBlue = self._modalChromeOverBlue,
     splitIconCell = self.splitIconCell,
   })
   if not childMenu:setItems(childItems) then

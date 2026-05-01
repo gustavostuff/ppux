@@ -355,6 +355,15 @@ local function updateGridResizeButtons(app)
   end
 end
 
+local function styleAppTopChromeButton(button)
+  if not button then
+    return
+  end
+  button.contentColor = colors:chromeTextIconsColor()
+  button.literalContentColor = true
+  button.iconRespectTheme = false
+end
+
 function M.clearDockLayouts(app)
   if not (app and app.wm and app.wm.getWindows) then
     return
@@ -482,24 +491,16 @@ function M.draw(app)
   local statusY = OUTER_MARGIN
   local quickLeftX = (lay and lay.quickLeftX) or OUTER_MARGIN
   local quickRightX = (lay and lay.quickRightX) or quickLeftX
-  local quickW = math.max(0, quickRightX - quickLeftX)
-  local quickY = (lay and lay.quickTopY) or OUTER_MARGIN
-  local topAreaBGOpacity = 0.75
 
-  love.graphics.setColor(colors.gray10[1], colors.gray10[2], colors.gray10[3], topAreaBGOpacity)
+  local barBg = colors:focusedChromeColor()
+  love.graphics.setColor(barBg[1], barBg[2], barBg[3], 1)
   love.graphics.rectangle("fill", 0, 0, cw, h)
-  -- love.graphics.setColor(colors.gray10)
-  -- if quickW > 0 then
-  --   love.graphics.rectangle("fill", quickLeftX, quickY, quickW, STATUS_BG_H)
-  -- end
-  -- love.graphics.setColor(colors.gray10)
-  -- love.graphics.rectangle("fill", statusLeftX, statusY, statusW, STATUS_BG_H)
-  love.graphics.setColor(colors.white)
 
   ensureQuickButtons(app)
   for _, key in ipairs(quickButtonOrder(app)) do
     local b = app._appTopQuickButtons[key]
     if b then
+      styleAppTopChromeButton(b)
       b:draw()
     end
   end
@@ -515,10 +516,11 @@ function M.draw(app)
   local textW = math.max(0, statusW - (pad * 2))
   local textY = statusY + math.floor((STATUS_BG_H - love.graphics.getFont():getHeight()) / 2)
   local textX = statusRightX - pad - love.graphics.getFont():getWidth(statusText)
+  local statusTint = colors:chromeTextIconsColor()
   love.graphics.setScissor(statusLeftX, statusY, statusW, STATUS_BG_H)
-  love.graphics.setColor(colors.white)
+  love.graphics.setColor(statusTint[1], statusTint[2], statusTint[3], statusTint[4] or 1)
   if textW > 0 then
-    Text.print(statusText, textX, textY, { color = colors.white })
+    Text.print(statusText, textX, textY, { color = statusTint, literalColor = true })
   end
   love.graphics.setScissor()
   love.graphics.setColor(colors.white)

@@ -1,5 +1,5 @@
 local Button = require("user_interface.button")
-local AppearanceSwatch = require("user_interface.modals.appearance_color_swatch")
+local ColorPickerDropdown = require("user_interface.color_picker_dropdown")
 local ModalTabBar = require("user_interface.modals.modal_tab_bar")
 local Panel = require("user_interface.panel")
 local colors = require("app_colors")
@@ -31,7 +31,73 @@ local function makeButtonWidget(text)
   })
 end
 
--- Appearance tab: column headers + row labels + six placeholder swatches (matches UI mock).
+local APPEARANCE_ROW_SLOTS = {
+  { label = "Focused", darkId = "dark_focused", lightId = "light_focused" },
+  { label = "Non-focused", darkId = "dark_non_focused", lightId = "light_non_focused" },
+  { label = "Text/Icons", darkId = "dark_text_icons", lightId = "light_text_icons" },
+}
+
+local function forEachAppearancePicker(self, fn)
+  if not self._appearancePickers then
+    return
+  end
+  for _, slotId in ipairs({
+    "dark_focused",
+    "light_focused",
+    "dark_non_focused",
+    "light_non_focused",
+    "dark_text_icons",
+    "light_text_icons",
+  }) do
+    local p = self._appearancePickers[slotId]
+    if p then
+      fn(p)
+    end
+  end
+end
+
+local function anyAppearancePickerMenu(self, pred)
+  local found = false
+  forEachAppearancePicker(self, function(p)
+    if pred(p) then
+      found = true
+    end
+  end)
+  return found
+end
+
+--- Align each Appearance matrix + swatch with current chrome (saved overrides + builtins).
+--- Safe before first `show()` (`getAppearanceChromeRgb` may be nil; uses `app_colors` directly).
+function Dialog:syncAppearancePickersFromAppColors()
+  if not self._appearancePickers then
+    return
+  end
+  for _, slotId in ipairs({
+    "dark_focused",
+    "light_focused",
+    "dark_non_focused",
+    "light_non_focused",
+    "dark_text_icons",
+    "light_text_icons",
+  }) do
+    local picker = self._appearancePickers[slotId]
+    if picker and picker.setSelectedFromRgb then
+      local rgb = self.getAppearanceChromeRgb and self.getAppearanceChromeRgb(slotId)
+      if not rgb then
+        local c = colors:appearanceChromeResolved(slotId)
+        rgb = { r = c[1], g = c[2], b = c[3] }
+      end
+      local r = tonumber(rgb.r or rgb[1])
+      local g = tonumber(rgb.g or rgb[2])
+      local b = tonumber(rgb.b or rgb[3])
+      if r and g and b then
+        picker:setSelectedFromRgb(r, g, b, { silent = true })
+      end
+    end
+  end
+end
+
+-- Appearance tab: column headers + row labels + six color picker dropdowns.
 local function layoutAppearanceContent(self, contentStart, footerRow)
   local r = contentStart
   self.panel:setCell(1, r, {
@@ -51,47 +117,17 @@ local function layoutAppearanceContent(self, contentStart, footerRow)
   })
   r = r + 1
 
-  local dataRows = {
-    {
-      label = "Focused",
-      darkId = "dark_focused",
-      lightId = "light_focused",
-      darkC = colors.blue,
-      lightC = colors.blue,
-    },
-    {
-      label = "Non-focused",
-      darkId = "dark_non_focused",
-      lightId = "light_non_focused",
-      darkC = colors.gray10,
-      lightC = colors.gray75,
-    },
-    {
-      label = "Text/Icons",
-      darkId = "dark_text_icons",
-      lightId = "light_text_icons",
-      darkC = colors.white,
-      lightC = colors.gray20,
-    },
-  }
-
-  for _, spec in ipairs(dataRows) do
+  for _, spec in ipairs(APPEARANCE_ROW_SLOTS) do
     self.panel:setCell(1, r, {
       kind = "label",
       text = spec.label,
       align = "right",
     })
     self.panel:setCell(2, r, {
-      component = AppearanceSwatch.new({
-        slotId = spec.darkId,
-        color = spec.darkC,
-      }),
+      component = self._appearancePickers[spec.darkId],
     })
     self.panel:setCell(3, r, {
-      component = AppearanceSwatch.new({
-        slotId = spec.lightId,
-        color = spec.lightC,
-      }),
+      component = self._appearancePickers[spec.lightId],
     })
     r = r + 1
   end
@@ -108,6 +144,7 @@ local function layoutAppearanceContent(self, contentStart, footerRow)
 end
 
 function Dialog:_rebuildPanelGrid()
+  ModalPanelUtils.refreshTargetMetrics(self)
   local bodyRows = math.max(SETTINGS_MIN_CONTENT_ROWS, self._generalContentRowCount or SETTINGS_MIN_CONTENT_ROWS)
   local footerRow = SETTINGS_TAB_ROW + bodyRows + 1
   local totalRows = footerRow
@@ -139,6 +176,10 @@ function Dialog:_rebuildPanelGrid()
 
   if self._activeTabId == "appearance" then
     layoutAppearanceContent(self, contentStart, footerRow)
+    if self._appearanceNeedsPickerSync then
+      self:syncAppearancePickersFromAppColors()
+      self._appearanceNeedsPickerSync = false
+    end
   else
     local rowIndex = contentStart
     for _, row in ipairs(self.rows or {}) do
@@ -221,9 +262,48 @@ function Dialog.new()
     _activeTabId = "general",
     _tabBar = nil,
     _generalContentRowCount = SETTINGS_MIN_CONTENT_ROWS,
+    _appearancePickers = {},
+    _appearanceNeedsPickerSync = false,
+    getAppearanceChromeRgb = nil,
+    onAppearanceChromeChange = nil,
   }, Dialog)
 
   ModalPanelUtils.applyPanelDefaults(self)
+
+  local stubBounds = function()
+    local w, h = love.graphics.getDimensions()
+    return { w = w, h = h }
+  end
+
+  local slotTooltips = {
+    dark_focused = "Dark mode — focused window chrome",
+    light_focused = "Light mode — focused window chrome",
+    dark_non_focused = "Dark mode — unfocused window chrome",
+    light_non_focused = "Light mode — unfocused window chrome",
+    dark_text_icons = "Dark mode — text & icons on chrome",
+    light_text_icons = "Light mode — text & icons on chrome",
+  }
+
+  for _, slotId in ipairs({
+    "dark_focused",
+    "light_focused",
+    "dark_non_focused",
+    "light_non_focused",
+    "dark_text_icons",
+    "light_text_icons",
+  }) do
+    local sid = slotId
+    self._appearancePickers[slotId] = ColorPickerDropdown.new({
+      getBounds = stubBounds,
+      closeMenuOnItemPick = false,
+      menuBgColor = colors.transparent,
+      tooltip = slotTooltips[slotId] or "Chrome color",
+      onChange = function(c)
+        self:_onAppearanceChromeCommitted(sid, c)
+      end,
+    })
+  end
+
   self._tabBar = ModalTabBar.new({
     chromeOverBlue = true,
     tabs = {
@@ -232,11 +312,20 @@ function Dialog.new()
     },
     onSelect = function(id)
       if self._activeTabId ~= id then
+        if id ~= "appearance" then
+          forEachAppearancePicker(self, function(p)
+            p:closeMenu()
+          end)
+        end
+        if id == "appearance" then
+          self._appearanceNeedsPickerSync = true
+        end
         self._activeTabId = id
         self:_rebuildRows()
       end
     end,
   })
+  self:syncAppearancePickersFromAppColors()
   self:_rebuildPanelGrid()
   return self
 end
@@ -245,9 +334,31 @@ function Dialog:isVisible()
   return self.visible
 end
 
+function Dialog:_onAppearanceChromeCommitted(slotId, c)
+  if not c or not self.onAppearanceChromeChange then
+    return
+  end
+  self.onAppearanceChromeChange(slotId, { r = c.r, g = c.g, b = c.b })
+end
+
+function Dialog:isHoveringColorPickerSwatchAt(px, py)
+  if not self.visible or self._activeTabId ~= "appearance" then
+    return false
+  end
+  for _, p in pairs(self._appearancePickers or {}) do
+    if p and type(p.wantsHandCursorAt) == "function" and p:wantsHandCursorAt(px, py) then
+      return true
+    end
+  end
+  return false
+end
+
 function Dialog:hide()
   self.visible = false
   self.pressedButton = nil
+  forEachAppearancePicker(self, function(p)
+    p:closeMenu()
+  end)
   self.rows = {}
   self.buttons = {}
   self._activeTabId = "general"
@@ -258,6 +369,13 @@ function Dialog:hide()
 end
 
 function Dialog:_containsBox(x, y)
+  if self._activeTabId == "appearance" then
+    if anyAppearancePickerMenu(self, function(p)
+      return p:isMenuVisible() and p.menu:contains(x, y)
+    end) then
+      return true
+    end
+  end
   if self.panel and self._boxX then
     return self.panel:contains(x, y)
   end
@@ -268,7 +386,32 @@ function Dialog:getTooltipAt(x, y)
   if not self.visible or not self.panel or not self:_containsBox(x, y) then
     return nil
   end
-  return self.panel:getTooltipAt(x, y)
+  if self._activeTabId == "appearance" then
+    for _, p in pairs(self._appearancePickers or {}) do
+      if p and p:isMenuVisible() then
+        local tip = p.menu:getTooltipAt(x, y)
+        if tip then
+          return tip
+        end
+      end
+    end
+  end
+  local tip = self.panel:getTooltipAt(x, y)
+  if tip then
+    return tip
+  end
+  if self._activeTabId == "appearance" then
+    for _, p in pairs(self._appearancePickers or {}) do
+      if p and p.trigger and p.trigger.tooltip and p.trigger.tooltip ~= "" and p.trigger:contains(x, y) then
+        return {
+          text = p.trigger.tooltip,
+          immediate = false,
+          key = p.trigger,
+        }
+      end
+    end
+  end
+  return nil
 end
 
 function Dialog:show(opts)
@@ -293,9 +436,20 @@ function Dialog:show(opts)
   self.getPaletteLinks = opts.getPaletteLinks
   self.getSeparateToolbar = opts.getSeparateToolbar
   self.extraRows = opts.extraRows
+  self.getAppearanceChromeRgb = opts.getAppearanceChromeRgb
+  self.onAppearanceChromeChange = opts.onAppearanceChromeChange
   self.visible = true
   self.pressedButton = nil
   self._activeTabId = "general"
+  self._appearanceNeedsPickerSync = true
+  self:syncAppearancePickersFromAppColors()
+  local boundsFn = opts.getMenuBounds or function()
+    local w, h = love.graphics.getDimensions()
+    return { w = w, h = h }
+  end
+  forEachAppearancePicker(self, function(p)
+    p:setGetBounds(boundsFn)
+  end)
   self:_rebuildRows()
 end
 
@@ -515,6 +669,22 @@ function Dialog:mousepressed(x, y, button)
     return true
   end
 
+  if self._activeTabId == "appearance" then
+    for _, slotId in ipairs({
+      "dark_focused",
+      "light_focused",
+      "dark_non_focused",
+      "light_non_focused",
+      "dark_text_icons",
+      "light_text_icons",
+    }) do
+      local p = self._appearancePickers and self._appearancePickers[slotId]
+      if p and p:handleMousePressed(x, y, button) then
+        return true
+      end
+    end
+  end
+
   if self._tabBar:mousepressed(x, y, button) then
     return true
   end
@@ -541,6 +711,22 @@ function Dialog:mousereleased(x, y, button)
   if not self.visible then return false end
   if button ~= 1 then return true end
 
+  if self._activeTabId == "appearance" then
+    for _, slotId in ipairs({
+      "dark_focused",
+      "light_focused",
+      "dark_non_focused",
+      "light_non_focused",
+      "dark_text_icons",
+      "light_text_icons",
+    }) do
+      local p = self._appearancePickers and self._appearancePickers[slotId]
+      if p and p:handleMouseReleased(x, y, button) then
+        return true
+      end
+    end
+  end
+
   local pressed = self.pressedButton
   self.pressedButton = nil
   for _, entry in ipairs(self.buttons or {}) do
@@ -555,6 +741,11 @@ end
 
 function Dialog:mousemoved(x, y)
   if not self.visible then return false end
+  if self._activeTabId == "appearance" then
+    forEachAppearancePicker(self, function(p)
+      p:mousemoved(x, y)
+    end)
+  end
   self._tabBar:mousemoved(x, y)
   for _, entry in ipairs(self.buttons or {}) do
     entry.button.hovered = entry.button:contains(x, y)
@@ -569,6 +760,11 @@ function Dialog:draw(canvas)
   ModalPanelUtils.drawBackdrop(canvas)
   self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)
   self.panel:draw()
+  if self._activeTabId == "appearance" then
+    forEachAppearancePicker(self, function(p)
+      p:drawMenu()
+    end)
+  end
 end
 
 return Dialog

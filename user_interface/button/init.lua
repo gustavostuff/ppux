@@ -166,8 +166,9 @@ function Button:draw()
 
     local iconAlpha = contentAlpha()
     local r, g, b, a = contentColorWithAlpha(iconAlpha)
-    love.graphics.setColor(r, g, b, a)
-    drawIcon(self.icon, iconX, iconY, { respectTheme = self.iconRespectTheme })
+    -- Icons always use white ink; text follows contentColor.
+    love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], iconAlpha)
+    drawIcon(self.icon, iconX, iconY, { respectTheme = false })
 
     Text.print(self.text, math.floor(textX), math.floor(textY), {
       color = { r, g, b, a },
@@ -182,15 +183,14 @@ function Button:draw()
   drawHoverFocusUnderlay()
 
   if not self.skipIconDraw then
-    -- Calculate icon alpha based on hover/press state
+    -- Icons always use white ink (alpha from hover/idle/disabled rules).
     local iconAlpha = contentAlpha()
-    local r, g, b, a = contentColorWithAlpha(iconAlpha)
-    love.graphics.setColor(r, g, b, a)
+    love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], iconAlpha)
 
     local iconW, iconH = iconSize(self.icon)
     local iconX = self.x + (self.w - iconW) / 2  -- Center horizontally
     local iconY = self.y + (self.h - iconH) / 2  -- Center vertically
-    drawIcon(self.icon, iconX, iconY, { respectTheme = self.iconRespectTheme })
+    drawIcon(self.icon, iconX, iconY, { respectTheme = false })
   end
   love.graphics.setColor(colors.white)
 end

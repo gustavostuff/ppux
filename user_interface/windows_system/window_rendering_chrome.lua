@@ -110,12 +110,17 @@ function Window:drawHeader(isFocused)
   if isFocused then
     love.graphics.setColor(focusColor)
   else
-    love.graphics.setColor(colors.gray20)
+    love.graphics.setColor(colors:chromeBackgroundUnfocused())
   end
   love.graphics.rectangle("fill", hx - 1, hy, hw + 2, hh, 2)
 
-  -- Title on blue chrome stays white in both themes.
-  local textColor = isFocused and colors.white or (colors.textPrimary or colors.white)
+  -- Title on chrome: use Appearance “Text/Icons” when focused; body text when not.
+  local textColor
+  if isFocused then
+    textColor = colors:chromeTextIconsColor()
+  else
+    textColor = colors.textPrimary or colors.white
+  end
   love.graphics.setColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
 
   local ty = math.floor(hy + (hh - love.graphics.getFont():getHeight()) / 2)
@@ -147,7 +152,7 @@ function Window:drawBorder(isFocused)
   if isFocused then
     love.graphics.setColor(focusColor)
   else
-    love.graphics.setColor(colors.gray20)
+    love.graphics.setColor(colors:chromeBackgroundUnfocused())
   end
   love.graphics.rectangle("line", x, y, w + 1, h + 1)
   love.graphics.setColor(colors.white)
@@ -192,7 +197,7 @@ function Window:drawResizeHandle(isFocused, scaledMouse)
       local focusColor = colors:focusedChromeColor()
       love.graphics.setColor(focusColor)
     else
-      love.graphics.setColor(colors.gray20)
+      love.graphics.setColor(colors:chromeBackgroundUnfocused())
     end
 
     love.graphics.draw(handleImage, hx, hy)

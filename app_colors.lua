@@ -26,6 +26,9 @@ for k, v in pairs(colors) do
   }
 end
 
+-- #5b6ee1 — default for both dark_focused and light_focused (not theme-remapped grays).
+local _CHROME_FOCUSED_DEFAULT = copyColor(colors.blue)
+
 local _baseGray10 = copyColor(colors.gray10)
 local _baseGray20 = copyColor(colors.gray20)
 local _baseGray50 = copyColor(colors.gray50)
@@ -45,9 +48,106 @@ function colors:getTheme()
   return self._themeKey or "dark"
 end
 
---- Focused window / modal chrome (same accent in light and dark).
+colors._appearanceChromeOverrides = {}
+
+local function clampCh(x)
+  if type(x) ~= "number" then return nil end
+  if x < 0 then return 0 end
+  if x > 1 then return 1 end
+  return x
+end
+
+function colors:_appearanceChromeBuiltinDefault(slotId)
+  if slotId == "dark_focused" or slotId == "light_focused" then
+    return copyColor(_CHROME_FOCUSED_DEFAULT)
+  end
+  if slotId == "dark_non_focused" then
+    return copyColor(self.gray20)
+  end
+  if slotId == "light_non_focused" then
+    return copyColor(self.gray75)
+  end
+  if slotId == "dark_text_icons" then
+    return copyColor(self.white)
+  end
+  if slotId == "light_text_icons" then
+    return copyColor(self.gray20)
+  end
+  return copyColor(_CHROME_FOCUSED_DEFAULT)
+end
+
+function colors:appearanceChromeResolved(slotId)
+  local o = self._appearanceChromeOverrides[slotId]
+  if type(o) == "table" then
+    local r = clampCh(tonumber(o[1] ~= nil and o[1] or o.r))
+    local g = clampCh(tonumber(o[2] ~= nil and o[2] or o.g))
+    local b = clampCh(tonumber(o[3] ~= nil and o[3] or o.b))
+    if r and g and b then
+      return { r, g, b }
+    end
+  end
+  return self:_appearanceChromeBuiltinDefault(slotId)
+end
+
+--- Focused chrome fill (window header/border when focused, modals, toolbars).
 function colors:focusedChromeColor()
-  return self.blue
+  local prefix = (self:getTheme() == "light") and "light" or "dark"
+  return copyColor(self:appearanceChromeResolved(prefix .. "_focused"))
+end
+
+--- Unfocused window chrome background (replaces plain gray20 for headers/borders).
+function colors:chromeBackgroundUnfocused()
+  local prefix = (self:getTheme() == "light") and "light" or "dark"
+  return copyColor(self:appearanceChromeResolved(prefix .. "_non_focused"))
+end
+
+--- Title / icon color on focused chrome (Appearance tab “Text/Icons” column).
+function colors:chromeTextIconsColor()
+  local prefix = (self:getTheme() == "light") and "light" or "dark"
+  return copyColor(self:appearanceChromeResolved(prefix .. "_text_icons"))
+end
+
+function colors:setAppearanceChromeOverrides(table)
+  self._appearanceChromeOverrides = {}
+  if type(table) ~= "table" then
+    return
+  end
+  for slotId, o in pairs(table) do
+    if type(o) == "table" and type(slotId) == "string" then
+      local r = clampCh(tonumber(o[1] ~= nil and o[1] or o.r))
+      local g = clampCh(tonumber(o[2] ~= nil and o[2] or o.g))
+      local b = clampCh(tonumber(o[3] ~= nil and o[3] or o.b))
+      if r and g and b then
+        self._appearanceChromeOverrides[slotId] = { r, g, b }
+      end
+    end
+  end
+end
+
+function colors:setAppearanceChromeOverride(slotId, rgb)
+  if type(slotId) ~= "string" or type(rgb) ~= "table" then
+    return
+  end
+  local r = clampCh(tonumber(rgb.r or rgb[1]))
+  local g = clampCh(tonumber(rgb.g or rgb[2]))
+  local b = clampCh(tonumber(rgb.b or rgb[3]))
+  if not (r and g and b) then
+    return
+  end
+  self._appearanceChromeOverrides[slotId] = { r, g, b }
+end
+
+function colors:getAppearanceChromeOverridesForSave()
+  local out = {}
+  for k, v in pairs(self._appearanceChromeOverrides) do
+    if type(v) == "table" then
+      local r, g, b = tonumber(v[1]), tonumber(v[2]), tonumber(v[3])
+      if r and g and b then
+        out[k] = { r, g, b }
+      end
+    end
+  end
+  return out
 end
 
 function colors:setTheme(themeKey)

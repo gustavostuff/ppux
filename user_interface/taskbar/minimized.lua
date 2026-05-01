@@ -93,12 +93,14 @@ function M.install(Taskbar, Helpers)
     button.focused = (focused == win)
     if focused == win then
       button.bgColor = colors:focusedChromeColor()
-      button.contentColor = colors.white
+      button.contentColor = colors:chromeTextIconsColor()
+      button.literalContentColor = true
       button.iconRespectTheme = false
     else
       button.bgColor = nil
-      button.contentColor = nil
-      button.iconRespectTheme = nil
+      button.contentColor = colors:chromeTextIconsColor()
+      button.literalContentColor = true
+      button.iconRespectTheme = false
     end
     if win._minimized then
       button.tooltip = string.format("Restore %s", tostring(win.title or "window"))

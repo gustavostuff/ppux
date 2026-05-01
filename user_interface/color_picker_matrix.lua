@@ -350,6 +350,21 @@ function ColorPickerMatrix.new(opts)
     emitChange()
   end
 
+  function self:setSelectedFromRgb(r, g, b, opts)
+    opts = opts or {}
+    r = clamp01(tonumber(r) or 0)
+    g = clamp01(tonumber(g) or 0)
+    b = clamp01(tonumber(b) or 0)
+    local hh, ss, ll = rgbToHsl(r, g, b)
+    self._hueIndex = math.max(1, math.min(MATRIX_COLS, math.floor(hh * MATRIX_COLS) + 1))
+    self._satRow = math.max(1, math.min(GRID_ROWS, GRID_ROWS - math.floor(ss * (GRID_ROWS - 1))))
+    self._lightness = ll
+    self:_refreshBrightnessSwatches()
+    if opts.silent ~= true then
+      emitChange()
+    end
+  end
+
   return self
 end
 

@@ -350,11 +350,14 @@ function Taskbar:mousemoved(x, y)
 end
 
 function Taskbar:draw(eventText)
-  local c = colors.gray20
+  local c = colors:focusedChromeColor()
   love.graphics.setColor(c[1], c[2], c[3], 1)
   love.graphics.rectangle("fill", self.x, self.y, self.w, self.h)
 
   for _, b in ipairs(self.buttons) do
+    b.contentColor = colors:chromeTextIconsColor()
+    b.literalContentColor = true
+    b.iconRespectTheme = false
     b:draw()
   end
 
@@ -373,7 +376,7 @@ function Taskbar:draw(eventText)
     local posFrac = (self.minimizedScrollOffset or 0) / maxScroll
     local thumbX = math.floor(trackX + posFrac * math.max(0, trackW - thumbW))
     local thumbY = self.y + self.h - 2
-    local wc = colors.white
+    local wc = colors:chromeTextIconsColor()
     love.graphics.setColor(wc[1], wc[2], wc[3], self.minimizedScrollbarOpacity or 0)
     love.graphics.rectangle("fill", thumbX, thumbY, thumbW, 2)
     love.graphics.setColor(colors.white)

@@ -4,6 +4,7 @@ local AppSettingsController = require("controllers.app.settings_controller")
 local ResolutionController = require("controllers.app.resolution_controller")
 local SaveOptionsModal = require("user_interface.modals.save_options_modal")
 local SettingsModal = require("user_interface.modals.settings_modal")
+local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
 local TableUtils = require("utils.table_utils")
 local colors = require("app_colors")
 
@@ -720,10 +721,21 @@ function AppCoreController:_applyThemeSetting(themeKey, saveSetting)
   if colors and colors.setTheme then
     colors:setTheme(key)
   end
+  ModalPanelUtils.refreshModalChromeFromAppearanceChange(self)
   if saveSetting ~= false then
     AppSettingsController.save({ theme = key })
   end
   return key
+end
+
+function AppCoreController:_applyAppearanceChromeFromSettings(appearanceChrome)
+  if colors and colors.setAppearanceChromeOverrides then
+    colors:setAppearanceChromeOverrides(appearanceChrome)
+  end
+  ModalPanelUtils.refreshModalChromeFromAppearanceChange(self)
+  if self.settingsModal and self.settingsModal.syncAppearancePickersFromAppColors then
+    self.settingsModal:syncAppearancePickersFromAppColors()
+  end
 end
 
 function AppCoreController:showSettingsModal()
@@ -809,6 +821,16 @@ function AppCoreController:showSettingsModal()
     onSetSeparateToolbar = function(enabled)
       local applied = appRef:_applySeparateToolbarSetting(enabled, true)
       appRef:setStatus(string.format("Separate toolbar: %s", applied and "On" or "Off"))
+    end,
+    getAppearanceChromeRgb = function(slotId)
+      local c = colors:appearanceChromeResolved(slotId)
+      return { r = c[1], g = c[2], b = c[3] }
+    end,
+    onAppearanceChromeChange = function(slotId, rgb)
+      colors:setAppearanceChromeOverride(slotId, rgb)
+      AppSettingsController.save({ appearanceChrome = colors:getAppearanceChromeOverridesForSave() })
+      ModalPanelUtils.refreshModalChromeFromAppearanceChange(appRef)
+      appRef:setStatus("Chrome color saved")
     end,
   })
 end

@@ -116,6 +116,35 @@ function M.refreshTargetMetrics(target)
   end
 end
 
+--- After appearance chrome overrides change, resync modal panel fills from colors:focusedChromeColor().
+function M.refreshModalChromeFromAppearanceChange(app)
+  if not app then
+    return
+  end
+  M.refreshMetrics()
+  local modals = {
+    app.quitConfirmModal,
+    app.saveOptionsModal,
+    app.genericActionsModal,
+    app.settingsModal,
+    app.newWindowModal,
+    app.newWindowTypeModal,
+    app.openProjectModal,
+    app.renameWindowModal,
+    app.romPaletteAddressModal,
+    app.ppuFrameSpriteLayerModeModal,
+    app.ppuFrameRangeModal,
+    app.ppuFramePatternRangeModal,
+    app.ppuFrameAddSpriteModal,
+    app.textFieldDemoModal,
+  }
+  for _, modal in ipairs(modals) do
+    if modal and modal._uses_modal_default_bgColor == true then
+      M.refreshTargetMetrics(modal)
+    end
+  end
+end
+
 M.refreshMetrics()
 
 return M

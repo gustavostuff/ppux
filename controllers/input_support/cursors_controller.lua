@@ -253,6 +253,14 @@ end
 
 local function resolveTargetCursorName(app, mode)
   local mx, my = getMouseCanvasPosition()
+  if type(mx) == "number" and type(my) == "number" then
+    if app and app.settingsModal and type(app.settingsModal.isHoveringColorPickerSwatchAt) == "function" then
+      if app.settingsModal:isHoveringColorPickerSwatchAt(mx, my) then
+        return "hand"
+      end
+    end
+  end
+
   local resolvedMode = (mode == "edit") and "edit" or "tile"
   local grabDown = love.keyboard.isDown("g")
   local fillDown = love.keyboard.isDown("f")

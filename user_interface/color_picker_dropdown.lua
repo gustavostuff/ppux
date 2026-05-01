@@ -129,6 +129,10 @@ function ColorPickerDropdown:getSelected()
   return self.matrix:getSelected()
 end
 
+function ColorPickerDropdown:setSelectedFromRgb(r, g, b, opts)
+  self.matrix:setSelectedFromRgb(r, g, b, opts)
+end
+
 function ColorPickerDropdown:wantsHandCursorAt(px, py)
   if not self:isMenuVisible() then
     return false

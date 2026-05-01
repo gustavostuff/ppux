@@ -95,6 +95,37 @@ local function normalizePaletteLinksKey(key)
   return "auto_hide"
 end
 
+local APPEARANCE_CHROME_SLOTS = {
+  "dark_focused",
+  "light_focused",
+  "dark_non_focused",
+  "light_non_focused",
+  "dark_text_icons",
+  "light_text_icons",
+}
+
+local function normalizeAppearanceChrome(data)
+  local out = {}
+  if type(data) ~= "table" then
+    return out
+  end
+  for _, id in ipairs(APPEARANCE_CHROME_SLOTS) do
+    local e = data[id]
+    if type(e) == "table" then
+      local r = tonumber(e[1] ~= nil and e[1] or e.r)
+      local g = tonumber(e[2] ~= nil and e[2] or e.g)
+      local b = tonumber(e[3] ~= nil and e[3] or e.b)
+      if r and g and b then
+        r = math.max(0, math.min(1, r))
+        g = math.max(0, math.min(1, g))
+        b = math.max(0, math.min(1, b))
+        out[id] = { r, g, b }
+      end
+    end
+  end
+  return out
+end
+
 local function withDefaults(data)
   local out = TableUtils.deepcopy(DEFAULT_SETTINGS)
   out.skipSplash = (data and data.skipSplash == true)
@@ -106,6 +137,7 @@ local function withDefaults(data)
   out.separateToolbar = (data and data.separateToolbar == true)
   out.groupedPaletteWindows = (data and data.groupedPaletteWindows == true)
   out.recentProjects = normalizeRecentProjects(data and data.recentProjects)
+  out.appearanceChrome = normalizeAppearanceChrome(data and data.appearanceChrome)
   return out
 end
 
@@ -171,6 +203,7 @@ function AppSettingsController.save(opts)
   if opts.separateToolbar ~= nil then data.separateToolbar = (opts.separateToolbar == true) end
   if opts.groupedPaletteWindows ~= nil then data.groupedPaletteWindows = (opts.groupedPaletteWindows == true) end
   if opts.recentProjects ~= nil then data.recentProjects = normalizeRecentProjects(opts.recentProjects) end
+  if opts.appearanceChrome ~= nil then data.appearanceChrome = normalizeAppearanceChrome(opts.appearanceChrome) end
   return writeFile(data)
 end
 

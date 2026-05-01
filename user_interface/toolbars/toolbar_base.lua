@@ -22,6 +22,20 @@ local function isButtonVisible(button)
   return button and button.hidden ~= true
 end
 
+--- Use Appearance "Text/Icons" on focused chrome unless the button uses a semantic fill (yellow/green).
+local function shouldUseChromeTextTint(button)
+  if not button then
+    return false
+  end
+  if button.bgColor == colors.yellow or button.bgColor == colors.green then
+    return false
+  end
+  if button.contentColor == colors.black then
+    return false
+  end
+  return button.contentColor == nil or button.contentColor == colors.white
+end
+
 local function drawRoundedToolbarStencil(x, y, w, h)
   if w <= 0 or h <= 0 then
     return false
@@ -560,7 +574,8 @@ function ToolbarBase:draw()
       love.graphics.rectangle("fill", drawX, self.y, self.w, self.h)
     end
 
-    love.graphics.setColor(colors.white)
+    local chromeText = colors:chromeTextIconsColor()
+    love.graphics.setColor(chromeText[1], chromeText[2], chromeText[3], chromeText[4] or 1)
 
     -- Update label text if update function is provided
     for _, label in ipairs(self.labels) do
@@ -576,10 +591,16 @@ function ToolbarBase:draw()
       end
     end
 
-    -- Draw buttons (blue strip: keep icons white in light theme too)
+    -- Draw buttons (focused chrome strip: tint icons/text from Appearance)
     for _, button in ipairs(self.buttons) do
       if isButtonVisible(button) then
         local prevIr = button.iconRespectTheme
+        local prevCc = button.contentColor
+        local prevLit = button.literalContentColor
+        if shouldUseChromeTextTint(button) then
+          button.contentColor = colors:chromeTextIconsColor()
+          button.literalContentColor = true
+        end
         button.iconRespectTheme = false
         if button.paletteLinkHandle then
           button.skipIconDraw = PaletteLinkController.shouldHidePaletteLinkHandleIconForWindow(self.window)
@@ -589,6 +610,8 @@ function ToolbarBase:draw()
           button:draw()
         end
         button.iconRespectTheme = prevIr
+        button.contentColor = prevCc
+        button.literalContentColor = prevLit
       end
     end
   end
@@ -610,7 +633,16 @@ function ToolbarBase:_drawLabel(label)
   local labelX = x + (w - labelW) / 2  -- Center horizontally within allocated width
   local labelY = y + (h - labelH) / 2  -- Center vertically
   
-  love.graphics.setColor(colors.white)
+  local textColor = colors:chromeTextIconsColor()
+  local literal = true
+  if self.window and self.windowController and self.windowController.getFocus then
+    if self.windowController:getFocus() ~= self.window then
+      textColor = colors.textPrimary or textColor
+      literal = false
+    end
+  end
+
+  love.graphics.setColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
   -- Draw label text (centered within the box)
   if label.text and label.text ~= "" then
     local font = love.graphics.getFont()
@@ -618,7 +650,7 @@ function ToolbarBase:_drawLabel(label)
     local textH = font:getHeight()
     local textX = labelX + (labelW - textW) / 2  -- Center horizontally
     local textY = labelY + (labelH - textH) / 2  -- Center vertically
-    Text.print(label.text, textX, textY, { color = colors.white })
+    Text.print(label.text, textX, textY, { color = textColor, literalColor = literal })
   end
   
   love.graphics.setColor(colors.white)

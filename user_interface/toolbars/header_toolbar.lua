@@ -102,16 +102,18 @@ end
 function HeaderToolbar:_applyButtonBackgrounds()
   local focusedWindow = self.windowController and self.windowController.getFocus and self.windowController:getFocus() or nil
   local isFocused = (focusedWindow == self.window)
-  local bg = isFocused and colors:focusedChromeColor() or colors.gray20
+  local bg = isFocused and colors:focusedChromeColor() or colors:chromeBackgroundUnfocused()
   for _, button in ipairs(self.buttons) do
     button.bgColor = bg
     button.bgAlpha = 1
     if isFocused then
-      button.contentColor = colors.white
+      button.contentColor = colors:chromeTextIconsColor()
       button.iconRespectTheme = false
+      button.literalContentColor = true
     else
-      button.contentColor = nil
-      button.iconRespectTheme = nil
+      button.contentColor = colors.textPrimary
+      button.iconRespectTheme = false
+      button.literalContentColor = false
     end
   end
 end
