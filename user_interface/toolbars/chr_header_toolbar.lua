@@ -85,7 +85,7 @@ function ChrHeaderToolbar:_applyButtonBackgrounds()
     button.bgColor = bg
     button.bgAlpha = 1
     if isFocused then
-      local hot = button.hovered or button.pressed
+      local hot = button.enabled ~= false and (button.hovered or button.pressed)
       button.contentColor = hot and colors:chromeTextIconsColorFocused() or colors:chromeTextIconsColorNonFocused()
       button.iconRespectTheme = false
       button.literalContentColor = true

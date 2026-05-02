@@ -1,7 +1,8 @@
 -- Standalone color picker: 10×8 panel grid.
--- Col 1: lightness (HSL L) for the current hue/saturation from the matrix.
+-- Col 1: lightness (HSL L) ladder; col 1 and the 8×8 matrix each have their own selection highlight.
+-- Changing the matrix keeps the brightness row; changing brightness keeps the matrix cell.
 -- Col 2: non-interactive spacer (no drawing).
--- Cols 3–10: hue × saturation at fixed L=0.5 (HSL); vertical axis is saturation (full at top, none at bottom).
+-- Cols 3–10: hue × saturation at fixed L=0.5 (HSL) for preview; the selected cell is drawn at the ladder L.
 -- onChange / getSelected still report h, s, v as HSV [0,1] derived from the resulting RGB.
 local Panel = require("user_interface.panel")
 local colors = require("app_colors")
@@ -215,6 +216,7 @@ function ColorPickerMatrix.new(opts)
     _cellH = cellH,
     _hueIndex = nil,
     _satRow = nil,
+    _brightRow = 1,
     _lightness = 1,
     _brightComponents = {},
     -- Exact RGB for the closed swatch; cleared when the user picks on the matrix (grid quantizes hue/sat).
@@ -252,6 +254,19 @@ function ColorPickerMatrix.new(opts)
 
   local function lightnessForRow(row)
     return (GRID_ROWS - row) / (GRID_ROWS - 1)
+  end
+
+  local function brightRowFromLightness(l)
+    l = clamp01(tonumber(l) or 0)
+    local bestRow, bestD = 1, math.huge
+    for row = 1, GRID_ROWS do
+      local d = math.abs(lightnessForRow(row) - l)
+      if d < bestD then
+        bestD = d
+        bestRow = row
+      end
+    end
+    return bestRow
   end
 
   local function emitChange()
@@ -302,6 +317,7 @@ function ColorPickerMatrix.new(opts)
 
   function self:_pickBrightnessRow(row)
     self._swatchPinRgb = nil
+    self._brightRow = row
     self._lightness = lightnessForRow(row)
     emitChange()
   end
@@ -310,7 +326,6 @@ function ColorPickerMatrix.new(opts)
     self._swatchPinRgb = nil
     self._hueIndex = hueIndex
     self._satRow = satRow
-    self._lightness = 0.5
     self:_refreshBrightnessSwatches()
     emitChange()
   end
@@ -322,8 +337,7 @@ function ColorPickerMatrix.new(opts)
     end, function()
       self:_pickBrightnessRow(rrow)
     end, function()
-      local L = clamp01(self._lightness or 1)
-      return math.abs(L - lightnessForRow(rrow)) < 1e-4
+      return self._brightRow == rrow
     end)
     brightComp._rgb = { 1, 1, 1, 1 }
     brightComp.getRgb = function()
@@ -376,7 +390,8 @@ function ColorPickerMatrix.new(opts)
     local hh, ss, ll = rgbToHsl(r0, g0, b0)
     self._hueIndex = math.max(1, math.min(MATRIX_COLS, math.floor(hh * MATRIX_COLS) + 1))
     self._satRow = math.max(1, math.min(GRID_ROWS, GRID_ROWS - math.floor(ss * (GRID_ROWS - 1))))
-    self._lightness = ll
+    self._brightRow = brightRowFromLightness(ll)
+    self._lightness = lightnessForRow(self._brightRow)
     self:_refreshBrightnessSwatches()
     emitChange()
     self._swatchPinRgb = { r0, g0, b0, 1 }
@@ -391,7 +406,8 @@ function ColorPickerMatrix.new(opts)
     local hh, ss, ll = rgbToHsl(r, g, b)
     self._hueIndex = math.max(1, math.min(MATRIX_COLS, math.floor(hh * MATRIX_COLS) + 1))
     self._satRow = math.max(1, math.min(GRID_ROWS, GRID_ROWS - math.floor(ss * (GRID_ROWS - 1))))
-    self._lightness = ll
+    self._brightRow = brightRowFromLightness(ll)
+    self._lightness = lightnessForRow(self._brightRow)
     self:_refreshBrightnessSwatches()
     if opts.silent ~= true then
       emitChange()

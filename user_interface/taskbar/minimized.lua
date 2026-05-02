@@ -95,7 +95,7 @@ function M.install(Taskbar, Helpers)
     button.normalContentAlpha = 0.5
     button.underlayOnHoverOnly = true
     button.bgColor = nil
-    local hot = button.hovered or button.pressed
+    local hot = button.enabled ~= false and (button.hovered or button.pressed)
     local ink = hot and colors:chromeTextIconsColorFocused() or colors:chromeTextIconsColorNonFocused()
     button.contentColor = ink
     button.literalContentColor = true

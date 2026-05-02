@@ -359,7 +359,7 @@ local function styleAppTopChromeButton(button)
   if not button then
     return
   end
-  local hot = button.hovered or button.pressed
+  local hot = button.enabled ~= false and (button.hovered or button.pressed)
   button.contentColor = hot and colors:chromeTextIconsColorFocused() or colors:chromeTextIconsColorNonFocused()
   button.literalContentColor = true
   button.iconRespectTheme = false

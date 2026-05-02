@@ -256,6 +256,7 @@ local function rebuildPanel(menu)
         tooltip = item.tooltip,
         contentPaddingX = 0,
         action = action,
+        skipHoverFocusUnderlay = true,
       })
       panel:setCell(2, i, {
         kind = "button",
@@ -268,6 +269,7 @@ local function rebuildPanel(menu)
         textAlign = "left",
         contentPaddingX = leftInset,
         action = action,
+        skipHoverFocusUnderlay = true,
       })
       local iconCell = panel:getCell(1, i)
       local textCell = panel:getCell(2, i)
@@ -561,6 +563,19 @@ function ContextualMenuController:getButtonAt(px, py)
     return self.panel:getButtonAt(px, py)
   end
   return nil
+end
+
+function ContextualMenuController:isHoveringDisabledAt(px, py)
+  if not self:isVisible() then
+    return false
+  end
+  if self.childMenu and self.childMenu:contains(px, py) then
+    return self.childMenu:isHoveringDisabledAt(px, py)
+  end
+  if self.panel and self.panel:contains(px, py) then
+    return self.panel:isHoveringDisabledButtonAt(px, py)
+  end
+  return false
 end
 
 function ContextualMenuController:getTooltipAt(px, py)

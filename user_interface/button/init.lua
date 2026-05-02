@@ -74,6 +74,8 @@ function Button.new(opts)
     skipIconContrastAdapt = opts.skipIconContrastAdapt == true,
     -- When true, hover/focus underlay only draws for hover/press (not keyboard/window "focused" alone).
     underlayOnHoverOnly = opts.underlayOnHoverOnly == true,
+    -- When true, skip the dark rounded hover/focus fill (e.g. parent draws one rect across split cells).
+    skipHoverFocusUnderlay = opts.skipHoverFocusUnderlay == true,
     -- Additional properties can be stored here
     isCloseButton = opts.isCloseButton,
   }, Button)
@@ -130,6 +132,9 @@ function Button:draw()
   end
 
   local function drawHoverFocusUnderlay()
+    if self.skipHoverFocusUnderlay then
+      return
+    end
     if self.enabled == false then return end
     local show
     if self.underlayOnHoverOnly then

@@ -355,7 +355,7 @@ function Taskbar:draw(eventText)
   love.graphics.rectangle("fill", self.x, self.y, self.w, self.h)
 
   for _, b in ipairs(self.buttons) do
-    local hot = b.hovered or b.pressed
+    local hot = b.enabled ~= false and (b.hovered or b.pressed)
     b.contentColor = hot and colors:chromeTextIconsColorFocused() or colors:chromeTextIconsColorNonFocused()
     b.literalContentColor = true
     b.iconRespectTheme = false

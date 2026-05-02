@@ -462,6 +462,25 @@ function Dialog:isHoveringColorPickerSwatchAt(px, py)
   return false
 end
 
+--- Open appearance dropdown menus are not part of `self.panel` hit geometry; disabled swatch triggers too.
+function Dialog:isHoveringDisabledAppearancePickerAt(px, py)
+  if not self.visible or self._activeTabId ~= "appearance" then
+    return false
+  end
+  for _, p in pairs(self._appearancePickers or {}) do
+    if p and p.trigger and p.trigger.enabled == false and p.trigger:contains(px, py) then
+      return true
+    end
+    local m = p and p.menu
+    if m and m.isVisible and m:isVisible() and m.contains and m:contains(px, py) then
+      if m.isHoveringDisabledAt and m:isHoveringDisabledAt(px, py) then
+        return true
+      end
+    end
+  end
+  return false
+end
+
 function Dialog:hide()
   self.visible = false
   self.pressedButton = nil

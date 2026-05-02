@@ -108,6 +108,7 @@ local function createButtonForCell(panel, cell)
     iconRespectTheme = cell.iconRespectTheme,
     literalContentColor = cell.literalContentColor == true,
     skipIconContrastAdapt = cell.skipIconContrastAdapt == true,
+    skipHoverFocusUnderlay = cell.skipHoverFocusUnderlay == true,
   })
 end
 

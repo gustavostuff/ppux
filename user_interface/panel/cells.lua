@@ -148,6 +148,28 @@ local function install(Panel, utils)
     return nil
   end
 
+  --- True when (px,py) is over a disabled panel button (or embedded Button component).
+  function Panel:isHoveringDisabledButtonAt(px, py)
+    if not self.visible or not self:contains(px, py) then
+      return false
+    end
+    for _, cell in ipairs(self:_iterCells()) do
+      if px >= cell.x and px <= (cell.x + cell.w) and py >= cell.y and py <= (cell.y + cell.h) then
+        local b = cell.button
+        if b and b.enabled == false and b:contains(px, py) then
+          return true
+        end
+        local c = cell.component
+        if c and utils.Button and getmetatable(c) == utils.Button and c.enabled == false then
+          if type(c.contains) ~= "function" or c:contains(px, py) then
+            return true
+          end
+        end
+      end
+    end
+    return false
+  end
+
   function Panel:getTooltipAt(px, py)
     local btn = self:getButtonAt(px, py)
     if not btn or not btn.tooltip or btn.tooltip == "" then

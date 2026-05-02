@@ -598,7 +598,8 @@ function ToolbarBase:draw()
         local prevCc = button.contentColor
         local prevLit = button.literalContentColor
         if shouldUseChromeTextTint(button) then
-          local hot = button.hovered or button.pressed or button.focused
+          local hot = button.enabled ~= false
+            and (button.hovered or button.pressed or button.focused)
           button.contentColor = hot and colors:chromeTextIconsColorFocused()
             or colors:chromeTextIconsColorNonFocused()
           button.literalContentColor = true

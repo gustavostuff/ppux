@@ -1,7 +1,11 @@
 local colors = require("app_colors")
 
 local function chromeInkForModalButton(b)
-  if b and (b.hovered or b.pressed or b.focused) then
+  if not b then
+    return colors:chromeTextIconsColorNonFocused()
+  end
+  local canReact = b.enabled ~= false
+  if canReact and (b.hovered or b.pressed or b.focused) then
     return colors:chromeTextIconsColorFocused()
   end
   return colors:chromeTextIconsColorNonFocused()
@@ -140,6 +144,42 @@ local function drawTabbedModalNormalSurface(panel)
   love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
 end
 
+--- One hover/focus underlay spanning all cells in a row that share `menuItem` (split icon + text).
+--- Matches Button's hover fill: semi-transparent black, 2px corner radius.
+local function drawUnifiedSplitMenuRowHovers(panel)
+  local byRow = {}
+  for _, cell in ipairs(panel:_iterCells()) do
+    local b = cell.button
+    if b and b.skipHoverFocusUnderlay and cell.menuItem then
+      local row = cell.row
+      byRow[row] = byRow[row] or {}
+      byRow[row][#byRow[row] + 1] = cell
+    end
+  end
+  for _, cells in pairs(byRow) do
+    if #cells >= 2 then
+      local hot = false
+      local l, t, r, b = math.huge, math.huge, -math.huge, -math.huge
+      for _, cell in ipairs(cells) do
+        local bb = cell.button
+        if bb.enabled ~= false and (bb.hovered or bb.pressed or bb.focused) then
+          hot = true
+        end
+        l = math.min(l, cell.x)
+        t = math.min(t, cell.y)
+        r = math.max(r, cell.x + cell.w)
+        b = math.max(b, cell.y + cell.h)
+      end
+      local w, h = r - l, b - t
+      if hot and w > 0 and h > 0 then
+        love.graphics.setColor(0, 0, 0, 0.10)
+        love.graphics.rectangle("fill", l, t, w, h, 2, 2)
+      end
+    end
+  end
+  love.graphics.setColor(1, 1, 1, 1)
+end
+
 local function install(Panel, utils)
   function Panel:draw()
     if not self.visible then return end
@@ -155,6 +195,8 @@ local function install(Panel, utils)
     drawPanelTitle(self, utils)
 
     drawTabbedModalNormalSurface(self)
+
+    drawUnifiedSplitMenuRowHovers(self)
 
     if self.debugShowCells then
       local debugColor = self.debugCellColor or utils.colors.gray10

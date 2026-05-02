@@ -13,6 +13,7 @@ local CURSOR_FILES = {
   fill = "cursor_fill_2_21.png",
   pick = "cursor_pick_2_27.png",
   rect_fill = "cursor_rect_14_14.png",
+  unavailable = "cursor_unavailable_14_14.png",
 }
 
 local function cursorPathForName(name, setName)
@@ -251,6 +252,141 @@ local function isHoveringInteractiveUI(app)
   return false
 end
 
+local function eachAppContextMenu(app, fn)
+  if not app or not fn then
+    return
+  end
+  local menus = {
+    app.windowHeaderContextMenu,
+    app.emptySpaceContextMenu,
+    app.ppuTileContextMenu,
+    app.paletteLinkContextMenu,
+  }
+  for _, menu in ipairs(menus) do
+    if menu then
+      fn(menu)
+    end
+  end
+end
+
+local function modalPanelDisabledAt(modal, mx, my)
+  if not (modal and modal.isVisible and modal:isVisible()) then
+    return false
+  end
+  if modal.contains and not modal:contains(mx, my) then
+    return false
+  end
+  local p = modal.panel
+  return p and type(p.isHoveringDisabledButtonAt) == "function" and p:isHoveringDisabledButtonAt(mx, my)
+end
+
+local function toolbarDisabledAt(toolbar, mx, my)
+  if not (toolbar and toolbar.contains and toolbar.getButtonAt) then
+    return false
+  end
+  if not toolbar:contains(mx, my) then
+    return false
+  end
+  local b = toolbar:getButtonAt(mx, my)
+  return b and b.enabled == false
+end
+
+local function appQuickButtonsDisabledAt(app, mx, my)
+  local buttons = app and app._appTopQuickButtons
+  if not buttons then
+    return false
+  end
+  for _, b in pairs(buttons) do
+    if b and b.enabled == false and b.contains and b:contains(mx, my) then
+      return true
+    end
+  end
+  return false
+end
+
+local function isHoveringDisabledUiAt(app, mx, my)
+  if type(mx) ~= "number" or type(my) ~= "number" then
+    return false
+  end
+
+  if appQuickButtonsDisabledAt(app, mx, my) then
+    return true
+  end
+
+  local wm = app and app.wm
+  if wm and wm.windowAt then
+    local win = wm:windowAt(mx, my)
+    if win then
+      if toolbarDisabledAt(win.headerToolbar, mx, my) then
+        return true
+      end
+      if toolbarDisabledAt(win.specializedToolbar, mx, my) then
+        return true
+      end
+    end
+  end
+
+  local disabledMenu = false
+  eachAppContextMenu(app, function(menu)
+    if disabledMenu then
+      return
+    end
+    if menu.isVisible and menu:isVisible() and menu.contains and menu:contains(mx, my) then
+      if menu.isHoveringDisabledAt and menu:isHoveringDisabledAt(mx, my) then
+        disabledMenu = true
+      end
+    end
+  end)
+  if disabledMenu then
+    return true
+  end
+
+  local taskbar = app and app.taskbar
+  if taskbar and taskbar.menuController and taskbar.menuController.isVisible and taskbar.menuController:isVisible() then
+    local m = taskbar.menuController
+    if m:contains(mx, my) and m.isHoveringDisabledAt and m:isHoveringDisabledAt(mx, my) then
+      return true
+    end
+  end
+  if taskbar and taskbar.buttons then
+    for _, b in ipairs(taskbar.buttons) do
+      if b and b.enabled == false and b.contains and b:contains(mx, my) then
+        return true
+      end
+    end
+  end
+
+  local modals = {
+    app and app.quitConfirmModal,
+    app and app.saveOptionsModal,
+    app and app.genericActionsModal,
+    app and app.settingsModal,
+    app and app.newWindowModal,
+    app and app.renameWindowModal,
+    app and app.romPaletteAddressModal,
+    app and app.ppuFrameSpriteLayerModeModal,
+    app and app.ppuFrameAddSpriteModal,
+    app and app.ppuFrameRangeModal,
+    app and app.ppuFramePatternRangeModal,
+    app and app.textFieldDemoModal,
+    app and app.splash,
+  }
+  for _, modal in ipairs(modals) do
+    if modalPanelDisabledAt(modal, mx, my) then
+      return true
+    end
+  end
+
+  if app and app.settingsModal and app.settingsModal.isVisible and app.settingsModal:isVisible() then
+    if type(app.settingsModal.isHoveringDisabledAppearancePickerAt) == "function"
+      and app.settingsModal:isHoveringDisabledAppearancePickerAt(mx, my) then
+      return true
+    end
+  end
+
+  return false
+end
+
 local function resolveTargetCursorName(app, mode)
   local mx, my = getMouseCanvasPosition()
   if type(mx) == "number" and type(my) == "number" then
@@ -258,6 +394,9 @@ local function resolveTargetCursorName(app, mode)
       if app.settingsModal:isHoveringColorPickerSwatchAt(mx, my) then
         return "hand"
       end
+    end
+    if isHoveringDisabledUiAt(app, mx, my) then
+      return "unavailable"
     end
   end
 
@@ -302,11 +441,17 @@ function CursorsController.applyModeCursor(app, mode)
   if app and targetName == "rect_fill" and not cursors.rect_fill then
     cursors.rect_fill = ensureNamedCursorLoaded(app, "rect_fill")
   end
+  if app and targetName == "unavailable" and not cursors.unavailable then
+    cursors.unavailable = ensureNamedCursorLoaded(app, "unavailable")
+  end
 
   local useSoftwareCursor = shouldUseSoftwareCursor(app)
   if useSoftwareCursor then
     if app and targetName == "rect_fill" then
       ensureNamedSoftwareCursorLoaded(app, "rect_fill")
+    end
+    if app and targetName == "unavailable" then
+      ensureNamedSoftwareCursorLoaded(app, "unavailable")
     end
     setMouseVisibility(app, false)
     if love.mouse.setCursor then
@@ -367,6 +512,7 @@ function CursorsController.init(app)
     fill = loadNamedCursor("fill", cursorSet),
     pick = loadNamedCursor("pick", cursorSet),
     rect_fill = loadNamedCursor("rect_fill", cursorSet),
+    unavailable = loadNamedCursor("unavailable", cursorSet),
   }
   app.softwareCursors = {
     arrow = ensureNamedSoftwareCursorLoaded(app, "arrow"),
@@ -375,6 +521,7 @@ function CursorsController.init(app)
     fill = ensureNamedSoftwareCursorLoaded(app, "fill"),
     pick = ensureNamedSoftwareCursorLoaded(app, "pick"),
     rect_fill = ensureNamedSoftwareCursorLoaded(app, "rect_fill"),
+    unavailable = ensureNamedSoftwareCursorLoaded(app, "unavailable"),
   }
   app._softwareCursorModeActive = false
   app._cursorVisible = nil
@@ -392,6 +539,8 @@ end
 function CursorsController.isUsingSoftwareCursor(app)
   return app and app._softwareCursorModeActive == true
 end
+
+CursorsController.isHoveringDisabledUiAt = isHoveringDisabledUiAt
 
 function CursorsController.draw(app)
   if not (app and CursorsController.isUsingSoftwareCursor(app)) then
