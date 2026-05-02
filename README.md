@@ -6,6 +6,8 @@ Beta 0.1.1
 
 <img src="img/readme_images/app_example.png" alt="">
 
+<img src="img/readme_images/app_example_2.png" alt="">
+
 Edit NES graphics as the player sees them. No tile puzzle solving.
 
 PPUX uses an in-app [database](#database) plus project files to understand banks, palettes, sprite layouts, animations, and other ROM-specific structures.
@@ -597,6 +599,6 @@ Run a single scenario:
 
 See [E2E Testing](docs/test/E2E_TESTING.md) for scenario details and options.
 
-:white_check_mark: All 695 unit tests passing.
+:white_check_mark: All 720 unit tests passing.
 
-:white_check_mark: All 22 E2E tests passing.
+:white_check_mark: All 23 E2E tests passing.
