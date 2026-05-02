@@ -88,10 +88,35 @@ local function drawTabbedModalNormalSurface(panel)
   if not l then
     return
   end
+  -- Cells sit inside `padding`, but Settings should read as one full-width chrome block:
+  -- extend the lighter surface to the panel's outer bounds (L/R/B) so no `bgColor`
+  -- gutter remains between the body and the modal frame.
+  local innerL = panel.x
+  local innerR = panel.x + panel.w
+  local innerB = panel.y + panel.h
+  if innerL < innerR and innerB > topY then
+    l = math.min(l, innerL)
+    r = math.max(r, innerR)
+    botY = math.max(botY, innerB)
+  end
   local fc = colors:focusedChromeColor()
   local nr, ng, nb = fc[1], fc[2], fc[3]
   love.graphics.setColor(nr, ng, nb, 1)
-  love.graphics.rectangle("fill", l, topY, r - l, botY - topY)
+  local w = r - l
+  local totalH = botY - topY
+  local rx, ry = 2, 2
+  if w > 0 and totalH > 0 then
+    if totalH < ry * 2 then
+      love.graphics.rectangle("fill", l, topY, w, totalH, rx, ry)
+    else
+      -- Two-part fill: upper half sharp, lower half rounded (2px) so the modal reads with
+      -- rounded bottom corners only on the outer chrome band.
+      local h1 = math.floor(totalH / 2)
+      local h2 = totalH - h1
+      love.graphics.rectangle("fill", l, topY, w, h1)
+      love.graphics.rectangle("fill", l, topY + h1, w, h2, rx, ry)
+    end
+  end
 
   local tabCell = findTabBarCell(panel, tabBar, tabRow)
   if not tabCell then
@@ -107,8 +132,10 @@ local function drawTabbedModalNormalSurface(panel)
   love.graphics.rectangle("fill", sx, tabCell.y, sw, tabCell.h)
   local gapY = tabCell.y + tabCell.h
   local gapH = topY - gapY
-  if gapH > 0 then
-    love.graphics.rectangle("fill", sx, gapY, sw, gapH)
+  -- Fill the full inner width (not only under the active tab label) so row-spacing
+  -- between the tab strip and the body does not leave darker gutters on the sides.
+  if gapH > 0 and innerL < innerR then
+    love.graphics.rectangle("fill", innerL, gapY, innerR - innerL, gapH)
   end
   love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
 end
