@@ -95,7 +95,7 @@ function AppCoreController:_buildCtx()
         chrWin,
         app,
         chrWin.orderMode or "normal",
-        function(txt) setAppStatus(txt) end
+        nil
       )
     end,
 
@@ -460,9 +460,6 @@ end
 
 function AppCoreController:toggleCrtMode()
   local enabled = self:setCrtModeEnabled(not (self.crtModeEnabled == true))
-  if self.setStatus then
-    self:setStatus(enabled and "CRT mode enabled" or "CRT mode disabled")
-  end
   return enabled
 end
 

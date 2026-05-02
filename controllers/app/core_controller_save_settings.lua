@@ -897,7 +897,6 @@ function AppCoreController:showOpenProjectModal()
     self.openProjectModal = OpenProjectModal.new()
   end
 
-  local openedPath = nil
   self.openProjectModal:show({
     title = "Open Project",
     initialDir = resolveOpenProjectInitialDir(self),
@@ -906,16 +905,10 @@ function AppCoreController:showOpenProjectModal()
     end,
     onOpen = function(path)
       self.lastOpenProjectDir = path:match("^(.*)[/\\][^/\\]+$") or self.lastOpenProjectDir
-      openedPath = path
       return RomProjectController.requestLoad(self, path)
     end,
   })
 
-  if openedPath then
-    self:setStatus("Opening project: " .. tostring(openedPath))
-  else
-    self:setStatus("Open project")
-  end
   return true
 end
 

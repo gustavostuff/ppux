@@ -32,15 +32,15 @@ function M.install(Taskbar, Helpers)
 
     local function actionSave()
       closeMenu()
-      if self.app and self.app.showSaveOptionsModal and self.app:showSaveOptionsModal() then
-        Helpers.setLastEvent(self.app, "Opened save options")
+      if self.app and self.app.showSaveOptionsModal then
+        self.app:showSaveOptionsModal()
       end
     end
 
     local function actionNewWindow()
       closeMenu()
-      if self.app and self.app.showNewWindowModal and self.app:showNewWindowModal() then
-        Helpers.setLastEvent(self.app, "Opened new window modal")
+      if self.app and self.app.showNewWindowModal then
+        self.app:showNewWindowModal()
       end
     end
 
@@ -48,7 +48,6 @@ function M.install(Taskbar, Helpers)
       closeMenu()
       if self.app and self.app.showSettingsModal then
         self.app:showSettingsModal()
-        Helpers.setLastEvent(self.app, "Opened settings")
       end
     end
 
@@ -56,7 +55,6 @@ function M.install(Taskbar, Helpers)
       closeMenu()
       if self.app and self.app.requestCloseProject then
         self.app:requestCloseProject()
-        Helpers.setLastEvent(self.app, "Closed project")
       end
     end
 
@@ -64,7 +62,6 @@ function M.install(Taskbar, Helpers)
       closeMenu()
       if not self.app then return end
       if self.app.handleQuitRequest and self.app:handleQuitRequest() then
-        Helpers.setLastEvent(self.app, "Opened quit confirmation")
         return
       end
       love.event.quit()
@@ -86,15 +83,14 @@ function M.install(Taskbar, Helpers)
           gapX = 8,
           gapY = 2,
         })
-        Helpers.setLastEvent(self.app, "Windows collapsed and stacked")
       end
     end
 
     local function actionExpandAll()
       closeMenu()
       local wm = self.app and self.app.wm
-      if wm and wm.expandAll and wm:expandAll() then
-        Helpers.setLastEvent(self.app, "Windows expanded")
+      if wm and wm.expandAll then
+        wm:expandAll()
       end
     end
 
@@ -115,16 +111,16 @@ function M.install(Taskbar, Helpers)
     local function actionMinimizeAll()
       closeMenu()
       local wm = self.app and self.app.wm
-      if wm and wm.minimizeAll and wm:minimizeAll() then
-        Helpers.setLastEvent(self.app, "Windows minimized")
+      if wm and wm.minimizeAll then
+        wm:minimizeAll()
       end
     end
 
     local function actionMaximizeAll()
       closeMenu()
       local wm = self.app and self.app.wm
-      if wm and wm.maximizeAll and wm:maximizeAll() then
-        Helpers.setLastEvent(self.app, "Windows restored")
+      if wm and wm.maximizeAll then
+        wm:maximizeAll()
       end
     end
 

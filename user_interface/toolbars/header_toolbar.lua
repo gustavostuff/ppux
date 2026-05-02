@@ -122,10 +122,8 @@ end
 function HeaderToolbar:_onMinimize()
   if not self.window or not self.windowController then return end
 
-  if self.windowController.minimizeWindow and self.windowController:minimizeWindow(self.window) then
-    if self.ctx then
-      self.ctx.app:setStatus("Window minimized")
-    end
+  if self.windowController.minimizeWindow then
+    self.windowController:minimizeWindow(self.window)
   end
 end
 
@@ -326,14 +324,6 @@ function HeaderToolbar:_onCollapse()
   
   -- Update collapse icon to reflect new state
   self:updateCollapseIcon()
-  
-  if self.ctx and self.ctx.app and self.ctx.app.setStatus then
-    if self.window._collapsed then
-      self.ctx.app:setStatus("Window collapsed")
-    else
-      self.ctx.app:setStatus("Window expanded")
-    end
-  end
 end
 
 -- Handle close action
@@ -401,9 +391,6 @@ function HeaderToolbar:_onClose()
     })
   end
   
-  if self.ctx and self.ctx.app and self.ctx.app.setStatus then
-    self.ctx.app:setStatus("Window closed")
-  end
   if self.ctx and self.ctx.showToast then
     local title = tostring((self.window and self.window.title) or "Untitled")
     self.ctx.showToast("warning", string.format("Removed window: %s", title))

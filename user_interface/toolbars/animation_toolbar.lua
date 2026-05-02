@@ -154,16 +154,8 @@ function AnimationToolbar:_onPrevLayer()
     return
   end
   
-  local oldLayer = self.window:getActiveLayerIndex()
   self.window:prevLayer()
   
-  -- Only show status if layer actually changed
-  local newLayer = self.window:getActiveLayerIndex()
-  if oldLayer ~= newLayer then
-    local current = self.window:getActiveLayerIndex()
-    local total = self.window:getLayerCount()
-    setStatus(self.ctx, string.format("Layer %d/%d", current, total))
-  end
   self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
 end
@@ -178,16 +170,8 @@ function AnimationToolbar:_onNextLayer()
     return
   end
   
-  local oldLayer = self.window:getActiveLayerIndex()
   self.window:nextLayer()
   
-  -- Only show status if layer actually changed
-  local newLayer = self.window:getActiveLayerIndex()
-  if oldLayer ~= newLayer then
-    local current = self.window:getActiveLayerIndex()
-    local total = self.window:getLayerCount()
-    setStatus(self.ctx, string.format("Layer %d/%d", current, total))
-  end
   self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
 end
@@ -201,7 +185,6 @@ function AnimationToolbar:_onAddLayer()
   })
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
   
-  setStatus(self.ctx, string.format("Added layer %d", newLayerIdx))
   self:updateOriginButtons()
 end
 
@@ -244,10 +227,7 @@ function AnimationToolbar:_onRemoveLayer()
   if not isAnimationKind(self.window) then return end
   
   local success = self.window:removeActiveLayer()
-  if success then
-    local current = self.window:getActiveLayerIndex()
-    setStatus(self.ctx, string.format("Removed layer, now on layer %d", current))
-  else
+  if not success then
     setStatus(self.ctx, "Cannot remove the last layer")
   end
   self:updateOriginButtons()
@@ -275,7 +255,6 @@ function AnimationToolbar:_onTogglePlay()
     end
   end
   
-  setStatus(self.ctx, self.window.isPlaying and "Animation playing" or "Animation paused")
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
 end
 
@@ -285,9 +264,7 @@ function AnimationToolbar:_onCopyFromPrevious()
   if not self.window.copyTilesFromPreviousLayer then return end
   
   local ok = self.window:copyTilesFromPreviousLayer()
-  if ok then
-    setStatus(self.ctx, "Copied previous layer")
-  else
+  if not ok then
     setStatus(self.ctx, "Nothing to copy from previous layer")
   end
 end

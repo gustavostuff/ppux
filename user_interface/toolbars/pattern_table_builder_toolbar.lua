@@ -39,24 +39,16 @@ function PatternTableBuilderToolbar.new(window, ctx, windowController)
   return self
 end
 
-function PatternTableBuilderToolbar:_setLayerStatus()
-  if self.ctx and self.ctx.app and self.ctx.app.setStatus and self.window then
-    self.ctx.app:setStatus(string.format("Layer %d/%d", self.window:getActiveLayerIndex() or 1, self.window:getLayerCount() or 0))
-  end
-end
-
 function PatternTableBuilderToolbar:_onPrevLayer()
   if not self.window then return end
   self.window:prevLayer()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
-  self:_setLayerStatus()
 end
 
 function PatternTableBuilderToolbar:_onNextLayer()
   if not self.window then return end
   self.window:nextLayer()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
-  self:_setLayerStatus()
 end
 
 function PatternTableBuilderToolbar:_onGenerate()
@@ -90,9 +82,6 @@ function PatternTableBuilderToolbar:_onGenerate()
     )
   end
 
-  if self.ctx and self.ctx.app and self.ctx.app.setStatus then
-    self.ctx.app:setStatus(status)
-  end
   if self.ctx and self.ctx.showToast then
     local kind = (result.overflowTiles > 0) and "warning" or "info"
     self.ctx.showToast(kind, status)

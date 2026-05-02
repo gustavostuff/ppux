@@ -156,13 +156,13 @@ describe("keyboard_input.lua - edit and grid shortcuts", function()
     KeyboardInput.keypressed("r", ctx.app)
     expect(app.editTool).toBe("rect_fill")
     expect(appliedCursorMode).toBe("edit")
-    expect(status).toBe("Rect fill tool")
+    expect(status).toBe("Idle")
 
     appliedCursorMode = nil
     KeyboardInput.keypressed("r", ctx.app)
     expect(app.editTool).toBe("pencil")
     expect(appliedCursorMode).toBe("edit")
-    expect(status).toBe("Pencil tool")
+    expect(status).toBe("Idle")
 
     CursorsController.applyModeCursor = originalApplyModeCursor
   end)
@@ -196,7 +196,7 @@ describe("keyboard_input.lua - edit and grid shortcuts", function()
 
     ctrlDown = true
     KeyboardInput.keypressed("g", ctx.app)
-    expect(status).toBe("Grid: chess")
+    expect(status).toBe("Idle")
   end)
 end)
 
@@ -237,7 +237,7 @@ describe("keyboard_input.lua - CHR mode status", function()
     KeyboardInput.keypressed("m", ctx.app)
 
     expect(win.orderMode).toBe("oddEven")
-    expect(status).toBe("Order mode: 8x16")
+    expect(status).toBe(nil)
   end)
 
   it("switches CHR banks by changing the active layer instead of rebuilding the window", function()
@@ -291,7 +291,7 @@ describe("keyboard_input.lua - CHR mode status", function()
     expect(win.currentBank).toBe(3)
     expect(win.activeLayer).toBe(3)
     expect(ctx.app.appEditState.currentBank).toBe(3)
-    expect(status).toBe("Bank 3/3")
+    expect(status).toBe(nil)
   end)
 end)
 
@@ -2063,11 +2063,11 @@ describe("keyboard_input.lua - tile selection arrow navigation", function()
 
     KeyboardInput.keypressed("up", ctx.app)
     expect(win:getActiveLayerIndex()).toBe(1)
-    expect(status).toBe("Layer 1/3")
+    expect(status).toBe(nil)
 
     KeyboardInput.keypressed("down", ctx.app)
     expect(win:getActiveLayerIndex()).toBe(3)
-    expect(status).toBe("Layer 3/3")
+    expect(status).toBe(nil)
   end)
 
   it("does not change layer on Up/Down without Shift when no tile is selected", function()

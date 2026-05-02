@@ -222,7 +222,7 @@ describe("pattern_table_builder_window.lua", function()
     expect(canvas:getPixel(1, 0)).toBe(2)
     expect(canvas:getPixel(2, 0)).toBe(2)
     expect(canvas:getPixel(7, 7)).toBe(0)
-    expect(app.statusText).toBe("Flood fill applied")
+    expect(app.statusText).toBe(nil)
   end)
 
   it("starts shared shift shape drag on the builder canvas", function()

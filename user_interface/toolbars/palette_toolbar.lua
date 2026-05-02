@@ -133,11 +133,6 @@ function PaletteToolbar:_onToggleActive()
     self.ctx.app:invalidatePpuFrameLayersAffectedByPaletteWin(self.window)
   end
   
-  if self.ctx and self.ctx.app and self.ctx.app.setStatus then
-    local title = self.window.title or "Palette"
-    self.ctx.app:setStatus(string.format("Active palette: %s", title))
-  end
-  
   -- Update all palette toolbar icons to reflect new state
   for _, win in ipairs(allWindows) do
     if win.isPalette and win.specializedToolbar and win.specializedToolbar.updateActiveIcon then
@@ -151,9 +146,6 @@ function PaletteToolbar:_onToggleCompact()
   local newVal = not self.window.compactView
   self.window:setCompactMode(newVal)
   self:updateCompactIcon()
-  if self.ctx and self.ctx.app and self.ctx.app.setStatus then
-    self.ctx.app:setStatus(newVal and "Palette compact view" or "Palette full view")
-  end
 end
 
 function PaletteToolbar:_onNavigate(delta)

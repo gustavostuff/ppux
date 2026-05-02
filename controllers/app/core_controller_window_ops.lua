@@ -87,7 +87,6 @@ function AppCoreController:_buildNewWindowOptions()
           rows     = rows,
         })
         Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
-        self:setStatus(string.format("Created %s", win.title))
       end
     },
     {
@@ -105,7 +104,6 @@ function AppCoreController:_buildNewWindowOptions()
           rows = rows,
         })
         Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
-        self:setStatus(string.format("Created %s", win.title))
       end
     },
     {
@@ -122,7 +120,6 @@ function AppCoreController:_buildNewWindowOptions()
           rows = rows,
         })
         Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
-        self:setStatus(string.format("Created %s", win.title))
       end
     },
     {
@@ -141,7 +138,6 @@ function AppCoreController:_buildNewWindowOptions()
           rows = rows,
         })
         Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
-        self:setStatus(string.format("Created %s", win.title))
       end
     },
     {
@@ -155,7 +151,6 @@ function AppCoreController:_buildNewWindowOptions()
           title = windowTitle or "Palette",
         })
         Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
-        self:setStatus(string.format("Created %s", win.title))
       end
     },
     {
@@ -169,7 +164,6 @@ function AppCoreController:_buildNewWindowOptions()
           title = windowTitle or "ROM Palette",
         })
         Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
-        self:setStatus(string.format("Created %s", win.title))
       end
     },
     {
@@ -188,7 +182,6 @@ function AppCoreController:_buildNewWindowOptions()
           codec = "konami",
         })
         Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
-        self:setStatus(string.format("Created %s", win.title))
       end
     },
     {
@@ -208,7 +201,6 @@ function AppCoreController:_buildNewWindowOptions()
           rows = rows,
         })
         Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
-        self:setStatus(string.format("Created %s", win.title))
       end
     },
   }
@@ -278,17 +270,6 @@ function AppCoreController:resizeFocusedWindowGrid(opts)
         afterState = snapAfter,
       })
     end
-    local msg = "Grid updated."
-    if opts.addColumn then
-      msg = "Added column."
-    elseif opts.addRow then
-      msg = "Added row."
-    elseif opts.removeColumn then
-      msg = "Removed last column."
-    elseif opts.removeRow then
-      msg = "Removed last row."
-    end
-    self:setStatus(msg)
   else
     self:setStatus(err or "Could not resize grid.")
     if self.showToast then
@@ -378,9 +359,8 @@ function AppCoreController:cloneFocusedWindow()
   ToolbarController.createToolbarsForWindow(newWin, ctx, wm)
   wm:setFocus(newWin)
   Shared.recordWindowCreateUndo(self, newWin, prevFocus)
-  self:setStatus(string.format("Cloned window: %s", tostring(newWin.title or newWin._id)))
   if self.showToast then
-    self:showToast("info", self.statusText)
+    self:showToast("info", string.format("Cloned window: %s", tostring(newWin.title or newWin._id)))
   end
   return true
 end
@@ -403,7 +383,6 @@ function AppCoreController:_collapseAllWindowsFromMenu()
     gapX = 8,
     gapY = 2,
   })
-  self:setStatus("Windows collapsed and stacked")
   return true
 end
 
@@ -432,7 +411,6 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
           return
         end
         if self.wm and self.wm.closeWindow and self.wm:closeWindow(win) then
-          self:setStatus("Window closed")
         end
       end,
     },
@@ -448,7 +426,6 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
         end
         if win then
           win._collapsed = not (win._collapsed == true)
-          self:setStatus(win._collapsed and "Window collapsed" or "Window expanded")
         end
       end,
     },
@@ -461,7 +438,6 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
       callback = function()
         self:hideAppContextMenus()
         if self.wm and self.wm.restoreMinimizedWindow and self.wm:restoreMinimizedWindow(win) then
-          self:setStatus("Window restored")
         end
       end,
     }
@@ -477,7 +453,6 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
           return
         end
         if self.wm and self.wm.minimizeWindow and self.wm:minimizeWindow(win) then
-          self:setStatus("Window minimized")
         end
       end,
     }
@@ -505,7 +480,6 @@ function AppCoreController:_buildEmptySpaceContextMenuItems()
       callback = function()
         self:hideAppContextMenus()
         if self.wm and self.wm.minimizeAll and self.wm:minimizeAll() then
-          self:setStatus("Windows minimized")
         end
       end,
     },
@@ -574,11 +548,6 @@ function AppCoreController:_focusLinkedLayerTarget(win, layerIndex)
   if self.wm and self.wm.setFocus then
     self.wm:setFocus(win)
   end
-  self:setStatus(string.format(
-    "Focused %s layer %d",
-    tostring(win.title or "window"),
-    tonumber(layerIndex) or 1
-  ))
   return true
 end
 
@@ -659,7 +628,6 @@ function AppCoreController:_buildPaletteLinkDestinationContextMenuItems(contentW
         elseif self.wm and self.wm.setFocus then
           self.wm:setFocus(linkedPalette)
         end
-        self:setStatus(string.format("Focused %s", tostring(linkedPalette.title or "palette")))
       end,
     }
     items[#items + 1] = {
@@ -707,7 +675,6 @@ function AppCoreController:_appendJumpToLinkedPaletteMenuItem(items, win, layerI
       elseif self.wm and self.wm.setFocus then
         self.wm:setFocus(paletteWin)
       end
-      self:setStatus(string.format("Focused %s", tostring(paletteWin.title or "ROM Palette")))
     end,
   }
   return items

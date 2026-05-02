@@ -632,9 +632,7 @@ local function rebuildBankWindowLayers(app, winBank, state)
     winBank,
     state,
     winBank.orderMode or "normal",
-    function(txt)
-      app:setStatus(txt)
-    end
+    nil
   )
   state.currentBank = winBank.currentBank or state.currentBank or 1
 end
@@ -1070,7 +1068,7 @@ local function createDefaultWindows(app)
   syncDuplicateIndexesForLoad(app, state)
   logPerf("default_layout.sync_duplicate_indexes", dupesStartedAt, string.format("enabled=%s", tostring(app.syncDuplicateTiles == true)))
 
-  app:setStatus("Default layout")
+  app:setStatus("Loaded default layout")
   
   -- Create toolbars for all windows
   pulseLoading(app, "Creating toolbars...")
@@ -1503,9 +1501,7 @@ function M.handleFileDropped(app, file)
         -- Refresh the CHR bank window if needed
         if app.winBank == targetWin then
           local BankViewController = require("controllers.chr.bank_view_controller")
-          BankViewController.rebuildBankWindowItems(targetWin, app.appEditState, targetWin.orderMode or "normal", function(txt)
-            app:setStatus(txt)
-          end)
+          BankViewController.rebuildBankWindowItems(targetWin, app.appEditState, targetWin.orderMode or "normal", nil)
         end
       else
         app:setStatus("Import failed: " .. (message or "unknown error"))

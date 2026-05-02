@@ -14,7 +14,7 @@ function AppCoreController:rebuildBankWindowItems()
     self.winBank,
     self.appEditState,
     self.winBank.orderMode or "normal",
-    function(txt) self:setStatus(txt) end
+    nil
   )
 end
 
@@ -34,7 +34,6 @@ function AppCoreController:setChrCanvasOnlyMode(win)
     self.wm:setFocus(win)
   end
   ChrCanvasOnlyMode.clampScrollY(self)
-  self:setStatus("Canvas-only view (Esc to exit)")
 end
 
 function AppCoreController:clearChrCanvasOnlyMode()
@@ -59,7 +58,6 @@ function AppCoreController:clearChrCanvasOnlyMode()
   if c and c.setPainting then
     c.setPainting(false)
   end
-  self:setStatus("Exited canvas-only view")
 end
 
 function AppCoreController:setStatus(text)

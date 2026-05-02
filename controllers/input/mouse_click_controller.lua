@@ -107,79 +107,26 @@ local function showSelectedTileLabel(ctx, win, col, row, item)
   end
 end
 
--- PPU nametable cell (1..cols*rows, denom 960 for 32×30) + CHR pattern index (0..511) + 0-based bank.
-local function setPpuTilePickStatus(ctx, win, col, row, item)
-  if not (WindowCaps.isPpuFrame(win) and item) then
+-- PPU nametable cell pick: status bar updates removed (tile info shown in-window).
+local function setPpuTilePickStatus(_ctx, _win, _col, _row, _item)
+  if not (WindowCaps.isPpuFrame(_win) and _item) then
     return
   end
-  local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
-  local layer = win.layers and win.layers[li]
+  local li = (_win.getActiveLayerIndex and _win:getActiveLayerIndex()) or _win.activeLayer or 1
+  local layer = _win.layers and _win.layers[li]
   if not (layer and layer.kind == "tile") then
     return
   end
   if layer._runtimePatternTableRefLayer == true then
     return
   end
-
-  local cols = math.max(1, math.floor(tonumber(win.cols) or 32))
-  local rows = math.max(1, math.floor(tonumber(win.rows) or 30))
-  local c = math.floor(col or 0)
-  local r = math.floor(row or 0)
-  if c < 0 or r < 0 or c >= cols or r >= rows then
-    return
-  end
-
-  local totalCells = cols * rows
-  local slot0 = r * cols + c
-
-  local chrIdx = math.floor(tonumber(item.index) or 0) % 512
-  local bankRaw = math.floor(tonumber(item._bankIndex) or 1)
-  local bank0 = math.max(0, bankRaw - 1)
-
-  local app = ctx and ctx.app
-  local targetWin = app and app.winBank
-  local isRom = targetWin and targetWin.kind == "chr" and targetWin.isRomWindow == true
-  local where = isRom and "CHR by ROM" or "CHR window"
-
-  if totalCells == 960 then
-    setStatus(ctx, string.format(
-      "tile %d/960, %d in %s (bank %d)",
-      slot0,
-      chrIdx,
-      where,
-      bank0
-    ))
-  else
-    setStatus(ctx, string.format(
-      "tile %d/%d, %d in %s (bank %d)",
-      slot0,
-      math.max(0, totalCells - 1),
-      chrIdx,
-      where,
-      bank0
-    ))
-  end
 end
 
--- CHR/ROM bank window: full tile index and offset within the 256-tile pattern page.
-local function setChrTilePickStatus(ctx, win, col, row, item)
-  if not (WindowCaps.isChrLike(win) and item) then
+-- CHR/ROM bank window pick: status bar updates removed.
+local function setChrTilePickStatus(_ctx, _win, _col, _row, _item)
+  if not (WindowCaps.isChrLike(_win) and _item) then
     return
   end
-
-  local cols = math.max(1, math.floor(tonumber(win.cols) or 16))
-  local idx
-  if type(item.index) == "number" then
-    idx = math.floor(item.index)
-  else
-    idx = math.floor(row or 0) * cols + math.floor(col or 0)
-  end
-  idx = math.max(0, idx)
-
-  local page = math.floor(idx / 256) + 1
-  local rel = idx % 256
-
-  setStatus(ctx, string.format("Tile %d (page %d, index %d relative to page)", idx, page, rel))
 end
 
 local function setTilePickStatus(ctx, win, col, row, item)
@@ -729,7 +676,6 @@ local function handlePaletteClick(env, button, x, y, win, wm)
       rememberRomPaletteCellClick(win, col, row, at)
 
       if win.isCellEditable and not win:isCellEditable(col, row) then
-        setStatus(ctx, "Double-click to assign or change ROM palette address")
         return true
       end
     end
@@ -740,11 +686,9 @@ local function handlePaletteClick(env, button, x, y, win, wm)
     if app then
       if win.rows == 1 and win.cols == 4 then
         app.currentColor = col
-        setStatus(ctx, string.format("Selected color %d", col))
       else
         local colorIndex = row * win.cols + col
         app.currentColor = colorIndex
-        setStatus(ctx, string.format("Selected color %d", colorIndex))
       end
     end
   end
@@ -785,9 +729,7 @@ local function handleEditModeClick(env, button, x, y, win, wm)
     if utils.fillDown and utils.fillDown() then
       local BrushController = require("controllers.input_support.brush_controller")
       local success = BrushController.floodFillTile(ctx.app, win, col, row, lx, ly)
-      if success then
-        setStatus(ctx, "Flood fill applied")
-      else
+      if not success then
         setStatus(ctx, "Flood fill failed")
       end
       ctx.setPainting(false)
@@ -872,7 +814,6 @@ local function handleTilePaintMode(env, button, x, y, win, wm)
     tilePaintState.lastRow = row
   end
 
-  setStatus(ctx, "Tile paint mode active")
   return true
 end
 

@@ -260,7 +260,6 @@ function M.install(Taskbar, Helpers)
           self.sortAlphaAscending = not ascending
           self.sortAlphaButton.icon = self.sortAlphaAscending and sortAZIcon or sortZAIcon
           self.sortAlphaButton.tooltip = self.sortAlphaAscending and "Sort alphabetically (A-Z)" or "Sort alphabetically (Z-A)"
-          Helpers.setLastEvent(self.app, descending and "Minimized windows sorted Z-A" or "Minimized windows sorted A-Z")
           if self._refreshMenuSortCells then
             self:_refreshMenuSortCells()
           end
@@ -298,7 +297,6 @@ function M.install(Taskbar, Helpers)
           self.sortKindAscending = not ascending
           self.sortKindButton.icon = self.sortKindAscending and sortKindAscIcon or sortKindDescIcon
           self.sortKindButton.tooltip = self.sortKindAscending and "Sort by kind (asc)" or "Sort by kind (desc)"
-          Helpers.setLastEvent(self.app, descending and "Minimized windows sorted by kind (desc)" or "Minimized windows sorted by type (asc)")
           if self._refreshMenuSortCells then
             self:_refreshMenuSortCells()
           end

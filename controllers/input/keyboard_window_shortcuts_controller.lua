@@ -5,16 +5,6 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local M = {}
 local EXIT_FULLSCREEN_SCALE = 2
 
-local function setStatus(ctx, text)
-  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
-    ctx.app:setStatus(text)
-    return
-  end
-  if ctx and type(ctx.setStatus) == "function" then
-    ctx.setStatus(text)
-  end
-end
-
 local function invalidateVolatileWindowCanvases(app)
   if app and app.invalidateAllPpuFrameNametableCanvases then
     app:invalidateAllPpuFrameNametableCanvases()
@@ -160,9 +150,6 @@ function M.handleSpaceHighlightToggle(ctx, utils, key)
     return false
   end
 
-  if ctx.setStatus then
-    setStatus(ctx, enabled and "Show all items: on" or "Show all items: off")
-  end
   return true
 end
 
@@ -176,7 +163,6 @@ function M.handleWindowZoom(ctx, utils, key)
     if focus and focus.setZoomLevel then
       local zoomLevel = tonumber(key)
       focus:setZoomLevel(zoomLevel)
-      setStatus(ctx, string.format("Zoom: %dx", zoomLevel))
       return true
     end
   end
@@ -192,7 +178,6 @@ function M.handleGridToggleInWindow(ctx, utils, key, focus)
     return false
   end
   focus.showGrid = GridModeUtils.next(focus.showGrid)
-  setStatus(ctx, string.format("Grid: %s", focus.showGrid))
   return true
 end
 

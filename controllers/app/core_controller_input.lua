@@ -174,7 +174,6 @@ function AppCoreController:keypressed(k, scancode, isrepeat)
   if k == "f1" then
     if not keyRepeat then
       self.showDebugInfo = not (self.showDebugInfo == true)
-      self:setStatus(self.showDebugInfo and "Debug info enabled" or "Debug info disabled")
     end
     return
   end

@@ -105,7 +105,7 @@ describe("animation_toolbar.lua - copy button", function()
     expect(copyButton).toBeTruthy()
     copyButton.action()
     expect(copyCalled).toBe(true)
-    expect(status).toBe("Copied previous layer")
+    expect(status).toBe(nil)
   end)
 end)
 
@@ -124,11 +124,11 @@ describe("animation_toolbar.lua - layer navigation", function()
 
     toolbar:_onNextLayer()
     expect(win:getActiveLayerIndex()).toBe(1)
-    expect(status).toBe("Layer 1/3")
+    expect(status).toBe(nil)
 
     toolbar:_onPrevLayer()
     expect(win:getActiveLayerIndex()).toBe(3)
-    expect(status).toBe("Layer 3/3")
+    expect(status).toBe(nil)
   end)
 end)
 

@@ -138,11 +138,11 @@ describe("keyboard_window_shortcuts_controller.lua - space highlight toggle", fu
 
     expect(KeyboardWindowShortcutsController.handleSpaceHighlightToggle(ctx, utils, "space")).toBe(true)
     expect(active).toBe(true)
-    expect(statuses[#statuses]).toBe("Show all items: on")
+    expect(#statuses).toBe(0)
 
     expect(KeyboardWindowShortcutsController.handleSpaceHighlightToggle(ctx, utils, "space")).toBe(true)
     expect(active).toBe(false)
-    expect(statuses[#statuses]).toBe("Show all items: off")
+    expect(#statuses).toBe(0)
   end)
 end)
 
@@ -188,6 +188,6 @@ describe("keyboard_edit_toggle_controller.lua - shader toggle shortcut", functio
     utils.ctrlDown = function() return true end
     expect(KeyboardEditToggleController.handleShaderToggle(ctx, utils, "r", focus)).toBe(true)
     expect(focus.layers[1].shaderEnabled).toBe(false)
-    expect(status).toBe("Shader rendering OFF (raw pixels)")
+    expect(status).toBe(nil)
   end)
 end)

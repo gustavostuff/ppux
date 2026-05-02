@@ -237,7 +237,7 @@ describe("chr backing integration", function()
     expect(app.appEditState.chrBacking).toBeTruthy()
     expect(app.appEditState.chrBacking.mode).toBe("rom_raw")
     expect(app.appEditState.romTileViewMode).toBeTruthy() -- compatibility field still synced
-    expect(app.statusText).toBe("Default layout")
+    expect(app.statusText).toBe("Loaded default layout")
     expect(app.wm.taskbar).toBe(app.taskbar)
   end)
 

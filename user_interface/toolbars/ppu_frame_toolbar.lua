@@ -166,11 +166,6 @@ function PPUFrameToolbar:_onTogglePatternLayerSolo()
   self:updatePatternLayerToggleButton()
   self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
-  if self.window.patternLayerSoloMode == true then
-    setStatus(self.ctx, "Pattern layer mode: on")
-  else
-    setStatus(self.ctx, "Pattern layer mode: off")
-  end
 end
 
 -- Handle previous layer
@@ -182,10 +177,9 @@ function PPUFrameToolbar:_onPrevLayer()
   self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
   
-  local current, total = getLayerDisplayProgress(self.window)
-  setStatus(self.ctx, string.format("Layer %d/%d", current, total))
   if self.window.isPatternTableInteractionLocked then
-    local locked, reason = self.window:isPatternTableInteractionLocked(current)
+    local layerIdx = self.window:getActiveLayerIndex() or self.window.activeLayer or 1
+    local locked, reason = self.window:isPatternTableInteractionLocked(layerIdx)
     if locked and reason then
       setStatus(self.ctx, reason)
     end
@@ -201,10 +195,9 @@ function PPUFrameToolbar:_onNextLayer()
   self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
   
-  local current, total = getLayerDisplayProgress(self.window)
-  setStatus(self.ctx, string.format("Layer %d/%d", current, total))
   if self.window.isPatternTableInteractionLocked then
-    local locked, reason = self.window:isPatternTableInteractionLocked(current)
+    local layerIdx = self.window:getActiveLayerIndex() or self.window.activeLayer or 1
+    local locked, reason = self.window:isPatternTableInteractionLocked(layerIdx)
     if locked and reason then
       setStatus(self.ctx, reason)
     end
@@ -313,7 +306,6 @@ function PPUFrameToolbar:_onAddSprite()
             setStatus(self.ctx, "Could not create sprite layer")
             return false
           end
-          setStatus(self.ctx, "Created sprite layer (" .. normalizeSpriteMode(spriteMode) .. ")")
           return true
         end,
       })
@@ -325,7 +317,6 @@ function PPUFrameToolbar:_onAddSprite()
     local fallbackLayer = self:_ensureSpriteLayer("8x8", true)
     if fallbackLayer and app and app.showPpuFrameAddSpriteModal then
       app:showPpuFrameAddSpriteModal(self.window)
-      setStatus(self.ctx, "Created sprite layer and opened add sprite dialog")
       return
     end
   end
@@ -354,11 +345,10 @@ end
 function PPUFrameToolbar:_onAddLayer()
   if not self.window then return end
   
-  local newLayerIdx = self.window:addLayer({
+  self.window:addLayer({
     name = "Layer " .. (#self.window.layers + 1),
   })
   
-  setStatus(self.ctx, string.format("Added layer %d", newLayerIdx))
 end
 
 -- Handle remove layer
@@ -383,8 +373,6 @@ function PPUFrameToolbar:_onRemoveLayer()
     self.window.activeLayer = 1
   end
   
-  local current = self.window:getActiveLayerIndex()
-  setStatus(self.ctx, string.format("Removed layer, now on layer %d", current))
   if self.ctx and self.ctx.showToast then
     local title = tostring((self.window and self.window.title) or "Untitled")
     self.ctx.showToast("warning", string.format("Removed layer from %s", title))

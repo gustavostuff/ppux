@@ -65,9 +65,6 @@ function M.handleLayerNavigation(ctx, utils, key, focus)
   local oldLayer = focus:getActiveLayerIndex()
   if key == "up" then focus:nextLayer() else focus:prevLayer() end
   local newLayer = focus:getActiveLayerIndex()
-  if oldLayer ~= newLayer then
-    setStatus(ctx, ("Layer %d/%d"):format(newLayer, focus:getLayerCount()))
-  end
   return true
 end
 
@@ -141,7 +138,6 @@ function M.handleChrBankKeys(ctx, utils, key, focus)
   if key == "m" then
     focus.orderMode = (focus.orderMode == "normal") and "oddEven" or "normal"
     ctx.rebuildChrBankWindow(focus)
-    setStatus(ctx, "Order mode: " .. ((focus.orderMode == "normal") and "8x8" or "8x16"))
     if focus.specializedToolbar and focus.specializedToolbar.updateModeIcon then
       focus.specializedToolbar:updateModeIcon()
     end
@@ -167,7 +163,6 @@ function M.handleChrBankKeys(ctx, utils, key, focus)
       focus:nextLayer()
     end
     app.appEditState.currentBank = focus.currentBank or focus.activeLayer or 1
-    setStatus(ctx, string.format("Bank %d/%d", focus.currentBank, n))
     if focus.specializedToolbar and focus.specializedToolbar.triggerLayerLabelFlash then
       focus.specializedToolbar:triggerLayerLabelFlash()
     end
@@ -204,7 +199,6 @@ function M.handleAnimationWindowKeys(ctx, key, focus)
       name = "Frame " .. (#focus.layers + 1),
     })
     pushAnimationUndoIfChanged(snapBefore)
-    setStatus(ctx, ("Added layer %d"):format(newLayerIdx))
     return true
   end
 
@@ -213,7 +207,6 @@ function M.handleAnimationWindowKeys(ctx, key, focus)
     local success = focus:removeActiveLayer()
     if success then
       pushAnimationUndoIfChanged(snapBefore)
-      setStatus(ctx, ("Removed layer, now on layer %d"):format(focus:getActiveLayerIndex()))
     else
       setStatus(ctx, "Cannot remove the last layer")
     end
@@ -221,8 +214,7 @@ function M.handleAnimationWindowKeys(ctx, key, focus)
   end
 
   if key == "p" or key == "P" then
-    local isPlaying = focus:togglePlay()
-    setStatus(ctx, isPlaying and "Animation playing" or "Animation paused")
+    focus:togglePlay()
     return true
   end
 
@@ -255,7 +247,6 @@ function M.handleAnimationDelayAdjust(ctx, utils, key, focus)
     })
   end
 
-  setStatus(ctx, string.format("Frame delay: %.2fs (all frames)", newDelay))
   return true
 end
 
@@ -298,7 +289,6 @@ function M.handleInactiveLayerOpacity(ctx, utils, key, focus)
     })
   end
 
-  setStatus(ctx, string.format("Inactive layers opacity: %.0f%%", newOpacity * 100))
   return true
 end
 

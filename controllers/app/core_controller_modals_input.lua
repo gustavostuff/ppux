@@ -22,7 +22,6 @@ function AppCoreController:showRenameWindowModal(win)
           afterTitle = newTitle,
         })
       end
-      self:setStatus(string.format("Renamed window to \"%s\"", newTitle))
     end,
   })
 
@@ -60,8 +59,6 @@ function AppCoreController:showRomPaletteAddressModal(win, col, row)
         self:showToast("error", message)
         return false
       end
-
-      self:setStatus(string.format("Assigned ROM palette cell (%d,%d) to 0x%X", targetCol, targetRow, addr))
       if self.invalidatePpuFrameLayersAffectedByPaletteWin then
         self:invalidatePpuFrameLayersAffectedByPaletteWin(targetWindow)
       end

@@ -27,16 +27,6 @@ local contextClick = { active = false }
 -- Treat as "no movement" only when coordinates match within float noise (no pixel-level drag tolerance).
 local CONTEXT_MENU_PRESS_RELEASE_EPS = 1e-6
 
-local function setStatus(text)
-  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
-    ctx.app:setStatus(text)
-    return
-  end
-  if ctx and type(ctx.setStatus) == "function" then
-    ctx.setStatus(text)
-  end
-end
-
 local function fmtWin(win)
   if not win then return "nil" end
   return string.format("%s:%s", tostring(win.kind or "?"), tostring(win._id or win.title or "?"))
@@ -514,10 +504,8 @@ local function finishEditShape(x, y, button)
     if ok then
       app.undoRedo:finishPaintEvent()
       win.editLastPoint = { x = endX, y = endY }
-      setStatus("Filled rectangle drawn")
     else
       app.undoRedo:cancelPaintEvent()
-      setStatus("Rectangle draw failed")
     end
     return true
   end
@@ -535,10 +523,8 @@ local function finishEditShape(x, y, button)
     if ok then
       app.undoRedo:finishPaintEvent()
       win.editLastPoint = { x = endX, y = endY }
-      setStatus("Filled rectangle drawn")
     else
       app.undoRedo:cancelPaintEvent()
-      setStatus("Rectangle draw failed")
     end
     return true
   end
@@ -549,14 +535,11 @@ local function finishEditShape(x, y, button)
     if ok then
       app.undoRedo:finishPaintEvent()
       win.editLastPoint = { x = endX, y = endY }
-      setStatus("Line drawn")
     else
       app.undoRedo:cancelPaintEvent()
-      setStatus("Line draw failed")
     end
   else
     win.editLastPoint = { x = endX, y = endY }
-    setStatus("Line anchor set")
   end
 
   return true
