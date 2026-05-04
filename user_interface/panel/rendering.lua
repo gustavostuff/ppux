@@ -127,13 +127,18 @@ local function drawTabbedModalNormalSurface(panel)
     love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
     return
   end
-  local sx, sy, sw, sh = tabBar:getActiveSegmentBounds()
+  local sx, _, sw = tabBar:getActiveSegmentBounds()
   if not sw or sw <= 0 then
     love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
     return
   end
+  -- Active tab: rounded top only. LÖVE rounds all corners, so extend the fill
+  -- downward by at least the radius; the gap pass below paints over the bottom
+  -- arcs with the same chrome color, leaving a straight seam at the tab row.
+  local tabRx, tabRy = 2, 2
+  local tabExtendBelow = tabRy + 2
   love.graphics.setColor(nr, ng, nb, 1)
-  love.graphics.rectangle("fill", sx, tabCell.y, sw, tabCell.h)
+  love.graphics.rectangle("fill", sx, tabCell.y, sw, tabCell.h + tabExtendBelow, tabRx, tabRy)
   local gapY = tabCell.y + tabCell.h
   local gapH = topY - gapY
   -- Fill the full inner width (not only under the active tab label) so row-spacing
