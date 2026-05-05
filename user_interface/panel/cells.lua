@@ -127,7 +127,9 @@ local function install(Panel, utils)
 
   function Panel:getCellAt(px, py)
     if not self:contains(px, py) then return nil end
-    for _, cell in ipairs(self:_iterCells()) do
+    local list = self:_iterCells()
+    for idx = #list, 1, -1 do
+      local cell = list[idx]
       if px >= cell.x and px <= (cell.x + cell.w) and py >= cell.y and py <= (cell.y + cell.h) then
         return cell
       end

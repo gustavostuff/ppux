@@ -58,6 +58,47 @@ local function eachStandaloneSettingsComponent(self, fn)
   end
 end
 
+local function clearSettingsChromeHovers(self)
+  if self._resetAllButton then
+    self._resetAllButton.hovered = false
+  end
+  if self._tabBar then
+    self._tabBar._hoverIndex = nil
+  end
+  for _, entry in ipairs(self.buttons or {}) do
+    entry.button.hovered = false
+  end
+  for _, row in ipairs(self.rows or {}) do
+    local dd = row.dropdown
+    if dd and dd.trigger then
+      dd.trigger.hovered = false
+    end
+  end
+  if self._appearancePickers then
+    for _, slotId in ipairs(APPEARANCE_PICKER_SLOT_IDS) do
+      local p = self._appearancePickers[slotId]
+      if p and p.trigger then
+        p.trigger.hovered = false
+      end
+    end
+  end
+  eachStandaloneSettingsComponent(self, function(c)
+    if type(c.hovered) == "boolean" then
+      c.hovered = false
+    end
+  end)
+end
+
+local function findDraggingStandaloneComponent(self)
+  local found = nil
+  eachStandaloneSettingsComponent(self, function(c)
+    if c.dragging then
+      found = c
+    end
+  end)
+  return found
+end
+
 --- Small read-only preview of window chrome (Appearance slots, including overrides).
 local function newAppearanceChromeSample(modePrefix, stateKind)
   local bgSlot = modePrefix .. "_" .. stateKind
@@ -944,35 +985,90 @@ end
 
 function Dialog:mousemoved(x, y)
   if not self.visible then return false end
-  if self._activeTabId == "appearance" then
-    local openPicker = appearancePickerWithOpenMenu(self)
-    if openPicker then
-      openPicker:mousemoved(x, y)
-    else
-      forEachAppearancePicker(self, function(p)
-        p:mousemoved(x, y)
-      end)
-    end
+
+  local dragComp = findDraggingStandaloneComponent(self)
+  if dragComp and type(dragComp.mousemoved) == "function" then
+    clearSettingsChromeHovers(self)
+    dragComp:mousemoved(x, y)
+    return true
   end
-  self._tabBar:mousemoved(x, y)
+
+  clearSettingsChromeHovers(self)
+
+  -- Open menus paint above body/footer; only they should show hover while cursor is inside them.
   if self._activeTabId == "general" then
     for _, row in ipairs(self.rows or {}) do
-      if row.dropdown and type(row.dropdown.mousemoved) == "function" then
-        row.dropdown:mousemoved(x, y)
+      local dd = row.dropdown
+      if dd and dd:isMenuVisible() and dd.menu then
+        dd.menu:mousemoved(x, y)
+        if dd.menu:contains(x, y) then
+          return true
+        end
       end
     end
-    eachStandaloneSettingsComponent(self, function(c)
-      if type(c.mousemoved) == "function" then
-        c:mousemoved(x, y)
+  end
+
+  if self._activeTabId == "appearance" then
+    local openPicker = appearancePickerWithOpenMenu(self)
+    if openPicker and openPicker.menu then
+      openPicker.menu:mousemoved(x, y)
+      if openPicker.menu:contains(x, y) then
+        return true
       end
-    end)
+    end
   end
-  if self._resetAllButton then
-    self._resetAllButton.hovered = self._resetAllButton:contains(x, y)
+
+  if self._tabBar and self._tabBar:contains(x, y) then
+    self._tabBar:mousemoved(x, y)
+    return true
   end
-  for _, entry in ipairs(self.buttons or {}) do
-    entry.button.hovered = entry.button:contains(x, y)
+
+  if self._resetAllButton and self._resetAllButton:contains(x, y) then
+    self._resetAllButton.hovered = true
+    return true
   end
+
+  if self._activeTabId == "general" then
+    for _, row in ipairs(self.rows or {}) do
+      local dd = row.dropdown
+      if dd and dd.trigger and dd.trigger:contains(x, y) then
+        dd.trigger.hovered = true
+        return true
+      end
+    end
+  end
+
+  for i = #self.buttons, 1, -1 do
+    local entry = self.buttons[i]
+    if entry and entry.button:contains(x, y) then
+      entry.button.hovered = true
+      return true
+    end
+  end
+
+  if self._activeTabId == "appearance" then
+    for i = #APPEARANCE_PICKER_SLOT_IDS, 1, -1 do
+      local slotId = APPEARANCE_PICKER_SLOT_IDS[i]
+      local p = self._appearancePickers and self._appearancePickers[slotId]
+      if p and p.trigger and p.trigger:contains(x, y) then
+        p:mousemoved(x, y)
+        return true
+      end
+    end
+  end
+
+  local standalone = {}
+  eachStandaloneSettingsComponent(self, function(c)
+    standalone[#standalone + 1] = c
+  end)
+  for i = #standalone, 1, -1 do
+    local c = standalone[i]
+    if type(c.mousemoved) == "function" and type(c.contains) == "function" and c:contains(x, y) then
+      c:mousemoved(x, y)
+      return true
+    end
+  end
+
   return true
 end
 
