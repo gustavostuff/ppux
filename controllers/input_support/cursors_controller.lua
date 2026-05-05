@@ -6,20 +6,47 @@ local CURSOR_ROOT = "img/cursors"
 local DEFAULT_CURSOR_SET = "2x"
 local IGNORED_CURSOR_SETS = { bkp = true }
 
-local CURSOR_FILES = {
-  arrow = "cursor_arrow_0_0.png",
-  hand = "cursor_hand_8_1.png",
-  pencil = "cursor_pencil_6_6.png",
-  fill = "cursor_fill_2_21.png",
-  pick = "cursor_pick_2_27.png",
-  rect_fill = "cursor_rect_14_14.png",
-  unavailable = "cursor_unavailable_14_14.png",
+local CURSOR_FILES_BY_SET = {
+  ["2x"] = {
+    arrow = "cursor_arrow_0_0.png",
+    hand = "cursor_hand_8_1.png",
+    pencil = "cursor_pencil_6_6.png",
+    fill = "cursor_fill_2_21.png",
+    pick = "cursor_pick_2_27.png",
+    rect_fill = "cursor_rect_14_14.png",
+    unavailable = "cursor_unavailable_14_14.png",
+  },
+  ["1x"] = {
+    arrow = "cursor_arrow_0_0.png",
+    hand = "cursor_hand_4_0.png",
+    pencil = "cursor_pencil_3_3.png",
+    fill = "cursor_fill_1_10.png",
+    pick = "cursor_pick_1_13.png",
+    rect_fill = "cursor_rect_7_7.png",
+    unavailable = "cursor_unavailable_7_7.png",
+  },
 }
 
+local function cursorFilesForSet(setName)
+  return CURSOR_FILES_BY_SET[setName] or CURSOR_FILES_BY_SET[DEFAULT_CURSOR_SET]
+end
+
 local function cursorPathForName(name, setName)
-  local fileName = CURSOR_FILES[name]
+  local fileName = cursorFilesForSet(setName)[name]
   if not fileName then return nil end
   return string.format("%s/%s/%s", CURSOR_ROOT, setName, fileName)
+end
+
+local function desiredCursorSetName()
+  if ResolutionController and ResolutionController.isCanvasCrtShaderEnabled then
+    local ok, on = pcall(function()
+      return ResolutionController:isCanvasCrtShaderEnabled()
+    end)
+    if ok and on == true then
+      return "1x"
+    end
+  end
+  return DEFAULT_CURSOR_SET
 end
 
 local function parseHotspot(path)
@@ -500,9 +527,8 @@ function CursorsController.applyModeCursor(app, mode)
   end
 end
 
-function CursorsController.init(app)
-  if not app then return end
-  local cursorSet = resolveCursorSetName(app.cursorSetName)
+local function loadAllCursorAssets(app)
+  local cursorSet = resolveCursorSetName(desiredCursorSetName())
   app.cursorSetName = cursorSet
 
   app.hardwareCursors = {
@@ -514,21 +540,32 @@ function CursorsController.init(app)
     rect_fill = loadNamedCursor("rect_fill", cursorSet),
     unavailable = loadNamedCursor("unavailable", cursorSet),
   }
-  app.softwareCursors = {
-    arrow = ensureNamedSoftwareCursorLoaded(app, "arrow"),
-    hand = ensureNamedSoftwareCursorLoaded(app, "hand"),
-    pencil = ensureNamedSoftwareCursorLoaded(app, "pencil"),
-    fill = ensureNamedSoftwareCursorLoaded(app, "fill"),
-    pick = ensureNamedSoftwareCursorLoaded(app, "pick"),
-    rect_fill = ensureNamedSoftwareCursorLoaded(app, "rect_fill"),
-    unavailable = ensureNamedSoftwareCursorLoaded(app, "unavailable"),
-  }
+  -- Clear before repopulating so CRT toggles do not reuse stale Image objects.
+  app.softwareCursors = {}
+  app.softwareCursors.arrow = ensureNamedSoftwareCursorLoaded(app, "arrow")
+  app.softwareCursors.hand = ensureNamedSoftwareCursorLoaded(app, "hand")
+  app.softwareCursors.pencil = ensureNamedSoftwareCursorLoaded(app, "pencil")
+  app.softwareCursors.fill = ensureNamedSoftwareCursorLoaded(app, "fill")
+  app.softwareCursors.pick = ensureNamedSoftwareCursorLoaded(app, "pick")
+  app.softwareCursors.rect_fill = ensureNamedSoftwareCursorLoaded(app, "rect_fill")
+  app.softwareCursors.unavailable = ensureNamedSoftwareCursorLoaded(app, "unavailable")
   app._softwareCursorModeActive = false
   app._cursorVisible = nil
 
   setMouseVisibility(app, true)
 
   CursorsController.applyModeCursor(app, app.mode)
+end
+
+function CursorsController.init(app)
+  if not app then return end
+  loadAllCursorAssets(app)
+end
+
+--- Reload cursor PNGs when CRT mode changes (1x assets for software-drawn cursor under CRT).
+function CursorsController.reloadForCrtMode(app)
+  if not app then return end
+  loadAllCursorAssets(app)
 end
 
 function CursorsController.update(app)

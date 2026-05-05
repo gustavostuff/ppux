@@ -317,7 +317,7 @@ function PaletteWindow:drawSelectionStrips()
   local verticalStripW = metrics.verticalCellW
   local verticalStripH = #strips.colCodes * metrics.verticalCellH
 
-  love.graphics.setColor(colors.blue)
+  love.graphics.setColor(colors:focusedChromeColor())
   love.graphics.rectangle("line",
     metrics.horizontalX,
     metrics.horizontalY,

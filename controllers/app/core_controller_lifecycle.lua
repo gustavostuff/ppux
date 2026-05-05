@@ -454,7 +454,7 @@ function AppCoreController:setCrtModeEnabled(enabled)
     self.tooltipController.visible = false
   end
 
-  CursorsController.applyModeCursor(self, self.mode)
+  CursorsController.reloadForCrtMode(self)
   return self.crtModeEnabled
 end
 
