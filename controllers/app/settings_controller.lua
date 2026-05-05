@@ -17,7 +17,7 @@ local DEFAULT_SETTINGS = {
   separateToolbar = false,
   groupedPaletteWindows = false,
   crtEnabled = false,
-  crtDistortion = 0.15,
+  crtDistortion = 0.1,
   crtCanvasResolution = "640x360",
   recentProjects = {},
 }
@@ -102,7 +102,7 @@ end
 local function normalizeCrtDistortion(n)
   local v = tonumber(n)
   if not v then
-    return 0.15
+    return 0.1
   end
   return math.max(0, math.min(0.45, v))
 end

@@ -40,7 +40,7 @@ function ResolutionController:init(canvas)
   self.defaultMode = self.modes.KEEP_ASPECT
   self.canvasCrtShaderEnabled = false
   self.canvasCrtFlat = (rawget(_G, "__PPUX_CRT_FLAT__") == true)
-  self.canvasCrtDistortion = tonumber(rawget(_G, "__PPUX_CRT_DISTORTION__")) or 0.15
+  self.canvasCrtDistortion = tonumber(rawget(_G, "__PPUX_CRT_DISTORTION__")) or 0.1
   self.crtLowResPresentation = false
   self.crtViewportX = self.crtViewportX or 0
   self.crtViewportY = self.crtViewportY or 0
@@ -160,7 +160,7 @@ function ResolutionController:updateCrtViewportPan(dt)
     return
   end
 
-  local margin = 56
+  local margin = 64
   local maxSpeed = 520
 
   local function edgeFactor(distFromEdge)
@@ -231,7 +231,7 @@ function ResolutionController:renderCanvas()
       crtShader:send("inputSize", { sendW, sendH })
       crtShader:send("outputSize", { love.graphics.getWidth(), love.graphics.getHeight() })
       crtShader:send("textureSize", { sendW, sendH })
-      local curve = self.canvasCrtFlat and 0 or (self.canvasCrtDistortion or 0.15)
+      local curve = self.canvasCrtFlat and 0 or (self.canvasCrtDistortion or 0.1)
       crtShader:send("distortion", curve)
       love.graphics.setShader(crtShader)
       shaderApplied = true
@@ -275,7 +275,7 @@ function ResolutionController:setCanvasCrtDistortion(value)
 end
 
 function ResolutionController:getCanvasCrtDistortion()
-  return tonumber(self.canvasCrtDistortion) or 0.15
+  return tonumber(self.canvasCrtDistortion) or 0.1
 end
 
 function ResolutionController:getScaledMouse(asInteger, touchX, touchY)

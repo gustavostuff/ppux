@@ -9,6 +9,10 @@ local TableUtils = require("utils.table_utils")
 local colors = require("app_colors")
 
 return function(AppCoreController)
+
+-- CRT 640x360 vs 320x180: logic and settings persist; toggle row hidden while false.
+local SHOW_CRT_CANVAS_RESOLUTION_SETTING_IN_UI = false
+
 local function combineSaveMessages(projectRequested, projectOk, projectStatus, romRequested, romOk, romStatus)
   if projectRequested and romRequested and projectOk and romOk then
     return true, "Saved project and exported ROM"
@@ -625,7 +629,7 @@ end
 function AppCoreController:_applyCrtDistortionSetting(value, saveSetting)
   local n = tonumber(value)
   if n == nil then
-    n = 0.15
+    n = 0.1
   end
   n = math.max(0, math.min(0.45, n))
   self.crtDistortionSetting = n
@@ -653,7 +657,7 @@ function AppCoreController:_ensureSettingsCrtCurveSlider()
   self._crtCurveSlider = Slider.new({
     min = 0,
     max = 0.45,
-    value = 0.15,
+    value = 0.1,
     tooltip = "CRT barrel distortion when the CRT filter is on",
     onChange = function(v)
       appRef:_applyCrtDistortionSetting(v, false)
@@ -930,22 +934,24 @@ function AppCoreController:showSettingsModal()
         },
       }
       if appRef.crtModeEnabled then
-        rows[#rows + 1] = {
-          id = "crt_canvas_resolution",
-          label = "CRT canvas",
-          buttonSpec = {
-            id = "crt_canvas_resolution_toggle",
-            getText = function()
-              local cur = appRef:_getCrtCanvasResolutionForSettings()
-              return (cur == "320x180") and "320x180" or "640x360"
-            end,
-            action = function()
-              local cur = appRef:_getCrtCanvasResolutionForSettings()
-              local nextKey = (cur == "320x180") and "640x360" or "320x180"
-              appRef:_applyCrtCanvasResolutionSetting(nextKey, true)
-            end,
-          },
-        }
+        if SHOW_CRT_CANVAS_RESOLUTION_SETTING_IN_UI then
+          rows[#rows + 1] = {
+            id = "crt_canvas_resolution",
+            label = "CRT canvas",
+            buttonSpec = {
+              id = "crt_canvas_resolution_toggle",
+              getText = function()
+                local cur = appRef:_getCrtCanvasResolutionForSettings()
+                return (cur == "320x180") and "320x180" or "640x360"
+              end,
+              action = function()
+                local cur = appRef:_getCrtCanvasResolutionForSettings()
+                local nextKey = (cur == "320x180") and "640x360" or "320x180"
+                appRef:_applyCrtCanvasResolutionSetting(nextKey, true)
+              end,
+            },
+          }
+        end
         rows[#rows + 1] = {
           id = "crt_curve",
           label = "CRT curve",

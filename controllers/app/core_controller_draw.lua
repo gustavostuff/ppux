@@ -1073,6 +1073,37 @@ local function drawOverlays(app)
   drawToasts(app)
 end
 
+-- F1 debug HUD: 2x app UI font size (16 -> 32), white fill + black outline (Text.print outline).
+local HUD_DEBUG_FONT_PX = 32
+local HUD_DEBUG_FONT_CANDIDATES = {
+  "user_interface/fonts/AsepriteFont.ttf",
+  "../user_interface/fonts/AsepriteFont.ttf",
+  "user_interface/fonts/proggy-tiny.ttf",
+  "../user_interface/fonts/proggy-tiny.ttf",
+  "user_interface/fonts/proggy-clean-sz.ttf",
+  "../user_interface/fonts/proggy-clean-sz.ttf",
+  "user_interface/fonts/Tiny5-Regular.ttf",
+}
+local hudDebugFontCache
+
+local function getHudDebugFont()
+  if hudDebugFontCache then
+    return hudDebugFontCache
+  end
+  for _, candidate in ipairs(HUD_DEBUG_FONT_CANDIDATES) do
+    local ok, f = pcall(love.graphics.newFont, candidate, HUD_DEBUG_FONT_PX)
+    if ok and f then
+      f:setFilter("nearest", "nearest")
+      hudDebugFontCache = f
+      return f
+    end
+  end
+  local f = love.graphics.newFont(HUD_DEBUG_FONT_PX)
+  f:setFilter("nearest", "nearest")
+  hudDebugFontCache = f
+  return f
+end
+
 local function drawStatus(app)
   local eventText = app.lastEventText or app.statusText or ""
   if app.taskbar then
@@ -1085,7 +1116,6 @@ local function drawStatus(app)
 end
 
 local function drawHUD(app)
-  love.graphics.setColor(colors.white)
   local state = app.appEditState or {}
   local romLoaded = type(state.romRaw) == "string" and #state.romRaw > 0
   local bankCount = #(state.chrBanksBytes or {})
@@ -1128,7 +1158,12 @@ local function drawHUD(app)
       lines[#lines + 1] = line
     end
   end
-  Text.print(lines, 12, 12, { outline = true })
+  Text.print(lines, 12, 12, {
+    outline = true,
+    color = colors.white,
+    literalColor = true,
+    font = getHudDebugFont(),
+  })
 end
 
 function AppCoreController:draw()  

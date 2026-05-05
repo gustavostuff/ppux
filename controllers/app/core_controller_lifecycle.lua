@@ -240,7 +240,7 @@ local function initGraphics(self, opts)
     ResolutionController:setCanvasCrtFlat(rawget(_G, "__PPUX_CRT_FLAT__") == true)
   end
   if ResolutionController.setCanvasCrtDistortion then
-    ResolutionController:setCanvasCrtDistortion(tonumber(rawget(_G, "__PPUX_CRT_DISTORTION__")) or 0.15)
+    ResolutionController:setCanvasCrtDistortion(tonumber(rawget(_G, "__PPUX_CRT_DISTORTION__")) or 0.1)
   end
 
   if ResolutionController.applyCrtPresentationFromApp then

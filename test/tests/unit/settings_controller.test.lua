@@ -13,7 +13,7 @@ describe("settings_controller.lua - defaults", function()
       separateToolbar = false,
       groupedPaletteWindows = false,
       crtEnabled = false,
-      crtDistortion = 0.15,
+      crtDistortion = 0.1,
       crtCanvasResolution = "640x360",
       recentProjects = {},
     })
@@ -82,7 +82,7 @@ describe("settings_controller.lua - persistence", function()
     expect(loaded.separateToolbar).toBe(false)
     expect(loaded.groupedPaletteWindows).toBe(true)
     expect(loaded.crtEnabled).toBe(false)
-    expect(loaded.crtDistortion).toBe(0.15)
+    expect(loaded.crtDistortion).toBe(0.1)
     expect(loaded.crtCanvasResolution).toBe("640x360")
     expect(loaded.recentProjects).toEqual({
       "/tmp/foo",
