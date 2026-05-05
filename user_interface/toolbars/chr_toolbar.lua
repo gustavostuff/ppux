@@ -2,6 +2,7 @@
 -- Toolbar for CHR bank window: bank navigation, mode toggle, bank label
 
 local ToolbarBase = require("user_interface.toolbars.toolbar_base")
+local BankViewController = require("controllers.chr.bank_view_controller")
 local images = require("images")
 local colors = require("app_colors")
 
@@ -127,6 +128,13 @@ function ChrToolbar:_onBankChange(delta)
   end
   app.appEditState.currentBank = self.window.currentBank or self.window.activeLayer or 1
   self:triggerLayerLabelFlash()
+  if app.setStatus then
+    app:setStatus(BankViewController.formatBankWindowStatus(
+      self.window,
+      app.appEditState,
+      self.window.orderMode
+    ))
+  end
 end
 
 function ChrToolbar:showTileLabel(tileIndex)

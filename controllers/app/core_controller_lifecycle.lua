@@ -95,7 +95,7 @@ function AppCoreController:_buildCtx()
         chrWin,
         app,
         chrWin.orderMode or "normal",
-        nil
+        setAppStatus
       )
     end,
 

@@ -227,7 +227,9 @@ local function install(Panel, utils)
           local b = cell.button
           local oc, oir = b.contentColor, b.iconRespectTheme
           local prevLit = b.literalContentColor
-          b.contentColor = chromeInkForModalButton(b)
+          if not b.preserveModalContentColor then
+            b.contentColor = chromeInkForModalButton(b)
+          end
           b.iconRespectTheme = false
           b.literalContentColor = true
           b:draw()
@@ -243,7 +245,9 @@ local function install(Panel, utils)
         if chromeWhite and (isButton or dropdownTrigger) then
           local b = dropdownTrigger and c.trigger or c
           local oc, oir, olit = b.contentColor, b.iconRespectTheme, b.literalContentColor
-          b.contentColor = chromeInkForModalButton(b)
+          if not b.preserveModalContentColor then
+            b.contentColor = chromeInkForModalButton(b)
+          end
           b.iconRespectTheme = false
           b.literalContentColor = true
           c:draw()

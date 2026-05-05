@@ -76,6 +76,8 @@ function Button.new(opts)
     underlayOnHoverOnly = opts.underlayOnHoverOnly == true,
     -- When true, skip the dark rounded hover/focus fill (e.g. parent draws one rect across split cells).
     skipHoverFocusUnderlay = opts.skipHoverFocusUnderlay == true,
+    -- When true, modal panel chrome does not replace contentColor with chrome ink (file rows, etc.).
+    preserveModalContentColor = opts.preserveModalContentColor == true,
     -- Additional properties can be stored here
     isCloseButton = opts.isCloseButton,
   }, Button)

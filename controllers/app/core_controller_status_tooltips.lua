@@ -14,7 +14,9 @@ function AppCoreController:rebuildBankWindowItems()
     self.winBank,
     self.appEditState,
     self.winBank.orderMode or "normal",
-    nil
+    function(text)
+      self:setStatus(text)
+    end
   )
 end
 

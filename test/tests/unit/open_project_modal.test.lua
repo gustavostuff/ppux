@@ -19,7 +19,7 @@ local function makePopenStub(commandOutputs)
 end
 
 describe("open_project_modal.lua", function()
-  it("filters to non-hidden folders plus lua/ppux files by default", function()
+  it("filters to non-hidden folders plus lua/ppux/nes files by default", function()
     local originalPopen = io.popen
     io.popen = makePopenStub({
       ["ls -1Ap '/tmp/work' 2>/dev/null"] = {
@@ -27,6 +27,7 @@ describe("open_project_modal.lua", function()
         "folderB/",
         "alpha.lua",
         "beta.ppux",
+        "game.nes",
         "ignore.txt",
         ".git/",
       },
@@ -38,12 +39,13 @@ describe("open_project_modal.lua", function()
     })
 
     local entries = modal:getEntries()
-    expect(#entries).toBe(4)
+    expect(#entries).toBe(5)
     expect(entries[1].isDir).toBe(true)
     expect(entries[1].name).toBe("folderA")
     expect(entries[2].name).toBe("folderB")
     expect(entries[3].name).toBe("alpha.lua")
     expect(entries[4].name).toBe("beta.ppux")
+    expect(entries[5].name).toBe("game.nes")
 
     io.popen = originalPopen
   end)

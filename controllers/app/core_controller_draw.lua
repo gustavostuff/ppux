@@ -130,7 +130,12 @@ local function renderWindowChessPattern(window, wm)
 
     if ((math.floor(row / rowStride)) + col) % 2 == 0 then
       local color = colors.white
-      love.graphics.setColor(color[1], color[2], color[3], 0.1)
+      local checkerAlpha = 0.1
+      if ResolutionController.canvasCrtShaderEnabled == true
+          and (ResolutionController.canvasCrtFilterKind or "crt") == "composite" then
+        checkerAlpha = 0.2
+      end
+      love.graphics.setColor(color[1], color[2], color[3], checkerAlpha)
       love.graphics.rectangle("fill", x, y, cw + 1, drawH)
     end
   end)

@@ -1,5 +1,6 @@
 local WindowCaps = require("controllers.window.window_capabilities")
 local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
+local BankViewController = require("controllers.chr.bank_view_controller")
 
 local M = {}
 
@@ -169,6 +170,7 @@ function M.handleChrBankKeys(ctx, utils, key, focus)
     if focus.specializedToolbar and focus.specializedToolbar.updateModeIcon then
       focus.specializedToolbar:updateModeIcon()
     end
+    setStatus(ctx, BankViewController.formatBankWindowStatus(focus, app.appEditState, focus.orderMode))
     return true
   end
 

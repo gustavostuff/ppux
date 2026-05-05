@@ -6,6 +6,9 @@ function AppCoreController:showRenameWindowModal(win)
   if not (self.renameWindowModal and win and type(win) == "table") then
     return false
   end
+  if win.titleLocked == true then
+    return false
+  end
 
   self.renameWindowModal:show({
     window = win,

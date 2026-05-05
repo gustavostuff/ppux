@@ -106,7 +106,6 @@ function ChrBankWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
       allowExternalDrag = true,
       allowExternalDrop = true,  -- Allow PNG file drops for image import
     },
-    title = data.title,
     visibleRows = data.visibleRows or rows,
     visibleCols = data.visibleCols or cols,
     resizable = data.resizable,
@@ -122,8 +121,16 @@ function ChrBankWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
   -- CHR window-specific state
   self.orderMode = data.orderMode or "normal"
   self.currentBank = data.currentBank or 1
+  self.titleLocked = true
+  self:updateBankTitle()
 
   return self
+end
+
+function ChrBankWindow:updateBankTitle()
+  local total = math.max(1, #(self.layers or {}))
+  local cur = clampBankIndex(self, self.currentBank or self.activeLayer or 1)
+  self.title = ("Bank %d/%d"):format(cur, total)
 end
 
 function ChrBankWindow:getTileIndexAt(col, row)
@@ -188,6 +195,7 @@ end
 function ChrBankWindow:setActiveLayerIndex(i)
   Window.setActiveLayerIndex(self, i)
   self.currentBank = clampBankIndex(self, self.activeLayer or i or 1)
+  self:updateBankTitle()
 end
 
 function ChrBankWindow:setCurrentBank(bankIdx)

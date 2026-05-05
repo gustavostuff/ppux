@@ -87,9 +87,9 @@ Windows include a slim toolbar strip just above the header. It holds small icon 
 
 <img src="img/readme_images/toolbars/chr_banks_toolbar.png" alt="CHR Banks specialized toolbar">
 
-1. **Previous bank** — `Left`
-2. **Next bank** — `Right`
-3. **Tile layout (8x8 / 8x16)** — straight `8x8` rows vs paired `8x16` layout — `M`
+1. **Previous bank** — `Left` key
+2. **Next bank** — `Right` key
+3. **Tile layout (8x8 / 8x16)** — straight `8x8` rows vs paired `8x16` layout — `M` key
 4. **Sync duplicate tiles** — on: identical tiles edit together; off: independent cells
 
 #### ROM Banks toolbar
@@ -98,9 +98,9 @@ Windows include a slim toolbar strip just above the header. It holds small icon 
 
 Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface would make this dangerous).
 
-1. **Previous bank** — `Left`
-2. **Next bank** — `Right`
-3. **Tile layout (8x8 / 8x16)** — `M`
+1. **Previous bank** — `Left` key
+2. **Next bank** — `Right` key
+3. **Tile layout (8x8 / 8x16)** — `M` key
 
 #### Static Art (tiles) toolbar
 
@@ -118,32 +118,28 @@ Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface 
 
 <img src="img/readme_images/toolbars/animation_tile_toolbar.png" alt="Animation tiles specialized toolbar">
 
-**Animation window**. **`Shift` + `Up` / `Down`** (`Up` → next frame, `Down` → previous). **`Shift` + `Left` / `Right`** adjusts frame delay.
-
 1. **Palette link handle**
-2. **Previous layer** — `Shift` + `Down`
-3. **Next layer** — `Shift` + `Up`
-4. **Remove layer** — only when more than one frame exists — `-`
-5. **Add layer** — `+`
+2. **Previous layer** — `Shift` + `Down` key
+3. **Next layer** — `Shift` + `Up` key
+4. **Remove layer** — only when more than one frame exists — `-` key
+5. **Add layer** — `+` key
 6. **Copy from previous layer**
-7. **Play / Pause** — `P` (any case)
+7. **Play / Pause** — `P` key (any case)
 
 
 #### OAM Animation toolbar
 
 <img src="img/readme_images/toolbars/oam_animation.png" alt="OAM Animation specialized toolbar">
 
-**`Shift` + `Up` / `Down`** steps frames (`Up` next, `Down` previous). **`Shift` + `Left` / `Right`** adjusts **all frame delays** when supported.
-
 1. **Palette link handle**
-2. **Previous layer** — `Shift` + `Down`
-3. **Next layer** — `Shift` + `Up`
-4. **Remove layer** — `-`
-5. **Add layer** — `+`
+2. **Previous layer** — `Shift` + `Down` key
+3. **Next layer** — `Shift` + `Up` key
+4. **Remove layer** — `-` key
+5. **Add layer** — `+` key
 6. **Add sprite**
 7. **Toggle origin guides** — **Shift + right-drag** on the canvas moves the sprites origin
 8. **Copy from previous layer**
-9. **Play / Pause** — `P`
+9. **Play / Pause** — `P` key
 
 #### Global palette toolbar
 
@@ -167,8 +163,8 @@ Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface 
 
 <img src="img/readme_images/toolbars/ppu_frame_sprite_layer_toolbar.png" alt="PPU Frame toolbar">
 
-1. **Previous layer** — `Shift` + `Down`
-2. **Next layer** — `Shift` + `Up`
+1. **Previous layer** — `Shift` + `Down` key
+2. **Next layer** — `Shift` + `Up` key
 3. **Add tile range** — appends a logical pattern-table range (bank/page/from/to)
 4. **Nametable range** — compressed nametable **start/end** ROM addresses
 5. **Add sprite** — creates sprite layer if needed, otherwise adds a sprite

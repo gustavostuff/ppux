@@ -133,8 +133,9 @@ local function fileExt(name)
 end
 
 local function isProjectFileName(name)
+  -- Listed files: projects (.lua/.ppux) and NES ROMs (.nes).
   local ext = fileExt(name)
-  return ext == "lua" or ext == "ppux"
+  return ext == "lua" or ext == "ppux" or ext == "nes"
 end
 
 local function isHiddenName(name)
@@ -243,6 +244,10 @@ local function makeClippedFileButton(slotAction)
     contentPaddingX = 4,
     enabled = false,
     action = slotAction,
+    contentColor = colors.white,
+    literalContentColor = true,
+    iconRespectTheme = false,
+    -- preserveModalContentColor set per row in _refreshFileButtons (white only for .ppux/.lua/.nes).
   })
 
   function button:draw()
@@ -439,9 +444,23 @@ function Dialog:_refreshFileButtons()
       if entry.isDir then
         button.icon = images.icons.icon_folder
         button.text = tostring(entry.name or "") .. "/"
+        button.preserveModalContentColor = false
       else
-        button.icon = images.icons.icon_project
+        local ext = fileExt(entry.name)
+        if ext == "nes" then
+          button.icon = images.windows_icons.icon_nes_rom
+        else
+          button.icon = images.icons.icon_project
+        end
         button.text = tostring(entry.name or "")
+        if ext == "ppux" or ext == "lua" or ext == "nes" then
+          button.preserveModalContentColor = true
+          button.contentColor = colors.white
+          button.literalContentColor = true
+          button.iconRespectTheme = false
+        else
+          button.preserveModalContentColor = false
+        end
       end
       button.tooltip = tostring(entry.path or "")
       button.enabled = true
@@ -450,6 +469,7 @@ function Dialog:_refreshFileButtons()
       button.text = ""
       button.tooltip = ""
       button.enabled = false
+      button.preserveModalContentColor = false
     end
     button.pressed = false
     button.hovered = false

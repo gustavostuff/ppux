@@ -178,7 +178,7 @@ describe("chr backing integration", function()
       return {
         kind = "chr",
         isRomWindow = true,
-        title = data and data.title or "ROM Banks",
+        title = "Bank 1/1",
         layers = { { opacity = 1.0, name = "Bank", items = {} } },
       }
     end
@@ -233,7 +233,7 @@ describe("chr backing integration", function()
     expect(calls.animation).toBe(1)
     expect(app.winBank).toBeTruthy()
     expect(app.winBank.isRomWindow).toBeTruthy()
-    expect(app.winBank.title).toBe("ROM Banks")
+    expect(app.winBank.title).toBe("Bank 1/1")
     expect(app.appEditState.chrBacking).toBeTruthy()
     expect(app.appEditState.chrBacking.mode).toBe("rom_raw")
     expect(app.appEditState.romTileViewMode).toBeTruthy() -- compatibility field still synced
@@ -312,7 +312,7 @@ describe("chr backing integration", function()
       return {
         kind = "chr",
         isRomWindow = true,
-        title = data and data.title or "ROM Banks",
+        title = "Bank 1/1",
         layers = { { opacity = 1.0, name = "Bank", items = {} } },
       }
     end

@@ -632,7 +632,9 @@ local function rebuildBankWindowLayers(app, winBank, state)
     winBank,
     state,
     winBank.orderMode or "normal",
-    nil
+    app and app.setStatus and function(text)
+      app:setStatus(text)
+    end or nil
   )
   state.currentBank = winBank.currentBank or state.currentBank or 1
 end
@@ -990,11 +992,9 @@ local function createDefaultWindows(app)
   pulseLoading(app, "Building default windows...")
   local useRomWindow = ChrBackingController.isRomRawMode(state)
   local winCtor = useRomWindow and RomWindow or require("user_interface.windows_system.chr_bank_window")
-  local winTitle = useRomWindow and "ROM Banks" or "CHR Banks"
   local winBank = winCtor.new(30, 30, 8, 8, 16, 32, 2, {
     visibleRows = 16,
     visibleCols = 16,
-    title       = winTitle,
   })
 
   app.winBank = winBank

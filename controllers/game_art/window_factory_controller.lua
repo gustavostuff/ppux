@@ -579,6 +579,9 @@ function M.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool)
   local layoutStartedAt = nowSeconds()
   setScrollAndVisibleArea(win, w)
   win.title = w.title
+  if win.updateBankTitle then
+    win:updateBankTitle()
+  end
   win.showGrid = GridModeUtils.normalize(w.showGrid)
   win._z = w.z or 0
 

@@ -87,6 +87,33 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(renameCalls).toBe(1)
   end)
 
+  it("disables Rename in header menu when window title is locked", function()
+    local app = setmetatable({}, AppCoreController)
+    local win = {
+      _closed = false,
+      _minimized = false,
+      titleLocked = true,
+      title = "Bank 1/2",
+    }
+    local items = app:_buildWindowHeaderContextMenuItems(win)
+    expect(items[1].text).toBe("Rename")
+    expect(items[1].enabled).toBe(false)
+  end)
+
+  it("does not open rename modal for title-locked windows", function()
+    local modalShown = 0
+    local app = setmetatable({
+      renameWindowModal = {
+        show = function()
+          modalShown = modalShown + 1
+        end,
+      },
+    }, AppCoreController)
+    local win = { titleLocked = true, title = "Bank 1/1" }
+    expect(app:showRenameWindowModal(win)).toBe(false)
+    expect(modalShown).toBe(0)
+  end)
+
   it("builds taskbar minimized header menu with Maximize replacing Minimize", function()
     local app = setmetatable({}, AppCoreController)
     local win = { kind = "static_art", title = "T", _minimized = true, _closed = false }

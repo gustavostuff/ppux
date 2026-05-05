@@ -394,7 +394,7 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
   local items = {
     {
       text = "Rename",
-      enabled = win ~= nil and win._closed ~= true,
+      enabled = win ~= nil and win._closed ~= true and win.titleLocked ~= true,
       callback = function()
         self:hideAppContextMenus()
         self:showRenameWindowModal(win)

@@ -10,7 +10,6 @@ RomWindow.__index = RomWindow
 
 function RomWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
   data = data or {}
-  data.title = data.title or "ROM Banks"
 
   local self = ChrBankWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
   setmetatable(self, RomWindow)

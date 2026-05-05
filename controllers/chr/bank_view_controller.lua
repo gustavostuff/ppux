@@ -105,6 +105,20 @@ local function fillBankWindowLayer(winBank, appEditState, bankIdx, orderMode)
   end
 end
 
+-- Status line for the CHR/ROM bank window (bank index, layout mode, shortcuts).
+function M.formatBankWindowStatus(winBank, appEditState, orderMode)
+  local banks = appEditState and appEditState.chrBanksBytes
+  local total = (banks and #banks > 0) and #banks
+    or math.max(1, #(winBank and winBank.layers or {}))
+  local cur = tonumber(winBank and winBank.currentBank)
+    or tonumber(appEditState and appEditState.currentBank)
+    or 1
+  total = math.max(1, total)
+  local om = orderMode or (winBank and winBank.orderMode) or "normal"
+  local layoutLabel = (om == "oddEven") and "8x16 pairs" or "8x8"
+  return ("Bank %d/%d — %s · arrow keys: bank · Tab/M: layout"):format(cur, total, layoutLabel)
+end
+
 -- Rebuild CHR/ROM bank window layers based on current bank + orderMode.
 -- setStatus(text) is optional; used to update status bar.
 function M.rebuildBankWindowItems(winBank, appEditState, orderMode, setStatus)
@@ -133,9 +147,7 @@ function M.rebuildBankWindowItems(winBank, appEditState, orderMode, setStatus)
   end
 
   if setStatus and appEditState.chrBanksBytes then
-    local txt = ("Bank %d/%d - Tile Mode: drag by ref (Tab to switch)")
-      :format(winBank.currentBank or appEditState.currentBank or 1, #appEditState.chrBanksBytes)
-    setStatus(txt)
+    setStatus(M.formatBankWindowStatus(winBank, appEditState, orderMode))
   end
 end
 
