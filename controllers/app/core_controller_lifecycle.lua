@@ -365,11 +365,11 @@ firstSelectedTargetForWindow = function(win)
 end
 
 function AppCoreController:load()
-  local initialCrtMode = (rawget(_G, "__PPUX_ENABLE_CRT_SHADER__") == true)
+  local settings = AppSettingsController.load()
+  local initialCrtMode = (settings and settings.crtEnabled == true)
   initGraphics(self, { crtMode = initialCrtMode })
   self.chrBankCanvasController = BankCanvasController.new()
 
-  local settings = AppSettingsController.load()
   self.recentProjects = AppSettingsController.normalizeRecentProjects(settings and settings.recentProjects)
   if self._applyThemeSetting then
     self:_applyThemeSetting((settings and settings.theme) or "dark", false)
@@ -385,6 +385,9 @@ function AppCoreController:load()
   self:_applyTooltipsEnabledSetting((settings and settings.tooltipsEnabled) ~= false, false)
   self:_applySeparateToolbarSetting((settings and settings.separateToolbar) == true, false)
   self:_applyGroupedPaletteWindowsSetting(settings and settings.groupedPaletteWindows == true, false)
+  if self._applyCrtDistortionSetting then
+    self:_applyCrtDistortionSetting(settings and settings.crtDistortion, false)
+  end
   ResolutionController:recalculate()
   local splashConfig = {}
   if settings then
@@ -455,11 +458,15 @@ function AppCoreController:setCrtModeEnabled(enabled)
   end
 
   CursorsController.reloadForCrtMode(self)
+  if type(self.crtDistortionSetting) == "number" then
+    ResolutionController:setCanvasCrtDistortion(self.crtDistortionSetting)
+  end
   return self.crtModeEnabled
 end
 
 function AppCoreController:toggleCrtMode()
   local enabled = self:setCrtModeEnabled(not (self.crtModeEnabled == true))
+  AppSettingsController.save({ crtEnabled = enabled == true })
   return enabled
 end
 

@@ -12,6 +12,8 @@ describe("settings_controller.lua - defaults", function()
       paletteLinks = "auto_hide",
       separateToolbar = false,
       groupedPaletteWindows = false,
+      crtEnabled = false,
+      crtDistortion = 0.15,
       recentProjects = {},
     })
   end)
@@ -78,6 +80,8 @@ describe("settings_controller.lua - persistence", function()
     expect(loaded.paletteLinks).toBe("on_hover")
     expect(loaded.separateToolbar).toBe(false)
     expect(loaded.groupedPaletteWindows).toBe(true)
+    expect(loaded.crtEnabled).toBe(false)
+    expect(loaded.crtDistortion).toBe(0.15)
     expect(loaded.recentProjects).toEqual({
       "/tmp/foo",
       "/tmp/bar",

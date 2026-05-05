@@ -16,6 +16,8 @@ local DEFAULT_SETTINGS = {
   paletteLinks = "auto_hide",
   separateToolbar = false,
   groupedPaletteWindows = false,
+  crtEnabled = false,
+  crtDistortion = 0.15,
   recentProjects = {},
 }
 
@@ -94,6 +96,14 @@ local function normalizePaletteLinksKey(key)
   if key == "on_hover" or key == "never" then return "on_hover" end
   if key == "auto_hide" then return "auto_hide" end
   return "auto_hide"
+end
+
+local function normalizeCrtDistortion(n)
+  local v = tonumber(n)
+  if not v then
+    return 0.15
+  end
+  return math.max(0, math.min(0.45, v))
 end
 
 local APPEARANCE_CHROME_SLOTS = {
@@ -191,6 +201,8 @@ local function withDefaults(data)
   out.paletteLinks = normalizePaletteLinksKey(data and data.paletteLinks)
   out.separateToolbar = (data and data.separateToolbar == true)
   out.groupedPaletteWindows = (data and data.groupedPaletteWindows == true)
+  out.crtEnabled = (data and data.crtEnabled == true)
+  out.crtDistortion = normalizeCrtDistortion(data and data.crtDistortion)
   out.recentProjects = normalizeRecentProjects(data and data.recentProjects)
   out.appearanceChrome = normalizeAppearanceChrome(data and data.appearanceChrome)
   return out
@@ -257,6 +269,8 @@ function AppSettingsController.save(opts)
   if opts.paletteLinks ~= nil then data.paletteLinks = normalizePaletteLinksKey(opts.paletteLinks) end
   if opts.separateToolbar ~= nil then data.separateToolbar = (opts.separateToolbar == true) end
   if opts.groupedPaletteWindows ~= nil then data.groupedPaletteWindows = (opts.groupedPaletteWindows == true) end
+  if opts.crtEnabled ~= nil then data.crtEnabled = (opts.crtEnabled == true) end
+  if opts.crtDistortion ~= nil then data.crtDistortion = normalizeCrtDistortion(opts.crtDistortion) end
   if opts.recentProjects ~= nil then data.recentProjects = normalizeRecentProjects(opts.recentProjects) end
   -- appearanceChrome: merge into existing file data by default (partial updates from UI).
   -- mergeAppearanceChrome = false: replace chrome from opts.appearanceChrome only (e.g. reset with {}).

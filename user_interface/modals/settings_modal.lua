@@ -55,6 +55,14 @@ local APPEARANCE_PICKER_SLOT_IDS = {
   "light_text_icons_non_focused",
 }
 
+local function eachStandaloneSettingsComponent(self, fn)
+  for _, row in ipairs(self.rows or {}) do
+    if row.component and not row.buttonEntry and not row.dropdown then
+      fn(row.component)
+    end
+  end
+end
+
 --- Small read-only preview of window chrome (Appearance slots, including overrides).
 local function newAppearanceChromeSample(modePrefix, stateKind)
   local bgSlot = modePrefix .. "_" .. stateKind
@@ -285,6 +293,10 @@ function Dialog:_rebuildPanelGrid()
         self.panel:setCell(3, rowIndex, {
           component = row.buttonEntry.button,
         })
+      elseif row.component then
+        self.panel:setCell(3, rowIndex, {
+          component = row.component,
+        })
       elseif row.valueText and row.valueText ~= "" then
         self.panel:setCell(3, rowIndex, {
           text = row.valueText,
@@ -485,6 +497,11 @@ function Dialog:hide()
   self.visible = false
   self.pressedButton = nil
   self.pressedResetAll = nil
+  eachStandaloneSettingsComponent(self, function(c)
+    if type(c.dragging) == "boolean" then
+      c.dragging = false
+    end
+  end)
   if self._resetAllButton then
     self._resetAllButton.pressed = false
   end
@@ -671,6 +688,7 @@ function Dialog:_normalizeRows(rowSpecs)
         valueText = nil,
         buttonEntry = nil,
         dropdown = rowSpec.dropdown,
+        component = nil,
       }
     else
       local buttonEntry = nil
@@ -688,6 +706,7 @@ function Dialog:_normalizeRows(rowSpecs)
         label = rowSpec.label or "",
         valueText = rowSpec.valueText,
         buttonEntry = buttonEntry,
+        component = rowSpec.component,
       }
     end
   end
@@ -843,6 +862,16 @@ function Dialog:mousepressed(x, y, button)
     end
   end
 
+  local consumedComponent = false
+  eachStandaloneSettingsComponent(self, function(c)
+    if not consumedComponent and type(c.mousepressed) == "function" and c:mousepressed(x, y, button) then
+      consumedComponent = true
+    end
+  end)
+  if consumedComponent then
+    return true
+  end
+
   return true
 end
 
@@ -870,6 +899,14 @@ function Dialog:mousereleased(x, y, button)
   self.pressedButton = nil
   for _, entry in ipairs(self.buttons or {}) do
     entry.button.pressed = false
+  end
+
+  if self._activeTabId == "general" then
+    eachStandaloneSettingsComponent(self, function(c)
+      if type(c.mousereleased) == "function" then
+        c:mousereleased(x, y, button)
+      end
+    end)
   end
 
   if self._resetAllButton then
@@ -908,6 +945,13 @@ function Dialog:mousemoved(x, y)
     end
   end
   self._tabBar:mousemoved(x, y)
+  if self._activeTabId == "general" then
+    eachStandaloneSettingsComponent(self, function(c)
+      if type(c.mousemoved) == "function" then
+        c:mousemoved(x, y)
+      end
+    end)
+  end
   if self._resetAllButton then
     self._resetAllButton.hovered = self._resetAllButton:contains(x, y)
   end

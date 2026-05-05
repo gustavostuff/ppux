@@ -578,6 +578,55 @@ function AppCoreController:_applySeparateToolbarSetting(enabled, saveSetting)
   return self.separateToolbar
 end
 
+function AppCoreController:_getCrtDistortionForSettings()
+  if type(self.crtDistortionSetting) == "number" then
+    return self.crtDistortionSetting
+  end
+  return ResolutionController:getCanvasCrtDistortion()
+end
+
+function AppCoreController:_applyCrtDistortionSetting(value, saveSetting)
+  local n = tonumber(value)
+  if n == nil then
+    n = 0.15
+  end
+  n = math.max(0, math.min(0.45, n))
+  self.crtDistortionSetting = n
+  ResolutionController:setCanvasCrtDistortion(n)
+  if saveSetting ~= false then
+    AppSettingsController.save({ crtDistortion = n })
+  end
+  return n
+end
+
+function AppCoreController:_applyCrtModeSetting(enabled, saveSetting)
+  self:setCrtModeEnabled(enabled == true)
+  if saveSetting ~= false then
+    AppSettingsController.save({ crtEnabled = self.crtModeEnabled == true })
+  end
+  return self.crtModeEnabled == true
+end
+
+function AppCoreController:_ensureSettingsCrtCurveSlider()
+  if self._crtCurveSlider then
+    return
+  end
+  local Slider = require("user_interface.slider")
+  local appRef = self
+  self._crtCurveSlider = Slider.new({
+    min = 0,
+    max = 0.45,
+    value = 0.15,
+    tooltip = "CRT barrel distortion when the CRT filter is on",
+    onChange = function(v)
+      appRef:_applyCrtDistortionSetting(v, false)
+    end,
+    onCommit = function(v)
+      AppSettingsController.save({ crtDistortion = tonumber(v) })
+    end,
+  })
+end
+
 function AppCoreController:_ensureGroupedPaletteController()
   local GroupedPaletteController = require("controllers.palette.grouped_palette_controller")
   if not self.groupedPaletteController then
@@ -752,6 +801,8 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
   self:_applyPaletteLinksSetting(D.paletteLinks, false)
   self:_applySeparateToolbarSetting(D.separateToolbar, false)
   self:_applyGroupedPaletteWindowsSetting(D.groupedPaletteWindows, false)
+  self:_applyCrtModeSetting(D.crtEnabled == true, false)
+  self:_applyCrtDistortionSetting(D.crtDistortion, false)
   self:_applyAppearanceChromeFromSettings({})
   AppSettingsController.save({
     theme = D.theme,
@@ -761,6 +812,8 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
     paletteLinks = D.paletteLinks,
     separateToolbar = D.separateToolbar,
     groupedPaletteWindows = D.groupedPaletteWindows,
+    crtEnabled = D.crtEnabled,
+    crtDistortion = D.crtDistortion,
     appearanceChrome = {},
     mergeAppearanceChrome = false,
     recentProjects = recentProjects,
@@ -774,6 +827,9 @@ function AppCoreController:showSettingsModal()
   end
 
   local appRef = self
+  self:_ensureSettingsCrtCurveSlider()
+  self._crtCurveSlider:setValue(self:_getCrtDistortionForSettings(), { silent = true })
+  self._crtCurveSlider:setEnabled(self.crtModeEnabled == true)
 
   self.settingsModal:show({
     title = "Settings",
@@ -815,6 +871,27 @@ function AppCoreController:showSettingsModal()
             appRef:_applyGroupedPaletteWindowsSetting(enabled, true)
           end,
         },
+      },
+      {
+        id = "crt_enabled",
+        label = "CRT filter",
+        buttonSpec = {
+          id = "crt_enabled_toggle",
+          getText = function()
+            return appRef.crtModeEnabled and "On" or "Off"
+          end,
+          action = function()
+            appRef:_applyCrtModeSetting(not appRef.crtModeEnabled, true)
+            if appRef._crtCurveSlider then
+              appRef._crtCurveSlider:setEnabled(appRef.crtModeEnabled == true)
+            end
+          end,
+        },
+      },
+      {
+        id = "crt_curve",
+        label = "CRT curve",
+        component = appRef._crtCurveSlider,
       },
     },
     onSetCanvasImageMode = function(modeKey)

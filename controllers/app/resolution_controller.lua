@@ -129,8 +129,13 @@ function ResolutionController:setCanvasCrtDistortion(value)
   if not n then
     return false
   end
+  n = math.max(0, math.min(0.45, n))
   self.canvasCrtDistortion = n
   return true
+end
+
+function ResolutionController:getCanvasCrtDistortion()
+  return tonumber(self.canvasCrtDistortion) or 0.15
 end
 
 function ResolutionController:getScaledMouse(asInteger, touchX, touchY)
