@@ -242,6 +242,10 @@ local function initGraphics(self, opts)
   if ResolutionController.setCanvasCrtDistortion then
     ResolutionController:setCanvasCrtDistortion(tonumber(rawget(_G, "__PPUX_CRT_DISTORTION__")) or 0.15)
   end
+
+  if ResolutionController.applyCrtPresentationFromApp then
+    ResolutionController:applyCrtPresentationFromApp(self)
+  end
   -- ResolutionController:setMode(ResolutionController.PIXEL_PERFECT)
 
   colors:syncLoveGraphicsBackground()
@@ -366,6 +370,7 @@ end
 
 function AppCoreController:load()
   local settings = AppSettingsController.load()
+  self.crtCanvasResolution = self:_normalizeCrtCanvasResolutionKey(settings and settings.crtCanvasResolution)
   local initialCrtMode = (settings and settings.crtEnabled == true)
   initGraphics(self, { crtMode = initialCrtMode })
   self.chrBankCanvasController = BankCanvasController.new()
@@ -461,6 +466,12 @@ function AppCoreController:setCrtModeEnabled(enabled)
   if type(self.crtDistortionSetting) == "number" then
     ResolutionController:setCanvasCrtDistortion(self.crtDistortionSetting)
   end
+  if ResolutionController.applyCrtPresentationFromApp then
+    ResolutionController:applyCrtPresentationFromApp(self)
+  end
+  if self._refreshSettingsModalIfOpen then
+    self:_refreshSettingsModalIfOpen()
+  end
   return self.crtModeEnabled
 end
 
@@ -512,6 +523,11 @@ end
 function AppCoreController:update(dt)
   Timer.update(dt)
   katsudo.update(dt)
+
+  if ResolutionController.updateCrtViewportPan then
+    ResolutionController:updateCrtViewportPan(dt)
+  end
+
   -- Update window manager (skip closed windows)
   for _, w in ipairs(self.wm:getWindows()) do
     if not w._closed and not w._minimized then

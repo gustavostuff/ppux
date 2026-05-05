@@ -367,6 +367,7 @@ function Dialog.new()
     getPaletteLinks = nil,
     getSeparateToolbar = nil,
     extraRows = nil,
+    _getExtraRows = nil,
     bgColor = nil,
     cellPaddingX = nil,
     cellPaddingY = nil,
@@ -585,6 +586,7 @@ function Dialog:show(opts)
   self.getPaletteLinks = opts.getPaletteLinks
   self.getSeparateToolbar = opts.getSeparateToolbar
   self.extraRows = opts.extraRows
+  self._getExtraRows = opts.getExtraRows
     self.getAppearanceChromeRgb = opts.getAppearanceChromeRgb
     self.onAppearanceChromeChange = opts.onAppearanceChromeChange
     self.onResetAll = opts.onResetAll
@@ -605,6 +607,7 @@ end
 
 function Dialog:setExtraRows(rows)
   self.extraRows = rows
+  self._getExtraRows = nil
   if self.visible then
     self:_rebuildRows()
   end
@@ -745,14 +748,18 @@ function Dialog:_rebuildRows()
   end
 
   local rowSpecs = self:_defaultRows()
-  if self.extraRows then
-    for _, row in ipairs(self.extraRows) do
-      local spec = row.buttonSpec
-      if spec and type(spec.getText) == "function" then
-        spec.text = spec.getText()
-      end
-      rowSpecs[#rowSpecs + 1] = row
+  local extras = {}
+  if type(self._getExtraRows) == "function" then
+    extras = self._getExtraRows() or {}
+  elseif self.extraRows then
+    extras = self.extraRows
+  end
+  for _, row in ipairs(extras) do
+    local spec = row.buttonSpec
+    if spec and type(spec.getText) == "function" then
+      spec.text = spec.getText()
     end
+    rowSpecs[#rowSpecs + 1] = row
   end
   self:_normalizeRows(rowSpecs)
 end

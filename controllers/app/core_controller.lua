@@ -32,6 +32,7 @@ function AppCoreController.new()
   self.statusText = "Drop an .nes ROM or open an existing project"
   self.lastEventText = self.statusText
   self.crtModeEnabled = false
+  self.crtCanvasResolution = "640x360"
   self.mode = "tile"
   self.isPainting = false
   self.currentColor = 1

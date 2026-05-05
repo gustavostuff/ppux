@@ -18,6 +18,7 @@ local DEFAULT_SETTINGS = {
   groupedPaletteWindows = false,
   crtEnabled = false,
   crtDistortion = 0.15,
+  crtCanvasResolution = "640x360",
   recentProjects = {},
 }
 
@@ -104,6 +105,13 @@ local function normalizeCrtDistortion(n)
     return 0.15
   end
   return math.max(0, math.min(0.45, v))
+end
+
+local function normalizeCrtCanvasResolutionKey(key)
+  if key == "320x180" then
+    return "320x180"
+  end
+  return "640x360"
 end
 
 local APPEARANCE_CHROME_SLOTS = {
@@ -203,6 +211,7 @@ local function withDefaults(data)
   out.groupedPaletteWindows = (data and data.groupedPaletteWindows == true)
   out.crtEnabled = (data and data.crtEnabled == true)
   out.crtDistortion = normalizeCrtDistortion(data and data.crtDistortion)
+  out.crtCanvasResolution = normalizeCrtCanvasResolutionKey(data and data.crtCanvasResolution)
   out.recentProjects = normalizeRecentProjects(data and data.recentProjects)
   out.appearanceChrome = normalizeAppearanceChrome(data and data.appearanceChrome)
   return out
@@ -271,6 +280,7 @@ function AppSettingsController.save(opts)
   if opts.groupedPaletteWindows ~= nil then data.groupedPaletteWindows = (opts.groupedPaletteWindows == true) end
   if opts.crtEnabled ~= nil then data.crtEnabled = (opts.crtEnabled == true) end
   if opts.crtDistortion ~= nil then data.crtDistortion = normalizeCrtDistortion(opts.crtDistortion) end
+  if opts.crtCanvasResolution ~= nil then data.crtCanvasResolution = normalizeCrtCanvasResolutionKey(opts.crtCanvasResolution) end
   if opts.recentProjects ~= nil then data.recentProjects = normalizeRecentProjects(opts.recentProjects) end
   -- appearanceChrome: merge into existing file data by default (partial updates from UI).
   -- mergeAppearanceChrome = false: replace chrome from opts.appearanceChrome only (e.g. reset with {}).

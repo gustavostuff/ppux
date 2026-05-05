@@ -578,6 +578,43 @@ function AppCoreController:_applySeparateToolbarSetting(enabled, saveSetting)
   return self.separateToolbar
 end
 
+function AppCoreController:_refreshSettingsModalIfOpen()
+  if self.settingsModal and self.settingsModal.isVisible and self.settingsModal:isVisible() then
+    ModalPanelUtils.refreshTargetMetrics(self.settingsModal)
+    if self.settingsModal._rebuildRows then
+      self.settingsModal:_rebuildRows()
+    end
+  end
+end
+
+function AppCoreController:_normalizeCrtCanvasResolutionKey(key)
+  if key == "320x180" then
+    return "320x180"
+  end
+  return "640x360"
+end
+
+function AppCoreController:_getCrtCanvasResolutionForSettings()
+  return self:_normalizeCrtCanvasResolutionKey(self.crtCanvasResolution)
+end
+
+function AppCoreController:_applyCrtCanvasResolutionSetting(key, saveSetting)
+  local prev = self.crtCanvasResolution
+  local k = self:_normalizeCrtCanvasResolutionKey(key)
+  self.crtCanvasResolution = k
+  if k == "320x180" and prev ~= "320x180" then
+    ResolutionController.crtViewportX = 0
+    ResolutionController.crtViewportY = 0
+  end
+  if ResolutionController.applyCrtPresentationFromApp then
+    ResolutionController:applyCrtPresentationFromApp(self)
+  end
+  if saveSetting ~= false then
+    AppSettingsController.save({ crtCanvasResolution = k })
+  end
+  return k
+end
+
 function AppCoreController:_getCrtDistortionForSettings()
   if type(self.crtDistortionSetting) == "number" then
     return self.crtDistortionSetting
@@ -803,6 +840,7 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
   self:_applyGroupedPaletteWindowsSetting(D.groupedPaletteWindows, false)
   self:_applyCrtModeSetting(D.crtEnabled == true, false)
   self:_applyCrtDistortionSetting(D.crtDistortion, false)
+  self:_applyCrtCanvasResolutionSetting(D.crtCanvasResolution, false)
   self:_applyAppearanceChromeFromSettings({})
   AppSettingsController.save({
     theme = D.theme,
@@ -814,6 +852,7 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
     groupedPaletteWindows = D.groupedPaletteWindows,
     crtEnabled = D.crtEnabled,
     crtDistortion = D.crtDistortion,
+    crtCanvasResolution = D.crtCanvasResolution,
     appearanceChrome = {},
     mergeAppearanceChrome = false,
     recentProjects = recentProjects,
@@ -857,43 +896,64 @@ function AppCoreController:showSettingsModal()
     getSeparateToolbar = function()
       return appRef:_getSeparateToolbarForSettings()
     end,
-    extraRows = {
-      {
-        id = "grouped_palette_windows",
-        label = "Grouped palettes",
-        buttonSpec = {
-          id = "grouped_palette_windows_toggle",
-          getText = function()
-            return appRef:_getGroupedPaletteWindowsForSettings() and "On" or "Off"
-          end,
-          action = function()
-            local enabled = not appRef:_getGroupedPaletteWindowsForSettings()
-            appRef:_applyGroupedPaletteWindowsSetting(enabled, true)
-          end,
+    getExtraRows = function()
+      local rows = {
+        {
+          id = "grouped_palette_windows",
+          label = "Grouped palettes",
+          buttonSpec = {
+            id = "grouped_palette_windows_toggle",
+            getText = function()
+              return appRef:_getGroupedPaletteWindowsForSettings() and "On" or "Off"
+            end,
+            action = function()
+              local enabled = not appRef:_getGroupedPaletteWindowsForSettings()
+              appRef:_applyGroupedPaletteWindowsSetting(enabled, true)
+            end,
+          },
         },
-      },
-      {
-        id = "crt_enabled",
-        label = "CRT filter",
-        buttonSpec = {
-          id = "crt_enabled_toggle",
-          getText = function()
-            return appRef.crtModeEnabled and "On" or "Off"
-          end,
-          action = function()
-            appRef:_applyCrtModeSetting(not appRef.crtModeEnabled, true)
-            if appRef._crtCurveSlider then
-              appRef._crtCurveSlider:setEnabled(appRef.crtModeEnabled == true)
-            end
-          end,
+        {
+          id = "crt_enabled",
+          label = "CRT filter",
+          buttonSpec = {
+            id = "crt_enabled_toggle",
+            getText = function()
+              return appRef.crtModeEnabled and "On" or "Off"
+            end,
+            action = function()
+              appRef:_applyCrtModeSetting(not appRef.crtModeEnabled, true)
+              if appRef._crtCurveSlider then
+                appRef._crtCurveSlider:setEnabled(appRef.crtModeEnabled == true)
+              end
+            end,
+          },
         },
-      },
-      {
-        id = "crt_curve",
-        label = "CRT curve",
-        component = appRef._crtCurveSlider,
-      },
-    },
+      }
+      if appRef.crtModeEnabled then
+        rows[#rows + 1] = {
+          id = "crt_canvas_resolution",
+          label = "CRT canvas",
+          buttonSpec = {
+            id = "crt_canvas_resolution_toggle",
+            getText = function()
+              local cur = appRef:_getCrtCanvasResolutionForSettings()
+              return (cur == "320x180") and "320x180" or "640x360"
+            end,
+            action = function()
+              local cur = appRef:_getCrtCanvasResolutionForSettings()
+              local nextKey = (cur == "320x180") and "640x360" or "320x180"
+              appRef:_applyCrtCanvasResolutionSetting(nextKey, true)
+            end,
+          },
+        }
+        rows[#rows + 1] = {
+          id = "crt_curve",
+          label = "CRT curve",
+          component = appRef._crtCurveSlider,
+        }
+      end
+      return rows
+    end,
     onSetCanvasImageMode = function(modeKey)
       appRef:_applyCanvasImageModeSetting(modeKey, true)
     end,

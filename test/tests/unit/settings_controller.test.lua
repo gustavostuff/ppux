@@ -14,6 +14,7 @@ describe("settings_controller.lua - defaults", function()
       groupedPaletteWindows = false,
       crtEnabled = false,
       crtDistortion = 0.15,
+      crtCanvasResolution = "640x360",
       recentProjects = {},
     })
   end)
@@ -82,6 +83,7 @@ describe("settings_controller.lua - persistence", function()
     expect(loaded.groupedPaletteWindows).toBe(true)
     expect(loaded.crtEnabled).toBe(false)
     expect(loaded.crtDistortion).toBe(0.15)
+    expect(loaded.crtCanvasResolution).toBe("640x360")
     expect(loaded.recentProjects).toEqual({
       "/tmp/foo",
       "/tmp/bar",
