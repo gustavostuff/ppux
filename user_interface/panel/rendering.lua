@@ -239,13 +239,15 @@ local function install(Panel, utils)
       elseif cell.component and type(cell.component.draw) == "function" then
         local c = cell.component
         local isButton = utils.Button and getmetatable(c) == utils.Button
-        if chromeWhite and isButton then
-          local oc, oir, olit = c.contentColor, c.iconRespectTheme, c.literalContentColor
-          c.contentColor = chromeInkForModalButton(c)
-          c.iconRespectTheme = false
-          c.literalContentColor = true
+        local dropdownTrigger = (not isButton) and c.trigger and type(c.trigger.draw) == "function"
+        if chromeWhite and (isButton or dropdownTrigger) then
+          local b = dropdownTrigger and c.trigger or c
+          local oc, oir, olit = b.contentColor, b.iconRespectTheme, b.literalContentColor
+          b.contentColor = chromeInkForModalButton(b)
+          b.iconRespectTheme = false
+          b.literalContentColor = true
           c:draw()
-          c.contentColor, c.iconRespectTheme, c.literalContentColor = oc, oir, olit
+          b.contentColor, b.iconRespectTheme, b.literalContentColor = oc, oir, olit
         else
           c:draw()
         end

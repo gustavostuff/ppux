@@ -371,8 +371,12 @@ end
 function AppCoreController:load()
   local settings = AppSettingsController.load()
   self.crtCanvasResolution = self:_normalizeCrtCanvasResolutionKey(settings and settings.crtCanvasResolution)
+  self.crtFilterKind = (settings and settings.crtFilterKind == "composite") and "composite" or "crt"
   local initialCrtMode = (settings and settings.crtEnabled == true)
   initGraphics(self, { crtMode = initialCrtMode })
+  if ResolutionController.setCanvasCrtFilterKind then
+    ResolutionController:setCanvasCrtFilterKind(self.crtFilterKind)
+  end
   self.chrBankCanvasController = BankCanvasController.new()
 
   self.recentProjects = AppSettingsController.normalizeRecentProjects(settings and settings.recentProjects)
@@ -465,6 +469,9 @@ function AppCoreController:setCrtModeEnabled(enabled)
   CursorsController.reloadForCrtMode(self)
   if type(self.crtDistortionSetting) == "number" then
     ResolutionController:setCanvasCrtDistortion(self.crtDistortionSetting)
+  end
+  if ResolutionController.setCanvasCrtFilterKind then
+    ResolutionController:setCanvasCrtFilterKind(self.crtFilterKind or "crt")
   end
   if ResolutionController.applyCrtPresentationFromApp then
     ResolutionController:applyCrtPresentationFromApp(self)

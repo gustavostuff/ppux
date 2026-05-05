@@ -15,11 +15,6 @@ Dialog.__index = Dialog
 local SETTINGS_TAB_ROW = 1
 local SETTINGS_MIN_CONTENT_ROWS = 8
 
-local function normalizeCanvasFilterKey(key)
-  if key == "soft" then return "soft" end
-  return "sharp"
-end
-
 local function normalizeThemeKey(key)
   if key == "light" then return "light" end
   return "dark"
@@ -526,6 +521,14 @@ function Dialog:_containsBox(x, y)
       return true
     end
   end
+  if self._activeTabId == "general" then
+    for _, row in ipairs(self.rows or {}) do
+      local dd = row.dropdown
+      if dd and dd:isMenuVisible() and dd.menu and dd.menu:contains(x, y) then
+        return true
+      end
+    end
+  end
   if self.panel and self._boxX then
     return self.panel:contains(x, y)
   end
@@ -614,7 +617,6 @@ function Dialog:setExtraRows(rows)
 end
 
 function Dialog:_defaultRows()
-  local canvasFilter = normalizeCanvasFilterKey(self.getCanvasFilter and self.getCanvasFilter() or nil)
   local tooltipsEnabled = not (self.getTooltipsEnabled and self.getTooltipsEnabled() == false)
   local theme = normalizeThemeKey(self.getTheme and self.getTheme() or nil)
 
@@ -641,19 +643,6 @@ function Dialog:_defaultRows()
         action = function()
           if self.onSetTheme then
             self.onSetTheme((theme == "light") and "dark" or "light")
-          end
-        end,
-      },
-    },
-    {
-      id = "canvas_filter",
-      label = "Canvas filter",
-      buttonSpec = {
-        id = "canvas_filter_toggle",
-        text = (canvasFilter == "soft") and "Soft" or "Sharp",
-        action = function()
-          if self.onSetCanvasFilter then
-            self.onSetCanvasFilter((canvasFilter == "soft") and "sharp" or "soft")
           end
         end,
       },
@@ -848,6 +837,15 @@ function Dialog:mousepressed(x, y, button)
     return true
   end
 
+  -- General-tab dropdown menus can extend over the footer; handle before Reset so menu picks win.
+  if self._activeTabId == "general" then
+    for _, row in ipairs(self.rows or {}) do
+      if row.dropdown and row.dropdown:handleMousePressed(x, y, button) then
+        return true
+      end
+    end
+  end
+
   if self._resetAllButton and self._resetAllButton:contains(x, y) then
     self._resetAllButton.pressed = true
     self.pressedResetAll = true
@@ -909,6 +907,11 @@ function Dialog:mousereleased(x, y, button)
   end
 
   if self._activeTabId == "general" then
+    for _, row in ipairs(self.rows or {}) do
+      if row.dropdown and row.dropdown:handleMouseReleased(x, y, button) then
+        return true
+      end
+    end
     eachStandaloneSettingsComponent(self, function(c)
       if type(c.mousereleased) == "function" then
         c:mousereleased(x, y, button)
@@ -953,6 +956,11 @@ function Dialog:mousemoved(x, y)
   end
   self._tabBar:mousemoved(x, y)
   if self._activeTabId == "general" then
+    for _, row in ipairs(self.rows or {}) do
+      if row.dropdown and type(row.dropdown.mousemoved) == "function" then
+        row.dropdown:mousemoved(x, y)
+      end
+    end
     eachStandaloneSettingsComponent(self, function(c)
       if type(c.mousemoved) == "function" then
         c:mousemoved(x, y)
@@ -979,6 +987,12 @@ function Dialog:draw(canvas)
     forEachAppearancePicker(self, function(p)
       p:drawMenu()
     end)
+  elseif self._activeTabId == "general" then
+    for _, row in ipairs(self.rows or {}) do
+      if row.dropdown and row.dropdown.drawMenu then
+        row.dropdown:drawMenu()
+      end
+    end
   end
 end
 

@@ -13,6 +13,7 @@ describe("settings_controller.lua - defaults", function()
       separateToolbar = false,
       groupedPaletteWindows = false,
       crtEnabled = false,
+      crtFilterKind = "crt",
       crtDistortion = 0.1,
       crtCanvasResolution = "640x360",
       recentProjects = {},

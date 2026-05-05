@@ -17,6 +17,7 @@ local DEFAULT_SETTINGS = {
   separateToolbar = false,
   groupedPaletteWindows = false,
   crtEnabled = false,
+  crtFilterKind = "crt",
   crtDistortion = 0.1,
   crtCanvasResolution = "640x360",
   recentProjects = {},
@@ -112,6 +113,13 @@ local function normalizeCrtCanvasResolutionKey(key)
     return "320x180"
   end
   return "640x360"
+end
+
+local function normalizeCrtFilterKind(key)
+  if key == "composite" then
+    return "composite"
+  end
+  return "crt"
 end
 
 local APPEARANCE_CHROME_SLOTS = {
@@ -210,6 +218,7 @@ local function withDefaults(data)
   out.separateToolbar = (data and data.separateToolbar == true)
   out.groupedPaletteWindows = (data and data.groupedPaletteWindows == true)
   out.crtEnabled = (data and data.crtEnabled == true)
+  out.crtFilterKind = normalizeCrtFilterKind(data and data.crtFilterKind)
   out.crtDistortion = normalizeCrtDistortion(data and data.crtDistortion)
   out.crtCanvasResolution = normalizeCrtCanvasResolutionKey(data and data.crtCanvasResolution)
   out.recentProjects = normalizeRecentProjects(data and data.recentProjects)
@@ -279,6 +288,7 @@ function AppSettingsController.save(opts)
   if opts.separateToolbar ~= nil then data.separateToolbar = (opts.separateToolbar == true) end
   if opts.groupedPaletteWindows ~= nil then data.groupedPaletteWindows = (opts.groupedPaletteWindows == true) end
   if opts.crtEnabled ~= nil then data.crtEnabled = (opts.crtEnabled == true) end
+  if opts.crtFilterKind ~= nil then data.crtFilterKind = normalizeCrtFilterKind(opts.crtFilterKind) end
   if opts.crtDistortion ~= nil then data.crtDistortion = normalizeCrtDistortion(opts.crtDistortion) end
   if opts.crtCanvasResolution ~= nil then data.crtCanvasResolution = normalizeCrtCanvasResolutionKey(opts.crtCanvasResolution) end
   if opts.recentProjects ~= nil then data.recentProjects = normalizeRecentProjects(opts.recentProjects) end

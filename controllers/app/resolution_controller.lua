@@ -1,5 +1,7 @@
 local crtShaderLoadAttempted = false
 local cachedCrtShader = nil
+local compositeShaderLoadAttempted = false
+local cachedCompositeScanlinesShader = nil
 
 local SLICE_W = 320
 local SLICE_H = 180
@@ -17,6 +19,21 @@ local function resolveCrtShader()
 
   cachedCrtShader = rawget(_G, "crtShader")
   return cachedCrtShader
+end
+
+local function resolveCompositeScanlinesShader()
+  if cachedCompositeScanlinesShader ~= nil or compositeShaderLoadAttempted then
+    return cachedCompositeScanlinesShader
+  end
+
+  compositeShaderLoadAttempted = true
+  local ok = pcall(require, "shaders")
+  if not ok then
+    return nil
+  end
+
+  cachedCompositeScanlinesShader = rawget(_G, "compositeScanlinesShader")
+  return cachedCompositeScanlinesShader
 end
 
 local ResolutionController = {
@@ -39,6 +56,7 @@ function ResolutionController:init(canvas)
   self.lockCanvasAspect = true
   self.defaultMode = self.modes.KEEP_ASPECT
   self.canvasCrtShaderEnabled = false
+  self.canvasCrtFilterKind = "crt"
   self.canvasCrtFlat = (rawget(_G, "__PPUX_CRT_FLAT__") == true)
   self.canvasCrtDistortion = tonumber(rawget(_G, "__PPUX_CRT_DISTORTION__")) or 0.1
   self.crtLowResPresentation = false
@@ -198,8 +216,6 @@ end
 
 function ResolutionController:renderCanvas()
   local drawTarget = self.canvas
-  local sendW = self.canvasWidth or self.canvas:getWidth()
-  local sendH = self.canvasHeight or self.canvas:getHeight()
 
   if self.canvasCrtShaderEnabled == true and self.crtLowResPresentation then
     self:_ensureSliceCanvas()
@@ -219,22 +235,35 @@ function ResolutionController:renderCanvas()
       love.graphics.draw(self.canvas, self._crtSourceQuad, 0, 0)
       love.graphics.setCanvas()
       drawTarget = self.crtSliceCanvas
-      sendW = SLICE_W
-      sendH = SLICE_H
     end
   end
 
+  -- Pixel dimensions of the texture actually drawn (workspace canvas or CRT slice),
+  -- always from the Canvas object so they stay in sync with the drawable.
+  local texW = drawTarget:getWidth()
+  local texH = drawTarget:getHeight()
+
   local shaderApplied = false
   if self.canvasCrtShaderEnabled == true then
-    local crtShader = resolveCrtShader()
-    if crtShader then
-      crtShader:send("inputSize", { sendW, sendH })
-      crtShader:send("outputSize", { love.graphics.getWidth(), love.graphics.getHeight() })
-      crtShader:send("textureSize", { sendW, sendH })
-      local curve = self.canvasCrtFlat and 0 or (self.canvasCrtDistortion or 0.1)
-      crtShader:send("distortion", curve)
-      love.graphics.setShader(crtShader)
-      shaderApplied = true
+    local kind = self.canvasCrtFilterKind or "crt"
+    if kind == "composite" then
+      local compositeShader = resolveCompositeScanlinesShader()
+      if compositeShader then
+        compositeShader:send("screen", { texW, texH })
+        love.graphics.setShader(compositeShader)
+        shaderApplied = true
+      end
+    else
+      local crtShader = resolveCrtShader()
+      if crtShader then
+        crtShader:send("inputSize", { texW, texH })
+        crtShader:send("outputSize", { love.graphics.getWidth(), love.graphics.getHeight() })
+        crtShader:send("textureSize", { texW, texH })
+        local curve = self.canvasCrtFlat and 0 or (self.canvasCrtDistortion or 0.1)
+        crtShader:send("distortion", curve)
+        love.graphics.setShader(crtShader)
+        shaderApplied = true
+      end
     end
   end
 
@@ -254,6 +283,10 @@ end
 
 function ResolutionController:setCanvasCrtShaderEnabled(enabled)
   self.canvasCrtShaderEnabled = (enabled == true)
+end
+
+function ResolutionController:setCanvasCrtFilterKind(kind)
+  self.canvasCrtFilterKind = (kind == "composite") and "composite" or "crt"
 end
 
 function ResolutionController:isCanvasCrtShaderEnabled()

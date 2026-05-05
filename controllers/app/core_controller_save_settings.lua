@@ -5,6 +5,7 @@ local ResolutionController = require("controllers.app.resolution_controller")
 local SaveOptionsModal = require("user_interface.modals.save_options_modal")
 local SettingsModal = require("user_interface.modals.settings_modal")
 local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
+local Dropdown = require("user_interface.dropdown")
 local TableUtils = require("utils.table_utils")
 local colors = require("app_colors")
 
@@ -648,6 +649,92 @@ function AppCoreController:_applyCrtModeSetting(enabled, saveSetting)
   return self.crtModeEnabled == true
 end
 
+function AppCoreController:_normalizeCrtFilterKind(key)
+  if key == "composite" then
+    return "composite"
+  end
+  return "crt"
+end
+
+function AppCoreController:_applyCrtFilterKindSetting(kind, saveSetting)
+  local k = self:_normalizeCrtFilterKind(kind)
+  self.crtFilterKind = k
+  if ResolutionController.setCanvasCrtFilterKind then
+    ResolutionController:setCanvasCrtFilterKind(k)
+  end
+  if saveSetting ~= false then
+    AppSettingsController.save({ crtFilterKind = k })
+  end
+  return k
+end
+
+--- Combined canvas sampling + optional CRT/composite post-process (Settings → Filter dropdown).
+--- Values: 1 Sharp, 2 Soft, 3 CRT, 4 Composite sharp, 5 Composite soft.
+function AppCoreController:_getDisplayFilterDropdownMode()
+  if self.crtModeEnabled == true then
+    if self.crtFilterKind == "composite" then
+      if self:_getCanvasFilterForSettings() == "soft" then
+        return 5
+      end
+      return 4
+    end
+    return 3
+  end
+  if self:_getCanvasFilterForSettings() == "soft" then
+    return 2
+  end
+  return 1
+end
+
+function AppCoreController:_applyDisplayFilterDropdownMode(mode, saveSetting)
+  local m = tonumber(mode)
+  if m == nil or m < 1 or m > 5 then
+    return
+  end
+  if m == 1 then
+    self:_applyCrtModeSetting(false, saveSetting)
+    self:_applyCanvasFilterSetting("sharp", saveSetting)
+  elseif m == 2 then
+    self:_applyCrtModeSetting(false, saveSetting)
+    self:_applyCanvasFilterSetting("soft", saveSetting)
+  elseif m == 3 then
+    self:_applyCrtFilterKindSetting("crt", false)
+    self:_applyCrtModeSetting(true, false)
+    if saveSetting ~= false then
+      AppSettingsController.save({
+        crtEnabled = true,
+        crtFilterKind = "crt",
+      })
+    end
+  elseif m == 4 then
+    self:_applyCrtFilterKindSetting("composite", false)
+    self:_applyCrtModeSetting(true, false)
+    self:_applyCanvasFilterSetting("sharp", saveSetting)
+    if saveSetting ~= false then
+      AppSettingsController.save({
+        crtEnabled = true,
+        crtFilterKind = "composite",
+      })
+    end
+  elseif m == 5 then
+    self:_applyCrtFilterKindSetting("composite", false)
+    self:_applyCrtModeSetting(true, false)
+    self:_applyCanvasFilterSetting("soft", saveSetting)
+    if saveSetting ~= false then
+      AppSettingsController.save({
+        crtEnabled = true,
+        crtFilterKind = "composite",
+      })
+    end
+  end
+  if self._crtCurveSlider then
+    self._crtCurveSlider:setEnabled(self.crtModeEnabled == true and self.crtFilterKind ~= "composite")
+  end
+  if self._refreshSettingsModalIfOpen then
+    self:_refreshSettingsModalIfOpen()
+  end
+end
+
 function AppCoreController:_ensureSettingsCrtCurveSlider()
   if self._crtCurveSlider then
     return
@@ -842,6 +929,7 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
   self:_applyPaletteLinksSetting(D.paletteLinks, false)
   self:_applySeparateToolbarSetting(D.separateToolbar, false)
   self:_applyGroupedPaletteWindowsSetting(D.groupedPaletteWindows, false)
+  self:_applyCrtFilterKindSetting(D.crtFilterKind, false)
   self:_applyCrtModeSetting(D.crtEnabled == true, false)
   self:_applyCrtDistortionSetting(D.crtDistortion, false)
   self:_applyCrtCanvasResolutionSetting(D.crtCanvasResolution, false)
@@ -855,6 +943,7 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
     separateToolbar = D.separateToolbar,
     groupedPaletteWindows = D.groupedPaletteWindows,
     crtEnabled = D.crtEnabled,
+    crtFilterKind = D.crtFilterKind,
     crtDistortion = D.crtDistortion,
     crtCanvasResolution = D.crtCanvasResolution,
     appearanceChrome = {},
@@ -872,7 +961,7 @@ function AppCoreController:showSettingsModal()
   local appRef = self
   self:_ensureSettingsCrtCurveSlider()
   self._crtCurveSlider:setValue(self:_getCrtDistortionForSettings(), { silent = true })
-  self._crtCurveSlider:setEnabled(self.crtModeEnabled == true)
+  self._crtCurveSlider:setEnabled(self.crtModeEnabled == true and self.crtFilterKind ~= "composite")
 
   self.settingsModal:show({
     title = "Settings",
@@ -884,9 +973,6 @@ function AppCoreController:showSettingsModal()
     end,
     getCanvasImageMode = function()
       return appRef:_getCanvasImageModeForSettings()
-    end,
-    getCanvasFilter = function()
-      return appRef:_getCanvasFilterForSettings()
     end,
     getTooltipsEnabled = function()
       return appRef:_getTooltipsEnabledForSettings()
@@ -917,20 +1003,55 @@ function AppCoreController:showSettingsModal()
           },
         },
         {
-          id = "crt_enabled",
-          label = "CRT filter",
-          buttonSpec = {
-            id = "crt_enabled_toggle",
-            getText = function()
-              return appRef.crtModeEnabled and "On" or "Off"
+          id = "display_filter",
+          label = "Filter",
+          dropdown = Dropdown.new({
+            getBounds = function()
+              return {
+                w = appRef.canvas:getWidth(),
+                h = appRef.canvas:getHeight(),
+              }
             end,
-            action = function()
-              appRef:_applyCrtModeSetting(not appRef.crtModeEnabled, true)
-              if appRef._crtCurveSlider then
-                appRef._crtCurveSlider:setEnabled(appRef.crtModeEnabled == true)
-              end
-            end,
-          },
+            default = appRef:_getDisplayFilterDropdownMode(),
+            tooltip = "Sharp/soft workspace scaling; CRT; or composite post-process with sharp or soft scaling (keyboard shortcut toggles CRT on/off)",
+            items = {
+              {
+                value = 1,
+                text = "Sharp",
+                onPick = function()
+                  appRef:_applyDisplayFilterDropdownMode(1, true)
+                end,
+              },
+              {
+                value = 2,
+                text = "Soft",
+                onPick = function()
+                  appRef:_applyDisplayFilterDropdownMode(2, true)
+                end,
+              },
+              {
+                value = 3,
+                text = "CRT",
+                onPick = function()
+                  appRef:_applyDisplayFilterDropdownMode(3, true)
+                end,
+              },
+              {
+                value = 4,
+                text = "Composite sharp",
+                onPick = function()
+                  appRef:_applyDisplayFilterDropdownMode(4, true)
+                end,
+              },
+              {
+                value = 5,
+                text = "Composite soft",
+                onPick = function()
+                  appRef:_applyDisplayFilterDropdownMode(5, true)
+                end,
+              },
+            },
+          }),
         },
       }
       if appRef.crtModeEnabled then
@@ -952,19 +1073,18 @@ function AppCoreController:showSettingsModal()
             },
           }
         end
-        rows[#rows + 1] = {
-          id = "crt_curve",
-          label = "CRT curve",
-          component = appRef._crtCurveSlider,
-        }
+        if appRef.crtFilterKind ~= "composite" then
+          rows[#rows + 1] = {
+            id = "crt_curve",
+            label = "CRT curve",
+            component = appRef._crtCurveSlider,
+          }
+        end
       end
       return rows
     end,
     onSetCanvasImageMode = function(modeKey)
       appRef:_applyCanvasImageModeSetting(modeKey, true)
-    end,
-    onSetCanvasFilter = function(filterKey)
-      appRef:_applyCanvasFilterSetting(filterKey, true)
     end,
     onSetTooltipsEnabled = function(enabled)
       appRef:_applyTooltipsEnabledSetting(enabled, true)
