@@ -20,6 +20,13 @@ local DEFAULT_SETTINGS = {
   crtFilterKind = "crt",
   crtDistortion = 0.1,
   crtCanvasResolution = "640x360",
+  --- CRT layer visualizer: visibility, per-window distortion, ref stack + pans (windowIds are best-effort across sessions).
+  crtLayerViz = {
+    visible = false,
+    distortion = 0.1,
+    activeLayer = 1,
+    refs = {},
+  },
   recentProjects = {},
 }
 
@@ -122,6 +129,40 @@ local function normalizeCrtFilterKind(key)
   return "crt"
 end
 
+local function normalizeCrtLayerViz(data)
+  if type(data) ~= "table" then
+    return {
+      visible = false,
+      distortion = normalizeCrtDistortion(nil),
+      activeLayer = 1,
+      refs = {},
+    }
+  end
+  local out = {
+    visible = (data.visible == true),
+    distortion = normalizeCrtDistortion(data.distortion),
+    activeLayer = math.max(1, math.floor(tonumber(data.activeLayer) or 1)),
+    refs = {},
+  }
+  for _, r in ipairs(type(data.refs) == "table" and data.refs or {}) do
+    if type(r) == "table" and r.windowId ~= nil then
+      local op = tonumber(r.opacity)
+      if not op then
+        op = 1
+      end
+      op = math.max(0, math.min(1, op))
+      out.refs[#out.refs + 1] = {
+        windowId = tostring(r.windowId),
+        layerIndex = math.max(1, math.floor(tonumber(r.layerIndex) or 1)),
+        panX = tonumber(r.panX) or 0,
+        panY = tonumber(r.panY) or 0,
+        opacity = op,
+      }
+    end
+  end
+  return out
+end
+
 local APPEARANCE_CHROME_SLOTS = {
   "dark_background",
   "light_background",
@@ -221,6 +262,7 @@ local function withDefaults(data)
   out.crtFilterKind = normalizeCrtFilterKind(data and data.crtFilterKind)
   out.crtDistortion = normalizeCrtDistortion(data and data.crtDistortion)
   out.crtCanvasResolution = normalizeCrtCanvasResolutionKey(data and data.crtCanvasResolution)
+  out.crtLayerViz = normalizeCrtLayerViz(data and data.crtLayerViz)
   out.recentProjects = normalizeRecentProjects(data and data.recentProjects)
   out.appearanceChrome = normalizeAppearanceChrome(data and data.appearanceChrome)
   return out
@@ -291,6 +333,7 @@ function AppSettingsController.save(opts)
   if opts.crtFilterKind ~= nil then data.crtFilterKind = normalizeCrtFilterKind(opts.crtFilterKind) end
   if opts.crtDistortion ~= nil then data.crtDistortion = normalizeCrtDistortion(opts.crtDistortion) end
   if opts.crtCanvasResolution ~= nil then data.crtCanvasResolution = normalizeCrtCanvasResolutionKey(opts.crtCanvasResolution) end
+  if opts.crtLayerViz ~= nil then data.crtLayerViz = normalizeCrtLayerViz(opts.crtLayerViz) end
   if opts.recentProjects ~= nil then data.recentProjects = normalizeRecentProjects(opts.recentProjects) end
   -- appearanceChrome: merge into existing file data by default (partial updates from UI).
   -- mergeAppearanceChrome = false: replace chrome from opts.appearanceChrome only (e.g. reset with {}).

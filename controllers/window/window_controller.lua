@@ -1150,7 +1150,7 @@ function WM:createCrtLensWindow(opts)
   local offsetY = app and AppTopToolbarController.getContentOffsetY(app) or 15
   local cw = (app and app.canvas and app.canvas.getWidth and app.canvas:getWidth()) or 640
   local ch = (app and app.canvas and app.canvas.getHeight and app.canvas:getHeight()) or 360
-  local z = opts.zoom or 2
+  local z = opts.zoom or 1
   local contentW = 32 * 8 * z
   local contentH = 30 * 8 * z
   local headerH = UiScale.windowHeaderHeight()

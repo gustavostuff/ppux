@@ -519,8 +519,16 @@ local function drawCrtLensVisualizerWindow(app, w, wm)
     if scratch then
       CrtLayerViz.compositeRefsOntoScratch(app, wm, scratch, w)
       local shader = resolveCrtLensDrawShader()
-      local dist = ResolutionController.canvasCrtFlat and 0
-        or ((type(app.crtDistortionSetting) == "number") and app.crtDistortionSetting or ResolutionController:getCanvasCrtDistortion() or 0.1)
+      local dist
+      if ResolutionController.canvasCrtFlat then
+        dist = 0
+      elseif type(w.crtVizDistortion) == "number" then
+        dist = w.crtVizDistortion
+      elseif type(app.crtDistortionSetting) == "number" then
+        dist = app.crtDistortionSetting
+      else
+        dist = ResolutionController:getCanvasCrtDistortion() or 0.1
+      end
 
       if shader then
         love.graphics.setShader(shader)

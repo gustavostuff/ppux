@@ -7,6 +7,7 @@ local UiScale = require("user_interface.ui_scale")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local AppSettingsController = require("controllers.app.settings_controller")
 
 return function(AppCoreController)
 
@@ -807,6 +808,86 @@ function AppCoreController:_getCrtLensWindow()
   return nil
 end
 
+--- Snapshot CRT layer visualizer state for settings (single runtime window).
+function AppCoreController:_serializeCrtLayerVizState(win)
+  if not win or win.kind ~= "crt_lens" then
+    return nil
+  end
+  local refs = {}
+  for _, r in ipairs(win.crtRefLayers or {}) do
+    refs[#refs + 1] = {
+      windowId = r.windowId,
+      layerIndex = r.layerIndex,
+      panX = tonumber(r.panX) or 0,
+      panY = tonumber(r.panY) or 0,
+      opacity = tonumber(r.opacity) or 1,
+    }
+  end
+  return {
+    visible = win._crtLensVisible == true,
+    distortion = tonumber(win.crtVizDistortion),
+    activeLayer = win.getActiveLayerIndex and win:getActiveLayerIndex() or 1,
+    refs = refs,
+  }
+end
+
+function AppCoreController:_persistCrtLayerViz()
+  local win = self:_getCrtLensWindow()
+  if not win then
+    return
+  end
+  local state = self:_serializeCrtLayerVizState(win)
+  if state then
+    AppSettingsController.save({ crtLayerViz = state })
+  end
+end
+
+--- Restore CRT layer visualizer from normalized settings (refs skipped if target window/layer missing).
+function AppCoreController:_applyCrtLayerVizFromSettings(settings)
+  local win = self:_getCrtLensWindow()
+  if not win or win.kind ~= "crt_lens" then
+    return
+  end
+  local viz = settings and settings.crtLayerViz
+  if type(viz) ~= "table" then
+    return
+  end
+  win._crtLensVisible = (viz.visible == true)
+  local dist = tonumber(viz.distortion)
+  if dist then
+    win.crtVizDistortion = dist
+  else
+    win.crtVizDistortion = nil
+  end
+
+  local wm = self.wm
+  win.crtRefLayers = {}
+  for _, r in ipairs(viz.refs or {}) do
+    if type(r) == "table" and r.windowId ~= nil then
+      local wid = r.windowId
+      local li = math.max(1, math.floor(tonumber(r.layerIndex) or 1))
+      local tw = wm and wm.findWindowById and wm:findWindowById(wid)
+      if tw and tw.layers and tw.layers[li] then
+        win.crtRefLayers[#win.crtRefLayers + 1] = {
+          windowId = wid,
+          layerIndex = li,
+          panX = tonumber(r.panX) or 0,
+          panY = tonumber(r.panY) or 0,
+          opacity = math.max(0, math.min(1, tonumber(r.opacity) or 1)),
+        }
+      end
+    end
+  end
+  clampCrtVizActiveLayerIndex(win)
+  local n = #(win.crtRefLayers or {})
+  if n > 0 then
+    local want = math.max(1, math.floor(tonumber(viz.activeLayer) or 1))
+    win.activeLayer = math.min(want, n)
+  else
+    win.activeLayer = 1
+  end
+end
+
 function AppCoreController:ensureCrtLensWindow()
   local existing = self:_getCrtLensWindow()
   if existing then
@@ -836,6 +917,7 @@ function AppCoreController:toggleCrtLensWindow()
   else
     self:setStatus("CRT layer visualizer hidden")
   end
+  self:_persistCrtLayerViz()
 end
 
 function AppCoreController:crtVizAddReference(crtWin, windowId, layerIndex)
@@ -865,6 +947,7 @@ function AppCoreController:crtVizAddReference(crtWin, windowId, layerIndex)
     targetWin.title or "(window)",
     (L and L.name) or ("layer " .. li)
   ))
+  self:_persistCrtLayerViz()
 end
 
 function AppCoreController:crtVizRemoveReferenceAt(crtWin, refIndex)
@@ -878,6 +961,7 @@ function AppCoreController:crtVizRemoveReferenceAt(crtWin, refIndex)
   table.remove(crtWin.crtRefLayers, i)
   clampCrtVizActiveLayerIndex(crtWin)
   self:setStatus("CRT viz: removed reference")
+  self:_persistCrtLayerViz()
 end
 
 function AppCoreController:showCrtLayerVizContextMenu(crtWin, x, y)
@@ -887,6 +971,31 @@ function AppCoreController:showCrtLayerVizContextMenu(crtWin, x, y)
 
   local app = self
   local wm = self.wm
+
+  local function isRefAlreadyInCrtViz(wid, layerIndex)
+    local li = math.floor(tonumber(layerIndex) or 0)
+    if li < 1 then
+      return false
+    end
+    for _, r in ipairs(crtWin.crtRefLayers or {}) do
+      if tostring(r.windowId) == tostring(wid) and math.floor(tonumber(r.layerIndex) or 0) == li then
+        return true
+      end
+    end
+    return false
+  end
+
+  local function hasAnyCrtVizLayoutWindow()
+    if not wm then
+      return false
+    end
+    for _, w in ipairs(wm:getWindows()) do
+      if WindowCaps.isCrtVizLayoutWindow(w) then
+        return true
+      end
+    end
+    return false
+  end
 
   local function buildAddWindowItems()
     local out = {}
@@ -904,32 +1013,28 @@ function AppCoreController:showCrtLayerVizContextMenu(crtWin, x, y)
     end)
     for _, w in ipairs(list) do
       local wref = w
-      out[#out + 1] = {
-        text = wref.title or ("Window " .. tostring(wref._id)),
-        children = function()
-          local layerItems = {}
-          local layers = wref.layers or {}
-          for li = 1, #layers do
-            local L = layers[li]
-            local liSnap = li
-            layerItems[#layerItems + 1] = {
-              text = (L and L.name) or ("Layer " .. li),
-              action = function()
-                app:crtVizAddReference(crtWin, wref._id, liSnap)
-              end,
-            }
-          end
-          if #layerItems == 0 then
-            return {
-              {
-                text = "(no layers)",
-                action = function() end,
-              },
-            }
-          end
-          return layerItems
-        end,
-      }
+      local layerItems = {}
+      local layers = wref.layers or {}
+      for li = 1, #layers do
+        if not isRefAlreadyInCrtViz(wref._id, li) then
+          local L = layers[li]
+          local liSnap = li
+          layerItems[#layerItems + 1] = {
+            text = (L and L.name) or ("Layer " .. li),
+            action = function()
+              app:crtVizAddReference(crtWin, wref._id, liSnap)
+            end,
+          }
+        end
+      end
+      if #layerItems > 0 then
+        out[#out + 1] = {
+          text = wref.title or ("Window " .. tostring(wref._id)),
+          children = function()
+            return layerItems
+          end,
+        }
+      end
     end
     return out
   end
@@ -1003,12 +1108,20 @@ function AppCoreController:showCrtLayerVizContextMenu(crtWin, x, y)
       text = "Add window layer",
       children = function()
         if #addWinItems == 0 then
+          if not hasAnyCrtVizLayoutWindow() then
+            return {
+              {
+                text = "(No layout windows)",
+                action = function()
+                  app:setStatus("Open a layout window (not palette or CHR) to reference a layer")
+                end,
+              },
+            }
+          end
           return {
             {
-              text = "(No layout windows)",
-              action = function()
-                app:setStatus("Open a layout window (not palette or CHR) to reference a layer")
-              end,
+              text = "(All layers are already in this list)",
+              action = function() end,
             },
           }
         end
@@ -1020,6 +1133,14 @@ function AppCoreController:showCrtLayerVizContextMenu(crtWin, x, y)
       enabled = #removeWinItems > 0,
       children = function()
         return removeWinItems
+      end,
+    },
+    {
+      text = "Remove current layer",
+      enabled = #(crtWin.crtRefLayers or {}) > 0,
+      action = function()
+        local idx = crtWin.getActiveLayerIndex and crtWin:getActiveLayerIndex() or 1
+        app:crtVizRemoveReferenceAt(crtWin, idx)
       end,
     },
   }

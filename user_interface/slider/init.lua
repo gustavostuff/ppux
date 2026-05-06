@@ -158,9 +158,14 @@ end
 function Slider:draw()
   local tx, ty, tw, th = self:_trackGeometry()
   local cx = self:_thumbCenterX()
-  local thumbX = math.floor(cx - THUMB_W / 2)
-  local thumbY = math.floor(self.y + (self.h - TRACK_H) / 2 - 1)
-  local thumbH = TRACK_H + 2
+  local thumbW = THUMB_W
+  local thumbRectH = TRACK_H + 2
+  if self.enabled and (self.hovered or self.dragging) then
+    thumbW = THUMB_W + 4
+    thumbRectH = thumbRectH + 3
+  end
+  local thumbX = math.floor(cx - thumbW / 2)
+  local thumbY = math.floor(self.y + (self.h - thumbRectH) * 0.5)
 
   local trackBg = self.enabled and colors.gray10 or colors.gray20
   local fillTo = cx
@@ -178,13 +183,10 @@ function Slider:draw()
   local thumbBg = colors.white
   if not self.enabled then
     thumbBg = colors.gray50
-  elseif self.hovered or self.dragging then
-    love.graphics.setColor(0, 0, 0, 0.15)
-    love.graphics.rectangle("fill", self.x, self.y, self.w, self.h, 2, 2)
   end
 
   love.graphics.setColor(thumbBg[1], thumbBg[2], thumbBg[3], thumbBg[4] or 1)
-  love.graphics.rectangle("fill", thumbX, thumbY, THUMB_W, thumbH, 2, 2)
+  love.graphics.rectangle("fill", thumbX, thumbY, thumbW, thumbRectH, 2, 2)
 
   local label = self:_valueLabel()
   local font = love.graphics.getFont()

@@ -16,6 +16,12 @@ describe("settings_controller.lua - defaults", function()
       crtFilterKind = "crt",
       crtDistortion = 0.1,
       crtCanvasResolution = "640x360",
+      crtLayerViz = {
+        visible = false,
+        distortion = 0.1,
+        activeLayer = 1,
+        refs = {},
+      },
       recentProjects = {},
     })
   end)

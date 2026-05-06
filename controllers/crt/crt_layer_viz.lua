@@ -49,7 +49,25 @@ function M.resolveLayerDrawable(app, wm, ref)
 
   if layer.kind == "canvas" and layer.canvas then
     local c = layer.canvas
-    return c, c:getWidth(), c:getHeight()
+    -- Love Canvas/Image expose getWidth/getHeight. PixelCanvas stores .width/.height and draws via .image.
+    if type(c.getWidth) == "function" and type(c.getHeight) == "function" then
+      local w, h = c:getWidth(), c:getHeight()
+      if type(w) == "number" and type(h) == "number" and w > 0 and h > 0 then
+        return c, w, h
+      end
+    end
+    if c.ensureImage then
+      c:ensureImage()
+    end
+    if c._imageDirty and c.refreshImage then
+      c:refreshImage()
+    end
+    local pw = tonumber(c.width) or tonumber(layer.canvasWidth)
+    local ph = tonumber(c.height) or tonumber(layer.canvasHeight)
+    if c.image and pw and ph and pw > 0 and ph > 0 then
+      return c.image, pw, ph
+    end
+    return nil, 0, 0
   end
 
   if WindowCaps.isPpuFrame(win) and win._ensureNametableLayerCanvasState then
@@ -77,9 +95,14 @@ function M.resolveLayerDrawable(app, wm, ref)
 end
 
 function M.refAllowsPan(app, wm, ref)
-  local _, sw, sh = M.resolveLayerDrawable(app, wm, ref)
+  local canvas, sw, sh = M.resolveLayerDrawable(app, wm, ref)
   if sw <= 0 or sh <= 0 then
     return false
+  end
+  -- Without a resolved drawable we often fall back to full grid size (e.g. 256×240); that made
+  -- layerAllowsPan false and blocked panning for small layers until a tile cache existed.
+  if not canvas then
+    return true
   end
   return M.layerAllowsPan(sw, sh)
 end

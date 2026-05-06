@@ -427,6 +427,9 @@ function AppCoreController:load()
   if self.ensureCrtLensWindow then
     self:ensureCrtLensWindow()
   end
+  if self._applyCrtLayerVizFromSettings then
+    self:_applyCrtLayerVizFromSettings(settings)
+  end
 end
 
 function AppCoreController:setCrtModeEnabled(enabled)

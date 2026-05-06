@@ -11,7 +11,7 @@ function CrtLensWindow.new(x, y, zoom, data)
   data = data or {}
   local cellW, cellH = 8, 8
   local cols, rows = 32, 30
-  local self = Window.new(x, y, cellW, cellH, cols, rows, zoom or 2, {
+  local self = Window.new(x, y, cellW, cellH, cols, rows, zoom or 1, {
     title = data.title or "CRT layer visualizer",
     resizable = false,
     visibleCols = cols,
@@ -27,6 +27,9 @@ function CrtLensWindow.new(x, y, zoom, data)
 
   --- Each entry: { windowId, layerIndex, panX = 0, panY = 0, opacity = 1 }
   self.crtRefLayers = {}
+
+  --- Optional barrel distortion for this viewer only (falls back to global CRT distortion).
+  self.crtVizDistortion = nil
 
   return self
 end
@@ -63,6 +66,10 @@ function CrtLensWindow:setActiveLayerIndex(i)
     self.activeLayer = i
     if self.specializedToolbar and self.specializedToolbar.triggerLayerLabelFlash then
       self.specializedToolbar:triggerLayerLabelFlash()
+    end
+    local app = _G.ctx and _G.ctx.app
+    if app and app._persistCrtLayerViz then
+      app:_persistCrtLayerViz()
     end
   end
 end
@@ -135,7 +142,14 @@ end
 
 function CrtLensWindow:mousereleased(x, y, button)
   if button == 1 then
+    local hadPan = self._crtPanDrag ~= nil
     self._crtPanDrag = nil
+    if hadPan then
+      local app = _G.ctx and _G.ctx.app
+      if app and app._persistCrtLayerViz then
+        app:_persistCrtLayerViz()
+      end
+    end
   end
   Window.mousereleased(self, x, y, button)
 end
