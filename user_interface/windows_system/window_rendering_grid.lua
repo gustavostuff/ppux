@@ -1,9 +1,38 @@
 local colors = require("app_colors")
 local CanvasSpace = require("utils.canvas_space")
 local SpriteController = require("controllers.sprite.sprite_controller")
+local SpriteHydrationController = require("controllers.sprite.hydration_controller")
 local images = require("images")
 
 return function(Window)
+local function nesMod(v, m)
+  local mm = tonumber(m) or 1
+  if mm <= 0 then
+    return 0
+  end
+  return ((tonumber(v) or 0) % mm + mm) % mm
+end
+
+--- NES sprite position in pixels before applying layer origin + torus wrap.
+--- When ROM-backed bases exist, uses baseX/Y + dx/dy (editor offset from ROM); otherwise worldX/Y / x/y.
+local function spriteWorldPixelsBeforeOrigin(s)
+  if not s then
+    return 0, 0
+  end
+  local dx = math.floor(tonumber(s.dx) or 0)
+  local dy = math.floor(tonumber(s.dy) or 0)
+  local bx = s.baseX
+  local by = s.baseY
+  if type(bx) == "number" and type(by) == "number" then
+    return math.floor(bx + dx + 0.5), math.floor(by + dy + 0.5)
+  end
+  local wx = tonumber(s.worldX)
+  local wy = tonumber(s.worldY)
+  if wx == nil then wx = tonumber(s.x) end
+  if wy == nil then wy = tonumber(s.y) end
+  return math.floor((wx or 0) + 0.5), math.floor((wy or 0) + 0.5)
+end
+
 local function intersectsRange(startPos, size, minPos, maxPos)
   local a0 = startPos
   local a1 = startPos + size
@@ -106,6 +135,110 @@ local function drawConcatenatedDottedGuides(axisX, axisY)
   end
 
   return true
+end
+
+--- Rasterize one sprite layer into the current canvas (0,0 origin, full cols×rows pixels). Used by CRT viz export.
+local function paintSpriteLayerRasterContent(self, L, romRaw, wpx, hpx)
+  local items = L.items
+  if not (items and #items > 0) then
+    return
+  end
+
+  local cw = self.cellW or 8
+  local ch = self.cellH or 8
+  local originX = L.originX or 0
+  local originY = L.originY or 0
+  local mode = L.mode or "8x8"
+  local spriteW = cw
+  local spriteH = (mode == "8x16") and (2 * ch) or ch
+
+  local NES_W = SpriteController.SPRITE_X_RANGE
+  local NES_H = SpriteController.SPRITE_Y_RANGE
+
+  local isActiveLayer = true
+  local layerOpacity = (L.opacity ~= nil) and L.opacity or 1.0
+
+  local viewMinX = 0
+  local viewMinY = 0
+  local viewMaxX = wpx
+  local viewMaxY = hpx
+  local wrapPreview = (self.kind == "oam_animation")
+
+  for _, s in ipairs(items) do
+    if s.removed == true then
+      goto crt_continue
+    end
+
+    local wx, wy = spriteWorldPixelsBeforeOrigin(s)
+
+    local drawX = nesMod(originX + wx, NES_W)
+    local drawY = nesMod(originY + wy, NES_H)
+
+    local drawXs = wrapPreview
+      and collectWrappedPositions(drawX, spriteW, NES_W, viewMinX, viewMaxX)
+      or { drawX }
+    local drawYs = wrapPreview
+      and collectWrappedPositions(drawY, spriteH, NES_H, viewMinY, viewMaxY)
+      or { drawY }
+
+    for _, screenY in ipairs(drawYs) do
+      for _, screenX in ipairs(drawXs) do
+        love.graphics.push()
+        love.graphics.translate(screenX, screenY)
+        drawDefaultSpriteBody(L, s, isActiveLayer, cw, ch, mode, layerOpacity, romRaw)
+        love.graphics.pop()
+      end
+    end
+    ::crt_continue::
+  end
+end
+
+function Window:ensureCrtSpriteExportCanvas(app, layerIndex)
+  local li = tonumber(layerIndex) or 1
+  local L = self.layers and self.layers[li]
+  if not (L and L.kind == "sprite") then
+    return nil, 0, 0
+  end
+
+  local state = app and app.appEditState
+  SpriteHydrationController.hydrateSpriteLayer(L, {
+    romRaw = state and state.romRaw or "",
+    tilesPool = state and state.tilesPool,
+    appEditState = state,
+  })
+
+  local cw, ch = self.cellW or 8, self.cellH or 8
+  local NES_W = SpriteController.SPRITE_X_RANGE
+  local NES_H = SpriteController.SPRITE_Y_RANGE
+  local gridW = math.max(1, (self.cols or 1) * cw)
+  local gridH = math.max(1, (self.rows or 1) * ch)
+  -- Match NES sprite plane height (256); a 240px-tall grid clips Y ∈ [240,255].
+  local wpx = math.max(gridW, NES_W)
+  local hpx = math.max(gridH, NES_H)
+
+  self._crtSpriteExportCanvasByLayer = self._crtSpriteExportCanvasByLayer or {}
+  local slot = self._crtSpriteExportCanvasByLayer
+  local entry = slot[li]
+  local canvas = entry and entry.canvas
+  if not canvas or canvas:getWidth() ~= wpx or canvas:getHeight() ~= hpx then
+    if canvas then
+      canvas:release()
+    end
+    canvas = love.graphics.newCanvas(wpx, hpx)
+    canvas:setFilter("nearest", "nearest")
+    slot[li] = { canvas = canvas }
+  end
+
+  local romRaw = app and app.appEditState and app.appEditState.romRaw
+
+  love.graphics.push("all")
+  love.graphics.setCanvas(canvas)
+  love.graphics.clear(0, 0, 0, 0)
+  love.graphics.origin()
+  paintSpriteLayerRasterContent(self, L, romRaw, wpx, hpx)
+  love.graphics.pop()
+
+  return canvas, wpx, hpx
 end
 
 function Window:drawLinesGrid()
@@ -251,11 +384,10 @@ function Window:drawSprites(renderSprite, isFocused, layerIndex, romRaw)
     end
     local top = s.topRef
     if top and top.draw then
-      local worldX = s.worldX or s.baseX or s.x or 0
-      local worldY = s.worldY or s.baseY or s.y or 0
+      local wx, wy = spriteWorldPixelsBeforeOrigin(s)
 
-      local drawX = (originX + worldX) % NES_W
-      local drawY = (originY + worldY) % NES_H
+      local drawX = nesMod(originX + wx, NES_W)
+      local drawY = nesMod(originY + wy, NES_H)
 
       local drawXs = wrapPreview
         and collectWrappedPositions(drawX, spriteW, NES_W, viewMinX, viewMaxX)

@@ -90,6 +90,15 @@ function M.resolveLayerDrawable(app, wm, ref)
     end
   end
 
+  if layer.kind == "sprite" and app and win.ensureCrtSpriteExportCanvas then
+    if WindowCaps.isAnimationLike(win) or WindowCaps.isPpuFrame(win) then
+      local sc, sw, sh = win:ensureCrtSpriteExportCanvas(app, li)
+      if sc and sw > 0 and sh > 0 then
+        return sc, sw, sh
+      end
+    end
+  end
+
   local cw, ch = win.cellW or 8, win.cellH or 8
   return nil, math.max(1, (win.cols or 1) * cw), math.max(1, (win.rows or 1) * ch)
 end

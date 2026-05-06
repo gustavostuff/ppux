@@ -940,7 +940,12 @@ function AppCoreController:crtVizAddReference(crtWin, windowId, layerIndex)
     panY = 0,
     opacity = 1.0,
   })
-  clampCrtVizActiveLayerIndex(crtWin)
+  if crtWin.setActiveLayerIndex then
+    crtWin:setActiveLayerIndex(#crtWin.crtRefLayers)
+  else
+    crtWin.activeLayer = #crtWin.crtRefLayers
+    clampCrtVizActiveLayerIndex(crtWin)
+  end
   local L = targetWin.layers[li]
   self:setStatus(string.format(
     "CRT viz + %s · %s",
@@ -958,8 +963,24 @@ function AppCoreController:crtVizRemoveReferenceAt(crtWin, refIndex)
   if not i or i < 1 or i > #crtWin.crtRefLayers then
     return
   end
+  local n = #crtWin.crtRefLayers
   table.remove(crtWin.crtRefLayers, i)
-  clampCrtVizActiveLayerIndex(crtWin)
+  local newN = #crtWin.crtRefLayers
+  local nextIdx = 1
+  if newN > 0 then
+    -- Prefer the ref that was "below" the removed slot (next index); if we removed the last entry, take the one above.
+    if i < n then
+      nextIdx = i
+    else
+      nextIdx = i - 1
+    end
+  end
+  if crtWin.setActiveLayerIndex then
+    crtWin:setActiveLayerIndex(nextIdx)
+  else
+    crtWin.activeLayer = nextIdx
+    clampCrtVizActiveLayerIndex(crtWin)
+  end
   self:setStatus("CRT viz: removed reference")
   self:_persistCrtLayerViz()
 end
