@@ -17,6 +17,12 @@ local images = require("images")
 local CanvasSpace = require("utils.canvas_space")
 local ChrCanvasOnlyMode = require("controllers.chr.chr_canvas_only_mode")
 local CrtLayerViz = require("controllers.crt.crt_layer_viz")
+local UiScale = require("user_interface.ui_scale")
+
+--- Drop-shadow mask offset defaults (pixels, code-only). Positive X → right, Y → down.
+--- Override at runtime: app.windowShadowOffsetX / app.windowShadowOffsetY.
+local WINDOW_SHADOW_OFFSET_X = 3
+local WINDOW_SHADOW_OFFSET_Y = 3
 
 local function drawEmptyStatePrompt(app)
   if app:hasLoadedROM() then return end
@@ -469,6 +475,298 @@ end
 
 local function isAnimationKind(win)
   return WindowCaps.isAnimationLike(win)
+end
+
+local shadowMaskCanvas = nil
+local shadowBlurTempCanvas = nil
+local shadowCanvasW = 0
+local shadowCanvasH = 0
+
+local SHADOW_BLUR_ZERO_EPS = 1e-5
+
+local shadowBlurHShaderCached = nil
+local shadowBlurVShaderCached = nil
+local shadowBlurShadersAttempted = false
+
+local shadowMaskCompositeShaderCached = nil
+local shadowMaskCompositeShaderAttempted = false
+
+local function normalizedWindowShadowBlurT(app)
+  local blurT = tonumber(app.windowShadowBlur)
+  if blurT == nil then
+    blurT = 0.2
+  end
+  return math.max(0, math.min(1, blurT))
+end
+
+local function resolveShadowBlurShaders()
+  if shadowBlurShadersAttempted then
+    return shadowBlurHShaderCached, shadowBlurVShaderCached
+  end
+  shadowBlurShadersAttempted = true
+  local ok = pcall(require, "shaders")
+  if not ok then
+    return nil, nil
+  end
+  shadowBlurHShaderCached = rawget(_G, "windowShadowBlurHShader")
+  shadowBlurVShaderCached = rawget(_G, "windowShadowBlurVCompositeShader")
+  return shadowBlurHShaderCached, shadowBlurVShaderCached
+end
+
+local function resolveWindowShadowMaskCompositeShader()
+  if shadowMaskCompositeShaderAttempted then
+    return shadowMaskCompositeShaderCached
+  end
+  shadowMaskCompositeShaderAttempted = true
+  local ok = pcall(require, "shaders")
+  if not ok then
+    return nil
+  end
+  shadowMaskCompositeShaderCached = rawget(_G, "windowShadowMaskCompositeShader")
+  return shadowMaskCompositeShaderCached
+end
+
+local function ensureShadowMaskCanvases(app)
+  local cw = app.canvas:getWidth()
+  local ch = app.canvas:getHeight()
+  if shadowMaskCanvas and shadowBlurTempCanvas and shadowCanvasW == cw and shadowCanvasH == ch then
+    return true
+  end
+  if shadowMaskCanvas then
+    shadowMaskCanvas:release()
+    shadowMaskCanvas = nil
+  end
+  if shadowBlurTempCanvas then
+    shadowBlurTempCanvas:release()
+    shadowBlurTempCanvas = nil
+  end
+  shadowCanvasW = cw
+  shadowCanvasH = ch
+  shadowMaskCanvas = love.graphics.newCanvas(cw, ch)
+  shadowBlurTempCanvas = love.graphics.newCanvas(cw, ch)
+  if shadowMaskCanvas and shadowBlurTempCanvas then
+    shadowMaskCanvas:setFilter("linear", "linear")
+    shadowBlurTempCanvas:setFilter("linear", "linear")
+    shadowMaskCanvas:setWrap("clamp", "clamp")
+    shadowBlurTempCanvas:setWrap("clamp", "clamp")
+    return true
+  end
+  return false
+end
+
+--- Header + content only (no toolbar). Collapsed → header strip.
+--- Geometry matches window_rendering_chrome.drawHeader: header fill is (hx-1, hy, hw+2, hh), not (cx, cy, cw, ·).
+local function computeWindowChromeShadowRect(w)
+  if w._collapsed and type(w.getHeaderRect) == "function" then
+    local hx, hy, hw, hh = w:getHeaderRect()
+    return hx - 1, hy, hw + 2, hh
+  end
+
+  local cx, cy, cw, ch = w:getScreenRect()
+  local hx, hy, hw, hh = w:getHeaderRect()
+  local left = hx - 1
+  local right = cx + cw + 1
+  local width = right - left
+  local height = (cy + ch) - hy
+  return left, hy, width, height
+end
+
+--- Specialized toolbar bounds when docked on the window (narrow strip above header). Nil if N/A.
+local function computeSpecializedToolbarShadowRect(app, w, wm)
+  if w._collapsed then
+    return nil
+  end
+  local isFocused = wm and wm.getFocus and (w == wm:getFocus())
+  if not isFocused or app.separateToolbar == true then
+    return nil
+  end
+  local tb = w.specializedToolbar
+  if not tb then
+    return nil
+  end
+  if tb.updateIcons then
+    tb:updateIcons()
+  end
+  if tb.updatePosition then
+    tb:updatePosition()
+  end
+  local drawX = (tonumber(tb.x) or 0) - 1
+  local drawY = tonumber(tb.y) or 0
+  local drawW = math.max(0, tonumber(tb.w) or 0)
+  local drawH = math.max(0, tonumber(tb.h) or 0)
+  if drawW <= 0 or drawH <= 0 then
+    return nil
+  end
+  return drawX, drawY, drawW, drawH
+end
+
+local function shadowRoundedRadiusForRect(ww, wh)
+  local cell = UiScale.menuCellSize()
+  local radius = math.min(4, math.floor(cell * 0.25))
+  radius = math.min(radius, math.floor(math.min(ww, wh) * 0.5))
+  return radius
+end
+
+--- Pixel offset for the drop-shadow mask (defaults above; optional app overrides).
+local function windowShadowPixelOffsets(app)
+  local ox = WINDOW_SHADOW_OFFSET_X
+  local oy = WINDOW_SHADOW_OFFSET_Y
+  if app then
+    if app.windowShadowOffsetX ~= nil then
+      ox = tonumber(app.windowShadowOffsetX) or ox
+    end
+    if app.windowShadowOffsetY ~= nil then
+      oy = tonumber(app.windowShadowOffsetY) or oy
+    end
+  end
+  return ox, oy
+end
+
+--- Hard-edged rounded rects into the shadow mask (overlap stays opaque via max blend).
+local function drawHardShadowRoundedFill(x, y, ww, wh)
+  local r = shadowRoundedRadiusForRect(ww, wh)
+  love.graphics.rectangle("fill", x, y, ww, wh, r, r)
+end
+
+local function drawHardShadowRectsForWindow(app, w, wm)
+  local ox, oy = windowShadowPixelOffsets(app)
+  local cx, cy, cw, ch = computeWindowChromeShadowRect(w)
+  drawHardShadowRoundedFill(cx + ox, cy + oy, cw, ch)
+
+  local tx, ty, tw, th = computeSpecializedToolbarShadowRect(app, w, wm)
+  if tx then
+    drawHardShadowRoundedFill(tx + ox, ty + oy, tw, th)
+  end
+end
+
+--- Used only when blur slider > 0 (separable Gaussian). At blur 0 we skip blur passes entirely.
+local function computeShadowBlurSigma(app)
+  local cell = UiScale.menuCellSize()
+  local blurT = normalizedWindowShadowBlurT(app)
+  local featherMax = math.max(22, math.floor(cell * 2.0))
+  -- Map blurT 0→1 to sigma min→max. Do not floor at a large "featherMin": the old
+  -- featherMin + (featherMax - featherMin) * blurT made any tiny blurT land near
+  -- featherMin * 0.38 (~1+ px sigma), so the first slider tick looked heavily blurred.
+  local sigmaMax = math.min(featherMax * 0.38, 12)
+  local sigmaMin = 0.25
+  return sigmaMin + (sigmaMax - sigmaMin) * blurT
+end
+
+local function computeShadowCompositeAlpha(app)
+  local themeLight = app.themeMode == "light"
+  local baseAlpha = themeLight and 0.26 or 0.4
+  local strength = tonumber(app.windowShadowStrength)
+  if strength == nil then
+    strength = 1
+  end
+  strength = math.max(0, math.min(1, strength))
+  return baseAlpha * strength
+end
+
+--- Hard mask → separable blur → single premultiplied composite (no extra darkening where silhouettes overlap).
+local function drawAllWindowShadows(app)
+  if app.windowShadowEnabled == false then
+    return
+  end
+
+  local strength = tonumber(app.windowShadowStrength)
+  if strength == nil then
+    strength = 1
+  end
+  strength = math.max(0, math.min(1, strength))
+  if strength <= 0 then
+    return
+  end
+
+  local blurT = normalizedWindowShadowBlurT(app)
+  local useGaussianBlur = blurT > SHADOW_BLUR_ZERO_EPS
+
+  local blurH, blurV
+  local maskComposite
+  if useGaussianBlur then
+    blurH, blurV = resolveShadowBlurShaders()
+    if not blurH or not blurV then
+      return
+    end
+  else
+    maskComposite = resolveWindowShadowMaskCompositeShader()
+    if not maskComposite then
+      return
+    end
+  end
+
+  if not ensureShadowMaskCanvases(app) then
+    return
+  end
+
+  local wm = app.wm
+  if not wm or not wm.getWindows then
+    return
+  end
+
+  local cw, ch = shadowCanvasW, shadowCanvasH
+  local sigma = useGaussianBlur and computeShadowBlurSigma(app) or 0
+  local shadowAlpha = computeShadowCompositeAlpha(app)
+
+  love.graphics.push("all")
+  love.graphics.origin()
+  love.graphics.setScissor()
+  if love.graphics.setDepthMode then
+    love.graphics.setDepthMode("always", false)
+  end
+
+  love.graphics.setCanvas(shadowMaskCanvas)
+  love.graphics.clear(0, 0, 0, 0)
+  if not pcall(function()
+    love.graphics.setBlendMode("max", "premultiplied")
+  end) then
+    love.graphics.setBlendMode("alpha", "premultiplied")
+  end
+  love.graphics.setColor(1, 1, 1, 1)
+  for _, w in ipairs(wm:getWindows()) do
+    if not w or w._closed or w._minimized or w._groupHidden == true then
+      goto shadow_continue
+    end
+    if WindowCaps.isCrtLens(w) then
+      goto shadow_continue
+    end
+    drawHardShadowRectsForWindow(app, w, wm)
+    ::shadow_continue::
+  end
+  love.graphics.setBlendMode("alpha", "alphamultiply")
+
+  if useGaussianBlur then
+    love.graphics.setCanvas(shadowBlurTempCanvas)
+    love.graphics.clear(0, 0, 0, 0)
+    love.graphics.setShader(blurH)
+    blurH:send("textureSize", { cw, ch })
+    blurH:send("sigma", sigma)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(shadowMaskCanvas, 0, 0)
+    love.graphics.setShader()
+
+    love.graphics.setCanvas(app.canvas)
+    love.graphics.setShader(blurV)
+    blurV:send("textureSize", { cw, ch })
+    blurV:send("sigma", sigma)
+    blurV:send("shadowAlpha", shadowAlpha)
+    love.graphics.setBlendMode("alpha", "premultiplied")
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(shadowBlurTempCanvas, 0, 0)
+    love.graphics.setShader()
+    love.graphics.setBlendMode("alpha", "alphamultiply")
+  else
+    love.graphics.setCanvas(app.canvas)
+    love.graphics.setShader(maskComposite)
+    maskComposite:send("shadowAlpha", shadowAlpha)
+    love.graphics.setBlendMode("alpha", "premultiplied")
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(shadowMaskCanvas, 0, 0)
+    love.graphics.setShader()
+    love.graphics.setBlendMode("alpha", "alphamultiply")
+  end
+
+  love.graphics.pop()
 end
 
 local crtLensDrawShaderCached = nil
@@ -1323,7 +1621,10 @@ function AppCoreController:draw()
   end
 
   local bg = colors:appWorkspaceFill()
-  love.graphics.clear(bg[1], bg[2], bg[3], 1)
+  -- Canvas uses depth/stencil; clear those too so UI draws are not partially rejected.
+  love.graphics.clear(bg[1], bg[2], bg[3], 1, true, true)
+
+  drawAllWindowShadows(self)
 
   -- Windows use full-canvas coordinates (y includes the top toolbar strip height).
   drawWindows(self)

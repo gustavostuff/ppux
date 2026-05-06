@@ -583,8 +583,155 @@ function AppCoreController:_applySeparateToolbarSetting(enabled, saveSetting)
   return self.separateToolbar
 end
 
+function AppCoreController:_getWindowShadowEnabledForSettings()
+  if self.windowShadowEnabled ~= nil then
+    return self.windowShadowEnabled == true
+  end
+  local settings = AppSettingsController.load()
+  return settings and settings.windowShadowEnabled ~= false
+end
+
+function AppCoreController:_applyWindowShadowSetting(enabled, saveSetting)
+  self.windowShadowEnabled = (enabled == true)
+  if saveSetting ~= false then
+    AppSettingsController.save({ windowShadowEnabled = self.windowShadowEnabled })
+  end
+  if self._windowShadowBlurSlider then
+    self._windowShadowBlurSlider:setEnabled(self.windowShadowEnabled == true)
+  end
+  if self._windowShadowStrengthSlider then
+    self._windowShadowStrengthSlider:setEnabled(self.windowShadowEnabled == true)
+  end
+  if self._refreshSettingsModalIfOpen then
+    self:_refreshSettingsModalIfOpen()
+  end
+  return self.windowShadowEnabled
+end
+
+function AppCoreController:_getWindowShadowBlurForSettings()
+  if type(self.windowShadowBlur) == "number" then
+    return AppSettingsController.normalizeWindowShadowBlur(self.windowShadowBlur)
+  end
+  local settings = AppSettingsController.load()
+  return AppSettingsController.normalizeWindowShadowBlur(settings and settings.windowShadowBlur)
+end
+
+function AppCoreController:_applyWindowShadowBlurSetting(value, saveSetting)
+  local n = AppSettingsController.normalizeWindowShadowBlur(value)
+  self.windowShadowBlur = n
+  if saveSetting ~= false then
+    AppSettingsController.save({ windowShadowBlur = n })
+  end
+  return n
+end
+
+function AppCoreController:_ensureSettingsWindowShadowBlurSlider()
+  if self._windowShadowBlurSlider then
+    return
+  end
+  local Slider = require("user_interface.slider")
+  local appRef = self
+  self._windowShadowBlurSlider = Slider.new({
+    min = 0,
+    max = 1,
+    value = 0.2,
+    tooltip = "Soft edge falloff for window shadows (0 = crisp, 100 = softest)",
+    onChange = function(v)
+      appRef:_applyWindowShadowBlurSetting(v, false)
+    end,
+    onCommit = function(v)
+      AppSettingsController.save({
+        windowShadowBlur = AppSettingsController.normalizeWindowShadowBlur(v),
+      })
+    end,
+  })
+end
+
+function AppCoreController:_ensureSettingsCanvasFilterDropdown()
+  if self._canvasFilterDropdown then
+    return
+  end
+  local appRef = self
+  self._canvasFilterDropdownItems = {
+    {
+      value = 1,
+      text = "Sharp",
+      onPick = function()
+        appRef:_applyDisplayFilterDropdownMode(1, true)
+      end,
+    },
+    {
+      value = 2,
+      text = "Soft",
+      onPick = function()
+        appRef:_applyDisplayFilterDropdownMode(2, true)
+      end,
+    },
+  }
+  self._canvasFilterDropdown = Dropdown.new({
+    getBounds = function()
+      return { w = appRef.canvas:getWidth(), h = appRef.canvas:getHeight() }
+    end,
+    default = appRef:_getDisplayFilterDropdownMode(),
+    tooltip = "Sharp or soft scaling when stretching the workspace to the window",
+    items = self._canvasFilterDropdownItems,
+  })
+end
+
+function AppCoreController:_syncSettingsCanvasFilterDropdown()
+  local dd = self._canvasFilterDropdown
+  if not dd or not self._canvasFilterDropdownItems then
+    return
+  end
+  dd:setGetBounds(function()
+    return { w = self.canvas:getWidth(), h = self.canvas:getHeight() }
+  end)
+  dd._defaultSpec = self:_getDisplayFilterDropdownMode()
+  dd:setItems(self._canvasFilterDropdownItems)
+end
+
+function AppCoreController:_getWindowShadowStrengthForSettings()
+  if type(self.windowShadowStrength) == "number" then
+    return AppSettingsController.normalizeWindowShadowStrength(self.windowShadowStrength)
+  end
+  local settings = AppSettingsController.load()
+  return AppSettingsController.normalizeWindowShadowStrength(settings and settings.windowShadowStrength)
+end
+
+function AppCoreController:_applyWindowShadowStrengthSetting(value, saveSetting)
+  local n = AppSettingsController.normalizeWindowShadowStrength(value)
+  self.windowShadowStrength = n
+  if saveSetting ~= false then
+    AppSettingsController.save({ windowShadowStrength = n })
+  end
+  return n
+end
+
+function AppCoreController:_ensureSettingsWindowShadowStrengthSlider()
+  if self._windowShadowStrengthSlider then
+    return
+  end
+  local Slider = require("user_interface.slider")
+  local appRef = self
+  self._windowShadowStrengthSlider = Slider.new({
+    min = 0,
+    max = 1,
+    value = 0.5,
+    tooltip = "Shadow opacity relative to the theme baseline (0% = invisible)",
+    onChange = function(v)
+      appRef:_applyWindowShadowStrengthSetting(v, false)
+    end,
+    onCommit = function(v)
+      AppSettingsController.save({
+        windowShadowStrength = AppSettingsController.normalizeWindowShadowStrength(v),
+      })
+    end,
+  })
+end
+
 function AppCoreController:_refreshSettingsModalIfOpen()
   if self.settingsModal and self.settingsModal.isVisible and self.settingsModal:isVisible() then
+    self:_syncSettingsCanvasFilterDropdown()
     ModalPanelUtils.refreshTargetMetrics(self.settingsModal)
     if self.settingsModal._rebuildRows then
       self.settingsModal:_rebuildRows()
@@ -887,6 +1034,9 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
   self:_applyCanvasFilterSetting(D.canvasFilter, false)
   self:_applyPaletteLinksSetting(D.paletteLinks, false)
   self:_applySeparateToolbarSetting(D.separateToolbar, false)
+  self:_applyWindowShadowSetting(D.windowShadowEnabled == true, false)
+  self:_applyWindowShadowBlurSetting(D.windowShadowBlur, false)
+  self:_applyWindowShadowStrengthSetting(D.windowShadowStrength, false)
   self:_applyGroupedPaletteWindowsSetting(D.groupedPaletteWindows, false)
   self:_applyCrtFilterKindSetting(D.crtFilterKind, false)
   self:_applyCrtModeSetting(D.crtEnabled == true, false)
@@ -900,6 +1050,9 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
     canvasFilter = D.canvasFilter,
     paletteLinks = D.paletteLinks,
     separateToolbar = D.separateToolbar,
+    windowShadowEnabled = D.windowShadowEnabled,
+    windowShadowBlur = D.windowShadowBlur,
+    windowShadowStrength = D.windowShadowStrength,
     groupedPaletteWindows = D.groupedPaletteWindows,
     crtEnabled = D.crtEnabled,
     crtFilterKind = D.crtFilterKind,
@@ -910,6 +1063,15 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
     recentProjects = recentProjects,
     skipSplash = skipSplash,
   })
+  if self._windowShadowBlurSlider then
+    self._windowShadowBlurSlider:setValue(self:_getWindowShadowBlurForSettings(), { silent = true })
+  end
+  if self._windowShadowStrengthSlider then
+    self._windowShadowStrengthSlider:setValue(self:_getWindowShadowStrengthForSettings(), { silent = true })
+  end
+  if self._refreshSettingsModalIfOpen then
+    self:_refreshSettingsModalIfOpen()
+  end
 end
 
 function AppCoreController:showSettingsModal()
@@ -921,6 +1083,17 @@ function AppCoreController:showSettingsModal()
   self:_ensureSettingsCrtCurveSlider()
   self._crtCurveSlider:setValue(self:_getCrtDistortionForSettings(), { silent = true })
   self._crtCurveSlider:setEnabled(self.crtModeEnabled == true and self.crtFilterKind ~= "composite")
+
+  self:_ensureSettingsWindowShadowBlurSlider()
+  self._windowShadowBlurSlider:setValue(self:_getWindowShadowBlurForSettings(), { silent = true })
+  self._windowShadowBlurSlider:setEnabled(self.windowShadowEnabled ~= false)
+
+  self:_ensureSettingsWindowShadowStrengthSlider()
+  self._windowShadowStrengthSlider:setValue(self:_getWindowShadowStrengthForSettings(), { silent = true })
+  self._windowShadowStrengthSlider:setEnabled(self.windowShadowEnabled ~= false)
+
+  self:_ensureSettingsCanvasFilterDropdown()
+  self:_syncSettingsCanvasFilterDropdown()
 
   self.settingsModal:show({
     title = "Settings",
@@ -960,36 +1133,6 @@ function AppCoreController:showSettingsModal()
               appRef:_applyGroupedPaletteWindowsSetting(enabled, true)
             end,
           },
-        },
-        {
-          id = "display_filter",
-          label = "Filter",
-          dropdown = Dropdown.new({
-            getBounds = function()
-              return {
-                w = appRef.canvas:getWidth(),
-                h = appRef.canvas:getHeight(),
-              }
-            end,
-            default = appRef:_getDisplayFilterDropdownMode(),
-            tooltip = "Sharp or soft scaling when stretching the workspace to the window",
-            items = {
-              {
-                value = 1,
-                text = "Sharp",
-                onPick = function()
-                  appRef:_applyDisplayFilterDropdownMode(1, true)
-                end,
-              },
-              {
-                value = 2,
-                text = "Soft",
-                onPick = function()
-                  appRef:_applyDisplayFilterDropdownMode(2, true)
-                end,
-              },
-            },
-          }),
         },
       }
       if appRef.crtModeEnabled then
@@ -1048,6 +1191,9 @@ function AppCoreController:showSettingsModal()
     onResetAll = function()
       appRef:resetSettingsModalPreferencesToDefaults()
     end,
+    windowShadowBlurSlider = appRef._windowShadowBlurSlider,
+    windowShadowStrengthSlider = appRef._windowShadowStrengthSlider,
+    canvasFilterDropdown = appRef._canvasFilterDropdown,
   })
 end
 

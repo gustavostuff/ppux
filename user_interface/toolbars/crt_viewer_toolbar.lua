@@ -68,9 +68,6 @@ function CrtViewerToolbar.new(window, ctx, windowController)
         app:_persistCrtLayerViz()
       end
     end,
-    formatValue = function(v)
-      return string.format("%.2f", v)
-    end,
   })
 
   self:updatePosition()
@@ -102,13 +99,12 @@ function CrtViewerToolbar:contains(px, py)
   if not sl then
     return false
   end
-  --- Slider draws a numeric label past `sl.w`; widen hit area.
-  return px >= sl.x and px <= sl.x + sl.w + 44 and py >= sl.y and py <= sl.y + sl.h
+  return sl:contains(px, py)
 end
 
 function CrtViewerToolbar:getTooltipAt(px, py)
   local sl = self.distortionSlider
-  if sl and sl.enabled and px >= sl.x and px <= sl.x + sl.w + 44 and py >= sl.y and py <= sl.y + sl.h then
+  if sl and sl.enabled and sl:contains(px, py) then
     local tip = sl.tooltip or ""
     if tip ~= "" then
       return {

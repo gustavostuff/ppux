@@ -197,7 +197,8 @@ function Window:drawResizeHandle(isFocused, scaledMouse)
       local focusColor = colors:focusedChromeColor()
       love.graphics.setColor(focusColor)
     else
-      love.graphics.setColor(colors:chromeBackgroundUnfocused())
+      -- Match window workspace fill (Appearance “BG”); masks are grayscale × tint.
+      love.graphics.setColor(colors:appWorkspaceFill())
     end
 
     love.graphics.draw(handleImage, hx, hy)

@@ -1,15 +1,17 @@
 -- Simple horizontal value slider (track + thumb) for modal panels.
 
 local colors = require("app_colors")
-local Text = require("utils.text_utils")
 local UiScale = require("user_interface.ui_scale")
 
 local Slider = {}
 Slider.__index = Slider
 
 local TRACK_H = 6
-local THUMB_W = 8
+--- Square thumb; hover grows by 1px on each side (8 → 10); reserve max size for track layout.
+local THUMB_SIZE = 8
+local THUMB_MAX_SIDE = THUMB_SIZE + 2
 local PADDING_Y = 2
+local PADDING_X = 7
 
 local function clamp(x, a, b)
   if x < a then return a end
@@ -38,7 +40,6 @@ function Slider.new(opts)
     tooltip = opts.tooltip or "",
     onChange = opts.onChange,
     onCommit = opts.onCommit,
-    formatValue = opts.formatValue,
   }, Slider)
   return self
 end
@@ -85,8 +86,9 @@ function Slider:setSize(w, h)
 end
 
 function Slider:_trackGeometry()
-  local tw = math.max(1, self.w - THUMB_W)
-  local tx = self.x + math.floor(THUMB_W / 2)
+  local innerW = math.max(1, self.w - 2 * PADDING_X)
+  local tw = math.max(1, innerW - THUMB_MAX_SIDE)
+  local tx = self.x + PADDING_X + math.floor(THUMB_MAX_SIDE / 2)
   local ty = self.y + math.floor((self.h - TRACK_H) * 0.5)
   return tx, ty, tw, TRACK_H
 end
@@ -148,53 +150,35 @@ function Slider:mousemoved(mx, my)
   end
 end
 
-function Slider:_valueLabel()
-  if type(self.formatValue) == "function" then
-    return self.formatValue(self.value)
-  end
-  return string.format("%.2f", self.value)
-end
-
 function Slider:draw()
   local tx, ty, tw, th = self:_trackGeometry()
   local cx = self:_thumbCenterX()
-  local thumbW = THUMB_W
-  local thumbRectH = TRACK_H + 2
+  local thumbSide = THUMB_SIZE
   if self.enabled and (self.hovered or self.dragging) then
-    thumbW = THUMB_W + 4
-    thumbRectH = thumbRectH + 3
+    thumbSide = THUMB_MAX_SIDE
   end
-  local thumbX = math.floor(cx - thumbW / 2)
-  local thumbY = math.floor(self.y + (self.h - thumbRectH) * 0.5)
+  local thumbX = math.floor(cx - thumbSide / 2)
+  local thumbY = math.floor(self.y + (self.h - thumbSide) * 0.5)
 
-  local trackBg = self.enabled and colors.gray10 or colors.gray20
-  local fillTo = cx
-  love.graphics.setColor(trackBg[1], trackBg[2], trackBg[3], trackBg[4] or 1)
+  local ink = self.enabled and colors:chromeTextIconsColorFocused()
+    or colors:chromeTextIconsColorNonFocused()
+  local ia = ink[4] or 1
+
+  love.graphics.setColor(ink[1], ink[2], ink[3], ia * 0.32)
   love.graphics.rectangle("fill", tx, ty, tw, th, 2, 2)
 
+  local fillTo = cx
   if self.enabled then
-    love.graphics.setColor(colors.yellow[1], colors.yellow[2], colors.yellow[3], 0.55)
+    love.graphics.setColor(ink[1], ink[2], ink[3], ia * 0.62)
     local fillW = math.max(0, fillTo - tx)
     if fillW > 0 then
       love.graphics.rectangle("fill", tx, ty, fillW, th, 2, 2)
     end
   end
 
-  local thumbBg = colors.white
-  if not self.enabled then
-    thumbBg = colors.gray50
-  end
+  love.graphics.setColor(ink[1], ink[2], ink[3], ia)
+  love.graphics.rectangle("fill", thumbX, thumbY, thumbSide, thumbSide, 2, 2)
 
-  love.graphics.setColor(thumbBg[1], thumbBg[2], thumbBg[3], thumbBg[4] or 1)
-  love.graphics.rectangle("fill", thumbX, thumbY, thumbW, thumbRectH, 2, 2)
-
-  local label = self:_valueLabel()
-  local font = love.graphics.getFont()
-  local fh = font and font:getHeight() or 10
-  local textY = math.floor(self.y + (self.h - fh) * 0.5)
-  local textX = math.floor(tx + tw + 6)
-  local textColor = self.enabled and colors.white or colors.gray50
-  Text.print(label, textX, textY, { color = textColor })
   love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
 end
 

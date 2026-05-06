@@ -6,6 +6,91 @@ grayScaleShader = love.graphics.newShader[[
 	}
 ]]
 
+--- Soft drop shadow: rounded-rectangle silhouette with outward Gaussian-like falloff (no texture sampling).
+windowShadowShader = love.graphics.newShader([[
+  uniform vec4 shadowShape;
+  uniform float cornerRadius;
+  uniform float feather;
+  uniform vec4 shadowColor;
+
+  float udRoundRect(vec2 p, vec2 halfSize, float r) {
+    vec2 q = abs(p) - halfSize + vec2(r);
+    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
+  }
+
+  vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
+    vec2 p = screen_coords;
+    vec2 center = shadowShape.xy + shadowShape.zw * 0.5;
+    vec2 halfSize = shadowShape.zw * 0.5;
+    float r = max(cornerRadius, 0.0);
+    float d = udRoundRect(p - center, halfSize, r);
+    float outDist = max(d, 0.0);
+    float vis = 1.0 - smoothstep(0.0, max(feather, 1.0), outDist);
+    float a = shadowColor.a * vis;
+    return vec4(shadowColor.rgb * a, a);
+  }
+]])
+
+--- Horizontal separable Gaussian blur for shadow mask (scalar opacity; avoids RGB fringe bias).
+windowShadowBlurHShader = love.graphics.newShader([[
+  uniform vec2 textureSize;
+  uniform float sigma;
+
+  float maskCov(Image tex, vec2 tc) {
+    vec4 t = Texel(tex, tc);
+    return clamp(t.a, 0.0, 1.0);
+  }
+
+  vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+    vec2 px = vec2(1.0 / textureSize.x, 1.0 / textureSize.y);
+    float sum = 0.0;
+    float wsum = 0.0;
+    for (int i = -14; i <= 14; i++) {
+      float fi = float(i);
+      float wf = exp(-(fi * fi) / max(2.0 * sigma * sigma, 1e-4));
+      sum += maskCov(tex, tc + vec2(fi * px.x, 0.0)) * wf;
+      wsum += wf;
+    }
+    float m = sum / max(wsum, 1e-6);
+    return vec4(m, m, m, m);
+  }
+]])
+
+--- Vertical Gaussian blur of horizontally blurred mask; composite premultiplied black shadow.
+windowShadowBlurVCompositeShader = love.graphics.newShader([[
+  uniform vec2 textureSize;
+  uniform float sigma;
+  uniform float shadowAlpha;
+
+  vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+    vec2 px = vec2(1.0 / textureSize.x, 1.0 / textureSize.y);
+    float sum = 0.0;
+    float wsum = 0.0;
+    for (int i = -14; i <= 14; i++) {
+      float fi = float(i);
+      float wf = exp(-(fi * fi) / max(2.0 * sigma * sigma, 1e-4));
+      vec4 t = Texel(tex, tc + vec2(0.0, fi * px.y));
+      float mh = clamp(t.a, 0.0, 1.0);
+      sum += mh * wf;
+      wsum += wf;
+    }
+    float m = sum / max(wsum, 1e-6);
+    float a = clamp(m * shadowAlpha, 0.0, 1.0);
+    return vec4(0.0, 0.0, 0.0, a);
+  }
+]])
+
+--- Premultiplied black from raw shadow mask (blur slider at 0 — no Gaussian passes).
+windowShadowMaskCompositeShader = love.graphics.newShader([[
+  uniform float shadowAlpha;
+
+  vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+    float m = clamp(Texel(tex, tc).a, 0.0, 1.0);
+    float a = m * shadowAlpha;
+    return vec4(0.0, 0.0, 0.0, a);
+  }
+]])
+
 darkerImageShader = love.graphics.newShader[[
 	vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
 		// Sample the texture color

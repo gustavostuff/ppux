@@ -418,6 +418,9 @@ function Dialog.new()
     onResetAll = nil,
     pressedResetAll = nil,
     _settingsTabbedChrome = true,
+    _windowShadowBlurSlider = nil,
+    _windowShadowStrengthSlider = nil,
+    _canvasFilterDropdown = nil,
   }, Dialog)
 
   ModalPanelUtils.applyPanelDefaults(self)
@@ -631,10 +634,13 @@ function Dialog:show(opts)
   self.getSeparateToolbar = opts.getSeparateToolbar
   self.extraRows = opts.extraRows
   self._getExtraRows = opts.getExtraRows
-    self.getAppearanceChromeRgb = opts.getAppearanceChromeRgb
-    self.onAppearanceChromeChange = opts.onAppearanceChromeChange
-    self.onResetAll = opts.onResetAll
-    self.visible = true
+  self.getAppearanceChromeRgb = opts.getAppearanceChromeRgb
+  self.onAppearanceChromeChange = opts.onAppearanceChromeChange
+  self.onResetAll = opts.onResetAll
+  self._windowShadowBlurSlider = opts.windowShadowBlurSlider
+  self._windowShadowStrengthSlider = opts.windowShadowStrengthSlider
+  self._canvasFilterDropdown = opts.canvasFilterDropdown
+  self.visible = true
   self.pressedButton = nil
   self._activeTabId = "general"
   self._appearanceNeedsPickerSync = true
@@ -661,7 +667,7 @@ function Dialog:_defaultRows()
   local tooltipsEnabled = not (self.getTooltipsEnabled and self.getTooltipsEnabled() == false)
   local theme = normalizeThemeKey(self.getTheme and self.getTheme() or nil)
 
-  return {
+  local rows = {
     {
       id = "tooltips_enabled",
       label = "Tooltips",
@@ -702,6 +708,31 @@ function Dialog:_defaultRows()
       },
     },
   }
+
+  if self._canvasFilterDropdown then
+    rows[#rows + 1] = {
+      id = "canvas_filter",
+      label = "Canvas filter",
+      dropdown = self._canvasFilterDropdown,
+    }
+  end
+
+  if self._windowShadowBlurSlider then
+    rows[#rows + 1] = {
+      id = "window_shadow_blur",
+      label = "Shadow blur",
+      component = self._windowShadowBlurSlider,
+    }
+  end
+  if self._windowShadowStrengthSlider then
+    rows[#rows + 1] = {
+      id = "window_shadow_strength",
+      label = "Shadow strength",
+      component = self._windowShadowStrengthSlider,
+    }
+  end
+
+  return rows
 end
 
 function Dialog:_normalizeRows(rowSpecs)

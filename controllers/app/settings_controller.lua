@@ -15,6 +15,12 @@ local DEFAULT_SETTINGS = {
   canvasFilter = "sharp",
   paletteLinks = "auto_hide",
   separateToolbar = false,
+  --- Soft blurred drop shadow behind each window (shader).
+  windowShadowEnabled = true,
+  --- 0 = sharp edge, 1 = softest falloff (maps to feather range in pixels).
+  windowShadowBlur = 0.2,
+  --- Opacity multiplier for drop shadows (0–100% of theme base).
+  windowShadowStrength = 0.5,
   groupedPaletteWindows = false,
   crtEnabled = false,
   crtFilterKind = "crt",
@@ -98,6 +104,22 @@ end
 local function normalizeThemeKey(key)
   if key == "light" then return "light" end
   return "dark"
+end
+
+local function normalizeWindowShadowBlur(n)
+  local v = tonumber(n)
+  if v == nil then
+    return 0.2
+  end
+  return math.max(0, math.min(1, v))
+end
+
+local function normalizeWindowShadowStrength(n)
+  local v = tonumber(n)
+  if v == nil then
+    return 0.5
+  end
+  return math.max(0, math.min(1, v))
 end
 
 local function normalizePaletteLinksKey(key)
@@ -257,6 +279,9 @@ local function withDefaults(data)
   out.canvasFilter = normalizeCanvasFilterKey(data and data.canvasFilter)
   out.paletteLinks = normalizePaletteLinksKey(data and data.paletteLinks)
   out.separateToolbar = (data and data.separateToolbar == true)
+  out.windowShadowEnabled = not (data and data.windowShadowEnabled == false)
+  out.windowShadowBlur = normalizeWindowShadowBlur(data and data.windowShadowBlur)
+  out.windowShadowStrength = normalizeWindowShadowStrength(data and data.windowShadowStrength)
   out.groupedPaletteWindows = (data and data.groupedPaletteWindows == true)
   out.crtEnabled = (data and data.crtEnabled == true)
   out.crtFilterKind = normalizeCrtFilterKind(data and data.crtFilterKind)
@@ -328,6 +353,9 @@ function AppSettingsController.save(opts)
   if opts.canvasFilter ~= nil then data.canvasFilter = opts.canvasFilter end
   if opts.paletteLinks ~= nil then data.paletteLinks = normalizePaletteLinksKey(opts.paletteLinks) end
   if opts.separateToolbar ~= nil then data.separateToolbar = (opts.separateToolbar == true) end
+  if opts.windowShadowEnabled ~= nil then data.windowShadowEnabled = (opts.windowShadowEnabled == true) end
+  if opts.windowShadowBlur ~= nil then data.windowShadowBlur = normalizeWindowShadowBlur(opts.windowShadowBlur) end
+  if opts.windowShadowStrength ~= nil then data.windowShadowStrength = normalizeWindowShadowStrength(opts.windowShadowStrength) end
   if opts.groupedPaletteWindows ~= nil then data.groupedPaletteWindows = (opts.groupedPaletteWindows == true) end
   if opts.crtEnabled ~= nil then data.crtEnabled = (opts.crtEnabled == true) end
   if opts.crtFilterKind ~= nil then data.crtFilterKind = normalizeCrtFilterKind(opts.crtFilterKind) end
@@ -351,6 +379,14 @@ function AppSettingsController.save(opts)
     data.appearanceChrome = normalizeAppearanceChrome(merged)
   end
   return writeFile(data)
+end
+
+function AppSettingsController.normalizeWindowShadowStrength(n)
+  return normalizeWindowShadowStrength(n)
+end
+
+function AppSettingsController.normalizeWindowShadowBlur(n)
+  return normalizeWindowShadowBlur(n)
 end
 
 function AppSettingsController.normalizeRecentProjects(list)
