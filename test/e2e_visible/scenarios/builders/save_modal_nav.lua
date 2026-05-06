@@ -170,10 +170,9 @@ end
 
 local function buildModalNavigationKeyboardOnlyScenario(harness, app, runner)
   harness:loadROM(BubbleExample.getLoadPath())
-  local bankWindow = BubbleExample.prepareBankWindow(
-    assert(BubbleExample.findBankWindow(app), "expected CHR bank window")
-  )
-  local originalBankTitle = tostring(bankWindow.title or "")
+  -- CHR bank windows use titleLocked + dynamic Bank n/m titles; rename modal is disabled for them.
+  local renameTarget = assert(BubbleExample.findStaticWindow(app), "expected static art window for rename demo")
+  local originalRenameTitle = tostring(renameTarget.title or "")
 
   local function repeatKey(steps, labelPrefix, key, count, mods, pauseSeconds)
     for i = 1, count do
@@ -218,16 +217,16 @@ local function buildModalNavigationKeyboardOnlyScenario(harness, app, runner)
   steps[#steps + 1] = pause("Pause after new window modal", 0.25)
 
   steps[#steps + 1] = call("Open rename window modal", function(_, currentApp)
-    currentApp:showRenameWindowModal(bankWindow)
+    currentApp:showRenameWindowModal(renameTarget)
   end)
   steps[#steps + 1] = pause("Observe rename modal", 0.55)
-  repeatKey(steps, "Backspace rename title", "backspace", #originalBankTitle, nil, 0.02)
+  repeatKey(steps, "Backspace rename title", "backspace", #originalRenameTitle, nil, 0.02)
   steps[#steps + 1] = textInput("Type renamed window title", "CHR KB")
   steps[#steps + 1] = pause("Observe typed rename title", 0.4)
   steps[#steps + 1] = keyPress("Confirm rename with Enter", "return")
   steps[#steps + 1] = pause("Observe renamed window title", 0.55)
   steps[#steps + 1] = call("Assert rename applied", function()
-    assert(bankWindow.title == "CHR KB", string.format("expected renamed bank window title, got %s", tostring(bankWindow.title)))
+    assert(renameTarget.title == "CHR KB", string.format("expected renamed window title, got %s", tostring(renameTarget.title)))
   end)
 
   steps[#steps + 1] = call("Open generic actions modal", function(_, currentApp, currentRunner)
