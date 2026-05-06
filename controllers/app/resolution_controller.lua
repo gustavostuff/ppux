@@ -281,6 +281,102 @@ function ResolutionController:renderCanvas()
   end
 end
 
+local CRT_LENS_NES_W = 256
+local CRT_LENS_NES_H = 240
+
+function ResolutionController:_ensureCrtLensScratchCanvas()
+  if self._crtLensScratch
+    and self._crtLensScratch:getWidth() == CRT_LENS_NES_W
+    and self._crtLensScratch:getHeight() == CRT_LENS_NES_H
+  then
+    return self._crtLensScratch
+  end
+  if self._crtLensScratch then
+    self._crtLensScratch:release()
+    self._crtLensScratch = nil
+  end
+  self._crtLensScratch = love.graphics.newCanvas(CRT_LENS_NES_W, CRT_LENS_NES_H)
+  self._crtLensScratch:setFilter("linear", "linear")
+  return self._crtLensScratch
+end
+
+--- Map workspace canvas pixel rect to on-screen rect (uses slice viewport when low-res CRT presentation is active).
+function ResolutionController:workspaceRectToScreen(x, y, w, h)
+  local sx0, sy0 = self.canvasX, self.canvasY
+  local scx, scy = self.canvasScaleX, self.canvasScaleY
+  if self.crtLowResPresentation == true and self.canvasCrtShaderEnabled == true then
+    local vx = self.crtViewportX or 0
+    local vy = self.crtViewportY or 0
+    return sx0 + (x - vx) * scx, sy0 + (y - vy) * scy, w * scx, h * scy
+  end
+  return sx0 + x * scx, sy0 + y * scy, w * scx, h * scy
+end
+
+--- After renderCanvas: draw CRT-filtered regions from the finished workspace canvas (samples 256×240 NES-equivalent, presents at scaled screen size).
+function ResolutionController:renderCrtLensOverlays(app)
+  if not (app and app.canvas and app.wm) then
+    return
+  end
+  local crtShader = resolveCrtShader()
+  if not crtShader then
+    return
+  end
+  local WindowCaps = require("controllers.window.window_capabilities")
+  local scratch = self:_ensureCrtLensScratchCanvas()
+  if not scratch then
+    return
+  end
+
+  local canvas = app.canvas
+  local cw = canvas:getWidth()
+  local ch = canvas:getHeight()
+
+  local dist = self.canvasCrtFlat and 0
+    or ((type(app.crtDistortionSetting) == "number") and app.crtDistortionSetting or self:getCanvasCrtDistortion() or 0.1)
+
+  for _, win in ipairs(app.wm:getWindows()) do
+    if not WindowCaps.isCrtLens(win)
+      or not win._crtLensVisible
+      or win._closed
+      or win._minimized
+      or win._groupHidden == true
+    then
+      goto crt_lens_continue
+    end
+
+    local sx, sy, sw, sh = win:getScreenRect()
+    if sw <= 0 or sh <= 0 then
+      goto crt_lens_continue
+    end
+    if sx >= cw or sy >= ch or sx + sw <= 0 or sy + sh <= 0 then
+      goto crt_lens_continue
+    end
+
+    love.graphics.setCanvas(scratch)
+    love.graphics.clear(0, 0, 0, 0)
+    love.graphics.setColor(1, 1, 1, 1)
+    local quad = love.graphics.newQuad(sx, sy, sw, sh, cw, ch)
+    love.graphics.draw(canvas, quad, 0, 0, 0, CRT_LENS_NES_W / sw, CRT_LENS_NES_H / sh)
+    love.graphics.setCanvas()
+
+    local screenX, screenY, screenW, screenH = self:workspaceRectToScreen(sx, sy, sw, sh)
+
+    crtShader:send("inputSize", { CRT_LENS_NES_W, CRT_LENS_NES_H })
+    crtShader:send("textureSize", { CRT_LENS_NES_W, CRT_LENS_NES_H })
+    crtShader:send("outputSize", { screenW, screenH })
+    crtShader:send("distortion", dist)
+
+    love.graphics.setShader(crtShader)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(scratch, screenX, screenY, 0, screenW / CRT_LENS_NES_W, screenH / CRT_LENS_NES_H)
+    love.graphics.setShader()
+
+    ::crt_lens_continue::
+  end
+
+  love.graphics.setColor(1, 1, 1, 1)
+end
+
 function ResolutionController:setCanvasCrtShaderEnabled(enabled)
   self.canvasCrtShaderEnabled = (enabled == true)
 end

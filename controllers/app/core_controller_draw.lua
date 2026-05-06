@@ -470,73 +470,70 @@ local function isAnimationKind(win)
   return WindowCaps.isAnimationLike(win)
 end
 
-local NES_W = 256
-local NES_H = 240
+local function drawCrtLensWindowChromeOnly(app, w, wm)
+  PaletteLinkRenderController.drawSourcePaletteProxyForWindow(app, w)
 
-local crtLensShaderLoadAttempted = false
-local cachedCrtLensShader = nil
+  local isFocused = (w == wm:getFocus())
+  local isCollapsed = w._collapsed or false
 
-local function resolveCrtLensShader()
-  if cachedCrtLensShader ~= nil or crtLensShaderLoadAttempted then
-    return cachedCrtLensShader
-  end
-  crtLensShaderLoadAttempted = true
-  local ok = pcall(require, "shaders")
-  if not ok then
-    return nil
-  end
-  cachedCrtLensShader = rawget(_G, "crtShader")
-  return cachedCrtLensShader
-end
-
-local function ensureCrtUnderlayCanvas(app)
-  local canvas = app.canvas
-  if not canvas then
-    return nil
-  end
-  local w, h = canvas:getWidth(), canvas:getHeight()
-  local u = app._crtUnderlayCanvas
-  if not u or u:getWidth() ~= w or u:getHeight() ~= h then
-    if app._crtUnderlayCanvas then
-      app._crtUnderlayCanvas:release()
+  if isCollapsed then
+    w:drawHeader(isFocused)
+    if w.headerToolbar then
+      w.headerToolbar:draw()
     end
-    app._crtUnderlayCanvas = love.graphics.newCanvas(w, h)
-    app._crtUnderlayCanvas:setFilter("linear", "linear")
+    return
   end
-  return app._crtUnderlayCanvas
+
+  -- Content is composited from windows below; CRT filter is drawn after renderCanvas on the default framebuffer.
+  w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true))
+  w:drawScrollBars(isFocused)
+
+  if w.drawSelectionOverlays then
+    w:drawSelectionOverlays(isFocused)
+  end
+
+  w:drawLayerLabelInContent(isFocused)
+
+  w:drawBorder(isFocused)
+
+  if w.specializedToolbar
+    and not (app.separateToolbar == true and w == wm:getFocus()) then
+    w.specializedToolbar:draw()
+  end
+
+  w:drawHeader(isFocused)
+
+  if w.headerToolbar then
+    w.headerToolbar:draw()
+  end
 end
 
-local function ensureCrtLensScratchCanvas(app)
-  local c = app._crtLensScratchCanvas
-  if not c or c:getWidth() ~= NES_W or c:getHeight() ~= NES_H then
-    if app._crtLensScratchCanvas then
-      app._crtLensScratchCanvas:release()
-    end
-    app._crtLensScratchCanvas = love.graphics.newCanvas(NES_W, NES_H)
-    app._crtLensScratchCanvas:setFilter("linear", "linear")
-  end
-  return app._crtLensScratchCanvas
-end
+-- Forward declaration: drawWindows calls this; a later `local function` would be out of scope here (Lua resolves it as global).
+local drawNormalWindow
 
-local function anyVisibleCrtLens(app)
+local function drawWindows(app)
   local wm = app.wm
-  if not wm then
-    return false
-  end
+
   for _, w in ipairs(wm:getWindows()) do
-    if WindowCaps.isCrtLens(w)
-      and w._crtLensVisible
-      and not w._closed
-      and not w._minimized
-      and w._groupHidden ~= true
-    then
-      return true
+    if w._closed or w._minimized or w._groupHidden == true then
+      goto continue
     end
+
+    if WindowCaps.isCrtLens(w) then
+      if not w._crtLensVisible then
+        goto continue
+      end
+      drawCrtLensWindowChromeOnly(app, w, wm)
+      goto continue
+    end
+
+    drawNormalWindow(app, w, wm)
+
+    ::continue::
   end
-  return false
 end
 
-local function drawNormalWindow(app, w, wm)
+drawNormalWindow = function(app, w, wm)
   PaletteLinkRenderController.drawSourcePaletteProxyForWindow(app, w)
 
   local isFocused   = (w == wm:getFocus())
@@ -659,127 +656,6 @@ local function drawNormalWindow(app, w, wm)
 
   if w.headerToolbar then
     w.headerToolbar:draw()
-  end
-end
-
-local function drawCrtLensWindow(app, w, wm, underlayCanvas)
-  PaletteLinkRenderController.drawSourcePaletteProxyForWindow(app, w)
-
-  local isFocused = (w == wm:getFocus())
-  local isCollapsed = w._collapsed or false
-
-  if isCollapsed then
-    w:drawHeader(isFocused)
-    if w.headerToolbar then
-      w.headerToolbar:draw()
-    end
-    return
-  end
-
-  local sx, sy, sw, sh = w:getScreenRect()
-  if sw > 0 and sh > 0 and underlayCanvas then
-    local scratch = ensureCrtLensScratchCanvas(app)
-    local uw = underlayCanvas:getWidth()
-    local uh = underlayCanvas:getHeight()
-    if scratch and uw > 0 and uh > 0 then
-      love.graphics.setCanvas(scratch)
-      love.graphics.clear(0, 0, 0, 0)
-      local quad = love.graphics.newQuad(sx, sy, sw, sh, uw, uh)
-      love.graphics.setColor(1, 1, 1, 1)
-      love.graphics.draw(underlayCanvas, quad, 0, 0, 0, NES_W / sw, NES_H / sh)
-      love.graphics.setCanvas({ app.canvas, depthstencil = true })
-
-      local shader = resolveCrtLensShader()
-      local dist = ResolutionController.canvasCrtFlat and 0
-        or ((type(app.crtDistortionSetting) == "number") and app.crtDistortionSetting or ResolutionController:getCanvasCrtDistortion() or 0.1)
-
-      if shader then
-        love.graphics.setShader(shader)
-        shader:send("inputSize", { NES_W, NES_H })
-        shader:send("outputSize", { sw, sh })
-        shader:send("textureSize", { NES_W, NES_H })
-        shader:send("distortion", dist)
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.draw(scratch, sx, sy, 0, sw / NES_W, sh / NES_H)
-        love.graphics.setShader()
-      else
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.draw(scratch, sx, sy, 0, sw / NES_W, sh / NES_H)
-      end
-      love.graphics.setColor(colors.white)
-    end
-  end
-
-  w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true))
-  w:drawScrollBars(isFocused)
-
-  if w.drawSelectionOverlays then
-    w:drawSelectionOverlays(isFocused)
-  end
-
-  w:drawLayerLabelInContent(isFocused)
-
-  w:drawBorder(isFocused)
-
-  if w.specializedToolbar
-    and not (app.separateToolbar == true and w == wm:getFocus()) then
-    w.specializedToolbar:draw()
-  end
-
-  w:drawHeader(isFocused)
-
-  if w.headerToolbar then
-    w.headerToolbar:draw()
-  end
-end
-
-local function buildCrtLensUnderlay(app, wm)
-  local u = ensureCrtUnderlayCanvas(app)
-  if not u then
-    return nil
-  end
-  -- Toolbar/header drawing uses love.graphics.stencil; Love 11+ requires stencil when binding Canvas.
-  love.graphics.setCanvas({ u, stencil = true })
-  local bg = colors:appWorkspaceFill()
-  love.graphics.clear(bg[1], bg[2], bg[3], 1)
-  for _, w in ipairs(wm:getWindows()) do
-    if w._closed or w._minimized or w._groupHidden == true then
-      goto underlay_continue
-    end
-    if WindowCaps.isCrtLens(w) and w._crtLensVisible then
-      goto underlay_continue
-    end
-    drawNormalWindow(app, w, wm)
-    ::underlay_continue::
-  end
-  love.graphics.setCanvas({ app.canvas, depthstencil = true })
-  return u
-end
-
-local function drawWindows(app)
-  local wm = app.wm
-
-  local underlayCanvas = nil
-  if anyVisibleCrtLens(app) then
-    underlayCanvas = buildCrtLensUnderlay(app, wm)
-  end
-
-  for _, w in ipairs(wm:getWindows()) do
-    if w._closed or w._minimized or w._groupHidden == true then
-      goto continue
-    end
-
-    if WindowCaps.isCrtLens(w) then
-      if not w._crtLensVisible then
-        goto continue
-      end
-      drawCrtLensWindow(app, w, wm, underlayCanvas)
-      goto continue
-    end
-
-    drawNormalWindow(app, w, wm)
-
-    ::continue::
   end
 end
 
@@ -1331,7 +1207,8 @@ function AppCoreController:draw()
     CursorsController.draw(self)
     love.graphics.setCanvas()
     love.graphics.setColor(colors.white)
-    ResolutionController:renderCanvas(self.canvas)
+    ResolutionController:renderCanvas()
+    ResolutionController:renderCrtLensOverlays(self)
     if self.showDebugInfo then
       drawHUD(self)
     end
@@ -1367,7 +1244,8 @@ function AppCoreController:draw()
   love.graphics.setCanvas()
   love.graphics.setColor(colors.white)
 
-  ResolutionController:renderCanvas(self.canvas)
+  ResolutionController:renderCanvas()
+  ResolutionController:renderCrtLensOverlays(self)
   if self.showDebugInfo then
     drawHUD(self)
   end
