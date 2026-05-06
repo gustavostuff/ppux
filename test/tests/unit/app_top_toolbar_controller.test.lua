@@ -24,12 +24,11 @@ describe("app_top_toolbar_controller.lua", function()
     AppTopToolbarController.syncLayout(app)
     local newButton = app._appTopQuickButtons.newWindow
     local openButton = app._appTopQuickButtons.open
-    local crtLensButton = app._appTopQuickButtons.crtLens
     local saveButton = app._appTopQuickButtons.save
     expect(openButton).toBeTruthy()
     expect(newButton.x).toBe(0)
     expect(openButton.x > newButton.x).toBe(true)
-    expect(crtLensButton.x > openButton.x).toBe(true)
+    expect(app._appTopQuickButtons.crtLens).toBe(nil)
     expect(saveButton.x).toBe(0)
 
     local clickX = openButton.x + math.floor(openButton.w * 0.5)
@@ -39,7 +38,7 @@ describe("app_top_toolbar_controller.lua", function()
     expect(warningStatus).toBe(nil)
   end)
 
-  it("keeps New first and orders Open / CRT lens / Save when project is loaded", function()
+  it("keeps New first and orders Open / Save / … when project is loaded", function()
     local app = {
       canvas = {
         getWidth = function() return 640 end,
@@ -62,7 +61,6 @@ describe("app_top_toolbar_controller.lua", function()
     AppTopToolbarController.syncLayout(app)
     local newButton = app._appTopQuickButtons.newWindow
     local openButton = app._appTopQuickButtons.open
-    local crtLensButton = app._appTopQuickButtons.crtLens
     local saveButton = app._appTopQuickButtons.save
     local cloneButton = app._appTopQuickButtons.cloneWindow
     local zoomOutButton = app._appTopQuickButtons.zoomOut
@@ -73,10 +71,10 @@ describe("app_top_toolbar_controller.lua", function()
     local cutButton = app._appTopQuickButtons.cut
     local pasteButton = app._appTopQuickButtons.paste
 
+    expect(app._appTopQuickButtons.crtLens).toBe(nil)
     expect(newButton.x).toBe(0)
     expect(openButton.x > newButton.x).toBe(true)
-    expect(crtLensButton.x > openButton.x).toBe(true)
-    expect(saveButton.x > crtLensButton.x).toBe(true)
+    expect(saveButton.x > openButton.x).toBe(true)
     expect(copyButton.x > saveButton.x).toBe(true)
     expect(cutButton.x > copyButton.x).toBe(true)
     expect(pasteButton.x > cutButton.x).toBe(true)
@@ -88,8 +86,7 @@ describe("app_top_toolbar_controller.lua", function()
 
     local inferredGap = openButton.x - (newButton.x + newButton.w)
     expect(openButton.x).toBe(newButton.x + newButton.w + inferredGap)
-    expect(crtLensButton.x).toBe(openButton.x + openButton.w + inferredGap)
-    expect(saveButton.x).toBe(crtLensButton.x + crtLensButton.w + inferredGap)
+    expect(saveButton.x).toBe(openButton.x + openButton.w + inferredGap)
     expect(copyButton.x).toBe(saveButton.x + saveButton.w + inferredGap)
     expect(cutButton.x).toBe(copyButton.x + copyButton.w + inferredGap)
     expect(pasteButton.x).toBe(cutButton.x + cutButton.w + inferredGap)

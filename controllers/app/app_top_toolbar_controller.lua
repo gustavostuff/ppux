@@ -9,6 +9,9 @@ local Text = require("utils.text_utils")
 
 local M = {}
 
+--- CRT layer visualizer entry point; hidden until the feature is stable.
+local SHOW_CRT_LENS_TOOLBAR_BUTTON = false
+
 local MIN_BAR_H = 15
 local OUTER_MARGIN = 0
 local SECTION_GAP = 0
@@ -118,19 +121,6 @@ local function ensureQuickButtons(app)
       action = function()
         if app.showOpenProjectModal then
           app:showOpenProjectModal()
-        end
-      end,
-      x = 0,
-      y = 0,
-      w = cell,
-      h = cell,
-    }),
-    crtLens = Button.new({
-      icon = images.icons.icon_crt or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
-      tooltip = "Show or hide CRT layer visualizer",
-      action = function()
-        if app.toggleCrtLensWindow then
-          app:toggleCrtLensWindow()
         end
       end,
       x = 0,
@@ -263,6 +253,22 @@ local function ensureQuickButtons(app)
       enabled = false,
     }),
   }
+
+  if SHOW_CRT_LENS_TOOLBAR_BUTTON then
+    app._appTopQuickButtons.crtLens = Button.new({
+      icon = images.icons.icon_crt or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      tooltip = "Show or hide CRT layer visualizer",
+      action = function()
+        if app.toggleCrtLensWindow then
+          app:toggleCrtLensWindow()
+        end
+      end,
+      x = 0,
+      y = 0,
+      w = cell,
+      h = cell,
+    })
+  end
 end
 
 local function hasOpenProject(app)
@@ -282,7 +288,9 @@ local function quickButtonOrder(app)
     order[#order + 1] = "addGridRow"
     order[#order + 1] = "cloneWindow"
   end
-  order[#order + 1] = "crtLens"
+  if SHOW_CRT_LENS_TOOLBAR_BUTTON then
+    order[#order + 1] = "crtLens"
+  end
   return order
 end
 
