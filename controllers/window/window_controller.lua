@@ -11,6 +11,7 @@ local SpriteController   = require("controllers.sprite.sprite_controller")
 local ToolbarController  = require("controllers.window.toolbar_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local UiScale = require("user_interface.ui_scale")
+local MouseWindowChrome = require("controllers.input.mouse_window_chrome_controller")
 
 local WM = {}
 WM.__index = WM
@@ -519,7 +520,12 @@ function WM:bringToFront(win)
 end
 
 function WM:setFocus(win)
-  if not win or win._closed or win._minimized then
+  if win == nil then
+    self.focused = nil
+    DebugController.log("info", "WM", "Focus cleared")
+    return
+  end
+  if win._closed or win._minimized then
     return
   end
   -- Grouped palette mode hides non-active source palettes; focusing one must activate that slot first.
@@ -544,14 +550,22 @@ function WM:setFocus(win)
       win.title or "untitled",
       win.kind or "normal"
     )
-  elseif win == nil then
-    self.focused = nil
-    DebugController.log("info", "WM", "Focus cleared")
   end
 end
 
 function WM:getFocus()
   return self.focused
+end
+
+function WM:getTopInteractiveSurfaceWindowAt(x, y)
+  return MouseWindowChrome.getTopInteractiveSurfaceWindowAt(x, y, self)
+end
+
+--- Clear keyboard/window focus when the click missed every window chrome/content surface (true empty workspace).
+function WM:clearFocusOnWorkspaceMiss(x, y)
+  if self:getTopInteractiveSurfaceWindowAt(x, y) == nil then
+    self:setFocus(nil)
+  end
 end
 
 function WM:windowAt(x, y)
@@ -1124,21 +1138,5 @@ function WM:createRomPaletteWindow(opts)
 
   return self:finalizeNewWindow(win)
 end
-
-----------------------------------------------------------------
--- Optional border debug draw (kept commented-out)
-----------------------------------------------------------------
--- function WM:drawBorders()
---   for _, w in ipairs(self.windows) do
---     local x, y, wpx, hpx = w:getScreenRect()
---     if w == self.focused then
---       love.graphics.setColor(0.2, 0.55, 1.0, 1) -- blue
---     else
---       love.graphics.setColor(0.6, 0.6, 0.6, 1) -- gray
---     end
---     love.graphics.rectangle("line", x + 0.5, y + 0.5, wpx - 1, hpx - 1)
---   end
---   love.graphics.setColor(1, 1, 1, 1)
--- end
 
 return WM

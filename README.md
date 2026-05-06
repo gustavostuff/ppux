@@ -102,17 +102,11 @@ Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface 
 2. **Next bank** — `Right` key
 3. **Tile layout (8x8 / 8x16)** — `M` key
 
-#### Static Art (tiles) toolbar
+#### Static Art (tiles and sprites) toolbar
 
-<img src="img/readme_images/toolbars/static_tiles_toolbar.png" alt="Static Art tiles specialized toolbar">
+<img src="img/readme_images/toolbars/static_tiles_toolbar.png" alt="Static Art tiles/sprites specialized toolbar">
 
 1. **Palette link handle** — Right click drag onto a **ROM palette** window, or from the ROM palette’s handle onto this window. Left click to link via a menu.
-
-#### Static Art (sprites) toolbar
-
-<img src="img/readme_images/toolbars/static_sprites_toolbar.png" alt="Static Art sprites specialized toolbar">
-
-1. **Palette link handle** — effectively same as Static Art for tiles
 
 #### Animation toolbar (for both sprites and tiles)
 

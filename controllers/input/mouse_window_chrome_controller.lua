@@ -71,6 +71,52 @@ function M.getTopInteractiveWindowAt(x, y, wm)
   return nil
 end
 
+--- True if (x,y) hits real chrome/content for this window (not unused padding inside the loose contains rect).
+function M.isPointOnWindowInteractiveSurface(win, x, y)
+  if not win or win._closed or win._minimized or win._groupHidden == true then
+    return false
+  end
+  if win.hitResizeHandle and win:hitResizeHandle(x, y) then
+    return true
+  end
+  if win._collapsed then
+    if win.isInHeader and win:isInHeader(x, y) then
+      return true
+    end
+    if win.headerToolbar and win.headerToolbar.contains and win.headerToolbar:contains(x, y) then
+      return true
+    end
+    return false
+  end
+  if win.isInContentArea and win:isInContentArea(x, y) then
+    return true
+  end
+  if win.isInHeader and win:isInHeader(x, y) then
+    return true
+  end
+  if win.specializedToolbar and win.specializedToolbar.contains and win.specializedToolbar:contains(x, y) then
+    return true
+  end
+  if win.headerToolbar and win.headerToolbar.contains and win.headerToolbar:contains(x, y) then
+    return true
+  end
+  return false
+end
+
+--- Front-to-back: first window whose interactive surface (content, headers, toolbars, resize handle) contains (x,y).
+function M.getTopInteractiveSurfaceWindowAt(x, y, wm)
+  local windows = wm and wm.getWindows and wm:getWindows() or {}
+  for i = #windows, 1, -1 do
+    local win = windows[i]
+    if win and not win._closed and not win._minimized and win._groupHidden ~= true then
+      if M.isPointOnWindowInteractiveSurface(win, x, y) then
+        return win
+      end
+    end
+  end
+  return nil
+end
+
 function M.findToolbarWindowAt(x, y, wm)
   local win = M.getTopInteractiveWindowAt(x, y, wm)
   if not win then

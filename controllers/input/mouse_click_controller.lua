@@ -1023,7 +1023,7 @@ function M.handleMousePressed(env, x, y, button)
 
   if chrome.handleResizeHandle(button, x, y, wm) then return true end
 
-  local win = topInteractiveWin or wm:windowAt(x, y)
+  local win = chrome.getTopInteractiveSurfaceWindowAt and chrome.getTopInteractiveSurfaceWindowAt(x, y, wm) or nil
   if chrome.handleHeaderClick(button, x, y, win, wm, {
     onWindowTitleDoubleClick = function(targetWindow)
       local app = env.ctx and env.ctx.app or nil
