@@ -8,7 +8,10 @@ function Dialog.new()
   modal.cols = 2
   modal.optionColspan = 2
   modal.optionTextFormatter = function(_, option)
-    return option and option.text or ""
+    local t = option and option.text or ""
+    t = tostring(t)
+    -- Call sites often pass "(1) Label"; strip leading "(n) " for clean buttons (keyboard shortcuts stay separate).
+    return (t:gsub("^%(%d+%)%s*", ""))
   end
   local originalShow = modal.show
   function modal:show(title, options)

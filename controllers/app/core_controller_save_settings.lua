@@ -1209,25 +1209,25 @@ function AppCoreController:showSaveOptionsModal()
 
   local options = {
     {
-      text = "Save edited ROM",
+      text = "(1) Save edited ROM",
       callback = function()
         self:saveEdited()
       end
     },
     {
-      text = "Save Lua project",
+      text = "(2) Save Lua project",
       callback = function()
         self:saveProject()
       end
     },
     {
-      text = "Save *.ppux project",
+      text = "(3) Save *.ppux project",
       callback = function()
         self:saveEncodedProject()
       end
     },
     {
-      text = "All of the above",
+      text = "(4) All of the above",
       callback = function()
         self:saveAllArtifacts()
       end

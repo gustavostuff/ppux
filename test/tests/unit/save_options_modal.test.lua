@@ -4,10 +4,10 @@ describe("save_options_modal.lua", function()
   it("renders vertical option buttons without numeric prefixes", function()
     local modal = SaveOptionsModal.new()
     modal:show("Save Options", {
-      { text = "Save edited ROM", callback = function() end },
-      { text = "Save Lua project", callback = function() end },
-      { text = "Save *.ppux project", callback = function() end },
-      { text = "All of the above", callback = function() end },
+      { text = "(1) Save edited ROM", callback = function() end },
+      { text = "(2) Save Lua project", callback = function() end },
+      { text = "(3) Save *.ppux project", callback = function() end },
+      { text = "(4) All of the above", callback = function() end },
     })
 
     expect(modal.cols).toBe(2)

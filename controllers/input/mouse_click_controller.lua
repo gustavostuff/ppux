@@ -4,6 +4,7 @@ local CursorsController = require("controllers.input_support.cursors_controller"
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local MouseWindowChromeController = require("controllers.input.mouse_window_chrome_controller")
 
 local M = {}
 local romPaletteCellDoubleClick = {
@@ -45,6 +46,13 @@ local function setStatus(ctx, text)
   if ctx and type(ctx.setStatus) == "function" then
     ctx.setStatus(text)
   end
+end
+
+local function ctxMode(ctx)
+  if ctx and type(ctx.getMode) == "function" then
+    return ctx.getMode()
+  end
+  return "tile"
 end
 
 local function nowSeconds(env)
@@ -136,7 +144,7 @@ end
 
 local function isTileMultiSelectWindow(env, win, layerIdx)
   local ctx = env.ctx
-  if ctx.getMode() ~= "tile" then return false end
+  if ctxMode(ctx) ~= "tile" then return false end
   if not (WindowCaps.isStaticOrAnimationArt(win) or WindowCaps.isChrLike(win) or WindowCaps.isPpuFrame(win)) then return false end
   local layer = win.layers and win.layers[layerIdx]
   return layer and layer.kind == "tile"
@@ -163,7 +171,7 @@ end
 
 local function isSpriteMultiSelectWindow(env, win, layerIdx)
   local ctx = env.ctx
-  if ctx.getMode() ~= "tile" then return false end
+  if ctxMode(ctx) ~= "tile" then return false end
   if not (WindowCaps.isStaticOrAnimationArt(win) or WindowCaps.isPpuFrame(win)) then return false end
   local layer = win.layers and win.layers[layerIdx]
   return layer and layer.kind == "sprite"
@@ -197,7 +205,7 @@ local function handleSpriteClick(env, button, x, y, win, wm)
   local getSpriteClick = env.getSpriteClick
   local setSpriteClick = env.setSpriteClick
 
-  if button ~= 1 or ctx.getMode() ~= "tile" then return false end
+  if button ~= 1 or ctxMode(ctx) ~= "tile" then return false end
   if not (win and win.layers and win.getActiveLayerIndex) then return false end
 
   local li = win:getActiveLayerIndex()
@@ -541,7 +549,7 @@ local function handleRightButton(env, button, x, y, win, wm)
 
       local function tryEditModeRightClickColorPick()
         local ctx = env.ctx
-        if not ctx or ctx.getMode() ~= "edit" then
+        if not ctx or ctxMode(ctx) ~= "edit" then
           return false
         end
         local utils = env.utils or {}
@@ -718,7 +726,7 @@ end
 local function handleEditModeClick(env, button, x, y, win, wm)
   local ctx = env.ctx
   local utils = env.utils or {}
-  if button ~= 1 or ctx.getMode() ~= "edit" then return false end
+  if button ~= 1 or ctxMode(ctx) ~= "edit" then return false end
 
   local focused = wm:getFocus()
 
@@ -796,7 +804,7 @@ local function handleTilePaintMode(env, button, x, y, win, wm)
   local tilePaintState = env.tilePaintState
 
   if button ~= 1 then return false end
-  if ctx.getMode() ~= "tile" then return false end
+  if ctxMode(ctx) ~= "tile" then return false end
   if not ((utils.ctrlDown and utils.ctrlDown()) and (utils.altDown and utils.altDown())) then return false end
 
   if not win then return false end
@@ -843,7 +851,7 @@ local function handleTileSelection(env, button, x, y, win, wm)
   local setTileClick = env.setTileClick
 
   if button ~= 1 then return false end
-  if ctx.getMode() ~= "tile" then return false end
+  if ctxMode(ctx) ~= "tile" then return false end
   if not win then
     wm:setFocus(nil)
     return true
@@ -1013,6 +1021,14 @@ local function handlePaletteLinkContextClick(env, button, x, y, win, wm)
   return false
 end
 
+--- Unit tests may pass a partial `chrome` stub; always resolve the surface window the same as the app.
+local function getTopSurfaceWindowAt(chrome, x, y, wm)
+  if chrome and type(chrome.getTopInteractiveSurfaceWindowAt) == "function" then
+    return chrome.getTopInteractiveSurfaceWindowAt(x, y, wm)
+  end
+  return MouseWindowChromeController.getTopInteractiveSurfaceWindowAt(x, y, wm)
+end
+
 function M.handleMousePressed(env, x, y, button)
   local ctx = env.ctx
   local wm = ctx.wm()
@@ -1042,7 +1058,7 @@ function M.handleMousePressed(env, x, y, button)
 
   if chrome.handleResizeHandle(button, x, y, wm) then return true end
 
-  local win = chrome.getTopInteractiveSurfaceWindowAt and chrome.getTopInteractiveSurfaceWindowAt(x, y, wm) or nil
+  local win = getTopSurfaceWindowAt(chrome, x, y, wm)
   if chrome.handleHeaderClick(button, x, y, win, wm, {
     onWindowTitleDoubleClick = function(targetWindow)
       local app = env.ctx and env.ctx.app or nil

@@ -21,8 +21,8 @@ local UiScale = require("user_interface.ui_scale")
 
 --- Drop-shadow mask offset defaults (pixels, code-only). Positive X → right, Y → down.
 --- Override at runtime: app.windowShadowOffsetX / app.windowShadowOffsetY.
-local WINDOW_SHADOW_OFFSET_X = 3
-local WINDOW_SHADOW_OFFSET_Y = 3
+local WINDOW_SHADOW_OFFSET_X = 2
+local WINDOW_SHADOW_OFFSET_Y = 2
 
 local function drawEmptyStatePrompt(app)
   if app:hasLoadedROM() then return end
@@ -545,7 +545,9 @@ local function ensureShadowMaskCanvases(app)
   shadowMaskCanvas = love.graphics.newCanvas(cw, ch)
   shadowBlurTempCanvas = love.graphics.newCanvas(cw, ch)
   if shadowMaskCanvas and shadowBlurTempCanvas then
-    shadowMaskCanvas:setFilter("linear", "linear")
+    -- Hard mask: nearest avoids bilinear fringe when blitting 1:1 to the blur temp canvas.
+    shadowMaskCanvas:setFilter("nearest", "nearest")
+    -- Blurred intermediate: keep linear so soft shadows composite smoothly.
     shadowBlurTempCanvas:setFilter("linear", "linear")
     shadowMaskCanvas:setWrap("clamp", "clamp")
     shadowBlurTempCanvas:setWrap("clamp", "clamp")

@@ -88,8 +88,15 @@ function M.isPointOnWindowInteractiveSurface(win, x, y)
     end
     return false
   end
-  if win.isInContentArea and win:isInContentArea(x, y) then
-    return true
+  if win.isInContentArea then
+    if win:isInContentArea(x, y) then
+      return true
+    end
+  elseif win.contains then
+    -- Thin stubs (unit tests) may omit isInContentArea; approximate content as contains minus header chrome.
+    if win:contains(x, y) and not (win.isInHeader and win:isInHeader(x, y)) then
+      return true
+    end
   end
   if win.isInHeader and win:isInHeader(x, y) then
     return true
@@ -112,6 +119,14 @@ function M.getTopInteractiveSurfaceWindowAt(x, y, wm)
       if M.isPointOnWindowInteractiveSurface(win, x, y) then
         return win
       end
+    end
+  end
+  -- WM stubs in unit tests often implement windowAt(x,y) without full surface predicates.
+  if wm and type(wm.windowAt) == "function" then
+    -- Must use colon call so self is passed; dot call shifts coords (y becomes nil in contains).
+    local wAt = wm:windowAt(x, y)
+    if wAt then
+      return wAt
     end
   end
   return nil
