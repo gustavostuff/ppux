@@ -56,6 +56,18 @@ local function hideChild(menu)
   menu.pendingChildRow = nil
 end
 
+--- Clear row/button hover on one menu panel (used when a submenu overlaps parent geometry).
+local function clearMenuPanelHover(menu)
+  if not menu or not menu.panel then
+    return
+  end
+  for _, cell in ipairs(menu.panel:_iterCells()) do
+    if cell.button then
+      cell.button.hovered = false
+    end
+  end
+end
+
 local function makeDisplayText(item)
   local text = tostring(item and item.text or "")
   if item and item.children then
@@ -546,10 +558,11 @@ function ContextualMenuController:_openChildForRow(row)
 end
 
 function ContextualMenuController:contains(px, py)
-  if self:isVisible() and self.panel and self.panel:contains(px, py) then
+  -- Submenus are painted after parents; hit-test deepest-first so overlaps behave like higher z-index.
+  if self.childMenu and self.childMenu:isVisible() and self.childMenu:contains(px, py) then
     return true
   end
-  if self.childMenu and self.childMenu:contains(px, py) then
+  if self:isVisible() and self.panel and self.panel:contains(px, py) then
     return true
   end
   return false
@@ -589,10 +602,10 @@ function ContextualMenuController:getTooltipAt(px, py)
 end
 
 function ContextualMenuController:hasPressedButton()
-  if self.panel and self.panel.pressedButton then
+  if self.childMenu and self.childMenu:hasPressedButton() then
     return true
   end
-  if self.childMenu and self.childMenu:hasPressedButton() then
+  if self.panel and self.panel.pressedButton then
     return true
   end
   return false
@@ -603,7 +616,7 @@ function ContextualMenuController:mousepressed(x, y, button)
     return false
   end
 
-  if self.childMenu and self.childMenu:contains(x, y) then
+  if self.childMenu and self.childMenu:isVisible() and self.childMenu:contains(x, y) then
     return self.childMenu:mousepressed(x, y, button)
   end
 
@@ -658,6 +671,13 @@ end
 function ContextualMenuController:mousemoved(x, y)
   if not self:isVisible() then
     return false
+  end
+
+  -- When a child is visible and the cursor is over it, only the child handles hover (it is drawn on top).
+  if self.childMenu and self.childMenu:isVisible() and self.childMenu:contains(x, y) then
+    clearMenuPanelHover(self)
+    self:_clearChildHoverGrace()
+    return self.childMenu:mousemoved(x, y)
   end
 
   if self.panel then
