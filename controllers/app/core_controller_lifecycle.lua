@@ -397,7 +397,7 @@ function AppCoreController:load()
   self:_applyWindowShadowBlurSetting(settings and settings.windowShadowBlur, false)
   self:_applyWindowShadowStrengthSetting(settings and settings.windowShadowStrength, false)
   -- Dev-only (not persisted): hover underlay inner-edge softness (buttonHoverUnderlayShader edgeSoftPx); override app.buttonHoverBlur in code.
-  self.buttonHoverBlur = 0.1
+  self.buttonHoverBlur = 0
   self:_applyGroupedPaletteWindowsSetting(settings and settings.groupedPaletteWindows == true, false)
   if self._applyCrtDistortionSetting then
     self:_applyCrtDistortionSetting(settings and settings.crtDistortion, false)
