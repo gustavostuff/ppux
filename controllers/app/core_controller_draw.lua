@@ -16,6 +16,7 @@ local colors = require("app_colors")
 local images = require("images")
 local CanvasSpace = require("utils.canvas_space")
 local ChrCanvasOnlyMode = require("controllers.chr.chr_canvas_only_mode")
+local CrtLayerViz = require("controllers.crt.crt_layer_viz")
 
 local function drawEmptyStatePrompt(app)
   if app:hasLoadedROM() then return end
@@ -470,6 +471,97 @@ local function isAnimationKind(win)
   return WindowCaps.isAnimationLike(win)
 end
 
+local crtLensDrawShaderCached = nil
+local crtLensDrawShaderLoadAttempted = false
+
+local function resolveCrtLensDrawShader()
+  if crtLensDrawShaderCached ~= nil or crtLensDrawShaderLoadAttempted then
+    return crtLensDrawShaderCached
+  end
+  crtLensDrawShaderLoadAttempted = true
+  local ok = pcall(require, "shaders")
+  if not ok then
+    return nil
+  end
+  crtLensDrawShaderCached = rawget(_G, "crtShader")
+  return crtLensDrawShaderCached
+end
+
+--- Full in-canvas CRT visualization (default). Legacy post-render sampling uses chrome-only + overlay flag.
+local function drawCrtLensVisualizerWindow(app, w, wm)
+  PaletteLinkRenderController.drawSourcePaletteProxyForWindow(app, w)
+
+  local isFocused = (w == wm:getFocus())
+  local isCollapsed = w._collapsed or false
+
+  if isCollapsed then
+    w:drawHeader(isFocused)
+    if w.headerToolbar then
+      w.headerToolbar:draw()
+    end
+    return
+  end
+
+  local sx, sy, sw, sh = w:getScreenRect()
+  local refs = w.crtRefLayers or {}
+  if #refs == 0 then
+    local bg = isFocused and colors:focusedChromeColor() or colors:chromeBackgroundUnfocused()
+    love.graphics.setColor(bg)
+    love.graphics.rectangle("fill", sx, sy, sw, sh)
+    love.graphics.setColor(isFocused and colors:chromeTextIconsColorFocused() or colors:chromeTextIconsColorNonFocused())
+    if app.font then
+      love.graphics.setFont(app.font)
+    end
+    love.graphics.print("Right-click to add a layer", sx + 8, sy + 10)
+    love.graphics.setColor(colors.white)
+  else
+    local scratch = ResolutionController:_ensureCrtLensScratchCanvas()
+    if scratch then
+      CrtLayerViz.compositeRefsOntoScratch(app, wm, scratch, w)
+      local shader = resolveCrtLensDrawShader()
+      local dist = ResolutionController.canvasCrtFlat and 0
+        or ((type(app.crtDistortionSetting) == "number") and app.crtDistortionSetting or ResolutionController:getCanvasCrtDistortion() or 0.1)
+
+      if shader then
+        love.graphics.setShader(shader)
+        shader:send("inputSize", { 256, 240 })
+        shader:send("textureSize", { 256, 240 })
+        shader:send("outputSize", { sw, sh })
+        shader:send("distortion", dist)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(scratch, sx, sy, 0, sw / 256, sh / 240)
+        love.graphics.setShader()
+      else
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(scratch, sx, sy, 0, sw / 256, sh / 240)
+      end
+      love.graphics.setColor(colors.white)
+    end
+  end
+
+  w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true))
+  w:drawScrollBars(isFocused)
+
+  if w.drawSelectionOverlays then
+    w:drawSelectionOverlays(isFocused)
+  end
+
+  w:drawLayerLabelInContent(isFocused)
+
+  w:drawBorder(isFocused)
+
+  if w.specializedToolbar
+    and not (app.separateToolbar == true and w == wm:getFocus()) then
+    w.specializedToolbar:draw()
+  end
+
+  w:drawHeader(isFocused)
+
+  if w.headerToolbar then
+    w.headerToolbar:draw()
+  end
+end
+
 local function drawCrtLensWindowChromeOnly(app, w, wm)
   PaletteLinkRenderController.drawSourcePaletteProxyForWindow(app, w)
 
@@ -484,7 +576,7 @@ local function drawCrtLensWindowChromeOnly(app, w, wm)
     return
   end
 
-  -- Content is composited from windows below; CRT filter is drawn after renderCanvas on the default framebuffer.
+  -- Legacy: post-render “lens” samples the composed workspace; use only when crtLensPostCanvasOverlayEnabled.
   w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true))
   w:drawScrollBars(isFocused)
 
@@ -523,7 +615,11 @@ local function drawWindows(app)
       if not w._crtLensVisible then
         goto continue
       end
-      drawCrtLensWindowChromeOnly(app, w, wm)
+      if ResolutionController.crtLensPostCanvasOverlayEnabled then
+        drawCrtLensWindowChromeOnly(app, w, wm)
+      else
+        drawCrtLensVisualizerWindow(app, w, wm)
+      end
       goto continue
     end
 
@@ -1208,7 +1304,9 @@ function AppCoreController:draw()
     love.graphics.setCanvas()
     love.graphics.setColor(colors.white)
     ResolutionController:renderCanvas()
-    ResolutionController:renderCrtLensOverlays(self)
+    if ResolutionController.crtLensPostCanvasOverlayEnabled then
+      ResolutionController:renderCrtLensOverlays(self)
+    end
     if self.showDebugInfo then
       drawHUD(self)
     end
@@ -1245,7 +1343,9 @@ function AppCoreController:draw()
   love.graphics.setColor(colors.white)
 
   ResolutionController:renderCanvas()
-  ResolutionController:renderCrtLensOverlays(self)
+  if ResolutionController.crtLensPostCanvasOverlayEnabled then
+    ResolutionController:renderCrtLensOverlays(self)
+  end
   if self.showDebugInfo then
     drawHUD(self)
   end

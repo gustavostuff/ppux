@@ -10,6 +10,7 @@ local PPUFrameToolbar = require("user_interface.toolbars.ppu_frame_toolbar")
 local PaletteToolbar = require("user_interface.toolbars.palette_toolbar")
 local RomPaletteToolbar = require("user_interface.toolbars.rom_palette_toolbar")
 local ChrToolbar = require("user_interface.toolbars.chr_toolbar")
+local CrtViewerToolbar = require("user_interface.toolbars.crt_viewer_toolbar")
 local DebugController = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 
@@ -47,8 +48,10 @@ function ToolbarController.createSpecializedToolbar(window, ctx, windowControlle
     return PaletteToolbar.new(window, ctx, windowController)
   elseif WindowCaps.isRomPaletteWindow(window) then
     return RomPaletteToolbar.new(window, ctx, windowController)
+  elseif WindowCaps.isCrtLens(window) then
+    return CrtViewerToolbar.new(window, ctx, windowController)
   end
-  
+
   -- Other window types don't have specialized toolbars yet
   return nil
 end

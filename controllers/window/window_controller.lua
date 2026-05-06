@@ -1157,11 +1157,9 @@ function WM:createCrtLensWindow(opts)
   local x = math.max(8, math.floor((cw - contentW) / 2))
   local y = math.max(offsetY + 8, math.floor(offsetY + (ch - offsetY - contentH - headerH) / 2))
 
-  local win = CrtLensWindow.new(x, y, z, { title = opts.title or "CRT lens" })
+  local win = CrtLensWindow.new(x, y, z, { title = opts.title or "CRT layer visualizer" })
   win._crtLensVisible = false
-  ensureWindowId(self, win)
-  self:add(win)
-  return win
+  return self:finalizeNewWindow(win)
 end
 
 return WM

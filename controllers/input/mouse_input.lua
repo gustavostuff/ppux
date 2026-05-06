@@ -290,6 +290,14 @@ local function handleContextMenuRelease(button, x, y)
     return false
   end
 
+  if pending.kind == "crt_viz" then
+    if app.showCrtLayerVizContextMenu and pending.win then
+      app:showCrtLayerVizContextMenu(pending.win, x, y)
+      return true
+    end
+    return false
+  end
+
   if pending.kind == "rom_palette_cell" then
     if app.showRomPaletteCellContextMenu and pending.win
         and type(pending.col) == "number" and type(pending.row) == "number" then

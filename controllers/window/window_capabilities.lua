@@ -51,4 +51,21 @@ function M.isCrtLens(win)
   return win and win.kind == "crt_lens"
 end
 
+--- Windows that can supply CRT viz references: editable/layout canvases (not palettes or CHR/ROM banks).
+function M.isCrtVizLayoutWindow(win)
+  if not win or win._closed or win._minimized or win._groupHidden == true then
+    return false
+  end
+  if M.isCrtLens(win) then
+    return false
+  end
+  if M.isAnyPaletteWindow(win) then
+    return false
+  end
+  if M.isChrLike(win) then
+    return false
+  end
+  return true
+end
+
 return M

@@ -64,6 +64,8 @@ function ResolutionController:init(canvas)
   self.crtViewportY = self.crtViewportY or 0
   self.crtSliceCanvas = nil
   self._crtSourceQuad = nil
+  -- Legacy path: draw CRT lens sampling the composed workspace after renderCanvas (disabled by default).
+  self.crtLensPostCanvasOverlayEnabled = false
   self:setMode(self.defaultMode)
 
   self:recalculate()
@@ -314,6 +316,9 @@ end
 
 --- After renderCanvas: draw CRT-filtered regions from the finished workspace canvas (samples 256×240 NES-equivalent, presents at scaled screen size).
 function ResolutionController:renderCrtLensOverlays(app)
+  if self.crtLensPostCanvasOverlayEnabled ~= true then
+    return
+  end
   if not (app and app.canvas and app.wm) then
     return
   end

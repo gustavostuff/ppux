@@ -520,6 +520,25 @@ local function handleRightButton(env, button, x, y, win, wm)
         end
       end
 
+      local function beginCrtVizContextClick()
+        if not (win and WindowCaps.isCrtLens(win) and env.beginContextMenuClick) then
+          return false
+        end
+        if not win._crtLensVisible then
+          return false
+        end
+        if not win.isInContentArea or not win:isInContentArea(x, y) then
+          return false
+        end
+        env.beginContextMenuClick("crt_viz", x, y, button, win)
+        return true
+      end
+
+      if beginCrtVizContextClick() then
+        win:mousepressed(x, y, button)
+        return true
+      end
+
       local function tryEditModeRightClickColorPick()
         local ctx = env.ctx
         if not ctx or ctx.getMode() ~= "edit" then

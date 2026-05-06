@@ -127,7 +127,7 @@ local function ensureQuickButtons(app)
     }),
     crtLens = Button.new({
       icon = images.icons.icon_crt or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
-      tooltip = "Show or hide CRT lens (NES view)",
+      tooltip = "Show or hide CRT layer visualizer",
       action = function()
         if app.toggleCrtLensWindow then
           app:toggleCrtLensWindow()
@@ -270,7 +270,7 @@ local function hasOpenProject(app)
 end
 
 local function quickButtonOrder(app)
-  local order = { "newWindow", "open", "crtLens" }
+  local order = { "newWindow", "open" }
   if hasOpenProject(app) then
     order[#order + 1] = "save"
     order[#order + 1] = "copy"
@@ -282,6 +282,7 @@ local function quickButtonOrder(app)
     order[#order + 1] = "addGridRow"
     order[#order + 1] = "cloneWindow"
   end
+  order[#order + 1] = "crtLens"
   return order
 end
 

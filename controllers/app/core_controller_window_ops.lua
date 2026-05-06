@@ -6,8 +6,22 @@ local katsudo = require("lib.katsudo")
 local UiScale = require("user_interface.ui_scale")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
+local WindowCaps = require("controllers.window.window_capabilities")
 
 return function(AppCoreController)
+
+local function clampCrtVizActiveLayerIndex(crtWin)
+  if not crtWin then
+    return
+  end
+  local n = #(crtWin.crtRefLayers or {})
+  if n == 0 then
+    crtWin.activeLayer = 1
+    return
+  end
+  local cur = crtWin.activeLayer or 1
+  crtWin.activeLayer = math.max(1, math.min(math.floor(cur), n))
+end
 
 function AppCoreController:hideAppContextMenus()
   if self.windowHeaderContextMenu then
@@ -796,6 +810,10 @@ end
 function AppCoreController:ensureCrtLensWindow()
   local existing = self:_getCrtLensWindow()
   if existing then
+    if not existing.specializedToolbar then
+      local ToolbarController = require("controllers.window.toolbar_controller")
+      ToolbarController.createToolbarsForWindow(existing, _G.ctx, self.wm)
+    end
     return existing
   end
   if not (self.wm and self.wm.createCrtLensWindow) then
@@ -814,10 +832,202 @@ function AppCoreController:toggleCrtLensWindow()
     if self.wm and self.wm.setFocus then
       self.wm:setFocus(win)
     end
-    self:setStatus("CRT lens shown")
+    self:setStatus("CRT layer visualizer shown")
   else
-    self:setStatus("CRT lens hidden")
+    self:setStatus("CRT layer visualizer hidden")
   end
+end
+
+function AppCoreController:crtVizAddReference(crtWin, windowId, layerIndex)
+  if not (crtWin and crtWin.kind == "crt_lens" and self.wm) then
+    return
+  end
+  local targetWin = self.wm:findWindowById(windowId)
+  if not targetWin then
+    return
+  end
+  local li = tonumber(layerIndex)
+  if not li or li < 1 or not (targetWin.layers and targetWin.layers[li]) then
+    return
+  end
+  crtWin.crtRefLayers = crtWin.crtRefLayers or {}
+  table.insert(crtWin.crtRefLayers, {
+    windowId = windowId,
+    layerIndex = li,
+    panX = 0,
+    panY = 0,
+    opacity = 1.0,
+  })
+  clampCrtVizActiveLayerIndex(crtWin)
+  local L = targetWin.layers[li]
+  self:setStatus(string.format(
+    "CRT viz + %s · %s",
+    targetWin.title or "(window)",
+    (L and L.name) or ("layer " .. li)
+  ))
+end
+
+function AppCoreController:crtVizRemoveReferenceAt(crtWin, refIndex)
+  if not (crtWin and crtWin.crtRefLayers) then
+    return
+  end
+  local i = tonumber(refIndex)
+  if not i or i < 1 or i > #crtWin.crtRefLayers then
+    return
+  end
+  table.remove(crtWin.crtRefLayers, i)
+  clampCrtVizActiveLayerIndex(crtWin)
+  self:setStatus("CRT viz: removed reference")
+end
+
+function AppCoreController:showCrtLayerVizContextMenu(crtWin, x, y)
+  if not (self.ppuTileContextMenu and crtWin and type(x) == "number" and type(y) == "number") then
+    return false
+  end
+
+  local app = self
+  local wm = self.wm
+
+  local function buildAddWindowItems()
+    local out = {}
+    if not wm then
+      return out
+    end
+    local list = {}
+    for _, w in ipairs(wm:getWindows()) do
+      if WindowCaps.isCrtVizLayoutWindow(w) then
+        list[#list + 1] = w
+      end
+    end
+    table.sort(list, function(a, b)
+      return (a.title or ""):lower() < (b.title or ""):lower()
+    end)
+    for _, w in ipairs(list) do
+      local wref = w
+      out[#out + 1] = {
+        text = wref.title or ("Window " .. tostring(wref._id)),
+        children = function()
+          local layerItems = {}
+          local layers = wref.layers or {}
+          for li = 1, #layers do
+            local L = layers[li]
+            local liSnap = li
+            layerItems[#layerItems + 1] = {
+              text = (L and L.name) or ("Layer " .. li),
+              action = function()
+                app:crtVizAddReference(crtWin, wref._id, liSnap)
+              end,
+            }
+          end
+          if #layerItems == 0 then
+            return {
+              {
+                text = "(no layers)",
+                action = function() end,
+              },
+            }
+          end
+          return layerItems
+        end,
+      }
+    end
+    return out
+  end
+
+  local function buildRemoveWindowItems()
+    local refs = crtWin.crtRefLayers or {}
+    if #refs == 0 then
+      return {}
+    end
+
+    local groups = {}
+    for idx, ref in ipairs(refs) do
+      local wid = ref.windowId
+      if not groups[wid] then
+        groups[wid] = {}
+      end
+      table.insert(groups[wid], { refIndex = idx, layerIndex = ref.layerIndex })
+    end
+
+    local winIds = {}
+    for wid in pairs(groups) do
+      winIds[#winIds + 1] = wid
+    end
+    table.sort(winIds, function(a, b)
+      local wa, wb = wm and wm:findWindowById(a), wm and wm:findWindowById(b)
+      local ta = (wa and wa.title) or ""
+      local tb = (wb and wb.title) or ""
+      return ta:lower() < tb:lower()
+    end)
+
+    local items = {}
+    for _, wid in ipairs(winIds) do
+      local wSnap = wm and wm:findWindowById(wid)
+      local title = (wSnap and wSnap.title) or ("#" .. tostring(wid))
+      local entries = groups[wid]
+      items[#items + 1] = {
+        text = title,
+        children = function()
+          local layerItems = {}
+          local countForLayer = {}
+          for _, entry in ipairs(entries) do
+            local li = entry.layerIndex
+            countForLayer[li] = (countForLayer[li] or 0) + 1
+            local n = countForLayer[li]
+            local L = wSnap and wSnap.layers and wSnap.layers[li]
+            local base = (L and L.name) or ("Layer " .. li)
+            local label = base
+            if n > 1 then
+              label = base .. " [" .. n .. "]"
+            end
+            local snapIdx = entry.refIndex
+            layerItems[#layerItems + 1] = {
+              text = label,
+              action = function()
+                app:crtVizRemoveReferenceAt(crtWin, snapIdx)
+              end,
+            }
+          end
+          return layerItems
+        end,
+      }
+    end
+    return items
+  end
+
+  local addWinItems = buildAddWindowItems()
+  local removeWinItems = buildRemoveWindowItems()
+
+  local items = {
+    {
+      text = "Add window layer",
+      children = function()
+        if #addWinItems == 0 then
+          return {
+            {
+              text = "(No layout windows)",
+              action = function()
+                app:setStatus("Open a layout window (not palette or CHR) to reference a layer")
+              end,
+            },
+          }
+        end
+        return addWinItems
+      end,
+    },
+    {
+      text = "Remove window layer",
+      enabled = #removeWinItems > 0,
+      children = function()
+        return removeWinItems
+      end,
+    },
+  }
+
+  self:_hideAllContextMenus()
+  local cx, cy = self:contentPointToCanvasPoint(x, y)
+  self.ppuTileContextMenu:showAt(cx, cy, items)
+  return self.ppuTileContextMenu:isVisible()
 end
 
 end
