@@ -424,6 +424,9 @@ function AppCoreController:load()
   self.taskbar:updateLayout(self.canvas:getWidth(), self.canvas:getHeight())
   self.toastController = ToastController.new(self)
   self.toastController:updateLayout(self.canvas:getWidth(), self.canvas:getHeight())
+  if self.ensureCrtLensWindow then
+    self:ensureCrtLensWindow()
+  end
 end
 
 function AppCoreController:setCrtModeEnabled(enabled)

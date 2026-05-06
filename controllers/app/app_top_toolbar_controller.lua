@@ -125,6 +125,19 @@ local function ensureQuickButtons(app)
       w = cell,
       h = cell,
     }),
+    crtLens = Button.new({
+      icon = images.icons.icon_crt or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      tooltip = "Show or hide CRT lens (NES view)",
+      action = function()
+        if app.toggleCrtLensWindow then
+          app:toggleCrtLensWindow()
+        end
+      end,
+      x = 0,
+      y = 0,
+      w = cell,
+      h = cell,
+    }),
     save = Button.new({
       icon = images.icons.save,
       tooltip = "Save options",
@@ -257,9 +270,8 @@ local function hasOpenProject(app)
 end
 
 local function quickButtonOrder(app)
-  local order = { "open" }
+  local order = { "newWindow", "open", "crtLens" }
   if hasOpenProject(app) then
-    order[#order + 1] = "newWindow"
     order[#order + 1] = "save"
     order[#order + 1] = "copy"
     order[#order + 1] = "cut"

@@ -7,6 +7,7 @@ local AnimationWindow    = require("user_interface.windows_system.animation_wind
 local OAMAnimationWindow = require("user_interface.windows_system.oam_animation_window")
 local PaletteWindow      = require("user_interface.windows_system.palette_window")
 local RomPaletteWindow   = require("user_interface.windows_system.rom_palette_window")
+local CrtLensWindow      = require("user_interface.windows_system.crt_lens_window")
 local SpriteController   = require("controllers.sprite.sprite_controller")
 local ToolbarController  = require("controllers.window.toolbar_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
@@ -62,10 +63,12 @@ function WM:add(win)
     #self.windows
   )
   refreshZOrder(self)
-  if self.taskbar and self.taskbar.addWindowButton then
-    self.taskbar:addWindowButton(win)
-  elseif self.taskbar and self.taskbar.addMinimizedWindow then
-    self.taskbar:addMinimizedWindow(win)
+  if win.kind ~= "crt_lens" then
+    if self.taskbar and self.taskbar.addWindowButton then
+      self.taskbar:addWindowButton(win)
+    elseif self.taskbar and self.taskbar.addMinimizedWindow then
+      self.taskbar:addMinimizedWindow(win)
+    end
   end
 
   local ctx = rawget(_G, "ctx")
@@ -1137,6 +1140,28 @@ function WM:createRomPaletteWindow(opts)
   end
 
   return self:finalizeNewWindow(win)
+end
+
+function WM:createCrtLensWindow(opts)
+  opts = opts or {}
+  local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app or nil
+  local offsetY = app and AppTopToolbarController.getContentOffsetY(app) or 15
+  local cw = (app and app.canvas and app.canvas.getWidth and app.canvas:getWidth()) or 640
+  local ch = (app and app.canvas and app.canvas.getHeight and app.canvas:getHeight()) or 360
+  local z = opts.zoom or 2
+  local contentW = 32 * 8 * z
+  local contentH = 30 * 8 * z
+  local headerH = UiScale.windowHeaderHeight()
+  local x = math.max(8, math.floor((cw - contentW) / 2))
+  local y = math.max(offsetY + 8, math.floor(offsetY + (ch - offsetY - contentH - headerH) / 2))
+
+  local win = CrtLensWindow.new(x, y, z, { title = opts.title or "CRT lens" })
+  win._crtLensVisible = false
+  ensureWindowId(self, win)
+  self:add(win)
+  return win
 end
 
 return WM

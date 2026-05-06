@@ -668,18 +668,8 @@ function AppCoreController:_applyCrtFilterKindSetting(kind, saveSetting)
   return k
 end
 
---- Combined canvas sampling + optional CRT/composite post-process (Settings → Filter dropdown).
---- Values: 1 Sharp, 2 Soft, 3 CRT, 4 Composite sharp, 5 Composite soft.
+--- Settings → Filter dropdown: sharp vs soft workspace scaling only (full-window CRT is separate).
 function AppCoreController:_getDisplayFilterDropdownMode()
-  if self.crtModeEnabled == true then
-    if self.crtFilterKind == "composite" then
-      if self:_getCanvasFilterForSettings() == "soft" then
-        return 5
-      end
-      return 4
-    end
-    return 3
-  end
   if self:_getCanvasFilterForSettings() == "soft" then
     return 2
   end
@@ -688,47 +678,13 @@ end
 
 function AppCoreController:_applyDisplayFilterDropdownMode(mode, saveSetting)
   local m = tonumber(mode)
-  if m == nil or m < 1 or m > 5 then
+  if m == nil or (m ~= 1 and m ~= 2) then
     return
   end
   if m == 1 then
-    self:_applyCrtModeSetting(false, saveSetting)
     self:_applyCanvasFilterSetting("sharp", saveSetting)
-  elseif m == 2 then
-    self:_applyCrtModeSetting(false, saveSetting)
+  else
     self:_applyCanvasFilterSetting("soft", saveSetting)
-  elseif m == 3 then
-    self:_applyCrtFilterKindSetting("crt", false)
-    self:_applyCrtModeSetting(true, false)
-    if saveSetting ~= false then
-      AppSettingsController.save({
-        crtEnabled = true,
-        crtFilterKind = "crt",
-      })
-    end
-  elseif m == 4 then
-    self:_applyCrtFilterKindSetting("composite", false)
-    self:_applyCrtModeSetting(true, false)
-    self:_applyCanvasFilterSetting("sharp", saveSetting)
-    if saveSetting ~= false then
-      AppSettingsController.save({
-        crtEnabled = true,
-        crtFilterKind = "composite",
-      })
-    end
-  elseif m == 5 then
-    self:_applyCrtFilterKindSetting("composite", false)
-    self:_applyCrtModeSetting(true, false)
-    self:_applyCanvasFilterSetting("soft", saveSetting)
-    if saveSetting ~= false then
-      AppSettingsController.save({
-        crtEnabled = true,
-        crtFilterKind = "composite",
-      })
-    end
-  end
-  if self._crtCurveSlider then
-    self._crtCurveSlider:setEnabled(self.crtModeEnabled == true and self.crtFilterKind ~= "composite")
   end
   if self._refreshSettingsModalIfOpen then
     self:_refreshSettingsModalIfOpen()
@@ -849,6 +805,9 @@ function AppCoreController:focusPaletteWindowWithGrouping(window)
 end
 
 function AppCoreController:onWindowManagerWindowCreated(win)
+  if win and win.kind == "crt_lens" then
+    return false
+  end
   if self.groupedPaletteWindows ~= true then
     return false
   end
@@ -1013,7 +972,7 @@ function AppCoreController:showSettingsModal()
               }
             end,
             default = appRef:_getDisplayFilterDropdownMode(),
-            tooltip = "Sharp/soft workspace scaling; CRT; or composite post-process with sharp or soft scaling (keyboard shortcut toggles CRT on/off)",
+            tooltip = "Sharp or soft scaling when stretching the workspace to the window",
             items = {
               {
                 value = 1,
@@ -1027,27 +986,6 @@ function AppCoreController:showSettingsModal()
                 text = "Soft",
                 onPick = function()
                   appRef:_applyDisplayFilterDropdownMode(2, true)
-                end,
-              },
-              {
-                value = 3,
-                text = "CRT",
-                onPick = function()
-                  appRef:_applyDisplayFilterDropdownMode(3, true)
-                end,
-              },
-              {
-                value = 4,
-                text = "Composite sharp",
-                onPick = function()
-                  appRef:_applyDisplayFilterDropdownMode(4, true)
-                end,
-              },
-              {
-                value = 5,
-                text = "Composite soft",
-                onPick = function()
-                  appRef:_applyDisplayFilterDropdownMode(5, true)
                 end,
               },
             },

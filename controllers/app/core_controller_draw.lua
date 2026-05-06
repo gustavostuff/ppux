@@ -470,167 +470,314 @@ local function isAnimationKind(win)
   return WindowCaps.isAnimationLike(win)
 end
 
+local NES_W = 256
+local NES_H = 240
+
+local crtLensShaderLoadAttempted = false
+local cachedCrtLensShader = nil
+
+local function resolveCrtLensShader()
+  if cachedCrtLensShader ~= nil or crtLensShaderLoadAttempted then
+    return cachedCrtLensShader
+  end
+  crtLensShaderLoadAttempted = true
+  local ok = pcall(require, "shaders")
+  if not ok then
+    return nil
+  end
+  cachedCrtLensShader = rawget(_G, "crtShader")
+  return cachedCrtLensShader
+end
+
+local function ensureCrtUnderlayCanvas(app)
+  local canvas = app.canvas
+  if not canvas then
+    return nil
+  end
+  local w, h = canvas:getWidth(), canvas:getHeight()
+  local u = app._crtUnderlayCanvas
+  if not u or u:getWidth() ~= w or u:getHeight() ~= h then
+    if app._crtUnderlayCanvas then
+      app._crtUnderlayCanvas:release()
+    end
+    app._crtUnderlayCanvas = love.graphics.newCanvas(w, h)
+    app._crtUnderlayCanvas:setFilter("linear", "linear")
+  end
+  return app._crtUnderlayCanvas
+end
+
+local function ensureCrtLensScratchCanvas(app)
+  local c = app._crtLensScratchCanvas
+  if not c or c:getWidth() ~= NES_W or c:getHeight() ~= NES_H then
+    if app._crtLensScratchCanvas then
+      app._crtLensScratchCanvas:release()
+    end
+    app._crtLensScratchCanvas = love.graphics.newCanvas(NES_W, NES_H)
+    app._crtLensScratchCanvas:setFilter("linear", "linear")
+  end
+  return app._crtLensScratchCanvas
+end
+
+local function anyVisibleCrtLens(app)
+  local wm = app.wm
+  if not wm then
+    return false
+  end
+  for _, w in ipairs(wm:getWindows()) do
+    if WindowCaps.isCrtLens(w)
+      and w._crtLensVisible
+      and not w._closed
+      and not w._minimized
+      and w._groupHidden ~= true
+    then
+      return true
+    end
+  end
+  return false
+end
+
+local function drawNormalWindow(app, w, wm)
+  PaletteLinkRenderController.drawSourcePaletteProxyForWindow(app, w)
+
+  local isFocused   = (w == wm:getFocus())
+  local isCollapsed = w._collapsed or false
+
+  if isCollapsed then
+    w:drawHeader(isFocused)
+    if w.headerToolbar then
+      w.headerToolbar:draw()
+    end
+    return
+  end
+
+  local bgColor = getRomPaletteBgColorForWindow(w, wm) or getActiveGlobalPaletteBgColor(wm) or colors.black
+  local x, y, ww, wh = w:getScreenRect()
+  love.graphics.setColor(bgColor)
+  love.graphics.rectangle("fill", x, y, ww, wh)
+  love.graphics.setColor(colors.white)
+
+  local isPaletteWindow = WindowCaps.isAnyPaletteWindow(w)
+  local gridMode = GridModeUtils.normalize(w.showGrid)
+  w.showGrid = gridMode
+
+  if (not isPaletteWindow) and gridMode == "chess" then
+    renderWindowChessPattern(w, wm)
+  end
+
+  if isPaletteWindow then
+    if w.drawGrid then
+      w:drawGrid()
+    end
+  elseif WindowCaps.isChrLike(w) and drawChrBankLayer(app, w, w:getActiveLayerIndex() or 1) then
+  else
+    local layers = w.layers or {}
+    local drawOrder
+
+    if w.drawOnlyActiveLayer == true then
+      local activeIdx = w:getActiveLayerIndex() or w.activeLayer or 1
+      drawOrder = { activeIdx }
+    elseif isAnimationKind(w) then
+      local activeIdx = w:getActiveLayerIndex() or w.activeLayer or 1
+      drawOrder = {}
+      for li = 1, #layers do
+        if li ~= activeIdx then table.insert(drawOrder, li) end
+      end
+      table.insert(drawOrder, activeIdx)
+    else
+      drawOrder = {}
+      for li = 1, #layers do table.insert(drawOrder, li) end
+    end
+
+    for _, li in ipairs(drawOrder) do
+      local L = layers[li]
+      if L then
+        if WindowCaps.isPpuFrame(w) and w.isLayerVisibleInMode and not w:isLayerVisibleInMode(li) then
+          goto continue_layer
+        end
+        local layerOpacity = (L.opacity ~= nil) and L.opacity or 1.0
+        if layerOpacity > 0.001 then
+          if L.kind == "sprite" then
+            w:drawSprites(nil, isFocused, li, app.appEditState.romRaw)
+          elseif L.kind == "canvas" then
+            drawCanvasLayer(app, w, li, isFocused)
+          else
+            drawTileLayer(app, w, li, isFocused)
+          end
+        end
+      end
+      ::continue_layer::
+    end
+  end
+
+  if (not isPaletteWindow) and gridMode == "lines" then
+    renderWindowLinesGrid(w)
+  end
+
+  w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true))
+  w:drawScrollBars(isFocused)
+
+  if w.drawSelectionOverlays then
+    w:drawSelectionOverlays(isFocused)
+  end
+  local marquee = SpriteController.getSpriteMarquee()
+  if marquee and marquee.win == w then
+    local x1, y1 = marquee.startX, marquee.startY
+    local x2, y2 = marquee.currentX, marquee.currentY
+    local rx = math.min(x1, x2)
+    local ry = math.min(y1, y2)
+    local rw = math.abs(x2 - x1)
+    local rh = math.abs(y2 - y1)
+    love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 0.2)
+    love.graphics.rectangle("fill", rx, ry, rw, rh)
+    love.graphics.setColor(colors.white)
+    love.graphics.rectangle("line", rx, ry, rw, rh)
+  end
+  local tileMarquee = UserInput.getTileMarquee and UserInput.getTileMarquee()
+  if tileMarquee and tileMarquee.win == w then
+    local x1, y1 = tileMarquee.startX, tileMarquee.startY
+    local x2, y2 = tileMarquee.currentX, tileMarquee.currentY
+    local rx = math.min(x1, x2)
+    local ry = math.min(y1, y2)
+    local rw = math.abs(x2 - x1)
+    local rh = math.abs(y2 - y1)
+    love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 0.2)
+    love.graphics.rectangle("fill", rx, ry, rw, rh)
+    love.graphics.setColor(colors.white)
+    love.graphics.rectangle("line", rx, ry, rw, rh)
+  end
+
+  w:drawLayerLabelInContent(isFocused)
+
+  w:drawBorder(isFocused)
+
+  if w.specializedToolbar
+    and not (app.separateToolbar == true and w == wm:getFocus()) then
+    w.specializedToolbar:draw()
+  end
+
+  w:drawHeader(isFocused)
+
+  if w.headerToolbar then
+    w.headerToolbar:draw()
+  end
+end
+
+local function drawCrtLensWindow(app, w, wm, underlayCanvas)
+  PaletteLinkRenderController.drawSourcePaletteProxyForWindow(app, w)
+
+  local isFocused = (w == wm:getFocus())
+  local isCollapsed = w._collapsed or false
+
+  if isCollapsed then
+    w:drawHeader(isFocused)
+    if w.headerToolbar then
+      w.headerToolbar:draw()
+    end
+    return
+  end
+
+  local sx, sy, sw, sh = w:getScreenRect()
+  if sw > 0 and sh > 0 and underlayCanvas then
+    local scratch = ensureCrtLensScratchCanvas(app)
+    local uw = underlayCanvas:getWidth()
+    local uh = underlayCanvas:getHeight()
+    if scratch and uw > 0 and uh > 0 then
+      love.graphics.setCanvas(scratch)
+      love.graphics.clear(0, 0, 0, 0)
+      local quad = love.graphics.newQuad(sx, sy, sw, sh, uw, uh)
+      love.graphics.setColor(1, 1, 1, 1)
+      love.graphics.draw(underlayCanvas, quad, 0, 0, 0, NES_W / sw, NES_H / sh)
+      love.graphics.setCanvas({ app.canvas, depthstencil = true })
+
+      local shader = resolveCrtLensShader()
+      local dist = ResolutionController.canvasCrtFlat and 0
+        or ((type(app.crtDistortionSetting) == "number") and app.crtDistortionSetting or ResolutionController:getCanvasCrtDistortion() or 0.1)
+
+      if shader then
+        love.graphics.setShader(shader)
+        shader:send("inputSize", { NES_W, NES_H })
+        shader:send("outputSize", { sw, sh })
+        shader:send("textureSize", { NES_W, NES_H })
+        shader:send("distortion", dist)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(scratch, sx, sy, 0, sw / NES_W, sh / NES_H)
+        love.graphics.setShader()
+      else
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(scratch, sx, sy, 0, sw / NES_W, sh / NES_H)
+      end
+      love.graphics.setColor(colors.white)
+    end
+  end
+
+  w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true))
+  w:drawScrollBars(isFocused)
+
+  if w.drawSelectionOverlays then
+    w:drawSelectionOverlays(isFocused)
+  end
+
+  w:drawLayerLabelInContent(isFocused)
+
+  w:drawBorder(isFocused)
+
+  if w.specializedToolbar
+    and not (app.separateToolbar == true and w == wm:getFocus()) then
+    w.specializedToolbar:draw()
+  end
+
+  w:drawHeader(isFocused)
+
+  if w.headerToolbar then
+    w.headerToolbar:draw()
+  end
+end
+
+local function buildCrtLensUnderlay(app, wm)
+  local u = ensureCrtUnderlayCanvas(app)
+  if not u then
+    return nil
+  end
+  -- Toolbar/header drawing uses love.graphics.stencil; Love 11+ requires stencil when binding Canvas.
+  love.graphics.setCanvas({ u, stencil = true })
+  local bg = colors:appWorkspaceFill()
+  love.graphics.clear(bg[1], bg[2], bg[3], 1)
+  for _, w in ipairs(wm:getWindows()) do
+    if w._closed or w._minimized or w._groupHidden == true then
+      goto underlay_continue
+    end
+    if WindowCaps.isCrtLens(w) and w._crtLensVisible then
+      goto underlay_continue
+    end
+    drawNormalWindow(app, w, wm)
+    ::underlay_continue::
+  end
+  love.graphics.setCanvas({ app.canvas, depthstencil = true })
+  return u
+end
+
 local function drawWindows(app)
   local wm = app.wm
 
+  local underlayCanvas = nil
+  if anyVisibleCrtLens(app) then
+    underlayCanvas = buildCrtLensUnderlay(app, wm)
+  end
+
   for _, w in ipairs(wm:getWindows()) do
-    -- Skip closed windows
     if w._closed or w._minimized or w._groupHidden == true then
       goto continue
     end
 
-    PaletteLinkRenderController.drawSourcePaletteProxyForWindow(app, w)
-
-    local isFocused   = (w == wm:getFocus())
-    local isCollapsed = w._collapsed or false
-
-    -- If collapsed, only draw header and toolbars
-    if isCollapsed then
-      -- Draw header
-      w:drawHeader(isFocused)
-      -- Draw header toolbar (inside header)
-      if w.headerToolbar then
-        w.headerToolbar:draw()
+    if WindowCaps.isCrtLens(w) then
+      if not w._crtLensVisible then
+        goto continue
       end
+      drawCrtLensWindow(app, w, wm, underlayCanvas)
       goto continue
     end
 
-    -- Background priority:
-    -- 1) ROM-linked palette color (per-window)
-    -- 2) Active global palette BG color
-    -- 3) Plain black
-    local bgColor = getRomPaletteBgColorForWindow(w, wm) or getActiveGlobalPaletteBgColor(wm) or colors.black
-    local x, y, ww, wh = w:getScreenRect()
-    love.graphics.setColor(bgColor)
-    love.graphics.rectangle("fill", x, y, ww, wh)
-    love.graphics.setColor(colors.white)
-
-    ----------------------------------------------------------------
-    -- Content drawing
-    ----------------------------------------------------------------
-    local isPaletteWindow = WindowCaps.isAnyPaletteWindow(w)
-    local gridMode = GridModeUtils.normalize(w.showGrid)
-    w.showGrid = gridMode
-
-    if (not isPaletteWindow) and gridMode == "chess" then
-      renderWindowChessPattern(w, wm)
-    end
-
-    if isPaletteWindow then
-      -- Palette windows (global + ROM) draw their own grids
-      if w.drawGrid then
-        w:drawGrid()
-      end
-    elseif WindowCaps.isChrLike(w) and drawChrBankLayer(app, w, w:getActiveLayerIndex() or 1) then
-      -- CHR / ROM windows use the bank-canvas fast path.
-    else
-      -- Normal windows: draw tile/sprite layers
-      local layers = w.layers or {}
-      local drawOrder
-      
-      if w.drawOnlyActiveLayer == true then
-        local activeIdx = w:getActiveLayerIndex() or w.activeLayer or 1
-        drawOrder = { activeIdx }
-      elseif isAnimationKind(w) then
-        -- Draw non-active layers first, then active layer last
-        local activeIdx = w:getActiveLayerIndex() or w.activeLayer or 1
-        drawOrder = {}
-        for li = 1, #layers do
-          if li ~= activeIdx then table.insert(drawOrder, li) end
-        end
-        table.insert(drawOrder, activeIdx)
-      else
-        drawOrder = {}
-        for li = 1, #layers do table.insert(drawOrder, li) end
-      end
-
-      for _, li in ipairs(drawOrder) do
-        local L = layers[li]
-        if L then
-          if WindowCaps.isPpuFrame(w) and w.isLayerVisibleInMode and not w:isLayerVisibleInMode(li) then
-            goto continue_layer
-          end
-          -- Skip layers with opacity 0 (for animation windows, only visible layers are drawn)
-          local layerOpacity = (L.opacity ~= nil) and L.opacity or 1.0
-          if layerOpacity > 0.001 then
-            if L.kind == "sprite" then
-              w:drawSprites(nil, isFocused, li, app.appEditState.romRaw)
-            elseif L.kind == "canvas" then
-              drawCanvasLayer(app, w, li, isFocused)
-            else
-              drawTileLayer(app, w, li, isFocused)
-            end
-          end
-        end
-        ::continue_layer::
-      end
-    end
-
-    if (not isPaletteWindow) and gridMode == "lines" then
-      renderWindowLinesGrid(w)
-    end
-
-    ----------------------------------------------------------------
-    -- Common window chrome
-    ----------------------------------------------------------------
-    w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true))
-    w:drawScrollBars(isFocused)
-    -- w:drawGridLines()
-
-    if w.drawSelectionOverlays then
-      w:drawSelectionOverlays(isFocused)
-    end
-    -- Draw active sprite marquee (multi-select) if it belongs to this window
-    local marquee = SpriteController.getSpriteMarquee()
-    if marquee and marquee.win == w then
-      local x1, y1 = marquee.startX, marquee.startY
-      local x2, y2 = marquee.currentX, marquee.currentY
-      local rx = math.min(x1, x2)
-      local ry = math.min(y1, y2)
-      local rw = math.abs(x2 - x1)
-      local rh = math.abs(y2 - y1)
-      love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 0.2)
-      love.graphics.rectangle("fill", rx, ry, rw, rh)
-      love.graphics.setColor(colors.white)
-      love.graphics.rectangle("line", rx, ry, rw, rh)
-    end
-    local tileMarquee = UserInput.getTileMarquee and UserInput.getTileMarquee()
-    if tileMarquee and tileMarquee.win == w then
-      local x1, y1 = tileMarquee.startX, tileMarquee.startY
-      local x2, y2 = tileMarquee.currentX, tileMarquee.currentY
-      local rx = math.min(x1, x2)
-      local ry = math.min(y1, y2)
-      local rw = math.abs(x2 - x1)
-      local rh = math.abs(y2 - y1)
-      love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 0.2)
-      love.graphics.rectangle("fill", rx, ry, rw, rh)
-      love.graphics.setColor(colors.white)
-      love.graphics.rectangle("line", rx, ry, rw, rh)
-    end
-
-    -- Draw layer label in content area (before border)
-    w:drawLayerLabelInContent(isFocused)
-
-    w:drawBorder(isFocused)
-
-    -- Draw specialized toolbar first (above header, left side), unless docked in app top bar.
-    if w.specializedToolbar
-      and not (app.separateToolbar == true and w == wm:getFocus()) then
-      w.specializedToolbar:draw()
-    end
-
-    -- Draw header
-    w:drawHeader(isFocused)
-
-    -- Draw header toolbar (inside header, right side)
-    if w.headerToolbar then
-      w.headerToolbar:draw()
-    end
-
-    -- draw grid with vertical and horizontal lines
-    -- if w.showGrid and not isPaletteWindow then
-    --   w:drawLinesGrid()
-    -- end
+    drawNormalWindow(app, w, wm)
 
     ::continue::
   end

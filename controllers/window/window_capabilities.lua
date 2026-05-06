@@ -47,4 +47,8 @@ function M.isAnyPaletteWindow(win)
   return win and (win.isPalette == true or win.kind == "palette" or win.kind == "rom_palette")
 end
 
+function M.isCrtLens(win)
+  return win and win.kind == "crt_lens"
+end
+
 return M

@@ -780,4 +780,44 @@ function AppCoreController:showPaletteLinkDestinationContextMenu(win, x, y)
   return self.paletteLinkContextMenu:isVisible()
 end
 
+function AppCoreController:_getCrtLensWindow()
+  local wm = self.wm
+  if not wm or not wm.getWindows then
+    return nil
+  end
+  for _, w in ipairs(wm:getWindows()) do
+    if w and w.kind == "crt_lens" then
+      return w
+    end
+  end
+  return nil
+end
+
+function AppCoreController:ensureCrtLensWindow()
+  local existing = self:_getCrtLensWindow()
+  if existing then
+    return existing
+  end
+  if not (self.wm and self.wm.createCrtLensWindow) then
+    return nil
+  end
+  return self.wm:createCrtLensWindow({})
+end
+
+function AppCoreController:toggleCrtLensWindow()
+  local win = self:ensureCrtLensWindow()
+  if not win then
+    return
+  end
+  win._crtLensVisible = not win._crtLensVisible
+  if win._crtLensVisible then
+    if self.wm and self.wm.setFocus then
+      self.wm:setFocus(win)
+    end
+    self:setStatus("CRT lens shown")
+  else
+    self:setStatus("CRT lens hidden")
+  end
+end
+
 end
