@@ -298,7 +298,8 @@ describe("pattern_table_builder_window.lua", function()
     end
     local ResolutionController = require("controllers.app.resolution_controller")
     ResolutionController.getScaledMouse = function()
-      return { x = 4, y = 5 }
+      -- Below default app top strip height (see cursors_controller tests) so hits are not treated as quick buttons.
+      return { x = 4, y = 100 }
     end
 
     local app = {

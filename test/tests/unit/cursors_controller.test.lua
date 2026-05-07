@@ -7,6 +7,10 @@ describe("cursors_controller.lua", function()
   local originalGetScaledMouse
   local originalPickSpriteAt
 
+  -- Default app top strip height when `_appTopToolbarLayout` is unset; keep mouse below it so
+  -- tests are not spuriously "over" quick buttons at (0,0).
+  local MY = 100
+
   beforeEach(function()
     originalLove = _G.love
     originalGetScaledMouse = ResolutionController.getScaledMouse
@@ -30,7 +34,7 @@ describe("cursors_controller.lua", function()
     local setTo = nil
     love.mouse.setCursor = function(cursor) setTo = cursor end
     ResolutionController.getScaledMouse = function()
-      return { x = 10, y = 10 }
+      return { x = 10, y = MY }
     end
 
     local app = {
@@ -48,7 +52,7 @@ describe("cursors_controller.lua", function()
     local setTo = nil
     love.mouse.setCursor = function(cursor) setTo = cursor end
     ResolutionController.getScaledMouse = function()
-      return { x = 10, y = 10 }
+      return { x = 10, y = MY }
     end
 
     local layer = { kind = "tile", removedCells = {} }
@@ -75,7 +79,7 @@ describe("cursors_controller.lua", function()
     local setTo = nil
     love.mouse.setCursor = function(cursor) setTo = cursor end
     ResolutionController.getScaledMouse = function()
-      return { x = 10, y = 10 }
+      return { x = 10, y = MY }
     end
     SpriteController.pickSpriteAt = function()
       return 1, 2, 0, 0
@@ -102,7 +106,7 @@ describe("cursors_controller.lua", function()
     local setTo = nil
     love.mouse.setCursor = function(cursor) setTo = cursor end
     ResolutionController.getScaledMouse = function()
-      return { x = 10, y = 10 }
+      return { x = 10, y = MY }
     end
 
     local app = {
@@ -120,7 +124,7 @@ describe("cursors_controller.lua", function()
     local setTo = nil
     love.mouse.setCursor = function(cursor) setTo = cursor end
     ResolutionController.getScaledMouse = function()
-      return { x = 10, y = 10 }
+      return { x = 10, y = MY }
     end
 
     local win = { isPalette = true, kind = "palette" }
@@ -139,7 +143,7 @@ describe("cursors_controller.lua", function()
     local setTo = nil
     love.mouse.setCursor = function(cursor) setTo = cursor end
     ResolutionController.getScaledMouse = function()
-      return { x = 10, y = 10 }
+      return { x = 10, y = MY }
     end
 
     local layer = { kind = "tile" }
@@ -166,7 +170,7 @@ describe("cursors_controller.lua", function()
     local setTo = nil
     love.mouse.setCursor = function(cursor) setTo = cursor end
     ResolutionController.getScaledMouse = function()
-      return { x = 10, y = 10 }
+      return { x = 10, y = MY }
     end
 
     local layer = { kind = "tile", removedCells = {} }
@@ -202,7 +206,7 @@ describe("cursors_controller.lua", function()
       return false
     end
     ResolutionController.getScaledMouse = function()
-      return { x = 10, y = 10 }
+      return { x = 10, y = MY }
     end
 
     local layer = { kind = "tile", removedCells = {} }
@@ -239,7 +243,7 @@ describe("cursors_controller.lua", function()
     love.mouse.setCursor = function(cursor) setTo = cursor end
     love.keyboard.isDown = function() return false end
     ResolutionController.getScaledMouse = function()
-      return { x = 10, y = 10 }
+      return { x = 10, y = MY }
     end
 
     local layer = { kind = "tile", removedCells = {} }
@@ -270,7 +274,7 @@ describe("cursors_controller.lua", function()
     love.mouse.setCursor = function(cursor) setTo = cursor end
     love.keyboard.isDown = function() return false end
     ResolutionController.getScaledMouse = function()
-      return { x = 10, y = 10 }
+      return { x = 10, y = MY }
     end
 
     local app = {
@@ -289,7 +293,7 @@ describe("cursors_controller.lua", function()
     local setTo = nil
     love.mouse.setCursor = function(cursor) setTo = cursor end
     ResolutionController.getScaledMouse = function()
-      return { x = 10, y = 10 }
+      return { x = 10, y = MY }
     end
 
     local layer = { kind = "tile", removedCells = {} }
@@ -314,11 +318,11 @@ describe("cursors_controller.lua", function()
     expect(setTo).toBe("arrow")
   end)
 
-  it("uses arrow when any modal is visible", function()
+  it("does not force arrow when a modal is visible (edit cursor still applies over content)", function()
     local setTo = nil
     love.mouse.setCursor = function(cursor) setTo = cursor end
     ResolutionController.getScaledMouse = function()
-      return { x = 10, y = 10 }
+      return { x = 10, y = MY }
     end
 
     local layer = { kind = "tile", removedCells = {} }
@@ -343,14 +347,14 @@ describe("cursors_controller.lua", function()
     }
 
     CursorsController.applyModeCursor(app, "edit")
-    expect(setTo).toBe("arrow")
+    expect(setTo).toBe("pencil")
   end)
 
-  it("treats PPU frame range/add-sprite modals as blocking modals for cursor choice", function()
+  it("does not force arrow when PPU frame range/add-sprite modals are visible", function()
     local setTo = nil
     love.mouse.setCursor = function(cursor) setTo = cursor end
     ResolutionController.getScaledMouse = function()
-      return { x = 10, y = 10 }
+      return { x = 10, y = MY }
     end
 
     local layer = { kind = "tile", removedCells = {} }
@@ -375,12 +379,12 @@ describe("cursors_controller.lua", function()
     }
 
     CursorsController.applyModeCursor(app, "edit")
-    expect(setTo).toBe("arrow")
+    expect(setTo).toBe("pencil")
 
     app.ppuFrameRangeModal = { isVisible = function() return false end }
     app.ppuFrameAddSpriteModal = { isVisible = function() return true end }
     CursorsController.applyModeCursor(app, "edit")
-    expect(setTo).toBe("arrow")
+    expect(setTo).toBe("pencil")
   end)
 
   it("does not apply hardware cursor changes from CursorsController.update", function()
