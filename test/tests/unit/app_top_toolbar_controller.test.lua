@@ -26,9 +26,10 @@ describe("app_top_toolbar_controller.lua", function()
     local openButton = app._appTopQuickButtons.open
     local saveButton = app._appTopQuickButtons.save
     expect(openButton).toBeTruthy()
-    expect(newButton.x).toBe(0)
-    expect(openButton.x > newButton.x).toBe(true)
+    expect(newButton).toBeTruthy()
     expect(app._appTopQuickButtons.crtLens).toBe(nil)
+    -- No ROM: only Open is laid out in the strip.
+    expect(openButton.x).toBe(0)
     expect(saveButton.x).toBe(0)
 
     local clickX = openButton.x + math.floor(openButton.w * 0.5)

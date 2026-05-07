@@ -95,6 +95,20 @@ function Splash:keypressed(key)
   return true
 end
 
+--- Cursor / hit-test: keep button rect in sync with `draw` (no `mousemoved` on splash).
+function Splash:isPointOverButton(px, py, canvas)
+  if not (self.visible and self.button and self.image and canvas) then
+    return false
+  end
+  local sw, sh = canvas:getWidth(), canvas:getHeight()
+  local bx, by = buttonRect(self, sw, sh)
+  if not bx then
+    return false
+  end
+  self.button:setPosition(bx, by)
+  return self.button:contains(px, py)
+end
+
 function Splash:draw(canvas)
   if not self.visible or not self.image then return end
   local sw, sh = canvas:getWidth(), canvas:getHeight()

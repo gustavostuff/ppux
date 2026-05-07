@@ -1,6 +1,7 @@
 local CursorsController = {}
 local ResolutionController = require("controllers.app.resolution_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local AppTopToolbar = require("controllers.app.app_top_toolbar_controller")
 
 local CURSOR_ROOT = "img/cursors"
 local DEFAULT_CURSOR_SET = "2x"
@@ -199,21 +200,6 @@ local function setMouseVisibility(app, visible)
   end
 end
 
-local function anyModalVisible(app)
-  return (app and app.quitConfirmModal and app.quitConfirmModal.isVisible and app.quitConfirmModal:isVisible())
-    or (app and app.saveOptionsModal and app.saveOptionsModal.isVisible and app.saveOptionsModal:isVisible())
-    or (app and app.genericActionsModal and app.genericActionsModal.isVisible and app.genericActionsModal:isVisible())
-    or (app and app.settingsModal and app.settingsModal.isVisible and app.settingsModal:isVisible())
-    or (app and app.newWindowModal and app.newWindowModal.isVisible and app.newWindowModal:isVisible())
-    or (app and app.renameWindowModal and app.renameWindowModal.isVisible and app.renameWindowModal:isVisible())
-    or (app and app.romPaletteAddressModal and app.romPaletteAddressModal.isVisible and app.romPaletteAddressModal:isVisible())
-    or (app and app.ppuFrameSpriteLayerModeModal and app.ppuFrameSpriteLayerModeModal.isVisible and app.ppuFrameSpriteLayerModeModal:isVisible())
-    or (app and app.ppuFrameAddSpriteModal and app.ppuFrameAddSpriteModal.isVisible and app.ppuFrameAddSpriteModal:isVisible())
-    or (app and app.ppuFrameRangeModal and app.ppuFrameRangeModal.isVisible and app.ppuFrameRangeModal:isVisible())
-    or (app and app.textFieldDemoModal and app.textFieldDemoModal.isVisible and app.textFieldDemoModal:isVisible())
-    or (app and app.splash and app.splash.isVisible and app.splash:isVisible())
-end
-
 --- True when (mx,my) is over artwork that can be painted with the pencil (sprite hit, tile cell with
 --- content, or canvas layer). Uses the same rules as edit-mode pencil cursor eligibility.
 function CursorsController.isHoveringEditableContentAt(app, mx, my)
@@ -267,18 +253,6 @@ local function isHoveringEditableContent(app)
   return CursorsController.isHoveringEditableContentAt(app, mx, my)
 end
 
-local function isHoveringInteractiveUI(app)
-  local mx, my = getMouseCanvasPosition()
-  if type(mx) ~= "number" or type(my) ~= "number" then return false end
-
-  local taskbar = app and app.taskbar
-  if taskbar and taskbar.isInteractiveAt and taskbar:isInteractiveAt(mx, my) then
-    return true
-  end
-
-  return false
-end
-
 local function eachAppContextMenu(app, fn)
   if not app or not fn then
     return
@@ -288,6 +262,7 @@ local function eachAppContextMenu(app, fn)
     app.emptySpaceContextMenu,
     app.ppuTileContextMenu,
     app.paletteLinkContextMenu,
+    app.e2eOverlayMenu,
   }
   for _, menu in ipairs(menus) do
     if menu then
@@ -300,11 +275,43 @@ local function modalPanelDisabledAt(modal, mx, my)
   if not (modal and modal.isVisible and modal:isVisible()) then
     return false
   end
-  if modal.contains and not modal:contains(mx, my) then
+  local inside = false
+  if type(modal.contains) == "function" then
+    inside = modal:contains(mx, my)
+  elseif type(modal._containsBox) == "function" then
+    inside = modal:_containsBox(mx, my)
+  end
+  if not inside then
     return false
   end
   local p = modal.panel
   return p and type(p.isHoveringDisabledButtonAt) == "function" and p:isHoveringDisabledButtonAt(mx, my)
+end
+
+local function modalPanelHandAt(modal, mx, my)
+  if not (modal and modal.isVisible and modal:isVisible()) then
+    return false
+  end
+  local inside = false
+  if type(modal.contains) == "function" then
+    inside = modal:contains(mx, my)
+  elseif type(modal._containsBox) == "function" then
+    inside = modal:_containsBox(mx, my)
+  end
+  if not inside then
+    return false
+  end
+  local p = modal.panel
+  if not p then
+    return false
+  end
+  if type(p.getButtonAt) == "function" and p:getButtonAt(mx, my) then
+    return true
+  end
+  if type(p.getComponentAt) == "function" and p:getComponentAt(mx, my) then
+    return true
+  end
+  return false
 end
 
 local function toolbarDisabledAt(toolbar, mx, my)
@@ -323,11 +330,103 @@ local function appQuickButtonsDisabledAt(app, mx, my)
   if not buttons then
     return false
   end
-  for _, b in pairs(buttons) do
+  local disabled = false
+  AppTopToolbar.forEachQuickButtonKeyInLayoutOrder(app, function(key)
+    if disabled then
+      return
+    end
+    local b = buttons[key]
     if b and b.enabled == false and b.contains and b:contains(mx, my) then
+      disabled = true
+    end
+  end)
+  return disabled
+end
+
+local function isHoveringHandTargetAt(app, mx, my)
+  if type(mx) ~= "number" or type(my) ~= "number" then
+    return false
+  end
+
+  if AppTopToolbar.isPointerOverInteractiveTopChrome(app, mx, my) then
+    return true
+  end
+
+  local function toolbarInteractiveHit(toolbar)
+    if not (toolbar and toolbar.contains and toolbar.getButtonAt) then
+      return false
+    end
+    if not toolbar:contains(mx, my) then
+      return false
+    end
+    return toolbar:getButtonAt(mx, my) ~= nil
+  end
+
+  local wm = app and app.wm
+  if wm and wm.windowAt then
+    local win = wm:windowAt(mx, my)
+    if win then
+      if toolbarInteractiveHit(win.headerToolbar) then
+        return true
+      end
+      if toolbarInteractiveHit(win.specializedToolbar) then
+        return true
+      end
+    end
+  end
+
+  local menuHand = false
+  eachAppContextMenu(app, function(menu)
+    if menuHand then
+      return
+    end
+    if menu.isVisible and menu:isVisible() and menu.contains and menu:contains(mx, my) then
+      menuHand = true
+    end
+  end)
+  if menuHand then
+    return true
+  end
+
+  local taskbar = app and app.taskbar
+  if taskbar and taskbar.isInteractiveAt and taskbar:isInteractiveAt(mx, my) then
+    return true
+  end
+  if taskbar and taskbar.menuController and taskbar.menuController.isVisible and taskbar.menuController:isVisible() then
+    local m = taskbar.menuController
+    if m.contains and m:contains(mx, my) then
       return true
     end
   end
+
+  local modals = {
+    app and app.quitConfirmModal,
+    app and app.saveOptionsModal,
+    app and app.genericActionsModal,
+    app and app.settingsModal,
+    app and app.newWindowModal,
+    app and app.newWindowTypeModal,
+    app and app.renameWindowModal,
+    app and app.romPaletteAddressModal,
+    app and app.ppuFrameSpriteLayerModeModal,
+    app and app.ppuFrameAddSpriteModal,
+    app and app.ppuFrameRangeModal,
+    app and app.ppuFramePatternRangeModal,
+    app and app.textFieldDemoModal,
+    app and app.openProjectModal,
+  }
+  for _, modal in ipairs(modals) do
+    if modalPanelHandAt(modal, mx, my) then
+      return true
+    end
+  end
+
+  if app and app.splash and app.splash.isPointOverButton and app.canvas and app.splash:isVisible() then
+    if app.splash:isPointOverButton(mx, my, app.canvas) then
+      return true
+    end
+  end
+
   return false
 end
 
@@ -389,6 +488,7 @@ local function isHoveringDisabledUiAt(app, mx, my)
     app and app.genericActionsModal,
     app and app.settingsModal,
     app and app.newWindowModal,
+    app and app.newWindowTypeModal,
     app and app.renameWindowModal,
     app and app.romPaletteAddressModal,
     app and app.ppuFrameSpriteLayerModeModal,
@@ -396,7 +496,7 @@ local function isHoveringDisabledUiAt(app, mx, my)
     app and app.ppuFrameRangeModal,
     app and app.ppuFramePatternRangeModal,
     app and app.textFieldDemoModal,
-    app and app.splash,
+    app and app.openProjectModal,
   }
   for _, modal in ipairs(modals) do
     if modalPanelDisabledAt(modal, mx, my) then
@@ -425,19 +525,14 @@ local function resolveTargetCursorName(app, mode)
     if isHoveringDisabledUiAt(app, mx, my) then
       return "unavailable"
     end
+    if isHoveringHandTargetAt(app, mx, my) then
+      return "hand"
+    end
   end
 
   local resolvedMode = (mode == "edit") and "edit" or "tile"
   local grabDown = love.keyboard.isDown("g")
   local fillDown = love.keyboard.isDown("f")
-
-  if anyModalVisible(app) then
-    return "arrow"
-  end
-
-  if isHoveringInteractiveUI(app) then
-    return "hand"
-  end
 
   if resolvedMode == "edit" then
     local hoveringEditable = isHoveringEditableContent(app)

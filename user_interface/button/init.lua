@@ -9,32 +9,6 @@ local Draw = require("utils.draw_utils")
 local Button = {}
 Button.__index = Button
 
-local buttonHoverUnderlayShaderCached = nil
-local buttonHoverUnderlayShaderLoadAttempted = false
-
-local function resolveButtonHoverUnderlayShader()
-  if buttonHoverUnderlayShaderCached ~= nil or buttonHoverUnderlayShaderLoadAttempted then
-    return buttonHoverUnderlayShaderCached
-  end
-  buttonHoverUnderlayShaderLoadAttempted = true
-  local ok = pcall(require, "shaders")
-  if not ok then
-    return nil
-  end
-  buttonHoverUnderlayShaderCached = rawget(_G, "buttonHoverUnderlayShader")
-  return buttonHoverUnderlayShaderCached
-end
-
-local function resolveButtonHoverBlurAmount()
-  local ctx = rawget(_G, "ctx")
-  local app = ctx and ctx.app
-  local v = app and tonumber(app.buttonHoverBlur)
-  if v == nil then
-    v = 0.1
-  end
-  return math.max(0, math.min(1, v))
-end
-
 local function iconSize(icon)
   if not icon then return 0, 0 end
   if type(icon.getWidth) == "function" and type(icon.getHeight) == "function" then
@@ -172,30 +146,8 @@ function Button:draw()
     end
     if not show then return end
 
-    local x, y, w, h = self.x, self.y, self.w, self.h
-    local blurT = resolveButtonHoverBlurAmount()
-    local sh = resolveButtonHoverUnderlayShader()
-    if sh then
-      love.graphics.push("all")
-      love.graphics.setShader(sh)
-      sh:send("shape", { x, y, w, h })
-      sh:send("cornerRadius", 2)
-      -- Inner-edge softness (px): scales with app.buttonHoverBlur; capped so small icons keep a solid core.
-      local halfMin = math.min(w, h) * 0.5
-      local want = 0.75 + blurT * 16
-      local edgeSoftPx = math.max(0.5, math.min(want, halfMin * 0.65))
-      sh:send("edgeSoftPx", edgeSoftPx)
-      love.graphics.setColor(1, 1, 1, 1)
-      sh:send("fillColor", { 0, 0, 0, 0.10 })
-      love.graphics.rectangle("fill", x, y, w, h)
-      love.graphics.pop()
-      love.graphics.setShader()
-      love.graphics.setColor(colors.white)
-      return
-    end
-
     love.graphics.setColor(0, 0, 0, 0.10)
-    love.graphics.rectangle("fill", x, y, w, h, 2)
+    love.graphics.rectangle("fill", self.x, self.y, self.w, self.h, 2)
     love.graphics.setColor(colors.white)
   end
 

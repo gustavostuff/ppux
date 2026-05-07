@@ -21,8 +21,8 @@ local UiScale = require("user_interface.ui_scale")
 
 --- Drop-shadow mask offset defaults (pixels, code-only). Positive X → right, Y → down.
 --- Override at runtime: app.windowShadowOffsetX / app.windowShadowOffsetY.
-local WINDOW_SHADOW_OFFSET_X = 2
-local WINDOW_SHADOW_OFFSET_Y = 2
+local WINDOW_SHADOW_OFFSET_X = 0
+local WINDOW_SHADOW_OFFSET_Y = 0
 
 local function drawEmptyStatePrompt(app)
   if app:hasLoadedROM() then return end
@@ -665,7 +665,33 @@ local function computeShadowCompositeAlpha(app)
   return baseAlpha * strength
 end
 
+--- Collect open ContextualMenuController trees (app menus, taskbar main menu, submenus) into the shared mask.
+local function drawHardShadowMasksForOpenContextMenus(app, ox, oy)
+  local rects = {}
+  local function addFrom(menu)
+    if menu
+      and menu.isVisible
+      and menu:isVisible()
+      and menu.accumulateVisiblePanelShadowRectsInto
+    then
+      menu:accumulateVisiblePanelShadowRectsInto(rects)
+    end
+  end
+  addFrom(app.windowHeaderContextMenu)
+  addFrom(app.emptySpaceContextMenu)
+  addFrom(app.ppuTileContextMenu)
+  addFrom(app.paletteLinkContextMenu)
+  addFrom(app.e2eOverlayMenu)
+  if app.taskbar and app.taskbar.menuController then
+    addFrom(app.taskbar.menuController)
+  end
+  for _, r in ipairs(rects) do
+    drawHardShadowRoundedFill(r[1] + ox, r[2] + oy, r[3], r[4])
+  end
+end
+
 --- Hard mask → separable blur → single premultiplied composite (no extra darkening where silhouettes overlap).
+--- All base silhouettes are rasterized into shadowMaskCanvas first; menus use the same pass as windows/chrome.
 local function drawAllWindowShadows(app)
   if app.windowShadowEnabled == false then
     return
@@ -725,6 +751,7 @@ local function drawAllWindowShadows(app)
     love.graphics.setBlendMode("alpha", "premultiplied")
   end
   love.graphics.setColor(1, 1, 1, 1)
+  local shadowOx, shadowOy = windowShadowPixelOffsets(app)
   for _, w in ipairs(wm:getWindows()) do
     if not w or w._closed or w._minimized or w._groupHidden == true then
       goto shadow_continue
@@ -735,6 +762,23 @@ local function drawAllWindowShadows(app)
     drawHardShadowRectsForWindow(app, w, wm)
     ::shadow_continue::
   end
+
+  -- Base silhouettes (max blend): windows, top/taskbar strips, then open menus — then one blur/composite pass.
+  do
+    local topH = AppTopToolbarController.getContentOffsetY(app)
+    if type(topH) == "number" and topH > 0 then
+      drawHardShadowRoundedFill(shadowOx, shadowOy, cw, topH)
+    end
+    local tbH = (app.taskbar and tonumber(app.taskbar.h)) or UiScale.taskbarHeight()
+    tbH = math.max(0, tbH)
+    local tbY = ch - tbH
+    if tbH > 0 and tbY >= 0 then
+      drawHardShadowRoundedFill(shadowOx, tbY + shadowOy, cw, tbH)
+    end
+  end
+
+  drawHardShadowMasksForOpenContextMenus(app, shadowOx, shadowOy)
+
   love.graphics.setBlendMode("alpha", "alphamultiply")
 
   if useGaussianBlur then

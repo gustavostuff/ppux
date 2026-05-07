@@ -109,15 +109,15 @@ local function drawTabbedModalNormalSurface(panel)
   local w = r - l
   local totalH = botY - topY
   local rx, ry = 2, 2
+  -- Rounded rects meet at seams; overlap bands a few px so corner anti-alias doesn't show dots on the outer edge.
+  local seamOverlapPx = 3
   if w > 0 and totalH > 0 then
     if totalH < ry * 2 then
       love.graphics.rectangle("fill", l, topY, w, totalH, rx, ry)
     else
-      -- Two-part fill: upper half sharp, lower half rounded (2px) so the modal reads with
-      -- rounded bottom corners only on the outer chrome band.
       local h1 = math.floor(totalH / 2)
       local h2 = totalH - h1
-      love.graphics.rectangle("fill", l, topY, w, h1)
+      love.graphics.rectangle("fill", l, topY, w, h1 + seamOverlapPx)
       love.graphics.rectangle("fill", l, topY + h1, w, h2, rx, ry)
     end
   end
@@ -132,19 +132,16 @@ local function drawTabbedModalNormalSurface(panel)
     love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
     return
   end
-  -- Active tab: rounded top only. LÖVE rounds all corners, so extend the fill
-  -- downward by at least the radius; the gap pass below paints over the bottom
-  -- arcs with the same chrome color, leaving a straight seam at the tab row.
+  -- Active tab: rounded top only. LÖVE rounds all corners — extend fill past the tab row and overlap
+  -- the gap strip so bottom arcs don't leave dark pinholes at the window L/R.
   local tabRx, tabRy = 2, 2
-  local tabExtendBelow = tabRy + 2
+  local tabExtendBelow = tabRy + 2 + seamOverlapPx
   love.graphics.setColor(nr, ng, nb, 1)
   love.graphics.rectangle("fill", sx, tabCell.y, sw, tabCell.h + tabExtendBelow, tabRx, tabRy)
   local gapY = tabCell.y + tabCell.h
   local gapH = topY - gapY
-  -- Fill the full inner width (not only under the active tab label) so row-spacing
-  -- between the tab strip and the body does not leave darker gutters on the sides.
   if gapH > 0 and innerL < innerR then
-    love.graphics.rectangle("fill", innerL, gapY, innerR - innerL, gapH)
+    love.graphics.rectangle("fill", innerL, gapY, innerR - innerL, gapH + seamOverlapPx)
   end
   love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
 end

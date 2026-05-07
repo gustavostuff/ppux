@@ -384,6 +384,24 @@ function ContextualMenuController:isVisible()
   return self.visible == true
 end
 
+--- Collect this menu's panel and visible submenu panels for the shared drop-shadow mask (canvas coords).
+function ContextualMenuController:accumulateVisiblePanelShadowRectsInto(list)
+  if not list or not self:isVisible() or not self.panel then
+    return
+  end
+  local p = self.panel
+  local x = tonumber(p.x) or 0
+  local y = tonumber(p.y) or 0
+  local w = tonumber(p.w) or 0
+  local h = tonumber(p.h) or 0
+  if w > 0 and h > 0 then
+    list[#list + 1] = { x, y, w, h }
+  end
+  if self.childMenu and type(self.childMenu.accumulateVisiblePanelShadowRectsInto) == "function" then
+    self.childMenu:accumulateVisiblePanelShadowRectsInto(list)
+  end
+end
+
 function ContextualMenuController:hide()
   self.visible = false
   hideChild(self)

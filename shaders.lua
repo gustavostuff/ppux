@@ -31,35 +31,6 @@ windowShadowShader = love.graphics.newShader([[
   }
 ]])
 
---- Toolbar/button hover underlay: rounded rect fill with alpha ramping from the inner edge (blur width ~ edgeSoftPx).
-buttonHoverUnderlayShader = love.graphics.newShader([[
-  uniform vec4 shape;
-  uniform float cornerRadius;
-  uniform float edgeSoftPx;
-  uniform vec4 fillColor;
-
-  float udRoundRect(vec2 p, vec2 halfSize, float r) {
-    vec2 q = abs(p) - halfSize + vec2(r);
-    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
-  }
-
-  vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
-    vec2 p = screen_coords;
-    vec2 center = shape.xy + shape.zw * 0.5;
-    vec2 halfSize = shape.zw * 0.5;
-    float r = max(cornerRadius, 0.0);
-    float d = udRoundRect(p - center, halfSize, r);
-    if (d > 0.0) {
-      return vec4(0.0, 0.0, 0.0, 0.0);
-    }
-    float innerDist = max(-d, 0.0);
-    float denom = max(edgeSoftPx, 0.5);
-    float t = smoothstep(0.0, denom, innerDist);
-    float a = fillColor.a * t;
-    return vec4(fillColor.rgb * a, a);
-  }
-]])
-
 --- Horizontal separable Gaussian blur for shadow mask (scalar opacity; avoids RGB fringe bias).
 windowShadowBlurHShader = love.graphics.newShader([[
   uniform vec2 textureSize;

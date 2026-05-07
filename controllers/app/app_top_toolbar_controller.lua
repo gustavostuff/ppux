@@ -276,8 +276,9 @@ local function hasOpenProject(app)
 end
 
 local function quickButtonOrder(app)
-  local order = { "newWindow", "open" }
+  local order = { "open" }
   if hasOpenProject(app) then
+    table.insert(order, 1, "newWindow")
     order[#order + 1] = "save"
     order[#order + 1] = "copy"
     order[#order + 1] = "cut"
@@ -571,6 +572,39 @@ local function pointInQuickButton(app, px, py)
     end
   end
   return nil
+end
+
+--- Iterate quick-action keys in the same order used for layout and hit testing (not all `_appTopQuickButtons` keys).
+function M.forEachQuickButtonKeyInLayoutOrder(app, fn)
+  if not (app and fn) then
+    return
+  end
+  for _, key in ipairs(quickButtonOrder(app)) do
+    fn(key)
+  end
+end
+
+--- Hand cursor: quick buttons, docked window toolbar buttons, palette-link handle in the top strip.
+function M.isPointerOverInteractiveTopChrome(app, px, py)
+  if not M.containsPointer(app, px, py) then
+    return false
+  end
+  if pointInQuickButton(app, px, py) then
+    return true
+  end
+  if app.separateToolbar == true and app.wm and app.wm.getFocus then
+    local focus = app.wm:getFocus()
+    local tb = focus and focus.specializedToolbar
+    if inDockArea(app, px) and focus and tb then
+      if PaletteLinkController.isPointInToolbarLinkHandle(tb, px, py) then
+        return true
+      end
+      if tb.contains and tb:contains(px, py) and tb.getButtonAt and tb:getButtonAt(px, py) then
+        return true
+      end
+    end
+  end
+  return false
 end
 
 function M.getTooltipAt(app, px, py)

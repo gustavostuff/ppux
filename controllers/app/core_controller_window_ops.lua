@@ -9,6 +9,9 @@ local KeyboardClipboardController = require("controllers.input.keyboard_clipboar
 local WindowCaps = require("controllers.window.window_capabilities")
 local AppSettingsController = require("controllers.app.settings_controller")
 
+--- When false, the CRT layer visualizer window is not created, toggled, or restored from settings.
+local CRT_LAYER_VIZ_WINDOW_ENABLED = false
+
 return function(AppCoreController)
 
 local function clampCrtVizActiveLayerIndex(crtWin)
@@ -844,6 +847,9 @@ end
 
 --- Restore CRT layer visualizer from normalized settings (refs skipped if target window/layer missing).
 function AppCoreController:_applyCrtLayerVizFromSettings(settings)
+  if not CRT_LAYER_VIZ_WINDOW_ENABLED then
+    return
+  end
   local win = self:_getCrtLensWindow()
   if not win or win.kind ~= "crt_lens" then
     return
@@ -889,6 +895,9 @@ function AppCoreController:_applyCrtLayerVizFromSettings(settings)
 end
 
 function AppCoreController:ensureCrtLensWindow()
+  if not CRT_LAYER_VIZ_WINDOW_ENABLED then
+    return nil
+  end
   local existing = self:_getCrtLensWindow()
   if existing then
     if not existing.specializedToolbar then
@@ -904,6 +913,9 @@ function AppCoreController:ensureCrtLensWindow()
 end
 
 function AppCoreController:toggleCrtLensWindow()
+  if not CRT_LAYER_VIZ_WINDOW_ENABLED then
+    return
+  end
   local win = self:ensureCrtLensWindow()
   if not win then
     return
