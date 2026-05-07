@@ -21,8 +21,8 @@ local UiScale = require("user_interface.ui_scale")
 
 --- Drop-shadow mask offset defaults (pixels, code-only). Positive X → right, Y → down.
 --- Override at runtime: app.windowShadowOffsetX / app.windowShadowOffsetY.
-local WINDOW_SHADOW_OFFSET_X = 0
-local WINDOW_SHADOW_OFFSET_Y = 0
+local WINDOW_SHADOW_OFFSET_X = 2
+local WINDOW_SHADOW_OFFSET_Y = 2
 
 local function drawEmptyStatePrompt(app)
   if app:hasLoadedROM() then return end
@@ -556,8 +556,8 @@ local function ensureShadowMaskCanvases(app)
   return false
 end
 
---- Header + content only (no toolbar). Collapsed → header strip.
---- Geometry matches window_rendering_chrome.drawHeader: header fill is (hx-1, hy, hw+2, hh), not (cx, cy, cw, ·).
+--- Header + content + bottom border line (drawBorder uses h+1). Collapsed → header strip only
+--- (`drawBorder` is not used collapsed, so `hh` matches chrome — see branch below).
 local function computeWindowChromeShadowRect(w)
   if w._collapsed and type(w.getHeaderRect) == "function" then
     local hx, hy, hw, hh = w:getHeaderRect()
@@ -569,7 +569,8 @@ local function computeWindowChromeShadowRect(w)
   local left = hx - 1
   local right = cx + cw + 1
   local width = right - left
-  local height = (cy + ch) - hy
+  -- Match window_rendering_chrome.drawBorder: rectangle("line", cx, cy, cw + 1, ch + 1).
+  local height = (cy + ch + 1) - hy
   return left, hy, width, height
 end
 
@@ -630,10 +631,29 @@ local function drawHardShadowRoundedFill(x, y, ww, wh)
   love.graphics.rectangle("fill", x, y, ww, wh, r, r)
 end
 
+--- Expanded windows: header strip matches rounded title bar; body + bottom border are sharp (see drawBorder).
+--- Rounded header rects omit the bottom-left/right "wings" (corner fillets), so a full-width band along the
+--- bottom of the header is merged (max blend) before the body — keeps the shadow flush with the content block.
+local function drawExpandedWindowChromeShadowMask(ox, oy, w)
+  local left, top, width, fullHeight = computeWindowChromeShadowRect(w)
+  local _, _, _, hh = w:getHeaderRect()
+  local bodyH = fullHeight - hh
+  drawHardShadowRoundedFill(left + ox, top + oy, width, hh)
+  local r = shadowRoundedRadiusForRect(width, hh)
+  if r > 0 and hh > r then
+    love.graphics.rectangle("fill", left + ox, top + hh - r + oy, width, r)
+  end
+  love.graphics.rectangle("fill", left + ox, top + hh + oy, width, bodyH)
+end
+
 local function drawHardShadowRectsForWindow(app, w, wm)
   local ox, oy = windowShadowPixelOffsets(app)
-  local cx, cy, cw, ch = computeWindowChromeShadowRect(w)
-  drawHardShadowRoundedFill(cx + ox, cy + oy, cw, ch)
+  if w._collapsed and type(w.getHeaderRect) == "function" then
+    local left, top, width, height = computeWindowChromeShadowRect(w)
+    drawHardShadowRoundedFill(left + ox, top + oy, width, height)
+  else
+    drawExpandedWindowChromeShadowMask(ox, oy, w)
+  end
 
   local tx, ty, tw, th = computeSpecializedToolbarShadowRect(app, w, wm)
   if tx then
@@ -750,7 +770,8 @@ local function drawAllWindowShadows(app)
   end) then
     love.graphics.setBlendMode("alpha", "premultiplied")
   end
-  love.graphics.setColor(1, 1, 1, 1)
+  -- Premultiplied silhouette: RGB stays (0,0,0); only alpha feeds blur/composite (see shaders.lua).
+  love.graphics.setColor(0, 0, 0, 1)
   local shadowOx, shadowOy = windowShadowPixelOffsets(app)
   for _, w in ipairs(wm:getWindows()) do
     if not w or w._closed or w._minimized or w._groupHidden == true then

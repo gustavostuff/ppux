@@ -2,6 +2,19 @@ local CursorsController = {}
 local ResolutionController = require("controllers.app.resolution_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local AppTopToolbar = require("controllers.app.app_top_toolbar_controller")
+local MouseWindowChrome = require("controllers.input.mouse_window_chrome_controller")
+
+--- Specialized toolbars are laid out above the header (`ToolbarBase:updatePosition`), which is outside
+--- `Window:contains` (that rect starts at the header top). Use the same surface hit-test as chrome input.
+local function topSurfaceWindowAt(wm, mx, my)
+  if not wm then
+    return nil
+  end
+  if type(wm.getTopInteractiveSurfaceWindowAt) == "function" then
+    return wm:getTopInteractiveSurfaceWindowAt(mx, my)
+  end
+  return MouseWindowChrome.getTopInteractiveSurfaceWindowAt(mx, my, wm)
+end
 
 local CURSOR_ROOT = "img/cursors"
 local DEFAULT_CURSOR_SET = "2x"
@@ -363,15 +376,13 @@ local function isHoveringHandTargetAt(app, mx, my)
   end
 
   local wm = app and app.wm
-  if wm and wm.windowAt then
-    local win = wm:windowAt(mx, my)
-    if win then
-      if toolbarInteractiveHit(win.headerToolbar) then
-        return true
-      end
-      if toolbarInteractiveHit(win.specializedToolbar) then
-        return true
-      end
+  local win = topSurfaceWindowAt(wm, mx, my)
+  if win then
+    if toolbarInteractiveHit(win.headerToolbar) then
+      return true
+    end
+    if toolbarInteractiveHit(win.specializedToolbar) then
+      return true
     end
   end
 
@@ -440,15 +451,13 @@ local function isHoveringDisabledUiAt(app, mx, my)
   end
 
   local wm = app and app.wm
-  if wm and wm.windowAt then
-    local win = wm:windowAt(mx, my)
-    if win then
-      if toolbarDisabledAt(win.headerToolbar, mx, my) then
-        return true
-      end
-      if toolbarDisabledAt(win.specializedToolbar, mx, my) then
-        return true
-      end
+  local win = topSurfaceWindowAt(wm, mx, my)
+  if win then
+    if toolbarDisabledAt(win.headerToolbar, mx, my) then
+      return true
+    end
+    if toolbarDisabledAt(win.specializedToolbar, mx, my) then
+      return true
     end
   end
 

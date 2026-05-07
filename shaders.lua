@@ -52,7 +52,7 @@ windowShadowBlurHShader = love.graphics.newShader([[
       wsum += wf;
     }
     float m = sum / max(wsum, 1e-6);
-    return vec4(m, m, m, m);
+    return vec4(0.0, 0.0, 0.0, m);
   }
 ]])
 
