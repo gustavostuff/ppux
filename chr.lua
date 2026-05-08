@@ -1,4 +1,4 @@
--- chr.lua — iNES (1.0) parser + CHR helpers
+-- chr.lua - iNES (1.0) parser + CHR helpers
 
 local chr = {}
 

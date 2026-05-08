@@ -1,5 +1,5 @@
 -- app_settings_controller.lua
--- App settings persistence via LÖVE's save directory.
+-- App settings persistence via LOVE's save directory.
 
 local AppSettingsController = {}
 AppSettingsController.__index = AppSettingsController
@@ -19,7 +19,7 @@ local DEFAULT_SETTINGS = {
   windowShadowEnabled = true,
   --- 0 = sharp edge, 1 = softest falloff (maps to feather range in pixels).
   windowShadowBlur = 0.2,
-  --- Opacity multiplier for drop shadows (0–100% of theme base).
+  --- Opacity multiplier for drop shadows (0-100% of theme base).
   windowShadowStrength = 0.5,
   groupedPaletteWindows = false,
   crtEnabled = false,

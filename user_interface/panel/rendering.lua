@@ -132,7 +132,7 @@ local function drawTabbedModalNormalSurface(panel)
     love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
     return
   end
-  -- Active tab: rounded top only. LÖVE rounds all corners — extend fill past the tab row and overlap
+  -- Active tab: rounded top only. LOVE rounds all corners - extend fill past the tab row and overlap
   -- the gap strip so bottom arcs don't leave dark pinholes at the window L/R.
   local tabRx, tabRy = 2, 2
   local tabExtendBelow = tabRy + 2 + seamOverlapPx

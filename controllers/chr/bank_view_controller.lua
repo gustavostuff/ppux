@@ -116,7 +116,7 @@ function M.formatBankWindowStatus(winBank, appEditState, orderMode)
   total = math.max(1, total)
   local om = orderMode or (winBank and winBank.orderMode) or "normal"
   local layoutLabel = (om == "oddEven") and "8x16 pairs" or "8x8"
-  return ("Bank %d/%d — %s · arrow keys: bank · Tab/M: layout"):format(cur, total, layoutLabel)
+  return ("Bank %d/%d - %s | arrow keys: bank | Tab/M: layout"):format(cur, total, layoutLabel)
 end
 
 -- Rebuild CHR/ROM bank window layers based on current bank + orderMode.

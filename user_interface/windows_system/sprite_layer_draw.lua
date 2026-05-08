@@ -156,11 +156,11 @@ end
 
 --- Draw every sprite in one layer in **current content pixel space** (caller applies window pan/zoom/scissor).
 --- opts.layer, opts.romRaw, opts.cellW, opts.cellH
---- opts.viewMinX/Y, viewMaxX/Y — rectangle used for OAM wrap-preview culling
---- opts.windowKind — "oam_animation" enables wrap copies; PPU Frame uses same torus without duplicate wraps if not oam_animation
---- opts.isActiveLayer — shader palette active flag
---- opts.spriteLayerIndex — passed to renderSprite as index (optional)
---- opts.renderSprite — optional function(L, s, isActiveLayer, ch, mode, idx, spriteW, spriteH, layerOpacity, romRaw)
+--- opts.viewMinX/Y, viewMaxX/Y - rectangle used for OAM wrap-preview culling
+--- opts.windowKind - "oam_animation" enables wrap copies; PPU Frame uses same torus without duplicate wraps if not oam_animation
+--- opts.isActiveLayer - shader palette active flag
+--- opts.spriteLayerIndex - passed to renderSprite as index (optional)
+--- opts.renderSprite - optional function(L, s, isActiveLayer, ch, mode, idx, spriteW, spriteH, layerOpacity, romRaw)
 function M.drawSpriteLayerInContentSpace(opts)
   opts = opts or {}
   local L = opts.layer

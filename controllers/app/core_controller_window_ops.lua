@@ -960,7 +960,7 @@ function AppCoreController:crtVizAddReference(crtWin, windowId, layerIndex)
   end
   local L = targetWin.layers[li]
   self:setStatus(string.format(
-    "CRT viz + %s · %s",
+    "CRT viz + %s  |  %s",
     targetWin.title or "(window)",
     (L and L.name) or ("layer " .. li)
   ))

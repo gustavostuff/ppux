@@ -1,4 +1,4 @@
--- Toolbar-driven grid resize for animation / static art windows (cols × rows, cellW × cellH).
+-- Toolbar-driven grid resize for animation / static art windows (cols  x  rows, cellW  x  cellH).
 
 local WindowCaps = require("controllers.window.window_capabilities")
 

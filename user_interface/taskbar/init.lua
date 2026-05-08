@@ -17,7 +17,7 @@ local DEFAULT_CANVAS_H = 360
 
 -- Backdrop behind the focused window's taskbar icon: smooth fade black -> white -> black (utils/timer_utils.lua).
 local TIMER_MARK_WINDOW_ICON_BLINK = "taskbar_window_icon_blink"
--- Taskbar window icons are drawn at 15×15 px; backdrop matches that footprint.
+-- Taskbar window icons are drawn at 15x15 px; backdrop matches that footprint.
 local WINDOW_ICON_BACKDROP_PX = 15
 -- Seconds for one full cycle (black at t=0, white at t=period/2, black at t=period).
 local WINDOW_ICON_BACKDROP_PERIOD_SEC = 2

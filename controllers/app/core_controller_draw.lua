@@ -338,7 +338,7 @@ local function drawTileStackItem(app, w, layer, item, col, row, x, y, idx, li, i
   end
 
   ----------------------------------------------------------------
-  -- DEBUG: show paletteNumber (1–4) over each tile if present
+  -- DEBUG: show paletteNumber (1-4) over each tile if present
   ----------------------------------------------------------------
   -- if layer and layer.paletteNumbers then
   --   local palNum = layer.paletteNumbers[idx]
@@ -557,7 +557,7 @@ local function ensureShadowMaskCanvases(app)
 end
 
 --- Header + content + bottom border line (drawBorder uses h+1). Collapsed -> header strip only
---- (`drawBorder` is not used collapsed, so `hh` matches chrome — see branch below).
+--- (`drawBorder` is not used collapsed, so `hh` matches chrome - see branch below).
 local function computeWindowChromeShadowRect(w)
   if w._collapsed and type(w.getHeaderRect) == "function" then
     local hx, hy, hw, hh = w:getHeaderRect()
@@ -633,7 +633,7 @@ end
 
 --- Expanded windows: header strip matches rounded title bar; body + bottom border are sharp (see drawBorder).
 --- Rounded header rects omit the bottom-left/right "wings" (corner fillets), so a full-width band along the
---- bottom of the header is merged (max blend) before the body — keeps the shadow flush with the content block.
+--- bottom of the header is merged (max blend) before the body - keeps the shadow flush with the content block.
 local function drawExpandedWindowChromeShadowMask(ox, oy, w)
   local left, top, width, fullHeight = computeWindowChromeShadowRect(w)
   local _, _, _, hh = w:getHeaderRect()
@@ -784,7 +784,7 @@ local function drawAllWindowShadows(app)
     ::shadow_continue::
   end
 
-  -- Base silhouettes (max blend): windows, top/taskbar strips, then open menus — then one blur/composite pass.
+  -- Base silhouettes (max blend): windows, top/taskbar strips, then open menus - then one blur/composite pass.
   do
     local topH = AppTopToolbarController.getContentOffsetY(app)
     if type(topH) == "number" and topH > 0 then
@@ -949,7 +949,7 @@ local function drawCrtLensWindowChromeOnly(app, w, wm)
     return
   end
 
-  -- Legacy: post-render “lens” samples the composed workspace; use only when crtLensPostCanvasOverlayEnabled.
+  -- Legacy: post-render "lens" samples the composed workspace; use only when crtLensPostCanvasOverlayEnabled.
   w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true))
   w:drawScrollBars(isFocused)
 

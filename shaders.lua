@@ -80,7 +80,7 @@ windowShadowBlurVCompositeShader = love.graphics.newShader([[
   }
 ]])
 
---- Premultiplied black from raw shadow mask (blur slider at 0 — no Gaussian passes).
+--- Premultiplied black from raw shadow mask (blur slider at 0 - no Gaussian passes).
 windowShadowMaskCompositeShader = love.graphics.newShader([[
   uniform float shadowAlpha;
 

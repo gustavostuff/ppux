@@ -1,4 +1,4 @@
--- CRT layer visualizer: references other windows’ raster layers, CRT-shaded inside the app canvas.
+-- CRT layer visualizer: references other windows' raster layers, CRT-shaded inside the app canvas.
 
 local Window = require("user_interface.windows_system.window")
 local ResolutionController = require("controllers.app.resolution_controller")

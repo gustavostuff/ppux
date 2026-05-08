@@ -1,8 +1,8 @@
--- Standalone color picker: 10×8 panel grid.
--- Col 1: lightness (HSL L) ladder; col 1 and the 8×8 matrix each have their own selection highlight.
+-- Standalone color picker: 10x8 panel grid.
+-- Col 1: lightness (HSL L) ladder; col 1 and the 8x8 matrix each have their own selection highlight.
 -- Changing the matrix keeps the brightness row; changing brightness keeps the matrix cell.
 -- Col 2: non-interactive spacer (no drawing).
--- Cols 3–10: hue × saturation at fixed L=0.5 (HSL) for preview; the selected cell is drawn at the ladder L.
+-- Cols 3-10: hue  x  saturation at fixed L=0.5 (HSL) for preview; the selected cell is drawn at the ladder L.
 -- onChange / getSelected still report h, s, v as HSV [0,1] derived from the resulting RGB.
 local Panel = require("user_interface.panel")
 local colors = require("app_colors")
@@ -355,7 +355,7 @@ function ColorPickerMatrix.new(opts)
     for mc = 1, MATRIX_COLS do
       local hueIndex = mc
       local satRow = row
-      -- Matrix column is a hue×sat slice at L=0.5 for picking reference; the *selected* cell uses
+      -- Matrix column is a hue x sat slice at L=0.5 for picking reference; the *selected* cell uses
       -- the current _lightness so the swatch / hex match the highlighted square when opening synced RGB.
       local fn = function()
         if self._swatchPinRgb and self._hueIndex == hueIndex and self._satRow == satRow then
@@ -490,7 +490,7 @@ function ColorPickerMatrix:contains(px, py)
   return self.panel and self.panel:contains(px, py) or false
 end
 
---- True when (px,py) is over a clickable color swatch (brightness column or hue×sat grid, not spacer).
+--- True when (px,py) is over a clickable color swatch (brightness column or hue x sat grid, not spacer).
 function ColorPickerMatrix:wantsHandCursorAt(px, py)
   if not self.visible or not self.panel then
     return false
@@ -540,7 +540,7 @@ function ColorPickerMatrix:mousemoved(x, y)
   self.panel:mousemoved(x, y)
 end
 
---- One discrete HSL lightness step (0–1), matching column 1 of the picker (`GRID_ROWS` bands).
+--- One discrete HSL lightness step (0-1), matching column 1 of the picker (`GRID_ROWS` bands).
 function ColorPickerMatrix.lightnessStep01()
   return 1 / (GRID_ROWS - 1)
 end

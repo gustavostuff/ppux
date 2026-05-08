@@ -1,4 +1,4 @@
--- CRT layer visualizer: sample referenced window layers into a 256×240 viewport for in-window CRT shading.
+-- CRT layer visualizer: sample referenced window layers into a 256x240 viewport for in-window CRT shading.
 
 local WindowCaps = require("controllers.window.window_capabilities")
 
@@ -108,7 +108,7 @@ function M.refAllowsPan(app, wm, ref)
   if sw <= 0 or sh <= 0 then
     return false
   end
-  -- Without a resolved drawable we often fall back to full grid size (e.g. 256×240); that made
+  -- Without a resolved drawable we often fall back to full grid size (e.g. 256x240); that made
   -- layerAllowsPan false and blocked panning for small layers until a tile cache existed.
   if not canvas then
     return true
@@ -116,7 +116,7 @@ function M.refAllowsPan(app, wm, ref)
   return M.layerAllowsPan(sw, sh)
 end
 
---- Blit one drawable into the 256×240 scratch using crop / inset semantics stored in pan.
+--- Blit one drawable into the 256x240 scratch using crop / inset semantics stored in pan.
 function M.blitDrawableOntoScratch(canvas, sw, sh, panX, panY, opacity)
   if not canvas then
     return
@@ -177,7 +177,7 @@ function M.compositeRefsOntoScratch(app, wm, scratch, crtWin)
     end
   end
 
-  -- Never leave setCanvas() on the window mid-frame — restore the workspace canvas.
+  -- Never leave setCanvas() on the window mid-frame - restore the workspace canvas.
   if destCanvas then
     love.graphics.setCanvas({ destCanvas, depthstencil = true })
   else

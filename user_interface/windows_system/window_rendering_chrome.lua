@@ -114,7 +114,7 @@ function Window:drawHeader(isFocused)
   end
   love.graphics.rectangle("fill", hx - 1, hy, hw + 2, hh, 2)
 
-  -- Title on chrome: use Appearance “Text/Icons” when focused; body text when not.
+  -- Title on chrome: use Appearance "Text/Icons" when focused; body text when not.
   local textColor
   if isFocused then
     textColor = colors:chromeTextIconsColorFocused()
@@ -197,7 +197,7 @@ function Window:drawResizeHandle(isFocused, scaledMouse)
       local focusColor = colors:focusedChromeColor()
       love.graphics.setColor(focusColor)
     else
-      -- Match window workspace fill (Appearance “BG”); masks are grayscale × tint.
+      -- Match window workspace fill (Appearance "BG"); masks are grayscale  x  tint.
       love.graphics.setColor(colors:appWorkspaceFill())
     end
 

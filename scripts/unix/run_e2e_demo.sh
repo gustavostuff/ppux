@@ -6,7 +6,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT_DIR" || exit 1
 
 if ! command -v love >/dev/null 2>&1; then
-  echo "Error: 'love' command not found. Please install LÖVE2D first."
+  echo "Error: 'love' command not found. Please install LOVE2D first."
   exit 1
 fi
 

@@ -39,7 +39,7 @@ describe("app_top_toolbar_controller.lua", function()
     expect(warningStatus).toBe(nil)
   end)
 
-  it("keeps New first and orders Open / Save / … when project is loaded", function()
+  it("keeps New first and orders Open / Save / ... when project is loaded", function()
     local app = {
       canvas = {
         getWidth = function() return 640 end,

@@ -1,6 +1,6 @@
 # Unit Testing
 
-PPUX includes a small Jest-like test framework built on top of LÖVE.
+PPUX includes a small Jest-like test framework built on top of LOVE.
 
 ## Running unit tests
 
@@ -23,7 +23,7 @@ cd test
 love .
 ```
 
-The runner opens a LÖVE window and shows passing tests, failing tests, and error details.
+The runner opens a LOVE window and shows passing tests, failing tests, and error details.
 
 ## Where unit tests live
 

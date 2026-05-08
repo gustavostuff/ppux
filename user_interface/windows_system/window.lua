@@ -1,4 +1,4 @@
--- window.lua — base grid window model
+-- window.lua - base grid window model
 -- Constructor lives here; behavior/rendering are installed from sibling modules.
 
 local Window = {}

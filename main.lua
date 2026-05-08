@@ -62,7 +62,7 @@ function love.load(arg)
   app:load()
 
   -- Check for command-line arguments (ROM file path)
-  -- In LÖVE, command-line arguments are passed as a parameter to love.load()
+  -- In LOVE, command-line arguments are passed as a parameter to love.load()
   -- arg[0] is typically the game directory, actual args start at arg[1]
   if cli.romPath then
     RomProjectController.loadROM(app, cli.romPath)
@@ -157,7 +157,7 @@ end
 
 local function isInteractiveFrame()
   -- The low-latency loop is only worth using while the dedicated high-speed
-  -- paint mode is enabled. In normal mode we let LÖVE pace itself more calmly.
+  -- paint mode is enabled. In normal mode we let LOVE pace itself more calmly.
   if not highSpeedPaintMode then
     return false
   end
@@ -304,14 +304,14 @@ function love.quit()
   return false
 end
 
--- We override LÖVE's default main loop so painting can run in a lower-latency
+-- We override LOVE's default main loop so painting can run in a lower-latency
 -- mode when needed. The key differences are:
 -- 1. we can poll mouse movement every frame for smoother drag painting
 -- 2. we can choose a more aggressive sleep strategy while interacting
 -- 3. we can toggle that behavior at runtime instead of committing globally
 --
 -- When high-speed paint mode is disabled, this loop still runs, but it falls
--- back to calmer pacing and vsync so the app behaves more like normal LÖVE.
+-- back to calmer pacing and vsync so the app behaves more like normal LOVE.
 love.run = LoveRunLoop.create({
   isHighSpeedMode = function()
     return highSpeedPaintMode

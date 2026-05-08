@@ -314,7 +314,7 @@ function ResolutionController:workspaceRectToScreen(x, y, w, h)
   return sx0 + x * scx, sy0 + y * scy, w * scx, h * scy
 end
 
---- After renderCanvas: draw CRT-filtered regions from the finished workspace canvas (samples 256×240 NES-equivalent, presents at scaled screen size).
+--- After renderCanvas: draw CRT-filtered regions from the finished workspace canvas (samples 256x240 NES-equivalent, presents at scaled screen size).
 function ResolutionController:renderCrtLensOverlays(app)
   if self.crtLensPostCanvasOverlayEnabled ~= true then
     return

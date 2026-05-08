@@ -1,4 +1,4 @@
--- Composite control: Dropdown whose trigger shows only the selected color (11×11 fill + animated
+-- Composite control: Dropdown whose trigger shows only the selected color (11x11 fill + animated
 -- marching-ants border using the same pattern as tile/sprite selection overlays) and whose menu
 -- embeds a ColorPickerMatrix. The list panel uses a transparent background by default so no grey strip
 -- appears beside the matrix; override with opts.menuBgColor.

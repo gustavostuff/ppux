@@ -968,7 +968,7 @@ function M.applyTileDragGroup(win, layerIdx, group, anchorCol, anchorRow, opts)
       end
     end
 
-    -- Avoid N× full recompress + peer full-grid refresh: batch clears then writes; for two
+    -- Avoid N x  full recompress + peer full-grid refresh: batch clears then writes; for two
     -- windows flush source after clears so peers pick up clears before destination writes.
     if not copyMode then
       beginRomBatchIf(srcWin)

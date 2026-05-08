@@ -469,7 +469,7 @@ local function resolveRomPathForProject(projectPath)
   )
 end
 
--- Read ROM from either a LÖVE File object or a file path string
+-- Read ROM from either a LOVE File object or a file path string
 local function readROMFromFile(app, fileOrPath)
   local state = app.appEditState
   local romPath
@@ -513,7 +513,7 @@ local function readROMFromFile(app, fileOrPath)
     
     DebugController.log("info", "ROM", "Successfully read %d bytes from file: %s", #romData, romPath)
   else
-    -- LÖVE File object provided (filedropped)
+    -- LOVE File object provided (filedropped)
     if fileOrPath.getFilename then
       romPath = fileOrPath:getFilename()
       DebugController.log("info", "ROM", "Loading ROM file: %s", romPath)

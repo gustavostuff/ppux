@@ -30,7 +30,7 @@ local function validateImageDimensions(width, height)
 end
 
 --- Validate that image has at most 4 colors (indexed)
---  imgData: LÖVE2D ImageData object
+--  imgData: LOVE2D ImageData object
 --  Returns: true, nil on success, or false, errorMessage on failure
 local function validateImageColors(imgData)
   local width, height = imgData:getWidth(), imgData:getHeight()
@@ -243,7 +243,7 @@ end
 ----------------------------------------------------------------------
 
 --- Import an indexed PNG image into a CHR bank window
---  file: LÖVE2D File object (PNG file)
+--  file: LOVE2D File object (PNG file)
 --  win: CHR bank window object
 --  startCol, startRow: starting tile coordinates (0-based) where to place the image
 --  appEditState: application state containing tilesPool, chrBanksBytes, currentBank, etc.

@@ -1,4 +1,4 @@
--- window_controller.lua — z-order, focus, hit-test, borders
+-- window_controller.lua - z-order, focus, hit-test, borders
 local DebugController    = require("controllers.dev.debug_controller")
 local StaticArtWindow    = require("user_interface.windows_system.static_art_window")
 local PatternTableBuilderWindow = require("user_interface.windows_system.pattern_table_builder_window")

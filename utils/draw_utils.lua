@@ -149,7 +149,7 @@ function M.drawRepeatingImageAnimated(img, x, y, w, h, data)
   if useShader and borderShader then
     love.graphics.push("all")
     -- u_rect must match fragment pixel coords; love.graphics.transformPoint maps from
-    -- current drawing space through the active transform stack (LÖVE 11+).
+    -- current drawing space through the active transform stack (LOVE 11+).
     local x0 = x or 0
     local y0 = y or 0
     local ax, ay = love.graphics.transformPoint(x0, y0)

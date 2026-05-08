@@ -58,7 +58,7 @@ function Timer.update(dt)
     end
   end
 
-  -- Run callbacks after we’ve removed them from the table.
+  -- Run callbacks after we've removed them from the table.
   for i = 1, #due do
     local ok, err = pcall(due[i].fn)
     if not ok then

@@ -1,4 +1,4 @@
--- Minimal "canvas only" view: full logical canvas = 128×72 NES px at 5×, vertical 8px (NES) scroll,
+-- Minimal "canvas only" view: full logical canvas = 128x72 NES px at 5 x , vertical 8px (NES) scroll,
 -- CHR specialized toolbar only (draggable). No other UI draws or receives input.
 
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")

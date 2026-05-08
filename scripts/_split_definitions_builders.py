@@ -38,7 +38,7 @@ HEADER = (
     + "\n"
 )
 
-# (filename, start_line, end_line inclusive) — 1-based, original definitions.lua
+# (filename, start_line, end_line inclusive) - 1-based, original definitions.lua
 PARTS = [
     ("context_menus.lua", 50, 483),
     ("modals_tile.lua", 484, 864),

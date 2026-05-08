@@ -6,7 +6,7 @@ for %%I in ("%SCRIPT_DIR%..\..") do set "ROOT_DIR=%%~fI"
 
 where love >nul 2>nul
 if errorlevel 1 (
-  echo Error: 'love' command not found. Please install LÖVE2D first.
+  echo Error: 'love' command not found. Please install LOVE2D first.
   echo Visit https://love2d.org/ for installation instructions.
   exit /b 1
 )

@@ -15,30 +15,30 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
 :information_source: If you wish to support the project, you can do so [here](https://tavuntu.itch.io/ppux).
 
 - [Basic Usage](#basic-usage)
-  - [Getting started](#getting-started)
-  - [Windows system](#windows-system)
-  - [Toolbars](#toolbars)
-  - [Palette windows](#palette-windows)
-  - [Main controls](#main-controls)
-  - [Tile mode](#tile-mode)
-  - [Edit mode](#edit-mode)
-  - [PNG drops](#png-drops)
+ - [Getting started](#getting-started)
+ - [Windows system](#windows-system)
+ - [Toolbars](#toolbars)
+ - [Palette windows](#palette-windows)
+ - [Main controls](#main-controls)
+ - [Tile mode](#tile-mode)
+ - [Edit mode](#edit-mode)
+ - [PNG drops](#png-drops)
 - [Advanced](#advanced)
-  - [Database](#database)
-  - [DB contribution tracker](#db-contribution-tracker)
-  - [Lua project mapping](#lua-project-mapping)
-  - [PPU frame windows](#ppu-frame-windows)
-  - [Byte budget for PPU Frame windows](#byte-budget-for-ppu-frame-windows)
-  - [PPU frame editing notes](#ppu-frame-editing-notes)
-  - [Current nametable codec coverage](#current-nametable-codec-coverage)
-  - [OAM animation windows](#oam-animation-windows)
-  - [ROM palette windows](#rom-palette-windows)
-  - [Window references between entries](#window-references-between-entries)
-  - [ROM patches](#rom-patches)
+ - [Database](#database)
+ - [DB contribution tracker](#db-contribution-tracker)
+ - [Lua project mapping](#lua-project-mapping)
+ - [PPU frame windows](#ppu-frame-windows)
+ - [Byte budget for PPU Frame windows](#byte-budget-for-ppu-frame-windows)
+ - [PPU frame editing notes](#ppu-frame-editing-notes)
+ - [Current nametable codec coverage](#current-nametable-codec-coverage)
+ - [OAM animation windows](#oam-animation-windows)
+ - [ROM palette windows](#rom-palette-windows)
+ - [Window references between entries](#window-references-between-entries)
+ - [ROM patches](#rom-patches)
 - [Development](#development)
-  - [Build packages](#build-packages)
-  - [Unit testing](#unit-testing)
-  - [E2E testing](#e2e-testing)
+ - [Build packages](#build-packages)
+ - [Unit testing](#unit-testing)
+ - [E2E testing](#e2e-testing)
 
 ## Basic Usage
 
@@ -87,10 +87,10 @@ Windows include a slim toolbar strip just above the header. It holds small icon 
 
 <img src="img/readme_images/toolbars/chr_banks_toolbar.png" alt="CHR Banks specialized toolbar">
 
-1. **Previous bank** — `Left` key
-2. **Next bank** — `Right` key
-3. **Tile layout (8x8 / 8x16)** — straight `8x8` rows vs paired `8x16` layout — `M` key
-4. **Sync duplicate tiles** — on: identical tiles edit together; off: independent cells
+1. **Previous bank** - `Left` key
+2. **Next bank** - `Right` key
+3. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - `M` key
+4. **Sync duplicate tiles** - on: identical tiles edit together; off: independent cells
 
 #### ROM Banks toolbar
 
@@ -98,27 +98,27 @@ Windows include a slim toolbar strip just above the header. It holds small icon 
 
 Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface would make this dangerous).
 
-1. **Previous bank** — `Left` key
-2. **Next bank** — `Right` key
-3. **Tile layout (8x8 / 8x16)** — `M` key
+1. **Previous bank** - `Left` key
+2. **Next bank** - `Right` key
+3. **Tile layout (8x8 / 8x16)** - `M` key
 
 #### Static Art (tiles and sprites) toolbar
 
 <img src="img/readme_images/toolbars/static_tiles_toolbar.png" alt="Static Art tiles/sprites specialized toolbar">
 
-1. **Palette link handle** — Right click drag onto a **ROM palette** window, or from the ROM palette’s handle onto this window. Left click to link via a menu.
+1. **Palette link handle** - Right click drag onto a **ROM palette** window, or from the ROM palette's handle onto this window. Left click to link via a menu.
 
 #### Animation toolbar (for both sprites and tiles)
 
 <img src="img/readme_images/toolbars/animation_tile_toolbar.png" alt="Animation tiles specialized toolbar">
 
 1. **Palette link handle**
-2. **Previous layer** — `Shift` + `Down` key
-3. **Next layer** — `Shift` + `Up` key
-4. **Remove layer** — only when more than one frame exists — `-` key
-5. **Add layer** — `+` key
+2. **Previous layer** - `Shift` + `Down` key
+3. **Next layer** - `Shift` + `Up` key
+4. **Remove layer** - only when more than one frame exists - `-` key
+5. **Add layer** - `+` key
 6. **Copy from previous layer**
-7. **Play / Pause** — `P` key (any case)
+7. **Play / Pause** - `P` key (any case)
 
 
 #### OAM Animation toolbar
@@ -126,14 +126,14 @@ Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface 
 <img src="img/readme_images/toolbars/oam_animation.png" alt="OAM Animation specialized toolbar">
 
 1. **Palette link handle**
-2. **Previous layer** — `Shift` + `Down` key
-3. **Next layer** — `Shift` + `Up` key
-4. **Remove layer** — `-` key
-5. **Add layer** — `+` key
+2. **Previous layer** - `Shift` + `Down` key
+3. **Next layer** - `Shift` + `Up` key
+4. **Remove layer** - `-` key
+5. **Add layer** - `+` key
 6. **Add sprite**
-7. **Toggle origin guides** — **Shift + right-drag** on the canvas moves the sprites origin
+7. **Toggle origin guides** - **Shift + right-drag** on the canvas moves the sprites origin
 8. **Copy from previous layer**
-9. **Play / Pause** — `P` key
+9. **Play / Pause** - `P` key
 
 #### Global palette toolbar
 
@@ -142,7 +142,7 @@ Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface 
 1. **Previous grouped slot** (when Grouped palettes is enabled)
 2. **Next grouped slot** (when Grouped palettes is enabled)
 3. **Compact / normal view**
-4. **Set as active palette** — for painting where no ROM palette applies
+4. **Set as active palette** - for painting where no ROM palette applies
 
 #### ROM palette toolbar
 
@@ -150,20 +150,20 @@ Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface 
 
 1. **Previous grouped slot** (when Grouped palettes is enabled)
 2. **Next grouped slot** (when Grouped palettes is enabled)
-3. **Palette link handle (source)** — right click to drag link or left click to set link via menus.
+3. **Palette link handle (source)** - right click to drag link or left click to set link via menus.
 4. **Compact / normal view**
 
 #### PPU Frame toolbar
 
 <img src="img/readme_images/toolbars/ppu_frame_sprite_layer_toolbar.png" alt="PPU Frame toolbar">
 
-1. **Previous layer** — `Shift` + `Down` key
-2. **Next layer** — `Shift` + `Up` key
-3. **Add tile range** — appends a logical pattern-table range (bank/page/from/to)
-4. **Nametable range** — compressed nametable **start/end** ROM addresses
-5. **Add sprite** — creates sprite layer if needed, otherwise adds a sprite
-6. **Pattern layer toggle** — isolates the runtime pattern-table layer when enabled
-7. **Toggle origin guides** — available on sprite layers
+1. **Previous layer** - `Shift` + `Down` key
+2. **Next layer** - `Shift` + `Up` key
+3. **Add tile range** - appends a logical pattern-table range (bank/page/from/to)
+4. **Nametable range** - compressed nametable **start/end** ROM addresses
+5. **Add sprite** - creates sprite layer if needed, otherwise adds a sprite
+6. **Pattern layer toggle** - isolates the runtime pattern-table layer when enabled
+7. **Toggle origin guides** - available on sprite layers
 
 When **Pattern layer toggle** is ON, only the pattern reference layer is visible/navigable. When OFF, normal tile/sprite navigation resumes.
 
@@ -194,8 +194,8 @@ In practice:
 
 **Creating a link**
 
-* Drag (right click) from a **ROM palette** window’s connect handle and release over a destination window, **or**
-* Drag from a **destination** window’s connect handle (**Static Art**, **Animation** tiles/sprites, **OAM Animation**, etc.) and release over a **ROM palette** window, **or**
+* Drag (right click) from a **ROM palette** window's connect handle and release over a destination window, **or**
+* Drag from a **destination** window's connect handle (**Static Art**, **Animation** tiles/sprites, **OAM Animation**, etc.) and release over a **ROM palette** window, **or**
 * Use left click for contextual menus
 
 ### Main controls
@@ -205,12 +205,12 @@ In practice:
 - `Ctrl + N`: open `New Window`
 - `Ctrl + S`: open save options
 - `Tab`: toggle `Tile` / `Edit` mode
-- `Space` (hold): **mapping highlight** — when a non–CHR/ROM layout window is focused, highlights tiles or sprites in the active layer that match the tile indices in the **current CHR/ROM bank**; matching cells are also emphasized in CHR/ROM bank windows for the same bank. Release `Space` to turn it off.
+- `Space` (hold): **mapping highlight** - when a non-CHR/ROM layout window is focused, highlights tiles or sprites in the active layer that match the tile indices in the **current CHR/ROM bank**; matching cells are also emphasized in CHR/ROM bank windows for the same bank. Release `Space` to turn it off.
 - `Ctrl + G`: toggle the focused window grid
 - `Ctrl + R`: toggle shader rendering for the focused layer
 - `Ctrl + Z` / `Ctrl + Y`: undo / redo (see [Undo and redo](#undo-and-redo) for what is recorded)
 - `Ctrl + C` / `Ctrl + X` / `Ctrl + V`: copy / cut / paste selection
-  - In `ppu_frame` and `oam_animation` windows, clipboard actions are blocked on sprite layers
+ - In `ppu_frame` and `oam_animation` windows, clipboard actions are blocked on sprite layers
 - `Right click` or `middle click` drag: move windows
 - taskbar: focus, restore, and manage windows
 
@@ -258,7 +258,7 @@ You can drag and drop a PNG directly into PPUX. The drop is always applied to th
 Sprite PNG import (Static Art, Animation, OAM Animation, or **PPU Frame with the sprite layer active**):
 
 * **Static Art**, **Animation**, and **OAM Animation**: a window qualifies if it has **any** sprite layer.
-* **PPU Frame**: a window qualifies for sprite import only when the **active layer** is the **sprite** layer. If the active layer is the **tile** layer, the drop is **not** treated as a sprite import—even if a sprite overlay exists on another layer.
+* **PPU Frame**: a window qualifies for sprite import only when the **active layer** is the **sprite** layer. If the active layer is the **tile** layer, the drop is **not** treated as a sprite import - even if a sprite overlay exists on another layer.
 * If you have selected sprites, PPUX imports into those sprites in selection order.
 * If no sprites are selected, PPUX imports into the layer's sprites from first to last.
 * The PNG must use at most 4 total colors including transparency, or at most 3 non-transparent colors.
@@ -348,16 +348,16 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
 
 ### PPU frame editing notes
 
-* **Empty nametable cells** use nametable byte **0** by default, which resolves to pattern-table **tile 0** using the layer’s **`patternTable.ranges`** (each range contributes bank, page, and tile index span; extra ranges widen which CHR tiles the nametable can point at—byte `0` is still tile index 0 within that combined mapping).
+* **Empty nametable cells** use nametable byte **0** by default, which resolves to pattern-table **tile 0** using the layer's **`patternTable.ranges`** (each range contributes bank, page, and tile index span; extra ranges widen which CHR tiles the nametable can point at - byte `0` is still tile index 0 within that combined mapping).
 * Tile layers render from a **cached full-canvas** nametable view for performance; after heavy edits, use the normal refresh paths the UI offers if a screen looks stale.
 * For **sprites**, use **Add sprite** on the toolbar to bind OAM entries. Sprite items that share the same `startAddr` **stay in sync** with **OAM Animation** windows (and other PPU Frame sprite layers) so moving or reconfiguring one updates the linked entries.
-* **Nametable range sync:** PPU Frame windows that share the same `nametableStartAddr` and `nametableEndAddr` keep their uncompressed nametable + attribute bytes (and ROM slice) aligned when you edit the tile layer in any one of them—similar to sprite `startAddr` sync.
-* **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. When you are not dragging, **right-click** behaves like elsewhere (in **edit mode** over paintable pixels, **Alt + right-click** opens the menu if you want the menu instead of sampling a color—see [Edit mode](#edit-mode)).
+* **Nametable range sync:** PPU Frame windows that share the same `nametableStartAddr` and `nametableEndAddr` keep their uncompressed nametable + attribute bytes (and ROM slice) aligned when you edit the tile layer in any one of them - similar to sprite `startAddr` sync.
+* **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. When you are not dragging, **right-click** behaves like elsewhere (in **edit mode** over paintable pixels, **Alt + right-click** opens the menu if you want the menu instead of sampling a color - see [Edit mode](#edit-mode)).
 * **Pattern layer mode**: use the pattern-table toggle button to isolate the runtime pattern reference layer. In this mode, tile/sprite layers are hidden from navigation and `Ctrl + Up/Down` inactive-layer opacity is disabled.
 * **Pattern range UX**: adding a pattern range updates the reference layer immediately and switches to pattern-layer mode to review the new logical range quickly.
 * **Pattern hover aid**: hovering a tile in pattern-layer mode highlights all tiles in the same logical range with a translucent overlay.
 
-**Project file sketch** (what the UI ultimately saves) — useful when diffing projects or contributing DB entries:
+**Project file sketch** (what the UI ultimately saves) - useful when diffing projects or contributing DB entries:
 
 ```lua
 {
@@ -472,7 +472,7 @@ PPUX can apply small ROM patches from project data before windows are built (so 
 
 This is meant for targeted graphics-related setup such as forcing a game state or changing a small byte sequence. It is not a replacement for a full ROM hacking workflow.
 
-Patches live on the project table as an array, `romPatches`. Each entry must include a **`reason`** string (non-empty description). Every value written is a **single byte** (0–255). Addresses are **unsigned integers** (0 or positive).
+Patches live on the project table as an array, `romPatches`. Each entry must include a **`reason`** string (non-empty description). Every value written is a **single byte** (0-255). Addresses are **unsigned integers** (0 or positive).
 
 Use one of 3 different forms:
 

@@ -1,5 +1,5 @@
 -- test_framework.lua
--- Simple test framework for LÖVE2D
+-- Simple test framework for LOVE2D
 
 local TestFramework = {}
 
