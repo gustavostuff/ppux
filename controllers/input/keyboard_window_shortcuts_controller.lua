@@ -170,7 +170,7 @@ function M.handleWindowZoom(ctx, utils, key)
 end
 
 function M.handleReferenceBackgroundToggle(ctx, utils, key, focus)
-  if key ~= "r" then
+  if type(key) ~= "string" or string.lower(key) ~= "r" then
     return false
   end
   if utils.ctrlDown() or utils.altDown() then

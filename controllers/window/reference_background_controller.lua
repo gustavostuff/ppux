@@ -110,12 +110,46 @@ function M.tryLoadImageAtPath(absPath)
   if absPath == "" then
     return nil, "empty_path"
   end
-  local ok, img = pcall(love.graphics.newImage, absPath)
-  if not ok or not img then
-    return nil, "load_failed"
+
+  -- Paths from an OS picker are usually absolute. love.graphics.newImage(path) only
+  -- resolves through love.filesystem (game/save dirs), so load raw bytes instead.
+  local function imageFromDecodedFileData(bytes, basename)
+    if not bytes or #bytes == 0 then
+      return nil
+    end
+    basename = tostring(basename or "reference.png"):match("[^/\\]+$") or "reference.png"
+    local okFd, fd = pcall(love.filesystem.newFileData, bytes, basename)
+    if not okFd or not fd then
+      return nil
+    end
+    local okId, imgData = pcall(love.image.newImageData, fd)
+    if not okId or not imgData then
+      return nil
+    end
+    local okImg, img = pcall(love.graphics.newImage, imgData)
+    if not okImg or not img then
+      return nil
+    end
+    img:setFilter("nearest", "nearest")
+    return img
   end
-  img:setFilter("nearest", "nearest")
-  return img
+
+  local file = io.open(absPath, "rb")
+  if file then
+    local bytes = file:read("*a")
+    file:close()
+    local img = imageFromDecodedFileData(bytes, filenameOnly(absPath))
+    if img then
+      return img
+    end
+  end
+
+  local ok, img = pcall(love.graphics.newImage, absPath)
+  if ok and img then
+    img:setFilter("nearest", "nearest")
+    return img
+  end
+  return nil, "load_failed"
 end
 
 function M.applyStoredPath(win, app, storedPath, opts)
@@ -242,7 +276,7 @@ function M.drawReferenceBehindLayers(win)
     return
   end
   local img = win.referenceImageDrawable
-  if not (img and img.draw) then
+  if not img then
     return
   end
 
@@ -265,7 +299,7 @@ function M.drawReferenceBehindLayers(win)
   local dy = math.floor((maxH - ih) / 2)
 
   love.graphics.setColor(1, 1, 1, 1)
-  img:draw(dx, dy)
+  love.graphics.draw(img, dx, dy)
   love.graphics.setColor(colors.white)
 
   love.graphics.pop()

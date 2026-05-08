@@ -1294,7 +1294,7 @@ function AppCoreController:pickReferenceBackgroundForFocusedWindow()
 
     local targetWin = focus
     self.openReferencePngModal:show({
-      title = "Reference image (PNG)",
+      title = "Set reference image layer",
       initialDir = resolveOpenReferencePngInitialDir(self),
       allowedExt = { png = true },
       onDirectoryChanged = function(path)
