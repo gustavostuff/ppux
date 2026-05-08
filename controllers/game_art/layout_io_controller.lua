@@ -713,6 +713,10 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
       end
     end
 
+    if type(w.referenceImageStoredPath) == "string" and w.referenceImageStoredPath ~= "" then
+      entry.referenceBackgroundPath = w.referenceImageStoredPath
+    end
+
     table.insert(out.windows, entry)
     ::continue::
   end

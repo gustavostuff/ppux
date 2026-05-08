@@ -91,6 +91,7 @@ function AppCoreController.new()
   self.newWindowTypeModal = NewWindowTypeModal.new()
   self.newWindowModal = NewWindowModal.new()
   self.openProjectModal = OpenProjectModal.new()
+  self.openReferencePngModal = nil
   self.renameWindowModal = RenameWindowModal.new()
   self.romPaletteAddressModal = RomPaletteAddressModal.new()
   self.ppuFrameSpriteLayerModeModal = PPUFrameSpriteLayerModeModal.new()
@@ -181,6 +182,7 @@ function AppCoreController.new()
     palette_link_change = true,
     ppu_frame_range_change = true,
     animation_timeline_change = true,
+    reference_background_change = true,
   }
 
   -- undo/redo

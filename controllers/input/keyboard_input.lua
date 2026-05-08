@@ -26,6 +26,7 @@ local globalShortcutHandlers = {
 }
 
 local focusHandlers = {
+  { name = "reference_background_toggle", fn = function(key, focus) return KeyboardWindowShortcutsController.handleReferenceBackgroundToggle(ctx, utils, key, focus) end },
   { name = "pixel_offset", fn = function(key, focus) return KeyboardArtActionsController.handlePixelOffset(ctx, utils, key, focus) end },
   { name = "inactive_layer_opacity", fn = function(key, focus) return KeyboardNavigationController.handleInactiveLayerOpacity(ctx, utils, key, focus) end },
   { name = "window_zoom", fn = function(key) return KeyboardWindowShortcutsController.handleWindowZoom(ctx, utils, key) end },

@@ -169,8 +169,31 @@ function M.handleWindowZoom(ctx, utils, key)
   return false
 end
 
+function M.handleReferenceBackgroundToggle(ctx, utils, key, focus)
+  if key ~= "r" then
+    return false
+  end
+  if utils.ctrlDown() or utils.altDown() then
+    return false
+  end
+  if ctx.getMode() ~= "tile" then
+    return false
+  end
+
+  local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
+  if not focus or not ReferenceBackgroundController.isEligibleWindow(focus) then
+    return false
+  end
+  if not ReferenceBackgroundController.hasReference(focus) then
+    return false
+  end
+  return ReferenceBackgroundController.toggleDisplay(focus)
+end
+
 function M.handleGridToggleInWindow(ctx, utils, key, focus)
-  if not focus then return false end
+  if not focus then
+    return false
+  end
   if key ~= "g" then
     return false
   end

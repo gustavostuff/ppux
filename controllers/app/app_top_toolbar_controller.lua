@@ -4,6 +4,7 @@ local Button = require("user_interface.button")
 local images = require("images")
 local UiScale = require("user_interface.ui_scale")
 local WindowCaps = require("controllers.window.window_capabilities")
+local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local Text = require("utils.text_utils")
 
@@ -211,6 +212,20 @@ local function ensureQuickButtons(app)
       w = cell,
       h = cell,
     }),
+    referenceBackground = Button.new({
+      icon = images.icons.icon_png or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      tooltip = "Reference PNG (tile mode: R to toggle view)",
+      action = withRom(app, function(a)
+        if a.pickReferenceBackgroundForFocusedWindow then
+          a:pickReferenceBackgroundForFocusedWindow()
+        end
+      end),
+      x = 0,
+      y = 0,
+      w = cell,
+      h = cell,
+      enabled = false,
+    }),
     copy = Button.new({
       icon = images.icons.icon_copy or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
       tooltip = "Copy",
@@ -289,6 +304,7 @@ local function quickButtonOrder(app)
     order[#order + 1] = "addGridColumn"
     order[#order + 1] = "addGridRow"
     order[#order + 1] = "cloneWindow"
+    order[#order + 1] = "referenceBackground"
   end
   if SHOW_CRT_LENS_TOOLBAR_BUTTON then
     order[#order + 1] = "crtLens"
@@ -378,6 +394,25 @@ local function updateGridResizeButtons(app)
   end
 end
 
+local function updateReferenceBackgroundButton(app)
+  if not (app and app._appTopQuickButtons) then
+    return
+  end
+  local b = app._appTopQuickButtons.referenceBackground
+  if not b then
+    return
+  end
+  local wm = app.wm
+  local focus = wm and wm.getFocus and wm:getFocus() or nil
+  local allow = ReferenceBackgroundController.isEligibleWindow(focus)
+  b.enabled = allow
+  if ReferenceBackgroundController.windowHasStoredReference(focus) then
+    b.tooltip = "Remove reference PNG (confirm)"
+  else
+    b.tooltip = "Add reference PNG (tile mode: R to toggle view)"
+  end
+end
+
 local function styleAppTopChromeButton(button)
   if not button then
     return
@@ -429,6 +464,7 @@ function M.syncLayout(app)
   updateClipboardButtonStates(app)
   updateZoomButtonStates(app)
   updateGridResizeButtons(app)
+  updateReferenceBackgroundButton(app)
 
   local quickRightX = x
   local dockLeftX = quickRightX + SECTION_GAP

@@ -36,6 +36,7 @@ local function drawEmptyStatePrompt(app)
 end
 
 return function(AppCoreController)
+local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
 -- Find the active global palette window (non-ROM) and return its first color,
 -- or nil if none is available.
 
@@ -1030,7 +1031,13 @@ drawNormalWindow = function(app, w, wm)
     renderWindowChessPattern(w, wm)
   end
 
-  if isPaletteWindow then
+  local refOnly = (not isPaletteWindow)
+    and ReferenceBackgroundController.hasReference(w)
+    and w.referenceDisplayReference == true
+
+  if refOnly then
+    ReferenceBackgroundController.drawReferenceBehindLayers(w)
+  elseif isPaletteWindow then
     if w.drawGrid then
       w:drawGrid()
     end
@@ -1538,6 +1545,9 @@ local function drawOverlays(app)
   app.newWindowModal:draw(app.canvas)
   if app.openProjectModal then
     app.openProjectModal:draw(app.canvas)
+  end
+  if app.openReferencePngModal and app.openReferencePngModal:isVisible() then
+    app.openReferencePngModal:draw(app.canvas)
   end
   if app.saveOptionsModal then
     app.saveOptionsModal:draw(app.canvas)

@@ -16,6 +16,7 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local PatternTableMapping = require("utils.pattern_table_mapping")
 
 local TableUtils = require("utils.table_utils")
+local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
 
 local M = {}
 
@@ -584,6 +585,14 @@ function M.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool)
   end
   win.showGrid = GridModeUtils.normalize(w.showGrid)
   win._z = w.z or 0
+
+  if type(w.referenceBackgroundPath) == "string" and w.referenceBackgroundPath ~= "" then
+    local ctx = rawget(_G, "ctx")
+    local app = ctx and ctx.app
+    ReferenceBackgroundController.applyStoredPath(win, app, w.referenceBackgroundPath, {
+      toastWarnOversized = true,
+    })
+  end
 
   if w.collapsed ~= nil then
     win._collapsed = w.collapsed

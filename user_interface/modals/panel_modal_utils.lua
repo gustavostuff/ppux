@@ -137,6 +137,7 @@ function M.refreshModalChromeFromAppearanceChange(app)
     app.newWindowModal,
     app.newWindowTypeModal,
     app.openProjectModal,
+    app.openReferencePngModal,
     app.renameWindowModal,
     app.romPaletteAddressModal,
     app.ppuFrameSpriteLayerModeModal,

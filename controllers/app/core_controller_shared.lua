@@ -81,6 +81,7 @@ function M.anyModalVisible(app)
     or (app.newWindowTypeModal and app.newWindowTypeModal:isVisible())
     or (app.newWindowModal and app.newWindowModal:isVisible())
     or (app.openProjectModal and app.openProjectModal:isVisible())
+    or (app.openReferencePngModal and app.openReferencePngModal:isVisible())
     or (app.renameWindowModal and app.renameWindowModal:isVisible())
     or (app.romPaletteAddressModal and app.romPaletteAddressModal:isVisible())
     or (app.ppuFrameSpriteLayerModeModal and app.ppuFrameSpriteLayerModeModal:isVisible())
@@ -133,6 +134,7 @@ function M.getTopModalTooltipCandidate(app, x, y)
     app.newWindowTypeModal,
     app.newWindowModal,
     app.openProjectModal,
+    app.openReferencePngModal,
     app.renameWindowModal,
     app.romPaletteAddressModal,
     app.ppuFrameSpriteLayerModeModal,

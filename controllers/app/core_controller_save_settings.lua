@@ -1259,6 +1259,72 @@ function AppCoreController:showOpenProjectModal()
   return true
 end
 
+local function resolveOpenReferencePngInitialDir(app)
+  if type(app.lastReferencePngBrowseDir) == "string" and app.lastReferencePngBrowseDir ~= "" then
+    return app.lastReferencePngBrowseDir
+  end
+  return resolveOpenProjectInitialDir(app)
+end
+
+function AppCoreController:pickReferenceBackgroundForFocusedWindow()
+  if not self:hasLoadedROM() then
+    self:setStatus("Open a ROM before using reference images.")
+    if self.showToast then
+      self:showToast("warning", self.statusText or "Open a ROM first.")
+    end
+    return false
+  end
+
+  local wm = self.wm
+  local focus = wm and wm.getFocus and wm:getFocus() or nil
+  local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
+  if not ReferenceBackgroundController.isEligibleWindow(focus) then
+    self:setStatus("Reference images apply to layout windows only (not CHR/ROM banks or palettes).")
+    if self.showToast then
+      self:showToast("warning", self.statusText or "")
+    end
+    return false
+  end
+
+  local function openPngChooser()
+    if not self.openReferencePngModal then
+      local OpenFileModal = require("user_interface.modals.open_file_modal")
+      self.openReferencePngModal = OpenFileModal.new("png")
+    end
+
+    local targetWin = focus
+    self.openReferencePngModal:show({
+      title = "Reference image (PNG)",
+      initialDir = resolveOpenReferencePngInitialDir(self),
+      allowedExt = { png = true },
+      onDirectoryChanged = function(path)
+        self.lastReferencePngBrowseDir = path
+      end,
+      onOpen = function(path)
+        if path and ReferenceBackgroundController.setReferenceFromAbsolutePath(targetWin, self, path) then
+          local short = path:match("[^/\\]+$") or path
+          self:setStatus(("Reference PNG: %s (R to toggle view)"):format(short))
+        end
+      end,
+    })
+  end
+
+  if ReferenceBackgroundController.windowHasStoredReference(focus) then
+    local winRef = focus
+    self.quitConfirmModal:show({
+      title = "Remove reference?",
+      message = "This window already has a reference PNG. Remove it?",
+      onYes = function()
+        ReferenceBackgroundController.clearReference(winRef, self)
+        self:setStatus("Reference image removed.")
+      end,
+    })
+    return true
+  end
+
+  openPngChooser()
+  return true
+end
 ------------------------------------------------------------
 
 end

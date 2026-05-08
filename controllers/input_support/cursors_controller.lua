@@ -425,6 +425,7 @@ local function isHoveringHandTargetAt(app, mx, my)
     app and app.ppuFramePatternRangeModal,
     app and app.textFieldDemoModal,
     app and app.openProjectModal,
+    app and app.openReferencePngModal,
   }
   for _, modal in ipairs(modals) do
     if modalPanelHandAt(modal, mx, my) then
@@ -506,6 +507,7 @@ local function isHoveringDisabledUiAt(app, mx, my)
     app and app.ppuFramePatternRangeModal,
     app and app.textFieldDemoModal,
     app and app.openProjectModal,
+    app and app.openReferencePngModal,
   }
   for _, modal in ipairs(modals) do
     if modalPanelDisabledAt(modal, mx, my) then
