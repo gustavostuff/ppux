@@ -213,6 +213,30 @@ local function setMouseVisibility(app, visible)
   end
 end
 
+--- Hide OS / software-drawn cursor over window content while reference-underlay preview is active.
+local function shouldHideCursorForReferenceBackgroundView(app)
+  local mx, my = getMouseCanvasPosition()
+  if type(mx) ~= "number" or type(my) ~= "number" then
+    return false
+  end
+  local wm = app and app.wm
+  if not (wm and wm.windowAt) then
+    return false
+  end
+  local win = wm:windowAt(mx, my)
+  if not win then
+    return false
+  end
+  local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
+  if not ReferenceBackgroundController.isReferenceTracingViewActive(win) then
+    return false
+  end
+  if win.isInContentArea and win:isInContentArea(mx, my) then
+    return true
+  end
+  return false
+end
+
 --- True when (mx,my) is over artwork that can be painted with the pencil (sprite hit, tile cell with
 --- content, or canvas layer). Uses the same rules as edit-mode pencil cursor eligibility.
 function CursorsController.isHoveringEditableContentAt(app, mx, my)
@@ -566,7 +590,22 @@ local function resolveTargetCursorName(app, mode)
 end
 
 function CursorsController.applyModeCursor(app, mode)
-  if not (love and love.mouse) then return end
+  if not (love and love.mouse) then
+    return
+  end
+
+  if shouldHideCursorForReferenceBackgroundView(app) then
+    setMouseVisibility(app, false)
+    if love.mouse.setCursor then
+      love.mouse.setCursor()
+    end
+    if app then
+      app._softwareCursorModeActive = false
+      app.activeCursorName = nil
+      app.activeHardwareCursor = nil
+    end
+    return
+  end
 
   local cursors = app and app.hardwareCursors or {}
   local targetName = resolveTargetCursorName(app, mode)

@@ -214,7 +214,7 @@ local function ensureQuickButtons(app)
     }),
     referenceBackground = Button.new({
       icon = images.icons.icon_img or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
-      tooltip = "Reference PNG (tile mode: R to toggle view)",
+      tooltip = "Reference PNG (Alt+R toggles view)",
       action = withRom(app, function(a)
         if a.pickReferenceBackgroundForFocusedWindow then
           a:pickReferenceBackgroundForFocusedWindow()
@@ -409,7 +409,7 @@ local function updateReferenceBackgroundButton(app)
   if ReferenceBackgroundController.windowHasStoredReference(focus) then
     b.tooltip = "Remove reference PNG (confirm)"
   else
-    b.tooltip = "Add reference PNG (tile mode: R to toggle view)"
+    b.tooltip = "Add reference PNG (Alt+R toggles view)"
   end
 end
 

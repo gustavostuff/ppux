@@ -674,6 +674,7 @@ function AppCoreController:mousemoved(x, y, dx, dy)
     dx / ResolutionController.canvasScaleX,
     dy / ResolutionController.canvasScaleY
   )
+  refreshCursor(self)
 end
 
 function AppCoreController:wheelmoved(dx, dy)

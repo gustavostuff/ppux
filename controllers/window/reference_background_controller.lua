@@ -1,4 +1,4 @@
--- Reference PNG underlay for tracing: per eligible window, persisted path, R toggles view in tile mode.
+-- Reference PNG underlay for tracing: per eligible window, persisted path, Alt+R toggles view (tile or edit mode).
 local colors = require("app_colors")
 local WindowCaps = require("controllers.window.window_capabilities")
 local CanvasSpace = require("utils.canvas_space")
@@ -282,6 +282,11 @@ function M.hasReference(win)
     and win.referenceImageStoredPath ~= ""
     and win.referenceImageDrawable
     and win.referenceImageMissing ~= true
+end
+
+--- Reference-only view is on (layers hidden, tracing image shown).
+function M.isReferenceTracingViewActive(win)
+  return win and win.referenceDisplayReference == true and M.hasReference(win)
 end
 
 --- Draw centered in window content coords; call after chess grid, before layers. Clip to viewport.

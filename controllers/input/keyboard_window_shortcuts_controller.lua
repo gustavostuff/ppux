@@ -173,10 +173,10 @@ function M.handleReferenceBackgroundToggle(ctx, utils, key, focus)
   if type(key) ~= "string" or string.lower(key) ~= "r" then
     return false
   end
-  if utils.ctrlDown() or utils.altDown() then
+  if not (utils.altDown and utils.altDown()) then
     return false
   end
-  if ctx.getMode() ~= "tile" then
+  if utils.ctrlDown and utils.ctrlDown() then
     return false
   end
 

@@ -1303,7 +1303,7 @@ function AppCoreController:pickReferenceBackgroundForFocusedWindow()
       onOpen = function(path)
         if path and ReferenceBackgroundController.setReferenceFromAbsolutePath(targetWin, self, path) then
           local short = path:match("[^/\\]+$") or path
-          self:setStatus(("Reference PNG: %s (R to toggle view)"):format(short))
+          self:setStatus(("Reference PNG: %s (Alt+R toggles view)"):format(short))
         end
       end,
     })

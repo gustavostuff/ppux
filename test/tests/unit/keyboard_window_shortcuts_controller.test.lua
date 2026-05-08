@@ -146,6 +146,56 @@ describe("keyboard_window_shortcuts_controller.lua - space highlight toggle", fu
   end)
 end)
 
+describe("keyboard_window_shortcuts_controller.lua - reference background toggle", function()
+  it("requires Alt+R when a reference is loaded (tile or edit mode)", function()
+    local focus = {
+      kind = "ppu_frame",
+      referenceImageStoredPath = "ref.png",
+      referenceImageDrawable = { getWidth = function() return 1 end, getHeight = function() return 1 end },
+      referenceDisplayReference = false,
+      referenceImageMissing = false,
+    }
+    local mode = "tile"
+    local ctx = {
+      getMode = function()
+        return mode
+      end,
+    }
+    local utils = {
+      ctrlDown = function()
+        return false
+      end,
+      altDown = function()
+        return false
+      end,
+    }
+
+    expect(KeyboardWindowShortcutsController.handleReferenceBackgroundToggle(ctx, utils, "r", focus)).toBe(false)
+    expect(focus.referenceDisplayReference).toBe(false)
+
+    utils.altDown = function()
+      return true
+    end
+    expect(KeyboardWindowShortcutsController.handleReferenceBackgroundToggle(ctx, utils, "r", focus)).toBe(true)
+    expect(focus.referenceDisplayReference).toBe(true)
+
+    mode = "edit"
+    focus.referenceDisplayReference = false
+    expect(KeyboardWindowShortcutsController.handleReferenceBackgroundToggle(ctx, utils, "r", focus)).toBe(true)
+    expect(focus.referenceDisplayReference).toBe(true)
+
+    utils.ctrlDown = function()
+      return true
+    end
+    utils.altDown = function()
+      return true
+    end
+    focus.referenceDisplayReference = false
+    expect(KeyboardWindowShortcutsController.handleReferenceBackgroundToggle(ctx, utils, "r", focus)).toBe(false)
+    expect(focus.referenceDisplayReference).toBe(false)
+  end)
+end)
+
 describe("keyboard_window_shortcuts_controller.lua - grid toggle shortcut", function()
   it("requires Ctrl+G to toggle the focused window grid", function()
     local ctx = {

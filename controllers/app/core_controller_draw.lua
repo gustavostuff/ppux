@@ -1031,9 +1031,7 @@ drawNormalWindow = function(app, w, wm)
     renderWindowChessPattern(w, wm)
   end
 
-  local refOnly = (not isPaletteWindow)
-    and ReferenceBackgroundController.hasReference(w)
-    and w.referenceDisplayReference == true
+  local refOnly = (not isPaletteWindow) and ReferenceBackgroundController.isReferenceTracingViewActive(w)
 
   if refOnly then
     ReferenceBackgroundController.drawReferenceBehindLayers(w)
@@ -1339,7 +1337,11 @@ local function drawEditModeColorIndicator(app)
   if not win or win.isPalette or win:isInHeader(mouse.x, mouse.y) then
     return
   end
-  
+
+  if ReferenceBackgroundController.isReferenceTracingViewActive(win) then
+    return
+  end
+
   -- Get window properties for pixel snapping and scaling
   local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
   local cw = win.cellW or 8

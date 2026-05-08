@@ -6,6 +6,7 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local SpaceHighlightController = require("controllers.window.space_highlight_controller")
 local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 local CanvasSpace = require("utils.canvas_space")
+local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
 
 local HOVER_OPACITY = 0.4
 local SELECTION_RECT_ANIM = {
@@ -295,7 +296,7 @@ function Window:drawSpriteSelectionOverlays(isFocused)
       end,
     })
   end
-  if not hoverBlocked then
+  if not hoverBlocked and not ReferenceBackgroundController.isReferenceTracingViewActive(self) then
     self:highlightHoveredSprite(L, overlayCtx, overlappingKeys, spaceHighlightModel)
   end
   self:highlightOverlappingSprites(overlayCtx, overlappingSpritesByKey)
@@ -474,8 +475,8 @@ function Window:drawTileSelectionOverlays(isFocused)
     })
   end
 
-  -- Hovered cell (when focused or under the pointer)
-  if showHover and mouse then
+  -- Hovered cell (when focused or under the pointer); hidden during reference-only tracing view.
+  if showHover and mouse and not ReferenceBackgroundController.isReferenceTracingViewActive(self) then
     local ok, col, row = self:toGridCoords(mouse.x, mouse.y)
     if ok then
       local rx, ry, rw, rh, topRow = getTileSelectionRect(self, col, row, overlayCtx)
