@@ -354,7 +354,7 @@ function love.load()
   
   -- Set as default font for the whole test framework
   love.graphics.setFont(font)
-  
+
   -- Start tests and execute them progressively so the UI can render live updates.
   TestFramework.startRun()
   slowReportPrinted = false

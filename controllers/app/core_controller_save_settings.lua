@@ -1288,8 +1288,8 @@ function AppCoreController:pickReferenceBackgroundForFocusedWindow()
 
   local function openPngChooser()
     if not self.openReferencePngModal then
-      local OpenFileModal = require("user_interface.modals.open_file_modal")
-      self.openReferencePngModal = OpenFileModal.new("png")
+      local OpenReferenceBackgroundModal = require("user_interface.modals.open_reference_background_modal")
+      self.openReferencePngModal = OpenReferenceBackgroundModal.new()
     end
 
     local targetWin = focus
