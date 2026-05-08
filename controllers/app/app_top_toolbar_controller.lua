@@ -17,7 +17,8 @@ local OUTER_MARGIN = 0
 local SECTION_GAP = 0
 local BUTTON_GAP = 0
 local STATUS_BG_H = 15
-local STATUS_AREA_RATIO = 0.5
+-- Fraction of top strip width reserved for status text (setStatus); the rest is quick actions + docked toolbars.
+local STATUS_WIDTH_RATIO = 0.4
 
 -- Unit tests and some harnesses stub `love` without `keyboard`; treat as no modifiers.
 local function isShiftHeld()
@@ -431,7 +432,7 @@ function M.syncLayout(app)
 
   local quickRightX = x
   local dockLeftX = quickRightX + SECTION_GAP
-  local minStatusLeftX = math.floor(canvasW * STATUS_AREA_RATIO)
+  local minStatusLeftX = math.floor(canvasW * (1 - STATUS_WIDTH_RATIO))
   local statusLeftX = math.max(minStatusLeftX, dockLeftX + SECTION_GAP)
   local statusRightX = math.max(statusLeftX, canvasW - OUTER_MARGIN)
 
@@ -508,7 +509,7 @@ function M.draw(app)
   local lay = app._appTopToolbarLayout
   local h = (lay and lay.totalH) or MIN_BAR_H
   local cw = app.canvas and app.canvas:getWidth() or 0
-  local statusLeftX = (lay and lay.statusLeftX) or math.floor(cw * STATUS_AREA_RATIO)
+  local statusLeftX = (lay and lay.statusLeftX) or math.floor(cw * (1 - STATUS_WIDTH_RATIO))
   local statusRightX = (lay and lay.statusRightX) or math.max(statusLeftX, cw - OUTER_MARGIN)
   local statusW = math.max(0, statusRightX - statusLeftX)
   local statusY = OUTER_MARGIN
@@ -552,7 +553,7 @@ end
 local function inStatusArea(app, px)
   local lay = app and app._appTopToolbarLayout or nil
   local cw = app and app.canvas and app.canvas.getWidth and app.canvas:getWidth() or 0
-  local statusLeftX = (lay and lay.statusLeftX) or math.floor(cw * STATUS_AREA_RATIO)
+  local statusLeftX = (lay and lay.statusLeftX) or math.floor(cw * (1 - STATUS_WIDTH_RATIO))
   return px >= statusLeftX
 end
 
