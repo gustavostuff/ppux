@@ -193,9 +193,18 @@ function ChrBankWindow:getStack(col, row, layerIndex)
 end
 
 function ChrBankWindow:setActiveLayerIndex(i)
+  local before = self.activeLayer
   Window.setActiveLayerIndex(self, i)
   self.currentBank = clampBankIndex(self, self.activeLayer or i or 1)
   self:updateBankTitle()
+  if before ~= self.activeLayer then
+    local ctx = rawget(_G, "ctx")
+    local app = ctx and ctx.app
+    local appEditState = app and app.appEditState
+    if app and appEditState and app.setStatus then
+      app:setStatus(BankViewController.formatBankWindowStatus(self, appEditState, self.orderMode))
+    end
+  end
 end
 
 function ChrBankWindow:setCurrentBank(bankIdx)

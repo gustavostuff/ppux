@@ -3,6 +3,7 @@
 local Window = require("user_interface.windows_system.window")
 local ResolutionController = require("controllers.app.resolution_controller")
 local CrtLayerViz = require("controllers.crt.crt_layer_viz")
+local ActiveLayerStatusController = require("controllers.window.active_layer_status_controller")
 
 local CrtLensWindow = setmetatable({}, { __index = Window })
 CrtLensWindow.__index = CrtLensWindow
@@ -63,6 +64,7 @@ function CrtLensWindow:setActiveLayerIndex(i)
   end
   i = math.max(1, math.min(n, math.floor(i or 1)))
   if self.activeLayer ~= i then
+    local oldLayer = self.activeLayer
     self.activeLayer = i
     if self.specializedToolbar and self.specializedToolbar.triggerLayerLabelFlash then
       self.specializedToolbar:triggerLayerLabelFlash()
@@ -71,6 +73,7 @@ function CrtLensWindow:setActiveLayerIndex(i)
     if app and app._persistCrtLayerViz then
       app:_persistCrtLayerViz()
     end
+    ActiveLayerStatusController.tryNotify(self, oldLayer, i)
   end
 end
 

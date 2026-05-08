@@ -170,7 +170,10 @@ function M.handleChrBankKeys(ctx, utils, key, focus)
     if focus.specializedToolbar and focus.specializedToolbar.updateModeIcon then
       focus.specializedToolbar:updateModeIcon()
     end
-    setStatus(ctx, BankViewController.formatBankWindowStatus(focus, app.appEditState, focus.orderMode))
+    -- shiftBank is a custom shortcut path; it may not call ChrBankWindow:setActiveLayerIndex / Window.setActiveLayerIndex.
+    if focus.shiftBank then
+      setStatus(ctx, BankViewController.formatBankWindowStatus(focus, app.appEditState, focus.orderMode))
+    end
     return true
   end
 

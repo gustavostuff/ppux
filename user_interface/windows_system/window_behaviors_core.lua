@@ -1,5 +1,6 @@
 local DebugController = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local ActiveLayerStatusController = require("controllers.window.active_layer_status_controller")
 
 local function isChr8x16SelectionMode(win)
   return WindowCaps.isChrLike(win) and win.orderMode == "oddEven"
@@ -41,6 +42,7 @@ function Window:setActiveLayerIndex(i)
     if self.specializedToolbar and self.specializedToolbar.triggerLayerLabelFlash then
       self.specializedToolbar:triggerLayerLabelFlash()
     end
+    ActiveLayerStatusController.tryNotify(self, oldLayer, i)
   end
 end
 
