@@ -1312,8 +1312,8 @@ function AppCoreController:pickReferenceBackgroundForFocusedWindow()
   if ReferenceBackgroundController.windowHasStoredReference(focus) then
     local winRef = focus
     self.quitConfirmModal:show({
-      title = "Remove reference?",
-      message = "This window already has a reference PNG. Remove it?",
+      title = "Confirm",
+      message = "Remove reference background?",
       onYes = function()
         ReferenceBackgroundController.clearReference(winRef, self)
         self:setStatus("Reference image removed.")

@@ -213,7 +213,7 @@ local function ensureQuickButtons(app)
       h = cell,
     }),
     referenceBackground = Button.new({
-      icon = images.icons.icon_png or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      icon = images.icons.icon_img or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
       tooltip = "Reference PNG (tile mode: R to toggle view)",
       action = withRom(app, function(a)
         if a.pickReferenceBackgroundForFocusedWindow then

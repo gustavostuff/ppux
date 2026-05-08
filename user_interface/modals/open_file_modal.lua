@@ -464,15 +464,20 @@ function Dialog:_refreshFileButtons()
         button.preserveModalContentColor = false
       else
         local ext = fileExt(entry.name)
+        local types = images.icons.image_types
         if ext == "nes" then
           button.icon = images.windows_icons.icon_nes_rom
-        elseif ext == "png" and images.icons.icon_png then
-          button.icon = images.icons.icon_png
+        elseif ext == "png" then
+          button.icon = types and types.icon_png or nil
+        elseif ext == "jpg" or ext == "jpeg" then
+          button.icon = types and types.icon_jpg or nil
+        elseif ext == "bmp" then
+          button.icon = types and types.icon_bpm or nil
         else
           button.icon = images.icons.icon_project
         end
         button.text = tostring(entry.name or "")
-        if ext == "ppux" or ext == "lua" or ext == "nes" or ext == "png" then
+        if ext == "ppux" or ext == "lua" or ext == "nes" or ext == "png" or ext == "jpg" or ext == "jpeg" or ext == "bmp" then
           button.preserveModalContentColor = true
           button.contentColor = colors.white
           button.literalContentColor = true

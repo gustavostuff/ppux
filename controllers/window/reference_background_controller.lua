@@ -39,6 +39,14 @@ local function normalizeSlashes(p)
   return p:gsub("\\", "/")
 end
 
+local function windowTitleForToast(win)
+  local t = win and win.title
+  if type(t) == "string" and t ~= "" then
+    return t
+  end
+  return "Untitled window"
+end
+
 local function directoryOfFile(path)
   path = normalizeSlashes(path)
   local dir = path:match("^(.*)[/\\][^/\\]+$")
@@ -190,7 +198,13 @@ function M.applyStoredPath(win, app, storedPath, opts)
   end
   win.referenceImageMissing = true
   if app and app.showToast then
-    app:showToast("warning", "Reference image not found (moved or renamed). Re-link or remove it from the toolbar.")
+    app:showToast(
+      "warning",
+      string.format(
+        "Reference background not found for '%s'",
+        windowTitleForToast(win)
+      )
+    )
   end
   return false, reason
 end
