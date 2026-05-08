@@ -214,7 +214,7 @@ function Window:resizeToMinimum()
   end
 end
 
--- Convert screen → content (viewport) → grid, accounting for scroll
+-- Convert screen -> content (viewport) -> grid, accounting for scroll
 function Window:toContentCoords(px,py)
   if not self:contains(px,py) then return false end
   local z = self:getZoomLevel()

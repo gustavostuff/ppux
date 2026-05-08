@@ -19,7 +19,7 @@ local ChrCanvasOnlyMode = require("controllers.chr.chr_canvas_only_mode")
 local CrtLayerViz = require("controllers.crt.crt_layer_viz")
 local UiScale = require("user_interface.ui_scale")
 
---- Drop-shadow mask offset defaults (pixels, code-only). Positive X → right, Y → down.
+--- Drop-shadow mask offset defaults (pixels, code-only). Positive X -> right, Y -> down.
 --- Override at runtime: app.windowShadowOffsetX / app.windowShadowOffsetY.
 local WINDOW_SHADOW_OFFSET_X = 2
 local WINDOW_SHADOW_OFFSET_Y = 2
@@ -556,7 +556,7 @@ local function ensureShadowMaskCanvases(app)
   return false
 end
 
---- Header + content + bottom border line (drawBorder uses h+1). Collapsed → header strip only
+--- Header + content + bottom border line (drawBorder uses h+1). Collapsed -> header strip only
 --- (`drawBorder` is not used collapsed, so `hh` matches chrome — see branch below).
 local function computeWindowChromeShadowRect(w)
   if w._collapsed and type(w.getHeaderRect) == "function" then
@@ -666,7 +666,7 @@ local function computeShadowBlurSigma(app)
   local cell = UiScale.menuCellSize()
   local blurT = normalizedWindowShadowBlurT(app)
   local featherMax = math.max(22, math.floor(cell * 2.0))
-  -- Map blurT 0→1 to sigma min→max. Do not floor at a large "featherMin": the old
+  -- Map blurT 0->1 to sigma min->max. Do not floor at a large "featherMin": the old
   -- featherMin + (featherMax - featherMin) * blurT made any tiny blurT land near
   -- featherMin * 0.38 (~1+ px sigma), so the first slider tick looked heavily blurred.
   local sigmaMax = math.min(featherMax * 0.38, 12)
@@ -710,7 +710,7 @@ local function drawHardShadowMasksForOpenContextMenus(app, ox, oy)
   end
 end
 
---- Hard mask → separable blur → single premultiplied composite (no extra darkening where silhouettes overlap).
+--- Hard mask -> separable blur -> single premultiplied composite (no extra darkening where silhouettes overlap).
 --- All base silhouettes are rasterized into shadowMaskCanvas first; menus use the same pass as windows/chrome.
 local function drawAllWindowShadows(app)
   if app.windowShadowEnabled == false then

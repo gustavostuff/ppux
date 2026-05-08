@@ -815,7 +815,7 @@ function AppCoreController:_applyCrtFilterKindSetting(kind, saveSetting)
   return k
 end
 
---- Settings → Filter dropdown: sharp vs soft workspace scaling only (full-window CRT is separate).
+--- Settings -> Filter dropdown: sharp vs soft workspace scaling only (full-window CRT is separate).
 function AppCoreController:_getDisplayFilterDropdownMode()
   if self:_getCanvasFilterForSettings() == "soft" then
     return 2

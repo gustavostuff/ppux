@@ -100,7 +100,7 @@ end
 
 -- Linear index helpers (1-based indexes into nametableBytes array).
 local function lin(cols, col, row)
-  return row * cols + col + 1  -- (row, col) → 1..N
+  return row * cols + col + 1  -- (row, col) -> 1..N
 end
 
 local function ensurePatternTableBanks(patternTable, ensureTiles)
@@ -355,7 +355,7 @@ local function recordSwap(win, idx)
   if orig == nil then return end
 
   if cur == orig then
-    -- Value matches original → remove from diff map.
+    -- Value matches original -> remove from diff map.
     if win._tileSwaps then
       win._tileSwaps[idx] = nil
     end
@@ -407,7 +407,7 @@ end
 --  layer : the tile/nametable layer table on this window
 --  opts  :
 --    romRaw              : ROM string
---    tilesPool           : tilesPool[bankIndex][tileIndex] → Tile
+--    tilesPool           : tilesPool[bankIndex][tileIndex] -> Tile
 --    ensureTiles         : function(bankIndex) to lazily build tiles
 --    nametableStartAddr  : 0-based ROM address of compressed stream start
 --    nametableEndAddr    : 0-based ROM address of compressed stream end (inclusive)

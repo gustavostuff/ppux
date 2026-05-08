@@ -40,7 +40,7 @@ You can also pass an optional speed multiplier:
 
 - scenario list: `scripts/unix/run_e2e_tests.sh` and `scripts/windows/run_e2e_tests.bat`
 - single-scenario launcher: `scripts/unix/run_e2e_demo.sh` and `scripts/windows/run_e2e_demo.bat`
-- visual scenario definitions: `test/e2e_visible/scenarios/` (`init.lua` → `definitions.lua` merges `builders/*.lua`; shared bindings in `prelude.lua`, `common.lua`, `helpers.lua`; aliases in `scenario_aliases.lua`)
+- visual scenario definitions: `test/e2e_visible/scenarios/` (`init.lua` -> `definitions.lua` merges `builders/*.lua`; shared bindings in `prelude.lua`, `common.lua`, `helpers.lua`; aliases in `scenario_aliases.lua`)
 - visual timing config: `test/e2e_visual_config.lua`
 
 ## How visual E2E works

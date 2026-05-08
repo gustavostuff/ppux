@@ -7,7 +7,7 @@ local Slider = {}
 Slider.__index = Slider
 
 local TRACK_H = 6
---- Square thumb; hover grows by 1px on each side (8 → 10); reserve max size for track layout.
+--- Square thumb; hover grows by 1px on each side (8 -> 10); reserve max size for track layout.
 local THUMB_SIZE = 8
 local THUMB_MAX_SIDE = THUMB_SIZE + 2
 local PADDING_Y = 2

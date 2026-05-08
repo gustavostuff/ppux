@@ -291,7 +291,7 @@ function WM:cascade(opts)
     return
   end
 
-  -- Rebuild window stack: keep open windows (largest → smallest) first, then closed ones.
+  -- Rebuild window stack: keep open windows (largest -> smallest) first, then closed ones.
   self.windows = {}
   for _, w in ipairs(open) do
     table.insert(self.windows, w)

@@ -35,7 +35,7 @@ SpriteController.SPRITE_Y_RANGE = 256
 --  layer: the actual layer table on a Window (win.layers[i])
 --  opts:
 --    romRaw     : full ROM string
---    tilesPool  : tilesPool[bank][tileIndex] → Tile ref
+--    tilesPool  : tilesPool[bank][tileIndex] -> Tile ref
 --    keepWorld  : if true, keeps existing item.worldX/Y when refreshing
 function SpriteController.hydrateSpriteLayer(layer, opts)
   return SpriteHydrationController.hydrateSpriteLayer(layer, opts)

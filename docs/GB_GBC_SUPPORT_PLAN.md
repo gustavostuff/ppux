@@ -16,9 +16,9 @@ The rest of this doc orbits **Step 1 first**: smallest surface that proves platf
 
 ## Current NES-centric surface (repo reality)
 
-- **Load path**: `rom_project_controller` → `chr.parseINES` (16-byte iNES header, PRG/CHR layout, optional trainer) → `ChrBackingController.configureFromParsedINES` → `state.chrBanksBytes` as 8 KiB banks (`chr_backing_controller.lua`, `chr.lua`).
+- **Load path**: `rom_project_controller` -> `chr.parseINES` (16-byte iNES header, PRG/CHR layout, optional trainer) -> `ChrBackingController.configureFromParsedINES` -> `state.chrBanksBytes` as 8 KiB banks (`chr_backing_controller.lua`, `chr.lua`).
 - **Tile I/O**: `chr.decodeTile` / `chr.setTilePixel` implement **NES 2bpp layout** (8 low bytes for the tile, then 8 high bytes—two **stacked** bitplanes).
-- **ROM writeback**: `romsave.lua` → `chr.replaceCHR` splices CHR using `meta.chr_start` / `meta.chr_end` / `meta.chr_size` from iNES. `rom_raw` mode patches bytes after the header via `ChrBackingController.rebuildROMFromBacking`.
+- **ROM writeback**: `romsave.lua` -> `chr.replaceCHR` splices CHR using `meta.chr_start` / `meta.chr_end` / `meta.chr_size` from iNES. `rom_raw` mode patches bytes after the header via `ChrBackingController.rebuildROMFromBacking`.
 - **Editor assumptions**: Pattern tables sized around **256 tiles per side** (brush / click validation), sprite space **256×256**, PPU-frame / nametable tooling and **Konami-style codecs** (`utils/nametable_utils.lua`, `db/*.lua`) are **game-specific NES RAM/ROM layouts**, not generic hardware.
 - **Layouts**: `db/index.lua` keys **SHA-1 of the whole file** to hand-authored layouts (windows, ROM addresses, nametable ranges, patches).
 
@@ -50,8 +50,8 @@ On real hardware, the **LCD does not read the ROM file directly**—the CPU copi
 
 ### Implementation sketch (minimal NES touch)
 
-- **`platform`** (`nes` \| `gb` \| `gbc`) on `appEditState`, set from extension (and optional `.gbc` → `gbc`) when iNES magic is absent.
-- **Load router** in `rom_project_controller` / `parseROM`: NES → unchanged `chr.parseINES`; GB → **flat ROM** metadata (size, optional `dataOffset` default 0), **no** `replaceCHR` in Step 1 if you defer “Export edited ROM”—project save + in-memory banks can be enough to call Step 1 done.
+- **`platform`** (`nes` \| `gb` \| `gbc`) on `appEditState`, set from extension (and optional `.gbc` -> `gbc`) when iNES magic is absent.
+- **Load router** in `rom_project_controller` / `parseROM`: NES -> unchanged `chr.parseINES`; GB -> **flat ROM** metadata (size, optional `dataOffset` default 0), **no** `replaceCHR` in Step 1 if you defer “Export edited ROM”—project save + in-memory banks can be enough to call Step 1 done.
 - **`chr.lua`**: add `decodeTileGB` / `setTilePixelGB` (+ tests in `test/tests/unit/chr.test.lua` or sibling file). NES `decodeTile` stays as-is.
 - **Dispatch layer**: one small helper (e.g. `chr.decodeTileForPlatform(platform, …)`) used by bank canvas / brush paths when `platform ~= "nes"`. *Avoid* editing every NES call site twice—centralize at the boundaries that already own `app` or `state`.
 - **Backing**: reuse **pseudo-banks** over the whole file (`ChrBackingController` pattern: 4 KiB or 8 KiB slices, `mode = rom_raw`-like). *Tiles in ROM are still just bytes in order*—MBC only matters when the CPU **maps** addresses; for a static file viewer, contiguous pseudo-banks are a deliberate simplification until Step 3.
@@ -76,7 +76,7 @@ On real hardware, the **LCD does not read the ROM file directly**—the CPU copi
 **Goal:** After CHR banks work, **the same** static art and animation workflows accept drops using **GB** tile encoding when `platform` is gb/gbc.
 
 - **Routing**: PNG / image import and tile allocation paths (`mouse_tile_drop_controller`, `png_import_controller`, sprite hydration) must call **platform-aware** decode/set, not NES-only `chr.decodeTile`.
-- **Palette mapping**: NES brightness heuristics may not map cleanly to DMG’s four indices—define a simple rule (e.g. luminance → 0–3) or reuse project palette slots; *GBC RGB* can wait.
+- **Palette mapping**: NES brightness heuristics may not map cleanly to DMG’s four indices—define a simple rule (e.g. luminance -> 0–3) or reuse project palette slots; *GBC RGB* can wait.
 - **Tests**: drop builder in `test/e2e_visible` or unit tests on “import produces correct GB tile bytes in pool” without full UI if faster.
 
 ---
@@ -106,7 +106,7 @@ Use this as a backlog once Steps 1–3 are moving:
 - **Save / export**: `RomSave` branches—flat splice for GB; `_edited.gb`; IPS/BPS optional.
 - **Game art DB**: new SHA entries; GB-specific layouts.
 - **PNG / shaders**: GBC 15-bit preview, shader paths gated by platform.
-- **UX copy**: “Parsing iNES…” → neutral strings when GB loads.
+- **UX copy**: “Parsing iNES…” -> neutral strings when GB loads.
 
 ---
 
@@ -114,7 +114,7 @@ Use this as a backlog once Steps 1–3 are moving:
 
 - **MBC**: Pseudo-banks show **file offsets**; what the game **maps** at runtime can differ—fine for art iteration, misleading if labeled “what the PPU sees” without Step 3.
 - **GBC attrs in RAM**: Full in-game frame without a layout codec usually needs **VRAM dumps**, not ROM-only.
-- **SHA-1 / DB**: Same ROM with different dump padding → different hash; document for future GB `db/` entries.
+- **SHA-1 / DB**: Same ROM with different dump padding -> different hash; document for future GB `db/` entries.
 
 ---
 

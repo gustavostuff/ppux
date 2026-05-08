@@ -1,6 +1,6 @@
 # Tabbed modals & Settings (General / Appearance)
 
-Short plan: shared tab UI → settings uses it → Appearance holds color slots; **color picker is deferred**. **Settings modal size stays fixed** when switching tabs (same panel grid as General).
+Short plan: shared tab UI -> settings uses it -> Appearance holds color slots; **color picker is deferred**. **Settings modal size stays fixed** when switching tabs (same panel grid as General).
 
 ## 1. Shared tab bar
 

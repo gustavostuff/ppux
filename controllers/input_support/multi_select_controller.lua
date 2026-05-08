@@ -921,7 +921,7 @@ function M.applyTileDragGroup(win, layerIdx, group, anchorCol, anchorRow, opts)
     end
   end
 
-  -- PPU nametable layers should move bytes directly (any PPU → PPU). Using win:set + materialize
+  -- PPU nametable layers should move bytes directly (any PPU -> PPU). Using win:set + materialize
   -- on virtual handles maps everything to CHR tile 0 for multi-drag across windows or layers.
   if WindowCaps.isPpuFrame(win)
     and WindowCaps.isPpuFrame(srcWin)

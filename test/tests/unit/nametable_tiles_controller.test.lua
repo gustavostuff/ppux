@@ -156,10 +156,10 @@ describe("nametable_tiles_controller.lua", function()
       
       -- Initialize with a known pattern: attribute byte 1 = 0xE4
       -- 0xE4 = 11100100 binary
-      -- top-left (bits 0-1) = 00 = palette 0 → palette number 1
-      -- top-right (bits 2-3) = 01 = palette 1 → palette number 2
-      -- bottom-left (bits 4-5) = 10 = palette 2 → palette number 3
-      -- bottom-right (bits 6-7) = 11 = palette 3 → palette number 4
+      -- top-left (bits 0-1) = 00 = palette 0 -> palette number 1
+      -- top-right (bits 2-3) = 01 = palette 1 -> palette number 2
+      -- bottom-left (bits 4-5) = 10 = palette 2 -> palette number 3
+      -- bottom-right (bits 6-7) = 11 = palette 3 -> palette number 4
       mockWin.nametableAttrBytes[1] = 0xE4
       for i = 2, 64 do
         mockWin.nametableAttrBytes[i] = 0x00
@@ -233,7 +233,7 @@ describe("nametable_tiles_controller.lua", function()
       
       -- Verify attribute byte was updated correctly
       -- Tile (0,0) is in top-left quadrant of attribute byte 1
-      -- Palette 2 means palette index 1, so bits 0-1 = 1 → 0x01
+      -- Palette 2 means palette index 1, so bits 0-1 = 1 -> 0x01
       expect(mockWin.nametableAttrBytes[1]).toBe(0x01)
       
       -- Verify paletteNumbers were synced
