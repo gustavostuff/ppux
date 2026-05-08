@@ -65,47 +65,47 @@ function AnimationToolbar.new(window, ctx, windowController)
     self.useButtonRows = isOamMultiRowEnabled(window)
   end
 
-  self.linkButton = self:addButton(images.icons.icon_connect, nil, "Palette link handle; right-drag to a ROM palette to link; left-click for menu", {
+  self.linkButton = self:addButton(images.icons.actions.icon_connect, nil, "Palette link handle; right-drag to a ROM palette to link; left-click for menu", {
     row = primaryRow,
     paletteLinkHandle = true,
   })
   
   -- Previous layer button (down icon)
-  self:addButton(images.icons.icon_down, function()
+  self:addButton(images.icons.chrome.icon_down, function()
     self:_onPrevLayer()
   end, "Previous layer", {
     row = primaryRow,
   })
   
   -- Next layer button (up icon)
-  self:addButton(images.icons.icon_up, function()
+  self:addButton(images.icons.chrome.icon_up, function()
     self:_onNextLayer()
   end, "Next layer", {
     row = primaryRow,
   })
 
   -- Remove layer button (minus icon)
-  self:addButton(images.icons.icon_minus, function()
+  self:addButton(images.icons.chrome.icon_minus, function()
     self:_onRemoveLayer()
   end, "Remove layer", {
     row = primaryRow,
   })
   
   -- Add layer button (plus icon)
-  self:addButton(images.icons.icon_plus, function()
+  self:addButton(images.icons.chrome.icon_plus, function()
     self:_onAddLayer()
   end, "Add layer", {
     row = primaryRow,
   })
 
   if WindowCaps.isOamAnimation(window) then
-    self.addSpriteButton = self:addButton(images.icons.icon_add_sprite, function()
+    self.addSpriteButton = self:addButton(images.icons.actions.icon_add_sprite, function()
       self:_onAddSprite()
     end, "Add a sprite on active layer", {
       row = secondaryRow,
     })
 
-    self.toggleOriginGuidesButton = self:addButton(images.icons.icon_dotted_lines, function()
+    self.toggleOriginGuidesButton = self:addButton(images.icons.actions.icon_dotted_lines, function()
       self:_onToggleOriginGuides()
     end, "Toggle origin guides", {
       row = secondaryRow,
@@ -113,7 +113,7 @@ function AnimationToolbar.new(window, ctx, windowController)
   end
 
   -- Copy from previous layer button
-  self:addButton(images.icons.icon_copy_layer, function()
+  self:addButton(images.icons.actions.icon_copy_layer, function()
     self:_onCopyFromPrevious()
   end, "Copy previous layer", {
     row = secondaryRow,
@@ -121,7 +121,7 @@ function AnimationToolbar.new(window, ctx, windowController)
   
   -- Play/Pause button (toggle between play and pause icons)
   -- Start with play icon if not playing, pause icon if playing
-  local initialIcon = (window.isPlaying and images.icons.icon_pause) or images.icons.icon_play
+  local initialIcon = (window.isPlaying and images.icons.actions.icon_pause) or images.icons.actions.icon_play
   local initialTooltip = (window.isPlaying and "Pause") or "Play"
   self.playButton = self:addButton(initialIcon, function()
     self:_onTogglePlay()
@@ -247,10 +247,10 @@ function AnimationToolbar:_onTogglePlay()
   -- Update button icon based on new play state
   if self.playButton then
     if self.window.isPlaying then
-      self.playButton.icon = images.icons.icon_pause
+      self.playButton.icon = images.icons.actions.icon_pause
       self.playButton.tooltip = "Pause"
     else
-      self.playButton.icon = images.icons.icon_play
+      self.playButton.icon = images.icons.actions.icon_play
       self.playButton.tooltip = "Play"
     end
   end
@@ -276,7 +276,7 @@ function AnimationToolbar:updateIcons()
     self.useButtonRows = isOamMultiRowEnabled(self.window)
   end
   if self.linkButton then
-    self.linkButton.icon = images.icons.icon_connect or self.linkButton.icon
+    self.linkButton.icon = images.icons.actions.icon_connect or self.linkButton.icon
     local linkedPalette = PaletteLinkController.getActiveLayerLinkedPaletteWindow(self.window, self.windowController)
     self.linkButton.bgColor = linkedPalette and colors.green or colors.gray20
     if linkedPalette then
@@ -289,17 +289,17 @@ function AnimationToolbar:updateIcons()
     end
   end
   if self.addSpriteButton then
-    self.addSpriteButton.icon = images.icons.icon_add_sprite or self.addSpriteButton.icon
+    self.addSpriteButton.icon = images.icons.actions.icon_add_sprite or self.addSpriteButton.icon
   end
   self:updateOriginButtons()
 
   -- Update play button icon based on current play state
   if self.playButton and self.window then
     if self.window.isPlaying then
-      self.playButton.icon = images.icons.icon_pause
+      self.playButton.icon = images.icons.actions.icon_pause
       self.playButton.tooltip = "Pause"
     else
-      self.playButton.icon = images.icons.icon_play
+      self.playButton.icon = images.icons.actions.icon_play
       self.playButton.tooltip = "Play"
     end
   end
@@ -316,7 +316,7 @@ function AnimationToolbar:updateOriginButtons()
 
   if self.toggleOriginGuidesButton then
     local enabledGuides = isActiveSpriteLayer and (self.window and self.window.showSpriteOriginGuides == true)
-    self.toggleOriginGuidesButton.icon = images.icons.icon_dotted_lines or self.toggleOriginGuidesButton.icon
+    self.toggleOriginGuidesButton.icon = images.icons.actions.icon_dotted_lines or self.toggleOriginGuidesButton.icon
     self.toggleOriginGuidesButton.enabled = isActiveSpriteLayer
     self.toggleOriginGuidesButton.hidden = hideOriginButtons
     if enabledGuides then

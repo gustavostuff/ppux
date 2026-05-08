@@ -58,8 +58,8 @@ function NumericSpinner.new(opts)
     fixedValueWidth = (opts.valueWidth ~= nil) and math.max(1, math.floor(opts.valueWidth)) or nil,
     valuePaddingX = math.max(0, math.floor(opts.valuePaddingX or VALUE_PADDING_X)),
     bgColor = opts.bgColor,
-    minusIcon = opts.minusIcon or (images and images.icons and images.icons.icon_minus),
-    plusIcon = opts.plusIcon or (images and images.icons and images.icons.icon_plus),
+    minusIcon = opts.minusIcon or (images and images.icons and images.icons.chrome.icon_minus),
+    plusIcon = opts.plusIcon or (images and images.icons and images.icons.chrome.icon_plus),
     hoveredPart = nil,
     pressedPart = nil,
   }, NumericSpinner)

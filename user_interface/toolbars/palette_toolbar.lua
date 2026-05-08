@@ -20,20 +20,20 @@ function PaletteToolbar.new(window, ctx, windowController)
   local hx, hy, hw, hh = window:getHeaderRect()
   self.h = hh  -- Toolbar height matches header height
 
-  self.prevButton = self:addButton(images.icons.icon_left, function()
+  self.prevButton = self:addButton(images.icons.actions.icon_left, function()
     self:_onNavigate(-1)
   end, "Previous palette")
 
-  self.nextButton = self:addButton(images.icons.icon_right, function()
+  self.nextButton = self:addButton(images.icons.actions.icon_right, function()
     self:_onNavigate(1)
   end, "Next palette")
 
-  self.compactButton = self:addButton(images.icons.icon_minus or images.icons.icon_down, function()
+  self.compactButton = self:addButton(images.icons.chrome.icon_minus or images.icons.chrome.icon_down, function()
     self:_onToggleCompact()
   end, "Toggle compact palette view")
   
   -- Active palette toggle button
-  local activeBtn = self:addButton(images.icons.icon_not_selected, function()
+  local activeBtn = self:addButton(images.icons.chrome.icon_not_selected, function()
     self:_onToggleActive()
   end, "Set as active palette")
   
@@ -82,10 +82,10 @@ function PaletteToolbar:updateCompactIcon()
   if not supported then return end
 
   if self.window.compactView then
-    self.compactButton.icon = images.icons.icon_normal_mode or self.compactButton.icon
+    self.compactButton.icon = images.icons.chrome.icon_normal_mode or self.compactButton.icon
     self.compactButton.tooltip = "Switch to normal view"
   else
-    self.compactButton.icon = images.icons.icon_compact_mode or self.compactButton.icon
+    self.compactButton.icon = images.icons.chrome.icon_compact_mode or self.compactButton.icon
     self.compactButton.tooltip = "Switch to compact view"
   end
 end
@@ -95,10 +95,10 @@ function PaletteToolbar:updateActiveIcon()
   if not self.activeButton or not self.window then return end
   
   if self.window.activePalette then
-    self.activeButton.icon = images.icons.icon_selected
+    self.activeButton.icon = images.icons.chrome.icon_selected
     self.activeButton.tooltip = "Active palette"
   else
-    self.activeButton.icon = images.icons.icon_not_selected
+    self.activeButton.icon = images.icons.chrome.icon_not_selected
     self.activeButton.tooltip = "Set as active palette"
   end
 end

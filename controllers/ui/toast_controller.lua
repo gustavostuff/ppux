@@ -95,7 +95,7 @@ local function toastForegroundRgb(kind)
 end
 
 local function closeIconSize()
-  local icon = images and images.icons and images.icons.icon_x or nil
+  local icon = images and images.icons and images.icons.chrome.icon_x or nil
   if icon and icon.getWidth and icon.getHeight then
     return icon:getWidth(), icon:getHeight()
   end
@@ -419,7 +419,7 @@ function ToastController:draw(canvasW, canvasH)
   end
 
   local font = currentFont()
-  local icon = images and images.icons and images.icons.icon_x or nil
+  local icon = images and images.icons and images.icons.chrome.icon_x or nil
   local iconW, iconH = closeIconSize()
 
   for i = #self.toasts, 1, -1 do

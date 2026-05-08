@@ -1,6 +1,7 @@
 # Icon Bounding Box Audit
 
-Small standalone LOVE app that scans `img/icons/` and highlights icons whose
+Small standalone LOVE app that scans `img/icons/` recursively (including
+`chrome/`, `actions/`, etc.) and highlights icons whose
 non-transparent pixel bounding box is larger than `7x7`.
 
 The app renders to a `640x360` canvas and presents it at `2x` scale.

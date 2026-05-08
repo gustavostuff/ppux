@@ -100,7 +100,7 @@ local function ensureQuickButtons(app)
 
   app._appTopQuickButtons = {
     newWindow = Button.new({
-      icon = images.icons.icon_new_window,
+      icon = images.icons.chrome.icon_new_window,
       tooltip = "New window",
       action = function()
         if not app.hasLoadedROM or not app:hasLoadedROM() then
@@ -118,7 +118,7 @@ local function ensureQuickButtons(app)
       h = cell,
     }),
     open = Button.new({
-      icon = images.icons.icon_open or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      icon = images.icons.actions.icon_open or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty,
       tooltip = "Open",
       action = function()
         if app.showOpenProjectModal then
@@ -131,7 +131,7 @@ local function ensureQuickButtons(app)
       h = cell,
     }),
     save = Button.new({
-      icon = images.icons.save,
+      icon = images.icons.actions.save,
       tooltip = "Save options",
       action = withRom(app, function(a)
         a:showSaveOptionsModal()
@@ -142,7 +142,7 @@ local function ensureQuickButtons(app)
       h = cell,
     }),
     zoomOut = Button.new({
-      icon = images.icons.icon_zoom_out or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      icon = images.icons.actions.icon_zoom_out or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty,
       tooltip = "Zoom out (Ctrl+scroll)",
       action = withRom(app, function(a)
         zoomFocusedByWheelStep(a, -1)
@@ -153,7 +153,7 @@ local function ensureQuickButtons(app)
       h = cell,
     }),
     zoomIn = Button.new({
-      icon = images.icons.icon_zoom_in or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      icon = images.icons.actions.icon_zoom_in or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty,
       tooltip = "Zoom in (Ctrl+scroll)",
       action = withRom(app, function(a)
         zoomFocusedByWheelStep(a, 1)
@@ -164,7 +164,7 @@ local function ensureQuickButtons(app)
       h = cell,
     }),
     addGridColumn = Button.new({
-      icon = images.icons.icon_new_col or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      icon = images.icons.actions.icon_new_col or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty,
       tooltip = "Add column to the right",
       action = withRom(app, function(a)
         local shift = isShiftHeld()
@@ -182,7 +182,7 @@ local function ensureQuickButtons(app)
       enabled = false,
     }),
     addGridRow = Button.new({
-      icon = images.icons.icon_new_row or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      icon = images.icons.actions.icon_new_row or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty,
       tooltip = "Add row below",
       action = withRom(app, function(a)
         local shift = isShiftHeld()
@@ -200,7 +200,7 @@ local function ensureQuickButtons(app)
       enabled = false,
     }),
     cloneWindow = Button.new({
-      icon = images.icons.icon_clone or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      icon = images.icons.actions.icon_clone or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty,
       tooltip = "Clone focused window",
       action = withRom(app, function(a)
         if a.cloneFocusedWindow then
@@ -213,7 +213,7 @@ local function ensureQuickButtons(app)
       h = cell,
     }),
     referenceBackground = Button.new({
-      icon = images.icons.icon_img or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      icon = images.icons.actions.icon_img or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty,
       tooltip = "Reference PNG (Alt+R toggles view)",
       action = withRom(app, function(a)
         if a.pickReferenceBackgroundForFocusedWindow then
@@ -227,7 +227,7 @@ local function ensureQuickButtons(app)
       enabled = false,
     }),
     copy = Button.new({
-      icon = images.icons.icon_copy or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      icon = images.icons.actions.icon_copy or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty,
       tooltip = "Copy",
       action = function()
         if app.performClipboardToolbarAction then
@@ -241,7 +241,7 @@ local function ensureQuickButtons(app)
       enabled = false,
     }),
     cut = Button.new({
-      icon = images.icons.icon_cut or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      icon = images.icons.actions.icon_cut or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty,
       tooltip = "Cut",
       action = function()
         if app.performClipboardToolbarAction then
@@ -255,7 +255,7 @@ local function ensureQuickButtons(app)
       enabled = false,
     }),
     paste = Button.new({
-      icon = images.icons.icon_paste or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      icon = images.icons.actions.icon_paste or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty,
       tooltip = "Paste",
       action = function()
         if app.performClipboardToolbarAction then
@@ -272,7 +272,7 @@ local function ensureQuickButtons(app)
 
   if SHOW_CRT_LENS_TOOLBAR_BUTTON then
     app._appTopQuickButtons.crtLens = Button.new({
-      icon = images.icons.icon_crt or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty,
+      icon = images.icons.actions.icon_crt or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty,
       tooltip = "Show or hide CRT layer visualizer",
       action = function()
         if app.toggleCrtLensWindow then
@@ -376,20 +376,20 @@ local function updateGridResizeButtons(app)
 
   if allow then
     if shift then
-      colBtn.icon = images.icons.icon_remove_col or colBtn.icon
+      colBtn.icon = images.icons.actions.icon_remove_col or colBtn.icon
       colBtn.tooltip = "Remove last column (Shift)"
-      rowBtn.icon = images.icons.icon_remove_row or rowBtn.icon
+      rowBtn.icon = images.icons.actions.icon_remove_row or rowBtn.icon
       rowBtn.tooltip = "Remove last row (Shift)"
     else
-      colBtn.icon = images.icons.icon_new_col or colBtn.icon
+      colBtn.icon = images.icons.actions.icon_new_col or colBtn.icon
       colBtn.tooltip = "Add column to the right"
-      rowBtn.icon = images.icons.icon_new_row or rowBtn.icon
+      rowBtn.icon = images.icons.actions.icon_new_row or rowBtn.icon
       rowBtn.tooltip = "Add row below"
     end
   else
-    colBtn.icon = images.icons.icon_new_col or colBtn.icon
+    colBtn.icon = images.icons.actions.icon_new_col or colBtn.icon
     colBtn.tooltip = "Add column to the right"
-    rowBtn.icon = images.icons.icon_new_row or rowBtn.icon
+    rowBtn.icon = images.icons.actions.icon_new_row or rowBtn.icon
     rowBtn.tooltip = "Add row below"
   end
 end

@@ -355,7 +355,7 @@ function Dialog.new(config)
   }, Dialog)
 
   self.parentButton = Button.new({
-    icon = images.icons.icon_up,
+    icon = images.icons.chrome.icon_up,
     text = "Parent",
     h = ModalPanelUtils.MODAL_BUTTON_H,
     transparent = true,
@@ -366,7 +366,7 @@ function Dialog.new(config)
     end,
   })
   self.homeButton = Button.new({
-    icon = images.icons.icon_folder,
+    icon = images.icons.actions.icon_folder,
     text = "Home",
     h = ModalPanelUtils.MODAL_BUTTON_H,
     transparent = true,
@@ -459,7 +459,7 @@ function Dialog:_refreshFileButtons()
     local button = self.fileButtons[i]
     if entry then
       if entry.isDir then
-        button.icon = images.icons.icon_folder
+        button.icon = images.icons.actions.icon_folder
         button.text = tostring(entry.name or "") .. "/"
         button.preserveModalContentColor = false
       else
@@ -474,7 +474,7 @@ function Dialog:_refreshFileButtons()
         elseif ext == "bmp" then
           button.icon = types and types.icon_bpm or nil
         else
-          button.icon = images.icons.icon_project
+          button.icon = images.icons.actions.icon_project
         end
         button.text = tostring(entry.name or "")
         if ext == "ppux" or ext == "lua" or ext == "nes" or ext == "png" or ext == "jpg" or ext == "jpeg" or ext == "bmp" then

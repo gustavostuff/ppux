@@ -23,11 +23,11 @@ function PatternTableBuilderToolbar.new(window, ctx, windowController)
   end)
   self.layerLabel.renderInContent = true
 
-  self:addButton(images.icons.icon_down, function()
+  self:addButton(images.icons.chrome.icon_down, function()
     self:_onPrevLayer()
   end, "Previous layer")
 
-  self:addButton(images.icons.icon_up, function()
+  self:addButton(images.icons.chrome.icon_up, function()
     self:_onNextLayer()
   end, "Next layer")
 

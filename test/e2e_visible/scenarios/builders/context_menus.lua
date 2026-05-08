@@ -22,19 +22,19 @@ local function buildSubmenuPositionScenario(_, app)
   local margin = 4
   local function buildChildItems()
     return {
-      { text = "First child", icon = images.icons.icon_clock },
-      { text = "Second child", icon = images.icons.settings },
-      { text = "Third child", icon = images.icons.icon_windows },
-      { text = "Fourth child", icon = images.icons.save },
-      { text = "Fifth child", icon = images.icons.icon_quit },
-      { text = "Sixth child", icon = images.icons.icon_x },
+      { text = "First child", icon = images.icons.chrome.icon_clock },
+      { text = "Second child", icon = images.icons.actions.settings },
+      { text = "Third child", icon = images.icons.chrome.icon_windows },
+      { text = "Fourth child", icon = images.icons.actions.save },
+      { text = "Fifth child", icon = images.icons.chrome.icon_quit },
+      { text = "Sixth child", icon = images.icons.chrome.icon_x },
     }
   end
 
   local demoItems = {
-    { text = "Corner Alpha", icon = images.icons.icon_clock, children = buildChildItems },
-    { text = "Corner Beta", icon = images.icons.settings, children = buildChildItems },
-    { text = "Corner Gamma", icon = images.icons.icon_windows, children = buildChildItems },
+    { text = "Corner Alpha", icon = images.icons.chrome.icon_clock, children = buildChildItems },
+    { text = "Corner Beta", icon = images.icons.actions.settings, children = buildChildItems },
+    { text = "Corner Gamma", icon = images.icons.chrome.icon_windows, children = buildChildItems },
   }
 
   local function rootMenu(_, currentRunner)

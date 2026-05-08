@@ -107,32 +107,32 @@ function PPUFrameToolbar.new(window, ctx, windowController)
   self.layerLabel.renderInContent = true
   
   -- Previous layer button (down icon)
-  self:addButton(images.icons.icon_down, function()
+  self:addButton(images.icons.chrome.icon_down, function()
     self:_onPrevLayer()
   end, "Previous layer")
   
   -- Next layer button (up icon)
-  self:addButton(images.icons.icon_up, function()
+  self:addButton(images.icons.chrome.icon_up, function()
     self:_onNextLayer()
   end, "Next layer")
 
-  self.addTileRangeButton = self:addButton(images.icons.icon_plus, function()
+  self.addTileRangeButton = self:addButton(images.icons.chrome.icon_plus, function()
     self:_onAddTileRange()
   end, "Add tile range")
 
-  self.rangeButton = self:addButton(images.icons.icon_nametable_range, function()
+  self.rangeButton = self:addButton(images.icons.actions.icon_nametable_range, function()
     self:_onConfigureRange()
   end, "Set start and end addresses for nametable")
 
-  self.addSpriteButton = self:addButton(images.icons.icon_add_sprite, function()
+  self.addSpriteButton = self:addButton(images.icons.actions.icon_add_sprite, function()
     self:_onAddSprite()
   end, "Add a sprite on sprite layer")
 
-  self.patternLayerToggleButton = self:addButton(images.icons.icon_pattern_table or images.icons.icon_nametable_range, function()
+  self.patternLayerToggleButton = self:addButton(images.icons.actions.icon_pattern_table or images.icons.actions.icon_nametable_range, function()
     self:_onTogglePatternLayerSolo()
   end, "Show pattern table layer only")
 
-  self.toggleOriginGuidesButton = self:addButton(images.icons.icon_dotted_lines, function()
+  self.toggleOriginGuidesButton = self:addButton(images.icons.actions.icon_dotted_lines, function()
     self:_onToggleOriginGuides()
   end, "Toggle origin guides")
 
@@ -391,7 +391,7 @@ end
 function PPUFrameToolbar:updatePatternLayerToggleButton()
   local button = self.patternLayerToggleButton
   if not button then return end
-  button.icon = images.icons.icon_pattern_table or images.icons.icon_nametable_range or button.icon
+  button.icon = images.icons.actions.icon_pattern_table or images.icons.actions.icon_nametable_range or button.icon
   local enabled = (self.window and self.window.findPatternReferenceLayerIndex and self.window:findPatternReferenceLayerIndex() ~= nil)
   button.enabled = true
   local active = self.window and self.window.patternLayerSoloMode == true
@@ -414,7 +414,7 @@ end
 
 function PPUFrameToolbar:updatePatternRangeButton()
   if not self.addTileRangeButton then return end
-  self.addTileRangeButton.icon = images.icons.icon_plus or self.addTileRangeButton.icon
+  self.addTileRangeButton.icon = images.icons.chrome.icon_plus or self.addTileRangeButton.icon
   local rangeCount = patternRangeCount(self.window)
   if rangeCount > 0 then
     self.addTileRangeButton.bgColor = nil
@@ -428,7 +428,7 @@ end
 
 function PPUFrameToolbar:updateRangeButton()
   if not self.rangeButton then return end
-  self.rangeButton.icon = images.icons.icon_nametable_range or self.rangeButton.icon
+  self.rangeButton.icon = images.icons.actions.icon_nametable_range or self.rangeButton.icon
   self.rangeButton.enabled = true
   if hasConfiguredRange(self.window) then
     self.rangeButton.bgColor = nil
@@ -442,7 +442,7 @@ end
 
 function PPUFrameToolbar:updateSpriteButton()
   if not self.addSpriteButton then return end
-  self.addSpriteButton.icon = images.icons.icon_add_sprite or self.addSpriteButton.icon
+  self.addSpriteButton.icon = images.icons.actions.icon_add_sprite or self.addSpriteButton.icon
   local _, spriteLayerIndex = getFirstSpriteLayer(self.window)
   if spriteLayerIndex then
     self.addSpriteButton.tooltip = "Add a sprite on sprite layer"
@@ -460,7 +460,7 @@ function PPUFrameToolbar:updateOriginButtons()
 
   if self.toggleOriginGuidesButton then
     local enabledGuides = isActiveSpriteLayer and (self.window and self.window.showSpriteOriginGuides == true)
-    self.toggleOriginGuidesButton.icon = images.icons.icon_dotted_lines or self.toggleOriginGuidesButton.icon
+    self.toggleOriginGuidesButton.icon = images.icons.actions.icon_dotted_lines or self.toggleOriginGuidesButton.icon
     self.toggleOriginGuidesButton.enabled = isActiveSpriteLayer
     self.toggleOriginGuidesButton.hidden = hideOriginButtons
     if enabledGuides then

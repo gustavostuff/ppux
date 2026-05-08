@@ -41,8 +41,10 @@ do
   local ok, images = pcall(require, "images")
   if ok and type(images) == "table" then
     images.icons = images.icons or {}
-    if not images.icons.icon_circle then
-      images.icons.icon_circle = {
+    images.icons.chrome = images.icons.chrome or {}
+    images.icons.actions = images.icons.actions or {}
+    if not images.icons.chrome.icon_circle then
+      images.icons.chrome.icon_circle = {
         getWidth = function() return 15 end,
         getHeight = function() return 15 end,
       }

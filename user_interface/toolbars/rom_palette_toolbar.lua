@@ -19,19 +19,19 @@ function RomPaletteToolbar.new(window, ctx, windowController)
   local hx, hy, hw, hh = window:getHeaderRect()
   self.h = hh
 
-  self.prevButton = self:addButton(images.icons.icon_left, function()
+  self.prevButton = self:addButton(images.icons.actions.icon_left, function()
     self:_onNavigate(-1)
   end, "Previous ROM palette")
 
-  self.nextButton = self:addButton(images.icons.icon_right, function()
+  self.nextButton = self:addButton(images.icons.actions.icon_right, function()
     self:_onNavigate(1)
   end, "Next ROM palette")
 
-  self.linkButton = self:addButton(images.icons.icon_connect or images.icons.icon_pivot or images.icons.icon_empty or images.icons.icon_scroll_toolbar_empty, nil, "Palette link handle; right-drag to link layers; left-click for menu", {
+  self.linkButton = self:addButton(images.icons.actions.icon_connect or images.icons.chrome.icon_pivot or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty, nil, "Palette link handle; right-drag to link layers; left-click for menu", {
     paletteLinkHandle = true,
   })
 
-  self.compactButton = self:addButton(images.icons.icon_minus or images.icons.icon_down, function()
+  self.compactButton = self:addButton(images.icons.chrome.icon_minus or images.icons.chrome.icon_down, function()
     self:_onToggleCompact()
   end, "Toggle compact palette view")
 
@@ -51,7 +51,7 @@ function RomPaletteToolbar:updateIcons()
   ToolbarBase.updateIcons(self)
   self:updateGroupedNavigationButtons()
   if self.linkButton then
-    self.linkButton.icon = images.icons.icon_connect or images.icons.icon_pivot or self.linkButton.icon
+    self.linkButton.icon = images.icons.actions.icon_connect or images.icons.chrome.icon_pivot or self.linkButton.icon
     local targets = PaletteLinkController.getLinkedTargetsForPalette(self.windowController, self.window)
     local linkedCount = #(targets or {})
     self.linkButton.bgColor = linkedCount > 0 and colors.green or colors.gray20
@@ -92,10 +92,10 @@ function RomPaletteToolbar:updateCompactIcon()
   if not supported then return end
 
   if self.window.compactView then
-    self.compactButton.icon = images.icons.icon_normal_mode or self.compactButton.icon
+    self.compactButton.icon = images.icons.chrome.icon_normal_mode or self.compactButton.icon
     self.compactButton.tooltip = "Switch to normal view"
   else
-    self.compactButton.icon = images.icons.icon_compact_mode or self.compactButton.icon
+    self.compactButton.icon = images.icons.chrome.icon_compact_mode or self.compactButton.icon
     self.compactButton.tooltip = "Switch to compact view"
   end
 end

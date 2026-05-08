@@ -182,12 +182,12 @@ function M.install(Taskbar, Helpers)
 
   function Taskbar:_initWindowControls()
     M.MINIMIZED_SCROLL_BUTTON_H = UiScale.buttonSize()
-    self.minimizedWindowButtonIcon = images.icons.icon_circle
-    self.minimizedScrollLeftIcon = images.icons.icon_scroll_toolbar_left
-    self.minimizedScrollRightIcon = images.icons.icon_scroll_toolbar_right
-    self.minimizedScrollEmptyIcon = images.icons.icon_scroll_toolbar_empty or self.minimizedScrollLeftIcon or self.minimizedWindowButtonIcon
-    self.modeTileIcon = images.icons.icon_ui_hand
-    self.modeEditIcon = images.icons.icon_ui_pencil
+    self.minimizedWindowButtonIcon = images.icons.chrome.icon_circle
+    self.minimizedScrollLeftIcon = images.icons.chrome.icon_scroll_toolbar_left
+    self.minimizedScrollRightIcon = images.icons.chrome.icon_scroll_toolbar_right
+    self.minimizedScrollEmptyIcon = images.icons.chrome.icon_scroll_toolbar_empty or self.minimizedScrollLeftIcon or self.minimizedWindowButtonIcon
+    self.modeTileIcon = images.icons.actions.icon_ui_hand
+    self.modeEditIcon = images.icons.actions.icon_ui_pencil
 
     local windowIcons = images.windows_icons or images.animated_icons or {}
     self.taskbarAnimatedSheetsByKind = {
@@ -233,10 +233,10 @@ function M.install(Taskbar, Helpers)
     self.minimizedScrollRightButton.scrollDirection = "right"
     self.minimizedScrollRightButton.scrollEnabled = false
 
-    local sortAZIcon = images.icons.sort_a_z
-    local sortZAIcon = images.icons.sort_z_a
-    local sortKindAscIcon = images.icons.sort_kind_asc
-    local sortKindDescIcon = images.icons.sort_kind_desc
+    local sortAZIcon = images.icons.chrome.sort_a_z
+    local sortZAIcon = images.icons.chrome.sort_z_a
+    local sortKindAscIcon = images.icons.chrome.sort_kind_asc
+    local sortKindDescIcon = images.icons.chrome.sort_kind_desc
 
     self.sortAlphaButton = Helpers.newTaskbarButton({
       icon = sortAZIcon,

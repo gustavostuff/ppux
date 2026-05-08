@@ -19,9 +19,9 @@ function Splash.new(settings)
       self.visible = true
       -- Create dismiss-forever button; icon will be set later by user
       local icon = (settings and settings.buttonIcon) or
-          images.icons.icon_not_selected or
-          images.icons.icon_plus or
-          images.icons.icon_minus
+          images.icons.chrome.icon_not_selected or
+          images.icons.chrome.icon_plus or
+          images.icons.chrome.icon_minus
       if self.saveFn then
         self.button = Button.new({
           icon = icon,

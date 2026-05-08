@@ -36,11 +36,11 @@ function CrtViewerToolbar.new(window, ctx, windowController)
     return ""
   end)
 
-  self:addButton(images.icons.icon_down, function()
+  self:addButton(images.icons.chrome.icon_down, function()
     self.window:prevLayer()
   end, "Previous reference layer", {})
 
-  self:addButton(images.icons.icon_up, function()
+  self:addButton(images.icons.chrome.icon_up, function()
     self.window:nextLayer()
   end, "Next reference layer", {})
 

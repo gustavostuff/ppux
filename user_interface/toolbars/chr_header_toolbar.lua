@@ -23,13 +23,13 @@ function ChrHeaderToolbar.new(window, ctx, windowController)
   self.h = hh
   
   -- Create minimize button (independent from collapse state)
-  local minimizeBtn = self:addButton(images.icons.icon_minus, function()
+  local minimizeBtn = self:addButton(images.icons.chrome.icon_minus, function()
     self:_onMinimize()
   end, "Minimize window")
   minimizeBtn.isCloseButton = false
 
   -- Create collapse button - blue, starts with "up" icon (window is expanded)
-  local collapseBtn = self:addButton(images.icons.icon_up, function()
+  local collapseBtn = self:addButton(images.icons.chrome.icon_up, function()
     self:_onCollapse()
   end, "Collapse window")
   collapseBtn.isCloseButton = false  -- Mark as non-close button
@@ -270,9 +270,9 @@ function ChrHeaderToolbar:updateCollapseIcon()
   
   -- Use "down" icon when collapsed, "up" icon when expanded
   if self.window._collapsed then
-    self.collapseButton.icon = images.icons.icon_down
+    self.collapseButton.icon = images.icons.chrome.icon_down
   else
-    self.collapseButton.icon = images.icons.icon_up
+    self.collapseButton.icon = images.icons.chrome.icon_up
   end
 end
 

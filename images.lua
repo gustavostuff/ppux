@@ -94,4 +94,26 @@ end
 
 loadDir("img", images)
 
+-- Ensure `icons` and standard subfolders always exist so UI code can use
+-- `images.icons.chrome.*` / `images.icons.actions.*` even when the game is
+-- run from a fused dir without `img/` (e.g. `love ./test`).
+local function ensureLazySubtree(parent, key)
+  local child = rawget(parent, key)
+  if type(child) ~= "table" then
+    child = {}
+    rawset(parent, key, child)
+  end
+  attachLazyLoader(child)
+end
+
+local icons = rawget(images, "icons")
+if type(icons) ~= "table" then
+  icons = {}
+  rawset(images, "icons", icons)
+end
+attachLazyLoader(icons)
+ensureLazySubtree(icons, "chrome")
+ensureLazySubtree(icons, "actions")
+ensureLazySubtree(icons, "image_types")
+
 return images

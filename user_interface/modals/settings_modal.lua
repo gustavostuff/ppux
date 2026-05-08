@@ -105,7 +105,7 @@ local function newAppearanceChromeSample(modePrefix, stateKind)
   local textSuffix = (stateKind == "focused") and "focused" or "non_focused"
   local textSlot = modePrefix .. "_text_icons_" .. textSuffix
   local sampleLabel = "Text"
-  local icon = images.icons and images.icons.icon_clone or nil
+  local icon = images.icons and images.icons.actions.icon_clone or nil
   return {
     contains = function()
       return false

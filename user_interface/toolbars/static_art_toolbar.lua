@@ -19,7 +19,7 @@ function StaticArtToolbar.new(window, ctx, windowController)
   local _, _, _, hh = window:getHeaderRect()
   self.h = hh
 
-  self.linkButton = self:addButton(images.icons.icon_connect, nil, "Palette link handle; right-drag to a ROM palette to link; left-click for menu", {
+  self.linkButton = self:addButton(images.icons.actions.icon_connect, nil, "Palette link handle; right-drag to a ROM palette to link; left-click for menu", {
     paletteLinkHandle = true,
   })
 
@@ -39,7 +39,7 @@ end
 function StaticArtToolbar:updateIcons()
   ToolbarBase.updateIcons(self)
   if self.linkButton then
-    self.linkButton.icon = images.icons.icon_connect or self.linkButton.icon
+    self.linkButton.icon = images.icons.actions.icon_connect or self.linkButton.icon
     local linkedPalette = PaletteLinkController.getActiveLayerLinkedPaletteWindow(self.window, self.windowController)
     self.linkButton.bgColor = linkedPalette and colors.green or colors.gray20
     if linkedPalette then

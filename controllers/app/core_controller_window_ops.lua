@@ -70,7 +70,7 @@ local function getNewWindowOptionIcon(iconKey)
 
   local windowIcons = images.windows_icons or images.animated_icons or {}
   local sheet = windowIcons[NEW_WINDOW_ICON_SHEETS_BY_KEY[key] or NEW_WINDOW_ICON_SHEETS_BY_KEY.generic]
-  local fallback = images.icons and images.icons.icon_circle or nil
+  local fallback = images.icons and images.icons.chrome.icon_circle or nil
   local icon = fallback
 
   if sheet and katsudo and type(katsudo.new) == "function"

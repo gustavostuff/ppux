@@ -37,22 +37,22 @@ function ChrToolbar.new(window, ctx, windowController)
   self:triggerLayerLabelFlash()
 
   -- Prev bank
-  self:addButton(images.icons.icon_left, function()
+  self:addButton(images.icons.actions.icon_left, function()
     self:_onBankChange(-1)
   end, "Prev bank")
 
   -- Next bank
-  self:addButton(images.icons.icon_right, function()
+  self:addButton(images.icons.actions.icon_right, function()
     self:_onBankChange(1)
   end, "Next bank")
 
   -- Mode toggle
-  self.modeButton = self:addButton(images.icons.icon_8x8, function()
+  self.modeButton = self:addButton(images.icons.actions.icon_8x8, function()
     self:_onToggleMode()
   end, "Sprite mode (height)")
   self:updateModeIcon()
 
-  self.canvasOnlyButton = self:addButton(images.icons.icon_compact_mode, function()
+  self.canvasOnlyButton = self:addButton(images.icons.chrome.icon_compact_mode, function()
     self:_onCanvasOnly()
   end, "Toggle zero distractions mode")
   if not SHOW_ZERO_DISTRACTIONS_TOGGLE then
@@ -61,7 +61,7 @@ function ChrToolbar.new(window, ctx, windowController)
 
   if not (window and window.isRomWindow == true) then
     -- Sync duplicate tiles toggle (off by default; icon matches until updateSyncIcon runs).
-    self.syncButton = self:addButton(images.icons.icon_not_selected or images.icons.icon_selected, function()
+    self.syncButton = self:addButton(images.icons.chrome.icon_not_selected or images.icons.chrome.icon_selected, function()
       self:_onToggleSyncDuplicates()
     end, "Toggle sync duplicate tiles")
     self:updateSyncIcon()
@@ -75,9 +75,9 @@ end
 function ChrToolbar:updateModeIcon()
   if not self.window or not self.modeButton then return end
   if self.window.orderMode == "oddEven" then
-    self.modeButton.icon = images.icons.icon_8x16 or self.modeButton.icon
+    self.modeButton.icon = images.icons.actions.icon_8x16 or self.modeButton.icon
   else
-    self.modeButton.icon = images.icons.icon_8x8 or self.modeButton.icon
+    self.modeButton.icon = images.icons.actions.icon_8x8 or self.modeButton.icon
   end
 end
 
@@ -85,10 +85,10 @@ function ChrToolbar:updateSyncIcon()
   if not self.syncButton or not self.ctx or not self.ctx.app then return end
   local enabled = self.ctx.app.syncDuplicateTiles == true
   if enabled then
-    self.syncButton.icon = images.icons.icon_selected or self.syncButton.icon
+    self.syncButton.icon = images.icons.chrome.icon_selected or self.syncButton.icon
     self.syncButton.tooltip = "Sync duplicates: ON"
   else
-    self.syncButton.icon = images.icons.icon_not_selected or self.syncButton.icon
+    self.syncButton.icon = images.icons.chrome.icon_not_selected or self.syncButton.icon
     self.syncButton.tooltip = "Sync duplicates: OFF"
   end
 end
@@ -99,10 +99,10 @@ function ChrToolbar:updateCanvasOnlyIcon()
   end
   local app = self.ctx.app
   if app.chrCanvasOnlyWindow == self.window then
-    self.canvasOnlyButton.icon = images.icons.icon_normal_mode or self.canvasOnlyButton.icon
+    self.canvasOnlyButton.icon = images.icons.chrome.icon_normal_mode or self.canvasOnlyButton.icon
     self.canvasOnlyButton.tooltip = "Toggle zero distractions mode"
   else
-    self.canvasOnlyButton.icon = images.icons.icon_compact_mode or self.canvasOnlyButton.icon
+    self.canvasOnlyButton.icon = images.icons.chrome.icon_compact_mode or self.canvasOnlyButton.icon
     self.canvasOnlyButton.tooltip = "Toggle zero distractions mode"
   end
 end

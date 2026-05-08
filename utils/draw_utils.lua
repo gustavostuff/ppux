@@ -71,7 +71,7 @@ function M.getCursorShader()
   return cursorShader
 end
 
--- Centralized icon renderer for assets under img/icons.
+-- Centralized icon renderer for icons under img/icons/ (often img/icons/chrome, actions/…).
 -- Keep this as the single draw call path used by UI icon sites.
 function M.drawIcon(icon, x, y, opts)
   if not icon then

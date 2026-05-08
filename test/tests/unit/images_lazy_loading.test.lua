@@ -14,6 +14,9 @@ describe("images.lua - eager vs lazy loading", function()
         return { "icons", "misc.png" }
       end
       if path == "img/icons" then
+        return { "chrome" }
+      end
+      if path == "img/icons/chrome" then
         return { "cursor.png" }
       end
       return {}
@@ -23,8 +26,9 @@ describe("images.lua - eager vs lazy loading", function()
       local info = {
         ["img"] = { type = "directory" },
         ["img/icons"] = { type = "directory" },
+        ["img/icons/chrome"] = { type = "directory" },
         ["img/misc.png"] = { type = "file" },
-        ["img/icons/cursor.png"] = { type = "file" },
+        ["img/icons/chrome/cursor.png"] = { type = "file" },
       }
       return info[path]
     end
@@ -76,12 +80,12 @@ describe("images.lua - eager vs lazy loading", function()
     expect(imageLoadCount).toBe(1)
     expect(misc._path).toBe("img/misc.png")
 
-    local cursor = images.icons.cursor
+    local cursor = images.icons.chrome.cursor
     expect(imageLoadCount).toBe(2)
-    expect(cursor._path).toBe("img/icons/cursor.png")
+    expect(cursor._path).toBe("img/icons/chrome/cursor.png")
 
     local miscAgain = images.misc
-    local cursorAgain = images.icons.cursor
+    local cursorAgain = images.icons.chrome.cursor
     expect(imageLoadCount).toBe(2)
     expect(miscAgain).toBe(misc)
     expect(cursorAgain).toBe(cursor)
@@ -92,12 +96,12 @@ describe("images.lua - eager vs lazy loading", function()
 
     expect(imageLoadCount).toBe(2)
     expect(images.misc._path).toBe("img/misc.png")
-    expect(images.icons.cursor._path).toBe("img/icons/cursor.png")
+    expect(images.icons.chrome.cursor._path).toBe("img/icons/chrome/cursor.png")
 
     local miscAgain = images.misc
-    local cursorAgain = images.icons.cursor
+    local cursorAgain = images.icons.chrome.cursor
     expect(imageLoadCount).toBe(2)
     expect(miscAgain._path).toBe("img/misc.png")
-    expect(cursorAgain._path).toBe("img/icons/cursor.png")
+    expect(cursorAgain._path).toBe("img/icons/chrome/cursor.png")
   end)
 end)

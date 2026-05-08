@@ -138,18 +138,18 @@ function M.install(Taskbar, Helpers)
       quit = actionQuit,
     }
     self._menuIcons = {
-      expandAll = images.icons.icon_cascade_all,
-      collapseAll = images.icons.icon_collapse_all,
-      minimizeAll = images.icons.min_all,
-      maximizeAll = images.icons.max_all,
-      newWindow = images.icons.icon_new_window,
-      save = images.icons.save,
-      settings = images.icons.settings,
-      windows = images.icons.icon_windows,
-      recentProjects = images.icons.icon_clock,
-      recentProjectItem = images.icons.icon_circle,
-      closeProject = images.icons.icon_x,
-      quit = images.icons.icon_quit,
+      expandAll = images.icons.chrome.icon_cascade_all,
+      collapseAll = images.icons.chrome.icon_collapse_all,
+      minimizeAll = images.icons.chrome.min_all,
+      maximizeAll = images.icons.chrome.max_all,
+      newWindow = images.icons.chrome.icon_new_window,
+      save = images.icons.actions.save,
+      settings = images.icons.actions.settings,
+      windows = images.icons.chrome.icon_windows,
+      recentProjects = images.icons.chrome.icon_clock,
+      recentProjectItem = images.icons.chrome.icon_circle,
+      closeProject = images.icons.chrome.icon_x,
+      quit = images.icons.chrome.icon_quit,
     }
     self:_refreshMenuItems()
   end
