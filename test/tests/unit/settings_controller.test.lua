@@ -7,7 +7,7 @@ describe("settings_controller.lua - defaults", function()
       skipSplash = false,
       theme = "dark",
       tooltipsEnabled = true,
-      canvasImageMode = "pixel_perfect",
+      canvasImageMode = "keep_aspect",
       canvasFilter = "sharp",
       paletteLinks = "auto_hide",
       separateToolbar = false,

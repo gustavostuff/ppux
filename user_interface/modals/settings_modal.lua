@@ -420,6 +420,7 @@ function Dialog.new()
     _settingsTabbedChrome = true,
     _windowShadowBlurSlider = nil,
     _windowShadowStrengthSlider = nil,
+    _canvasImageModeDropdown = nil,
     _canvasFilterDropdown = nil,
   }, Dialog)
 
@@ -639,6 +640,7 @@ function Dialog:show(opts)
   self.onResetAll = opts.onResetAll
   self._windowShadowBlurSlider = opts.windowShadowBlurSlider
   self._windowShadowStrengthSlider = opts.windowShadowStrengthSlider
+  self._canvasImageModeDropdown = opts.canvasImageModeDropdown
   self._canvasFilterDropdown = opts.canvasFilterDropdown
   self.visible = true
   self.pressedButton = nil
@@ -709,6 +711,14 @@ function Dialog:_defaultRows()
     },
   }
 
+  if self._canvasImageModeDropdown then
+    rows[#rows + 1] = {
+      id = "canvas_image_mode",
+      label = "Canvas scale",
+      dropdown = self._canvasImageModeDropdown,
+    }
+  end
+
   if self._canvasFilterDropdown then
     rows[#rows + 1] = {
       id = "canvas_filter",
@@ -720,14 +730,14 @@ function Dialog:_defaultRows()
   if self._windowShadowBlurSlider then
     rows[#rows + 1] = {
       id = "window_shadow_blur",
-      label = "Shadow blur",
+      label = "Window shadow blur",
       component = self._windowShadowBlurSlider,
     }
   end
   if self._windowShadowStrengthSlider then
     rows[#rows + 1] = {
       id = "window_shadow_strength",
-      label = "Shadow strength",
+      label = "Window shadow strength",
       component = self._windowShadowStrengthSlider,
     }
   end

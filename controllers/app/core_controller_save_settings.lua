@@ -519,7 +519,71 @@ function AppCoreController:_applyCanvasImageModeSetting(modeKey, saveSetting)
   if saveSetting ~= false then
     AppSettingsController.save({ canvasImageMode = key })
   end
+  if saveSetting ~= false and self._refreshSettingsModalIfOpen then
+    self:_refreshSettingsModalIfOpen()
+  end
   return key
+end
+
+function AppCoreController:_getCanvasImageModeDropdownDefaultSpec()
+  local m = ResolutionController.mode
+  if m == ResolutionController.modes.PIXEL_PERFECT then
+    return ResolutionController.modes.PIXEL_PERFECT
+  end
+  if m == ResolutionController.modes.STRETCH then
+    return ResolutionController.modes.STRETCH
+  end
+  return ResolutionController.modes.KEEP_ASPECT
+end
+
+function AppCoreController:_ensureSettingsCanvasImageModeDropdown()
+  if self._canvasImageModeDropdown then
+    return
+  end
+  local appRef = self
+  self._canvasImageModeDropdownItems = {
+    {
+      value = ResolutionController.modes.KEEP_ASPECT,
+      text = "Keep aspect",
+      onPick = function(entry)
+        appRef:_applyCanvasImageModeSetting(resolutionModeToCanvasImageModeKey(entry.value), true)
+      end,
+    },
+    {
+      value = ResolutionController.modes.PIXEL_PERFECT,
+      text = "Pixel-perfect",
+      onPick = function(entry)
+        appRef:_applyCanvasImageModeSetting(resolutionModeToCanvasImageModeKey(entry.value), true)
+      end,
+    },
+    {
+      value = ResolutionController.modes.STRETCH,
+      text = "Stretch",
+      onPick = function(entry)
+        appRef:_applyCanvasImageModeSetting(resolutionModeToCanvasImageModeKey(entry.value), true)
+      end,
+    },
+  }
+  self._canvasImageModeDropdown = Dropdown.new({
+    getBounds = function()
+      return { w = appRef.canvas:getWidth(), h = appRef.canvas:getHeight() }
+    end,
+    default = self:_getCanvasImageModeDropdownDefaultSpec(),
+    tooltip = "How the workspace is scaled to fit the OS window",
+    items = self._canvasImageModeDropdownItems,
+  })
+end
+
+function AppCoreController:_syncSettingsCanvasImageModeDropdown()
+  local dd = self._canvasImageModeDropdown
+  if not dd or not self._canvasImageModeDropdownItems then
+    return
+  end
+  dd:setGetBounds(function()
+    return { w = self.canvas:getWidth(), h = self.canvas:getHeight() }
+  end)
+  dd._defaultSpec = self:_getCanvasImageModeDropdownDefaultSpec()
+  dd:setItems(self._canvasImageModeDropdownItems)
 end
 
 function AppCoreController:_getCanvasFilterForSettings()
@@ -732,6 +796,7 @@ end
 function AppCoreController:_refreshSettingsModalIfOpen()
   if self.settingsModal and self.settingsModal.isVisible and self.settingsModal:isVisible() then
     self:_syncSettingsCanvasFilterDropdown()
+    self:_syncSettingsCanvasImageModeDropdown()
     ModalPanelUtils.refreshTargetMetrics(self.settingsModal)
     if self.settingsModal._rebuildRows then
       self.settingsModal:_rebuildRows()
@@ -1095,6 +1160,9 @@ function AppCoreController:showSettingsModal()
   self:_ensureSettingsCanvasFilterDropdown()
   self:_syncSettingsCanvasFilterDropdown()
 
+  self:_ensureSettingsCanvasImageModeDropdown()
+  self:_syncSettingsCanvasImageModeDropdown()
+
   self.settingsModal:show({
     title = "Settings",
     getMenuBounds = function()
@@ -1193,6 +1261,7 @@ function AppCoreController:showSettingsModal()
     end,
     windowShadowBlurSlider = appRef._windowShadowBlurSlider,
     windowShadowStrengthSlider = appRef._windowShadowStrengthSlider,
+    canvasImageModeDropdown = appRef._canvasImageModeDropdown,
     canvasFilterDropdown = appRef._canvasFilterDropdown,
   })
 end

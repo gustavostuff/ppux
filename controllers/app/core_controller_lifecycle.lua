@@ -387,7 +387,7 @@ function AppCoreController:load()
   if self._applyAppearanceChromeFromSettings then
     self:_applyAppearanceChromeFromSettings(settings and settings.appearanceChrome)
   end
-  self:_applyCanvasImageModeSetting((settings and settings.canvasImageMode) or "pixel_perfect", false)
+  self:_applyCanvasImageModeSetting((settings and settings.canvasImageMode) or "keep_aspect", false)
   if settings and settings.canvasFilter ~= nil then
     self:_applyCanvasFilterSetting(settings.canvasFilter, false)
   end
