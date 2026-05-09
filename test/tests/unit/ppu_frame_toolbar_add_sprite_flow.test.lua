@@ -238,3 +238,37 @@ describe("ppu_frame_toolbar.lua - pattern layer toggle", function()
     expect(toastText).toBe("Pattern table layer is not available")
   end)
 end)
+
+describe("ppu_frame_toolbar.lua - remove layer undo", function()
+  local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
+
+  it("records animation_window_state when removing a layer", function()
+    local events = {}
+    local win = makeWindow({
+      { kind = "tile", items = {}, opacity = 1.0 },
+      { kind = "sprite", items = {}, opacity = 1.0 },
+    }, 2)
+    win.selectedByLayer = {}
+
+    local ctx = {
+      app = {
+        undoRedo = {
+          addAnimationWindowStateEvent = function(_, ev)
+            events[#events + 1] = ev
+          end,
+        },
+      },
+    }
+
+    local toolbar = PPUFrameToolbar.new(win, ctx, { getFocus = function() return win end })
+    toolbar:_onRemoveLayer()
+
+    expect(#events).toBe(1)
+    expect(events[1].type).toBe("animation_window_state")
+    expect(#win.layers).toBe(1)
+
+    AnimationWindowUndo.apply(win, events[1].beforeState)
+    expect(#win.layers).toBe(2)
+    expect(win.activeLayer).toBe(2)
+  end)
+end)

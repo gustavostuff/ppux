@@ -4,6 +4,7 @@
 local ToolbarBase = require("user_interface.toolbars.toolbar_base")
 local images = require("images")
 local colors = require("app_colors")
+local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
 
 local PPUFrameToolbar = {}
 PPUFrameToolbar.__index = PPUFrameToolbar
@@ -354,17 +355,28 @@ end
 -- Handle remove layer
 function PPUFrameToolbar:_onRemoveLayer()
   if not self.window then return end
-  
+
   local numLayers = self.window:getLayerCount()
   if numLayers <= 1 then
     setStatus(self.ctx, "Cannot remove the last layer")
     return
   end
-  
+
+  local app = self.ctx and self.ctx.app
+  local undoRedo = app and app.undoRedo
+  local snapBefore = AnimationWindowUndo.snapshot(self.window)
+
   local activeIdx = self.window:getActiveLayerIndex()
   table.remove(self.window.layers, activeIdx)
-  
-  -- Adjust active layer index
+  if self.window.selectedByLayer then
+    self.window.selectedByLayer[activeIdx] = nil
+    for li = activeIdx, #self.window.layers do
+      self.window.selectedByLayer[li] = self.window.selectedByLayer[li + 1]
+    end
+    self.window.selectedByLayer[#self.window.layers + 1] = nil
+  end
+
+  -- Adjust active layer index (mirror AnimationWindow:removeActiveLayer)
   if activeIdx > numLayers then
     self.window.activeLayer = numLayers - 1
   elseif activeIdx > 1 then
@@ -372,7 +384,27 @@ function PPUFrameToolbar:_onRemoveLayer()
   else
     self.window.activeLayer = 1
   end
-  
+  if self.window.activeLayer > #self.window.layers then
+    self.window.activeLayer = #self.window.layers
+  end
+  if self.window.activeLayer < 1 then
+    self.window.activeLayer = 1
+  end
+  self.window.selected = self.window.selectedByLayer and self.window.selectedByLayer[self.window.activeLayer] or nil
+  if self.window.updateLayerOpacities then
+    self.window:updateLayerOpacities()
+  end
+
+  local snapAfter = AnimationWindowUndo.snapshot(self.window)
+  if undoRedo and undoRedo.addAnimationWindowStateEvent and not AnimationWindowUndo.snapshotsEqual(snapBefore, snapAfter) then
+    undoRedo:addAnimationWindowStateEvent({
+      type = "animation_window_state",
+      win = self.window,
+      beforeState = snapBefore,
+      afterState = snapAfter,
+    })
+  end
+
   if self.ctx and self.ctx.showToast then
     local title = tostring((self.window and self.window.title) or "Untitled")
     self.ctx.showToast("warning", string.format("Removed layer from %s", title))

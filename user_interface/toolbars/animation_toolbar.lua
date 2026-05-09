@@ -7,6 +7,7 @@ local colors = require("app_colors")
 local DebugController = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
+local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
 
 local AnimationToolbar = {}
 AnimationToolbar.__index = AnimationToolbar
@@ -225,9 +226,22 @@ end
 -- Handle remove layer
 function AnimationToolbar:_onRemoveLayer()
   if not isAnimationKind(self.window) then return end
-  
+
+  local app = self.ctx and self.ctx.app
+  local undoRedo = app and app.undoRedo
+  local snapBefore = AnimationWindowUndo.snapshot(self.window)
   local success = self.window:removeActiveLayer()
-  if not success then
+  if success then
+    local snapAfter = AnimationWindowUndo.snapshot(self.window)
+    if undoRedo and undoRedo.addAnimationWindowStateEvent and not AnimationWindowUndo.snapshotsEqual(snapBefore, snapAfter) then
+      undoRedo:addAnimationWindowStateEvent({
+        type = "animation_window_state",
+        win = self.window,
+        beforeState = snapBefore,
+        afterState = snapAfter,
+      })
+    end
+  else
     setStatus(self.ctx, "Cannot remove the last layer")
   end
   self:updateOriginButtons()

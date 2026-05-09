@@ -41,6 +41,66 @@ describe("keyboard_navigation_controller.lua - animation undo", function()
     AnimationWindowUndo.apply(focus, events[1].beforeState)
     expect(#focus.layers).toBe(1)
   end)
+
+  it("records animation_window_state when a frame layer is removed", function()
+    local events = {}
+    local focus = {
+      kind = "animation",
+      layers = {
+        { name = "Frame 1" },
+        { name = "Frame 2" },
+      },
+      activeLayer = 2,
+      frameDelays = {},
+      nonActiveLayerOpacity = 1.0,
+      selectedByLayer = {},
+      getActiveLayerIndex = function(self)
+        return self.activeLayer
+      end,
+      getLayerCount = function(self)
+        return #self.layers
+      end,
+      removeActiveLayer = function(self)
+        if #self.layers <= 1 then
+          return false
+        end
+        table.remove(self.layers, self.activeLayer)
+        if self.selectedByLayer then
+          local idx = self.activeLayer
+          self.selectedByLayer[idx] = nil
+          for li = idx, #self.layers do
+            self.selectedByLayer[li] = self.selectedByLayer[li + 1]
+          end
+          self.selectedByLayer[#self.layers + 1] = nil
+        end
+        self.activeLayer = math.min(self.activeLayer, #self.layers)
+        if self.activeLayer < 1 then
+          self.activeLayer = 1
+        end
+        return true
+      end,
+    }
+
+    local ctx = {
+      app = {
+        undoRedo = {
+          addAnimationWindowStateEvent = function(_, ev)
+            events[#events + 1] = ev
+          end,
+        },
+      },
+    }
+
+    local handled = KeyboardNavigationController.handleAnimationWindowKeys(ctx, "-", focus)
+    expect(handled).toBe(true)
+    expect(#events).toBe(1)
+    expect(events[1].type).toBe("animation_window_state")
+    expect(#focus.layers).toBe(1)
+
+    AnimationWindowUndo.apply(focus, events[1].beforeState)
+    expect(#focus.layers).toBe(2)
+    expect(focus.activeLayer).toBe(2)
+  end)
 end)
 
 describe("keyboard_navigation_controller.lua - inactive layer opacity", function()

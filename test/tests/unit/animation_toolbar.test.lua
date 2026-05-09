@@ -224,3 +224,60 @@ describe("window selection persistence per layer", function()
     expect(rAfterRemove).toBe(1)
   end)
 end)
+
+describe("animation_toolbar.lua - remove layer undo", function()
+  it("records animation_window_state after toolbar remove succeeds", function()
+    local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
+    local events = {}
+    local win = AnimationWindow.new(0, 0, 8, 8, 2, 2, 1, { title = "toolbar-undo-rem" })
+    win.layers = {}
+    win:addLayer({ kind = "tile" })
+    win:addLayer({ kind = "tile" })
+    win.activeLayer = 2
+
+    local ctx = {
+      app = {
+        undoRedo = {
+          addAnimationWindowStateEvent = function(_, ev)
+            events[#events + 1] = ev
+          end,
+        },
+        setStatus = function() end,
+      },
+    }
+    local toolbar = AnimationToolbar.new(win, ctx, { getFocus = function() return win end })
+
+    toolbar:_onRemoveLayer()
+    expect(#events).toBe(1)
+    expect(events[1].type).toBe("animation_window_state")
+    expect(#win.layers).toBe(1)
+
+    AnimationWindowUndo.apply(win, events[1].beforeState)
+    expect(#win.layers).toBe(2)
+    expect(win.activeLayer).toBe(2)
+  end)
+
+  it("does not push undo when only one layer remains", function()
+    local events = {}
+    local win = AnimationWindow.new(0, 0, 8, 8, 1, 1, 1, { title = "toolbar-undo-one" })
+    win.layers = {}
+    win:addLayer({ kind = "tile" })
+    win.activeLayer = 1
+
+    local ctx = {
+      app = {
+        undoRedo = {
+          addAnimationWindowStateEvent = function(_, ev)
+            events[#events + 1] = ev
+          end,
+        },
+        setStatus = function() end,
+      },
+    }
+    local toolbar = AnimationToolbar.new(win, ctx, { getFocus = function() return win end })
+
+    toolbar:_onRemoveLayer()
+    expect(#events).toBe(0)
+    expect(#win.layers).toBe(1)
+  end)
+end)
