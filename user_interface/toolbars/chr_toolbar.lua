@@ -3,6 +3,7 @@
 
 local ToolbarBase = require("user_interface.toolbars.toolbar_base")
 local BankViewController = require("controllers.chr.bank_view_controller")
+local OpenRomFolder = require("utils.open_rom_folder")
 local images = require("images")
 local colors = require("app_colors")
 
@@ -46,11 +47,16 @@ function ChrToolbar.new(window, ctx, windowController)
     self:_onBankChange(1)
   end, "Next bank")
 
+  self.openBaseRomFolderButton = self:addButton(images.icons.actions.icon_open, function()
+    self:_onOpenBaseRomFolder()
+  end, "Open base ROM folder in file manager")
+
   -- Mode toggle
   self.modeButton = self:addButton(images.icons.actions.icon_8x8, function()
     self:_onToggleMode()
   end, "Sprite mode (height)")
   self:updateModeIcon()
+  self:_updateOpenBaseRomFolderButton()
 
   self.canvasOnlyButton = self:addButton(images.icons.chrome.icon_compact_mode, function()
     self:_onCanvasOnly()
@@ -111,6 +117,52 @@ function ChrToolbar:updateIcons()
   self:updateModeIcon()
   self:updateSyncIcon()
   self:updateCanvasOnlyIcon()
+  self:_updateOpenBaseRomFolderButton()
+end
+
+function ChrToolbar:_romPathForOpenFolder(app)
+  if not app then
+    return nil
+  end
+  local state = app.appEditState
+  local p = state and state.romOriginalPath or nil
+  if type(p) == "string" and p ~= "" then
+    return p
+  end
+  return nil
+end
+
+function ChrToolbar:_updateOpenBaseRomFolderButton()
+  local btn = self.openBaseRomFolderButton
+  if not btn then
+    return
+  end
+  local app = self.ctx and self.ctx.app or nil
+  local path = self:_romPathForOpenFolder(app)
+  local canOpen = OpenRomFolder.canOpenParentOfRom(path)
+  btn.enabled = canOpen == true
+  if canOpen then
+    btn.tooltip = "Open folder containing base ROM"
+  elseif not (app and app.hasLoadedROM and app:hasLoadedROM()) then
+    btn.tooltip = "Open base ROM folder (load a ROM first)"
+  else
+    btn.tooltip = "Open base ROM folder (path unknown for this workspace)"
+  end
+end
+
+function ChrToolbar:_onOpenBaseRomFolder()
+  local app = self.ctx and self.ctx.app
+  local path = self:_romPathForOpenFolder(app)
+  if type(path) ~= "string" or path == "" then
+    if app and app.setStatus then
+      app:setStatus("No ROM path — open or save against a ROM on disk first.")
+    end
+    return
+  end
+  local ok, err = OpenRomFolder.openParentFolderOfRomPath(path)
+  if app and app.setStatus then
+    app:setStatus(ok and "Opened ROM folder." or ("Could not open folder: " .. tostring(err or "unknown")))
+  end
 end
 
 function ChrToolbar:_onBankChange(delta)
