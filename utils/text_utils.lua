@@ -197,6 +197,9 @@ end
 
 local scrollingState = scrollingState or {}
 
+-- Defaults for `drawScrollingText`: window chrome titles, app status strip, modal path labels.
+TU.CHROME_SCROLL_TEXT_OPTS = { speed = 8, pause = 1 }
+
 function TU.limitChars(text, maxChars, opts)
   text = tostring(text or "")
   if type(maxChars) ~= "number" then
@@ -226,11 +229,12 @@ function TU.limitChars(text, maxChars, opts)
 end
 
 function TU.drawScrollingText(text, x, y, width, opts)
-  opts  = opts or {}
-  local charsPerSecond = opts.speed or 8      -- chars per second
-  local pause          = opts.pause or 0.75   -- seconds at each end
-  local key            = opts.key or text     -- unique id per header
-  local loop           = opts.loop == true
+  opts = opts or {}
+  local defs = TU.CHROME_SCROLL_TEXT_OPTS or { speed = 8, pause = 1 }
+  local charsPerSecond = opts.speed or defs.speed
+  local pause = opts.pause or defs.pause
+  local key = opts.key or text -- unique id per header
+  local loop = opts.loop == true
   text = tostring(text or "")
   width = tonumber(width) or 0
 

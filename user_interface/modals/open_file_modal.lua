@@ -399,7 +399,7 @@ function Dialog.new(config)
         math.floor(component.x + padX),
         math.floor(textY),
         math.max(0, component.w - padX * 2),
-        { speed = 8, pause = 1 }
+        {}
       )
     end,
   }

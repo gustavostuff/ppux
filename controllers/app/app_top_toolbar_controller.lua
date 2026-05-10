@@ -20,6 +20,7 @@ local BUTTON_GAP = 0
 local STATUS_BG_H = 15
 -- Fraction of top strip width reserved for status text (setStatus); the rest is quick actions + docked toolbars.
 local STATUS_WIDTH_RATIO = 0.4
+local STATUS_PAD_X = 4
 
 -- Unit tests and some harnesses stub `love` without `keyboard`; treat as no modifiers.
 local function isShiftHeld()
@@ -572,15 +573,17 @@ function M.draw(app)
   end
 
   local statusText = tostring(app.lastEventText or app.statusText or "")
-  local pad = 4
-  local textW = math.max(0, statusW - (pad * 2))
-  local textY = statusY + math.floor((STATUS_BG_H - love.graphics.getFont():getHeight()) / 2)
-  local textX = statusRightX - pad - love.graphics.getFont():getWidth(statusText)
+  local pad = STATUS_PAD_X
+  local textX = statusLeftX + pad
+  local textW = math.max(0, statusRightX - statusLeftX - pad * 2)
+  local font = love.graphics.getFont()
+  local textY = statusY + math.floor((STATUS_BG_H - (font and font:getHeight() or 0)) / 2)
   local statusTint = colors:chromeTextIconsColorNonFocused()
   love.graphics.setScissor(statusLeftX, statusY, statusW, STATUS_BG_H)
   love.graphics.setColor(statusTint[1], statusTint[2], statusTint[3], statusTint[4] or 1)
   if textW > 0 then
-    Text.print(statusText, textX, textY, { color = statusTint, literalColor = true })
+    -- Same character-step timing as window chrome titles (`utils.text_utils.drawScrollingText`).
+    Text.drawScrollingText(statusText, textX, textY, textW, { key = app })
   end
   love.graphics.setScissor()
   love.graphics.setColor(colors.white)

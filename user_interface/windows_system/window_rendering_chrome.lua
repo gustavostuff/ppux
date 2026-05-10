@@ -132,12 +132,8 @@ function Window:drawHeader(isFocused)
     text,
     math.floor(textX),
     math.floor(ty),
-    math.max(0, textWidth),  -- Ensure width is not negative
-    {
-      speed = 8,
-      pause = 1,
-      key   = self,
-    }
+    math.max(0, textWidth),
+    { key = self }
   )
 
   self.headerStartIndex = startIdx
