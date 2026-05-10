@@ -469,9 +469,10 @@ local function drawChrBankLayer(app, w, layerIndex)
   end
 
   ShaderPaletteController.applyShader(true, layer, nil, layerOpacity)
-  local ok = controller:drawWindow(app.appEditState, w, layerOpacity)
+  local okImg = controller:drawWindowImage(app.appEditState, w, layerOpacity)
   ShaderPaletteController.releaseShader()
-  return ok
+  local okOv = controller:drawWindowDiffOverlay(app.appEditState, w, layerOpacity)
+  return okImg and okOv
 end
 
 local function isAnimationKind(win)

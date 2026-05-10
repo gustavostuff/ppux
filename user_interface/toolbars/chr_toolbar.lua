@@ -56,6 +56,12 @@ function ChrToolbar.new(window, ctx, windowController)
     self:_onToggleMode()
   end, "Sprite mode (height)")
   self:updateModeIcon()
+
+  self.diffModeButton = self:addButton(images.icons.actions.icon_diff_mode, function()
+    self:_onToggleDiffMode()
+  end, "Diff vs loaded CHR")
+  self:updateDiffModeButton()
+
   self:_updateOpenBaseRomFolderButton()
 
   self.canvasOnlyButton = self:addButton(images.icons.chrome.icon_compact_mode, function()
@@ -115,6 +121,7 @@ end
 
 function ChrToolbar:updateIcons()
   self:updateModeIcon()
+  self:updateDiffModeButton()
   self:updateSyncIcon()
   self:updateCanvasOnlyIcon()
   self:_updateOpenBaseRomFolderButton()
@@ -206,6 +213,39 @@ function ChrToolbar:_onToggleMode()
     self.ctx.rebuildChrBankWindow(self.window)
   end
   self:updateModeIcon()
+end
+
+function ChrToolbar:updateDiffModeButton()
+  if not self.diffModeButton or not self.window then
+    return
+  end
+  if self.window.showChrDiffMode == true then
+    self.diffModeButton.bgColor = colors.green
+    self.diffModeButton.contentColor = colors.white
+    self.diffModeButton.tooltip =
+      "Diff vs loaded CHR: ON (50% black on unchanged tiles, 50% green on changed tiles)"
+  else
+    self.diffModeButton.bgColor = nil
+    self.diffModeButton.contentColor = colors.white
+    self.diffModeButton.tooltip = "Diff vs loaded CHR"
+  end
+end
+
+function ChrToolbar:_onToggleDiffMode()
+  if not self.window or not self.ctx or not self.ctx.app then
+    return
+  end
+  self.window.showChrDiffMode = not (self.window.showChrDiffMode == true)
+  self:updateDiffModeButton()
+  local app = self.ctx.app
+  if app.setStatus and BankViewController.formatBankWindowStatus then
+    app:setStatus(BankViewController.formatBankWindowStatus(
+      self.window,
+      app.appEditState,
+      self.window.orderMode
+    ))
+  end
+  self:triggerLayerLabelFlash()
 end
 
 function ChrToolbar:_onCanvasOnly()

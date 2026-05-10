@@ -121,6 +121,7 @@ function ChrBankWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
   -- CHR window-specific state
   self.orderMode = data.orderMode or "normal"
   self.currentBank = data.currentBank or 1
+  self.showChrDiffMode = false -- vs load-time baseline; see chr_diff_overlay
   self.titleLocked = true
   self:updateBankTitle()
 

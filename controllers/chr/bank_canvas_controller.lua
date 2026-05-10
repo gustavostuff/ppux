@@ -1,6 +1,7 @@
 local chr = require("chr")
 local CanvasSpace = require("utils.canvas_space")
 local DebugController = require("controllers.dev.debug_controller")
+local ChrDiffOverlay = require("controllers.chr.chr_diff_overlay")
 
 local M = {}
 M.__index = M
@@ -215,7 +216,7 @@ function M:ensureReady(state, bankIdx, orderMode)
   return true
 end
 
-function M:drawWindow(state, win, layerOpacity)
+function M:drawWindowImage(state, win, layerOpacity)
   if not (win and state) then
     return false
   end
@@ -241,8 +242,39 @@ function M:drawWindow(state, win, layerOpacity)
   return true
 end
 
+function M:drawWindowDiffOverlay(state, win, layerOpacity)
+  if not (win and state and win.showChrDiffMode == true) then
+    return true
+  end
+
+  local bankIdx = tonumber(win.currentBank) or tonumber(state.currentBank) or 1
+  if not self:ensureReady(state, bankIdx, win.orderMode or "normal") then
+    return false
+  end
+
+  local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
+  local sx, sy, sw, sh = win:getScreenRect()
+
+  love.graphics.push()
+  love.graphics.translate(win.x, win.y)
+  love.graphics.scale(z, z)
+  CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
+  love.graphics.translate(-(win.scrollCol or 0) * TILE_SIZE, -(win.scrollRow or 0) * TILE_SIZE)
+  ChrDiffOverlay.draw(state, win, layerOpacity)
+  love.graphics.pop()
+  love.graphics.setScissor()
+  love.graphics.setColor(1, 1, 1, 1)
+  return true
+end
+
+function M:drawWindow(state, win, layerOpacity)
+  local okImg = self:drawWindowImage(state, win, layerOpacity)
+  local okOv = self:drawWindowDiffOverlay(state, win, layerOpacity)
+  return okImg and okOv
+end
+
 -- Full-canvas view: fixed (x,y,w,h) viewport, vertical scroll in NES pixels, uniform scale.
-function M:drawCanvasOnly(state, win, x, y, w, h, scrollYNesPixels, scale, layerOpacity)
+function M:drawCanvasOnlyImage(state, win, x, y, w, h, scrollYNesPixels, scale, layerOpacity)
   if not (win and state) then
     return false
   end
@@ -268,6 +300,39 @@ function M:drawCanvasOnly(state, win, x, y, w, h, scrollYNesPixels, scale, layer
   love.graphics.pop()
   love.graphics.setColor(1, 1, 1, 1)
   return true
+end
+
+function M:drawCanvasOnlyDiffOverlay(state, win, x, y, w, h, scrollYNesPixels, scale, layerOpacity)
+  if not (win and state and win.showChrDiffMode == true) then
+    return true
+  end
+
+  local bankIdx = tonumber(win.currentBank) or tonumber(state.currentBank) or 1
+  if not self:ensureReady(state, bankIdx, win.orderMode or "normal") then
+    return false
+  end
+
+  local scrolly = math.floor(tonumber(scrollYNesPixels) or 0)
+  local s = tonumber(scale) or 1
+  if s <= 0 then
+    s = 1
+  end
+
+  love.graphics.push("all")
+  CanvasSpace.setScissorFromContentRect(x, y, w, h)
+  love.graphics.translate(x, y)
+  love.graphics.scale(s, s)
+  love.graphics.translate(0, -scrolly)
+  ChrDiffOverlay.draw(state, win, layerOpacity)
+  love.graphics.pop()
+  love.graphics.setColor(1, 1, 1, 1)
+  return true
+end
+
+function M:drawCanvasOnly(...)
+  local okImg = self:drawCanvasOnlyImage(...)
+  local okOv = self:drawCanvasOnlyDiffOverlay(...)
+  return okImg and okOv
 end
 
 function M:drawTileHandle(state, handle, orderMode, x, y, sx, sy, alpha)

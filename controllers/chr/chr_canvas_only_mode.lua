@@ -118,7 +118,7 @@ function M.draw(app)
       )
     end
     ShaderPaletteController.applyShader(true, layer, nil, layerOpacity)
-    controller:drawCanvasOnly(
+    controller:drawCanvasOnlyImage(
       app.appEditState,
       win,
       0,
@@ -130,6 +130,17 @@ function M.draw(app)
       layerOpacity
     )
     ShaderPaletteController.releaseShader()
+    controller:drawCanvasOnlyDiffOverlay(
+      app.appEditState,
+      win,
+      0,
+      0,
+      cw,
+      ch,
+      scrollY,
+      M.SCALE,
+      layerOpacity
+    )
     if gridMode == "lines" then
       ChrCanvasOnlyGrid.drawLinesOverlay(app, win, scrollY, M.SCALE, cw, ch)
     end
