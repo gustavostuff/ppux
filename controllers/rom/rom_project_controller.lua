@@ -1345,7 +1345,7 @@ function M.requestLoad(app, fileOrPath)
       end,
     },
     {
-      text = "Open without saving",
+      text = "Open without saving current",
       callback = function()
         proceed()
       end,

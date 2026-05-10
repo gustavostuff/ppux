@@ -69,7 +69,7 @@ function M.draw(state, win, layerOpacity)
     return
   end
 
-  local baseAlpha = 0.5
+  local baseAlpha = 0.4
 
   love.graphics.push("all")
 

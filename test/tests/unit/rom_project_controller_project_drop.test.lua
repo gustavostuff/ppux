@@ -178,7 +178,7 @@ describe("rom_project_controller.lua - project file loading", function()
     expect(shown.title).toBe("Unsaved Changes")
     expect(#shown.options).toBe(3)
     expect(shown.options[1].text).toBe("Save current and open")
-    expect(shown.options[2].text).toBe("Open without saving")
+    expect(shown.options[2].text).toBe("Open without saving current")
     expect(shown.options[3].text).toBe("Cancel")
 
     shown.options[2].callback()
