@@ -117,7 +117,12 @@ function M.formatBankWindowStatus(winBank, appEditState, orderMode)
   local om = orderMode or (winBank and winBank.orderMode) or "normal"
   local layoutLabel = (om == "oddEven") and "8x16 pairs" or "8x8"
   local diff = (winBank and winBank.showChrDiffMode == true) and " | diff: ON" or ""
-  return ("Bank %d/%d - %s | arrow keys: bank | Tab/M: layout%s"):format(cur, total, layoutLabel, diff)
+  return ("Bank %d/%d - %s | arrow keys: bank | Tab/M: layout | D: diff | right-click tile: menu%s"):format(
+    cur,
+    total,
+    layoutLabel,
+    diff
+  )
 end
 
 -- Rebuild CHR/ROM bank window layers based on current bank + orderMode.

@@ -9,6 +9,7 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local MouseTileDropController = require("controllers.input.mouse_tile_drop_controller")
 local MouseWheelController = require("controllers.input.mouse_wheel_controller")
 local MouseOverlayController = require("controllers.input.mouse_overlay_controller")
+local ChrBankUiHelpers = require("controllers.chr.chr_bank_ui_helpers")
 local MouseWindowChromeController = require("controllers.input.mouse_window_chrome_controller")
 local MouseClickController = require("controllers.input.mouse_click_controller")
 local MouseMoveController = require("controllers.input.mouse_move_controller")
@@ -639,11 +640,15 @@ function M.getTooltipCandidate(x, y)
   if not (ctx and ctx.wm and MouseTileDropController.getHoverTooltipCandidate) then
     return nil
   end
-  return MouseTileDropController.getHoverTooltipCandidate({
+  local dropCand = MouseTileDropController.getHoverTooltipCandidate({
     ctx = ctx,
     drag = drag,
     isSpriteLayerDropBlocked = isSpriteLayerDropBlocked,
   }, x, y, ctx.wm())
+  if dropCand then
+    return dropCand
+  end
+  return ChrBankUiHelpers.hoverTooltipCandidate(ctx, drag, x, y)
 end
 
 function M.getTileMarquee()

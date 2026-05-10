@@ -223,11 +223,12 @@ function ChrToolbar:updateDiffModeButton()
     self.diffModeButton.bgColor = colors.green
     self.diffModeButton.contentColor = colors.white
     self.diffModeButton.tooltip =
-      "Diff vs loaded CHR: ON (50% black on unchanged tiles, 50% green on changed tiles)"
+      "Diff vs loaded CHR: ON (50% black on unchanged tiles, 50% green on changed tiles). Shortcut D."
   else
     self.diffModeButton.bgColor = nil
     self.diffModeButton.contentColor = colors.white
-    self.diffModeButton.tooltip = "Diff vs loaded CHR"
+    self.diffModeButton.tooltip =
+      "Diff vs loaded CHR (shortcut D)"
   end
 end
 

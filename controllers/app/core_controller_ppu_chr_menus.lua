@@ -6,6 +6,7 @@ local RevertTilePixelsController = require("controllers.chr.revert_tile_pixels_c
 local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
 local PatternTableMapping = require("utils.pattern_table_mapping")
 local WindowCaps = require("controllers.window.window_capabilities")
+local ChrBankUiHelpers = require("controllers.chr.chr_bank_ui_helpers")
 local TableUtils = require("utils.table_utils")
 
 return function(AppCoreController)
@@ -556,6 +557,13 @@ function AppCoreController:_buildChrBankTileContext(win, col, row)
 end
 
 function AppCoreController:_buildChrBankTileContextMenuItems(context)
+  local bankIdx = tonumber(context and context.sourceBank) or 1
+  local ti = context and context.tileIndex
+  local copyHexEnabled =
+    type(ti) == "number"
+    and self.appEditState
+    and self.appEditState.chrBanksBytes
+    and self.appEditState.chrBanksBytes[bankIdx]
   local items = {
     {
       text = "Undo pixel edits",
@@ -566,6 +574,19 @@ function AppCoreController:_buildChrBankTileContextMenuItems(context)
           self:setStatus("Reverted tile pixels to original CHR")
         else
           self:setStatus(tostring(err or "Could not revert tile pixels"))
+        end
+      end,
+    },
+    {
+      text = "Copy tile bytes (hex)",
+      enabled = not not copyHexEnabled,
+      callback = function()
+        local ok, msg = ChrBankUiHelpers.copyChrTileHexToClipboard(self, bankIdx, ti)
+        if msg then
+          self:setStatus(msg)
+        end
+        if not ok and not msg then
+          self:setStatus("Could not copy tile hex")
         end
       end,
     },

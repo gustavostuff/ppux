@@ -148,6 +148,24 @@ function M.handleChrBankKeys(ctx, utils, key, focus)
     return true
   end
 
+  if key == "d" or key == "D" then
+    if utils.ctrlDown() or utils.shiftDown() or utils.altDown() then
+      return false
+    end
+    focus.showChrDiffMode = not (focus.showChrDiffMode == true)
+    if focus.specializedToolbar and focus.specializedToolbar.updateDiffModeButton then
+      focus.specializedToolbar:updateDiffModeButton()
+    end
+    local app = ctx and ctx.app
+    if app and app.setStatus then
+      app:setStatus(BankViewController.formatBankWindowStatus(focus, app.appEditState, focus.orderMode))
+    end
+    if focus.specializedToolbar and focus.specializedToolbar.triggerLayerLabelFlash then
+      focus.specializedToolbar:triggerLayerLabelFlash()
+    end
+    return true
+  end
+
   if key == "left" or key == "right" then
     local app = ctx.app
     if not app or not app.appEditState or not app.appEditState.chrBanksBytes then return false end

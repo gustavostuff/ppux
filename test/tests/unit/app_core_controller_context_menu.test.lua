@@ -1,4 +1,5 @@
 local AppCoreController = require("controllers.app.core_controller")
+local ChrBankUiHelpers = require("controllers.chr.chr_bank_ui_helpers")
 local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
 
 describe("core_controller.lua - contextual menu helpers", function()
@@ -376,6 +377,69 @@ describe("core_controller.lua - contextual menu helpers", function()
 
     KeyboardClipboardController.hasClipboardData = oldHasClipboardData
     KeyboardClipboardController.getActionAvailability = oldGetActionAvailability
+  end)
+
+  it("CHR bank tile menu includes Copy tile bytes (hex) when bank bytes exist", function()
+    local bank = {}
+    for i = 1, 112 do
+      bank[i] = 0
+    end
+    bank[97] = 0xAB
+
+    local statuses = {}
+    local win = {
+      kind = "chr",
+      layers = {
+        [1] = { kind = "tile" },
+      },
+    }
+    local app = setmetatable({
+      appEditState = { chrBanksBytes = { bank } },
+      performClipboardToolbarAction = function() end,
+      setStatus = function(_, t)
+        statuses[#statuses + 1] = t
+      end,
+    }, AppCoreController)
+
+    local context = {
+      win = win,
+      layerIndex = 1,
+      layer = win.layers[1],
+      col = 0,
+      row = 0,
+      item = { _bankIndex = 1, index = 6 },
+      sourceBank = 1,
+      tileIndex = 6,
+    }
+
+    local oldLove = rawget(_G, "love")
+    local captured = nil
+    rawset(_G, "love", {
+      system = {
+        setClipboardText = function(t)
+          captured = t
+        end,
+      },
+    })
+
+    local chrItems = app:_buildChrBankTileContextMenuItems(context)
+    local hexItem
+    for _, item in ipairs(chrItems or {}) do
+      if item.text == "Copy tile bytes (hex)" then
+        hexItem = item
+        break
+      end
+    end
+    expect(hexItem ~= nil).toBe(true)
+    expect(hexItem.enabled).toBe(true)
+    hexItem.callback()
+
+    rawset(_G, "love", oldLove)
+
+    expect(captured).toBe(
+      ChrBankUiHelpers.formatTileChrBytesHexSpaceSeparated(bank, 6)
+    )
+    expect(statuses[#statuses] ~= nil).toBe(true)
   end)
 
   it("keeps Paste hidden when clipboard is empty", function()

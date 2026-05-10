@@ -4,7 +4,9 @@ Visual “git-like” diff for **CHR-backed windows** (`kind == "chr"`), includi
 
 ## User-visible behavior
 
-- User toggles **diff mode** with the CHR toolbar button **`icon_diff_mode`** (`images.icons.actions.icon_diff_mode`). When on, the button uses the same green fill style as other active toggles.
+- User toggles **diff mode** with the CHR toolbar button **`icon_diff_mode`** or the **`D`** shortcut (CHR/ROM bank window focused, no modifiers). When on, the button uses the same green fill style as other active toggles.
+- **Hover** over the bank grid (not the specialized toolbar): tooltip shows **tile index** (decimal and `0x..` hex), **column**, and **row**.
+- **Right-click a CHR/ROM bank tile** and choose **Copy tile bytes (hex)** to copy that tile’s **16 bytes** as uppercase hex pairs separated by spaces (`00 01 ...`) to the system clipboard; the status line echoes the result or errors.
 - While active, the CHR canvas shows **50% opacity** overlays on each 8×8 grid cell:
   - **RGB (0, 1, 0)** on cells whose **CHR tile data** differs from the baseline.
   - **Black** on cells that match the baseline.
@@ -35,6 +37,7 @@ Visual “git-like” diff for **CHR-backed windows** (`kind == "chr"`), includi
 - Overlay logic: `controllers/chr/chr_diff_overlay.lua`.
 - Canvas: `BankCanvasController:drawWindowImage` / `drawWindowDiffOverlay` and `drawCanvasOnlyImage` / `drawCanvasOnlyDiffOverlay`; `core_controller_draw.drawChrBankLayer` and `chr_canvas_only_mode` apply shader only around the image pass.
 - Toolbar: `user_interface/toolbars/chr_toolbar.lua` (`diffModeButton`, `updateDiffModeButton`).
+- Clipboard / hover / diff shortcut `D`: `controllers/chr/chr_bank_ui_helpers.lua`, `controllers/input/keyboard_navigation_controller.lua` (`handleChrBankKeys`), `controllers/app/core_controller_ppu_chr_menus.lua` (CHR bank tile context menu), `controllers/input/mouse_input.lua` (`getTooltipCandidate`).
 
 ## Canvas-only CHR mode
 
