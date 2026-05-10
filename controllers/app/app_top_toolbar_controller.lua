@@ -18,8 +18,9 @@ local OUTER_MARGIN = 0
 local SECTION_GAP = 0
 local BUTTON_GAP = 0
 local STATUS_BG_H = 15
--- Fraction of top strip width reserved for status text (setStatus); the rest is quick actions + docked toolbars.
-local STATUS_WIDTH_RATIO = 0.4
+-- Status strip: fixed monospace character-cell count (+ horizontal pad). Advance from active font probe glyph.
+local STATUS_CHARACTER_SLOTS = 20
+local STATUS_MONO_WIDTH_PROBE = "M"
 local STATUS_PAD_X = 4
 
 -- Unit tests and some harnesses stub `love` without `keyboard`; treat as no modifiers.
@@ -29,6 +30,20 @@ local function isShiftHeld()
     return false
   end
   return kb.isDown("lshift") or kb.isDown("rshift")
+end
+
+local function statusMonoAdvancePx()
+  local w = Text.getFontWidth(STATUS_MONO_WIDTH_PROBE)
+  if type(w) == "number" and w > 0 then
+    return w
+  end
+  return 8
+end
+
+local function fallbackStatusOuterLeft(cw)
+  local sr = math.max(0, cw - OUTER_MARGIN)
+  local slot = statusMonoAdvancePx()
+  return sr - slot * STATUS_CHARACTER_SLOTS - STATUS_PAD_X * 2
 end
 
 local function measureDockedToolbarHeight(toolbar, cell)
@@ -469,9 +484,12 @@ function M.syncLayout(app)
 
   local quickRightX = x
   local dockLeftX = quickRightX + SECTION_GAP
-  local minStatusLeftX = math.floor(canvasW * (1 - STATUS_WIDTH_RATIO))
-  local statusLeftX = math.max(minStatusLeftX, dockLeftX + SECTION_GAP)
-  local statusRightX = math.max(statusLeftX, canvasW - OUTER_MARGIN)
+  local slotW = statusMonoAdvancePx()
+  local statusInteriorPx = slotW * STATUS_CHARACTER_SLOTS
+  local statusReserveOuter = statusInteriorPx + (STATUS_PAD_X * 2)
+  local statusRightX = math.max(0, canvasW - OUTER_MARGIN)
+  local desiredStatusLeftX = statusRightX - statusReserveOuter
+  local statusLeftX = math.max(desiredStatusLeftX, dockLeftX + SECTION_GAP)
 
   local totalH = math.max(MIN_BAR_H, topY + cell + OUTER_MARGIN)
   local dockedWin = nil
@@ -517,6 +535,9 @@ function M.syncLayout(app)
     statusRightX = statusRightX,
     dockTopY = topY,
     cell = cell,
+    statusSlotW = slotW,
+    statusInteriorTargetPx = statusInteriorPx,
+    statusSlots = STATUS_CHARACTER_SLOTS,
   }
 end
 
@@ -546,9 +567,16 @@ function M.draw(app)
   local lay = app._appTopToolbarLayout
   local h = (lay and lay.totalH) or MIN_BAR_H
   local cw = app.canvas and app.canvas:getWidth() or 0
-  local statusLeftX = (lay and lay.statusLeftX) or math.floor(cw * (1 - STATUS_WIDTH_RATIO))
-  local statusRightX = (lay and lay.statusRightX) or math.max(statusLeftX, cw - OUTER_MARGIN)
+  local slotWFallback = statusMonoAdvancePx()
+  local innerFallback = slotWFallback * STATUS_CHARACTER_SLOTS
+  local statusRightX =
+    (lay and lay.statusRightX) or math.max(0, cw - OUTER_MARGIN)
+  local statusLeftX = (lay and lay.statusLeftX) or fallbackStatusOuterLeft(cw)
   local statusW = math.max(0, statusRightX - statusLeftX)
+
+  local statusInteriorTargetPx =
+    (lay and lay.statusInteriorTargetPx) or innerFallback
+
   local statusY = OUTER_MARGIN
   local quickLeftX = (lay and lay.quickLeftX) or OUTER_MARGIN
   local quickRightX = (lay and lay.quickRightX) or quickLeftX
@@ -574,8 +602,9 @@ function M.draw(app)
 
   local statusText = tostring(app.lastEventText or app.statusText or "")
   local pad = STATUS_PAD_X
-  local textX = statusLeftX + pad
-  local textW = math.max(0, statusRightX - statusLeftX - pad * 2)
+  local outerInteriorW = math.max(0, statusW - pad * 2)
+  local textW = math.min(statusInteriorTargetPx, outerInteriorW)
+  local textX = statusLeftX + pad + math.max(0, outerInteriorW - textW)
   local font = love.graphics.getFont()
   local textY = statusY + math.floor((STATUS_BG_H - (font and font:getHeight() or 0)) / 2)
   local statusTint = colors:chromeTextIconsColorNonFocused()
@@ -592,7 +621,7 @@ end
 local function inStatusArea(app, px)
   local lay = app and app._appTopToolbarLayout or nil
   local cw = app and app.canvas and app.canvas.getWidth and app.canvas:getWidth() or 0
-  local statusLeftX = (lay and lay.statusLeftX) or math.floor(cw * (1 - STATUS_WIDTH_RATIO))
+  local statusLeftX = (lay and lay.statusLeftX) or fallbackStatusOuterLeft(cw)
   return px >= statusLeftX
 end
 

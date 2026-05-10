@@ -5,6 +5,44 @@ local colors = require("app_colors")
 
 local TU = {}
 
+-- Unit tests sometimes load this module without a full LOVE graphics backend.
+local FONT_FALLBACK_ADVANCE_X = 8
+local FONT_FALLBACK_LINE_H = 12
+
+local fallbackFont = {
+  getWidth = function(self, s)
+    return #tostring(s or "") * FONT_FALLBACK_ADVANCE_X
+  end,
+  getHeight = function(self)
+    return FONT_FALLBACK_LINE_H
+  end,
+}
+
+local function resolveDefaultFont()
+  local g = love and love.graphics
+  if not (g and type(g.getFont) == "function") then
+    return nil
+  end
+  local ok, f = pcall(function()
+    return g.getFont()
+  end)
+  if ok and f and type(f.getWidth) == "function" and type(f.getHeight) == "function" then
+    return f
+  end
+  return nil
+end
+
+local function resolveFont(font)
+  if font and type(font.getWidth) == "function" and type(font.getHeight) == "function" then
+    return font
+  end
+  font = resolveDefaultFont()
+  if font then
+    return font
+  end
+  return fallbackFont
+end
+
 -- literalColor: when true, do not remap near-white to textPrimary (e.g. white on blue modal chrome).
 local function setColor(c, literalColor)
   local fallback = colors.textPrimary or colors.gray10 or colors.white
@@ -33,7 +71,7 @@ end
 
 -- Measure a single line or a table of lines; returns (w,h,lh,count)
 local function measureBlock(text, font, lineHeight)
-  font = font or love.graphics.getFont()
+  font = resolveFont(font)
   local lh = lineHeight or font:getHeight()
   if type(text) == "table" then
     local wmax = 0
@@ -48,10 +86,7 @@ local function measureBlock(text, font, lineHeight)
 end
 
 local function getCharWidth(font)
-  font = font or love.graphics.getFont()
-  if not font then
-    return 8 -- safe fallback
-  end
+  font = resolveFont(font)
   -- Monospace font: any glyph should be representative
   return font:getWidth("M")
 end
@@ -76,7 +111,7 @@ end
 local function printCore(text, x, y, data)
   data = data or {}
   local literalColor = data.literalColor == true
-  local font        = data.font or love.graphics.getFont()
+  local font        = resolveFont(data.font)
   local color       = data.color or colors.textPrimary or colors.white
   local shadowColor = data.shadowColor or colors.black
   local shadow      = data.shadow == true
@@ -86,8 +121,14 @@ local function printCore(text, x, y, data)
   local ox          = data.ox or 1  -- outline offsets (usually 1 px)
   local oy          = data.oy or 1
 
-  local oldFont = love.graphics.getFont()
-  if font ~= oldFont then love.graphics.setFont(font) end
+  local gGfx = love and love.graphics
+  local oldFont = nil
+  if gGfx and type(gGfx.getFont) == "function" then
+    oldFont = gGfx.getFont()
+  end
+  if gGfx and type(gGfx.setFont) == "function" and font ~= oldFont then
+    gGfx.setFont(font)
+  end
 
   local w, h, lh, n = measureBlock(text, font, data.lineHeight)
 
@@ -128,7 +169,11 @@ local function printCore(text, x, y, data)
   setColor(color, literalColor)
   rawPrintBlock(text, x, y, lh)
 
-  if font ~= oldFont then love.graphics.setFont(oldFont) end
+  if font ~= oldFont then
+    if gGfx and type(gGfx.setFont) == "function" then
+      gGfx.setFont(oldFont)
+    end
+  end
 end
 
 -- Public API ---------------------------------------------------------------
@@ -139,7 +184,7 @@ end
 
 function TU.printCenter(text, data)
   data = data or {}
-  local font = data.font or love.graphics.getFont()
+  local font = resolveFont(data.font)
   local W, H = getCanvasSize(data.canvas)
   local w, h = measureBlock(text, font, data.lineHeight)
   local x = math.floor((W - w) / 2)
@@ -155,7 +200,7 @@ end
 
 function TU.printTopRight(text, data)
   data = data or {}
-  local font = data.font or love.graphics.getFont()
+  local font = resolveFont(data.font)
   local W, _ = getCanvasSize(data.canvas)
   local m = (data.margin ~= nil) and data.margin or 8
   local w = select(1, measureBlock(text, font, data.lineHeight))
@@ -164,7 +209,7 @@ end
 
 function TU.printBottomLeft(text, data)
   data = data or {}
-  local font = data.font or love.graphics.getFont()
+  local font = resolveFont(data.font)
   local _, H = getCanvasSize(data.canvas)
   local m = (data.margin ~= nil) and data.margin or 8
   local _, h = measureBlock(text, font, data.lineHeight)
@@ -173,7 +218,7 @@ end
 
 function TU.printBottomRight(text, data)
   data = data or {}
-  local font = data.font or love.graphics.getFont()
+  local font = resolveFont(data.font)
   local W, H = getCanvasSize(data.canvas)
   local m = (data.margin ~= nil) and data.margin or 8
   local w, h = measureBlock(text, font, data.lineHeight)
@@ -183,15 +228,16 @@ end
 -- Optional: quick measure
 function TU.measure(text, data)
   data = data or {}
-  return measureBlock(text, data.font or love.graphics.getFont(), data.lineHeight)
+  return measureBlock(text, data.font, data.lineHeight)
 end
 
 function TU.getFontWidth(text, font)
-  font = font or love.graphics.getFont()
+  font = resolveFont(font)
   return font:getWidth(text or "")
 end
 
 function TU.getFontHeight(font)
+  font = resolveFont(font)
   return font:getHeight()
 end
 
@@ -228,6 +274,35 @@ function TU.limitChars(text, maxChars, opts)
   return text:sub(1, maxChars - #suffix) .. suffix
 end
 
+-- Largest end index `e >= s` such that text:sub(s, e) fits in `width` (pixel width).
+local function scrollingMaxEndIndex(text, font, len, s, width)
+  if s > len then
+    return len
+  end
+  local best = s - 1
+  for k = s, len do
+    if font:getWidth(text:sub(s, k)) <= width then
+      best = k
+    else
+      break
+    end
+  end
+  if best < s then
+    return s
+  end
+  return best
+end
+
+-- Smallest start index `s` such that the tail text:sub(s, len) fits in `width`.
+local function scrollingLastStartIndex(text, font, len, width)
+  for s = 1, len do
+    if font:getWidth(text:sub(s, len)) <= width then
+      return s
+    end
+  end
+  return len
+end
+
 function TU.drawScrollingText(text, x, y, width, opts)
   opts = opts or {}
   local defs = TU.CHROME_SCROLL_TEXT_OPTS or { speed = 8, pause = 1 }
@@ -248,57 +323,44 @@ function TU.drawScrollingText(text, x, y, width, opts)
     return 1, 0
   end
 
-  local font = love.graphics.getFont()
-  local len  = #text
+  local font = resolveFont()
+  local len = #text
 
-  -- how many characters fit in the header width?
-  local maxChars = len
-  while maxChars > 0 do
-    local sub = text:sub(1, maxChars)
-    if font:getWidth(sub) <= width then
-      break
-    end
-    maxChars = maxChars - 1
-  end
-
-  if maxChars <= 0 then
-    maxChars = 1
-  end
-
-  -- fits completely: no scrolling
-  if len <= maxChars then
+  -- Whole line fits: no scrolling (width must be measured, not character counts — proportional fonts).
+  if font:getWidth(text) <= width then
     rawPrint(text, x, y)
     scrollingState[key] = nil
     return 1, len
   end
 
-  local range = len - maxChars        -- 0..range are valid start positions
+  -- Scroll range: start index runs from 1 to lastStart where the tail from lastStart fits.
+  local lastStart = scrollingLastStartIndex(text, font, len, width)
+  local range = math.max(0, lastStart - 1)
+
   local st = scrollingState[key]
   if not st then
     st = {
-      pos  = 0,                       -- 0..range
-      dir  = 1,                       -- 1 = forward, -1 = backward
-      mode = "pause",                 -- "pause" or "move"
+      pos = 0,
+      dir = 1,
+      mode = "pause",
       mark = "scroll_" .. tostring(key),
       range = range,
       text = text,
-      maxChars = maxChars,
+      layoutWidth = width,
       loop = loop,
     }
     scrollingState[key] = st
     Timer.mark(st.mark)
   else
-    if st.text ~= text or st.maxChars ~= maxChars or st.loop ~= loop then
+    if st.text ~= text or st.layoutWidth ~= width or st.loop ~= loop then
       st.pos = 0
       st.dir = 1
       st.mode = "pause"
       st.text = text
-      st.maxChars = maxChars
+      st.layoutWidth = width
       st.loop = loop
       Timer.mark(st.mark)
     end
-
-    -- clamp if text/width changed
     st.range = range
     if st.pos > range then
       st.pos = range
@@ -306,7 +368,7 @@ function TU.drawScrollingText(text, x, y, width, opts)
   end
 
   local stepDelay = 1 / charsPerSecond
-  local elapsed   = Timer.elapsed(st.mark) or 0
+  local elapsed = Timer.elapsed(st.mark) or 0
 
   if st.mode == "pause" then
     if elapsed >= pause then
@@ -342,13 +404,17 @@ function TU.drawScrollingText(text, x, y, width, opts)
   end
 
   local startIdx = 1 + st.pos
-  local endIdx   = startIdx + maxChars - 1
-  if endIdx > len then endIdx = len end
-
+  local endIdx = scrollingMaxEndIndex(text, font, len, startIdx, width)
   local visible = text:sub(startIdx, endIdx)
+  -- Guard against float/rounding or font quirks: never draw wider than the viewport.
+  while #visible > 1 and font:getWidth(visible) > width do
+    visible = visible:sub(1, -2)
+  end
+
   rawPrint(visible, x, y)
 
-  return startIdx, endIdx
+  local outEnd = startIdx + math.max(0, #visible) - 1
+  return startIdx, outEnd
 end
 
 function TU.drawScrollingHeader(text, x, y, width, opts)
