@@ -16,6 +16,8 @@ function TooltipController.new(opts)
     delaySeconds = tonumber(opts.delaySeconds) or DEFAULT_DELAY_SECONDS,
     lastMouseX = nil,
     lastMouseY = nil,
+    --- Delayed tooltips wait until real cursor movement (startup often reports 0,0 over the left toolbar).
+    userHasMovedMouse = false,
     stillSeconds = 0,
     candidateKey = nil,
     candidateText = nil,
@@ -45,7 +47,13 @@ function TooltipController:update(dt, mouseX, mouseY, candidate)
   local cx = tonumber(mouseX) or 0
   local cy = tonumber(mouseY) or 0
 
-  local moved = (self.lastMouseX ~= cx) or (self.lastMouseY ~= cy)
+  local moved = false
+  if self.lastMouseX ~= nil and self.lastMouseY ~= nil then
+    moved = (self.lastMouseX ~= cx) or (self.lastMouseY ~= cy)
+  end
+  if moved then
+    self.userHasMovedMouse = true
+  end
   self.lastMouseX = cx
   self.lastMouseY = cy
   self.mouseX = cx
@@ -57,6 +65,8 @@ function TooltipController:update(dt, mouseX, mouseY, candidate)
     self.candidateKey = nextKey
     self.stillSeconds = 0
   elseif moved then
+    self.stillSeconds = 0
+  elseif not self.userHasMovedMouse then
     self.stillSeconds = 0
   else
     self.stillSeconds = self.stillSeconds + dt
@@ -73,6 +83,10 @@ function TooltipController:update(dt, mouseX, mouseY, candidate)
   self.candidateImmediate = normalized.immediate
   if self.candidateImmediate then
     self.visible = true
+    return
+  end
+  if not self.userHasMovedMouse then
+    self.visible = false
     return
   end
   self.visible = self.stillSeconds >= self.delaySeconds

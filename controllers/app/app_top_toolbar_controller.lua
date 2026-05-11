@@ -19,7 +19,7 @@ local SECTION_GAP = 0
 local BUTTON_GAP = 0
 local STATUS_BG_H = 15
 -- Status strip: fixed monospace character-cell count (+ horizontal pad). Advance from active font probe glyph.
-local STATUS_CHARACTER_SLOTS = 20
+local STATUS_CHARACTER_SLOTS = 30
 local STATUS_MONO_WIDTH_PROBE = "M"
 local STATUS_PAD_X = 4
 
@@ -135,7 +135,7 @@ local function ensureQuickButtons(app)
     }),
     open = Button.new({
       icon = images.icons.actions.icon_open or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty,
-      tooltip = "Open",
+      tooltip = "Open project (Ctrl+O)",
       action = function()
         if app.showOpenProjectModal then
           app:showOpenProjectModal()
