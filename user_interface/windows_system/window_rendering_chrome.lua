@@ -150,6 +150,7 @@ function Window:drawBorder(isFocused)
   else
     love.graphics.setColor(colors:chromeBackgroundUnfocused())
   end
+  love.graphics.setLineWidth(1)
   love.graphics.rectangle("line", x, y, w + 1, h + 1)
   love.graphics.setColor(colors.white)
 end
