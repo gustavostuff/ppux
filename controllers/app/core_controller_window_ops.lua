@@ -476,6 +476,22 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
     }
   end
 
+  items[#items + 1] = {
+    text = (win and win._alwaysOnTop) and "Don't keep always on top" or "Keep always on top",
+    enabled = win ~= nil and win._closed ~= true,
+    callback = function()
+      self:hideAppContextMenus()
+      if not win then
+        return
+      end
+      win._alwaysOnTop = not (win._alwaysOnTop == true)
+      local wm = self.wm
+      if wm and wm.bringToFront then
+        wm:bringToFront(win)
+      end
+    end,
+  }
+
   return items
 end
 

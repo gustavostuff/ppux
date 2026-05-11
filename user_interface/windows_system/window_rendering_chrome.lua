@@ -114,6 +114,20 @@ function Window:drawHeader(isFocused)
   end
   love.graphics.rectangle("fill", hx - 1, hy, hw + 2, hh, 2)
 
+  local font = love.graphics.getFont()
+  local fh = (font and font:getHeight()) or 0
+  local ty = math.floor(hy + (hh - fh) / 2)
+  local titleMidY = ty
+
+  if self._alwaysOnTop then
+    local pinImg = images.icons.chrome.icon_circle
+    local tint = colors:chromeTextIconsColorFocused()
+    love.graphics.setColor(tint[1], tint[2], tint[3], tint[4] or 1)
+    local iw, ih = pinImg:getWidth(), pinImg:getHeight()
+    local cx, cy = hx, titleMidY
+    love.graphics.draw(pinImg, math.floor(cx - iw / 2), math.floor(cy - ih / 2))
+  end
+
   -- Title on chrome: use Appearance "Text/Icons" when focused; body text when not.
   local textColor
   if isFocused then
@@ -122,8 +136,6 @@ function Window:drawHeader(isFocused)
     textColor = colors:chromeTextIconsColorNonFocused()
   end
   love.graphics.setColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
-
-  local ty = math.floor(hy + (hh - love.graphics.getFont():getHeight()) / 2)
 
   -- Keep marquee width stable; header toolbar draws on top when visible.
   local textWidth = hw - pad * 2

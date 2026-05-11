@@ -160,6 +160,9 @@ function M.handleWindowZoom(ctx, utils, key)
     if WindowCaps.isAnyPaletteWindow(focus) then
       return false
     end
+    if focus and focus._collapsed then
+      return false
+    end
     if focus and focus.setZoomLevel then
       local zoomLevel = tonumber(key)
       focus:setZoomLevel(zoomLevel)

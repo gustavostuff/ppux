@@ -214,4 +214,34 @@ describe("app_top_toolbar_controller.lua", function()
     expect(appChr._appTopQuickButtons.zoomOut.enabled).toBe(true)
     expect(appChr._appTopQuickButtons.zoomIn.enabled).toBe(true)
   end)
+
+  it("disables zoom quick buttons when focus window is collapsed", function()
+    local focus = {
+      kind = "chr",
+      _closed = false,
+      _minimized = false,
+      _collapsed = true,
+      addZoomLevel = function() end,
+    }
+    local app = {
+      canvas = {
+        getWidth = function() return 640 end,
+        getHeight = function() return 360 end,
+      },
+      separateToolbar = false,
+      hasLoadedROM = function() return true end,
+      showOpenProjectModal = function() end,
+      showNewWindowModal = function() end,
+      showSaveOptionsModal = function() end,
+      wm = { getFocus = function() return focus end },
+      getClipboardToolbarActionState = function()
+        return { allowed = true }
+      end,
+      setStatus = function() end,
+      showToast = function() end,
+    }
+    AppTopToolbarController.syncLayout(app)
+    expect(app._appTopQuickButtons.zoomOut.enabled).toBe(false)
+    expect(app._appTopQuickButtons.zoomIn.enabled).toBe(false)
+  end)
 end)

@@ -36,6 +36,34 @@ local function refreshZOrder(self)
   end
 end
 
+--- Non-_closed windows with _alwaysOnTop are stacked above others; _closed entries stay at the end.
+local function normalizeAlwaysOnTopOrdering(self)
+  local normal, atop, closed = {}, {}, {}
+  for _, w in ipairs(self.windows) do
+    if w._closed then
+      closed[#closed + 1] = w
+    elseif w._alwaysOnTop then
+      atop[#atop + 1] = w
+    else
+      normal[#normal + 1] = w
+    end
+  end
+  local i = 1
+  for _, w in ipairs(normal) do
+    self.windows[i] = w
+    i = i + 1
+  end
+  for _, w in ipairs(atop) do
+    self.windows[i] = w
+    i = i + 1
+  end
+  for _, w in ipairs(closed) do
+    self.windows[i] = w
+    i = i + 1
+  end
+  refreshZOrder(self)
+end
+
 local function isWindowVisibleForInteraction(win)
   return win and not win._closed and not win._minimized and win._groupHidden ~= true
 end
@@ -54,7 +82,18 @@ function WM:add(win)
   if win then
     win._wm = self
   end
-  table.insert(self.windows, win)
+  if win._alwaysOnTop then
+    table.insert(self.windows, win)
+  else
+    local insertAt = #self.windows + 1
+    for idx, w in ipairs(self.windows) do
+      if w._alwaysOnTop then
+        insertAt = idx
+        break
+      end
+    end
+    table.insert(self.windows, insertAt, win)
+  end
   DebugController.log(
     "info", "WM",
     "Window added: %s (kind: %s, total windows: %d)",
@@ -208,7 +247,7 @@ local function rebuildWindowStackWithSortedOpen(self, cmp)
   for _, w in ipairs(closed) do
     self.windows[#self.windows + 1] = w
   end
-  refreshZOrder(self)
+  normalizeAlwaysOnTopOrdering(self)
 
   if self.focused and (self.focused._closed or self.focused._minimized) then
     self.focused = findTopVisibleWindow(self)
@@ -300,7 +339,7 @@ function WM:cascade(opts)
     table.insert(self.windows, w)
   end
 
-  refreshZOrder(self)
+  normalizeAlwaysOnTopOrdering(self)
 
   -- Focus the front-most open window (last in the open stack) without changing order.
   if #open > 0 then
@@ -518,7 +557,18 @@ function WM:bringToFront(win)
       break
     end
   end
-  table.insert(self.windows, win)
+  if win._alwaysOnTop then
+    table.insert(self.windows, win)
+  else
+    local insertAt = #self.windows + 1
+    for idx, w in ipairs(self.windows) do
+      if w._alwaysOnTop then
+        insertAt = idx
+        break
+      end
+    end
+    table.insert(self.windows, insertAt, win)
+  end
   refreshZOrder(self)
 end
 

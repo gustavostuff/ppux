@@ -597,6 +597,7 @@ function M.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool)
   if w.collapsed ~= nil then
     win._collapsed = w.collapsed
   end
+  win._alwaysOnTop = (w.alwaysOnTop == true)
   local shouldMinimize = (w.minimized == true)
   if not wm and shouldMinimize then
     win._minimized = true

@@ -106,6 +106,9 @@ local function ensureQuickButtons(app)
     if WindowCaps.isAnyPaletteWindow(focus) then
       return
     end
+    if focus._collapsed then
+      return
+    end
     if focus.addZoomLevel then
       wm:setFocus(focus)
       focus:addZoomLevel(delta)
@@ -362,6 +365,7 @@ local function updateZoomButtonStates(app)
     if focus
       and not focus._closed
       and not focus._minimized
+      and not focus._collapsed
       and not WindowCaps.isAnyPaletteWindow(focus)
       and type(focus.addZoomLevel) == "function"
     then

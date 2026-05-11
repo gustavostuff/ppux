@@ -74,18 +74,32 @@ describe("core_controller.lua - contextual menu helpers", function()
     }
     local items = app:_buildWindowHeaderContextMenuItems(win)
 
-    expect(#items).toBe(4)
+    expect(#items).toBe(5)
     expect(items[1].text).toBe("Rename")
     expect(items[2].text).toBe("Close")
     expect(items[3].text).toBe("Collapse")
     expect(items[4].text).toBe("Minimize")
+    expect(items[5].text).toBe("Keep always on top")
     expect(items[1].enabled).toBe(true)
     expect(items[2].enabled).toBe(true)
     expect(items[3].enabled).toBe(true)
     expect(items[4].enabled).toBe(true)
+    expect(items[5].enabled).toBe(true)
 
     items[1].callback()
     expect(renameCalls).toBe(1)
+  end)
+
+  it("labels always-on-top menu item when window is already pinned", function()
+    local app = setmetatable({}, AppCoreController)
+    local win = {
+      _closed = false,
+      _minimized = false,
+      _alwaysOnTop = true,
+      title = "Pinned",
+    }
+    local items = app:_buildWindowHeaderContextMenuItems(win)
+    expect(items[5].text).toBe("Don't keep always on top")
   end)
 
   it("disables Rename in header menu when window title is locked", function()
@@ -119,11 +133,12 @@ describe("core_controller.lua - contextual menu helpers", function()
     local app = setmetatable({}, AppCoreController)
     local win = { kind = "static_art", title = "T", _minimized = true, _closed = false }
     local items = app:_buildWindowHeaderContextMenuItems(win, { forMinimizedTaskbarButton = true })
-    expect(#items).toBe(4)
+    expect(#items).toBe(5)
     expect(items[3].text).toBe("Collapse")
     expect(items[3].enabled).toBe(false)
     expect(items[4].text).toBe("Maximize")
     expect(items[4].enabled).toBe(true)
+    expect(items[5].text).toBe("Keep always on top")
   end)
 
   it("builds the empty-space context menu entries in the expected order", function()

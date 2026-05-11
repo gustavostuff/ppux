@@ -26,6 +26,7 @@ local function handleZoom(env, win, mouse, wm, dy)
   local utils = env.utils or {}
   if not (utils.ctrlDown and utils.ctrlDown()) or not win then return false end
   if WindowCaps.isAnyPaletteWindow(win) then return false end
+  if win._collapsed then return false end
 
   wm:setFocus(win)
   local zstep = stepSign(dy)
