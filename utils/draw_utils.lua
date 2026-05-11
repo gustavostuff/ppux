@@ -164,4 +164,16 @@ function M.drawRepeatingImageAnimated(img, x, y, w, h, data)
   end
 end
 
+--- Always-on-top marker: Appearance "Focused" ring (r=4) then "Text focused" dot (r=2); Love circle fills only.
+function M.drawChromeAlwaysOnTopPin(cx, cy)
+  local x = tonumber(cx) or 0
+  local y = tonumber(cy) or 0
+  local outer = colors:focusedChromeColor()
+  love.graphics.setColor(outer[1], outer[2], outer[3], outer[4] or 1)
+  love.graphics.circle("fill", x, y, 4, 32)
+  local fg = colors:chromeTextIconsColorFocused()
+  love.graphics.setColor(fg[1], fg[2], fg[3], fg[4] or 1)
+  love.graphics.circle("fill", x, y, 2, 32)
+end
+
 return M

@@ -1,4 +1,5 @@
 local images = require("images")
+local DrawUtils = require("utils.draw_utils")
 local TU = require("utils.text_utils")
 local colors = require("app_colors")
 local Timer = require("utils.timer_utils")
@@ -117,15 +118,9 @@ function Window:drawHeader(isFocused)
   local font = love.graphics.getFont()
   local fh = (font and font:getHeight()) or 0
   local ty = math.floor(hy + (hh - fh) / 2)
-  local titleMidY = ty
 
   if self._alwaysOnTop then
-    local pinImg = images.icons.chrome.icon_circle
-    local tint = colors:chromeTextIconsColorFocused()
-    love.graphics.setColor(tint[1], tint[2], tint[3], tint[4] or 1)
-    local iw, ih = pinImg:getWidth(), pinImg:getHeight()
-    local cx, cy = hx, titleMidY
-    love.graphics.draw(pinImg, math.floor(cx - iw / 2), math.floor(cy - ih / 2))
+    DrawUtils.drawChromeAlwaysOnTopPin(hx, hy)
   end
 
   -- Title on chrome: use Appearance "Text/Icons" when focused; body text when not.
