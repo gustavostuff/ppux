@@ -30,12 +30,22 @@ local function makeButtonWidget(text)
 end
 
 local APPEARANCE_ROW_SLOTS = {
-  { label = "Background", darkId = "dark_background", lightId = "light_background" },
-  { label = "Focused", darkId = "dark_focused", lightId = "light_focused" },
-  { label = "Non-focused", darkId = "dark_non_focused", lightId = "light_non_focused" },
-  { label = "Text focused", darkId = "dark_text_icons_focused", lightId = "light_text_icons_focused" },
-  { label = "Text non-focused", darkId = "dark_text_icons_non_focused", lightId = "light_text_icons_non_focused" },
+  { label = "Workspace background", darkId = "dark_background", lightId = "light_background" },
+  { label = "Focused window chrome", darkId = "dark_focused", lightId = "light_focused" },
+  { label = "Unfocused window chrome", darkId = "dark_non_focused", lightId = "light_non_focused" },
+  { label = "Toolbar/menu text on hover", darkId = "dark_text_icons_focused", lightId = "light_text_icons_focused" },
+  { label = "Toolbar/menu text (default)", darkId = "dark_text_icons_non_focused", lightId = "light_text_icons_non_focused" },
 }
+
+--- Chrome color pickers shown on the Colors tab for the active UI theme only.
+local function chromePickerSlotIdsForTheme(themeKey)
+  local t = normalizeThemeKey(themeKey)
+  local ids = {}
+  for _, spec in ipairs(APPEARANCE_ROW_SLOTS) do
+    ids[#ids + 1] = (t == "light") and spec.lightId or spec.darkId
+  end
+  return ids
+end
 
 local APPEARANCE_PICKER_SLOT_IDS = {
   "dark_background",
@@ -155,19 +165,9 @@ local function forEachAppearancePicker(self, fn)
   end
 end
 
-local function anyAppearancePickerMenu(self, pred)
-  local found = false
-  forEachAppearancePicker(self, function(p)
-    if pred(p) then
-      found = true
-    end
-  end)
-  return found
-end
-
---- First color picker whose dropdown menu is open (only one should be; see onBeforeOpenMenu).
+--- First color picker whose dropdown menu is open (Colors tab: current theme only).
 local function appearancePickerWithOpenMenu(self)
-  for _, slotId in ipairs(APPEARANCE_PICKER_SLOT_IDS) do
+  for _, slotId in ipairs(chromePickerSlotIdsForTheme(self.getTheme and self.getTheme() or nil)) do
     local p = self._appearancePickers and self._appearancePickers[slotId]
     if p and p:isMenuVisible() then
       return p
@@ -212,8 +212,13 @@ function Dialog:syncAppearancePickersFromAppColors()
   end
 end
 
--- Appearance tab: column headers + row labels + eight color picker dropdowns.
-local function layoutAppearanceContent(self, contentStart, footerRow)
+-- Colors tab: labels + chrome pickers for the active theme only (matches Appearance "Theme").
+-- Fills rows from contentStart up to (but not including) spacerRow; caller adds spacer + footer.
+local function layoutColorsTabContent(self, contentStart, spacerRow)
+  local themeKey = normalizeThemeKey(self.getTheme and self.getTheme() or nil)
+  local themeTitle = (themeKey == "light") and "Light mode colors" or "Dark mode colors"
+  local modePrefix = (themeKey == "light") and "light" or "dark"
+
   local r = contentStart
   self.panel:setCell(1, r, {
     kind = "label",
@@ -222,50 +227,41 @@ local function layoutAppearanceContent(self, contentStart, footerRow)
   })
   self.panel:setCell(2, r, {
     kind = "label",
-    text = "Dark mode",
-    align = "center",
-  })
-  self.panel:setCell(3, r, {
-    kind = "label",
-    text = "Light mode",
+    text = themeTitle,
+    colspan = 2,
     align = "center",
   })
   r = r + 1
 
   for _, spec in ipairs(APPEARANCE_ROW_SLOTS) do
+    local slotId = (themeKey == "light") and spec.lightId or spec.darkId
     self.panel:setCell(1, r, {
-      kind = "label",
-      text = spec.label,
+      text = spec.label .. ":",
+      colspan = 2,
       align = "right",
     })
-    self.panel:setCell(2, r, {
-      component = self._appearancePickers[spec.darkId],
-    })
     self.panel:setCell(3, r, {
-      component = self._appearancePickers[spec.lightId],
+      component = self._appearancePickers[slotId],
     })
     r = r + 1
   end
 
   for _, sample in ipairs({
-    { label = "Sample focused", kind = "focused" },
-    { label = "Sample non-focused", kind = "non_focused" },
+    { label = "Focused chrome preview", kind = "focused" },
+    { label = "Unfocused chrome preview", kind = "non_focused" },
   }) do
     self.panel:setCell(1, r, {
-      kind = "label",
-      text = sample.label,
+      text = sample.label .. ":",
+      colspan = 2,
       align = "right",
     })
-    self.panel:setCell(2, r, {
-      component = newAppearanceChromeSample("dark", sample.kind),
-    })
     self.panel:setCell(3, r, {
-      component = newAppearanceChromeSample("light", sample.kind),
+      component = newAppearanceChromeSample(modePrefix, sample.kind),
     })
     r = r + 1
   end
 
-  while r < footerRow do
+  while r < spacerRow do
     self.panel:setCell(1, r, {
       kind = "label",
       text = "",
@@ -279,7 +275,9 @@ end
 function Dialog:_rebuildPanelGrid()
   ModalPanelUtils.refreshTargetMetrics(self)
   local bodyRows = math.max(SETTINGS_MIN_CONTENT_ROWS, self._generalContentRowCount or SETTINGS_MIN_CONTENT_ROWS)
-  local footerRow = SETTINGS_TAB_ROW + bodyRows + 1
+  local contentEndRow = SETTINGS_TAB_ROW + bodyRows
+  local spacerRow = contentEndRow + 1
+  local footerRow = spacerRow + 1
   local totalRows = footerRow
   self.panel = Panel.new({
     cols = 3,
@@ -307,8 +305,8 @@ function Dialog:_rebuildPanelGrid()
 
   local contentStart = SETTINGS_TAB_ROW + 1
 
-  if self._activeTabId == "appearance" then
-    layoutAppearanceContent(self, contentStart, footerRow)
+  if self._activeTabId == "colors" then
+    layoutColorsTabContent(self, contentStart, spacerRow)
     if self._appearanceNeedsPickerSync then
       self:syncAppearancePickersFromAppColors()
       self._appearanceNeedsPickerSync = false
@@ -341,7 +339,7 @@ function Dialog:_rebuildPanelGrid()
       end
       rowIndex = rowIndex + 1
     end
-    while rowIndex < footerRow do
+    while rowIndex <= contentEndRow do
       self.panel:setCell(1, rowIndex, {
         kind = "label",
         text = "",
@@ -351,6 +349,13 @@ function Dialog:_rebuildPanelGrid()
       rowIndex = rowIndex + 1
     end
   end
+
+  self.panel:setCell(1, spacerRow, {
+    kind = "label",
+    text = "",
+    colspan = 3,
+    align = "left",
+  })
 
   self.panel:setCell(1, footerRow, {
     kind = "label",
@@ -466,16 +471,17 @@ function Dialog.new()
     chromeOverBlue = true,
     tabs = {
       { id = "general", label = "General" },
-      { id = "appearance", label = "Colors" },
+      { id = "appearance", label = "Appearance" },
+      { id = "colors", label = "Colors" },
     },
     onSelect = function(id)
       if self._activeTabId ~= id then
-        if id ~= "appearance" then
+        if id ~= "colors" then
           forEachAppearancePicker(self, function(p)
             p:closeMenu()
           end)
         end
-        if id == "appearance" then
+        if id == "colors" then
           self._appearanceNeedsPickerSync = true
         end
         self._activeTabId = id
@@ -500,14 +506,15 @@ function Dialog:_onAppearanceChromeCommitted(slotId, c)
 end
 
 function Dialog:isHoveringColorPickerSwatchAt(px, py)
-  if not self.visible or self._activeTabId ~= "appearance" then
+  if not self.visible or self._activeTabId ~= "colors" then
     return false
   end
   local openPicker = appearancePickerWithOpenMenu(self)
   if openPicker and type(openPicker.wantsHandCursorAt) == "function" then
     return openPicker:wantsHandCursorAt(px, py)
   end
-  for _, p in pairs(self._appearancePickers or {}) do
+  for _, slotId in ipairs(chromePickerSlotIdsForTheme(self.getTheme and self.getTheme() or nil)) do
+    local p = self._appearancePickers and self._appearancePickers[slotId]
     if p and type(p.wantsHandCursorAt) == "function" and p:wantsHandCursorAt(px, py) then
       return true
     end
@@ -517,10 +524,11 @@ end
 
 --- Open appearance dropdown menus are not part of `self.panel` hit geometry; disabled swatch triggers too.
 function Dialog:isHoveringDisabledAppearancePickerAt(px, py)
-  if not self.visible or self._activeTabId ~= "appearance" then
+  if not self.visible or self._activeTabId ~= "colors" then
     return false
   end
-  for _, p in pairs(self._appearancePickers or {}) do
+  for _, slotId in ipairs(chromePickerSlotIdsForTheme(self.getTheme and self.getTheme() or nil)) do
+    local p = self._appearancePickers and self._appearancePickers[slotId]
     if p and p.trigger and p.trigger.enabled == false and p.trigger:contains(px, py) then
       return true
     end
@@ -559,14 +567,15 @@ function Dialog:hide()
 end
 
 function Dialog:_containsBox(x, y)
-  if self._activeTabId == "appearance" then
-    if anyAppearancePickerMenu(self, function(p)
-      return p:isMenuVisible() and p.menu:contains(x, y)
-    end) then
-      return true
+  if self._activeTabId == "colors" then
+    for _, slotId in ipairs(chromePickerSlotIdsForTheme(self.getTheme and self.getTheme() or nil)) do
+      local p = self._appearancePickers and self._appearancePickers[slotId]
+      if p and p:isMenuVisible() and p.menu and p.menu:contains(x, y) then
+        return true
+      end
     end
   end
-  if self._activeTabId == "general" then
+  if self._activeTabId == "general" or self._activeTabId == "appearance" then
     for _, row in ipairs(self.rows or {}) do
       local dd = row.dropdown
       if dd and dd:isMenuVisible() and dd.menu and dd.menu:contains(x, y) then
@@ -584,8 +593,9 @@ function Dialog:getTooltipAt(x, y)
   if not self.visible or not self.panel or not self:_containsBox(x, y) then
     return nil
   end
-  if self._activeTabId == "appearance" then
-    for _, p in pairs(self._appearancePickers or {}) do
+  if self._activeTabId == "colors" then
+    for _, slotId in ipairs(chromePickerSlotIdsForTheme(self.getTheme and self.getTheme() or nil)) do
+      local p = self._appearancePickers and self._appearancePickers[slotId]
       if p and p:isMenuVisible() then
         local tip = p.menu:getTooltipAt(x, y)
         if tip then
@@ -598,8 +608,9 @@ function Dialog:getTooltipAt(x, y)
   if tip then
     return tip
   end
-  if self._activeTabId == "appearance" then
-    for _, p in pairs(self._appearancePickers or {}) do
+  if self._activeTabId == "colors" then
+    for _, slotId in ipairs(chromePickerSlotIdsForTheme(self.getTheme and self.getTheme() or nil)) do
+      local p = self._appearancePickers and self._appearancePickers[slotId]
       if p and p.trigger and p.trigger.tooltip and p.trigger.tooltip ~= "" and p.trigger:contains(x, y) then
         return {
           text = p.trigger.tooltip,
@@ -665,11 +676,24 @@ function Dialog:setExtraRows(rows)
   end
 end
 
-function Dialog:_defaultRows()
+function Dialog:_generalTabRowSpecs()
   local tooltipsEnabled = not (self.getTooltipsEnabled and self.getTooltipsEnabled() == false)
-  local theme = normalizeThemeKey(self.getTheme and self.getTheme() or nil)
-
   local rows = {
+    {
+      id = "fullscreen",
+      label = "Full screen",
+      buttonSpec = {
+        id = "fullscreen_toggle",
+        getText = function()
+          return (self.getFullscreen and self.getFullscreen() == true) and "On" or "Off"
+        end,
+        action = function()
+          if self.onToggleFullscreen then
+            self.onToggleFullscreen()
+          end
+        end,
+      },
+    },
     {
       id = "tooltips_enabled",
       label = "Tooltips",
@@ -684,19 +708,6 @@ function Dialog:_defaultRows()
       },
     },
     {
-      id = "theme",
-      label = "Theme",
-      buttonSpec = {
-        id = "theme_toggle",
-        text = (theme == "light") and "Light" or "Dark",
-        action = function()
-          if self.onSetTheme then
-            self.onSetTheme((theme == "light") and "dark" or "light")
-          end
-        end,
-      },
-    },
-    {
       id = "separate_toolbar",
       label = "Detached Window Toolbar",
       buttonSpec = {
@@ -705,6 +716,27 @@ function Dialog:_defaultRows()
         action = function()
           if self.onSetSeparateToolbar then
             self.onSetSeparateToolbar(not (self.getSeparateToolbar and self.getSeparateToolbar() == true))
+          end
+        end,
+      },
+    },
+  }
+  return rows
+end
+
+function Dialog:_appearanceTabRowSpecs()
+  local theme = normalizeThemeKey(self.getTheme and self.getTheme() or nil)
+
+  local rows = {
+    {
+      id = "theme",
+      label = "Theme",
+      buttonSpec = {
+        id = "theme_toggle",
+        text = (theme == "light") and "Light" or "Dark",
+        action = function()
+          if self.onSetTheme then
+            self.onSetTheme((theme == "light") and "dark" or "light")
           end
         end,
       },
@@ -745,7 +777,45 @@ function Dialog:_defaultRows()
   return rows
 end
 
+function Dialog:_rebuildRows()
+  if self._activeTabId == "colors" then
+    self.rows = {}
+    self.buttons = {}
+    self.focusedButtonIndex = 1
+    self:_rebuildPanelGrid()
+    return
+  end
+
+  if self._activeTabId == "appearance" then
+    self:_normalizeRows(self:_appearanceTabRowSpecs())
+    return
+  end
+
+  local rowSpecs = self:_generalTabRowSpecs()
+  local extras = {}
+  if type(self._getExtraRows) == "function" then
+    extras = self._getExtraRows() or {}
+  elseif self.extraRows then
+    extras = self.extraRows
+  end
+  for _, row in ipairs(extras) do
+    local spec = row.buttonSpec
+    if spec and type(spec.getText) == "function" then
+      spec.text = spec.getText()
+    end
+    rowSpecs[#rowSpecs + 1] = row
+  end
+  self:_normalizeRows(rowSpecs)
+end
+
 function Dialog:_normalizeRows(rowSpecs)
+  for _, rowSpec in ipairs(rowSpecs or {}) do
+    local spec = rowSpec.buttonSpec
+    if spec and type(spec.getText) == "function" then
+      spec.text = spec.getText()
+    end
+  end
+
   local rows = {}
   local buttons = {}
   local preserveFocusId = nil
@@ -807,32 +877,6 @@ function Dialog:_normalizeRows(rowSpecs)
   self.focusedButtonIndex = math.max(1, math.min(focusIndex, #self.buttons))
   self:_syncFocus()
   self:_rebuildPanelGrid()
-end
-
-function Dialog:_rebuildRows()
-  if self._activeTabId == "appearance" then
-    self.rows = {}
-    self.buttons = {}
-    self.focusedButtonIndex = 1
-    self:_rebuildPanelGrid()
-    return
-  end
-
-  local rowSpecs = self:_defaultRows()
-  local extras = {}
-  if type(self._getExtraRows) == "function" then
-    extras = self._getExtraRows() or {}
-  elseif self.extraRows then
-    extras = self.extraRows
-  end
-  for _, row in ipairs(extras) do
-    local spec = row.buttonSpec
-    if spec and type(spec.getText) == "function" then
-      spec.text = spec.getText()
-    end
-    rowSpecs[#rowSpecs + 1] = row
-  end
-  self:_normalizeRows(rowSpecs)
 end
 
 function Dialog:_syncFocus()
@@ -899,14 +943,14 @@ function Dialog:mousepressed(x, y, button)
     return true
   end
 
-  if self._activeTabId == "appearance" then
+  if self._activeTabId == "colors" then
     local openPicker = appearancePickerWithOpenMenu(self)
     if openPicker then
       if openPicker:handleMousePressed(x, y, button) then
         return true
       end
     else
-      for _, slotId in ipairs(APPEARANCE_PICKER_SLOT_IDS) do
+      for _, slotId in ipairs(chromePickerSlotIdsForTheme(self.getTheme and self.getTheme() or nil)) do
         local p = self._appearancePickers and self._appearancePickers[slotId]
         if p and p:handleMousePressed(x, y, button) then
           return true
@@ -919,8 +963,8 @@ function Dialog:mousepressed(x, y, button)
     return true
   end
 
-  -- General-tab dropdown menus can extend over the footer; handle before Reset so menu picks win.
-  if self._activeTabId == "general" then
+  -- Dropdown menus can extend over the footer; handle before Reset so menu picks win.
+  if self._activeTabId == "general" or self._activeTabId == "appearance" then
     for _, row in ipairs(self.rows or {}) do
       if row.dropdown and row.dropdown:handleMousePressed(x, y, button) then
         return true
@@ -934,7 +978,7 @@ function Dialog:mousepressed(x, y, button)
     return true
   end
 
-  if self._activeTabId ~= "general" then
+  if self._activeTabId == "colors" then
     return true
   end
 
@@ -966,14 +1010,14 @@ function Dialog:mousereleased(x, y, button)
   if not self.visible then return false end
   if button ~= 1 then return true end
 
-  if self._activeTabId == "appearance" then
+  if self._activeTabId == "colors" then
     local openPicker = appearancePickerWithOpenMenu(self)
     if openPicker then
       if openPicker:handleMouseReleased(x, y, button) then
         return true
       end
     else
-      for _, slotId in ipairs(APPEARANCE_PICKER_SLOT_IDS) do
+      for _, slotId in ipairs(chromePickerSlotIdsForTheme(self.getTheme and self.getTheme() or nil)) do
         local p = self._appearancePickers and self._appearancePickers[slotId]
         if p and p:handleMouseReleased(x, y, button) then
           return true
@@ -988,7 +1032,7 @@ function Dialog:mousereleased(x, y, button)
     entry.button.pressed = false
   end
 
-  if self._activeTabId == "general" then
+  if self._activeTabId == "general" or self._activeTabId == "appearance" then
     for _, row in ipairs(self.rows or {}) do
       if row.dropdown and row.dropdown:handleMouseReleased(x, y, button) then
         return true
@@ -1037,7 +1081,7 @@ function Dialog:mousemoved(x, y)
   clearSettingsChromeHovers(self)
 
   -- Open menus paint above body/footer; only they should show hover while cursor is inside them.
-  if self._activeTabId == "general" then
+  if self._activeTabId == "general" or self._activeTabId == "appearance" then
     for _, row in ipairs(self.rows or {}) do
       local dd = row.dropdown
       if dd and dd:isMenuVisible() and dd.menu then
@@ -1049,7 +1093,7 @@ function Dialog:mousemoved(x, y)
     end
   end
 
-  if self._activeTabId == "appearance" then
+  if self._activeTabId == "colors" then
     local openPicker = appearancePickerWithOpenMenu(self)
     if openPicker and openPicker.menu then
       openPicker.menu:mousemoved(x, y)
@@ -1069,7 +1113,7 @@ function Dialog:mousemoved(x, y)
     return true
   end
 
-  if self._activeTabId == "general" then
+  if self._activeTabId == "general" or self._activeTabId == "appearance" then
     for _, row in ipairs(self.rows or {}) do
       local dd = row.dropdown
       if dd and dd.trigger and dd.trigger:contains(x, y) then
@@ -1087,9 +1131,10 @@ function Dialog:mousemoved(x, y)
     end
   end
 
-  if self._activeTabId == "appearance" then
-    for i = #APPEARANCE_PICKER_SLOT_IDS, 1, -1 do
-      local slotId = APPEARANCE_PICKER_SLOT_IDS[i]
+  if self._activeTabId == "colors" then
+    local visibleSlots = chromePickerSlotIdsForTheme(self.getTheme and self.getTheme() or nil)
+    for i = #visibleSlots, 1, -1 do
+      local slotId = visibleSlots[i]
       local p = self._appearancePickers and self._appearancePickers[slotId]
       if p and p.trigger and p.trigger:contains(x, y) then
         p:mousemoved(x, y)
@@ -1120,11 +1165,14 @@ function Dialog:draw(canvas)
   ModalPanelUtils.drawBackdrop(canvas)
   self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)
   self.panel:draw()
-  if self._activeTabId == "appearance" then
-    forEachAppearancePicker(self, function(p)
-      p:drawMenu()
-    end)
-  elseif self._activeTabId == "general" then
+  if self._activeTabId == "colors" then
+    for _, slotId in ipairs(chromePickerSlotIdsForTheme(self.getTheme and self.getTheme() or nil)) do
+      local p = self._appearancePickers and self._appearancePickers[slotId]
+      if p and p.drawMenu then
+        p:drawMenu()
+      end
+    end
+  elseif self._activeTabId == "general" or self._activeTabId == "appearance" then
     for _, row in ipairs(self.rows or {}) do
       if row.dropdown and row.dropdown.drawMenu then
         row.dropdown:drawMenu()

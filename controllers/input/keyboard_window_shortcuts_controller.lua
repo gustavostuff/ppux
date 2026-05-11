@@ -93,35 +93,39 @@ function M.handleCascade(ctx, utils, key)
   return false
 end
 
+--- Toggle fullscreen (settings UI and Ctrl+F); mirrors exit sizing vs windowed scale preference.
+function M.toggleFullscreen(app)
+  local newVal = not love.window.getFullscreen()
+  local curW, curH, currentFlags = love.window.getMode()
+  if newVal then
+    if app and app._getWindowScaleForSettings then
+      app._windowedScalePreference = app:_getWindowScaleForSettings()
+    end
+    applyWindowMode(curW, curH, currentFlags, {
+      fullscreen = true,
+    })
+    ResolutionController:recalculate()
+    invalidateVolatileWindowCanvases(app)
+  else
+    local baseW = ResolutionController.canvasWidth or (app and app.canvas and app.canvas:getWidth()) or love.graphics.getWidth()
+    local baseH = ResolutionController.canvasHeight or (app and app.canvas and app.canvas:getHeight()) or love.graphics.getHeight()
+    local targetW = baseW * EXIT_FULLSCREEN_SCALE
+    local targetH = baseH * EXIT_FULLSCREEN_SCALE
+
+    applyWindowMode(targetW, targetH, currentFlags, {
+      fullscreen = false,
+    })
+    if app then
+      app._windowedScalePreference = EXIT_FULLSCREEN_SCALE
+      invalidateVolatileWindowCanvases(app)
+    end
+    ResolutionController:recalculate()
+  end
+end
+
 function M.handleFullscreen(ctx, utils, key)
   if key == "f" and utils.ctrlDown() then
-    local newVal = not love.window.getFullscreen()
-    local app = ctx.app
-    local curW, curH, currentFlags = love.window.getMode()
-    if newVal then
-      if app and app._getWindowScaleForSettings then
-        app._windowedScalePreference = app:_getWindowScaleForSettings()
-      end
-      applyWindowMode(curW, curH, currentFlags, {
-        fullscreen = true,
-      })
-      ResolutionController:recalculate()
-      invalidateVolatileWindowCanvases(app)
-    else
-      local baseW = ResolutionController.canvasWidth or (app and app.canvas and app.canvas:getWidth()) or love.graphics.getWidth()
-      local baseH = ResolutionController.canvasHeight or (app and app.canvas and app.canvas:getHeight()) or love.graphics.getHeight()
-      local targetW = baseW * EXIT_FULLSCREEN_SCALE
-      local targetH = baseH * EXIT_FULLSCREEN_SCALE
-
-      applyWindowMode(targetW, targetH, currentFlags, {
-        fullscreen = false,
-      })
-      if app then
-        app._windowedScalePreference = EXIT_FULLSCREEN_SCALE
-        invalidateVolatileWindowCanvases(app)
-      end
-      ResolutionController:recalculate()
-    end
+    M.toggleFullscreen(ctx and ctx.app or nil)
     return true
   end
   return false

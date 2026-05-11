@@ -2,6 +2,7 @@ local SaveController = require("controllers.rom.save_controller")
 local RomProjectController = require("controllers.rom.rom_project_controller")
 local AppSettingsController = require("controllers.app.settings_controller")
 local ResolutionController = require("controllers.app.resolution_controller")
+local KeyboardWindowShortcutsController = require("controllers.input.keyboard_window_shortcuts_controller")
 local SaveOptionsModal = require("user_interface.modals.save_options_modal")
 local SettingsModal = require("user_interface.modals.settings_modal")
 local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
@@ -1186,6 +1187,9 @@ function AppCoreController:showSettingsModal()
     getSeparateToolbar = function()
       return appRef:_getSeparateToolbarForSettings()
     end,
+    getFullscreen = function()
+      return love.window.getFullscreen() == true
+    end,
     getExtraRows = function()
       local rows = {
         {
@@ -1246,6 +1250,12 @@ function AppCoreController:showSettingsModal()
     end,
     onSetSeparateToolbar = function(enabled)
       appRef:_applySeparateToolbarSetting(enabled, true)
+    end,
+    onToggleFullscreen = function()
+      KeyboardWindowShortcutsController.toggleFullscreen(appRef)
+      if appRef._refreshSettingsModalIfOpen then
+        appRef:_refreshSettingsModalIfOpen()
+      end
     end,
     getAppearanceChromeRgb = function(slotId)
       local c = colors:appearanceChromeResolved(slotId)
