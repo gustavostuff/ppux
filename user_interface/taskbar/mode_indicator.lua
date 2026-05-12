@@ -3,6 +3,7 @@ local colors = require("app_colors")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 local ResolutionController = require("controllers.app.resolution_controller")
 local Text = require("utils.text_utils")
+local UiPulse = require("utils.ui_pulse")
 
 local M = {}
 
@@ -191,7 +192,7 @@ function M.install(Taskbar, Helpers)
         if shader then
           local paint = resolveBrushIndicatorColor(self.app) or colors.white
           shader:send("u_paintColor", { paint[1] or 1, paint[2] or 1, paint[3] or 1 })
-          local now = (love.timer and love.timer.getTime and love.timer.getTime()) or 0
+          local now = UiPulse.nowSeconds()
           shader:send("u_time", now)
           shader:send("u_applyPaint", true)
           love.graphics.setShader(shader)

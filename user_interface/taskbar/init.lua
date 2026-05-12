@@ -1,7 +1,7 @@
 local colors = require("app_colors")
 local images = require("images")
 local UiScale = require("user_interface.ui_scale")
-local Timer = require("utils.timer_utils")
+local UiPulse = require("utils.ui_pulse")
 
 local UserInput = require("controllers.input.input")
 local Helpers = require("user_interface.taskbar.helpers")
@@ -15,22 +15,11 @@ Taskbar.__index = Taskbar
 local DEFAULT_CANVAS_W = 640
 local DEFAULT_CANVAS_H = 360
 
--- Backdrop behind the focused window's taskbar icon: smooth fade black -> white -> black (utils/timer_utils.lua).
-local TIMER_MARK_WINDOW_ICON_BLINK = "taskbar_window_icon_blink"
--- Taskbar window icons are drawn at 15x15 px; backdrop matches that footprint.
+-- Backdrop behind the focused minimized window's taskbar icon: same ω as edit-mode pencil (utils/ui_pulse.lua + cursor shader).
 local WINDOW_ICON_BACKDROP_PX = 15
--- Seconds for one full cycle (black at t=0, white at t=period/2, black at t=period).
-local WINDOW_ICON_BACKDROP_PERIOD_SEC = 2
 
 local function windowIconBackdropLuminance()
-  local elapsed = Timer.elapsed(TIMER_MARK_WINDOW_ICON_BLINK)
-  if elapsed == nil then
-    Timer.mark(TIMER_MARK_WINDOW_ICON_BLINK)
-    elapsed = 0
-  end
-  local period = WINDOW_ICON_BACKDROP_PERIOD_SEC
-  local t = elapsed % period
-  return (1 - math.cos(2 * math.pi * t / period)) / 2
+  return UiPulse.luminanceBackdrop01(UiPulse.nowSeconds())
 end
 
 local function drawWindowIconBlinkBackdrop(button, luminance, focusedWin)
@@ -91,8 +80,6 @@ function Taskbar.new(app, data)
     },
     modeIndicatorPressed = false,
   }, Taskbar)
-
-  Timer.mark(TIMER_MARK_WINDOW_ICON_BLINK)
 
   local menuButton = Helpers.newTaskbarButton({
     icon = images.menu_button,

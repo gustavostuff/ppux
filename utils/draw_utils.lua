@@ -2,6 +2,7 @@
 -- Helpers for drawing with repeating textures (animated by default).
 
 local Timer = require("utils.timer_utils")
+local UiPulse = require("utils.ui_pulse")
 local colors = require("app_colors")
 
 local M = {}
@@ -34,8 +35,9 @@ vec4 effect(vec4 color, Image tex, vec2 texCoord, vec2 screenCoord)
 }
 ]])
 
--- Shader to post-process cursors (pulsing blacks, paint-color whites)
-local cursorShader = love.graphics.newShader([[
+-- Shader to post-process cursors (pulsing blacks, paint-color whites).
+-- ω matches utils/ui_pulse.OMEGA_RAD_PER_SEC (taskbar focused-icon backdrop uses same rate).
+local cursorShader = love.graphics.newShader(string.format([[
 extern vec3 u_paintColor;
 extern number u_time;
 extern bool u_applyPaint;
@@ -54,7 +56,7 @@ vec4 effect(vec4 color, Image tex, vec2 texCoord, vec2 screenCoord)
     bool isWhite = (minc > 0.9); // near-white tolerance
 
     if (isBlack) {
-        float pulse = 0.5 + 0.5 * sin(u_time * 8.0); // even faster pulse
+        float pulse = 0.5 + 0.5 * sin(u_time * %g);
         return vec4(vec3(pulse), px.a) * color;
     }
 
@@ -65,7 +67,7 @@ vec4 effect(vec4 color, Image tex, vec2 texCoord, vec2 screenCoord)
 
     return px * color;
 }
-]])
+]], UiPulse.OMEGA_RAD_PER_SEC))
 
 function M.getCursorShader()
   return cursorShader
