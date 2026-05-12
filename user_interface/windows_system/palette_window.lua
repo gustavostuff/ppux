@@ -271,6 +271,52 @@ function PaletteWindow:getStripMetrics()
   }
 end
 
+--- Two canvas-space rects (horizontal + vertical nibble strips) for `drawAllWindowShadows` mask pass.
+function PaletteWindow:getSelectionStripShadowRectsCanvas(wm)
+  if self._closed or self._minimized or self._collapsed then
+    return nil
+  end
+  if wm and wm.getFocus and wm:getFocus() ~= self then
+    return nil
+  end
+  if self.compactView then
+    return nil
+  end
+  local strips = self:getSelectedStripCodes()
+  if not strips then
+    return nil
+  end
+  local metrics = self:getStripMetrics()
+  if not metrics then
+    return nil
+  end
+
+  local z = (self.getZoomLevel and self:getZoomLevel()) or self.zoom or 1
+  if z <= 0 then z = 1 end
+  local wx = tonumber(self.x) or 0
+  local wy = tonumber(self.y) or 0
+
+  local horizontalStripW = #strips.rowCodes * metrics.horizontalCellW
+  local horizontalStripH = metrics.horizontalCellH
+  local verticalStripW = metrics.verticalCellW
+  local verticalStripH = #strips.colCodes * metrics.verticalCellH
+
+  return {
+    {
+      wx + metrics.horizontalX * z,
+      wy + metrics.horizontalY * z,
+      horizontalStripW * z,
+      horizontalStripH * z,
+    },
+    {
+      wx + metrics.verticalX * z,
+      wy + metrics.verticalY * z,
+      verticalStripW * z,
+      verticalStripH * z,
+    },
+  }
+end
+
 function PaletteWindow:drawSelectionStrips()
   local gctx = rawget(_G, "ctx")
   local wm = gctx and gctx.wm and gctx.wm() or nil
@@ -287,6 +333,11 @@ function PaletteWindow:drawSelectionStrips()
   if not metrics then
     return nil
   end
+
+  local horizontalStripW = #strips.rowCodes * metrics.horizontalCellW
+  local horizontalStripH = metrics.horizontalCellH
+  local verticalStripW = metrics.verticalCellW
+  local verticalStripH = #strips.colCodes * metrics.verticalCellH
 
   for i, code in ipairs(strips.rowCodes) do
     local rgb = self.palette[code] or colors.black
@@ -311,11 +362,6 @@ function PaletteWindow:drawSelectionStrips()
   local verticalMarkerY = metrics.verticalY + (strips.rowIndex * metrics.verticalCellH)
   self.stripSelection:draw(horizontalMarkerX, horizontalMarkerY)
   self.stripSelection:draw(verticalMarkerX, verticalMarkerY)
-
-  local horizontalStripW = #strips.rowCodes * metrics.horizontalCellW
-  local horizontalStripH = metrics.horizontalCellH
-  local verticalStripW = metrics.verticalCellW
-  local verticalStripH = #strips.colCodes * metrics.verticalCellH
 
   love.graphics.setColor(colors:focusedChromeColor())
   love.graphics.rectangle("line",

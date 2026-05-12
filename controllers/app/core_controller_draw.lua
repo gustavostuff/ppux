@@ -21,7 +21,7 @@ local UiScale = require("user_interface.ui_scale")
 
 --- Drop-shadow mask offset defaults (pixels, code-only). Positive X -> right, Y -> down.
 --- Override at runtime: app.windowShadowOffsetX / app.windowShadowOffsetY.
-local WINDOW_SHADOW_OFFSET_X = 2
+local WINDOW_SHADOW_OFFSET_X = 200
 local WINDOW_SHADOW_OFFSET_Y = 2
 
 local function drawEmptyStatePrompt(app)
@@ -633,7 +633,7 @@ local function drawHardShadowRoundedFill(x, y, ww, wh)
   love.graphics.rectangle("fill", x, y, ww, wh, r, r)
 end
 
---- Title-bar / toolbar strips: rounded **top** corners only; bottom edge stays sharp so it meets the body
+--- Title-bar strip (window header slab): rounded **top** corners only; bottom edge stays sharp so it meets the body
 --- (and so blur does not inherit rounded bottom corners from `rectangle(..., r, r)` on the full strip).
 --- LOVE angles: 0 = right, clockwise; pie slices use quadrants at top-left / top-right arc centers.
 local function drawHardShadowTopRoundedStripFill(x, y, ww, wh)
@@ -707,7 +707,19 @@ local function drawHardShadowRectsForWindow(app, w, wm)
   local tx, ty, tw, th = computeSpecializedToolbarShadowRect(app, w, wm)
   if tx then
     local L, T, W, H = pixelEnvelope(tx, ty, tw, th)
-    drawHardShadowTopRoundedStripFill(L + ox, T + oy, W, H)
+    drawHardShadowRoundedFill(L + ox, T + oy, W, H)
+  end
+
+  if WindowCaps.isAnyPaletteWindow(w) then
+    local stripRects = w:getSelectionStripShadowRectsCanvas(wm)
+    local r1 = stripRects and stripRects[1]
+    local r2 = stripRects and stripRects[2]
+    if r1 and r2 then
+      local L2, T2, W2, H2 = pixelEnvelope(r2[1], r2[2], r2[3], r2[4])
+      local L1, T1, W1, H1 = pixelEnvelope(r1[1], r1[2], r1[3], r1[4])
+      love.graphics.rectangle("fill", L2 + ox, T2 + oy - 1, W2 + 1, H2 + 2)
+      love.graphics.rectangle("fill", L1 + ox - 1, T1 + oy, W1 + 2, H1 + 1)
+    end
   end
 end
 
