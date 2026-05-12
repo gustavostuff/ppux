@@ -80,7 +80,32 @@ Notes:
 
 ### Toolbars
 
-Windows include a slim toolbar strip just above the header. It holds small icon buttons whose actions depend on the window type. Every control should show a tooltip on hover, but it still helps to spell out what each button does in the docs so people can learn the layout without hovering everything.
+The **App toolbar** sits along the **top of the canvas** and hosts global quick actions; it also reserves space for status text on the right. Also, each window type has a **specialized toolbar** in a slim strip just above that window’s header.
+
+#### App toolbar
+
+<img src="img/readme_images/toolbars/app_toolbar.png" alt="App toolbar">
+
+With a ROM (or project workspace) **loaded**, quick buttons appear **left to right** in this order:
+
+1. **New window** — opens **New Window** (`Ctrl + N`)
+2. **Open project** — `Ctrl + O`
+3. **Save options** — `Ctrl + S` (save / export flows)
+4. **Copy** — enabled when the focused target allows it (same semantics as `Ctrl + C`; see [Main controls](#main-controls))
+5. **Cut** — `Ctrl + X` when allowed
+6. **Paste** — `Ctrl + V` when allowed
+7. **Zoom out** — steps zoom on the **focused** window (palette windows are skipped); matches **Ctrl + wheel** down behavior
+8. **Zoom in** — **Ctrl + wheel** up on the focused window
+9. **Add column to the right** — for windows with a resizable tile/sprite **grid**; hold **Shift** to switch the same control to **Remove last column** (tooltip updates)
+10. **Add row below** — **Shift** switches to **Remove last row**
+11. **Clone focused window** — duplicate the current window’s kind and state where supported
+12. **Reference PNG** — add or remove a reference image for supported windows (`Alt + R` toggles visibility while a reference is attached; confirm to remove)
+
+Before any ROM is loaded, only **Open project** is shown in this strip.
+
+When **Separate toolbar** is turned **on** in Settings, the **focused** window’s **specialized toolbar** is **docked** into the app toolbar right after the last button. For instance (for an OAM Animation window):
+
+<img src="img/readme_images/toolbars/app_toolbar_extended.png" alt="App toolbar extended">
 
 
 #### CHR Banks toolbar
@@ -587,6 +612,6 @@ Run a single scenario:
 
 See [E2E Testing](docs/test/E2E_TESTING.md) for scenario details and options.
 
-:white_check_mark: All 720 unit tests passing.
+:white_check_mark: All 741 unit tests passing.
 
 :white_check_mark: All 23 E2E tests passing.
