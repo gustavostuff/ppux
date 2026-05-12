@@ -120,7 +120,7 @@ function Window:drawHeader(isFocused)
   local ty = math.floor(hy + (hh - fh) / 2)
 
   if self._alwaysOnTop then
-    DrawUtils.drawChromeAlwaysOnTopPin(hx, hy)
+    DrawUtils.drawChromeAlwaysOnTopPin(hx, hy, isFocused)
   end
 
   -- Title on chrome: use Appearance "Text/Icons" when focused; body text when not.
