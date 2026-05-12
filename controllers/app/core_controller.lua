@@ -83,6 +83,9 @@ function AppCoreController.new()
   self.paletteGroupState = nil
   self.groupedPaletteController = nil
 
+  --- Runtime only: last selected tab id per tabbed modal (e.g. `settings` -> `"colors"`).
+  self._tabbedModalActiveTabIds = {}
+
   -- windows + manager
   self.wm = WindowController.new()
   self.winBank = nil

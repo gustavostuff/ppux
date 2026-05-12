@@ -1273,6 +1273,11 @@ function AppCoreController:showSettingsModal()
     windowShadowStrengthSlider = appRef._windowShadowStrengthSlider,
     canvasImageModeDropdown = appRef._canvasImageModeDropdown,
     canvasFilterDropdown = appRef._canvasFilterDropdown,
+    initialTabId = appRef._tabbedModalActiveTabIds and appRef._tabbedModalActiveTabIds.settings or nil,
+    onActiveTabChange = function(tabId)
+      appRef._tabbedModalActiveTabIds = appRef._tabbedModalActiveTabIds or {}
+      appRef._tabbedModalActiveTabIds.settings = tabId
+    end,
   })
 end
 

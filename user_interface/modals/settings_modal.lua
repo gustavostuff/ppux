@@ -15,6 +15,19 @@ Dialog.__index = Dialog
 local SETTINGS_TAB_ROW = 1
 local SETTINGS_MIN_CONTENT_ROWS = 8
 
+local VALID_SETTINGS_TAB_IDS = {
+  general = true,
+  appearance = true,
+  colors = true,
+}
+
+local function normalizeSettingsModalTabId(id)
+  if type(id) ~= "string" or not VALID_SETTINGS_TAB_IDS[id] then
+    return "general"
+  end
+  return id
+end
+
 local function normalizeThemeKey(key)
   if key == "light" then return "light" end
   return "dark"
@@ -474,6 +487,9 @@ function Dialog.new()
         self._activeTabId = id
         self:_rebuildRows()
       end
+      if self.onActiveTabChange then
+        self.onActiveTabChange(id)
+      end
     end,
   })
   self:syncAppearancePickersFromAppColors()
@@ -546,7 +562,6 @@ function Dialog:hide()
   end)
   self.rows = {}
   self.buttons = {}
-  self._activeTabId = "general"
   if self.panel then
     self.panel:setVisible(false)
   end
@@ -640,9 +655,14 @@ function Dialog:show(opts)
   self._windowShadowStrengthSlider = opts.windowShadowStrengthSlider
   self._canvasImageModeDropdown = opts.canvasImageModeDropdown
   self._canvasFilterDropdown = opts.canvasFilterDropdown
+  self.onActiveTabChange = opts.onActiveTabChange
   self.visible = true
   self.pressedButton = nil
-  self._activeTabId = "general"
+  local initialTab = normalizeSettingsModalTabId(opts.initialTabId)
+  self._activeTabId = initialTab
+  if self._tabBar then
+    self._tabBar:setActiveId(self._activeTabId)
+  end
   self._appearanceNeedsPickerSync = true
   self:syncAppearancePickersFromAppColors()
   local boundsFn = opts.getMenuBounds or function()
