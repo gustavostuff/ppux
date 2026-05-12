@@ -103,7 +103,7 @@ With a ROM (or project workspace) **loaded**, quick buttons appear **left to rig
 
 Before any ROM is loaded, only **Open project** is shown in this strip.
 
-When **Separate toolbar** is turned **on** in Settings, the **focused** window’s **specialized toolbar** is **docked** into the app toolbar right after the last button. For instance (for an OAM Animation window):
+When **Detached window toolbar** is turned **ON** in Settings, the **focused** window’s **specialized toolbar** is **docked** into the app toolbar right after the last button. For instance (for an OAM Animation window):
 
 <img src="img/readme_images/toolbars/app_toolbar_extended.png" alt="App toolbar extended">
 
