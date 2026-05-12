@@ -21,7 +21,7 @@ local UiScale = require("user_interface.ui_scale")
 
 --- Drop-shadow mask offset defaults (pixels, code-only). Positive X -> right, Y -> down.
 --- Override at runtime: app.windowShadowOffsetX / app.windowShadowOffsetY.
-local WINDOW_SHADOW_OFFSET_X = 200
+local WINDOW_SHADOW_OFFSET_X = 2
 local WINDOW_SHADOW_OFFSET_Y = 2
 
 local function drawEmptyStatePrompt(app)
@@ -699,7 +699,7 @@ local function drawHardShadowRectsForWindow(app, w, wm)
   if w._collapsed and type(w.getHeaderRect) == "function" then
     local left, top, width, height = computeWindowChromeShadowRect(w)
     local L, T, W, H = pixelEnvelope(left, top, width, height)
-    drawHardShadowTopRoundedStripFill(L + ox, T + oy, W, H)
+    drawHardShadowRoundedFill(L + ox, T + oy, W, H)
   else
     drawExpandedWindowChromeShadowMask(ox, oy, w)
   end
