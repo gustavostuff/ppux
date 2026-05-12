@@ -47,6 +47,18 @@ local function drawRoundedToolbarStencil(x, y, w, h)
   return true
 end
 
+--- App-bar dock strip (Detached Window Toolbar): match sharp rectangular scissor; no rounded stencil.
+local function drawSharpToolbarStencil(x, y, w, h)
+  if w <= 0 or h <= 0 then
+    return false
+  end
+  love.graphics.stencil(function()
+    love.graphics.rectangle("fill", x, y, w, h)
+  end, "replace", 1, true)
+  love.graphics.setStencilTest("greater", 0)
+  return true
+end
+
 function ToolbarBase.new(window, data)
   data = data or {}
   _layerLabelId = _layerLabelId + 1
@@ -540,7 +552,10 @@ function ToolbarBase:draw()
   local drawY = self.y
   local drawW = math.max(0, tonumber(self.w) or 0)
   local drawH = math.max(0, tonumber(self.h) or 0)
-  local usingStencil = drawRoundedToolbarStencil(drawX, drawY, drawW, drawH)
+  local dockedOnAppStrip = self._dockLayout ~= nil
+  local usingStencil = dockedOnAppStrip
+    and drawSharpToolbarStencil(drawX, drawY, drawW, drawH)
+    or drawRoundedToolbarStencil(drawX, drawY, drawW, drawH)
 
   local function drawToolbarContents()
     -- Draw background only behind occupied row spans.
