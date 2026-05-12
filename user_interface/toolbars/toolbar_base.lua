@@ -208,6 +208,9 @@ function ToolbarBase:addButton(icon, action, tooltip, opts)
     bgColor = opts.bgColor,
     bgAlpha = opts.bgAlpha,
     transparent = opts.transparent,
+    -- Full-opacity icon tint: Appearance chrome colors are applied alone (no idle 40% multiply).
+    -- Disabled buttons still use Button's disabled alpha inside contentAlpha().
+    alwaysOpaqueContent = opts.alwaysOpaqueContent ~= false,
   })
   button.toolbarRow = tonumber(opts.row) or nil
   if opts.paletteLinkHandle then
@@ -234,6 +237,7 @@ function ToolbarBase:addTextButton(text, action, tooltip, opts)
     bgColor = opts.bgColor,
     bgAlpha = opts.bgAlpha,
     transparent = opts.transparent,
+    alwaysOpaqueContent = opts.alwaysOpaqueContent ~= false,
   })
   button.toolbarRow = tonumber(opts.row) or nil
 
