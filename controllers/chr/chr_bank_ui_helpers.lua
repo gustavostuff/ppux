@@ -122,7 +122,7 @@ function M.hoverTooltipCandidate(ctx, drag, mx, my)
     return nil
   end
 
-  local text = ("Tile %d (0x%02X)\n(col %d, row %d)"):format(ti, ti % 256, col, row)
+  local text = ("Tile %d (0x%02X), col %d, row %d"):format(ti, ti % 256, col, row)
   return {
     text = text,
     immediate = false,

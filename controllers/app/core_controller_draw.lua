@@ -633,33 +633,81 @@ local function drawHardShadowRoundedFill(x, y, ww, wh)
   love.graphics.rectangle("fill", x, y, ww, wh, r, r)
 end
 
---- Expanded windows: header strip matches rounded title bar; body + bottom border are sharp (see drawBorder).
---- Rounded header rects omit the bottom-left/right "wings" (corner fillets), so a full-width band along the
---- bottom of the header is merged (max blend) before the body - keeps the shadow flush with the content block.
+--- Title-bar / toolbar strips: rounded **top** corners only; bottom edge stays sharp so it meets the body
+--- (and so blur does not inherit rounded bottom corners from `rectangle(..., r, r)` on the full strip).
+--- LOVE angles: 0 = right, clockwise; pie slices use quadrants at top-left / top-right arc centers.
+local function drawHardShadowTopRoundedStripFill(x, y, ww, wh)
+  if ww <= 0 or wh <= 0 then
+    return
+  end
+  local r = shadowRoundedRadiusForRect(ww, wh)
+  if r <= 0 then
+    love.graphics.rectangle("fill", x, y, ww, wh)
+    return
+  end
+  r = math.min(r, math.floor(math.min(ww, wh) * 0.5))
+  if ww <= 2 * r then
+    love.graphics.rectangle("fill", x, y, ww, wh)
+    return
+  end
+  -- Thin strip: avoid `rectangle(..., r, r)` (rounds bottom corners too); blur then corrupts distant corners.
+  if wh <= r then
+    love.graphics.rectangle("fill", x, y, ww, wh)
+    return
+  end
+  love.graphics.rectangle("fill", x + r, y + r, ww - 2 * r, wh - r)
+  love.graphics.rectangle("fill", x, y + r, r, wh - r)
+  love.graphics.rectangle("fill", x + ww - r, y + r, r, wh - r)
+  love.graphics.rectangle("fill", x + r, y, ww - 2 * r, r)
+  love.graphics.arc("fill", "pie", x + r, y + r, r, math.pi, math.pi * 1.5)
+  love.graphics.arc("fill", "pie", x + ww - r, y + r, r, math.pi * 1.5, math.pi * 2)
+end
+
+--- Integer pixel bounds for shadow mask geometry (fractional window rects blur badly at corners).
+local function pixelEnvelope(left, top, width, height)
+  local L = math.floor(left + 1e-6)
+  local T = math.floor(top + 1e-6)
+  local R = math.ceil(left + width - 1e-6)
+  local B = math.ceil(top + height - 1e-6)
+  return L, T, math.max(0, R - L), math.max(0, B - T)
+end
+
+--- Expanded windows: one silhouette = top-rounded header slab + sharp body slab.
+--- Header height follows content top (`cy - hy`) so the split matches real chrome; optional 1px vertical
+--- overlap removes a twin-rectangle seam after blur (max blend keeps alpha 1).
 local function drawExpandedWindowChromeShadowMask(ox, oy, w)
   local left, top, width, fullHeight = computeWindowChromeShadowRect(w)
-  local _, _, _, hh = w:getHeaderRect()
-  local bodyH = fullHeight - hh
-  drawHardShadowRoundedFill(left + ox, top + oy, width, hh)
-  local r = shadowRoundedRadiusForRect(width, hh)
-  if r > 0 and hh > r then
-    love.graphics.rectangle("fill", left + ox, top + hh - r + oy, width, r)
+  local cy = select(2, w:getScreenRect())
+  local _, hy = w:getHeaderRect()
+  local L, T, W, FH = pixelEnvelope(left, top, width, fullHeight)
+  local headerSpanPx = cy - hy
+  local hhPx = math.min(FH, math.max(0, math.ceil(headerSpanPx - 1e-9)))
+  local bodyPx = FH - hhPx
+  local x0 = L + ox
+  local y0 = T + oy
+  drawHardShadowTopRoundedStripFill(x0, y0, W, hhPx)
+  if bodyPx > 0 then
+    local overlap = (hhPx > 0) and 1 or 0
+    love.graphics.rectangle("fill", x0, y0 + hhPx - overlap, W, bodyPx + overlap)
   end
-  love.graphics.rectangle("fill", left + ox, top + hh + oy, width, bodyH)
 end
 
 local function drawHardShadowRectsForWindow(app, w, wm)
   local ox, oy = windowShadowPixelOffsets(app)
+  ox = math.floor(ox + 1e-6)
+  oy = math.floor(oy + 1e-6)
   if w._collapsed and type(w.getHeaderRect) == "function" then
     local left, top, width, height = computeWindowChromeShadowRect(w)
-    drawHardShadowRoundedFill(left + ox, top + oy, width, height)
+    local L, T, W, H = pixelEnvelope(left, top, width, height)
+    drawHardShadowTopRoundedStripFill(L + ox, T + oy, W, H)
   else
     drawExpandedWindowChromeShadowMask(ox, oy, w)
   end
 
   local tx, ty, tw, th = computeSpecializedToolbarShadowRect(app, w, wm)
   if tx then
-    drawHardShadowRoundedFill(tx + ox, ty + oy, tw, th)
+    local L, T, W, H = pixelEnvelope(tx, ty, tw, th)
+    drawHardShadowTopRoundedStripFill(L + ox, T + oy, W, H)
   end
 end
 
@@ -775,6 +823,8 @@ local function drawAllWindowShadows(app)
   -- Premultiplied silhouette: RGB stays (0,0,0); only alpha feeds blur/composite (see shaders.lua).
   love.graphics.setColor(0, 0, 0, 1)
   local shadowOx, shadowOy = windowShadowPixelOffsets(app)
+  shadowOx = math.floor(shadowOx + 1e-6)
+  shadowOy = math.floor(shadowOy + 1e-6)
   for _, w in ipairs(wm:getWindows()) do
     if not w or w._closed or w._minimized or w._groupHidden == true then
       goto shadow_continue
@@ -1705,12 +1755,10 @@ function AppCoreController:draw()
   love.graphics.clear(bg[1], bg[2], bg[3], 1, true, true)
 
   drawAllWindowShadows(self)
-
   -- Windows use full-canvas coordinates (y includes the top toolbar strip height).
   drawWindows(self)
   drawPaletteLinks(self)
   drawEmptyStatePrompt(self)
-
   -- Keep app top toolbar/status strip above all window content.
   AppTopToolbarController.draw(self)
 

@@ -198,6 +198,36 @@ describe("keyboard_input.lua - edit and grid shortcuts", function()
     ctrlDown = true
     KeyboardInput.keypressed("g", ctx.app)
     expect(status).toBe("Idle")
+    expect(focus.showGrid).toBe("chess")
+  end)
+
+  it("routes Ctrl+G to grid toggle in edit mode", function()
+    local status = "Idle"
+    local focus = { showGrid = "none" }
+    local ctrlDown = true
+
+    local ctx = {
+      getMode = function() return "edit" end,
+      setMode = function() end,
+      getFocus = function() return focus end,
+      getStatus = function() return status end,
+      setStatus = function(msg) status = msg end,
+      setColor = function() end,
+      wm = function() return nil end,
+      app = {},
+    }
+
+    KeyboardInput.setup(ctx, {
+      ctrlDown = function() return ctrlDown end,
+      shiftDown = function() return false end,
+      fillDown = function() return false end,
+      grabDown = function() return false end,
+      altDown = function() return false end,
+    })
+
+    KeyboardInput.keypressed("g", ctx.app)
+    expect(status).toBe("Idle")
+    expect(focus.showGrid).toBe("chess")
   end)
 end)
 

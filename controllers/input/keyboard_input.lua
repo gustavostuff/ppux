@@ -83,7 +83,9 @@ function M.keypressed(key, AppCoreControllerRef, keyRepeat)
     KeyboardModifierHintController.updateStatus(ctx, utils)
     local mode = ctx and ctx.getMode and ctx.getMode() or "tile"
     local isEditToolHoldKey = (key == "f" or key == "g")
-    if (not isEditToolHoldKey) or mode == "edit" then
+    local skipRouting = (not isEditToolHoldKey) or mode == "edit"
+    -- In edit mode, bare F/G are fill/grab holds; Ctrl+F / Ctrl+G are shortcuts and must reach handlers.
+    if skipRouting and not (mode == "edit" and isEditToolHoldKey and utils.ctrlDown and utils.ctrlDown()) then
       return
     end
   end

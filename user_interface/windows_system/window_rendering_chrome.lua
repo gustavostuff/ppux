@@ -182,7 +182,7 @@ local function getResizeHandleCapabilities(self)
   return canResizeLess, canResizeMore
 end
 
-function Window:drawResizeHandle(isFocused, scaledMouse)
+function Window:drawResizeHandle(isFocused, _scaledMouse)
   if self.resizable and isFocused and not self._collapsed then
     local hx, hy, hw, hh = self:getResizeHandleRect()
     local canResizeLess, canResizeMore = getResizeHandleCapabilities(self)
@@ -197,12 +197,8 @@ function Window:drawResizeHandle(isFocused, scaledMouse)
     local blocked = (not canResizeLess) and (not canResizeMore)
     if blocked then
       love.graphics.setColor(colors.yellow)
-    elseif self.resizing or self:mouseOnResizeHandle(scaledMouse.x, scaledMouse.y) then
-      local focusColor = colors:focusedChromeColor()
-      love.graphics.setColor(focusColor)
     else
-      -- Match window workspace fill (Appearance "BG"); masks are grayscale  x  tint.
-      love.graphics.setColor(colors:appWorkspaceFill())
+      love.graphics.setColor(colors:focusedChromeColor())
     end
 
     love.graphics.draw(handleImage, hx, hy)
