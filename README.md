@@ -2,7 +2,7 @@
 
 ## Open Source NES Art Editor
 
-Beta 0.1.2
+Beta 0.1.3
 
 <img src="img/readme_images/app_example.png" alt="">
 
@@ -72,7 +72,7 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 | PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view for screens assembled closer to how the game actually renders them  |
 
 
-Notes: 
+Notes:
 
 * To be clearer on CHR vs ROM windows: CHR Banks is the normal source browser containing only graphics data.
 
@@ -89,18 +89,16 @@ Windows include a slim toolbar strip just above the header. It holds small icon 
 
 1. **Previous bank** - `Left` key
 2. **Next bank** - `Right` key
-3. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - `M` key
-4. **Sync duplicate tiles** - on: identical tiles edit together; off: independent cells
+3. **Open base ROM folder** - opens your OS file manager on the folder that contains the loaded base ROM (disabled until PPUX knows a ROM path; tooltip explains *load ROM first* / *path unknown* states)
+4. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - `M` key
+5. **Diff vs loaded CHR** - toggles “git-like” overlays on the bank canvas: compares current CHR tile bytes against the ROM’s CHR snapshot from when this session loaded (`D` shortcut with a CHR Banks window focused, no modifiers). When ON: **green** tint on tiles that changed, **dark** tint on unchanged tiles ([design detail](docs/ui/CHR_ROM_DIFF_MODE.md)).
+6. **Sync duplicate tiles** - on: identical tiles edit together; off: independent cells
 
 #### ROM Banks toolbar
 
 <img src="img/readme_images/toolbars/rom_banks_toolbar.png" alt="ROM Banks specialized toolbar">
 
-Same navigation and layout toggle as CHR, **no** sync control (full-ROM surface would make this dangerous).
-
-1. **Previous bank** - `Left` key
-2. **Next bank** - `Right` key
-3. **Tile layout (8x8 / 8x16)** - `M` key
+Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface makes that unsafe).
 
 #### Static Art (tiles and sprites) toolbar
 
@@ -229,7 +227,7 @@ Tile mode is for selection, drag and drop and tile-level editing in general.
 - `Ctrl + Up/Down` to change inactive-layer opacity (disabled in PPU Frame pattern-layer-only mode)
 - `1` to `4` to assign palette numbers where supported
 - `H` / `V` to mirror selected sprites
-- bank windows: `Left/Right` switch banks, `M` toggles `8x8` / `8x16`
+- bank windows: `Left/Right` switch banks, `M` toggles `8x8` / `8x16`, `D` toggles **diff vs loaded CHR** (`8x16` pairs highlight as one unit when either half differs)
 - With a layout window focused, hold **`Space`** to cross-highlight matching tiles in the **current CHR/ROM bank** (see [Main controls](#main-controls)).
 
 ### Edit mode
