@@ -216,22 +216,9 @@ end
 -- Fills rows from contentStart up to (but not including) spacerRow; caller adds spacer + footer.
 local function layoutColorsTabContent(self, contentStart, spacerRow)
   local themeKey = normalizeThemeKey(self.getTheme and self.getTheme() or nil)
-  local themeTitle = (themeKey == "light") and "Light mode colors" or "Dark mode colors"
   local modePrefix = (themeKey == "light") and "light" or "dark"
 
   local r = contentStart
-  self.panel:setCell(1, r, {
-    kind = "label",
-    text = "",
-    align = "left",
-  })
-  self.panel:setCell(2, r, {
-    kind = "label",
-    text = themeTitle,
-    colspan = 2,
-    align = "center",
-  })
-  r = r + 1
 
   for _, spec in ipairs(APPEARANCE_ROW_SLOTS) do
     local slotId = (themeKey == "light") and spec.lightId or spec.darkId

@@ -14,7 +14,7 @@ local CanvasSpace = require("utils.canvas_space")
 local PaletteEdit = require("utils.palette_edit_helpers")
 
 local NORMAL_CELL_W, NORMAL_CELL_H = 32, 24
-local COMPACT_CELL_W, COMPACT_CELL_H = 20, 15
+local COMPACT_CELL_W, COMPACT_CELL_H = 20, 14
 
 local function buildSelectionAnim()
   if images and images.palette_selection then

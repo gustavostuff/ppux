@@ -304,6 +304,12 @@ local function ensureQuickButtons(app)
       h = cell,
     })
   end
+
+  for _, btn in pairs(app._appTopQuickButtons) do
+    if type(btn) == "table" then
+      btn.alwaysOpaqueContent = true
+    end
+  end
 end
 
 local function hasOpenProject(app)
