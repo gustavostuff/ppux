@@ -244,7 +244,8 @@ end
 local scrollingState = scrollingState or {}
 
 -- Defaults for `drawScrollingText`: window chrome titles, app status strip, modal path labels.
-TU.CHROME_SCROLL_TEXT_OPTS = { speed = 8, pause = 1 }
+-- Marquee advances in pixels; `speed` is px/s (opts.speedPx overrides if set).
+TU.CHROME_SCROLL_TEXT_OPTS = { speed = 52, pause = 1 }
 
 function TU.limitChars(text, maxChars, opts)
   text = tostring(text or "")
@@ -274,44 +275,43 @@ function TU.limitChars(text, maxChars, opts)
   return text:sub(1, maxChars - #suffix) .. suffix
 end
 
--- Largest end index `e >= s` such that text:sub(s, e) fits in `width` (pixel width).
-local function scrollingMaxEndIndex(text, font, len, s, width)
-  if s > len then
-    return len
+-- Clip to marquee viewport (`width` px wide), intersecting current scissor if any.
+local function withMarqueeClip(x, y, width, fh, drawFn)
+  local g = love and love.graphics
+  if not (g and type(drawFn) == "function") then
+    drawFn()
+    return
   end
-  local best = s - 1
-  for k = s, len do
-    if font:getWidth(text:sub(s, k)) <= width then
-      best = k
-    else
-      break
-    end
-  end
-  if best < s then
-    return s
-  end
-  return best
-end
+  local padY = math.max(6, fh + 2)
+  local clipX = math.floor(x + 1e-6)
+  local clipY = math.floor(y + 1e-6 - 4)
+  local clipW = math.ceil(math.max(tonumber(width) or 0, 1))
+  local clipH = math.ceil(math.max(padY, 1))
 
--- Smallest start index `s` such that the tail text:sub(s, len) fits in `width`.
-local function scrollingLastStartIndex(text, font, len, width)
-  for s = 1, len do
-    if font:getWidth(text:sub(s, len)) <= width then
-      return s
-    end
+  love.graphics.push("all")
+  if g.intersectScissor then
+    g.intersectScissor(clipX, clipY, clipW, clipH)
+  else
+    g.setScissor(clipX, clipY, clipW, clipH)
   end
-  return len
+  local ok, err = pcall(drawFn)
+  love.graphics.pop()
+  if not ok then
+    error(err, 2)
+  end
 end
 
 function TU.drawScrollingText(text, x, y, width, opts)
   opts = opts or {}
-  local defs = TU.CHROME_SCROLL_TEXT_OPTS or { speed = 8, pause = 1 }
-  local charsPerSecond = opts.speed or defs.speed
+  local defs = TU.CHROME_SCROLL_TEXT_OPTS or { speed = 52, pause = 1 }
   local pause = opts.pause or defs.pause
+  local speedPxSec = tonumber(opts.speedPx) or tonumber(opts.speed or defs.speed) or 52
+  speedPxSec = math.max(speedPxSec, 1e-3)
   local key = opts.key or text -- unique id per header
   local loop = opts.loop == true
   text = tostring(text or "")
   width = tonumber(width) or 0
+  local font = resolveFont()
 
   if width <= 0 then
     scrollingState[key] = nil
@@ -323,98 +323,110 @@ function TU.drawScrollingText(text, x, y, width, opts)
     return 1, 0
   end
 
-  local font = resolveFont()
   local len = #text
+  local tw = font:getWidth(text)
 
-  -- Whole line fits: no scrolling (width must be measured, not character counts — proportional fonts).
-  if font:getWidth(text) <= width then
-    rawPrint(text, x, y)
+  -- Whole line fits: no scrolling.
+  if tw <= width then
+    rawPrint(text, math.floor(x + 1e-6), y)
     scrollingState[key] = nil
     return 1, len
   end
 
-  -- Scroll range: start index runs from 1 to lastStart where the tail from lastStart fits.
-  local lastStart = scrollingLastStartIndex(text, font, len, width)
-  local range = math.max(0, lastStart - 1)
+  local scrollMaxPx = tw - width
+  local fh = math.max(font:getHeight() or 12, 1)
+  local now = 0
+  if love and love.timer and love.timer.getTime then
+    now = love.timer.getTime()
+  end
+  local mark = "scroll_" .. tostring(key)
 
   local st = scrollingState[key]
+  if st and (st.pixelMarquee ~= true or type(st.scrollPx) ~= "number" or st.pos ~= nil) then
+    scrollingState[key] = nil
+    st = nil
+  end
+
   if not st then
     st = {
-      pos = 0,
+      scrollPx = 0,
       dir = 1,
       mode = "pause",
-      mark = "scroll_" .. tostring(key),
-      range = range,
+      mark = mark,
       text = text,
       layoutWidth = width,
       loop = loop,
+      lastT = now,
+      pixelMarquee = true,
     }
     scrollingState[key] = st
-    Timer.mark(st.mark)
+    Timer.mark(mark)
+    st.lastT = now or 0
   else
     if st.text ~= text or st.layoutWidth ~= width or st.loop ~= loop then
-      st.pos = 0
+      st.scrollPx = 0
       st.dir = 1
       st.mode = "pause"
       st.text = text
       st.layoutWidth = width
       st.loop = loop
-      Timer.mark(st.mark)
+      Timer.mark(mark)
+      st.lastT = now or st.lastT or 0
     end
-    st.range = range
-    if st.pos > range then
-      st.pos = range
-    end
+    st.mark = mark
+    if type(st.scrollPx) ~= "number" then st.scrollPx = 0 end
+    if st.scrollPx > scrollMaxPx then st.scrollPx = scrollMaxPx end
+    if st.scrollPx < 0 then st.scrollPx = 0 end
   end
 
-  local stepDelay = 1 / charsPerSecond
-  local elapsed = Timer.elapsed(st.mark) or 0
+  local elapsedPause = Timer.elapsed(mark) or 0
 
   if st.mode == "pause" then
-    if elapsed >= pause then
+    if elapsedPause >= pause then
       st.mode = "move"
-      Timer.mark(st.mark)
+      st.lastT = now or 0
     end
-  else -- "move"
-    if elapsed >= stepDelay then
-      if st.loop then
-        st.pos = st.pos + 1
-        if st.pos > range then
-          st.pos = 0
-          if pause > 0 then
-            st.mode = "pause"
-          end
-        end
-      else
-        st.pos = st.pos + st.dir
+  else
+    local t1 = now
+    local t0 = st.lastT or t1 or 0
+    local dt = (t1 and t1 - t0) or 0
+    if dt < 0 then dt = 0 end
+    dt = math.min(dt, 0.25)
+    st.lastT = t1 or t0
 
-        if st.pos <= 0 then
-          st.pos = 0
-          st.dir = 1
+    if st.loop then
+      st.scrollPx = st.scrollPx + speedPxSec * dt
+      if scrollMaxPx > 0 and st.scrollPx >= scrollMaxPx then
+        -- Continuous loop: normalize offset; discrete wrap matched old checkbox loop.
+        st.scrollPx = st.scrollPx % scrollMaxPx
+        if pause > 0 then
           st.mode = "pause"
-        elseif st.pos >= range then
-          st.pos = range
-          st.dir = -1
-          st.mode = "pause"
+          Timer.mark(mark)
         end
       end
-
-      Timer.mark(st.mark)
+    else
+      st.scrollPx = st.scrollPx + st.dir * speedPxSec * dt
+      if st.scrollPx <= 0 then
+        st.scrollPx = 0
+        st.dir = 1
+        st.mode = "pause"
+        Timer.mark(mark)
+      elseif st.scrollPx >= scrollMaxPx then
+        st.scrollPx = scrollMaxPx
+        st.dir = -1
+        st.mode = "pause"
+        Timer.mark(mark)
+      end
     end
   end
 
-  local startIdx = 1 + st.pos
-  local endIdx = scrollingMaxEndIndex(text, font, len, startIdx, width)
-  local visible = text:sub(startIdx, endIdx)
-  -- Guard against float/rounding or font quirks: never draw wider than the viewport.
-  while #visible > 1 and font:getWidth(visible) > width do
-    visible = visible:sub(1, -2)
-  end
+  local drawX = math.floor(x + 1e-6 - st.scrollPx)
+  local drawY = y
+  withMarqueeClip(x, drawY, width, fh, function()
+    rawPrint(text, drawX, drawY)
+  end)
 
-  rawPrint(visible, x, y)
-
-  local outEnd = startIdx + math.max(0, #visible) - 1
-  return startIdx, outEnd
+  return 1, len
 end
 
 function TU.drawScrollingHeader(text, x, y, width, opts)

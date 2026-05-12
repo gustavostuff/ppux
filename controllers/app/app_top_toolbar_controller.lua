@@ -18,7 +18,8 @@ local OUTER_MARGIN = 0
 local SECTION_GAP = 0
 local BUTTON_GAP = 0
 local STATUS_BG_H = 15
--- Status strip: fixed monospace character-cell count (+ horizontal pad). Advance from active font probe glyph.
+-- Status strip: up to this many monospace character cells (+ horizontal pad). Unused slots are dropped when
+-- dock/quick buttons leave less width — outer width stays pad + k * advance + pad only (no fractional cell).
 local STATUS_CHARACTER_SLOTS = 30
 local STATUS_MONO_WIDTH_PROBE = "M"
 local STATUS_PAD_X = 4
@@ -495,11 +496,17 @@ function M.syncLayout(app)
   local quickRightX = x
   local dockLeftX = quickRightX + SECTION_GAP
   local slotW = statusMonoAdvancePx()
-  local statusInteriorPx = slotW * STATUS_CHARACTER_SLOTS
-  local statusReserveOuter = statusInteriorPx + (STATUS_PAD_X * 2)
+  local pad2 = STATUS_PAD_X * 2
   local statusRightX = math.max(0, canvasW - OUTER_MARGIN)
-  local desiredStatusLeftX = statusRightX - statusReserveOuter
-  local statusLeftX = math.max(desiredStatusLeftX, dockLeftX + SECTION_GAP)
+  local minStatusLeft = dockLeftX + SECTION_GAP
+
+  -- Status column width = pad + k * monospaceAdvance + pad (whole slots only; no fractional remainder).
+  local availOuter = math.max(0, statusRightX - minStatusLeft)
+  local maxInterior = math.max(0, availOuter - pad2)
+  local statusSlotCount = math.min(STATUS_CHARACTER_SLOTS, math.floor(maxInterior / math.max(slotW, 1e-6)))
+  local statusInteriorPx = statusSlotCount * slotW
+  local statusReserveOuter = statusInteriorPx + pad2
+  local statusLeftX = statusRightX - statusReserveOuter
 
   local totalH = math.max(MIN_BAR_H, topY + cell + OUTER_MARGIN)
   local dockedWin = nil
@@ -547,7 +554,7 @@ function M.syncLayout(app)
     cell = cell,
     statusSlotW = slotW,
     statusInteriorTargetPx = statusInteriorPx,
-    statusSlots = STATUS_CHARACTER_SLOTS,
+    statusSlots = statusSlotCount,
   }
 end
 
@@ -610,10 +617,21 @@ function M.draw(app)
     love.graphics.setScissor()
   end
 
+  if statusW > 0 then
+    local slx = math.floor(statusLeftX + 1e-6)
+    if slx > 0 then
+      local ink = colors:chromeTextIconsColorNonFocused()
+      love.graphics.setColor(ink[1], ink[2], ink[3], 0.5)
+      love.graphics.rectangle("fill", slx - 1, 0, 1, h)
+      love.graphics.setColor(colors.white)
+    end
+  end
+
   local statusText = tostring(app.lastEventText or app.statusText or "")
   local pad = STATUS_PAD_X
   local outerInteriorW = math.max(0, statusW - pad * 2)
-  local textW = math.min(statusInteriorTargetPx, outerInteriorW)
+  local rawTextW = math.min(statusInteriorTargetPx, outerInteriorW)
+  local textW = math.floor(math.max(0, rawTextW) / math.max(slotWFallback, 1e-6)) * slotWFallback
   local textX = statusLeftX + pad + math.max(0, outerInteriorW - textW)
   local font = love.graphics.getFont()
   local textY = statusY + math.floor((STATUS_BG_H - (font and font:getHeight() or 0)) / 2)

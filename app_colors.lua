@@ -40,11 +40,11 @@ local defaultAppColors = {
   dark_focused = "242424",
   light_focused = "DBDBDB",
   dark_non_focused = "494949",
-  light_non_focused = "929292",
+  light_non_focused = "B6B6B6",
   dark_text_icons_focused = "FFFFFF",
-  light_text_icons_focused = "494949",
+  light_text_icons_focused = "242424",
   dark_text_icons_non_focused = "B6B6B6",
-  light_text_icons_non_focused = "242424",
+  light_text_icons_non_focused = "494949",
 }
 
 local function hex6ToRgb01(hex)
