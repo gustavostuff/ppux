@@ -1,5 +1,7 @@
 # Maintenance patterns & smells (short audit)
 
+**Status:** `APP_MODAL_KEYS_IN_ORDER`, `modalVisible`, `anyModalVisible`, and context-menu key lists live in `controllers/app/core_controller_shared.lua`. `core_controller_input.lua` loops those lists for keyboard/mouse/textinput routing; `core_controller_draw.lua` draws overlay context menus via `APP_OVERLAY_CONTEXT_MENU_KEYS`. The unused duplicate `anyModalVisible` in `core_controller_lifecycle.lua` was removed.
+
 Short catalog of recurring patterns that are hard to extend safely, plus practical directions (not a refactor mandate).
 
 ---

@@ -37,6 +37,7 @@ end
 
 return function(AppCoreController)
 local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
+local Shared = require("controllers.app.core_controller_shared")
 -- Find the active global palette window (non-ROM) and return its first color,
 -- or nil if none is available.
 
@@ -759,11 +760,9 @@ local function drawHardShadowMasksForOpenContextMenus(app, ox, oy)
       menu:accumulateVisiblePanelShadowRectsInto(rects)
     end
   end
-  addFrom(app.windowHeaderContextMenu)
-  addFrom(app.emptySpaceContextMenu)
-  addFrom(app.ppuTileContextMenu)
-  addFrom(app.paletteLinkContextMenu)
-  addFrom(app.e2eOverlayMenu)
+  for _, key in ipairs(Shared.APP_OVERLAY_CONTEXT_MENU_KEYS) do
+    addFrom(app[key])
+  end
   if app.taskbar and app.taskbar.menuController then
     addFrom(app.taskbar.menuController)
   end
@@ -1564,36 +1563,19 @@ local function drawTranslatedNonModalOverlays(app)
   drawEditModeColorIndicator(app)
 end
 
+local function drawVisibleOverlayContextMenu(menu)
+  if not menu or not menu:isVisible() then
+    return
+  end
+  if menu.update then
+    menu:update()
+  end
+  menu:draw()
+end
+
 local function drawNonModalOverlays(app)
-  if app.windowHeaderContextMenu and app.windowHeaderContextMenu.isVisible and app.windowHeaderContextMenu:isVisible() then
-    if app.windowHeaderContextMenu.update then
-      app.windowHeaderContextMenu:update()
-    end
-    app.windowHeaderContextMenu:draw()
-  end
-  if app.emptySpaceContextMenu and app.emptySpaceContextMenu.isVisible and app.emptySpaceContextMenu:isVisible() then
-    if app.emptySpaceContextMenu.update then
-      app.emptySpaceContextMenu:update()
-    end
-    app.emptySpaceContextMenu:draw()
-  end
-  if app.ppuTileContextMenu and app.ppuTileContextMenu.isVisible and app.ppuTileContextMenu:isVisible() then
-    if app.ppuTileContextMenu.update then
-      app.ppuTileContextMenu:update()
-    end
-    app.ppuTileContextMenu:draw()
-  end
-  if app.paletteLinkContextMenu and app.paletteLinkContextMenu.isVisible and app.paletteLinkContextMenu:isVisible() then
-    if app.paletteLinkContextMenu.update then
-      app.paletteLinkContextMenu:update()
-    end
-    app.paletteLinkContextMenu:draw()
-  end
-  if app.e2eOverlayMenu and app.e2eOverlayMenu.isVisible and app.e2eOverlayMenu:isVisible() then
-    if app.e2eOverlayMenu.update then
-      app.e2eOverlayMenu:update()
-    end
-    app.e2eOverlayMenu:draw()
+  for _, key in ipairs(Shared.APP_OVERLAY_CONTEXT_MENU_KEYS) do
+    drawVisibleOverlayContextMenu(app[key])
   end
 end
 

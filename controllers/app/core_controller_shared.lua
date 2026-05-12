@@ -73,22 +73,68 @@ function M.parsePositiveDecimalInteger(text, label)
   return value
 end
 
+--- Keys on app, top-first stack order for keyboard/mouse routing.
+M.APP_MODAL_KEYS_IN_ORDER = {
+  "quitConfirmModal",
+  "saveOptionsModal",
+  "genericActionsModal",
+  "settingsModal",
+  "newWindowTypeModal",
+  "newWindowModal",
+  "openProjectModal",
+  "openReferencePngModal",
+  "renameWindowModal",
+  "romPaletteAddressModal",
+  "ppuFrameSpriteLayerModeModal",
+  "ppuFrameAddSpriteModal",
+  "ppuFrameRangeModal",
+  "ppuFramePatternRangeModal",
+  "textFieldDemoModal",
+}
+
+--- After dispatching key to this modal, refresh the cursor (matches prior behavior).
+M.MODAL_KEY_REFRESH_CURSOR_KEYS = {
+  quitConfirmModal = true,
+  saveOptionsModal = true,
+}
+
+--- After mousepressed/mousereleased on this modal, refresh the cursor.
+M.MODAL_MOUSE_REFRESH_CURSOR_KEYS = {
+  quitConfirmModal = true,
+  saveOptionsModal = true,
+  genericActionsModal = true,
+}
+
+--- Context menus hit-tested from core_controller_input (no E2E overlay).
+M.APP_CONTEXT_MENU_KEYS = {
+  "windowHeaderContextMenu",
+  "emptySpaceContextMenu",
+  "ppuTileContextMenu",
+  "paletteLinkContextMenu",
+}
+
+--- Context menus drawn + shadow-masked (includes E2E overlay menu).
+M.APP_OVERLAY_CONTEXT_MENU_KEYS = {
+  "windowHeaderContextMenu",
+  "emptySpaceContextMenu",
+  "ppuTileContextMenu",
+  "paletteLinkContextMenu",
+  "e2eOverlayMenu",
+}
+
+function M.modalVisible(modal)
+  return modal and modal.isVisible and modal:isVisible()
+end
+
 function M.anyModalVisible(app)
-  return (app.quitConfirmModal and app.quitConfirmModal:isVisible())
-    or (app.saveOptionsModal and app.saveOptionsModal:isVisible())
-    or (app.genericActionsModal and app.genericActionsModal:isVisible())
-    or (app.settingsModal and app.settingsModal:isVisible())
-    or (app.newWindowTypeModal and app.newWindowTypeModal:isVisible())
-    or (app.newWindowModal and app.newWindowModal:isVisible())
-    or (app.openProjectModal and app.openProjectModal:isVisible())
-    or (app.openReferencePngModal and app.openReferencePngModal:isVisible())
-    or (app.renameWindowModal and app.renameWindowModal:isVisible())
-    or (app.romPaletteAddressModal and app.romPaletteAddressModal:isVisible())
-    or (app.ppuFrameSpriteLayerModeModal and app.ppuFrameSpriteLayerModeModal:isVisible())
-    or (app.ppuFrameAddSpriteModal and app.ppuFrameAddSpriteModal:isVisible())
-    or (app.ppuFrameRangeModal and app.ppuFrameRangeModal:isVisible())
-    or (app.ppuFramePatternRangeModal and app.ppuFramePatternRangeModal:isVisible())
-    or (app.textFieldDemoModal and app.textFieldDemoModal:isVisible())
+  if not app then return false end
+  for _, key in ipairs(M.APP_MODAL_KEYS_IN_ORDER) do
+    local modal = app[key]
+    if modal and modal.isVisible and modal:isVisible() then
+      return true
+    end
+  end
+  return false
 end
 
 function M.getTopWindowTooltipCandidate(app, x, y)
@@ -126,25 +172,9 @@ function M.getTopWindowTooltipCandidate(app, x, y)
 end
 
 function M.getTopModalTooltipCandidate(app, x, y)
-  local modals = {
-    app.quitConfirmModal,
-    app.saveOptionsModal,
-    app.genericActionsModal,
-    app.settingsModal,
-    app.newWindowTypeModal,
-    app.newWindowModal,
-    app.openProjectModal,
-    app.openReferencePngModal,
-    app.renameWindowModal,
-    app.romPaletteAddressModal,
-    app.ppuFrameSpriteLayerModeModal,
-    app.ppuFrameAddSpriteModal,
-    app.ppuFrameRangeModal,
-    app.ppuFramePatternRangeModal,
-    app.textFieldDemoModal,
-  }
-
-  for _, modal in ipairs(modals) do
+  if not app then return nil end
+  for _, key in ipairs(M.APP_MODAL_KEYS_IN_ORDER) do
+    local modal = app[key]
     if modal and modal.isVisible and modal:isVisible() and modal.getTooltipAt then
       local candidate = modal:getTooltipAt(x, y)
       if candidate then

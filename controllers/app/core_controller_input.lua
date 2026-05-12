@@ -1,3 +1,4 @@
+local Shared = require("controllers.app.core_controller_shared")
 local SpriteController = require("controllers.sprite.sprite_controller")
 local KeyboardDebugController = require("controllers.input.keyboard_debug_controller")
 local KeyboardWindowShortcutsController = require("controllers.input.keyboard_window_shortcuts_controller")
@@ -48,10 +49,6 @@ local function hasActiveWindowInteraction(app)
   return false
 end
 
-local function modalVisible(modal)
-  return modal and modal.isVisible and modal:isVisible()
-end
-
 local function modalHandleKey(modal, key)
   if not modal then return end
   if modal.handleKey then
@@ -67,13 +64,8 @@ end
 
 local function eachAppContextMenu(app, fn)
   if not app or not fn then return end
-  local menus = {
-    app.windowHeaderContextMenu,
-    app.emptySpaceContextMenu,
-    app.ppuTileContextMenu,
-    app.paletteLinkContextMenu,
-  }
-  for _, menu in ipairs(menus) do
+  for _, key in ipairs(Shared.APP_CONTEXT_MENU_KEYS) do
+    local menu = app[key]
     if menu then
       fn(menu)
     end
@@ -142,6 +134,91 @@ local function handleAppContextMenuMouseMoved(app, x, y)
   return visible
 end
 
+local function dispatchModalMousePressed(app, mouse, b)
+  if Shared.modalVisible(app.quitConfirmModal) then
+    app.quitConfirmModal:mousepressed(mouse.x, mouse.y, b)
+    refreshCursor(app)
+    return true
+  end
+  if app.splash and app.splash:isVisible() then
+    app.splash:mousepressed(mouse.x, mouse.y, b)
+    refreshCursor(app)
+    return true
+  end
+  for _, modalKey in ipairs(Shared.APP_MODAL_KEYS_IN_ORDER) do
+    if modalKey ~= "quitConfirmModal" then
+      local modal = app[modalKey]
+      if Shared.modalVisible(modal) then
+        modal:mousepressed(mouse.x, mouse.y, b)
+        if Shared.MODAL_MOUSE_REFRESH_CURSOR_KEYS[modalKey] then
+          refreshCursor(app)
+        end
+        return true
+      end
+    end
+  end
+  return false
+end
+
+local function dispatchModalMouseReleased(app, mouse, b)
+  if Shared.modalVisible(app.quitConfirmModal) then
+    app.quitConfirmModal:mousereleased(mouse.x, mouse.y, b)
+    refreshCursor(app)
+    return true
+  end
+  if app.splash and app.splash:isVisible() then
+    app.splash:mousereleased(mouse.x, mouse.y, function()
+      AppSettingsController.save({ skipSplash = true })
+    end)
+    refreshCursor(app)
+    return true
+  end
+  for _, modalKey in ipairs(Shared.APP_MODAL_KEYS_IN_ORDER) do
+    if modalKey ~= "quitConfirmModal" then
+      local modal = app[modalKey]
+      if Shared.modalVisible(modal) then
+        modal:mousereleased(mouse.x, mouse.y, b)
+        if Shared.MODAL_MOUSE_REFRESH_CURSOR_KEYS[modalKey] then
+          refreshCursor(app)
+        end
+        return true
+      end
+    end
+  end
+  return false
+end
+
+local function dispatchModalMouseMovedAfterSplash(app, mouse)
+  for _, modalKey in ipairs(Shared.APP_MODAL_KEYS_IN_ORDER) do
+    if modalKey ~= "quitConfirmModal" then
+      local modal = app[modalKey]
+      if Shared.modalVisible(modal) then
+        modal:mousemoved(mouse.x, mouse.y)
+        return true
+      end
+      if modalKey == "settingsModal" then
+        if handleAppContextMenuMouseMoved(app, mouse.x, mouse.y) then
+          return true
+        end
+      end
+    end
+  end
+  return false
+end
+
+--- Subset of modals that participate in textinput (same precedence order as before).
+local TEXTINPUT_ROUTES = {
+  { key = "newWindowTypeModal", consumeOnly = true },
+  { key = "newWindowModal", method = "textinput" },
+  { key = "renameWindowModal", method = "textinput" },
+  { key = "romPaletteAddressModal", method = "textinput" },
+  { key = "ppuFrameSpriteLayerModeModal", consumeOnly = true },
+  { key = "ppuFrameAddSpriteModal", method = "textinput" },
+  { key = "ppuFrameRangeModal", method = "textinput" },
+  { key = "ppuFramePatternRangeModal", method = "textinput" },
+  { key = "textFieldDemoModal", method = "textinput" },
+}
+
 local function handleAlwaysAvailableWindowShortcuts(app, key, keyRepeat)
   if keyRepeat then
     return false
@@ -195,68 +272,16 @@ function AppCoreController:keypressed(k, scancode, isrepeat)
     return
   end
 
-  -- Handle dialog input
-  if modalVisible(self.quitConfirmModal) then
-    modalHandleKey(self.quitConfirmModal, k)
-    refreshCursor(self)
-    return
-  end
-  if modalVisible(self.saveOptionsModal) then
-    modalHandleKey(self.saveOptionsModal, k)
-    refreshCursor(self)
-    return
-  end
-  if modalVisible(self.genericActionsModal) then
-    modalHandleKey(self.genericActionsModal, k)
-    return
-  end
-  if modalVisible(self.settingsModal) then
-    modalHandleKey(self.settingsModal, k)
-    return
-  end
-  if modalVisible(self.newWindowTypeModal) then
-    modalHandleKey(self.newWindowTypeModal, k)
-    return
-  end
-  if modalVisible(self.newWindowModal) then
-    modalHandleKey(self.newWindowModal, k)
-    return
-  end
-  if modalVisible(self.openProjectModal) then
-    modalHandleKey(self.openProjectModal, k)
-    return
-  end
-  if self.openReferencePngModal and modalVisible(self.openReferencePngModal) then
-    modalHandleKey(self.openReferencePngModal, k)
-    return
-  end
-  if modalVisible(self.renameWindowModal) then
-    modalHandleKey(self.renameWindowModal, k)
-    return
-  end
-  if modalVisible(self.romPaletteAddressModal) then
-    modalHandleKey(self.romPaletteAddressModal, k)
-    return
-  end
-  if modalVisible(self.ppuFrameSpriteLayerModeModal) then
-    modalHandleKey(self.ppuFrameSpriteLayerModeModal, k)
-    return
-  end
-  if modalVisible(self.ppuFrameAddSpriteModal) then
-    modalHandleKey(self.ppuFrameAddSpriteModal, k)
-    return
-  end
-  if modalVisible(self.ppuFrameRangeModal) then
-    modalHandleKey(self.ppuFrameRangeModal, k)
-    return
-  end
-  if modalVisible(self.ppuFramePatternRangeModal) then
-    modalHandleKey(self.ppuFramePatternRangeModal, k)
-    return
-  end
-  if modalVisible(self.textFieldDemoModal) then
-    modalHandleKey(self.textFieldDemoModal, k)
-    return
+  -- Handle dialog input (first visible modal in stack order)
+  for _, modalKey in ipairs(Shared.APP_MODAL_KEYS_IN_ORDER) do
+    local modal = self[modalKey]
+    if Shared.modalVisible(modal) then
+      modalHandleKey(modal, k)
+      if Shared.MODAL_KEY_REFRESH_CURSOR_KEYS[modalKey] then
+        refreshCursor(self)
+      end
+      return
+    end
   end
   if self.splash and self.splash.isVisible and self.splash:isVisible() then
     if self.splash.keypressed then
@@ -303,21 +328,7 @@ function AppCoreController:keypressed(k, scancode, isrepeat)
 end
 
 function AppCoreController:keyreleased(k)
-  if modalVisible(self.quitConfirmModal)
-      or modalVisible(self.saveOptionsModal)
-      or modalVisible(self.genericActionsModal)
-      or modalVisible(self.settingsModal)
-      or modalVisible(self.newWindowTypeModal)
-      or modalVisible(self.newWindowModal)
-      or modalVisible(self.openProjectModal)
-      or (self.openReferencePngModal and modalVisible(self.openReferencePngModal))
-      or modalVisible(self.renameWindowModal)
-      or modalVisible(self.romPaletteAddressModal)
-      or modalVisible(self.ppuFrameSpriteLayerModeModal)
-      or modalVisible(self.ppuFrameAddSpriteModal)
-      or modalVisible(self.ppuFrameRangeModal)
-      or modalVisible(self.ppuFramePatternRangeModal)
-      or modalVisible(self.textFieldDemoModal)
+  if Shared.anyModalVisible(self)
       or (self.splash and self.splash.isVisible and self.splash:isVisible()) then
     refreshCursor(self)
     return
@@ -333,78 +344,7 @@ function AppCoreController:mousepressed(x, y, b)
   
   DebugController.log("info", "INPUT", "AppCoreController:mousepressed - screen: (%d, %d), canvas: (%.1f, %.1f), button: %d", x, y, mouse.x, mouse.y, b)
 
-  if self.quitConfirmModal:isVisible() then
-    self.quitConfirmModal:mousepressed(mouse.x, mouse.y, b)
-    refreshCursor(self)
-    return
-  end
-
-  -- Splash consumes initial click
-  if self.splash and self.splash:isVisible() then
-    self.splash:mousepressed(mouse.x, mouse.y, b)
-    refreshCursor(self)
-    return
-  end
-
-  if self.saveOptionsModal and self.saveOptionsModal:isVisible() then
-    self.saveOptionsModal:mousepressed(mouse.x, mouse.y, b)
-    refreshCursor(self)
-    return
-  end
-
-  if self.genericActionsModal:isVisible() then
-    self.genericActionsModal:mousepressed(mouse.x, mouse.y, b)
-    refreshCursor(self)
-    return
-  end
-
-  if self.settingsModal and self.settingsModal:isVisible() then
-    self.settingsModal:mousepressed(mouse.x, mouse.y, b)
-    return
-  end
-
-  if self.newWindowTypeModal and self.newWindowTypeModal:isVisible() then
-    self.newWindowTypeModal:mousepressed(mouse.x, mouse.y, b)
-    return
-  end
-  if self.newWindowModal:isVisible() then
-    self.newWindowModal:mousepressed(mouse.x, mouse.y, b)
-    return
-  end
-  if self.openProjectModal and self.openProjectModal:isVisible() then
-    self.openProjectModal:mousepressed(mouse.x, mouse.y, b)
-    return
-  end
-  if self.openReferencePngModal and self.openReferencePngModal:isVisible() then
-    self.openReferencePngModal:mousepressed(mouse.x, mouse.y, b)
-    return
-  end
-  if self.renameWindowModal and self.renameWindowModal:isVisible() then
-    self.renameWindowModal:mousepressed(mouse.x, mouse.y, b)
-    return
-  end
-  if self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible() then
-    self.romPaletteAddressModal:mousepressed(mouse.x, mouse.y, b)
-    return
-  end
-  if self.ppuFrameSpriteLayerModeModal and self.ppuFrameSpriteLayerModeModal:isVisible() then
-    self.ppuFrameSpriteLayerModeModal:mousepressed(mouse.x, mouse.y, b)
-    return
-  end
-  if self.ppuFrameAddSpriteModal and self.ppuFrameAddSpriteModal:isVisible() then
-    self.ppuFrameAddSpriteModal:mousepressed(mouse.x, mouse.y, b)
-    return
-  end
-  if self.ppuFrameRangeModal and self.ppuFrameRangeModal:isVisible() then
-    self.ppuFrameRangeModal:mousepressed(mouse.x, mouse.y, b)
-    return
-  end
-  if self.ppuFramePatternRangeModal and self.ppuFramePatternRangeModal:isVisible() then
-    self.ppuFramePatternRangeModal:mousepressed(mouse.x, mouse.y, b)
-    return
-  end
-  if self.textFieldDemoModal and self.textFieldDemoModal:isVisible() then
-    self.textFieldDemoModal:mousepressed(mouse.x, mouse.y, b)
+  if dispatchModalMousePressed(self, mouse, b) then
     return
   end
 
@@ -449,79 +389,7 @@ function AppCoreController:mousereleased(x, y, b)
   local DebugController = require("controllers.dev.debug_controller")
   DebugController.log("info", "INPUT", "AppCoreController:mousereleased - screen: (%d, %d), canvas: (%.1f, %.1f), button: %d", x, y, mouse.x, mouse.y, b)
 
-  if self.quitConfirmModal:isVisible() then
-    self.quitConfirmModal:mousereleased(mouse.x, mouse.y, b)
-    refreshCursor(self)
-    return
-  end
-
-  if self.splash and self.splash:isVisible() then
-    self.splash:mousereleased(mouse.x, mouse.y, function()
-      AppSettingsController.save({ skipSplash = true })
-    end)
-    refreshCursor(self)
-    return
-  end
-
-  if self.saveOptionsModal and self.saveOptionsModal:isVisible() then
-    self.saveOptionsModal:mousereleased(mouse.x, mouse.y, b)
-    refreshCursor(self)
-    return
-  end
-
-  if self.genericActionsModal:isVisible() then
-    self.genericActionsModal:mousereleased(mouse.x, mouse.y, b)
-    refreshCursor(self)
-    return
-  end
-
-  if self.settingsModal and self.settingsModal:isVisible() then
-    self.settingsModal:mousereleased(mouse.x, mouse.y, b)
-    return
-  end
-
-  if self.newWindowTypeModal and self.newWindowTypeModal:isVisible() then
-    self.newWindowTypeModal:mousereleased(mouse.x, mouse.y, b)
-    return
-  end
-  if self.newWindowModal:isVisible() then
-    self.newWindowModal:mousereleased(mouse.x, mouse.y, b)
-    return
-  end
-  if self.openProjectModal and self.openProjectModal:isVisible() then
-    self.openProjectModal:mousereleased(mouse.x, mouse.y, b)
-    return
-  end
-  if self.openReferencePngModal and self.openReferencePngModal:isVisible() then
-    self.openReferencePngModal:mousereleased(mouse.x, mouse.y, b)
-    return
-  end
-  if self.renameWindowModal and self.renameWindowModal:isVisible() then
-    self.renameWindowModal:mousereleased(mouse.x, mouse.y, b)
-    return
-  end
-  if self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible() then
-    self.romPaletteAddressModal:mousereleased(mouse.x, mouse.y, b)
-    return
-  end
-  if self.ppuFrameSpriteLayerModeModal and self.ppuFrameSpriteLayerModeModal:isVisible() then
-    self.ppuFrameSpriteLayerModeModal:mousereleased(mouse.x, mouse.y, b)
-    return
-  end
-  if self.ppuFrameAddSpriteModal and self.ppuFrameAddSpriteModal:isVisible() then
-    self.ppuFrameAddSpriteModal:mousereleased(mouse.x, mouse.y, b)
-    return
-  end
-  if self.ppuFrameRangeModal and self.ppuFrameRangeModal:isVisible() then
-    self.ppuFrameRangeModal:mousereleased(mouse.x, mouse.y, b)
-    return
-  end
-  if self.ppuFramePatternRangeModal and self.ppuFramePatternRangeModal:isVisible() then
-    self.ppuFramePatternRangeModal:mousereleased(mouse.x, mouse.y, b)
-    return
-  end
-  if self.textFieldDemoModal and self.textFieldDemoModal:isVisible() then
-    self.textFieldDemoModal:mousereleased(mouse.x, mouse.y, b)
+  if dispatchModalMouseReleased(self, mouse, b) then
     return
   end
 
@@ -562,7 +430,7 @@ function AppCoreController:mousemoved(x, y, dx, dy)
   dy = dy or 0
   refreshCursor(self)
 
-  if self.quitConfirmModal:isVisible() then
+  if Shared.modalVisible(self.quitConfirmModal) then
     self.quitConfirmModal:mousemoved(mouse.x, mouse.y)
     return
   end
@@ -582,67 +450,7 @@ function AppCoreController:mousemoved(x, y, dx, dy)
     return
   end
 
-  if self.saveOptionsModal and self.saveOptionsModal:isVisible() then
-    self.saveOptionsModal:mousemoved(mouse.x, mouse.y)
-    return
-  end
-
-  if self.genericActionsModal:isVisible() then
-    self.genericActionsModal:mousemoved(mouse.x, mouse.y)
-    return
-  end
-
-  if self.settingsModal and self.settingsModal:isVisible() then
-    self.settingsModal:mousemoved(mouse.x, mouse.y)
-    return
-  end
-
-  if handleAppContextMenuMouseMoved(self, mouse.x, mouse.y) then
-    return
-  end
-
-  if self.newWindowTypeModal and self.newWindowTypeModal:isVisible() then
-    self.newWindowTypeModal:mousemoved(mouse.x, mouse.y)
-    return
-  end
-  if self.newWindowModal:isVisible() then
-    self.newWindowModal:mousemoved(mouse.x, mouse.y)
-    return
-  end
-  if self.openProjectModal and self.openProjectModal:isVisible() then
-    self.openProjectModal:mousemoved(mouse.x, mouse.y)
-    return
-  end
-  if self.openReferencePngModal and self.openReferencePngModal:isVisible() then
-    self.openReferencePngModal:mousemoved(mouse.x, mouse.y)
-    return
-  end
-  if self.renameWindowModal and self.renameWindowModal:isVisible() then
-    self.renameWindowModal:mousemoved(mouse.x, mouse.y)
-    return
-  end
-  if self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible() then
-    self.romPaletteAddressModal:mousemoved(mouse.x, mouse.y)
-    return
-  end
-  if self.ppuFrameSpriteLayerModeModal and self.ppuFrameSpriteLayerModeModal:isVisible() then
-    self.ppuFrameSpriteLayerModeModal:mousemoved(mouse.x, mouse.y)
-    return
-  end
-  if self.ppuFrameAddSpriteModal and self.ppuFrameAddSpriteModal:isVisible() then
-    self.ppuFrameAddSpriteModal:mousemoved(mouse.x, mouse.y)
-    return
-  end
-  if self.ppuFrameRangeModal and self.ppuFrameRangeModal:isVisible() then
-    self.ppuFrameRangeModal:mousemoved(mouse.x, mouse.y)
-    return
-  end
-  if self.ppuFramePatternRangeModal and self.ppuFramePatternRangeModal:isVisible() then
-    self.ppuFramePatternRangeModal:mousemoved(mouse.x, mouse.y)
-    return
-  end
-  if self.textFieldDemoModal and self.textFieldDemoModal:isVisible() then
-    self.textFieldDemoModal:mousemoved(mouse.x, mouse.y)
+  if dispatchModalMouseMovedAfterSplash(self, mouse) then
     return
   end
 
@@ -678,31 +486,20 @@ function AppCoreController:mousemoved(x, y, dx, dy)
 end
 
 function AppCoreController:wheelmoved(dx, dy)
-  if self.quitConfirmModal:isVisible() then
+  if Shared.modalVisible(self.quitConfirmModal) then
     return
   end
   if self.splash and self.splash:isVisible() then
     return
   end
-  if (self.saveOptionsModal and self.saveOptionsModal:isVisible())
-      or self.genericActionsModal:isVisible()
-      or (self.settingsModal and self.settingsModal:isVisible())
-      or (self.newWindowTypeModal and self.newWindowTypeModal:isVisible())
-      or self.newWindowModal:isVisible()
-      or (self.openProjectModal and self.openProjectModal:isVisible())
-      or (self.openReferencePngModal and self.openReferencePngModal:isVisible())
-      or (self.renameWindowModal and self.renameWindowModal:isVisible())
-      or (self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible())
-      or (self.ppuFrameSpriteLayerModeModal and self.ppuFrameSpriteLayerModeModal:isVisible())
-      or (self.ppuFrameAddSpriteModal and self.ppuFrameAddSpriteModal:isVisible())
-      or (self.ppuFrameRangeModal and self.ppuFrameRangeModal:isVisible())
-      or (self.ppuFramePatternRangeModal and self.ppuFramePatternRangeModal:isVisible())
-      or (self.textFieldDemoModal and self.textFieldDemoModal:isVisible()) then
-    if self.openReferencePngModal and self.openReferencePngModal:isVisible() and self.openReferencePngModal.wheelmoved then
-      return self.openReferencePngModal:wheelmoved(dx, dy)
+  if Shared.anyModalVisible(self) then
+    local ref = self.openReferencePngModal
+    if Shared.modalVisible(ref) and ref.wheelmoved then
+      return ref:wheelmoved(dx, dy)
     end
-    if self.openProjectModal and self.openProjectModal:isVisible() and self.openProjectModal.wheelmoved then
-      return self.openProjectModal:wheelmoved(dx, dy)
+    local proj = self.openProjectModal
+    if Shared.modalVisible(proj) and proj.wheelmoved then
+      return proj:wheelmoved(dx, dy)
     end
     return
   end
@@ -718,39 +515,18 @@ function AppCoreController:wheelmoved(dx, dy)
 end
 
 function AppCoreController:textinput(text)
-  if self.newWindowTypeModal and self.newWindowTypeModal:isVisible() then
-    return
-  end
-  if self.newWindowModal and self.newWindowModal:isVisible() then
-    self.newWindowModal:textinput(text)
-    return
-  end
-  if self.renameWindowModal and self.renameWindowModal:isVisible() then
-    self.renameWindowModal:textinput(text)
-    return
-  end
-  if self.romPaletteAddressModal and self.romPaletteAddressModal:isVisible() then
-    self.romPaletteAddressModal:textinput(text)
-    return
-  end
-  if self.ppuFrameSpriteLayerModeModal and self.ppuFrameSpriteLayerModeModal:isVisible() then
-    return
-  end
-  if self.ppuFrameAddSpriteModal and self.ppuFrameAddSpriteModal:isVisible() then
-    self.ppuFrameAddSpriteModal:textinput(text)
-    return
-  end
-  if self.ppuFrameRangeModal and self.ppuFrameRangeModal:isVisible() then
-    self.ppuFrameRangeModal:textinput(text)
-    return
-  end
-  if self.ppuFramePatternRangeModal and self.ppuFramePatternRangeModal:isVisible() then
-    self.ppuFramePatternRangeModal:textinput(text)
-    return
-  end
-  if self.textFieldDemoModal and self.textFieldDemoModal:isVisible() then
-    self.textFieldDemoModal:textinput(text)
-    return
+  for _, route in ipairs(TEXTINPUT_ROUTES) do
+    local modal = self[route.key]
+    if Shared.modalVisible(modal) then
+      if route.consumeOnly then
+        return
+      end
+      local method = route.method
+      if method and modal[method] then
+        modal[method](modal, text)
+      end
+      return
+    end
   end
 end
 

@@ -16,7 +16,6 @@ local katsudo = require("lib.katsudo")
 local colors = require("app_colors")
 local images = require("images")
 
-local anyModalVisible
 local chooseBankTileRefForLabel
 local firstSelectedTargetForWindow
 
@@ -263,23 +262,6 @@ local function drawEmptyStatePrompt(app)
   --   shadowColor = colors.transparent,
   --   color = colors.gray20
   -- })
-end
-
-anyModalVisible = function(app)
-  return (app.quitConfirmModal and app.quitConfirmModal:isVisible())
-    or (app.saveOptionsModal and app.saveOptionsModal:isVisible())
-    or (app.genericActionsModal and app.genericActionsModal:isVisible())
-    or (app.settingsModal and app.settingsModal:isVisible())
-    or (app.newWindowTypeModal and app.newWindowTypeModal:isVisible())
-    or (app.newWindowModal and app.newWindowModal:isVisible())
-    or (app.openProjectModal and app.openProjectModal:isVisible())
-    or (app.openReferencePngModal and app.openReferencePngModal:isVisible())
-    or (app.renameWindowModal and app.renameWindowModal:isVisible())
-    or (app.romPaletteAddressModal and app.romPaletteAddressModal:isVisible())
-    or (app.ppuFrameSpriteLayerModeModal and app.ppuFrameSpriteLayerModeModal:isVisible())
-    or (app.ppuFrameAddSpriteModal and app.ppuFrameAddSpriteModal:isVisible())
-    or (app.ppuFrameRangeModal and app.ppuFrameRangeModal:isVisible())
-    or (app.textFieldDemoModal and app.textFieldDemoModal:isVisible())
 end
 
 chooseBankTileRefForLabel = function(target, currentBank)
