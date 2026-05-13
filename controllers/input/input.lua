@@ -63,6 +63,10 @@ local function screenToContent(win, x, y)
     x, y = win:remapPreviewMirrorScreenXYIfNeeded(x, y)
   end
   local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
+  if type(win.isInContentArea) == "function" and win:isInContentArea(x, y) and type(win.getInsetContentScreenRect) == "function" then
+    local sx, sy = win:getInsetContentScreenRect()
+    return (x - sx) / z, (y - sy) / z
+  end
   return (x - win.x) / z, (y - win.y) / z
 end
 
@@ -86,8 +90,12 @@ local function pickByVisual(win, x, y, layerIndex)
 
   -- Convert to window-local "content" coords (pre-scroll)
   local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
-  local cx = (x - win.x) / z
-  local cy = (y - win.y) / z
+  local sx, sy = win.x, win.y
+  if type(win.isInContentArea) == "function" and win:isInContentArea(x, y) and type(win.getInsetContentScreenRect) == "function" then
+    sx, sy = win:getInsetContentScreenRect()
+  end
+  local cx = (x - sx) / z
+  local cy = (y - sy) / z
 
   local cw, ch = win.cellW, win.cellH
   if not (cw and ch) then return false end

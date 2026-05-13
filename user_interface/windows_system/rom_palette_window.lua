@@ -529,10 +529,10 @@ end
 
 -- Override drawGrid to show codes even when not active (ROM palettes always show codes)
 function RomPaletteWindow:drawGrid()
-  local sx, sy, sw, sh = self:getScreenRect()
+  local sx, sy, sw, sh = self:getInsetContentScreenRect()
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   love.graphics.push()
-  love.graphics.translate(self.x, self.y)
+  love.graphics.translate(sx, sy)
   local z = (self.getZoomLevel and self:getZoomLevel()) or self.zoom or 1
   love.graphics.scale(z, z)
 

@@ -380,6 +380,10 @@ function AppCoreController:load()
   self:_applyPaletteLinksSetting((settings and settings.paletteLinks) or "auto_hide", false)
   self:_applyTooltipsEnabledSetting((settings and settings.tooltipsEnabled) ~= false, false)
   self:_applySeparateToolbarSetting((settings and settings.separateToolbar) == true, false)
+  self:_applyWindowToolbarPlacementSetting(
+    (settings and settings.windowToolbarPlacement) or "top",
+    false
+  )
   self:_applyNeverShowResizeHandleSetting((settings and settings.neverShowResizeHandle) == true, false)
   self:_applyWindowShadowSetting((settings and settings.windowShadowEnabled) ~= false, false)
   self:_applyWindowShadowBlurSetting(settings and settings.windowShadowBlur, false)

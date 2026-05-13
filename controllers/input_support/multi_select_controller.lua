@@ -18,8 +18,12 @@ local function screenToContent(win, sx, sy)
   local scol = win.scrollCol or 0
   local srow = win.scrollRow or 0
 
-  local cx = (sx - win.x) / z
-  local cy = (sy - win.y) / z
+  local qx, qy = win.x, win.y
+  if type(win.isInContentArea) == "function" and win:isInContentArea(sx, sy) and type(win.getInsetContentScreenRect) == "function" then
+    qx, qy = win:getInsetContentScreenRect()
+  end
+  local cx = (sx - qx) / z
+  local cy = (sy - qy) / z
   return cx + scol * cw, cy + srow * ch
 end
 
@@ -35,8 +39,12 @@ local function toGridCoordsClamped(win, sx, sy)
   end
 
   local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
-  local cx = (sx - win.x) / z
-  local cy = (sy - win.y) / z
+  local qx, qy = win.x, win.y
+  if type(win.isInContentArea) == "function" and win:isInContentArea(sx, sy) and type(win.getInsetContentScreenRect) == "function" then
+    qx, qy = win:getInsetContentScreenRect()
+  end
+  local cx = (sx - qx) / z
+  local cy = (sy - qy) / z
   local col = math.floor(cx / win.cellW) + (win.scrollCol or 0)
   local row = math.floor(cy / win.cellH) + (win.scrollRow or 0)
 

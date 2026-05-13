@@ -12,9 +12,14 @@ local SpaceHighlightController = require("controllers.window.space_highlight_con
 local WindowCaps = require("controllers.window.window_capabilities")
 local Timer = require("utils.timer_utils")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
+local WindowToolbarPlacement = require("controllers.window.window_toolbar_placement")
 
 local ToolbarBase = {}
 ToolbarBase.__index = ToolbarBase
+
+-- Side-mounted toolbar: breathing room vs window edge and vs main content (screen px).
+local VERTICAL_TOOLBAR_EDGE_PAD = 4
+local VERTICAL_TOOLBAR_CONTENT_GAP = 4
 
 local _layerLabelId = 0
 
@@ -102,6 +107,9 @@ function ToolbarBase.new(window, data)
     buttonsPerRow = tonumber(data.buttonsPerRow) or nil,
     useButtonRows = (data.useButtonRows ~= false),
     _layoutRowWidths = {},
+    _verticalLayout = false,
+    _verticalReserveW = nil,
+    _layoutCenterWidth = nil,
   }, ToolbarBase)
   
   return self
@@ -165,13 +173,18 @@ function ToolbarBase:_getToolbarHeight(fallbackHeight)
 end
 
 -- Update toolbar position based on window header
--- Specialized toolbars (left-aligned) are positioned above header
+-- Specialized toolbars (left-aligned) are positioned above header by default (placement "top").
 -- Header toolbars (right-aligned) override this method
 function ToolbarBase:updatePosition()
-  if not self.window then return end
+  if not self.window then
+    return
+  end
 
   local dock = self._dockLayout
   if dock and type(dock.leftX) == "number" and type(dock.topY) == "number" then
+    self._verticalLayout = false
+    self._layoutCenterWidth = nil
+    self._verticalReserveW = nil
     local rowH = self:_getRowHeight(dock.rowHeight or dock.topY)
     self.rowHeight = rowH
     self.h = self:_getToolbarHeight(rowH)
@@ -180,17 +193,131 @@ function ToolbarBase:updatePosition()
     return
   end
 
-  local hx, hy, hw, hh = self.window:getHeaderRect()
+  local app = rawget(_G, "ctx") and _G.ctx.app
+  local wnd = self.window
+  wnd._toolbarInsetLeft = 0
+  wnd._toolbarInsetRight = 0
+  wnd._toolbarInsetTop = 0
+  wnd._toolbarInsetBottom = 0
 
-  -- Ensure toolbar height is set (should match header height)
+  if app and app.separateToolbar == true then
+    self._verticalLayout = false
+    self._layoutCenterWidth = nil
+    self._verticalReserveW = nil
+    return
+  end
+
+  local wm = self.windowController
+  if not wm or not wm.getFocus or wnd ~= wm:getFocus() then
+    self._verticalLayout = false
+    self._layoutCenterWidth = nil
+    self._verticalReserveW = nil
+    return
+  end
+
+  local placement = WindowToolbarPlacement.effectiveForLayout(app and app.windowToolbarPlacement)
+  local hx, hy, hw, hh = wnd:getHeaderRect()
+  local bx, by, bw, bh = wnd:getBaseContentScreenRect()
+
   self.rowHeight = self:_getRowHeight(hh)
-  self.h = self:_getToolbarHeight(hh)
 
-  -- Position above the header bar (for specialized toolbars)
-  self.y = hy - self.h - 1
+  if placement == "top" then
+    self._verticalLayout = false
+    self._layoutCenterWidth = nil
+    self._verticalReserveW = nil
+    self.h = self:_getToolbarHeight(hh)
+    self.y = hy - self.h - 1
+    self:_layoutButtons()
+    return
+  end
 
-  -- Re-layout buttons when position changes
-  self:_layoutButtons()
+  if placement == "bottom" then
+    self._verticalLayout = false
+    self._layoutCenterWidth = bw
+    self._verticalReserveW = nil
+    self.h = self:_getToolbarHeight(hh)
+    self.y = by
+    self:_layoutButtons()
+    self.h = self:_getToolbarHeight(hh)
+    wnd._toolbarInsetTop = self.h
+    return
+  end
+
+  if placement == "left" or placement == "right" then
+    self._verticalLayout = true
+    self._layoutCenterWidth = nil
+    self:_layoutButtonsVertical(placement, bx, by, bw, bh, hh)
+    local insetW = self._verticalReserveW or self.w
+    if placement == "left" then
+      wnd._toolbarInsetLeft = insetW
+    else
+      wnd._toolbarInsetRight = insetW
+    end
+    return
+  end
+end
+
+function ToolbarBase:_layoutButtonsVertical(placement, bx, by, bw, bh, hh)
+  local ePad = VERTICAL_TOOLBAR_EDGE_PAD
+  local gPad = VERTICAL_TOOLBAR_CONTENT_GAP
+  local rowHeight = self:_getRowHeight(hh)
+  local colW = rowHeight
+  for _, button in ipairs(self.buttons) do
+    if isButtonVisible(button) then
+      colW = math.max(colW, button.w)
+    end
+  end
+  for _, label in ipairs(self.labels) do
+    if not label.renderInContent then
+      colW = math.max(colW, label.width)
+    end
+  end
+
+  local reserveW = ePad + colW + gPad
+
+  local xLeft = bx + ePad
+  if placement == "right" then
+    xLeft = bx + bw - ePad - colW
+  end
+
+  local labelStackH = 0
+  for _, label in ipairs(self.labels) do
+    if not label.renderInContent then
+      labelStackH = labelStackH + rowHeight
+    end
+  end
+  local btnStackH = 0
+  for _, button in ipairs(self.buttons) do
+    if isButtonVisible(button) then
+      btnStackH = btnStackH + button.h
+    end
+  end
+  local totalStackH = labelStackH + btnStackH
+  local y0 = by + math.max(0, (bh - totalStackH) * 0.5)
+  local curY = y0
+
+  for _, label in ipairs(self.labels) do
+    if not label.renderInContent then
+      label.x = xLeft
+      label.y = curY
+      label.h = rowHeight
+      curY = curY + rowHeight
+    end
+  end
+
+  for _, button in ipairs(self.buttons) do
+    if isButtonVisible(button) then
+      button:setPosition(xLeft, curY)
+      curY = curY + button.h
+    end
+  end
+
+  self.w = colW
+  self.h = math.max(0, curY - y0)
+  self.x = xLeft + 1
+  self.y = y0
+  self._layoutRowWidths = { [1] = colW }
+  self._verticalReserveW = reserveW
 end
 
 -- Add a button to the toolbar
@@ -307,7 +434,7 @@ function ToolbarBase:_layoutButtons()
   -- Window-attached toolbars: center in the window header. Detached dock strip (app top bar slot,
   -- CHR full-canvas bar): left-align at dock.leftX (3px after quick actions; see app_top_toolbar).
   -- Drawing uses self.x - 1 as the left edge, so self.x = contentLeft + 1.
-  local headerW = tonumber(hw) or 0
+  local headerW = tonumber(self._layoutCenterWidth) or tonumber(hw) or 0
   local contentLeft
   if dock and type(dock.leftX) == "number" and type(dock.topY) == "number" then
     contentLeft = dock.leftX
@@ -564,25 +691,30 @@ function ToolbarBase:draw()
     local rowHeight = self:_getRowHeight(self.h)
     local rowWidths = self._layoutRowWidths or {}
     local drewRow = false
-    for rowIndex, rowWidth in pairs(rowWidths) do
-      if rowWidth and rowWidth > 0 then
-        local bgWidth = rowWidth
-        if rowIndex == 1 then
-          local labelWidth = 0
-          for _, label in ipairs(self.labels) do
-            if not label.renderInContent then
-              labelWidth = labelWidth + label.width
+    if self._verticalLayout then
+      love.graphics.rectangle("fill", drawX, self.y, drawW, drawH)
+      drewRow = true
+    else
+      for rowIndex, rowWidth in pairs(rowWidths) do
+        if rowWidth and rowWidth > 0 then
+          local bgWidth = rowWidth
+          if rowIndex == 1 then
+            local labelWidth = 0
+            for _, label in ipairs(self.labels) do
+              if not label.renderInContent then
+                labelWidth = labelWidth + label.width
+              end
             end
+            bgWidth = labelWidth + rowWidth
           end
-          bgWidth = labelWidth + rowWidth
+          love.graphics.rectangle("fill",
+            drawX,
+            self.y + ((rowIndex - 1) * rowHeight),
+            bgWidth,
+            rowHeight
+          )
+          drewRow = true
         end
-        love.graphics.rectangle("fill",
-          drawX,
-          self.y + ((rowIndex - 1) * rowHeight),
-          bgWidth,
-          rowHeight
-        )
-        drewRow = true
       end
     end
     if not drewRow then

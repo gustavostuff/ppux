@@ -96,10 +96,15 @@ function SpriteDragSelectionController.pickSpriteAt(SpriteController, win, x, y,
   local NES_W = SpriteController.SPRITE_X_RANGE
   local NES_H = SpriteController.SPRITE_Y_RANGE
 
-  local cx = (x - win.x) / z
-  local cy = (y - win.y) / z
-  local cxAbs = cx + scol * cw
-  local cyAbs = cy + srow * ch
+  local cxAbs, cyAbs
+  if win.screenToAbsoluteCanvasXY then
+    cxAbs, cyAbs = win:screenToAbsoluteCanvasXY(x, y)
+  else
+    local cx = (x - win.x) / z
+    local cy = (y - win.y) / z
+    cxAbs = cx + scol * cw
+    cyAbs = cy + srow * ch
+  end
 
   local items = L.items
   for idx = #items, 1, -1 do
@@ -294,10 +299,15 @@ function SpriteDragSelectionController.updateDrag(SpriteController, mouseX, mous
   if win.remapPreviewMirrorScreenXYIfNeeded then
     mx, my = win:remapPreviewMirrorScreenXYIfNeeded(mouseX, mouseY)
   end
-  local cx = (mx - win.x) / z
-  local cy = (my - win.y) / z
-  local cxAbs = cx + scol * cw
-  local cyAbs = cy + srow * ch
+  local cxAbs, cyAbs
+  if win.screenToAbsoluteCanvasXY then
+    cxAbs, cyAbs = win:screenToAbsoluteCanvasXY(mx, my)
+  else
+    local cx = (mx - win.x) / z
+    local cy = (my - win.y) / z
+    cxAbs = cx + scol * cw
+    cyAbs = cy + srow * ch
+  end
 
   local centerX = cxAbs - drag.grabOffsetX
   local centerY = cyAbs - drag.grabOffsetY

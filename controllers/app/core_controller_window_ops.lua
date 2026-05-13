@@ -409,6 +409,19 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
   local forMinimizedTaskbar = (opts.forMinimizedTaskbarButton == true)
   local collapseLabel = (win and win._collapsed == true) and "Expand" or "Collapse"
 
+  local wm = self.wm
+  local function hasAnotherMinimizableWindow()
+    if not (wm and wm.getWindows and win and win._closed ~= true) then
+      return false
+    end
+    for _, w in ipairs(wm:getWindows()) do
+      if w ~= win and w and w._closed ~= true and w._minimized ~= true and w._groupHidden ~= true then
+        return true
+      end
+    end
+    return false
+  end
+
   local items = {
     {
       text = "Rename",
@@ -475,6 +488,17 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
       end,
     }
   end
+
+  items[#items + 1] = {
+    text = "Minimize all but this one",
+    enabled = hasAnotherMinimizableWindow(),
+    callback = function()
+      self:hideAppContextMenus()
+      if wm and wm.minimizeAllExcept then
+        wm:minimizeAllExcept(win)
+      end
+    end,
+  }
 
   items[#items + 1] = {
     text = (win and win._alwaysOnTop) and "Don't keep always on top" or "Keep always on top",

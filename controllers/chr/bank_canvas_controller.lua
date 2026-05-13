@@ -227,10 +227,11 @@ function M:drawWindowImage(state, win, layerOpacity)
   end
 
   local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
-  local sx, sy, sw, sh = win:getScreenRect()
+  local sx, sy, sw, sh = win:getInsetContentScreenRect()
 
   love.graphics.push()
-  love.graphics.translate(win.x, win.y)
+  local ox, oy = win:getContentScreenOrigin()
+  love.graphics.translate(ox, oy)
   love.graphics.scale(z, z)
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   love.graphics.translate(-(win.scrollCol or 0) * TILE_SIZE, -(win.scrollRow or 0) * TILE_SIZE)
@@ -253,10 +254,11 @@ function M:drawWindowDiffOverlay(state, win, layerOpacity)
   end
 
   local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
-  local sx, sy, sw, sh = win:getScreenRect()
+  local sx, sy, sw, sh = win:getInsetContentScreenRect()
 
   love.graphics.push()
-  love.graphics.translate(win.x, win.y)
+  local ox, oy = win:getContentScreenOrigin()
+  love.graphics.translate(ox, oy)
   love.graphics.scale(z, z)
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   love.graphics.translate(-(win.scrollCol or 0) * TILE_SIZE, -(win.scrollRow or 0) * TILE_SIZE)

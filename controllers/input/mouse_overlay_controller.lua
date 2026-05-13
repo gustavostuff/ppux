@@ -166,23 +166,36 @@ function M.drawOverlay(env)
     local scol = win.scrollCol or 0
     local srow = win.scrollRow or 0
     if chrGroupDropState and chrGroupDropState.anchorPixelX and chrGroupDropState.anchorPixelY then
-      gx = win.x + ((chrGroupDropState.anchorPixelX - scol * cw) * z)
-      gy = win.y + ((chrGroupDropState.anchorPixelY - srow * ch) * z)
+      local qx, qy = win.x, win.y
+      if type(win.getInsetContentScreenRect) == "function" then
+        qx, qy = win:getInsetContentScreenRect()
+      end
+      gx = qx + ((chrGroupDropState.anchorPixelX - scol * cw) * z)
+      gy = qy + ((chrGroupDropState.anchorPixelY - srow * ch) * z)
     else
       local smx, smy = mouseX, mouseY
       if win.remapPreviewMirrorScreenXYIfNeeded then
         smx, smy = win:remapPreviewMirrorScreenXYIfNeeded(mouseX, mouseY)
       end
-      local cx = (smx - win.x) / z
-      local cy = (smy - win.y) / z
-      local pixelX = cx + scol * cw
-      local pixelY = cy + srow * ch
+      local pixelX, pixelY
+      if win.screenToAbsoluteCanvasXY then
+        pixelX, pixelY = win:screenToAbsoluteCanvasXY(smx, smy)
+      else
+        local cx = (smx - win.x) / z
+        local cy = (smy - win.y) / z
+        pixelX = cx + scol * cw
+        pixelY = cy + srow * ch
+      end
 
       pixelX = math.floor(pixelX + 0.5)
       pixelY = math.floor(pixelY + 0.5)
 
-      gx = win.x + ((pixelX - scol * cw) * z)
-      gy = win.y + ((pixelY - srow * ch) * z)
+      local qx, qy = win.x, win.y
+      if type(win.getInsetContentScreenRect) == "function" then
+        qx, qy = win:getInsetContentScreenRect()
+      end
+      gx = qx + ((pixelX - scol * cw) * z)
+      gy = qy + ((pixelY - srow * ch) * z)
     end
   else
     local ok, col, row = win:toGridCoords(mouseX, mouseY)

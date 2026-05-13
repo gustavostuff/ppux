@@ -105,7 +105,7 @@ function Button:draw()
 
   local function contentAlpha()
     if self.enabled == false then
-      return 0.12
+      return 0.5
     end
     if self.normalContentAlpha ~= nil then
       return (self.hovered or self.pressed or self.focused) and 1.0 or self.normalContentAlpha

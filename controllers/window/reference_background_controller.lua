@@ -299,7 +299,7 @@ function M.drawReferenceBehindLayers(win)
     return
   end
 
-  local sx, sy, sw, sh = win:getScreenRect()
+  local sx, sy, sw, sh = win:getInsetContentScreenRect()
   love.graphics.push()
   love.graphics.translate(win.x, win.y)
   local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1

@@ -274,7 +274,7 @@ function Window:drawSpriteSelectionOverlays(isFocused)
 
   -- Keep drawing inside the window bounds
   local prevScissor = { love.graphics.getScissor() }
-  local sx, sy, sw, sh = self:getScreenRect()
+  local sx, sy, sw, sh = self:getInsetContentScreenRect()
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   local spaceDown = SpaceHighlightController.isSpaceHighlightActive()
   local spaceHighlightModel = SpaceHighlightController.buildModel(nil, spaceDown)
@@ -409,7 +409,7 @@ function Window:drawTileSelectionOverlays(isFocused)
   local overlayCtx = { z = z, cw = cw, ch = ch, scol = scol, srow = srow }
 
   local prevScissor = { love.graphics.getScissor() }
-  local sx, sy, sw, sh = self:getScreenRect()
+  local sx, sy, sw, sh = self:getInsetContentScreenRect()
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   local suppressSelectedHighlights = (WindowCaps.isAnimationLike(self) and self.isPlaying == true)
   local spaceDown = SpaceHighlightController.isSpaceHighlightActive()

@@ -233,12 +233,13 @@ return function(Window)
       self:_repaintTileLayerCanvas(app, li)
     end
 
-    local sx, sy, sw, sh = self:getScreenRect()
+    local sx, sy, sw, sh = self:getInsetContentScreenRect()
     local z = (self.getZoomLevel and self:getZoomLevel()) or self.zoom or 1
     local cw, ch = self.cellW or 8, self.cellH or 8
 
     love.graphics.push()
-    love.graphics.translate(self.x, self.y)
+    local ox, oy = self:getContentScreenOrigin()
+    love.graphics.translate(ox, oy)
     love.graphics.scale(z, z)
     CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
     love.graphics.translate(-(self.scrollCol or 0) * cw, -(self.scrollRow or 0) * ch)

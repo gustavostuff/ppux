@@ -751,6 +751,26 @@ function WM:minimizeAll()
   return any
 end
 
+--- Minimize every window except `keepWin`. Brings `keepWin` forward when it stays visible.
+function WM:minimizeAllExcept(keepWin)
+  if not keepWin or keepWin._closed then
+    return false
+  end
+  local any = false
+  for _, w in ipairs(self.windows) do
+    if w ~= keepWin and self:minimizeWindow(w) then
+      any = true
+    end
+  end
+  if isWindowVisibleForInteraction(keepWin) then
+    self:bringToFront(keepWin)
+    if self.focused ~= keepWin then
+      self:setFocus(keepWin)
+    end
+  end
+  return any
+end
+
 function WM:maximizeAll()
   local targets = {}
   for _, win in ipairs(self.windows) do

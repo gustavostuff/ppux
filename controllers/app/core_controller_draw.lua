@@ -432,10 +432,11 @@ local function drawCanvasLayer(app, w, layerIndex, isFocused)
   end
 
   local layerOpacity = (layer and layer.opacity ~= nil) and layer.opacity or 1.0
-  local sx, sy, sw, sh = w:getScreenRect()
+  local sx, sy, sw, sh = w:getInsetContentScreenRect()
 
   love.graphics.push()
-  love.graphics.translate(w.x, w.y)
+  local ox, oy = w:getContentScreenOrigin()
+  love.graphics.translate(ox, oy)
   local z = (w.getZoomLevel and w:getZoomLevel()) or w.zoom or 1
   love.graphics.scale(z, z)
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
@@ -1068,9 +1069,20 @@ local function drawWindows(app)
 end
 
 drawNormalWindow = function(app, w, wm)
+  local isFocused   = (w == wm:getFocus())
+  if w.specializedToolbar and app.separateToolbar ~= true then
+    if isFocused then
+      w.specializedToolbar:updatePosition()
+    else
+      w._toolbarInsetLeft = 0
+      w._toolbarInsetRight = 0
+      w._toolbarInsetTop = 0
+      w._toolbarInsetBottom = 0
+    end
+  end
+
   PaletteLinkRenderController.drawSourcePaletteProxyForWindow(app, w)
 
-  local isFocused   = (w == wm:getFocus())
   local isCollapsed = w._collapsed or false
 
   if isCollapsed then
@@ -1298,7 +1310,7 @@ local function mirrorBrushOverlayScreenX(win, screenX, elemW)
   if not overlayMirrorXActiveForWindow(win) then
     return screenX
   end
-  local cx, _, cw = win:getScreenRect()
+  local cx, _, cw = win:getInsetContentScreenRect()
   if not (type(screenX) == "number" and type(cx) == "number" and type(cw) == "number" and cw > 0) then
     return screenX
   end
@@ -1311,8 +1323,12 @@ local function contentPixelToScreen(win, px, py, zoom)
   local ch = win.cellH or 8
   local scrollX = (win.scrollCol or 0) * cw
   local scrollY = (win.scrollRow or 0) * ch
-  local sx = win.x + (px - scrollX) * zoom
-  local sy = win.y + (py - scrollY) * zoom
+  local ox, oy = win.x, win.y
+  if type(win.getContentScreenOrigin) == "function" then
+    ox, oy = win:getContentScreenOrigin()
+  end
+  local sx = ox + (px - scrollX) * zoom
+  local sy = oy + (py - scrollY) * zoom
   return sx, sy
 end
 

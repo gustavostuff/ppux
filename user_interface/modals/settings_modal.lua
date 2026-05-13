@@ -429,6 +429,7 @@ function Dialog.new()
     _windowShadowStrengthSlider = nil,
     _canvasImageModeDropdown = nil,
     _canvasFilterDropdown = nil,
+    _windowToolbarPlacementDropdown = nil,
   }, Dialog)
 
   ModalPanelUtils.applyPanelDefaults(self)
@@ -659,6 +660,7 @@ function Dialog:show(opts)
   self._windowShadowStrengthSlider = opts.windowShadowStrengthSlider
   self._canvasImageModeDropdown = opts.canvasImageModeDropdown
   self._canvasFilterDropdown = opts.canvasFilterDropdown
+  self._windowToolbarPlacementDropdown = opts.windowToolbarPlacementDropdown
   self.onActiveTabChange = opts.onActiveTabChange
   self.visible = true
   self.pressedButton = nil
@@ -731,18 +733,25 @@ function Dialog:_generalTabRowSpecs()
         end,
       },
     },
-    {
-      id = "never_show_resize_handle",
-      label = "Never show resize handle",
-      buttonSpec = {
-        id = "never_show_resize_handle_toggle",
-        text = (self.getNeverShowResizeHandle and self.getNeverShowResizeHandle() == true) and "On" or "Off",
-        action = function()
-          if self.onSetNeverShowResizeHandle then
-            self.onSetNeverShowResizeHandle(not (self.getNeverShowResizeHandle and self.getNeverShowResizeHandle() == true))
-          end
-        end,
-      },
+  }
+  if self._windowToolbarPlacementDropdown then
+    rows[#rows + 1] = {
+      id = "window_toolbar_placement",
+      label = "Window toolbar position",
+      dropdown = self._windowToolbarPlacementDropdown,
+    }
+  end
+  rows[#rows + 1] = {
+    id = "never_show_resize_handle",
+    label = "Never show resize handle",
+    buttonSpec = {
+      id = "never_show_resize_handle_toggle",
+      text = (self.getNeverShowResizeHandle and self.getNeverShowResizeHandle() == true) and "On" or "Off",
+      action = function()
+        if self.onSetNeverShowResizeHandle then
+          self.onSetNeverShowResizeHandle(not (self.getNeverShowResizeHandle and self.getNeverShowResizeHandle() == true))
+        end
+      end,
     },
   }
   return rows

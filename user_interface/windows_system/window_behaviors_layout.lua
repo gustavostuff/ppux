@@ -101,7 +101,28 @@ function Window:addZoomCoarse(delta)
   self:addZoomLevel((delta and (delta>0 and 1 or -1)) or 0, nil, nil)
 end
 
+--- Full on-canvas content rectangle (stable geometry: position and size must not depend on toolbar placement).
 function Window:getScreenRect()
+  return self:getBaseContentScreenRect()
+end
+
+--- Same footprint as `getScreenRect`, minus space reserved for a window-attached specialized toolbar
+--- (scissor, grid draw origin, pointer mapping). Does not change window frame or chrome layout.
+function Window:getInsetContentScreenRect()
+  local x, y, w, h = self:getBaseContentScreenRect()
+  local li = self._toolbarInsetLeft or 0
+  local ri = self._toolbarInsetRight or 0
+  local ti = self._toolbarInsetTop or 0
+  local bi = self._toolbarInsetBottom or 0
+  local nx = x + li
+  local ny = y + ti
+  local nw = math.max(0, w - li - ri)
+  local nh = math.max(0, h - ti - bi)
+  return nx, ny, nw, nh
+end
+
+--- Content rectangle without window-toolbar placement insets (logical grid / full viewport).
+function Window:getBaseContentScreenRect()
   local cw, ch = self:getContentSize()
   local z = self:getZoomLevel()
 
@@ -131,8 +152,8 @@ function Window:contains(px, py)
     return px >= hx and px <= hx + hw and py >= hy and py <= hy + hh
   end
   
-  -- Normal window bounds check
-  local x, y, w, h = self:getScreenRect()
+  -- Normal window bounds check (full grid footprint; use base rect so toolbar side strips count).
+  local x, y, w, h = self:getBaseContentScreenRect()
   return (
     px >= x                    and
     px <= x + w                and
@@ -146,7 +167,7 @@ function Window:isInContentArea(px, py)
   -- Content area is the main window rectangle (header is above at y - headerH)
   if self._closed then return false end
   
-  local x, y, w, h = self:getScreenRect()
+  local x, y, w, h = self:getInsetContentScreenRect()
   return (
     px >= x                    and
     px <= x + w                and
@@ -215,7 +236,7 @@ function Window:resizeToMinimum()
   end
 end
 
---- Horizontal mirror preview for this window (body flipped around `getScreenRect()` when focused).
+--- Horizontal mirror preview for this window (body flipped around `getInsetContentScreenRect()` when focused).
 --- Remap pointer X so editing uses the same coordinate space as unmirrored layer data.
 function Window:remapPreviewMirrorScreenXYIfNeeded(px, py)
   if self._mirrorXPreview ~= true then
@@ -233,7 +254,7 @@ function Window:remapPreviewMirrorScreenXYIfNeeded(px, py)
   if not self.isInContentArea or not self:isInContentArea(px, py) then
     return px, py
   end
-  local sx, _, sw = self:getScreenRect()
+  local sx, _, sw = self:getInsetContentScreenRect()
   if not (type(px) == "number" and type(sx) == "number" and type(sw) == "number" and sw > 0) then
     return px, py
   end
@@ -241,11 +262,34 @@ function Window:remapPreviewMirrorScreenXYIfNeeded(px, py)
   return sx + sw - lx, py
 end
 
+--- Screen-space top-left of the drawn grid/content (respects window-attached toolbar insets).
+function Window:getContentScreenOrigin()
+  local sx, sy = self:getInsetContentScreenRect()
+  return sx, sy
+end
+
+--- Absolute canvas X/Y (layer coords) from screen position; matches draw translate + scroll.
+function Window:screenToAbsoluteCanvasXY(px, py)
+  local z = self:getZoomLevel()
+  local sx, sy = self:getInsetContentScreenRect()
+  local scol = self.scrollCol or 0
+  local srow = self.scrollRow or 0
+  local cw = self.cellW or 8
+  local ch = self.cellH or 8
+  return scol * cw + (px - sx) / z, srow * ch + (py - sy) / z
+end
+
 -- Convert screen -> content (viewport) -> grid, accounting for scroll
 function Window:toContentCoords(px,py)
   px, py = self:remapPreviewMirrorScreenXYIfNeeded(px, py)
   if not self:contains(px,py) then return false end
   local z = self:getZoomLevel()
+  if type(self.isInContentArea) == "function" and self:isInContentArea(px, py) then
+    local sx, sy = self:getInsetContentScreenRect()
+    local cx = (px - sx) / z
+    local cy = (py - sy) / z
+    return true, math.floor(cx), math.floor(cy)
+  end
   local cx = (px - self.x) / z
   local cy = (py - self.y) / z
   return true, math.floor(cx), math.floor(cy)

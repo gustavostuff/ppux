@@ -163,8 +163,12 @@ function M.updateMove(ctx, x, y, utils)
   if win.remapPreviewMirrorScreenXYIfNeeded then
     mx, my = win:remapPreviewMirrorScreenXYIfNeeded(x, y)
   end
-  local cx = (mx - win.x) / z
-  local cy = (my - win.y) / z
+  local sx, sy = win.x, win.y
+  if type(win.getInsetContentScreenRect) == "function" then
+    sx, sy = win:getInsetContentScreenRect()
+  end
+  local cx = (mx - sx) / z
+  local cy = (my - sy) / z
   local dcx = cx - (state.lastCx or cx)
   local dcy = cy - (state.lastCy or cy)
   state.lastCx = cx

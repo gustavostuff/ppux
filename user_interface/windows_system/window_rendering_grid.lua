@@ -11,7 +11,8 @@ end
 function Window:drawLinesGrid()
   -- grid with horizontal and vertical lines
   love.graphics.push()
-  love.graphics.translate(self.x, self.y)
+  local ox, oy = self:getContentScreenOrigin()
+  love.graphics.translate(ox, oy)
 
   love.graphics.setColor(colors.black)
   -- vertical lines
@@ -33,14 +34,15 @@ end
 -- ==== DRAW ====
 function Window:drawGrid(renderCell, isFocused, layerIndex)
   love.graphics.push()
-  love.graphics.translate(self.x, self.y)
+  local ox, oy = self:getContentScreenOrigin()
+  love.graphics.translate(ox, oy)
   local z = (self.getZoomLevel and self:getZoomLevel()) or self.zoom or 1
   love.graphics.scale(z, z)
   love.graphics.setLineWidth(1)
   love.graphics.setLineStyle("rough")
 
   local cw, ch = self.cellW, self.cellH
-  local sx, sy, sw, sh = self:getScreenRect()
+  local sx, sy, sw, sh = self:getInsetContentScreenRect()
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
 
   -- Apply scroll offset in world space
@@ -94,7 +96,8 @@ function Window:drawSprites(renderSprite, isFocused, layerIndex, romRaw)
   if not (items and #items > 0) then return end
 
   love.graphics.push()
-  love.graphics.translate(self.x, self.y)
+  local ox, oy = self:getContentScreenOrigin()
+  love.graphics.translate(ox, oy)
   local z = (self.getZoomLevel and self:getZoomLevel()) or self.zoom or 1
   love.graphics.scale(z, z)
   love.graphics.setLineWidth(1)
@@ -102,7 +105,7 @@ function Window:drawSprites(renderSprite, isFocused, layerIndex, romRaw)
 
   local cw = self.cellW or 8
   local ch = self.cellH or 8
-  local sx, sy, sw, sh = self:getScreenRect()
+  local sx, sy, sw, sh = self:getInsetContentScreenRect()
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
 
   -- Apply scroll offset in world space

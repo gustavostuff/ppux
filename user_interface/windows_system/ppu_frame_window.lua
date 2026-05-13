@@ -367,7 +367,7 @@ local function drawNametableByteBudgetInfo(self)
     return
   end
 
-  local sx, sy = self:getScreenRect()
+  local sx, sy = self:getInsetContentScreenRect()
   local x = sx + 4
   local y = sy + 4
 
@@ -485,14 +485,15 @@ function PPUFrameWindow:drawVisibleNametableCells(renderCell, layerIndex)
   end
 
   love.graphics.push()
-  love.graphics.translate(self.x, self.y)
+  local ox, oy = self:getContentScreenOrigin()
+  love.graphics.translate(ox, oy)
   local z = (self.getZoomLevel and self:getZoomLevel()) or self.zoom or 1
   love.graphics.scale(z, z)
   love.graphics.setLineWidth(1)
   love.graphics.setLineStyle("rough")
 
   local cw, ch = self.cellW, self.cellH
-  local sx, sy, sw, sh = self:getScreenRect()
+  local sx, sy, sw, sh = self:getInsetContentScreenRect()
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   love.graphics.translate(-self.scrollCol * cw, -self.scrollRow * ch)
 
@@ -677,13 +678,14 @@ function PPUFrameWindow:drawNametableLayerCanvas(layerIndex)
     self:_repaintNametableLayerCanvas(li)
   end
 
-  local sx, sy, sw, sh = self:getScreenRect()
+  local sx, sy, sw, sh = self:getInsetContentScreenRect()
   local layerOpacity = (layer.opacity ~= nil) and layer.opacity or 1.0
   local z = self.zoom or 1
   local cw, ch = self.cellW or 8, self.cellH or 8
 
   love.graphics.push()
-  love.graphics.translate(self.x, self.y)
+  local ox, oy = self:getContentScreenOrigin()
+  love.graphics.translate(ox, oy)
   love.graphics.scale(z, z)
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   love.graphics.translate(-(self.scrollCol or 0) * cw, -(self.scrollRow or 0) * ch)

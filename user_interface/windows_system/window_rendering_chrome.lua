@@ -68,7 +68,7 @@ function Window:drawLayerLabelInContent(isFocused)
   local spaceDown = SpaceHighlightController.isSpaceHighlightActive()
   if spaceDown then
     self.itemCountLabelSpaceDown = true
-    local sx, sy = self:getScreenRect()
+    local sx, sy = self:getInsetContentScreenRect()
     TU.print(text, sx + 4, sy + 4, {
       outline = true,
       color = { colors.white[1], colors.white[2], colors.white[3], 1.0 },
@@ -94,7 +94,7 @@ function Window:drawLayerLabelInContent(isFocused)
   end
   if alpha <= 0 then return end
 
-  local sx, sy = self:getScreenRect()
+  local sx, sy = self:getInsetContentScreenRect()
   TU.print(text, sx + 4, sy + 4, {
     outline = true,
     color = { colors.white[1], colors.white[2], colors.white[3], alpha },

@@ -293,8 +293,7 @@ function PaletteWindow:getSelectionStripShadowRectsCanvas(wm)
 
   local z = (self.getZoomLevel and self:getZoomLevel()) or self.zoom or 1
   if z <= 0 then z = 1 end
-  local wx = tonumber(self.x) or 0
-  local wy = tonumber(self.y) or 0
+  local wx, wy = self:getContentScreenOrigin()
 
   local horizontalStripW = #strips.rowCodes * metrics.horizontalCellW
   local horizontalStripH = metrics.horizontalCellH
@@ -391,10 +390,10 @@ end
 
 -- override parent
 function PaletteWindow:drawGrid()
-  local sx, sy, sw, sh = self:getScreenRect()
+  local sx, sy, sw, sh = self:getInsetContentScreenRect()
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   love.graphics.push()
-  love.graphics.translate(self.x, self.y)
+  love.graphics.translate(sx, sy)
   local z = (self.getZoomLevel and self:getZoomLevel()) or self.zoom or 1
   love.graphics.scale(z, z)
 
