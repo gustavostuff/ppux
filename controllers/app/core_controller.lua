@@ -180,7 +180,6 @@ function AppCoreController.new()
     rom_palette_address_change = true,
     sprite_remove = true,
     window_create = true,
-    window_minimize = true,
     window_close = true,
     window_rename = true,
     palette_link_change = true,

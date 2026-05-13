@@ -222,7 +222,7 @@ describe("undo_redo_controller.lua - unsaved tracking", function()
     expect(events[#events]).toBe("window_close")
   end)
 
-  it("marks window minimize as unsaved", function()
+  it("does not mark window minimize as unsaved", function()
     local undo = UndoRedoController.new(10)
     local events = {}
     undo:setUnsavedTracker(function(eventType)
@@ -237,6 +237,6 @@ describe("undo_redo_controller.lua - unsaved tracking", function()
     })
 
     expect(ok).toBe(true)
-    expect(events[#events]).toBe("window_minimize")
+    expect(#events).toBe(0)
   end)
 end)

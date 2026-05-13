@@ -279,9 +279,7 @@ function UndoRedoController:addWindowMinimizeEvent(event)
     return false
   end
   local pushed = self:_pushEvent(event)
-  if pushed then
-    self:_notifyUnsaved("window_minimize")
-  end
+  -- Minimize/restore is transient UI state (not project data); do not mark dirty or block quit.
   return pushed
 end
 
