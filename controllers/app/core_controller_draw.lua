@@ -976,7 +976,6 @@ local function drawCrtLensVisualizerWindow(app, w, wm)
   end
 
   w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true))
-  w:drawScrollBars(isFocused)
 
   if w.drawSelectionOverlays then
     w:drawSelectionOverlays(isFocused)
@@ -985,6 +984,8 @@ local function drawCrtLensVisualizerWindow(app, w, wm)
   w:drawLayerLabelInContent(isFocused)
 
   w:drawBorder(isFocused)
+
+  w:drawScrollBars(isFocused)
 
   if w.specializedToolbar
     and not (app.separateToolbar == true and w == wm:getFocus()) then
@@ -1014,7 +1015,6 @@ local function drawCrtLensWindowChromeOnly(app, w, wm)
 
   -- Legacy: post-render "lens" samples the composed workspace; use only when crtLensPostCanvasOverlayEnabled.
   w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true))
-  w:drawScrollBars(isFocused)
 
   if w.drawSelectionOverlays then
     w:drawSelectionOverlays(isFocused)
@@ -1023,6 +1023,8 @@ local function drawCrtLensWindowChromeOnly(app, w, wm)
   w:drawLayerLabelInContent(isFocused)
 
   w:drawBorder(isFocused)
+
+  w:drawScrollBars(isFocused)
 
   if w.specializedToolbar
     and not (app.separateToolbar == true and w == wm:getFocus()) then
@@ -1147,7 +1149,6 @@ drawNormalWindow = function(app, w, wm)
   end
 
   w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true))
-  w:drawScrollBars(isFocused)
 
   if w.drawSelectionOverlays then
     w:drawSelectionOverlays(isFocused)
@@ -1182,6 +1183,8 @@ drawNormalWindow = function(app, w, wm)
   w:drawLayerLabelInContent(isFocused)
 
   w:drawBorder(isFocused)
+
+  w:drawScrollBars(isFocused)
 
   if w.specializedToolbar
     and not (app.separateToolbar == true and w == wm:getFocus()) then

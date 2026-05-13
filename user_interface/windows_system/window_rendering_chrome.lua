@@ -9,6 +9,7 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local MIN_WINDOW_SIZE = 64
 local ITEM_COUNT_LABEL_SHOW_DURATION = 0.0
 local ITEM_COUNT_LABEL_FADE_DURATION = 1.0
+local SCROLL_BAR_THICKNESS_PX = 1
 
 local function getMinWindowSize(self)
   local value = tonumber(self and self.minWindowSize)
@@ -221,8 +222,9 @@ function Window:drawScrollBars(isFocused)
   if not (needsH or needsV) then return end
 
   love.graphics.setLineStyle("rough")
-  local c = colors.white
-  love.graphics.setColor(c[1], c[2], c[3], self.scrollbarOpacity)
+  -- Appearance "Toolbar/menu text (default)" (muted chrome ink).
+  local ink = colors:chromeTextIconsColorNonFocused()
+  love.graphics.setColor(ink[1], ink[2], ink[3], self.scrollbarOpacity)
 
   -- Border extents (see drawBorder: rectangle("line", x, y, w + 1, h + 1))
   local leftBorder   = x - 1
@@ -253,9 +255,9 @@ function Window:drawScrollBars(isFocused)
     local yLine   = bottomBorder  -- aligned with bottom border / corner
     love.graphics.rectangle("fill",
       thumbX,
-      yLine + separation,
+      yLine + separation - 2,
       thumbW,
-      4
+      SCROLL_BAR_THICKNESS_PX
     )
   end
 
@@ -281,9 +283,9 @@ function Window:drawScrollBars(isFocused)
     local xLine   = rightBorder        -- aligned with right border / corner
 
     love.graphics.rectangle("fill",
-      xLine + separation,
+      xLine + separation - 2,
       thumbY,
-      4,
+      SCROLL_BAR_THICKNESS_PX,
       thumbH
     )
   end
