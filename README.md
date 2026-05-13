@@ -78,9 +78,9 @@ Notes:
 
 ### Toolbars
 
-The **App toolbar** sits along the **top of the canvas** and hosts global quick actions; it also reserves space for status text on the right.
-
 #### App toolbar
+
+The App toolbar sits at the top and hosts global quick actions; it also reserves space for status text on the right.
 
 <img src="img/readme_images/toolbars/app_toolbar.png" alt="App toolbar">
 
@@ -89,9 +89,9 @@ With a ROM (or project workspace) **loaded**, quick buttons appear **left to rig
 1. **New window** - opens the new window creation flow (`Ctrl + N`)
 2. **Open project** - `Ctrl + O`
 3. **Save options** - `Ctrl + S` (save / export flows)
-4. **Copy** - enabled when the focused target allows it (same semantics as `Ctrl + C`; see [Main controls](#main-controls))
-5. **Cut** - `Ctrl + X` when allowed
-6. **Paste** - `Ctrl + V` when allowed
+4. **Copy** - copies the selected items (Tile mode only)
+5. **Cut** - `Ctrl + X`
+6. **Paste** - `Ctrl + V`
 7. **Zoom out** - steps zoom on the **focused** window (palette windows are skipped); matches **Ctrl + wheel** down behavior
 8. **Zoom in** - **Ctrl + wheel** up on the focused window
 9. **Mirror X** - toggles horizontal mirror in the **focused** window. Shortcut: `M key`
@@ -129,34 +129,34 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 <img src="img/readme_images/toolbars/static_tiles_toolbar.png" alt="Static Art tiles/sprites specialized toolbar">
 
-1. **Palette link handle** - Right click drag onto a **ROM palette** window, or from the ROM palette's handle onto this window. Left click to link via a menu.
+1. **Palette link handle** - right-click drag onto a **ROM palette** window, or from the ROM palette's handle onto this window. Left click to link via a menu.
 
 #### Animation toolbar (for both sprites and tiles)
 
 <img src="img/readme_images/toolbars/animation_tile_toolbar.png" alt="Animation tiles specialized toolbar">
 
-1. **Palette link handle**
-2. **Previous layer** - `Shift` + `Down` key
-3. **Next layer** - `Shift` + `Up` key
-4. **Remove layer** - only when more than one frame exists - `-` key
-5. **Add layer** - `+` key
-6. **Copy from previous layer**
-7. **Play / Pause** - `P` key (any case)
+1. **Previous layer** - `Shift` + `Down` key
+2. **Next layer** - `Shift` + `Up` key
+3. **Remove layer** - only when more than one frame exists - `-` key
+4. **Add layer** - `+` key
+5. **Copy from previous layer**
+6. **Play / Pause** - `P` key (any case)
+7. **Palette link handle** - rightmost; same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
 
 
 #### OAM Animation toolbar
 
 <img src="img/readme_images/toolbars/oam_animation.png" alt="OAM Animation specialized toolbar">
 
-1. **Palette link handle**
-2. **Previous layer** - `Shift` + `Down` key
-3. **Next layer** - `Shift` + `Up` key
-4. **Remove layer** - `-` key
-5. **Add layer** - `+` key
-6. **Add sprite**
-7. **Toggle origin guides** - **Shift + right-drag** on the canvas moves the sprites origin
-8. **Copy from previous layer**
-9. **Play / Pause** - `P` key
+1. **Previous layer** - `Shift` + `Down` key
+2. **Next layer** - `Shift` + `Up` key
+3. **Remove layer** - `-` key
+4. **Add layer** - `+` key
+5. **Add sprite**
+6. **Toggle origin guides** - **Shift + right-drag** on the canvas moves the sprites origin
+7. **Copy from previous layer**
+8. **Play / Pause** - `P` key
+9. **Palette link handle** - rightmost; same source linking behavior as other toolbars’ connect controls.
 
 #### Global palette toolbar
 
@@ -173,8 +173,8 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 1. **Previous grouped slot** (when Grouped palettes is enabled)
 2. **Next grouped slot** (when Grouped palettes is enabled)
-3. **Palette link handle (source)** - right click to drag link or left click to set link via menus.
-4. **Compact / normal view**
+3. **Compact / normal view**
+4. **Palette link handle (source)** - right click to drag link or left click to set link via menus.
 
 #### PPU Frame toolbar
 
@@ -198,7 +198,6 @@ There are 2 kinds:
 
 * `Global palette`: the fallback palette for content that does not have a ROM palette linked to it. Use this for mockups, freeform art, and anything with no specific in-game palette assigned.
 * `ROM palette`: a real 4x4 palette window backed by ROM data. It can be linked to specific windows and layers, to use the actual in-game palette through palette links.
-* **Grouped palettes** mode (Settings) is **off** by default: every palette window can stay visible at once. Turn it **on** in Settings if you prefer one logical Global palette slot and one logical ROM palette slot, with toolbar arrows to cycle which source window fills each slot.
 
 In practice:
 
