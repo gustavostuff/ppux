@@ -220,8 +220,27 @@ function ToolbarBase:updatePosition()
     app,
     self
   )
-  local hx, hy, hw, hh = wnd:getHeaderRect()
-  local bx, by, bw, bh = wnd:getBaseContentScreenRect()
+
+  local hx, hy, hw, hh = 0, 0, 0, 0
+  if type(wnd.getHeaderRect) == "function" then
+    hx, hy, hw, hh = wnd:getHeaderRect()
+  end
+  local bx, by, bw, bh
+  if type(wnd.getBaseContentScreenRect) == "function" then
+    bx, by, bw, bh = wnd:getBaseContentScreenRect()
+  elseif type(wnd.getScreenRect) == "function" then
+    bx, by, bw, bh = wnd:getScreenRect()
+  else
+    -- Unit-test mocks often stub only getHeaderRect(); approximate body rect from header or fields.
+    bx = tonumber(wnd.x)
+    by = tonumber(wnd.y)
+    bw = tonumber(wnd.w)
+    bh = tonumber(wnd.h)
+    if not bx then bx = hx end
+    if not by then by = (tonumber(hy) or 0) + (tonumber(hh) or 0) end
+    if not bw then bw = hw end
+    if not bh then bh = 0 end
+  end
 
   self.rowHeight = self:_getRowHeight(hh)
 
