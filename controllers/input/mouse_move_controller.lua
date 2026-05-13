@@ -7,7 +7,23 @@ local PaletteLinkController = require("controllers.palette.palette_link_controll
 local M = {}
 
 local function updateSpriteHover(x, y, wm, fwin)
+  local app = _G.ctx and _G.ctx.app or nil
+  local blockingFocused = app and type(app.isPreviewMirrorXBlockingFocusedLayerInput) == "function"
+    and app:isPreviewMirrorXBlockingFocusedLayerInput()
+
+  if blockingFocused and fwin and fwin.layers then
+    for _, layer in ipairs(fwin.layers) do
+      if layer and layer.kind == "sprite" then
+        layer.hoverSpriteIndex = nil
+      end
+    end
+  end
+
   local win = wm:windowAt(x, y) or fwin
+  if blockingFocused and win == fwin then
+    return
+  end
+
   if not (win and win.layers and win.getActiveLayerIndex and SpriteController and SpriteController.pickSpriteAt) then
     return
   end
@@ -49,6 +65,11 @@ local function handleEditShapeDrag(env, x, y, wm)
   if not (ctx and ctx.getMode and ctx.getMode() == "edit") then
     return false
   end
+  local app = ctx and ctx.app or nil
+  if app and type(app.isPreviewMirrorXBlockingFocusedLayerInput) == "function"
+      and app:isPreviewMirrorXBlockingFocusedLayerInput() then
+    return false
+  end
   if not love.mouse.isDown(1) then
     return false
   end
@@ -88,6 +109,12 @@ local function handlePaintingDrag(env, x, y, wm)
   local dx = env.dx or 0
   local dy = env.dy or 0
   if ctx.getMode() ~= "edit" or not ctx.getPainting() or not love.mouse.isDown(1) then
+    return false
+  end
+
+  local app = ctx and ctx.app or nil
+  if app and type(app.isPreviewMirrorXBlockingFocusedLayerInput) == "function"
+      and app:isPreviewMirrorXBlockingFocusedLayerInput() then
     return false
   end
 
@@ -186,6 +213,16 @@ local function handleTilePaintDrag(env, x, y, wm)
 
   if not love.mouse.isDown(1) then return false end
   if not tilePaintState or not tilePaintState.active then return false end
+
+  local app = ctx and ctx.app or nil
+  if app and type(app.isPreviewMirrorXBlockingFocusedLayerInput) == "function"
+      and app:isPreviewMirrorXBlockingFocusedLayerInput() then
+    local focus = wm:getFocus()
+    local winUnder = wm:windowAt(x, y)
+    if focus and winUnder == focus then
+      return false
+    end
+  end
 
   local win = wm:windowAt(x, y)
   if not win then return false end

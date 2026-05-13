@@ -288,6 +288,23 @@ local function ensureQuickButtons(app)
       h = cell,
       enabled = false,
     }),
+    mirrorXPreview = Button.new({
+      icon = images.icons.actions.icon_mirror_x or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty,
+      tooltip = "Mirror focused window horizontally (preview only)",
+      action = function()
+        if app.togglePreviewMirrorX then
+          local on = app:togglePreviewMirrorX()
+          if app.setStatus then
+            app:setStatus(on and "Mirror X preview on (layers view-only)." or "Mirror X preview off.")
+          end
+        end
+      end,
+      x = 0,
+      y = 0,
+      w = cell,
+      h = cell,
+      enabled = false,
+    }),
   }
 
   if SHOW_CRT_LENS_TOOLBAR_BUTTON then
@@ -320,6 +337,7 @@ local function quickButtonOrder(app)
     order[#order + 1] = "copy"
     order[#order + 1] = "cut"
     order[#order + 1] = "paste"
+    order[#order + 1] = "mirrorXPreview"
     order[#order + 1] = "zoomOut"
     order[#order + 1] = "zoomIn"
     order[#order + 1] = "addGridColumn"
@@ -331,6 +349,36 @@ local function quickButtonOrder(app)
     order[#order + 1] = "crtLens"
   end
   return order
+end
+
+local function updateMirrorPreviewButton(app)
+  if not (app and app._appTopQuickButtons) then
+    return
+  end
+  local b = app._appTopQuickButtons.mirrorXPreview
+  if not b then
+    return
+  end
+  local wm = app.wm
+  local focus = wm and wm.getFocus and wm:getFocus() or nil
+  local allow = false
+  if focus
+    and not focus._closed
+    and not focus._minimized
+    and not focus._collapsed
+    and not WindowCaps.isAnyPaletteWindow(focus)
+    and not WindowCaps.isCrtLens(focus)
+  then
+    allow = true
+  end
+  b.enabled = hasOpenProject(app) and allow
+  if app.previewMirrorX == true then
+    b.bgColor = colors.green
+    b.tooltip = "Mirror X preview on (view-only). Click to turn off."
+  else
+    b.bgColor = nil
+    b.tooltip = "Mirror focused window horizontally (preview only)"
+  end
 end
 
 local function updateClipboardButtonStates(app)
@@ -484,6 +532,7 @@ function M.syncLayout(app)
     end
   end
   updateClipboardButtonStates(app)
+  updateMirrorPreviewButton(app)
   updateZoomButtonStates(app)
   updateGridResizeButtons(app)
   updateReferenceBackgroundButton(app)

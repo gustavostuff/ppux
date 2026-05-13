@@ -1088,6 +1088,15 @@ drawNormalWindow = function(app, w, wm)
   love.graphics.setColor(colors.white)
 
   local isPaletteWindow = WindowCaps.isAnyPaletteWindow(w)
+  local mirrorLayerPreview = app.previewMirrorX == true and not isPaletteWindow and isFocused
+
+  if mirrorLayerPreview then
+    love.graphics.push()
+    love.graphics.translate(x + ww, y)
+    love.graphics.scale(-1, 1)
+    love.graphics.translate(-x, -y)
+  end
+
   local gridMode = GridModeUtils.normalize(w.showGrid)
   w.showGrid = gridMode
 
@@ -1148,8 +1157,6 @@ drawNormalWindow = function(app, w, wm)
     renderWindowLinesGrid(w)
   end
 
-  w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true), app.neverShowResizeHandle == true)
-
   if w.drawSelectionOverlays then
     w:drawSelectionOverlays(isFocused)
   end
@@ -1182,8 +1189,14 @@ drawNormalWindow = function(app, w, wm)
 
   w:drawLayerLabelInContent(isFocused)
 
-  w:drawBorder(isFocused)
+  if mirrorLayerPreview then
+    love.graphics.pop()
+  end
 
+  -- Border, scrollbars, and resize handle use 1px line math tied to screen axes; drawing them inside a
+  -- horizontal flip duplicates/skews edge pixels. Chrome stays unmirrored like the window header.
+  w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true), app.neverShowResizeHandle == true)
+  w:drawBorder(isFocused)
   w:drawScrollBars(isFocused)
 
   if w.specializedToolbar

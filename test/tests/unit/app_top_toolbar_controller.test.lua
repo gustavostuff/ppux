@@ -71,6 +71,7 @@ describe("app_top_toolbar_controller.lua", function()
     local copyButton = app._appTopQuickButtons.copy
     local cutButton = app._appTopQuickButtons.cut
     local pasteButton = app._appTopQuickButtons.paste
+    local mirrorXButton = app._appTopQuickButtons.mirrorXPreview
 
     expect(app._appTopQuickButtons.crtLens).toBe(nil)
     expect(newButton.x).toBe(0)
@@ -79,7 +80,8 @@ describe("app_top_toolbar_controller.lua", function()
     expect(copyButton.x > saveButton.x).toBe(true)
     expect(cutButton.x > copyButton.x).toBe(true)
     expect(pasteButton.x > cutButton.x).toBe(true)
-    expect(zoomOutButton.x > pasteButton.x).toBe(true)
+    expect(mirrorXButton.x > pasteButton.x).toBe(true)
+    expect(zoomOutButton.x > mirrorXButton.x).toBe(true)
     expect(zoomInButton.x > zoomOutButton.x).toBe(true)
     expect(addGridColumnButton.x > zoomInButton.x).toBe(true)
     expect(addGridRowButton.x > addGridColumnButton.x).toBe(true)
@@ -91,7 +93,8 @@ describe("app_top_toolbar_controller.lua", function()
     expect(copyButton.x).toBe(saveButton.x + saveButton.w + inferredGap)
     expect(cutButton.x).toBe(copyButton.x + copyButton.w + inferredGap)
     expect(pasteButton.x).toBe(cutButton.x + cutButton.w + inferredGap)
-    expect(zoomOutButton.x).toBe(pasteButton.x + pasteButton.w + inferredGap)
+    expect(mirrorXButton.x).toBe(pasteButton.x + pasteButton.w + inferredGap)
+    expect(zoomOutButton.x).toBe(mirrorXButton.x + mirrorXButton.w + inferredGap)
     expect(zoomInButton.x).toBe(zoomOutButton.x + zoomOutButton.w + inferredGap)
     expect(addGridColumnButton.x).toBe(zoomInButton.x + zoomInButton.w + inferredGap)
     expect(addGridRowButton.x).toBe(addGridColumnButton.x + addGridColumnButton.w + inferredGap)

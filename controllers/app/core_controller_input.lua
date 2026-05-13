@@ -532,6 +532,24 @@ end
 
 ------------------------------------------------------------
 
+function AppCoreController:isPreviewMirrorXBlockingFocusedLayerInput()
+  if self.previewMirrorX ~= true then
+    return false
+  end
+  local wm = self.wm
+  local focus = wm and wm.getFocus and wm:getFocus()
+  if not focus then
+    return false
+  end
+  local WindowCaps = require("controllers.window.window_capabilities")
+  return not WindowCaps.isAnyPaletteWindow(focus)
+end
+
+function AppCoreController:togglePreviewMirrorX()
+  self.previewMirrorX = not (self.previewMirrorX == true)
+  return self.previewMirrorX
+end
+
 local function resolveClipboardActionFocus(app, ctx)
   if ctx and type(ctx.getFocus) == "function" then
     return ctx.getFocus()
@@ -549,6 +567,10 @@ function AppCoreController:getClipboardToolbarActionState(action)
 end
 
 function AppCoreController:performClipboardToolbarAction(action, targetWin, targetLayerIndex, opts)
+  if self:isPreviewMirrorXBlockingFocusedLayerInput() then
+    self:setStatus("Turn off Mirror X preview to use clipboard actions.")
+    return false
+  end
   local ctx = _G.ctx or self:_buildCtx()
   local focus = targetWin or resolveClipboardActionFocus(self, ctx)
   local actionOpts = opts or {}

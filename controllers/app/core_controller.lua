@@ -42,6 +42,8 @@ function AppCoreController.new()
   self.syncDuplicateTiles = false
   self.spaceHighlightActive = false
   self.spaceHighlightSourceWin = nil
+  --- Horizontal mirror preview for the focused window (render-only; excludes palettes).
+  self.previewMirrorX = false
   self.showDebugInfo = false
   self.paletteLinkDrag = {
     active = false,

@@ -551,6 +551,24 @@ local function isHoveringDisabledUiAt(app, mx, my)
   return false
 end
 
+local function mirrorPreviewForcesArrowOverFocusedLayers(app, mx, my)
+  if not app or type(app.isPreviewMirrorXBlockingFocusedLayerInput) ~= "function" then
+    return false
+  end
+  if not app:isPreviewMirrorXBlockingFocusedLayerInput() then
+    return false
+  end
+  local wm = app.wm
+  if not wm or type(wm.getFocus) ~= "function" then
+    return false
+  end
+  local focus = wm:getFocus()
+  if not focus or type(focus.isInContentArea) ~= "function" then
+    return false
+  end
+  return focus:isInContentArea(mx, my)
+end
+
 local function shouldUseResizeCursor(app, mx, my)
   local wm = app and app.wm
   if not wm then
@@ -568,6 +586,7 @@ end
 
 local function resolveTargetCursorName(app, mode)
   local mx, my = getMouseCanvasPosition()
+  local mirrorArrowLayers = false
   if type(mx) == "number" and type(my) == "number" then
     if app and app.settingsModal and type(app.settingsModal.isHoveringColorPickerSwatchAt) == "function" then
       if app.settingsModal:isHoveringColorPickerSwatchAt(mx, my) then
@@ -583,6 +602,7 @@ local function resolveTargetCursorName(app, mode)
     if isHoveringHandTargetAt(app, mx, my) then
       return "hand"
     end
+    mirrorArrowLayers = mirrorPreviewForcesArrowOverFocusedLayers(app, mx, my)
   end
 
   local resolvedMode = (mode == "edit") and "edit" or "tile"
@@ -590,6 +610,9 @@ local function resolveTargetCursorName(app, mode)
   local fillDown = love.keyboard.isDown("f")
 
   if resolvedMode == "edit" then
+    if mirrorArrowLayers then
+      return "arrow"
+    end
     local hoveringEditable = isHoveringEditableContent(app)
     if grabDown then
       return hoveringEditable and "pick" or "arrow"
@@ -603,6 +626,9 @@ local function resolveTargetCursorName(app, mode)
     return hoveringEditable and "pencil" or "arrow"
   end
 
+  if mirrorArrowLayers then
+    return "arrow"
+  end
   if isHoveringEditableContent(app) then
     return "hand"
   end
