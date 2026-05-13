@@ -2,6 +2,9 @@ local SpriteController = require("controllers.sprite.sprite_controller")
 local SpriteStateSnapshot = require("controllers.sprite.sprite_state_snapshot")
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local PatternTableMapping = require("utils.pattern_table_mapping")
+
+local CHR_DROP_PPU_PATTERN_MSG = "CHR tiles must appear in this PPU frame pattern table"
 
 local M = {}
 
@@ -36,6 +39,35 @@ local function resolveChrTileItem(win, item, layerIndex)
     end
   end
   return item
+end
+
+local function notifyChrDropPatternTableRejected(env)
+  local app = env and env.ctx and env.ctx.app
+  if app and type(app.showToast) == "function" then
+    app:showToast("warning", CHR_DROP_PPU_PATTERN_MSG)
+    return
+  end
+  setStatusFromEnv(env, CHR_DROP_PPU_PATTERN_MSG)
+end
+
+local function chrTileMappedToDestinationPpuPatternTable(dst, dstLayerIdx, srcWin, rawItem, srcLayerIdx)
+  if not WindowCaps.isPpuFrame(dst) then
+    return true
+  end
+  local layer = dst.layers and dst.layers[dstLayerIdx]
+  if not (layer and layer.kind == "tile") then
+    return true
+  end
+  if layer._runtimePatternTableRefLayer == true then
+    return true
+  end
+  local item = resolveChrTileItem(srcWin, rawItem, srcLayerIdx)
+  if type(item) ~= "table" or type(item.index) ~= "number" then
+    return false
+  end
+  local bankFb = tonumber(srcWin and srcWin.currentBank) or 1
+  local logicalIdx = PatternTableMapping.logicalIndexForTileRef(layer, item, bankFb, 1)
+  return type(logicalIdx) == "number"
 end
 
 local function normalizeSwapRowForOddEven(win, row)
@@ -340,6 +372,9 @@ local function getTooltipTextForReason(reason)
   if reason == "chr_8x8_multi_into_sprite_8x16" then
     return "8x8 tile payload cannot drop into 8x16 sprite layer"
   end
+  if reason == "tile_not_in_pattern_table" then
+    return CHR_DROP_PPU_PATTERN_MSG
+  end
   return nil
 end
 
@@ -481,6 +516,18 @@ local function getChrGroupDropState(env, x, y, wm)
   local placementEntries = getChrGroupEntriesForDestination(drag.tileGroup, layer)
   if not placementEntries or #placementEntries == 0 then
     return state
+  end
+
+  if WindowCaps.isPpuFrame(dst)
+    and layer.kind == "tile"
+    and not layer._runtimePatternTableRefLayer
+  then
+    for _, entry in ipairs(placementEntries) do
+      if not chrTileMappedToDestinationPpuPatternTable(dst, dstLayer, drag.srcWin, entry.item, drag.srcLayer) then
+        state.reason = "tile_not_in_pattern_table"
+        return state
+      end
+    end
   end
 
   local spanCols, spanRows = getEntriesSpan(placementEntries)
@@ -906,9 +953,13 @@ function M.handleTileDrop(env, x, y, wm)
   if srcIsChr and drag.tileGroup then
     local chrGroupState = getChrGroupDropState(env, x, y, wm)
     if not (chrGroupState and chrGroupState.valid) then
-      local reasonText = chrGroupState and getTooltipTextForReason(chrGroupState.reason)
-      if reasonText and env.ctx and env.ctx.app and env.ctx.app.setStatus then
-        setStatusFromEnv(env, reasonText)
+      if chrGroupState and chrGroupState.reason == "tile_not_in_pattern_table" then
+        notifyChrDropPatternTableRejected(env)
+      else
+        local reasonText = chrGroupState and getTooltipTextForReason(chrGroupState.reason)
+        if reasonText and env.ctx and env.ctx.app and env.ctx.app.setStatus then
+          setStatusFromEnv(env, reasonText)
+        end
       end
       env.clearDragState(false)
       return true
@@ -1101,6 +1152,11 @@ function M.handleTileDrop(env, x, y, wm)
   end
 
   if srcIsChr then
+    if not chrTileMappedToDestinationPpuPatternTable(dst, dstLayer, src, drag.item, drag.srcLayer) then
+      notifyChrDropPatternTableRejected(env)
+      env.clearDragState(false)
+      return true
+    end
     if recorder then recorder.stageCell(dst, dstLayer, col, row) end
     handleChrBankCopy(dst, col, row, drag, dstLayer)
   else

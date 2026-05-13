@@ -35,19 +35,23 @@ describe("mouse_tile_drop_controller.lua - CHR grouped drag/drop", function()
     return group
   end
 
-  local function makePpuFrameTileWindow(cols, rows)
+  local function makePpuFrameTileWindow(cols, rows, patternTable)
     local nametableBytes = {}
     local items = {}
     local selected = nil
     for i = 1, cols * rows do
       nametableBytes[i] = 0
     end
+    local layer = { kind = "tile" }
+    if patternTable ~= nil then
+      layer.patternTable = patternTable
+    end
     local win = {
       kind = "ppu_frame",
       x = 0, y = 0, zoom = 1, cellW = 8, cellH = 8,
       cols = cols, rows = rows, scrollCol = 0, scrollRow = 0,
       nametableBytes = nametableBytes,
-      layers = { { kind = "tile" } },
+      layers = { layer },
       getActiveLayerIndex = function() return 1 end,
       isInContentArea = function(_, x, y)
         return x >= 0 and y >= 0 and x < (cols * 8) and y < (rows * 8)
@@ -125,6 +129,15 @@ describe("mouse_tile_drop_controller.lua - CHR grouped drag/drop", function()
     }
     return win
   end
+
+  local BANK1_PATTERN_EXCLUDES_PAGE1_FROM_250_UP = {
+    ranges = {
+      { bank = 1, page = 1, tileRange = { from = 0, to = 249 } },
+      { bank = 1, page = 2, tileRange = { from = 0, to = 5 } },
+    },
+  }
+
+  local CHR_PPU_PATTERN_MSG = "CHR tiles must appear in this PPU frame pattern table"
 
   it("reports not enough area when the grouped selection is larger than the destination", function()
     local group = makeGroup({
@@ -334,6 +347,160 @@ describe("mouse_tile_drop_controller.lua - CHR grouped drag/drop", function()
     expect(ntBytes[6]).toBe(4)
     expect(ntBytes[7]).toBe(5)
     expect(sourceRemoved).toBe(false)
+  end)
+
+  it("reports pattern table rejection when hovered CHR grouped selection includes unmappable tiles", function()
+    local good = { index = 42, _bankIndex = 1 }
+    local bad = { index = 250, _bankIndex = 1 }
+    local group = makeGroup({
+      { srcCol = 0, srcRow = 0, offsetCol = 0, offsetRow = 0, item = good },
+      { srcCol = 1, srcRow = 0, offsetCol = 1, offsetRow = 0, item = bad },
+    })
+    local dst = makePpuFrameTileWindow(4, 4, BANK1_PATTERN_EXCLUDES_PAGE1_FROM_250_UP)
+    local wm = {
+      windowAt = function() return dst end,
+    }
+
+    local candidate = MouseTileDropController.getHoverTooltipCandidate({
+      drag = {
+        active = true,
+        item = group.entries[1].item,
+        tileGroup = group,
+        srcWin = { kind = "chr", currentBank = 1 },
+      },
+    }, 8, 8, wm)
+
+    expect(candidate).toBeTruthy()
+    expect(candidate.text).toBe(CHR_PPU_PATTERN_MSG)
+  end)
+
+  it("shows warning toast and does not apply CHR grouped drops if any tile is outside the destination pattern table", function()
+    local good = { id = "g", index = 12, _bankIndex = 1 }
+    local bad = { id = "b", index = 250, _bankIndex = 1 }
+    local group = makeGroup({
+      { srcCol = 0, srcRow = 0, offsetCol = 0, offsetRow = 0, item = good },
+      { srcCol = 1, srcRow = 0, offsetCol = 1, offsetRow = 0, item = bad },
+    })
+    local dst, ntBytes = makePpuFrameTileWindow(4, 4, BANK1_PATTERN_EXCLUDES_PAGE1_FROM_250_UP)
+    for i = 1, #ntBytes do
+      ntBytes[i] = 111
+    end
+    local srcWin = { kind = "chr", currentBank = 1 }
+    local wm = {
+      windowAt = function() return dst end,
+      setFocus = function() end,
+    }
+    local toasts = {}
+    local clearedCommit = nil
+    local handled = MouseTileDropController.handleTileDrop({
+      ctx = {
+        app = {
+          showToast = function(self, kind, text)
+            toasts[#toasts + 1] = { kind = kind, text = text }
+          end,
+        },
+      },
+      drag = {
+        active = true,
+        item = good,
+        tileGroup = group,
+        srcWin = srcWin,
+        srcLayer = 1,
+      },
+      clearDragState = function(commit)
+        clearedCommit = commit
+      end,
+    }, 8, 8, wm)
+
+    expect(handled).toBe(true)
+    expect(clearedCommit).toBe(false)
+    expect(#toasts).toBe(1)
+    expect(toasts[1].kind).toBe("warning")
+    expect(toasts[1].text).toBe(CHR_PPU_PATTERN_MSG)
+    for i = 1, #ntBytes do
+      expect(ntBytes[i]).toBe(111)
+    end
+  end)
+
+  it("shows warning toast and does not apply a single CHR tile drop onto PPU nametable outside the pattern table", function()
+    local tile = { id = "t", index = 250, _bankIndex = 1 }
+    local dst, ntBytes = makePpuFrameTileWindow(4, 4, BANK1_PATTERN_EXCLUDES_PAGE1_FROM_250_UP)
+    for i = 1, #ntBytes do
+      ntBytes[i] = 222
+    end
+    local srcWin = {
+      kind = "chr",
+      currentBank = 1,
+      getActiveLayerIndex = function() return 1 end,
+      layers = { { kind = "tile", items = {} } },
+      isInHeader = function() return false end,
+      hitResizeHandle = function() return false end,
+    }
+    local wm = {
+      windowAt = function() return dst end,
+      setFocus = function() end,
+    }
+    local toasts = {}
+    local clearedCommit = nil
+    local handled = MouseTileDropController.handleTileDrop({
+      ctx = {
+        app = {
+          showToast = function(_, kind, text)
+            toasts[#toasts + 1] = { kind = kind, text = text }
+          end,
+        },
+      },
+      drag = {
+        active = true,
+        item = tile,
+        tileGroup = nil,
+        srcWin = srcWin,
+        srcLayer = 1,
+        srcCol = 0,
+        srcRow = 0,
+      },
+      clearDragState = function(commit)
+        clearedCommit = commit
+      end,
+    }, 8, 8, wm)
+
+    expect(handled).toBe(true)
+    expect(clearedCommit).toBe(false)
+    expect(#toasts).toBe(1)
+    expect(toasts[1].kind).toBe("warning")
+    expect(toasts[1].text).toBe(CHR_PPU_PATTERN_MSG)
+    for i = 1, #ntBytes do
+      expect(ntBytes[i]).toBe(222)
+    end
+  end)
+
+  it("still copies CHR grouped drags onto PPU when every tile fits a restricted pattern table", function()
+    local a = { id = "a", index = 44, _bankIndex = 1 }
+    local b = { id = "b", index = 45, _bankIndex = 1 }
+    local group = makeGroup({
+      { srcCol = 0, srcRow = 0, offsetCol = 0, offsetRow = 0, item = a },
+      { srcCol = 1, srcRow = 0, offsetCol = 1, offsetRow = 0, item = b },
+    })
+    local dst, ntBytes = makePpuFrameTileWindow(4, 4, BANK1_PATTERN_EXCLUDES_PAGE1_FROM_250_UP)
+    local wm = {
+      windowAt = function() return dst end,
+      setFocus = function() end,
+    }
+
+    MouseTileDropController.handleTileDrop({
+      ctx = { app = {} },
+      drag = {
+        active = true,
+        item = a,
+        tileGroup = group,
+        srcWin = { kind = "chr", currentBank = 1 },
+        srcLayer = 1,
+      },
+      clearDragState = function() end,
+    }, 8, 8, wm)
+
+    expect(ntBytes[6]).toBe(44)
+    expect(ntBytes[7]).toBe(45)
   end)
 
   it("drops CHR grouped drags onto sprite layers snapped to pixels", function()
