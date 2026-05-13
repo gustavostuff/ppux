@@ -604,6 +604,6 @@ Run a single scenario:
 
 See [E2E Testing](docs/test/E2E_TESTING.md) for scenario details and options.
 
-:white_check_mark: All 741 unit tests passing.
+:white_check_mark: All 748 unit tests passing.
 
-:white_check_mark: All 23 E2E tests passing.
+:white_check_mark: All 24 E2E tests passing.
