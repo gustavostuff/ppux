@@ -630,10 +630,17 @@ function PPUFrameWindow:_repaintNametableLayerCanvas(layerIndex)
 
   local dirtyCells = state.dirtyCells or {}
   local hasDirtyCells = next(dirtyCells) ~= nil
-  local repaintAll = state.dirtyAll == true or not hasDirtyCells
+  -- Only repaint when something is flagged dirty. (Avoid full clears when CRT sampling
+  -- invokes this helper on an already-painted cache; avoids repainting under preview
+  -- mirror transforms unless we reset to canvas space — see origin() below.)
+  if state.dirtyAll ~= true and not hasDirtyCells then
+    return false
+  end
+  local repaintAll = state.dirtyAll == true
 
   love.graphics.push("all")
   love.graphics.setCanvas(state.canvas)
+  love.graphics.origin()
   if repaintAll then
     love.graphics.clear(0, 0, 0, 0)
     local max = math.max(0, (self.cols or 32) * (self.rows or 30))

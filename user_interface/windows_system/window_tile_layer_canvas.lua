@@ -178,10 +178,14 @@ return function(Window)
 
     local dirtyCells = state.dirtyCells or {}
     local hasDirtyCells = next(dirtyCells) ~= nil
-    local repaintAll = state.dirtyAll == true or not hasDirtyCells
+    if state.dirtyAll ~= true and not hasDirtyCells then
+      return false
+    end
+    local repaintAll = state.dirtyAll == true
 
     love.graphics.push("all")
     love.graphics.setCanvas(state.canvas)
+    love.graphics.origin()
     if repaintAll then
       love.graphics.clear(0, 0, 0, 0)
       local maxCells = math.max(0, (self.cols or 1) * (self.rows or 1))
