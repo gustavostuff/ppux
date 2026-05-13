@@ -18,6 +18,7 @@ local SCENARIO_ALIASES = {
   submenu_positions_demo = "submenu_positions",
   context_menus_and_submenus_demo = "context_menus_and_submenus",
   window_resize_and_hover_priority_demo = "window_resize_and_hover_priority",
+  toolbar_auto_placement_drag_demo = "toolbar_auto_placement_drag",
   modal_navigation_keyboard_only_demo = "modal_navigation_keyboard_only",
   text_field_variants_demo = "text_field_variants",
   clipboard_matrix_demo = "clipboard_matrix",

@@ -15,6 +15,7 @@ merge(scenarios, require("test.e2e_visible.scenarios.builders.clipboard_matrix")
 merge(scenarios, require("test.e2e_visible.scenarios.builders.ppu_toolbar"))
 merge(scenarios, require("test.e2e_visible.scenarios.builders.clipboard_paths"))
 merge(scenarios, require("test.e2e_visible.scenarios.builders.grid_resize"))
+merge(scenarios, require("test.e2e_visible.scenarios.builders.toolbar_auto_placement_drag"))
 
 return {
   scenarios = scenarios,

@@ -2,6 +2,8 @@
 
 set -uo pipefail
 
+# Runs interactive visible E2E scenarios: love . --e2e <scenario> (VisibleE2ERunner).
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ABORT_ALL_FLAG="/tmp/ppux_e2e_abort_all.flag"
 rm -f "$ABORT_ALL_FLAG"
@@ -24,6 +26,7 @@ SCENARIOS=(
   "submenu_positions"
   "context_menus_and_submenus"
   "window_resize_and_hover_priority"
+  "toolbar_auto_placement_drag"
   "modal_navigation_keyboard_only"
   "text_field_variants"
   "clipboard_matrix"
@@ -31,6 +34,7 @@ SCENARIOS=(
   "ppu_toolbar_pattern_ranges"
   "ppu_toolbar_sprite_and_mode_controls"
 )
+
 pass_count=0
 fail_count=0
 
