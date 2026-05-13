@@ -1164,6 +1164,10 @@ drawNormalWindow = function(app, w, wm)
   if marquee and marquee.win == w then
     local x1, y1 = marquee.startX, marquee.startY
     local x2, y2 = marquee.currentX, marquee.currentY
+    if mirrorLayerPreview and w.remapPreviewMirrorScreenXYIfNeeded then
+      x1, y1 = w:remapPreviewMirrorScreenXYIfNeeded(x1, y1)
+      x2, y2 = w:remapPreviewMirrorScreenXYIfNeeded(x2, y2)
+    end
     local rx = math.min(x1, x2)
     local ry = math.min(y1, y2)
     local rw = math.abs(x2 - x1)
@@ -1177,6 +1181,10 @@ drawNormalWindow = function(app, w, wm)
   if tileMarquee and tileMarquee.win == w then
     local x1, y1 = tileMarquee.startX, tileMarquee.startY
     local x2, y2 = tileMarquee.currentX, tileMarquee.currentY
+    if mirrorLayerPreview and w.remapPreviewMirrorScreenXYIfNeeded then
+      x1, y1 = w:remapPreviewMirrorScreenXYIfNeeded(x1, y1)
+      x2, y2 = w:remapPreviewMirrorScreenXYIfNeeded(x2, y2)
+    end
     local rx = math.min(x1, x2)
     local ry = math.min(y1, y2)
     local rw = math.abs(x2 - x1)
@@ -1477,12 +1485,15 @@ local function drawEditModeColorIndicator(app)
     return
   end
   
-  -- Convert mouse to window content coordinates and snap to pixel grid
-  local cx = (mouse.x - win.x) / z
-  local cy = (mouse.y - win.y) / z
-  local pixelX = math.floor(cx + scol * cw)
-  local pixelY = math.floor(cy + srow * ch)
-  
+  -- Snap brush preview to logical grid cells (mirror preview remaps pointer inside `toGridCoords`).
+  local okGfx, gfxCol, gfxRow, glx, gly = win:toGridCoords(mouse.x, mouse.y)
+  if not okGfx then
+    return
+  end
+
+  local pixelX = gfxCol * cw + math.floor(glx or 0)
+  local pixelY = gfxRow * ch + math.floor(gly or 0)
+
   -- Convert back to screen coordinates for drawing
   local screenX = win.x + ((pixelX - scol * cw) * z)
   local screenY = win.y + ((pixelY - srow * ch) * z)

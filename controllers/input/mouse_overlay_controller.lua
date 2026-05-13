@@ -169,8 +169,12 @@ function M.drawOverlay(env)
       gx = win.x + ((chrGroupDropState.anchorPixelX - scol * cw) * z)
       gy = win.y + ((chrGroupDropState.anchorPixelY - srow * ch) * z)
     else
-      local cx = (mouseX - win.x) / z
-      local cy = (mouseY - win.y) / z
+      local smx, smy = mouseX, mouseY
+      if win.remapPreviewMirrorScreenXYIfNeeded then
+        smx, smy = win:remapPreviewMirrorScreenXYIfNeeded(mouseX, mouseY)
+      end
+      local cx = (smx - win.x) / z
+      local cy = (smy - win.y) / z
       local pixelX = cx + scol * cw
       local pixelY = cy + srow * ch
 

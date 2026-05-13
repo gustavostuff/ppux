@@ -51,36 +51,6 @@ local focusHandlers = {
   { name = "undo_redo", fn = function(key) return KeyboardEditToggleController.handleUndoRedo(ctx, utils, key) end },
 }
 
--- Mirror-X preview draws the focused window flipped; layer editing shortcuts must stay off until preview ends.
-local previewMirrorBlockedFocusHandlerNames = {
-  pixel_offset = true,
-  inactive_layer_opacity = true,
-  animation_delay_adjust = true,
-  tile_rotation = true,
-  palette_keys = true,
-  tile_selection_navigation = true,
-  layer_navigation = true,
-  chr_bank_keys = true,
-  animation_window_keys = true,
-  copy_selection = true,
-  cut_selection = true,
-  paste_selection = true,
-  select_all = true,
-  palette_number_assignment = true,
-  attr_mode_toggle = true,
-  sprite_mirror = true,
-  delete_key = true,
-  undo_redo = true,
-}
-
-local previewMirrorFocusHandlersReduced = {}
-for i = 1, #focusHandlers do
-  local h = focusHandlers[i]
-  if not previewMirrorBlockedFocusHandlerNames[h.name] then
-    previewMirrorFocusHandlersReduced[#previewMirrorFocusHandlersReduced + 1] = h
-  end
-end
-
 local function fmtFocus(focus)
   if not focus then return "nil" end
   return string.format("%s:%s", tostring(focus.kind or "?"), tostring(focus._id or focus.title or "?"))
@@ -136,13 +106,7 @@ function M.keypressed(key, AppCoreControllerRef, keyRepeat)
   end
 
   local focus = ctx.getFocus()
-  local activeFocusHandlers = focusHandlers
-  local app = ctx and ctx.app or nil
-  if app and type(app.isPreviewMirrorXBlockingFocusedLayerInput) == "function"
-      and app:isPreviewMirrorXBlockingFocusedLayerInput() then
-    activeFocusHandlers = previewMirrorFocusHandlersReduced
-  end
-  if runFirstTrue("focus", activeFocusHandlers, key, focus, AppCoreControllerRef) then
+  if runFirstTrue("focus", focusHandlers, key, focus, AppCoreControllerRef) then
     return
   end
 

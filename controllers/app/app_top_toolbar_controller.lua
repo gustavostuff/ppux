@@ -290,12 +290,12 @@ local function ensureQuickButtons(app)
     }),
     mirrorXPreview = Button.new({
       icon = images.icons.actions.icon_mirror_x or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty,
-      tooltip = "Mirror focused window horizontally (preview only)",
+      tooltip = "Mirror focused window horizontally (editing uses mirrored X)",
       action = function()
         if app.togglePreviewMirrorX then
           local on = app:togglePreviewMirrorX()
           if app.setStatus then
-            app:setStatus(on and "Mirror X preview on (layers view-only)." or "Mirror X preview off.")
+            app:setStatus(on and "Mirror X preview on." or "Mirror X preview off.")
           end
         end
       end,
@@ -374,10 +374,10 @@ local function updateMirrorPreviewButton(app)
   b.enabled = hasOpenProject(app) and allow
   if app.previewMirrorX == true then
     b.bgColor = colors.green
-    b.tooltip = "Mirror X preview on (view-only). Click to turn off."
+    b.tooltip = "Mirror X preview on — pointer X mirrored in layer space. Click to turn off."
   else
     b.bgColor = nil
-    b.tooltip = "Mirror focused window horizontally (preview only)"
+    b.tooltip = "Mirror focused window horizontally (editing uses mirrored X)"
   end
 end
 

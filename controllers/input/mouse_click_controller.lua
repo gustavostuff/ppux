@@ -1029,15 +1029,6 @@ local function getTopSurfaceWindowAt(chrome, x, y, wm)
   return MouseWindowChromeController.getTopInteractiveSurfaceWindowAt(x, y, wm)
 end
 
-local function mirrorPreviewBlocksFocusedBodyEditing(app, wm, win, button)
-  -- Layer editing uses LMB only; keep MMB/RMB so Window:mousepressed can start drag-to-move.
-  if button ~= 1 then return false end
-  if not app or not wm or not win then return false end
-  if wm:getFocus() ~= win then return false end
-  if type(app.isPreviewMirrorXBlockingFocusedLayerInput) ~= "function" then return false end
-  return app:isPreviewMirrorXBlockingFocusedLayerInput()
-end
-
 function M.handleMousePressed(env, x, y, button)
   local ctx = env.ctx
   local wm = ctx.wm()
@@ -1084,7 +1075,6 @@ function M.handleMousePressed(env, x, y, button)
   if chrome.handleToolbarClicks(button, x, y, win, wm) then return true end
 
   if handlePaletteClick(env, button, x, y, win, wm) then return true end
-  if mirrorPreviewBlocksFocusedBodyEditing(ctx.app, wm, win, button) then return true end
   if handleSpriteClick(env, button, x, y, win, wm) then return true end
   if handleRightButton(env, button, x, y, win, wm) then return true end
   if handleEditModeClick(env, button, x, y, win, wm) then return true end

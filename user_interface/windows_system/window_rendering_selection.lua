@@ -148,19 +148,6 @@ local function hoverBlockedByAppChrome(ctx, mouse)
   return false
 end
 
---- Mirror-X preview flips draw only; suppress transient hover outlines on the focused window.
-local function mirrorPreviewSuppressHoverGhostForWindow(ctx, wm, win)
-  local app = ctx and ctx.app or nil
-  if not app or type(app.isPreviewMirrorXBlockingFocusedLayerInput) ~= "function" then
-    return false
-  end
-  if not app:isPreviewMirrorXBlockingFocusedLayerInput() then
-    return false
-  end
-  local focus = wm and wm.getFocus and wm:getFocus()
-  return focus ~= nil and win == focus
-end
-
 function Window:highlightOverlappingSprites(overlayCtx, overlappingSpritesByKey)
   for _, sprite in pairs(overlappingSpritesByKey or {}) do
     local sx, sy, sw, sh = spriteScreenRect(self, sprite, overlayCtx)
@@ -310,8 +297,7 @@ function Window:drawSpriteSelectionOverlays(isFocused)
     })
   end
   if not hoverBlocked
-    and not ReferenceBackgroundController.isReferenceTracingViewActive(self)
-    and not mirrorPreviewSuppressHoverGhostForWindow(ctx, wm, self) then
+    and not ReferenceBackgroundController.isReferenceTracingViewActive(self) then
     self:highlightHoveredSprite(L, overlayCtx, overlappingKeys, spaceHighlightModel)
   end
   self:highlightOverlappingSprites(overlayCtx, overlappingSpritesByKey)
@@ -491,8 +477,7 @@ function Window:drawTileSelectionOverlays(isFocused)
   end
 
   -- Hovered cell (when focused or under the pointer); hidden during reference-only tracing view.
-  if showHover and mouse and not ReferenceBackgroundController.isReferenceTracingViewActive(self)
-      and not mirrorPreviewSuppressHoverGhostForWindow(ctx, wm, self) then
+  if showHover and mouse and not ReferenceBackgroundController.isReferenceTracingViewActive(self) then
     local ok, col, row = self:toGridCoords(mouse.x, mouse.y)
     if ok then
       local rx, ry, rw, rh, topRow = getTileSelectionRect(self, col, row, overlayCtx)

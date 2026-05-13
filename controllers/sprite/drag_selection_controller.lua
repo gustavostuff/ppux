@@ -71,6 +71,10 @@ end
 function SpriteDragSelectionController.pickSpriteAt(SpriteController, win, x, y, activeLayerIndex)
   if not win or not win.layers then return nil end
 
+  if win.remapPreviewMirrorScreenXYIfNeeded then
+    x, y = win:remapPreviewMirrorScreenXYIfNeeded(x, y)
+  end
+
   local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
   local cw = win.cellW or 8
   local ch = win.cellH or 8
@@ -286,8 +290,12 @@ function SpriteDragSelectionController.updateDrag(SpriteController, mouseX, mous
   local spriteW = cw
   local spriteH = (mode == "8x16") and (2 * ch) or ch
 
-  local cx = (mouseX - win.x) / z
-  local cy = (mouseY - win.y) / z
+  local mx, my = mouseX, mouseY
+  if win.remapPreviewMirrorScreenXYIfNeeded then
+    mx, my = win:remapPreviewMirrorScreenXYIfNeeded(mouseX, mouseY)
+  end
+  local cx = (mx - win.x) / z
+  local cy = (my - win.y) / z
   local cxAbs = cx + scol * cw
   local cyAbs = cy + srow * ch
 

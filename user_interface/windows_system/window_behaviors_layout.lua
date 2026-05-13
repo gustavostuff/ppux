@@ -1,5 +1,6 @@
 local DebugController = require("controllers.dev.debug_controller")
 local Timer = require("utils.timer_utils")
+local WindowCaps = require("controllers.window.window_capabilities")
 
 local SCROLL_BAR_OPACITY_TIME = 1.5
 local MIN_WINDOW_SIZE = 64
@@ -214,8 +215,35 @@ function Window:resizeToMinimum()
   end
 end
 
+--- App "Mirror X preview" flips the focused window's body around `getScreenRect()`. Undo that flip
+--- for pointer X so editing uses the same coordinate space as unmirrored draws.
+function Window:remapPreviewMirrorScreenXYIfNeeded(px, py)
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app
+  if not (app and app.previewMirrorX == true) then
+    return px, py
+  end
+  local wm = (ctx and ctx.wm and ctx.wm()) or app.wm
+  if not wm or wm:getFocus() ~= self then
+    return px, py
+  end
+  if WindowCaps.isAnyPaletteWindow(self) then
+    return px, py
+  end
+  if not self.isInContentArea or not self:isInContentArea(px, py) then
+    return px, py
+  end
+  local sx, _, sw = self:getScreenRect()
+  if not (type(px) == "number" and type(sx) == "number" and type(sw) == "number" and sw > 0) then
+    return px, py
+  end
+  local lx = px - sx
+  return sx + sw - lx, py
+end
+
 -- Convert screen -> content (viewport) -> grid, accounting for scroll
 function Window:toContentCoords(px,py)
+  px, py = self:remapPreviewMirrorScreenXYIfNeeded(px, py)
   if not self:contains(px,py) then return false end
   local z = self:getZoomLevel()
   local cx = (px - self.x) / z

@@ -9,6 +9,9 @@ local spriteMarquee = { active = false }
 local tileMarquee = { active = false }
 
 local function screenToContent(win, sx, sy)
+  if win and win.remapPreviewMirrorScreenXYIfNeeded then
+    sx, sy = win:remapPreviewMirrorScreenXYIfNeeded(sx, sy)
+  end
   local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
   local cw = win.cellW or 8
   local ch = win.cellH or 8
@@ -21,6 +24,9 @@ local function screenToContent(win, sx, sy)
 end
 
 local function toGridCoordsClamped(win, sx, sy)
+  if win and win.remapPreviewMirrorScreenXYIfNeeded then
+    sx, sy = win:remapPreviewMirrorScreenXYIfNeeded(sx, sy)
+  end
   if not (win and win.cols and win.rows and win.cellW and win.cellH) then
     return nil, nil
   end

@@ -59,6 +59,9 @@ local function altDown()
 end
 
 local function screenToContent(win, x, y)
+  if win and win.remapPreviewMirrorScreenXYIfNeeded then
+    x, y = win:remapPreviewMirrorScreenXYIfNeeded(x, y)
+  end
   local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
   return (x - win.x) / z, (y - win.y) / z
 end
@@ -75,6 +78,10 @@ local function pickByVisual(win, x, y, layerIndex)
       end
     end
     return false
+  end
+
+  if win and win.remapPreviewMirrorScreenXYIfNeeded then
+    x, y = win:remapPreviewMirrorScreenXYIfNeeded(x, y)
   end
 
   -- Convert to window-local "content" coords (pre-scroll)

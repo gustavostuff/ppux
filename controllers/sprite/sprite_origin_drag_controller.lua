@@ -131,9 +131,13 @@ function M.updateMove(ctx, x, y, utils)
     state.dragging = true
     state.pending = false
     local z0 = effectiveZoom(win)
+    local ax, ay = state.startX, state.startY
+    if win.remapPreviewMirrorScreenXYIfNeeded then
+      ax, ay = win:remapPreviewMirrorScreenXYIfNeeded(state.startX, state.startY)
+    end
     -- Content-space anchor (float) so zoom matches what the window draws; immune to accidental win.x drift.
-    state.lastCx = (state.startX - (win and win.x or 0)) / z0
-    state.lastCy = (state.startY - (win and win.y or 0)) / z0
+    state.lastCx = (ax - (win and win.x or 0)) / z0
+    state.lastCy = (ay - (win and win.y or 0)) / z0
     -- Integer origins + fractional motion per frame at zoom>1: accumulate before floor in clamp*.
     state.originStartX = L0.originX or 0
     state.originStartY = L0.originY or 0
@@ -155,8 +159,12 @@ function M.updateMove(ctx, x, y, utils)
   end
 
   local z = effectiveZoom(win)
-  local cx = (x - win.x) / z
-  local cy = (y - win.y) / z
+  local mx, my = x, y
+  if win.remapPreviewMirrorScreenXYIfNeeded then
+    mx, my = win:remapPreviewMirrorScreenXYIfNeeded(x, y)
+  end
+  local cx = (mx - win.x) / z
+  local cy = (my - win.y) / z
   local dcx = cx - (state.lastCx or cx)
   local dcy = cy - (state.lastCy or cy)
   state.lastCx = cx
