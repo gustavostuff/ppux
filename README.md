@@ -101,13 +101,6 @@ With a ROM (or project workspace) **loaded**, quick buttons appear **left to rig
 13. **Clone focused window** - duplicate the current window’s kind and state where supported
 14. **Reference PNG** - add or remove a reference image for supported windows (`Alt + R` toggles visibility while a reference is attached; confirm to remove)
 
-Before any ROM is loaded, only **Open project** is shown in this strip.
-
-When **Detached window toolbar** is turned **ON** in Settings, the **focused** window’s **specialized toolbar** is **docked** into the app toolbar right after the last button. For instance (for an OAM Animation window):
-
-<img src="img/readme_images/toolbars/app_toolbar_extended.png" alt="App toolbar extended">
-
-
 #### CHR Banks toolbar
 
 <img src="img/readme_images/toolbars/chr_banks_toolbar.png" alt="CHR Banks specialized toolbar">
