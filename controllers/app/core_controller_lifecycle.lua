@@ -218,9 +218,10 @@ local function initGraphics(self, opts)
   local previousResolutionMode = ResolutionController.mode
   local canvasW, canvasH = resolveCanvasSize(self)
 
-  self.canvas = love.graphics.newCanvas(canvasW, canvasH)
-  self.canvas:setFilter("nearest", "nearest")
   self.canvasFilterMode = self.canvasFilterMode or "sharp"
+  self.canvas = love.graphics.newCanvas(canvasW, canvasH)
+  local canvasTexFilter = (self.canvasFilterMode == "soft") and "linear" or "nearest"
+  self.canvas:setFilter(canvasTexFilter, canvasTexFilter)
   self.crtModeEnabled = crtMode
   self.font = loadAppFont(STANDARD_FONT_SIZE)
   self.font:setFilter("nearest", "nearest")
@@ -373,6 +374,9 @@ function AppCoreController:load()
   if settings and settings.canvasFilter ~= nil then
     self:_applyCanvasFilterSetting(settings.canvasFilter, false)
   end
+  if initialCrtMode and self.crtFilterKind == "composite" and self._applyCanvasFilterSetting then
+    self:_applyCanvasFilterSetting("soft", false)
+  end
   self:_applyPaletteLinksSetting((settings and settings.paletteLinks) or "auto_hide", false)
   self:_applyTooltipsEnabledSetting((settings and settings.tooltipsEnabled) ~= false, false)
   self:_applySeparateToolbarSetting((settings and settings.separateToolbar) == true, false)
@@ -447,6 +451,9 @@ function AppCoreController:setCrtModeEnabled(enabled)
   end
   if filterKey and self._applyCanvasFilterSetting then
     self:_applyCanvasFilterSetting(filterKey, false)
+  end
+  if target == true and self.crtFilterKind == "composite" and self._applyCanvasFilterSetting then
+    self:_applyCanvasFilterSetting("soft", false)
   end
 
   if self.taskbar and self.canvas then

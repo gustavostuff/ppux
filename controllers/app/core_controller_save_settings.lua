@@ -617,7 +617,9 @@ end
 function AppCoreController:_applyCanvasFilterSetting(filterKey, saveSetting)
   local key = normalizeCanvasFilterKey(filterKey)
   local filter = (key == "soft") and "linear" or "nearest"
-  if self.canvas and self.canvas.setFilter and self.canvasFilterMode ~= key then
+  --- Always push filter onto the canvas: initGraphics recreates the canvas with a fresh texture,
+  --- so canvasFilterMode can match `key` while the drawable still has the default/min filter.
+  if self.canvas and self.canvas.setFilter then
     self.canvas:setFilter(filter, filter)
   end
   self.canvasFilterMode = key
@@ -767,13 +769,27 @@ function AppCoreController:_ensureSettingsCanvasFilterDropdown()
         appRef:_applyDisplayFilterDropdownMode(2, true)
       end,
     },
+    {
+      value = 3,
+      text = "CRT",
+      onPick = function()
+        appRef:_applyDisplayFilterDropdownMode(3, true)
+      end,
+    },
+    {
+      value = 4,
+      text = "Composite",
+      onPick = function()
+        appRef:_applyDisplayFilterDropdownMode(4, true)
+      end,
+    },
   }
   self._canvasFilterDropdown = Dropdown.new({
     getBounds = function()
       return { w = appRef.canvas:getWidth(), h = appRef.canvas:getHeight() }
     end,
     default = appRef:_getDisplayFilterDropdownMode(),
-    tooltip = "Sharp or soft scaling when stretching the workspace to the window",
+    tooltip = "Without CRT: sharp or soft scaling. CRT barrel shader vs composite scanlines (composite uses linear canvas sampling).",
     items = self._canvasFilterDropdownItems,
   })
 end
@@ -913,11 +929,21 @@ function AppCoreController:_applyCrtFilterKindSetting(kind, saveSetting)
   if saveSetting ~= false then
     AppSettingsController.save({ crtFilterKind = k })
   end
+  --- Composite scanline shader expects smoothly interpolated workspace sampling.
+  if k == "composite" and self._applyCanvasFilterSetting then
+    self:_applyCanvasFilterSetting("soft", saveSetting)
+  end
   return k
 end
 
---- Settings -> Filter dropdown: sharp vs soft workspace scaling only (full-window CRT is separate).
+--- Settings -> Canvas filter dropdown: sharp/soft (CRT off) or CRT vs composite scanlines (CRT on).
 function AppCoreController:_getDisplayFilterDropdownMode()
+  if self.crtModeEnabled == true then
+    if self:_normalizeCrtFilterKind(self.crtFilterKind) == "composite" then
+      return 4
+    end
+    return 3
+  end
   if self:_getCanvasFilterForSettings() == "soft" then
     return 2
   end
@@ -926,13 +952,21 @@ end
 
 function AppCoreController:_applyDisplayFilterDropdownMode(mode, saveSetting)
   local m = tonumber(mode)
-  if m == nil or (m ~= 1 and m ~= 2) then
+  if m == nil or m < 1 or m > 4 then
     return
   end
   if m == 1 then
+    self:_applyCrtModeSetting(false, saveSetting)
     self:_applyCanvasFilterSetting("sharp", saveSetting)
-  else
+  elseif m == 2 then
+    self:_applyCrtModeSetting(false, saveSetting)
     self:_applyCanvasFilterSetting("soft", saveSetting)
+  elseif m == 3 then
+    self:_applyCrtFilterKindSetting("crt", saveSetting)
+    self:_applyCrtModeSetting(true, saveSetting)
+  else
+    self:_applyCrtFilterKindSetting("composite", saveSetting)
+    self:_applyCrtModeSetting(true, saveSetting)
   end
   if self._refreshSettingsModalIfOpen then
     self:_refreshSettingsModalIfOpen()
