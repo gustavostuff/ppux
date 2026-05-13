@@ -115,5 +115,6 @@ attachLazyLoader(icons)
 ensureLazySubtree(icons, "chrome")
 ensureLazySubtree(icons, "actions")
 ensureLazySubtree(icons, "image_types")
+ensureLazySubtree(icons, "indicators")
 
 return images

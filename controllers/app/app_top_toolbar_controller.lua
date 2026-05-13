@@ -290,12 +290,31 @@ local function ensureQuickButtons(app)
     }),
     mirrorXPreview = Button.new({
       icon = images.icons.actions.icon_mirror_x or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty,
-      tooltip = "Toggle horizontal mirror for the focused window (per window; persists in project)",
+      tooltip = "Toggle horizontal mirror for the focused window (per window; persists in project) — M",
       action = function()
         if app.togglePreviewMirrorX then
           local changed, on = app:togglePreviewMirrorX()
           if app.setStatus and changed then
             app:setStatus(on and "Mirror X on for this window." or "Mirror X off for this window.")
+          end
+        end
+      end,
+      x = 0,
+      y = 0,
+      w = cell,
+      h = cell,
+      enabled = false,
+    }),
+    alwaysOnTop = Button.new({
+      icon = images.icons.actions.icon_always_on_top
+        or images.icons.chrome.icon_empty
+        or images.icons.chrome.icon_scroll_toolbar_empty,
+      tooltip = "Keep focused window on top",
+      action = function()
+        if app.toggleFocusedWindowAlwaysOnTop then
+          local changed, on = app:toggleFocusedWindowAlwaysOnTop()
+          if app.setStatus and changed then
+            app:setStatus(on and "Always on top on for this window." or "Always on top off for this window.")
           end
         end
       end,
@@ -337,9 +356,10 @@ local function quickButtonOrder(app)
     order[#order + 1] = "copy"
     order[#order + 1] = "cut"
     order[#order + 1] = "paste"
-    order[#order + 1] = "mirrorXPreview"
     order[#order + 1] = "zoomOut"
     order[#order + 1] = "zoomIn"
+    order[#order + 1] = "mirrorXPreview"
+    order[#order + 1] = "alwaysOnTop"
     order[#order + 1] = "addGridColumn"
     order[#order + 1] = "addGridRow"
     order[#order + 1] = "cloneWindow"
@@ -375,10 +395,41 @@ local function updateMirrorPreviewButton(app)
   local mirrorOn = focus and focus._mirrorXPreview == true
   if mirrorOn then
     b.bgColor = colors.green
-    b.tooltip = "Mirror X on for this window — pointer X mirrored in layer space. Click to turn off."
+    b.tooltip = "Mirror X on — pointer X mirrored in layer space. Click or M to turn off."
   else
     b.bgColor = nil
-    b.tooltip = "Mirror focused window horizontally (per window; editing uses mirrored X)"
+    b.tooltip = "Mirror focused window horizontally (M). Per window; editing uses mirrored X."
+  end
+end
+
+local function updateAlwaysOnTopButton(app)
+  if not (app and app._appTopQuickButtons) then
+    return
+  end
+  local b = app._appTopQuickButtons.alwaysOnTop
+  if not b then
+    return
+  end
+  local wm = app.wm
+  local focus = wm and wm.getFocus and wm:getFocus() or nil
+  local allow = false
+  if focus
+    and not focus._closed
+    and not focus._minimized
+    and not focus._collapsed
+    and not WindowCaps.isAnyPaletteWindow(focus)
+    and not WindowCaps.isCrtLens(focus)
+  then
+    allow = true
+  end
+  b.enabled = hasOpenProject(app) and allow
+  local on = focus and focus._alwaysOnTop == true
+  if on then
+    b.bgColor = colors.green
+    b.tooltip = "Always on top is on — click to turn off for this window."
+  else
+    b.bgColor = nil
+    b.tooltip = "Keep focused window on top"
   end
 end
 
@@ -534,6 +585,7 @@ function M.syncLayout(app)
   end
   updateClipboardButtonStates(app)
   updateMirrorPreviewButton(app)
+  updateAlwaysOnTopButton(app)
   updateZoomButtonStates(app)
   updateGridResizeButtons(app)
   updateReferenceBackgroundButton(app)

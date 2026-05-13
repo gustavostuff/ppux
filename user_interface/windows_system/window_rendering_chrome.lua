@@ -125,6 +125,8 @@ function Window:drawHeader(isFocused)
 
   love.graphics.setColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
 
+  -- [disabled] Header status icons (mirror / always on top) — feedback is on the app toolbar now.
+  --[[
   local indicators = rawget(images, "icons") and images.icons.indicators
   local iconMirrored = indicators and indicators.icon_mirrored
   local iconTop = indicators and indicators.icon_always_on_top
@@ -143,7 +145,6 @@ function Window:drawHeader(isFocused)
   local headerIconInset = pad -- title margin from header left when no status icon
   if headerIcon then
     love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], colors.white[4] or 1)
-    -- Offset from header origin (shared for mirror / always-on-top icons).
     love.graphics.draw(headerIcon, hx - 4, hy - 3)
     love.graphics.setColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
     headerIconInset = headerIcon:getWidth() + pad
@@ -151,6 +152,10 @@ function Window:drawHeader(isFocused)
 
   local textX = hx + headerIconInset
   local textWidth = math.max(0, hw - pad - headerIconInset)
+  ]]
+
+  local textX = hx + pad
+  local textWidth = math.max(0, hw - pad * 2)
 
   local font = love.graphics.getFont()
   local fh = (font and font:getHeight()) or 0

@@ -1088,7 +1088,8 @@ drawNormalWindow = function(app, w, wm)
   love.graphics.setColor(colors.white)
 
   local isPaletteWindow = WindowCaps.isAnyPaletteWindow(w)
-  local mirrorLayerPreview = (not isPaletteWindow) and isFocused and w._mirrorXPreview == true
+  -- Per-window Mirror X reflects layer data for any window that has it on (even when unfocused).
+  local mirrorLayerPreview = (not isPaletteWindow) and w._mirrorXPreview == true
 
   if mirrorLayerPreview then
     love.graphics.push()

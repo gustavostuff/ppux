@@ -323,6 +323,30 @@ function AppCoreController:keypressed(k, scancode, isrepeat)
     return
   end
 
+  -- M: Toggle horizontal mirror for the focused window (CHR bank uses M for bank order; keep that first).
+  do
+    local shiftDown = love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
+    local altDown = love.keyboard.isDown("lalt") or love.keyboard.isDown("ralt")
+    if not keyRepeat and not ctrlDown and not shiftDown and not altDown and k == "m" then
+      local WindowCaps = require("controllers.window.window_capabilities")
+      local focus = self.wm and self.wm.getFocus and self.wm:getFocus()
+      if not (focus and WindowCaps.isChrLike(focus))
+          and self.hasLoadedROM
+          and self:hasLoadedROM()
+          and self.togglePreviewMirrorX
+      then
+        local changed, on = self:togglePreviewMirrorX()
+        if changed then
+          if self.setStatus then
+            self:setStatus(on and "Mirror X on for this window." or "Mirror X off for this window.")
+          end
+          refreshCursor(self)
+          return
+        end
+      end
+    end
+  end
+
   -- Pass appCore so input handlers can touch selection/etc later
   UserInput.keypressed(k, self, keyRepeat)
   refreshCursor(self)
@@ -545,6 +569,25 @@ function AppCoreController:togglePreviewMirrorX()
   end
   focus._mirrorXPreview = not (focus._mirrorXPreview == true)
   return true, focus._mirrorXPreview == true
+end
+
+function AppCoreController:toggleFocusedWindowAlwaysOnTop()
+  local wm = self.wm
+  if not wm or not wm.getFocus then
+    return false, false
+  end
+  local focus = wm:getFocus()
+  if not focus or focus._closed == true or focus._minimized == true or focus._collapsed == true then
+    return false, false
+  end
+  if WindowCaps.isAnyPaletteWindow(focus) or WindowCaps.isCrtLens(focus) then
+    return false, false
+  end
+  focus._alwaysOnTop = not (focus._alwaysOnTop == true)
+  if wm.bringToFront then
+    wm:bringToFront(focus)
+  end
+  return true, focus._alwaysOnTop == true
 end
 
 local function resolveClipboardActionFocus(app, ctx)
