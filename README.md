@@ -6,8 +6,6 @@ Beta 0.1.3
 
 <img src="img/readme_images/app_example.png" alt="">
 
-<img src="img/readme_images/app_example_2.png" alt="">
-
 Edit NES graphics as the player sees them. No tile puzzle solving.
 
 PPUX uses an in-app [database](#database) plus project files to understand banks, palettes, sprite layouts, animations, and other ROM-specific structures.
@@ -88,18 +86,20 @@ The **App toolbar** sits along the **top of the canvas** and hosts global quick 
 
 With a ROM (or project workspace) **loaded**, quick buttons appear **left to right** in this order:
 
-1. **New window** — opens **New Window** (`Ctrl + N`)
-2. **Open project** — `Ctrl + O`
-3. **Save options** — `Ctrl + S` (save / export flows)
-4. **Copy** — enabled when the focused target allows it (same semantics as `Ctrl + C`; see [Main controls](#main-controls))
-5. **Cut** — `Ctrl + X` when allowed
-6. **Paste** — `Ctrl + V` when allowed
-7. **Zoom out** — steps zoom on the **focused** window (palette windows are skipped); matches **Ctrl + wheel** down behavior
-8. **Zoom in** — **Ctrl + wheel** up on the focused window
-9. **Add column to the right** — for windows with a resizable tile/sprite **grid**; hold **Shift** to switch the same control to **Remove last column** (tooltip updates)
-10. **Add row below** — **Shift** switches to **Remove last row**
-11. **Clone focused window** — duplicate the current window’s kind and state where supported
-12. **Reference PNG** — add or remove a reference image for supported windows (`Alt + R` toggles visibility while a reference is attached; confirm to remove)
+1. **New window** - opens the new window creation flow (`Ctrl + N`)
+2. **Open project** - `Ctrl + O`
+3. **Save options** - `Ctrl + S` (save / export flows)
+4. **Copy** - enabled when the focused target allows it (same semantics as `Ctrl + C`; see [Main controls](#main-controls))
+5. **Cut** - `Ctrl + X` when allowed
+6. **Paste** - `Ctrl + V` when allowed
+7. **Zoom out** - steps zoom on the **focused** window (palette windows are skipped); matches **Ctrl + wheel** down behavior
+8. **Zoom in** - **Ctrl + wheel** up on the focused window
+9. **Mirror X** - toggles horizontal mirror in the **focused** window. Shortcut: `M key`
+10. **Always on top** - toggles whether the **focused** window stays above others. Also available from the window’s title-bar menu.
+11. **Add column to the right** - for windows with a resizable tile/sprite **grid**; hold **Shift** to switch the same control to **Remove last column** (tooltip updates)
+12. **Add row below** - **Shift** switches to **Remove last row**
+13. **Clone focused window** - duplicate the current window’s kind and state where supported
+14. **Reference PNG** - add or remove a reference image for supported windows (`Alt + R` toggles visibility while a reference is attached; confirm to remove)
 
 Before any ROM is loaded, only **Open project** is shown in this strip.
 

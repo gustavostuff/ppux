@@ -125,7 +125,7 @@ function Window:drawHeader(isFocused)
 
   love.graphics.setColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
 
-  -- [disabled] Header status icons (mirror / always on top) — feedback is on the app toolbar now.
+  -- [disabled] Header status icons (mirror / always on top) - feedback is on the app toolbar now.
   --[[
   local indicators = rawget(images, "icons") and images.icons.indicators
   local iconMirrored = indicators and indicators.icon_mirrored

@@ -10,14 +10,14 @@ Short catalog of recurring patterns that are hard to extend safely, plus practic
 
 **Where it shows up**
 
-- `controllers/app/core_controller_input.lua` — keyboard: repeated `modalVisible(self.*)` + `modalHandleKey(...)` (e.g. ~199–260); same modal set again as a big `or` for “block other input” (~306–320); mouse pressed/moved/released repeat nearly the same list with `:isVisible()` (~336–644); wheel handler groups modals again (~687–700).
-- `controllers/app/core_controller_shared.lua` — `anyModalVisible(app)` is the same membership expressed as one long `or` chain (~76–91).
-- `controllers/app/core_controller_lifecycle.lua` — local `anyModalVisible` duplicates the same idea (~268–282).
+- `controllers/app/core_controller_input.lua` - keyboard: repeated `modalVisible(self.*)` + `modalHandleKey(...)` (e.g. ~199-260); same modal set again as a big `or` for “block other input” (~306-320); mouse pressed/moved/released repeat nearly the same list with `:isVisible()` (~336-644); wheel handler groups modals again (~687-700).
+- `controllers/app/core_controller_shared.lua` - `anyModalVisible(app)` is the same membership expressed as one long `or` chain (~76-91).
+- `controllers/app/core_controller_lifecycle.lua` - local `anyModalVisible` duplicates the same idea (~268-282).
 
 **Why it’s a problem**
 
 - Adding or removing a modal requires touching many sites; order matters for keyboard focus.
-- The same logical set is re-encoded with **three** different guard styles: `modalVisible(...)` (nil-safe), `modal and modal:isVisible()`, and bare `self.fooModal:isVisible()` — easy to get inconsistent behavior if one path forgets a nil check or a new modal.
+- The same logical set is re-encoded with **three** different guard styles: `modalVisible(...)` (nil-safe), `modal and modal:isVisible()`, and bare `self.fooModal:isVisible()` - easy to get inconsistent behavior if one path forgets a nil check or a new modal.
 
 **Possible directions**
 
@@ -31,7 +31,7 @@ Short catalog of recurring patterns that are hard to extend safely, plus practic
 
 **Example**
 
-- `controllers/app/core_controller_draw.lua` — context menus: `app.paletteLinkContextMenu and app.paletteLinkContextMenu.isVisible and app.paletteLinkContextMenu:isVisible()` then optional `if ... .update then ...:update()` (~1568–1590; same shape for other menus). `AppCoreController` constructs these in `core_controller.lua`, so they are normally non-nil; `isVisible` as both a field check and a method call is especially noisy.
+- `controllers/app/core_controller_draw.lua` - context menus: `app.paletteLinkContextMenu and app.paletteLinkContextMenu.isVisible and app.paletteLinkContextMenu:isVisible()` then optional `if ... .update then ...:update()` (~1568-1590; same shape for other menus). `AppCoreController` constructs these in `core_controller.lua`, so they are normally non-nil; `isVisible` as both a field check and a method call is especially noisy.
 
 **Why it’s a problem**
 
@@ -41,7 +41,7 @@ Short catalog of recurring patterns that are hard to extend safely, plus practic
 **Possible directions**
 
 - **One helper**: `drawContextMenuIfVisible(menu)` that assumes `menu` exists in production, only checks `:isVisible()`, calls `update` if present (or make `update` a no-op on the controller class).
-- **Unify draw with the same table** as input/shadows: single `app._contextMenus` array, `for _, m in ipairs(...) do drawIfVisible(m) end` — removes four copy-paste blocks.
+- **Unify draw with the same table** as input/shadows: single `app._contextMenus` array, `for _, m in ipairs(...) do drawIfVisible(m) end` - removes four copy-paste blocks.
 
 ---
 
@@ -50,7 +50,7 @@ Short catalog of recurring patterns that are hard to extend safely, plus practic
 **Concrete case**
 
 - `core_controller_shared.lua` `anyModalVisible` includes `ppuFramePatternRangeModal` (~90).
-- `core_controller_lifecycle.lua`’s local `anyModalVisible` does **not** include that modal (~268–282) — same pattern, different membership.
+- `core_controller_lifecycle.lua`’s local `anyModalVisible` does **not** include that modal (~268-282) - same pattern, different membership.
 
 **Why it’s a problem**
 

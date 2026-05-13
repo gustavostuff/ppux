@@ -19,7 +19,7 @@ local SECTION_GAP = 0
 local BUTTON_GAP = 0
 local STATUS_BG_H = 15
 -- Status strip: up to this many monospace character cells (+ horizontal pad). Unused slots are dropped when
--- dock/quick buttons leave less width — outer width stays pad + k * advance + pad only (no fractional cell).
+-- dock/quick buttons leave less width - outer width stays pad + k * advance + pad only (no fractional cell).
 local STATUS_CHARACTER_SLOTS = 30
 local STATUS_MONO_WIDTH_PROBE = "M"
 local STATUS_PAD_X = 4
@@ -290,7 +290,7 @@ local function ensureQuickButtons(app)
     }),
     mirrorXPreview = Button.new({
       icon = images.icons.actions.icon_mirror_x or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty,
-      tooltip = "Toggle horizontal mirror for the focused window (per window; persists in project) — M",
+      tooltip = "Toggle horizontal mirror for the focused window (per window; persists in project) - M",
       action = function()
         if app.togglePreviewMirrorX then
           local changed, on = app:togglePreviewMirrorX()
@@ -395,7 +395,7 @@ local function updateMirrorPreviewButton(app)
   local mirrorOn = focus and focus._mirrorXPreview == true
   if mirrorOn then
     b.bgColor = colors.green
-    b.tooltip = "Mirror X on — pointer X mirrored in layer space. Click or M to turn off."
+    b.tooltip = "Mirror X on - pointer X mirrored in layer space. Click or M to turn off."
   else
     b.bgColor = nil
     b.tooltip = "Mirror focused window horizontally (M). Per window; editing uses mirrored X."
@@ -426,7 +426,7 @@ local function updateAlwaysOnTopButton(app)
   local on = focus and focus._alwaysOnTop == true
   if on then
     b.bgColor = colors.green
-    b.tooltip = "Always on top is on — click to turn off for this window."
+    b.tooltip = "Always on top is on - click to turn off for this window."
   else
     b.bgColor = nil
     b.tooltip = "Keep focused window on top"

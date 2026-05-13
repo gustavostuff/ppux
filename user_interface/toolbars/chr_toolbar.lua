@@ -162,7 +162,7 @@ function ChrToolbar:_onOpenBaseRomFolder()
   local path = self:_romPathForOpenFolder(app)
   if type(path) ~= "string" or path == "" then
     if app and app.setStatus then
-      app:setStatus("No ROM path — open or save against a ROM on disk first.")
+      app:setStatus("No ROM path - open or save against a ROM on disk first.")
     end
     return
   end

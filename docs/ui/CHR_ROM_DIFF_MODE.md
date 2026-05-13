@@ -1,6 +1,6 @@
 # CHR / ROM window diff mode (design doc)
 
-Visual “git-like” diff for **CHR-backed windows** (`kind == "chr"`), including the **ROM tile browser** (`RomWindow`), which shares the same behavior. ROM size stays fixed; we do **not** model inserted or deleted regions—only **per-tile** change highlighting.
+Visual “git-like” diff for **CHR-backed windows** (`kind == "chr"`), including the **ROM tile browser** (`RomWindow`), which shares the same behavior. ROM size stays fixed; we do **not** model inserted or deleted regions-only **per-tile** change highlighting.
 
 ## User-visible behavior
 
@@ -11,7 +11,7 @@ Visual “git-like” diff for **CHR-backed windows** (`kind == "chr"`), includi
   - **RGB (0, 1, 0)** on cells whose **CHR tile data** differs from the baseline.
   - **Black** on cells that match the baseline.
 - **Granularity**: one **8×8** CHR tile equals **16 raw bytes** in NES planar layout. If **any** of those bytes differ from baseline, treat the whole **cell** as changed (green). No per-pixel outlining inside the tile.
-- **8×16 (odd/even layout)**: the ROM editor lays out CHR in vertical pairs forming one **8×16 “item.”** If **either** half (top or bottom 8×8 in that pair/column) has any byte difference, apply the **same** tint to **both** 8×8 grid cells—so one visible “sprite strip” stays one semantic unit.
+- **8×16 (odd/even layout)**: the ROM editor lays out CHR in vertical pairs forming one **8×16 “item.”** If **either** half (top or bottom 8×8 in that pair/column) has any byte difference, apply the **same** tint to **both** 8×8 grid cells-so one visible “sprite strip” stays one semantic unit.
 
 ## Baseline (“what we compare against”)
 
@@ -22,7 +22,7 @@ Visual “git-like” diff for **CHR-backed windows** (`kind == "chr"`), includi
 ## Technical: change detection
 
 - For bank index `b` and CHR tile index `t` ∈ `0 … 511`, compare **`chrBanksBytes[b]`** vs **`originalChrBanksBytes[b]`** over the 16-byte range starting at **`t * 16 + 1`** (1-based table indexing, consistent with existing code such as `buildEditsFromChrDiff` in `controllers/game_art/edits_controller.lua`).
-- Missing or shorter baseline bank: behavior should stay **consistent with existing revert/diff helpers** (e.g. treat missing bytes as zero or hide diff—implementation must align with revert semantics).
+- Missing or shorter baseline bank: behavior should stay **consistent with existing revert/diff helpers** (e.g. treat missing bytes as zero or hide diff-implementation must align with revert semantics).
 - **8×16 grouping**: derive tile indices from the same **grid position → tile index** mapping as **`bank_canvas_controller`** (`mapIndexForOrder` for `normal` vs `oddEven`). For odd/even, combine the two rows of a vertical pair into one logical “metatile”: `changed_metatile = changed(top_half) OR changed(bottom_half)`.
 
 ## Technical: rendering
@@ -51,7 +51,7 @@ Visual “git-like” diff for **CHR-backed windows** (`kind == "chr"`), includi
 ## Testing (recommended)
 
 - **Unit**: two synthetic banks (original vs current); assert tile-level changed flags; assert **odd/even** coupling (change only bottom half bytes → **both** rows tinted for that column).
-- **Smoke**: toggle diff with no baseline / empty project—no crashes; predictable fallback.
+- **Smoke**: toggle diff with no baseline / empty project-no crashes; predictable fallback.
 
 ## Status
 

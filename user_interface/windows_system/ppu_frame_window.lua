@@ -633,7 +633,7 @@ function PPUFrameWindow:_repaintNametableLayerCanvas(layerIndex)
   local hasDirtyCells = next(dirtyCells) ~= nil
   -- Only repaint when something is flagged dirty. (Avoid full clears when CRT sampling
   -- invokes this helper on an already-painted cache; avoids repainting under preview
-  -- mirror transforms unless we reset to canvas space — see origin() below.)
+  -- mirror transforms unless we reset to canvas space - see origin() below.)
   if state.dirtyAll ~= true and not hasDirtyCells then
     return false
   end
