@@ -80,7 +80,7 @@ Notes:
 
 ### Toolbars
 
-The **App toolbar** sits along the **top of the canvas** and hosts global quick actions; it also reserves space for status text on the right. Also, each window type has a **specialized toolbar** in a slim strip just above that window’s header.
+The **App toolbar** sits along the **top of the canvas** and hosts global quick actions; it also reserves space for status text on the right.
 
 #### App toolbar
 
