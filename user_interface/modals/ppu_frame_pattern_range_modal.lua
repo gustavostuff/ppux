@@ -284,6 +284,8 @@ end
 
 function Dialog:draw(canvas)
   if not self.visible then return end
+  ModalPanelUtils.refreshTargetMetrics(self)
+  rebuildPanel(self)
   self.panel:setVisible(true)
   ModalPanelUtils.drawBackdrop(canvas)
   self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)

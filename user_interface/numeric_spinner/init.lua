@@ -208,10 +208,13 @@ function NumericSpinner:draw()
   local minusIconW, minusIconH = getIconSize(self.minusIcon)
   local plusIconW, plusIconH = getIconSize(self.plusIcon)
 
-  love.graphics.setColor(colors.white)
+  local lightUi = colors.getTheme and colors:getTheme() == "light"
+  local fg = lightUi and colors.black or colors.white
+  love.graphics.setColor(fg)
   drawIcon(self.minusIcon, minusX + (minusW - minusIconW) * 0.5, minusY + (minusH - minusIconH) * 0.5)
   drawIcon(self.plusIcon, plusX + (plusW - plusIconW) * 0.5, plusY + (plusH - plusIconH) * 0.5)
-  Text.print(valueText, math.floor(valueX + (valueW - valueTextW) * 0.5), textY, { color = colors.white })
+  Text.print(valueText, math.floor(valueX + (valueW - valueTextW) * 0.5), textY, { color = fg })
+  love.graphics.setColor(colors.white)
 end
 
 return NumericSpinner
