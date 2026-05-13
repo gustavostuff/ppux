@@ -2,7 +2,7 @@
 
 ## Open Source NES Art Editor
 
-Beta 0.1.3
+Beta 0.1.4
 
 <img src="img/readme_images/app_example.png" alt="">
 
@@ -192,7 +192,7 @@ When **Pattern layer toggle** is ON, only the pattern reference layer is visible
 
 ### Palette windows
 
-Palette windows are the palette editors/viewers used by the rest of the app.
+Palette windows are the palette editors/viewers used by the app.
 
 There are 2 kinds:
 
@@ -204,7 +204,7 @@ In practice:
 * If an item or layer has no ROM palette assigned, it uses a `Global palette`.
 * If you want the colors to reflect actual game palette bytes, use a `ROM palette`.
 * Only `ROM palette` windows are meant to be explicitly linked to other windows.
-* Palette row numbers `1` to `4` select the row used by layers/items that support palette-number selection.
+* Palette row numbers `1` to `4` (in keyboard) select the row used by layers/items that support palette-number selection.
 * Click a color to select it for editing/painting.
 * In palette windows, arrow keys move the selected cell.
 * `Shift + arrows`, mouse wheel, and `Shift + mouse wheel` adjust colors.
@@ -232,7 +232,7 @@ In practice:
 - `Ctrl + R`: toggle shader rendering for the focused layer
 - `Ctrl + Z` / `Ctrl + Y`: undo / redo (see [Undo and redo](#undo-and-redo) for what is recorded)
 - `Ctrl + C` / `Ctrl + X` / `Ctrl + V`: copy / cut / paste selection
- - In `ppu_frame` and `oam_animation` windows, clipboard actions are blocked on sprite layers
+- In `ppu_frame` and `oam_animation` windows, clipboard actions are blocked **on sprite** layers
 - `Right click` or `middle click` drag: move windows
 - taskbar: focus, restore, and manage windows
 
@@ -242,7 +242,7 @@ In practice:
 
 Tile mode is for selection, drag and drop and tile-level editing in general.
 
-- left click to select
+- Left click to select
 - `Ctrl + click` or `Shift + drag` for multi-selection
 - `Ctrl + A` to select all
 - `Delete` / `Backspace` to remove selection where supported
@@ -251,7 +251,7 @@ Tile mode is for selection, drag and drop and tile-level editing in general.
 - `Ctrl + Up/Down` to change inactive-layer opacity (disabled in PPU Frame pattern-layer-only mode)
 - `1` to `4` to assign palette numbers where supported
 - `H` / `V` to mirror selected sprites
-- bank windows: `Left/Right` switch banks, `M` toggles `8x8` / `8x16`, `D` toggles **diff vs loaded CHR** (`8x16` pairs highlight as one unit when either half differs)
+- Bank windows: `Left/Right` switch banks, `M` toggles `8x8` / `8x16`, `D` toggles **diff vs loaded CHR** (`8x16` pairs highlight as one unit when either half differs)
 - With a layout window focused, hold **`Space`** to cross-highlight matching tiles in the **current CHR/ROM bank** (see [Main controls](#main-controls)).
 
 ### Edit mode
@@ -260,12 +260,12 @@ Tile mode is for selection, drag and drop and tile-level editing in general.
 
 Edit mode is for pixel-level editing.
 
-- left click to paint
+- Left click to paint
 - `Shift + click` draws a line from the last painted/clicked point
 - `R` toggles the rectangle fill tool
-- hold `G` and left click or drag to grab a color
-- right-click also grabs the color under the cursor; **Alt + right-click** opens the menu shown in Tile mode
-- hold `F` and left click to flood fill
+- Hold `G` and left click or drag to grab a color
+- Right-click also grabs the color under the cursor; **Alt + right-click** opens the menu shown in Tile mode
+- Hold `F` and left click to flood fill
 - `1` to `4` to choose the active color
 - `Alt + 1/2/3/4` to change brush size presets
 - `Ctrl + Alt + mouse wheel` also changes brush size
