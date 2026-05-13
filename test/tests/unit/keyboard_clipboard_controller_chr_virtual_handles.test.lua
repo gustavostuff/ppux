@@ -332,4 +332,57 @@ describe("keyboard_clipboard_controller.lua - CHR virtual handles", function()
     expect(botDst.pixels[1]).toBe(2)
     expect(botDst.pixels[64]).toBe(2)
   end)
+
+  it("cut clears both tiles of an 8x16 CHR pair when only one row is selected", function()
+    local statuses = {}
+    local topSrc = { pixels = {}, _bankBytesRef = {}, _bankIndex = 1, index = 100, refreshImage = function() end }
+    local botSrc = { pixels = {}, _bankBytesRef = {}, _bankIndex = 1, index = 101, refreshImage = function() end }
+    for i = 1, 64 do
+      topSrc.pixels[i] = 3
+      botSrc.pixels[i] = 4
+      topSrc._bankBytesRef[i] = 0
+      botSrc._bankBytesRef[i] = 0
+    end
+
+    local cols = 16
+    local selCol, selRow = 3, 10
+    local idx = selRow * cols + selCol + 1
+
+    local chrWin = {
+      kind = "chr",
+      orderMode = "oddEven",
+      cols = cols,
+      rows = 32,
+      layers = {
+        [1] = {
+          kind = "tile",
+          multiTileSelection = { [idx] = true },
+        },
+      },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return selCol, selRow, 1 end,
+      get = function(_, col, row)
+        if col == 3 and row == 10 then return topSrc end
+        if col == 3 and row == 11 then return botSrc end
+        return nil
+      end,
+      setSelected = function() end,
+      clearSelected = function() end,
+    }
+
+    local ctx = {
+      getMode = function() return "tile" end,
+      setStatus = function(text) statuses[#statuses + 1] = text end,
+      app = {
+        markUnsaved = function() end,
+      },
+    }
+
+    expect(KeyboardClipboardController.performClipboardAction(ctx, chrWin, "cut")).toBe(true)
+    expect(topSrc.pixels[1]).toBe(0)
+    expect(topSrc.pixels[64]).toBe(0)
+    expect(botSrc.pixels[1]).toBe(0)
+    expect(botSrc.pixels[64]).toBe(0)
+    expect(statuses[#statuses]).toBe("Cut 2 tiles")
+  end)
 end)

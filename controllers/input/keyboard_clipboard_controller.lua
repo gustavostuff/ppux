@@ -200,6 +200,28 @@ local function syncChrTileMutation(tileRef, app)
   BankCanvasSupport.invalidateTile(app, bankIdx, tileIdx)
 end
 
+--- Clears one 8×8 CHR tile to transparent (palette index 0). Returns whether any pixel changed.
+local function clearChrTileToTransparent(ctx, tile, undoPaintCtx)
+  if not (tile and tile.pixels) then
+    return false
+  end
+  local beforePixels = snapshotTilePixels(tile)
+  local changed = false
+  for i = 1, 64 do
+    if tile.pixels[i] ~= 0 then
+      tile.pixels[i] = 0
+      changed = true
+    end
+  end
+  if changed then
+    if beforePixels ~= nil then
+      recordUndoChrPixelDiff(undoPaintCtx, tile, beforePixels)
+    end
+    syncChrTileMutation(tile, ctx and ctx.app or nil)
+  end
+  return changed
+end
+
 local function getClipboardTileItem(win, col, row, layerIndex)
   if not win then
     return nil
@@ -1010,30 +1032,40 @@ local function cutChrTileSelection(ctx, focus, layer, layerIndex)
   if focus.getSelected then
     fallbackCol, fallbackRow = focus:getSelected()
   end
-  local cells = MultiSelectController.getSelectedTileCells(focus, layerIndex, fallbackCol, fallbackRow)
-  if #cells == 0 then
-    return nil
-  end
 
   local cleared = 0
   local undoRedo = ctx and ctx.app and ctx.app.undoRedo or nil
   local undoPaintCtx = beginUndoPaintEvent(undoRedo)
-  for _, cell in ipairs(cells) do
-    local tile = focus.get and focus:get(cell.col, cell.row, layerIndex) or nil
-    if tile and tile.pixels then
-      local beforePixels = snapshotTilePixels(tile)
-      local changed = false
-      for i = 1, 64 do
-        if tile.pixels[i] ~= 0 then
-          tile.pixels[i] = 0
-          changed = true
-        end
+
+  local isChr8x16 = WindowCaps.isChrLike(focus) and focus.orderMode == "oddEven"
+  if isChr8x16 then
+    local pairs = MultiSelectController.getSelectedChr8x16Pairs(focus, layerIndex, fallbackCol, fallbackRow) or {}
+    if #pairs == 0 then
+      finishUndoPaintEvent(undoPaintCtx)
+      return nil
+    end
+    for _, pair in ipairs(pairs) do
+      local topTile = focus.get and focus:get(pair.col, pair.topRow, layerIndex) or nil
+      if clearChrTileToTransparent(ctx, topTile, undoPaintCtx) then
+        cleared = cleared + 1
       end
-      if changed then
-          if beforePixels ~= nil then
-            recordUndoChrPixelDiff(undoPaintCtx, tile, beforePixels)
-          end
-          syncChrTileMutation(tile, ctx and ctx.app or nil)
+      local botTile = nil
+      if focus.get and pair.bottomRow ~= nil then
+        botTile = focus:get(pair.col, pair.bottomRow, layerIndex)
+      end
+      if clearChrTileToTransparent(ctx, botTile, undoPaintCtx) then
+        cleared = cleared + 1
+      end
+    end
+  else
+    local cells = MultiSelectController.getSelectedTileCells(focus, layerIndex, fallbackCol, fallbackRow)
+    if #cells == 0 then
+      finishUndoPaintEvent(undoPaintCtx)
+      return nil
+    end
+    for _, cell in ipairs(cells) do
+      local tile = focus.get and focus:get(cell.col, cell.row, layerIndex) or nil
+      if clearChrTileToTransparent(ctx, tile, undoPaintCtx) then
         cleared = cleared + 1
       end
     end
