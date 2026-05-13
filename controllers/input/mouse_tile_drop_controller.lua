@@ -431,7 +431,7 @@ local function getChrGroupDropState(env, x, y, wm)
   if not dst or dst.isPalette or not canDropOnWindow(dst) then
     return nil
   end
-  if not WindowCaps.isStaticOrAnimationArt(dst) then
+  if not (WindowCaps.isStaticOrAnimationArt(dst) or WindowCaps.isPpuFrame(dst)) then
     return nil
   end
 

@@ -35,6 +35,46 @@ describe("mouse_tile_drop_controller.lua - CHR grouped drag/drop", function()
     return group
   end
 
+  local function makePpuFrameTileWindow(cols, rows)
+    local nametableBytes = {}
+    local items = {}
+    local selected = nil
+    for i = 1, cols * rows do
+      nametableBytes[i] = 0
+    end
+    local win = {
+      kind = "ppu_frame",
+      x = 0, y = 0, zoom = 1, cellW = 8, cellH = 8,
+      cols = cols, rows = rows, scrollCol = 0, scrollRow = 0,
+      nametableBytes = nametableBytes,
+      layers = { { kind = "tile" } },
+      getActiveLayerIndex = function() return 1 end,
+      isInContentArea = function(_, x, y)
+        return x >= 0 and y >= 0 and x < (cols * 8) and y < (rows * 8)
+      end,
+      toGridCoords = function(_, x, y)
+        if x < 0 or y < 0 or x >= cols * 8 or y >= rows * 8 then
+          return false
+        end
+        return true, math.floor(x / 8), math.floor(y / 8)
+      end,
+      set = function(_, col, row, item)
+        local idx = (row * cols) + col + 1
+        items[idx] = item
+        if item and type(item.index) == "number" then
+          nametableBytes[idx] = item.index % 256
+        end
+      end,
+      get = function(_, col, row)
+        return items[(row * cols) + col + 1]
+      end,
+      setSelected = function(_, col, row)
+        selected = { col = col, row = row }
+      end,
+    }
+    return win, nametableBytes, items, function() return selected end
+  end
+
   local function makeTileWindow(cols, rows)
     local items = {}
     local selected = nil
@@ -233,6 +273,67 @@ describe("mouse_tile_drop_controller.lua - CHR grouped drag/drop", function()
     expect(clearedCommit).toBe(true)
     expect(getSelected().col).toBe(1)
     expect(getSelected().row).toBe(1)
+  end)
+
+  it("reports out of bounds for CHR grouped drag onto PPU frame nametable layer", function()
+    local group = makeGroup({
+      { srcCol = 0, srcRow = 0, offsetCol = 0, offsetRow = 0, item = { index = 1, _bankIndex = 1 } },
+      { srcCol = 1, srcRow = 0, offsetCol = 1, offsetRow = 0, item = { index = 2, _bankIndex = 1 } },
+    })
+    local dst = makePpuFrameTileWindow(4, 4)
+    local wm = {
+      windowAt = function() return dst end,
+    }
+
+    local candidate = MouseTileDropController.getHoverTooltipCandidate({
+      drag = {
+        active = true,
+        item = group.entries[1].item,
+        tileGroup = group,
+        srcWin = { kind = "chr" },
+      },
+    }, 24, 0, wm)
+
+    expect(candidate).toBeTruthy()
+    expect(candidate.text).toBe("out of bounds")
+  end)
+
+  it("copies a CHR grouped drag into PPU frame nametable bytes without removing the source", function()
+    local a = { id = "a", index = 4, _bankIndex = 1 }
+    local b = { id = "b", index = 5, _bankIndex = 1 }
+    local group = makeGroup({
+      { srcCol = 0, srcRow = 0, offsetCol = 0, offsetRow = 0, item = a },
+      { srcCol = 1, srcRow = 0, offsetCol = 1, offsetRow = 0, item = b },
+    })
+    local dst, ntBytes = makePpuFrameTileWindow(4, 4)
+    local sourceRemoved = false
+    local srcWin = {
+      kind = "chr",
+      removeAt = function()
+        sourceRemoved = true
+      end,
+    }
+    local wm = {
+      windowAt = function() return dst end,
+      setFocus = function() end,
+    }
+
+    local handled = MouseTileDropController.handleTileDrop({
+      ctx = { app = {} },
+      drag = {
+        active = true,
+        item = a,
+        tileGroup = group,
+        srcWin = srcWin,
+        srcLayer = 1,
+      },
+      clearDragState = function() end,
+    }, 8, 8, wm)
+
+    expect(handled).toBe(true)
+    expect(ntBytes[6]).toBe(4)
+    expect(ntBytes[7]).toBe(5)
+    expect(sourceRemoved).toBe(false)
   end)
 
   it("drops CHR grouped drags onto sprite layers snapped to pixels", function()
