@@ -66,11 +66,6 @@ function AnimationToolbar.new(window, ctx, windowController)
     self.useButtonRows = isOamMultiRowEnabled(window)
   end
 
-  self.linkButton = self:addButton(images.icons.actions.icon_connect, nil, "Palette link handle; right-drag to a ROM palette to link; left-click for menu", {
-    row = primaryRow,
-    paletteLinkHandle = true,
-  })
-  
   -- Previous layer button (down icon)
   self:addButton(images.icons.chrome.icon_down, function()
     self:_onPrevLayer()
@@ -128,6 +123,12 @@ function AnimationToolbar.new(window, ctx, windowController)
     self:_onTogglePlay()
   end, initialTooltip, {
     row = secondaryRow,
+  })
+
+  -- Link handle last (palette connections); kept in screen order as the rightmost toolbar control.
+  self.linkButton = self:addButton(images.icons.actions.icon_connect, nil, "Palette link handle; right-drag to a ROM palette to link; left-click for menu", {
+    row = secondaryRow or primaryRow,
+    paletteLinkHandle = true,
   })
   
   -- Update position

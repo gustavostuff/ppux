@@ -27,13 +27,13 @@ function RomPaletteToolbar.new(window, ctx, windowController)
     self:_onNavigate(1)
   end, "Next ROM palette")
 
-  self.linkButton = self:addButton(images.icons.actions.icon_connect or images.icons.chrome.icon_pivot or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty, nil, "Palette link handle; right-drag to link layers; left-click for menu", {
-    paletteLinkHandle = true,
-  })
-
   self.compactButton = self:addButton(images.icons.chrome.icon_minus or images.icons.chrome.icon_down, function()
     self:_onToggleCompact()
   end, "Toggle compact palette view")
+
+  self.linkButton = self:addButton(images.icons.actions.icon_connect or images.icons.chrome.icon_pivot or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty, nil, "Palette link handle; right-drag to link layers; left-click for menu", {
+    paletteLinkHandle = true,
+  })
 
   self:updateCompactIcon()
   self:updatePosition()
