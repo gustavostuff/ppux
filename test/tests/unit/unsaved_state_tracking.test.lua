@@ -239,4 +239,22 @@ describe("undo_redo_controller.lua - unsaved tracking", function()
     expect(ok).toBe(true)
     expect(#events).toBe(0)
   end)
+
+  it("does not mark window minimize batch as unsaved", function()
+    local undo = UndoRedoController.new(10)
+    local events = {}
+    undo:setUnsavedTracker(function(eventType)
+      events[#events + 1] = eventType
+    end)
+
+    local ok = undo:addWindowMinimizeBatchEvent({
+      type = "window_minimize_batch",
+      keepWin = { _closed = false },
+      targets = { { _closed = false } },
+      wm = {},
+    })
+
+    expect(ok).toBe(true)
+    expect(#events).toBe(0)
+  end)
 end)

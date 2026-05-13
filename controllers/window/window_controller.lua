@@ -191,6 +191,24 @@ local function recordWindowMinimizeUndo(self, win, beforeMinimized, afterMinimiz
   })
 end
 
+--- One undo entry for "minimize all but this" instead of N separate minimize events.
+local function recordMinimizeAllExceptUndo(self, keepWin, minimizedWins, beforeFocusedWin)
+  if not keepWin or type(minimizedWins) ~= "table" or #minimizedWins == 0 then
+    return
+  end
+  local undoRedo = getUndoRedoFromCtx()
+  if not (undoRedo and undoRedo.addWindowMinimizeBatchEvent) then
+    return
+  end
+  undoRedo:addWindowMinimizeBatchEvent({
+    type = "window_minimize_batch",
+    wm = self,
+    keepWin = keepWin,
+    targets = minimizedWins,
+    beforeFocusedWin = beforeFocusedWin,
+  })
+end
+
 local function syncCollapseIcon(win)
   if not (win and win.headerToolbar) then return end
   if win.headerToolbar.updateCollapseIcon then
@@ -756,11 +774,24 @@ function WM:minimizeAllExcept(keepWin)
   if not keepWin or keepWin._closed then
     return false
   end
-  local any = false
+  local beforeFocusedWin = self.focused
+  local candidates = {}
   for _, w in ipairs(self.windows) do
-    if w ~= keepWin and self:minimizeWindow(w) then
-      any = true
+    if w ~= keepWin and isWindowVisibleForInteraction(w) then
+      candidates[#candidates + 1] = w
     end
+  end
+  if #candidates == 0 then
+    return false
+  end
+  local minimized = {}
+  for _, w in ipairs(candidates) do
+    if self:minimizeWindow(w, { recordUndo = false }) then
+      minimized[#minimized + 1] = w
+    end
+  end
+  if #minimized == 0 then
+    return false
   end
   if isWindowVisibleForInteraction(keepWin) then
     self:bringToFront(keepWin)
@@ -768,7 +799,8 @@ function WM:minimizeAllExcept(keepWin)
       self:setFocus(keepWin)
     end
   end
-  return any
+  recordMinimizeAllExceptUndo(self, keepWin, minimized, beforeFocusedWin)
+  return true
 end
 
 function WM:maximizeAll()

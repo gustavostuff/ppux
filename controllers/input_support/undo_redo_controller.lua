@@ -283,6 +283,17 @@ function UndoRedoController:addWindowMinimizeEvent(event)
   return pushed
 end
 
+--- Single stack entry for "minimize all but this" (targets = windows minimized in the forward action).
+function UndoRedoController:addWindowMinimizeBatchEvent(event)
+  if not event or event.type ~= "window_minimize_batch" or not event.keepWin then
+    return false
+  end
+  if type(event.targets) ~= "table" or #event.targets == 0 then
+    return false
+  end
+  return self:_pushEvent(event)
+end
+
 function UndoRedoController:addPaletteLinkEvent(event)
   if not event or event.type ~= "palette_link" then return false end
   if type(event.actions) ~= "table" or #event.actions == 0 then return false end
@@ -989,6 +1000,57 @@ local function applyWindowCloseEvent(event, direction, app)
   return true
 end
 
+local function windowCanReceiveFocus(win)
+  return win and not win._closed and not win._minimized and win._groupHidden ~= true
+end
+
+--- Undo: restore all minimized targets, then focus `beforeFocusedWin` when valid.
+--- Redo: minimize all targets again, then focus/bring `keepWin` forward.
+local function applyWindowMinimizeBatchEvent(event, direction, app)
+  if not (event and event.type == "window_minimize_batch") then
+    return false
+  end
+  local wm = event.wm or (app and app.wm)
+  if not wm then
+    return false
+  end
+  local keepWin = event.keepWin
+  local targets = event.targets or {}
+  local beforeFocusedWin = event.beforeFocusedWin
+
+  if direction == "undo" then
+    for i = 1, #targets do
+      local w = targets[i]
+      if w and not w._closed and w._minimized and wm.restoreMinimizedWindow then
+        wm:restoreMinimizedWindow(w, { recordUndo = false, focus = false })
+      end
+    end
+    if wm.setFocus then
+      if windowCanReceiveFocus(beforeFocusedWin) then
+        wm:setFocus(beforeFocusedWin)
+      elseif windowCanReceiveFocus(keepWin) then
+        wm:setFocus(keepWin)
+      end
+    end
+  else
+    for i = 1, #targets do
+      local w = targets[i]
+      if w and not w._closed and wm.minimizeWindow then
+        wm:minimizeWindow(w, { recordUndo = false })
+      end
+    end
+    if windowCanReceiveFocus(keepWin) then
+      if wm.bringToFront then
+        wm:bringToFront(keepWin)
+      end
+      if wm.setFocus then
+        wm:setFocus(keepWin)
+      end
+    end
+  end
+  return true
+end
+
 local function applyWindowMinimizeEvent(event, direction, app)
   if not (event and event.type == "window_minimize" and event.win) then
     return false
@@ -1197,6 +1259,8 @@ function UndoRedoController:_applyEvent(event, direction, app)
     return GridLayoutUndo.apply(event.win, snap)
   elseif event.type == "chr_tile_revert" then
     return applyChrTileRevertEvent(event, direction, app)
+  elseif event.type == "window_minimize_batch" then
+    return applyWindowMinimizeBatchEvent(event, direction, app)
   elseif event.type == "window_minimize" then
     return applyWindowMinimizeEvent(event, direction, app)
   elseif event.type == "window_close" then

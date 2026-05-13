@@ -1,6 +1,7 @@
 -- undo_redo_controller.test.lua
 
 local UndoRedoController = require("controllers.input_support.undo_redo_controller")
+local WM = require("controllers.window.window_controller")
 
 describe("UndoRedoController - sprite removals", function()
   it("undoes multiple sprite removals in order", function()
@@ -640,6 +641,42 @@ describe("UndoRedoController - window minimize", function()
     expect(ur:redo({ wm = wm })).toBe(true)
     expect(winB._minimized).toBe(true)
     expect(wm:getFocus()).toBe(winA)
+  end)
+
+  it("minimize all except records one batch event; undo restores all in one step", function()
+    local ur = UndoRedoController.new(10)
+    local wm = WM.new()
+
+    local winA = { title = "A", _closed = false, _minimized = false }
+    local winB = { title = "B", _closed = false, _minimized = false }
+    local winKeep = { title = "Keep", _closed = false, _minimized = false }
+    wm:add(winA)
+    wm:add(winB)
+    wm:add(winKeep)
+    wm:setFocus(winB)
+
+    local prevCtx = rawget(_G, "ctx")
+    _G.ctx = { app = { undoRedo = ur, wm = wm } }
+    expect(wm:minimizeAllExcept(winKeep)).toBe(true)
+    _G.ctx = prevCtx
+
+    expect(winA._minimized).toBe(true)
+    expect(winB._minimized).toBe(true)
+    expect(winKeep._minimized).toBe(false)
+    expect(wm:getFocus()).toBe(winKeep)
+    expect(#ur.stack).toBe(1)
+    expect(ur.stack[1].type).toBe("window_minimize_batch")
+
+    local app = { wm = wm }
+    expect(ur:undo(app)).toBe(true)
+    expect(winA._minimized).toBe(false)
+    expect(winB._minimized).toBe(false)
+    expect(wm:getFocus()).toBe(winB)
+
+    expect(ur:redo(app)).toBe(true)
+    expect(winA._minimized).toBe(true)
+    expect(winB._minimized).toBe(true)
+    expect(wm:getFocus()).toBe(winKeep)
   end)
 end)
 
