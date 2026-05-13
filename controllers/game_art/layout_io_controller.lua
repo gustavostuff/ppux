@@ -497,6 +497,7 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
       collapsed = w._collapsed or false,
       minimized = w._minimized or false,
       alwaysOnTop = w._alwaysOnTop == true,
+      mirrorXPreview = w._mirrorXPreview == true,
       showGrid = GridModeUtils.normalize(w.showGrid),
       nonActiveLayerOpacity = w.nonActiveLayerOpacity,
     }

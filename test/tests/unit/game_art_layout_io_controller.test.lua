@@ -303,6 +303,34 @@ describe("game_art_layout_io_controller.lua", function()
     expect(restored.cellH).toBe(14)
   end)
 
+  it("persists mirror X preview through layout snapshot and rebuild", function()
+    local WM = require("controllers.window.window_controller")
+    local wm = WM.new()
+    local win = wm:createTileWindow({
+      title = "Mirror persistence",
+      cols = 8,
+      rows = 8,
+      numLayers = 1,
+    })
+    win._id = "mirror_persist_win"
+    win._mirrorXPreview = true
+
+    local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1)
+    expect(snapshot.windows[1].mirrorXPreview).toBe(true)
+
+    local built = GameArtWindowBuilderController.buildWindowsFromLayout(snapshot, {
+      wm = WM.new(),
+      tilesPool = {},
+      ensureTiles = function() end,
+      romRaw = "",
+      decodeUserDefinedCodes = GameArtLayoutIOController.decodeUserDefinedCodes,
+    })
+
+    local restored = built.windowsById["mirror_persist_win"]
+    expect(restored).toBeTruthy()
+    expect(restored._mirrorXPreview).toBe(true)
+  end)
+
   it("persists OAM animation sprite origin guides through layout snapshot and rebuild", function()
     local WM = require("controllers.window.window_controller")
     local wm = WM.new()

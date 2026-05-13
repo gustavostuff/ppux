@@ -9,6 +9,7 @@ local AppSettingsController = require("controllers.app.settings_controller")
 local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
 local UserInput = require("controllers.input")
 local ChrCanvasOnlyMode = require("controllers.chr.chr_canvas_only_mode")
+local WindowCaps = require("controllers.window.window_capabilities")
 
 return function(AppCoreController)
 ------------------------------------------------------------
@@ -531,8 +532,19 @@ function AppCoreController:textinput(text)
 end
 
 function AppCoreController:togglePreviewMirrorX()
-  self.previewMirrorX = not (self.previewMirrorX == true)
-  return self.previewMirrorX
+  local wm = self.wm
+  if not wm or not wm.getFocus then
+    return false, false
+  end
+  local focus = wm:getFocus()
+  if not focus or focus._closed == true or focus._minimized == true or focus._collapsed == true then
+    return false, false
+  end
+  if WindowCaps.isAnyPaletteWindow(focus) or WindowCaps.isCrtLens(focus) then
+    return false, false
+  end
+  focus._mirrorXPreview = not (focus._mirrorXPreview == true)
+  return true, focus._mirrorXPreview == true
 end
 
 local function resolveClipboardActionFocus(app, ctx)

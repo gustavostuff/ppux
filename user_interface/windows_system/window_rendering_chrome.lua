@@ -1,5 +1,4 @@
 local images = require("images")
-local DrawUtils = require("utils.draw_utils")
 local TU = require("utils.text_utils")
 local colors = require("app_colors")
 local Timer = require("utils.timer_utils")
@@ -116,14 +115,6 @@ function Window:drawHeader(isFocused)
   end
   love.graphics.rectangle("fill", hx - 1, hy, hw + 2, hh, 2)
 
-  local font = love.graphics.getFont()
-  local fh = (font and font:getHeight()) or 0
-  local ty = math.floor(hy + (hh - fh) / 2)
-
-  if self._alwaysOnTop then
-    DrawUtils.drawChromeAlwaysOnTopPin(hx, hy, isFocused)
-  end
-
   -- Title on chrome: use Appearance "Text/Icons" when focused; body text when not.
   local textColor
   if isFocused then
@@ -131,11 +122,39 @@ function Window:drawHeader(isFocused)
   else
     textColor = colors:chromeTextIconsColorNonFocused()
   end
+
   love.graphics.setColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
 
-  -- Keep marquee width stable; header toolbar draws on top when visible.
-  local textWidth = hw - pad * 2
-  local textX = hx + pad  -- Start text from left edge
+  local indicators = rawget(images, "icons") and images.icons.indicators
+  local iconMirrored = indicators and indicators.icon_mirrored
+  local iconTop = indicators and indicators.icon_always_on_top
+  local showMirror = self._mirrorXPreview == true
+  local showAlwaysOnTop = self._alwaysOnTop == true
+  local headerIcon = nil
+  if showMirror and showAlwaysOnTop and iconMirrored and iconTop then
+    local wave = math.floor((love.timer.getTime() or 0) / 0.5) % 2
+    headerIcon = wave == 0 and iconMirrored or iconTop
+  elseif showMirror and iconMirrored then
+    headerIcon = iconMirrored
+  elseif showAlwaysOnTop and iconTop then
+    headerIcon = iconTop
+  end
+
+  local headerIconInset = pad -- title margin from header left when no status icon
+  if headerIcon then
+    love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], colors.white[4] or 1)
+    -- Offset from header origin (shared for mirror / always-on-top icons).
+    love.graphics.draw(headerIcon, hx - 4, hy - 3)
+    love.graphics.setColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
+    headerIconInset = headerIcon:getWidth() + pad
+  end
+
+  local textX = hx + headerIconInset
+  local textWidth = math.max(0, hw - pad - headerIconInset)
+
+  local font = love.graphics.getFont()
+  local fh = (font and font:getHeight()) or 0
+  local ty = math.floor(hy + (hh - fh) / 2)
   local startIdx, endIdx = TU.drawScrollingText(
     text,
     math.floor(textX),

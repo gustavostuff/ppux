@@ -598,6 +598,7 @@ function M.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool)
     win._collapsed = w.collapsed
   end
   win._alwaysOnTop = (w.alwaysOnTop == true)
+  win._mirrorXPreview = (w.mirrorXPreview == true)
   local shouldMinimize = (w.minimized == true)
   if not wm and shouldMinimize then
     win._minimized = true

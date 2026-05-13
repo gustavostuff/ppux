@@ -215,15 +215,15 @@ function Window:resizeToMinimum()
   end
 end
 
---- App "Mirror X preview" flips the focused window's body around `getScreenRect()`. Undo that flip
---- for pointer X so editing uses the same coordinate space as unmirrored draws.
+--- Horizontal mirror preview for this window (body flipped around `getScreenRect()` when focused).
+--- Remap pointer X so editing uses the same coordinate space as unmirrored layer data.
 function Window:remapPreviewMirrorScreenXYIfNeeded(px, py)
-  local ctx = rawget(_G, "ctx")
-  local app = ctx and ctx.app
-  if not (app and app.previewMirrorX == true) then
+  if self._mirrorXPreview ~= true then
     return px, py
   end
-  local wm = (ctx and ctx.wm and ctx.wm()) or app.wm
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app
+  local wm = (ctx and ctx.wm and ctx.wm()) or (app and app.wm)
   if not wm or wm:getFocus() ~= self then
     return px, py
   end

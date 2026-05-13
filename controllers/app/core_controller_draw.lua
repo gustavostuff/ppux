@@ -1088,7 +1088,7 @@ drawNormalWindow = function(app, w, wm)
   love.graphics.setColor(colors.white)
 
   local isPaletteWindow = WindowCaps.isAnyPaletteWindow(w)
-  local mirrorLayerPreview = app.previewMirrorX == true and not isPaletteWindow and isFocused
+  local mirrorLayerPreview = (not isPaletteWindow) and isFocused and w._mirrorXPreview == true
 
   if mirrorLayerPreview then
     love.graphics.push()
@@ -1275,6 +1275,36 @@ local function resolveTransparentPreviewColor(app, win, layer, paletteNum, romRa
     or colors.black
 end
 
+--- Edit overlays are drawn outside `drawNormalWindow`'s horizontal flip; mirror screen X to match the
+--- visible canvas when this window is focused with Mirror X on.
+local function overlayMirrorXActiveForWindow(win)
+  if not win or win._mirrorXPreview ~= true then
+    return false
+  end
+  if WindowCaps.isAnyPaletteWindow(win) then
+    return false
+  end
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app
+  local wm = app and app.wm
+  if not (wm and wm.getFocus) then
+    return false
+  end
+  return wm:getFocus() == win
+end
+
+local function mirrorBrushOverlayScreenX(win, screenX, elemW)
+  if not overlayMirrorXActiveForWindow(win) then
+    return screenX
+  end
+  local cx, _, cw = win:getScreenRect()
+  if not (type(screenX) == "number" and type(cx) == "number" and type(cw) == "number" and cw > 0) then
+    return screenX
+  end
+  local ew = tonumber(elemW) or 0
+  return cx + cw - (screenX - cx) - ew
+end
+
 local function contentPixelToScreen(win, px, py, zoom)
   local cw = win.cellW or 8
   local ch = win.cellH or 8
@@ -1294,6 +1324,7 @@ local function drawPatternBuilderRectPreview(win, startX, startY, endX, endY, zo
   local sx, sy = contentPixelToScreen(win, minX, minY, zoom)
   local sw = (maxX - minX + 1) * zoom
   local sh = (maxY - minY + 1) * zoom
+  sx = mirrorBrushOverlayScreenX(win, sx, sw)
 
   love.graphics.setColor(color[1] or 1, color[2] or 1, color[3] or 1, 0.35)
   love.graphics.rectangle("fill", sx, sy, sw, sh)
@@ -1306,7 +1337,8 @@ local function drawPatternBuilderPointPreview(win, brushScreenPoints, colorIndex
   if colorIndex == 0 then
     love.graphics.setColor(backgroundColor[1] or 0, backgroundColor[2] or 0, backgroundColor[3] or 0, 1)
     for _, pt in ipairs(brushScreenPoints) do
-      love.graphics.rectangle("fill", pt.x, pt.y, pt.size, pt.size)
+      local xDraw = mirrorBrushOverlayScreenX(win, pt.x, pt.size)
+      love.graphics.rectangle("fill", xDraw, pt.y, pt.size, pt.size)
     end
     love.graphics.setColor(colors.white)
     return
@@ -1332,7 +1364,8 @@ local function drawPatternBuilderPointPreview(win, brushScreenPoints, colorIndex
 
   local brushImg = getPixelBrushImage(colorIndex)
   for _, pt in ipairs(brushScreenPoints) do
-    love.graphics.draw(brushImg, pt.x, pt.y, 0, pt.size, pt.size)
+    local xDraw = mirrorBrushOverlayScreenX(win, pt.x, pt.size)
+    love.graphics.draw(brushImg, xDraw, pt.y, 0, pt.size, pt.size)
   end
   ShaderPaletteController.releaseShader()
   love.graphics.setColor(colors.white)
@@ -1401,6 +1434,7 @@ local function tryDrawGenericEditShapePreview(app, win, layer, hoveredItem, romR
 
     drawPatternBuilderPointPreview(win, previewPoints, colorIndex, layer, hoveredItem, romRaw, paletteNum, bgPreviewColor)
     local anchorX, anchorY = contentPixelToScreen(win, win.editLastPoint.x, win.editLastPoint.y, zoom)
+    anchorX = mirrorBrushOverlayScreenX(win, anchorX, zoom)
     love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 0.9)
     love.graphics.rectangle("line", anchorX, anchorY, zoom, zoom)
     love.graphics.setColor(colors.white)
@@ -1485,7 +1519,7 @@ local function drawEditModeColorIndicator(app)
     return
   end
   
-  -- Snap brush preview to logical grid cells (mirror preview remaps pointer inside `toGridCoords`).
+  -- Snap brush preview to logical grid cells (window pointer remap in `toGridCoords`; overlay X flip in `mirrorBrushOverlayScreenX`).
   local okGfx, gfxCol, gfxRow, glx, gly = win:toGridCoords(mouse.x, mouse.y)
   if not okGfx then
     return
@@ -1519,6 +1553,7 @@ local function drawEditModeColorIndicator(app)
     brushScreenPoints[#brushScreenPoints + 1] = {
       x = math.floor(screenX + dx * z),
       y = math.floor(screenY + dy * z),
+      size = z,
     }
   end
   
@@ -1552,7 +1587,9 @@ local function drawEditModeColorIndicator(app)
     ShaderPaletteController.releaseShader()
     love.graphics.setColor(bgPreviewColor[1] or 0, bgPreviewColor[2] or 0, bgPreviewColor[3] or 0, 1)
     for _, pt in ipairs(brushScreenPoints) do
-      love.graphics.rectangle("fill", pt.x, pt.y, z, z)
+      local zs = pt.size or z
+      local xDraw = mirrorBrushOverlayScreenX(win, pt.x, zs)
+      love.graphics.rectangle("fill", xDraw, pt.y, zs, zs)
     end
     love.graphics.setColor(colors.white)
     return
@@ -1576,7 +1613,9 @@ local function drawEditModeColorIndicator(app)
   -- Draw brush pattern using shader (color index encoded in grayscale)
   local brushImg = getPixelBrushImage(colorIndex)
   for _, pt in ipairs(brushScreenPoints) do
-    love.graphics.draw(brushImg, pt.x, pt.y, 0, z, z)
+    local zs = pt.size or z
+    local xDraw = mirrorBrushOverlayScreenX(win, pt.x, zs)
+    love.graphics.draw(brushImg, xDraw, pt.y, 0, zs, zs)
   end
   
   ShaderPaletteController.releaseShader()
