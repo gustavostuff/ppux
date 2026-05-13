@@ -204,8 +204,8 @@ In practice:
 
 |                | Normal mode | Compact mode |
 |----------------|-------------|--------------|
-| Global palette | <img src="img/readme_images/global_palette_normal.png" alt="Global palette normal mode"> | <img src="img/readme_images/global_palette_compact.png" alt="Global palette compact mode"> |
-| ROM palette    | <img src="img/readme_images/rom_palette_normal.png" alt="ROM palette normal mode"> | <img src="img/readme_images/rom_palette_compact.png" alt="ROM palette compact mode"> |
+| Global palette | <img src="img/readme_images/palettes_table/global_palette_normal.png" alt="Global palette normal mode"> | <img src="img/readme_images/global_palette_compact.png" alt="Global palette compact mode"> |
+| ROM palette    | <img src="img/readme_images/palettes_table/rom_palette_normal.png" alt="ROM palette normal mode"> | <img src="img/readme_images/rom_palette_compact.png" alt="ROM palette compact mode"> |
 
 **Creating a link**
 
