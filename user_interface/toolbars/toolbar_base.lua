@@ -17,9 +17,8 @@ local WindowToolbarPlacement = require("controllers.window.window_toolbar_placem
 local ToolbarBase = {}
 ToolbarBase.__index = ToolbarBase
 
--- Side-mounted toolbar: breathing room vs window edge and vs main content (screen px).
-local VERTICAL_TOOLBAR_EDGE_PAD = 4
-local VERTICAL_TOOLBAR_CONTENT_GAP = 4
+-- Outside gap (screen px) between window body edge and attached toolbar strip (top/sides/bottom).
+local TOOLBAR_OUTSIDE_GAP = 4
 
 local _layerLabelId = 0
 
@@ -215,7 +214,12 @@ function ToolbarBase:updatePosition()
     return
   end
 
-  local placement = WindowToolbarPlacement.effectiveForLayout(app and app.windowToolbarPlacement)
+  local placement = WindowToolbarPlacement.effectiveForLayout(
+    app and app.windowToolbarPlacement,
+    wnd,
+    app,
+    self
+  )
   local hx, hy, hw, hh = wnd:getHeaderRect()
   local bx, by, bw, bh = wnd:getBaseContentScreenRect()
 
@@ -226,7 +230,7 @@ function ToolbarBase:updatePosition()
     self._layoutCenterWidth = nil
     self._verticalReserveW = nil
     self.h = self:_getToolbarHeight(hh)
-    self.y = hy - self.h - 1
+    self.y = math.floor(hy - self.h - 1)
     self:_layoutButtons()
     return
   end
@@ -236,10 +240,9 @@ function ToolbarBase:updatePosition()
     self._layoutCenterWidth = bw
     self._verticalReserveW = nil
     self.h = self:_getToolbarHeight(hh)
-    self.y = by
+    -- Horizontal strip centered below the window body (outside; does not reserve canvas inset).
+    self.y = math.floor(by + bh + TOOLBAR_OUTSIDE_GAP)
     self:_layoutButtons()
-    self.h = self:_getToolbarHeight(hh)
-    wnd._toolbarInsetTop = self.h
     return
   end
 
@@ -247,19 +250,12 @@ function ToolbarBase:updatePosition()
     self._verticalLayout = true
     self._layoutCenterWidth = nil
     self:_layoutButtonsVertical(placement, bx, by, bw, bh, hh)
-    local insetW = self._verticalReserveW or self.w
-    if placement == "left" then
-      wnd._toolbarInsetLeft = insetW
-    else
-      wnd._toolbarInsetRight = insetW
-    end
     return
   end
 end
 
 function ToolbarBase:_layoutButtonsVertical(placement, bx, by, bw, bh, hh)
-  local ePad = VERTICAL_TOOLBAR_EDGE_PAD
-  local gPad = VERTICAL_TOOLBAR_CONTENT_GAP
+  local gap = TOOLBAR_OUTSIDE_GAP
   local rowHeight = self:_getRowHeight(hh)
   local colW = rowHeight
   for _, button in ipairs(self.buttons) do
@@ -273,12 +269,13 @@ function ToolbarBase:_layoutButtonsVertical(placement, bx, by, bw, bh, hh)
     end
   end
 
-  local reserveW = ePad + colW + gPad
-
-  local xLeft = bx + ePad
-  if placement == "right" then
-    xLeft = bx + bw - ePad - colW
+  local xLeft
+  if placement == "left" then
+    xLeft = bx - gap - colW
+  else
+    xLeft = bx + bw + gap
   end
+  xLeft = math.floor(xLeft)
 
   local labelStackH = 0
   for _, label in ipairs(self.labels) do
@@ -293,7 +290,7 @@ function ToolbarBase:_layoutButtonsVertical(placement, bx, by, bw, bh, hh)
     end
   end
   local totalStackH = labelStackH + btnStackH
-  local y0 = by + math.max(0, (bh - totalStackH) * 0.5)
+  local y0 = math.floor(by + math.max(0, (bh - totalStackH) * 0.5))
   local curY = y0
 
   for _, label in ipairs(self.labels) do
@@ -313,11 +310,11 @@ function ToolbarBase:_layoutButtonsVertical(placement, bx, by, bw, bh, hh)
   end
 
   self.w = colW
-  self.h = math.max(0, curY - y0)
-  self.x = xLeft + 1
+  self.h = math.max(0, math.floor(curY - y0))
+  self.x = math.floor(xLeft + 1)
   self.y = y0
   self._layoutRowWidths = { [1] = colW }
-  self._verticalReserveW = reserveW
+  self._verticalReserveW = nil
 end
 
 -- Add a button to the toolbar
@@ -675,10 +672,10 @@ function ToolbarBase:draw()
   self:updateIcons()
   self:updatePosition()
   
-  local drawX = self.x - 1 -- minus 1 because of the window border
-  local drawY = self.y
-  local drawW = math.max(0, tonumber(self.w) or 0)
-  local drawH = math.max(0, tonumber(self.h) or 0)
+  local drawX = math.floor((tonumber(self.x) or 0) - 1)
+  local drawY = math.floor(tonumber(self.y) or 0)
+  local drawW = math.max(0, math.floor(tonumber(self.w) or 0))
+  local drawH = math.max(0, math.floor(tonumber(self.h) or 0))
   local dockedOnAppStrip = self._dockLayout ~= nil
   local usingStencil = dockedOnAppStrip
     and drawSharpToolbarStencil(drawX, drawY, drawW, drawH)
@@ -692,7 +689,7 @@ function ToolbarBase:draw()
     local rowWidths = self._layoutRowWidths or {}
     local drewRow = false
     if self._verticalLayout then
-      love.graphics.rectangle("fill", drawX, self.y, drawW, drawH)
+      love.graphics.rectangle("fill", drawX, drawY, drawW, drawH)
       drewRow = true
     else
       for rowIndex, rowWidth in pairs(rowWidths) do
@@ -707,9 +704,10 @@ function ToolbarBase:draw()
             end
             bgWidth = labelWidth + rowWidth
           end
+          bgWidth = math.floor(bgWidth)
           love.graphics.rectangle("fill",
             drawX,
-            self.y + ((rowIndex - 1) * rowHeight),
+            drawY + math.floor((rowIndex - 1) * rowHeight),
             bgWidth,
             rowHeight
           )
@@ -718,7 +716,7 @@ function ToolbarBase:draw()
       end
     end
     if not drewRow then
-      love.graphics.rectangle("fill", drawX, self.y, self.w, self.h)
+      love.graphics.rectangle("fill", drawX, drawY, drawW, drawH)
     end
 
     local chromeInk = colors:chromeTextIconsColorNonFocused()

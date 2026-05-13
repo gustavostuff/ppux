@@ -15,8 +15,8 @@ local DEFAULT_SETTINGS = {
   canvasFilter = "sharp",
   paletteLinks = "auto_hide",
   separateToolbar = false,
-  --- Window-attached toolbar strip: top | left | right | bottom | auto (auto reserved).
-  windowToolbarPlacement = "top",
+  --- Window-attached toolbar strip: top | left | right | bottom | auto.
+  windowToolbarPlacement = "auto",
   --- When true, the resize-corner glyph is never drawn (resize hotspot/cursor unchanged).
   --- When false, the glyph hides while the pointer is over the handle or during resize drag.
   neverShowResizeHandle = false,
@@ -139,7 +139,8 @@ local function normalizeWindowToolbarPlacementKey(key)
   if key == "right" then return "right" end
   if key == "bottom" then return "bottom" end
   if key == "auto" then return "auto" end
-  return "top"
+  if key == "top" then return "top" end
+  return "auto"
 end
 
 local function normalizeCrtDistortion(n)

@@ -381,7 +381,7 @@ function AppCoreController:load()
   self:_applyTooltipsEnabledSetting((settings and settings.tooltipsEnabled) ~= false, false)
   self:_applySeparateToolbarSetting((settings and settings.separateToolbar) == true, false)
   self:_applyWindowToolbarPlacementSetting(
-    (settings and settings.windowToolbarPlacement) or "top",
+    (settings and settings.windowToolbarPlacement) or "auto",
     false
   )
   self:_applyNeverShowResizeHandleSetting((settings and settings.neverShowResizeHandle) == true, false)

@@ -713,6 +713,16 @@ function AppCoreController:_ensureSettingsWindowToolbarPlacementDropdown()
   local appRef = self
   self._windowToolbarPlacementDropdownItems = {
     {
+      value = WindowToolbarPlacement.dropdownValueForKey(WindowToolbarPlacement.KEY_AUTO),
+      text = "Auto",
+      onPick = function(entry)
+        appRef:_applyWindowToolbarPlacementSetting(
+          WindowToolbarPlacement.keyForDropdownValue(entry.value),
+          true
+        )
+      end,
+    },
+    {
       value = WindowToolbarPlacement.dropdownValueForKey(WindowToolbarPlacement.KEY_TOP),
       text = "Top",
       onPick = function(entry)
@@ -745,16 +755,6 @@ function AppCoreController:_ensureSettingsWindowToolbarPlacementDropdown()
     {
       value = WindowToolbarPlacement.dropdownValueForKey(WindowToolbarPlacement.KEY_BOTTOM),
       text = "Bottom",
-      onPick = function(entry)
-        appRef:_applyWindowToolbarPlacementSetting(
-          WindowToolbarPlacement.keyForDropdownValue(entry.value),
-          true
-        )
-      end,
-    },
-    {
-      value = WindowToolbarPlacement.dropdownValueForKey(WindowToolbarPlacement.KEY_AUTO),
-      text = "Auto",
       onPick = function(entry)
         appRef:_applyWindowToolbarPlacementSetting(
           WindowToolbarPlacement.keyForDropdownValue(entry.value),
@@ -1287,7 +1287,7 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
   self:_applyCanvasFilterSetting(D.canvasFilter, false)
   self:_applyPaletteLinksSetting(D.paletteLinks, false)
   self:_applySeparateToolbarSetting(D.separateToolbar, false)
-  self:_applyWindowToolbarPlacementSetting(D.windowToolbarPlacement or "top", false)
+  self:_applyWindowToolbarPlacementSetting(D.windowToolbarPlacement or "auto", false)
   self:_applyNeverShowResizeHandleSetting(D.neverShowResizeHandle == true, false)
   self:_applyWindowShadowSetting(D.windowShadowEnabled == true, false)
   self:_applyWindowShadowBlurSetting(D.windowShadowBlur, false)
@@ -1305,7 +1305,7 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
     canvasFilter = D.canvasFilter,
     paletteLinks = D.paletteLinks,
     separateToolbar = D.separateToolbar,
-    windowToolbarPlacement = D.windowToolbarPlacement or "top",
+    windowToolbarPlacement = D.windowToolbarPlacement or "auto",
     neverShowResizeHandle = D.neverShowResizeHandle,
     windowShadowEnabled = D.windowShadowEnabled,
     windowShadowBlur = D.windowShadowBlur,
