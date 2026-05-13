@@ -776,6 +776,8 @@ function AppCoreController:_ensureSettingsCanvasFilterDropdown()
         appRef:_applyDisplayFilterDropdownMode(3, true)
       end,
     },
+    --[[ Composite: hidden from Settings dropdown for now; `_applyDisplayFilterDropdownMode(4)` and
+        `crtFilterKind == "composite"` remain supported for saved settings / internal use.
     {
       value = 4,
       text = "Composite",
@@ -783,15 +785,28 @@ function AppCoreController:_ensureSettingsCanvasFilterDropdown()
         appRef:_applyDisplayFilterDropdownMode(4, true)
       end,
     },
+    ]]
   }
   self._canvasFilterDropdown = Dropdown.new({
     getBounds = function()
       return { w = appRef.canvas:getWidth(), h = appRef.canvas:getHeight() }
     end,
     default = appRef:_getDisplayFilterDropdownMode(),
-    tooltip = "Without CRT: sharp or soft scaling. CRT barrel shader vs composite scanlines (composite uses linear canvas sampling).",
+    tooltip = "Without CRT: sharp or soft scaling. When CRT is on, barrel scanline shader.",
     items = self._canvasFilterDropdownItems,
   })
+  self:_syncCanvasFilterDropdownLabelForHiddenComposite()
+end
+
+function AppCoreController:_syncCanvasFilterDropdownLabelForHiddenComposite()
+  local dd = self._canvasFilterDropdown
+  if not dd then
+    return
+  end
+  if self.crtModeEnabled == true and self:_normalizeCrtFilterKind(self.crtFilterKind) == "composite" then
+    dd.trigger.text = "Composite"
+    dd.selectedText = "Composite"
+  end
 end
 
 function AppCoreController:_syncSettingsCanvasFilterDropdown()
@@ -804,6 +819,7 @@ function AppCoreController:_syncSettingsCanvasFilterDropdown()
   end)
   dd._defaultSpec = self:_getDisplayFilterDropdownMode()
   dd:setItems(self._canvasFilterDropdownItems)
+  self:_syncCanvasFilterDropdownLabelForHiddenComposite()
 end
 
 function AppCoreController:_getWindowShadowStrengthForSettings()
@@ -940,7 +956,8 @@ end
 function AppCoreController:_getDisplayFilterDropdownMode()
   if self.crtModeEnabled == true then
     if self:_normalizeCrtFilterKind(self.crtFilterKind) == "composite" then
-      return 4
+      -- No menu row for composite; use CRT as the matching item, then fix the label.
+      return 3
     end
     return 3
   end

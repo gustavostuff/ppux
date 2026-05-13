@@ -14,6 +14,7 @@ local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
 local WindowCaps = require("controllers.window.window_capabilities")
 local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
 local GridLayoutUndo = require("controllers.input_support.grid_layout_undo")
+local SpriteController = require("controllers.sprite.sprite_controller")
 
 -- Create a new undo/redo manager
 function UndoRedoController.new(maxDepth)
@@ -411,11 +412,23 @@ local function applyPaletteLinkEvent(event, direction)
     if layer then
       local state = (direction == "undo") and act.beforePaletteData or act.afterPaletteData
       layer.paletteData = deepCopy(state)
-      if app and app.invalidatePpuFramePaletteLayer then
-        app:invalidatePpuFramePaletteLayer(win, li)
-      end
-      if layer.kind == "tile" and win.invalidateTileLayerCanvas then
-        win:invalidateTileLayerCanvas(li)
+      if layer.kind == "sprite" then
+        local editState = app and app.appEditState
+        if SpriteController and SpriteController.hydrateSpriteLayer then
+          SpriteController.hydrateSpriteLayer(layer, {
+            romRaw = editState and editState.romRaw,
+            tilesPool = editState and editState.tilesPool,
+            appEditState = editState,
+            keepWorld = true,
+          })
+        end
+      else
+        if app and app.invalidatePpuFramePaletteLayer then
+          app:invalidatePpuFramePaletteLayer(win, li)
+        end
+        if layer.kind == "tile" and win.invalidateTileLayerCanvas then
+          win:invalidateTileLayerCanvas(li)
+        end
       end
       applied = applied + 1
     end

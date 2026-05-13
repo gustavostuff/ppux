@@ -1,4 +1,8 @@
 local WindowCaps = require("controllers.window.window_capabilities")
+local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
+local SpriteController = require("controllers.sprite.sprite_controller")
+local SpriteStateSnapshot = require("controllers.sprite.sprite_state_snapshot")
+local chr = require("chr")
 
 local M = {}
 
@@ -67,6 +71,18 @@ local function clonePaletteData(paletteData)
 end
 
 local function invalidatePaletteLinkedPpuLayer(win, layerIndex)
+  local layer = win and win.layers and win.layers[layerIndex]
+  if layer and layer.kind == "sprite" then
+    local app = getApp()
+    local editState = app and app.appEditState
+    SpriteController.hydrateSpriteLayer(layer, {
+      romRaw = editState and editState.romRaw,
+      tilesPool = editState and editState.tilesPool,
+      appEditState = editState,
+      keepWorld = true,
+    })
+    return
+  end
   local app = getApp()
   if app and app.invalidatePpuFramePaletteLayer then
     app:invalidatePpuFramePaletteLayer(win, layerIndex)
@@ -339,20 +355,317 @@ local function clearPaletteWinIdLink(layer)
   return true
 end
 
-local function pushPaletteLinkUndo(actions)
+local PALETTE_ROW_DEFAULT = 1
+
+local function mergeSpritePaletteAttr(sprite, paletteNum)
+  sprite.paletteNumber = paletteNum
+  local curAttr = tonumber(sprite.attr) or 0
+  curAttr = math.floor(curAttr)
+  local palBits = (paletteNum - 1) % 4
+  local mergedAttr = (curAttr - (curAttr % 4)) + palBits
+
+  local function setBit(byte, bitIndex, on)
+    local pow = 2 ^ bitIndex
+    local cur = math.floor(byte / pow) % 2
+    if on and cur == 0 then
+      byte = byte + pow
+    elseif (not on) and cur == 1 then
+      byte = byte - pow
+    end
+    return byte
+  end
+
+  if sprite.mirrorX ~= nil then
+    mergedAttr = setBit(mergedAttr, 6, sprite.mirrorX and true or false)
+  end
+  if sprite.mirrorY ~= nil then
+    mergedAttr = setBit(mergedAttr, 7, sprite.mirrorY and true or false)
+  end
+
+  sprite.attr = mergedAttr
+end
+
+--- Cells to receive default palette when a ROM palette link is created (ignores tile/layer selection).
+local function collectTileCellsForPaletteAssignment(win, layerIndex)
+  local layer = win.layers and win.layers[layerIndex] or nil
+  if not (layer and layer.kind == "tile") then
+    return {}
+  end
+
+  local cols = win.cols or 0
+  local rows = win.rows or 0
+  if cols <= 0 or rows <= 0 then
+    return {}
+  end
+
+  if WindowCaps.isPpuFrame(win) then
+    local full = {}
+    for r = 0, rows - 1 do
+      for c = 0, cols - 1 do
+        full[#full + 1] = { col = c, row = r, idx = r * cols + c + 1 }
+      end
+    end
+    return full
+  end
+
+  local out = {}
+  for r = 0, rows - 1 do
+    for c = 0, cols - 1 do
+      local idx = r * cols + c + 1
+      local has = false
+      if win.get and win:get(c, r, layerIndex) then
+        has = true
+      elseif layer.items and layer.items[idx] then
+        has = true
+      end
+      if has then
+        out[#out + 1] = { col = c, row = r, idx = idx }
+      end
+    end
+  end
+  return out
+end
+
+local function ppuNametableSnapshotsDiffer(before, after)
+  if not before or not after then
+    return false
+  end
+  local function arrDiff(a, b)
+    if not a or not b or #a ~= #b then
+      return true
+    end
+    for i = 1, #a do
+      if (a[i] or 0) ~= (b[i] or 0) then
+        return true
+      end
+    end
+    return false
+  end
+  return arrDiff(before.nametableAttrBytes, after.nametableAttrBytes)
+    or arrDiff(before.nametableBytes, after.nametableBytes)
+end
+
+local function buildSpritePaletteAssignmentUndoEvent(win, layerIndex, paletteNum)
+  local layer = win.layers and win.layers[layerIndex]
+  if not (layer and layer.kind == "sprite") then
+    return nil
+  end
+  local items = layer.items or {}
+  local indices = {}
+  for i, spr in ipairs(items) do
+    if spr and spr.removed ~= true then
+      indices[#indices + 1] = i
+    end
+  end
+
+  local app = getApp()
+  local editState = app and app.appEditState
+  local newRom = editState and editState.romRaw
+  local actions = {}
+
+  for _, idx in ipairs(indices) do
+    local sprite = items[idx]
+    if sprite and sprite.removed ~= true then
+      local beforeState = SpriteStateSnapshot.captureSpriteState(sprite)
+      mergeSpritePaletteAttr(sprite, paletteNum)
+      if SpriteController.syncSharedOAMSpriteState then
+        SpriteController.syncSharedOAMSpriteState(win, sprite, {
+          syncPosition = false,
+          syncVisual = true,
+          syncAttr = true,
+        })
+      end
+      if sprite.startAddr and newRom then
+        newRom = chr.writeByteToAddress(newRom, sprite.startAddr + 2, tonumber(sprite.attr) or 0)
+      end
+      local afterState = SpriteStateSnapshot.captureSpriteState(sprite)
+      if beforeState
+        and afterState
+        and not SpriteStateSnapshot.statesEqual(beforeState, afterState) then
+        actions[#actions + 1] = {
+          win = win,
+          layerIndex = layerIndex,
+          sprite = sprite,
+          before = beforeState,
+          after = afterState,
+        }
+      end
+    end
+  end
+
+  if newRom and editState then
+    editState.romRaw = newRom
+  end
+
+  if #actions == 0 then
+    return nil
+  end
+
+  return {
+    type = "sprite_drag",
+    mode = "palette",
+    sync = {
+      syncPosition = false,
+      syncVisual = true,
+      syncAttr = true,
+    },
+    actions = actions,
+  }
+end
+
+local function buildTilePaletteAssignmentUndoEvent(win, layerIndex, paletteNum)
+  local layer = win.layers and win.layers[layerIndex]
+  if not (layer and layer.kind == "tile") then
+    return nil
+  end
+
+  if WindowCaps.isPpuFrame(win) then
+    local app = getApp()
+    if not (app and type(app.snapshotPpuFrameUndoState) == "function") then
+      return nil
+    end
+    local cells = collectTileCellsForPaletteAssignment(win, layerIndex)
+    if #cells == 0 then
+      return nil
+    end
+    local beforeState = app:snapshotPpuFrameUndoState(win, layerIndex)
+    local updated = 0
+    for _, cell in ipairs(cells) do
+      if NametableTilesController.setPaletteNumberForTile(win, layer, cell.col, cell.row, paletteNum) then
+        updated = updated + 1
+      end
+    end
+    if updated == 0 then
+      return nil
+    end
+    local afterState = app:snapshotPpuFrameUndoState(win, layerIndex)
+    if not ppuNametableSnapshotsDiffer(beforeState, afterState) then
+      return nil
+    end
+    return {
+      type = "ppu_frame_range",
+      win = win,
+      layerIndex = layerIndex,
+      beforeState = beforeState,
+      afterState = afterState,
+    }
+  end
+
+  local cells = collectTileCellsForPaletteAssignment(win, layerIndex)
+  if #cells == 0 then
+    return nil
+  end
+
+  local cols = win.cols or 1
+  local changes = {}
+  for _, cell in ipairs(cells) do
+    local idx = cell.row * cols + cell.col
+    local beforePal = layer.paletteNumbers and layer.paletteNumbers[idx]
+    if NametableTilesController.setPaletteNumberForTile(win, layer, cell.col, cell.row, paletteNum) then
+      changes[#changes + 1] = {
+        win = win,
+        layerIndex = layerIndex,
+        col = cell.col,
+        row = cell.row,
+        linearIndex = idx,
+        before = beforePal,
+        after = paletteNum,
+        isPaletteNumber = true,
+      }
+      if win.invalidateTileLayerCanvas then
+        win:invalidateTileLayerCanvas(layerIndex, cell.col, cell.row)
+      end
+    end
+  end
+
+  if #changes == 0 then
+    return nil
+  end
+  return {
+    type = "tile_drag",
+    mode = "palette",
+    changes = changes,
+  }
+end
+
+local function buildItemPaletteAssignmentUndoEventsForLink(win, layerIndex)
+  local layer = win.layers and win.layers[layerIndex]
+  if not layer then
+    return {}
+  end
+  local out = {}
+  if layer.kind == "sprite" then
+    local ev = buildSpritePaletteAssignmentUndoEvent(win, layerIndex, PALETTE_ROW_DEFAULT)
+    if ev then
+      out[#out + 1] = ev
+    end
+    return out
+  end
+  if layer.kind == "tile" then
+    local ev = buildTilePaletteAssignmentUndoEvent(win, layerIndex, PALETTE_ROW_DEFAULT)
+    if ev then
+      out[#out + 1] = ev
+    end
+    return out
+  end
+  return {}
+end
+
+local function buildAllItemPaletteAssignmentUndoEventsFromLinkActions(paletteLinkActions)
+  local extra = {}
+  local seen = {}
+  for _, act in ipairs(paletteLinkActions or {}) do
+    local w, li = act.win, act.layerIndex
+    if w and type(li) == "number" then
+      local key = tostring(w._id or w) .. ":" .. tostring(li)
+      if not seen[key] then
+        seen[key] = true
+        for _, ev in ipairs(buildItemPaletteAssignmentUndoEventsForLink(w, li)) do
+          extra[#extra + 1] = ev
+        end
+      end
+    end
+  end
+  return extra
+end
+
+local function pushPaletteLinkUndo(actions, applyItemPaletteDefaults)
   if type(actions) ~= "table" or #actions == 0 then
     return false
   end
 
+  applyItemPaletteDefaults = (applyItemPaletteDefaults ~= false)
+
   local app = getApp()
-  if app and app.undoRedo and app.undoRedo.addPaletteLinkEvent then
+  if not app then
+    return false
+  end
+
+  if applyItemPaletteDefaults then
+    local assignmentEvents = buildAllItemPaletteAssignmentUndoEventsFromLinkActions(actions)
+    if #assignmentEvents > 0 and app.undoRedo and app.undoRedo.addCompositeEvent then
+      local compositeEvents = {
+        { type = "palette_link", actions = actions },
+      }
+      for _, ev in ipairs(assignmentEvents) do
+        compositeEvents[#compositeEvents + 1] = ev
+      end
+      return app.undoRedo:addCompositeEvent({
+        type = "composite",
+        events = compositeEvents,
+        unsavedType = "palette_link_change",
+      })
+    end
+  end
+
+  if app.undoRedo and app.undoRedo.addPaletteLinkEvent then
     app.undoRedo:addPaletteLinkEvent({
       type = "palette_link",
       actions = actions,
     })
     return true
   end
-  if app and app.markUnsaved then
+  if app.markUnsaved then
     app:markUnsaved("palette_link_change")
     return true
   end
@@ -384,7 +697,7 @@ local function unlinkAllPaletteTargets(wm, paletteWin, opts)
   end
 
   if opts.commitUndo ~= false then
-    pushPaletteLinkUndo(undoActions)
+    pushPaletteLinkUndo(undoActions, false)
   end
   invalidatePaletteLinkedPpuLayersForActions(undoActions)
   if opts.setStatus ~= false then
@@ -428,7 +741,7 @@ local function unlinkPaletteConnection(contentWin, paletteWin)
     return false
   end
 
-  pushPaletteLinkUndo(actions)
+  pushPaletteLinkUndo(actions, false)
   invalidatePaletteLinkedPpuLayersForActions(actions)
 
   local app = getApp()
@@ -468,7 +781,7 @@ local function unlinkPaletteConnectionForLayer(contentWin, paletteWin, layerInde
       beforePaletteData = beforePaletteData,
       afterPaletteData = clonePaletteData(layer.paletteData or nil),
     },
-  })
+  }, false)
   invalidatePaletteLinkedPpuLayer(contentWin, layerIndex)
 
   local app = getApp()
