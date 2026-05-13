@@ -236,16 +236,6 @@ function PPUFrameToolbar:_getActiveSpriteLayer()
   return nil, nil
 end
 
-function PPUFrameToolbar:_getActiveTileLayer()
-  if not self.window then return nil, nil end
-  local activeIndex = self.window:getActiveLayerIndex() or self.window.activeLayer or 1
-  local activeLayer = self.window.layers and self.window.layers[activeIndex] or nil
-  if activeLayer and activeLayer.kind ~= "sprite" then
-    return activeLayer, activeIndex
-  end
-  return nil, nil
-end
-
 function PPUFrameToolbar:_ensureSpriteLayer(mode, createIfMissing, targetWindow)
   local window = targetWindow or self.window
   if not window then return nil, nil, false end
@@ -334,8 +324,9 @@ function PPUFrameToolbar:_onAddSprite()
 end
 
 function PPUFrameToolbar:_onToggleOriginGuides()
-  local layer = self:_getActiveSpriteLayer()
-  if not layer or not self.window then
+  if not self.window then return end
+  local _, spriteIdx = getFirstSpriteLayer(self.window)
+  if not spriteIdx then
     return
   end
   self.window.showSpriteOriginGuides = not (self.window.showSpriteOriginGuides == true)
@@ -484,23 +475,21 @@ function PPUFrameToolbar:updateSpriteButton()
 end
 
 function PPUFrameToolbar:updateOriginButtons()
-  local layer = self:_getActiveSpriteLayer()
-  local tileLayer = self:_getActiveTileLayer()
-  local isActiveSpriteLayer = layer ~= nil
-  local isActiveTileLayer = tileLayer ~= nil
-  local hideOriginButtons = not isActiveSpriteLayer
+  local _, spriteLayerIndex = getFirstSpriteLayer(self.window)
+  local hasSpriteLayer = spriteLayerIndex ~= nil
 
   if self.toggleOriginGuidesButton then
-    local enabledGuides = isActiveSpriteLayer and (self.window and self.window.showSpriteOriginGuides == true)
+    local guidesOn = self.window and self.window.showSpriteOriginGuides == true
+    local enabledGuides = hasSpriteLayer and guidesOn
     self.toggleOriginGuidesButton.icon = images.icons.actions.icon_dotted_lines or self.toggleOriginGuidesButton.icon
-    self.toggleOriginGuidesButton.enabled = isActiveSpriteLayer
-    self.toggleOriginGuidesButton.hidden = hideOriginButtons
+    self.toggleOriginGuidesButton.enabled = hasSpriteLayer
+    self.toggleOriginGuidesButton.hidden = not hasSpriteLayer
     if enabledGuides then
       self.toggleOriginGuidesButton.bgColor = nil
     else
       self.toggleOriginGuidesButton.bgColor = colors.gray20
     end
-    self.toggleOriginGuidesButton.tooltip = enabledGuides
+    self.toggleOriginGuidesButton.tooltip = guidesOn
       and "Hide sprite origin guides"
       or "Show sprite origin guides"
   end

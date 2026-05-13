@@ -125,7 +125,7 @@ describe("ppu_frame_toolbar.lua - add sprite flow", function()
 end)
 
 describe("ppu_frame_toolbar.lua - sprite origin controls", function()
-  it("enables origin guides control only when sprite layer is active", function()
+  it("shows origin guides control when a sprite layer exists (even if tile layer is active)", function()
     local win = makeWindow({
       { kind = "tile", items = {} },
       { kind = "sprite", items = {}, mode = "8x8", originX = 4, originY = 7 },
@@ -134,11 +134,13 @@ describe("ppu_frame_toolbar.lua - sprite origin controls", function()
     local toolbar = PPUFrameToolbar.new(win, { app = {} }, { getFocus = function() return win end })
 
     toolbar:updateOriginButtons()
-    expect(toolbar.toggleOriginGuidesButton.enabled).toBe(false)
+    expect(toolbar.toggleOriginGuidesButton.enabled).toBe(true)
+    expect(toolbar.toggleOriginGuidesButton.hidden).toNotBe(true)
 
     win:setActiveLayerIndex(2)
     toolbar:updateOriginButtons()
     expect(toolbar.toggleOriginGuidesButton.enabled).toBe(true)
+    expect(toolbar.toggleOriginGuidesButton.hidden).toNotBe(true)
   end)
 
   it("toggles dotted origin guides and updates button style", function()
@@ -199,6 +201,9 @@ describe("ppu_frame_toolbar.lua - pattern layer toggle", function()
     expect(win.patternLayerSoloMode).toBe(true)
     expect(win.activeLayer).toBe(3)
     expect(statusText).toBe(nil)
+    toolbar:updateOriginButtons()
+    expect(toolbar.toggleOriginGuidesButton.hidden).toNotBe(true)
+    expect(toolbar.toggleOriginGuidesButton.enabled).toBe(true)
 
     toolbar:_onTogglePatternLayerSolo()
     expect(win.patternLayerSoloMode).toBe(false)
