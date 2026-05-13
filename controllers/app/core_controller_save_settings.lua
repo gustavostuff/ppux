@@ -81,12 +81,19 @@ local function combineAllSaveMessages(luaOk, luaStatus, ppuxOk, ppuxStatus, romO
   return false, table.concat(parts, "; ")
 end
 
+local OPEN_FILE_MODAL_RUNTIME_DIR_KEY = {
+  project = "project",
+  png = "png",
+}
+
 local function resolveOpenProjectInitialDir(app)
   if not app then
     return "."
   end
-  if type(app.lastOpenProjectDir) == "string" and app.lastOpenProjectDir ~= "" then
-    return app.lastOpenProjectDir
+  local dirs = app._openFileModalLastDirs
+  local remembered = dirs and dirs[OPEN_FILE_MODAL_RUNTIME_DIR_KEY.project]
+  if type(remembered) == "string" and remembered ~= "" then
+    return remembered
   end
   if love and love.filesystem and love.filesystem.getWorkingDirectory then
     local dir = love.filesystem.getWorkingDirectory()
@@ -95,6 +102,18 @@ local function resolveOpenProjectInitialDir(app)
     end
   end
   return "."
+end
+
+local function resolveOpenReferencePngInitialDir(app)
+  if not app then
+    return "."
+  end
+  local dirs = app._openFileModalLastDirs
+  local remembered = dirs and dirs[OPEN_FILE_MODAL_RUNTIME_DIR_KEY.png]
+  if type(remembered) == "string" and remembered ~= "" then
+    return remembered
+  end
+  return resolveOpenProjectInitialDir(app)
 end
 
 function AppCoreController:saveEdited(opts)
@@ -1332,22 +1351,19 @@ function AppCoreController:showOpenProjectModal()
     title = "Open Project",
     initialDir = resolveOpenProjectInitialDir(self),
     onDirectoryChanged = function(path)
-      self.lastOpenProjectDir = path
+      self._openFileModalLastDirs = self._openFileModalLastDirs or {}
+      self._openFileModalLastDirs[OPEN_FILE_MODAL_RUNTIME_DIR_KEY.project] = path
     end,
     onOpen = function(path)
-      self.lastOpenProjectDir = path:match("^(.*)[/\\][^/\\]+$") or self.lastOpenProjectDir
+      self._openFileModalLastDirs = self._openFileModalLastDirs or {}
+      local parent = path and path:match("^(.*)[/\\][^/\\]+$")
+      self._openFileModalLastDirs[OPEN_FILE_MODAL_RUNTIME_DIR_KEY.project] = parent
+        or self._openFileModalLastDirs[OPEN_FILE_MODAL_RUNTIME_DIR_KEY.project]
       return RomProjectController.requestLoad(self, path)
     end,
   })
 
   return true
-end
-
-local function resolveOpenReferencePngInitialDir(app)
-  if type(app.lastReferencePngBrowseDir) == "string" and app.lastReferencePngBrowseDir ~= "" then
-    return app.lastReferencePngBrowseDir
-  end
-  return resolveOpenProjectInitialDir(app)
 end
 
 function AppCoreController:pickReferenceBackgroundForFocusedWindow()
@@ -1382,9 +1398,14 @@ function AppCoreController:pickReferenceBackgroundForFocusedWindow()
       initialDir = resolveOpenReferencePngInitialDir(self),
       allowedExt = { png = true },
       onDirectoryChanged = function(path)
-        self.lastReferencePngBrowseDir = path
+        self._openFileModalLastDirs = self._openFileModalLastDirs or {}
+        self._openFileModalLastDirs[OPEN_FILE_MODAL_RUNTIME_DIR_KEY.png] = path
       end,
       onOpen = function(path)
+        self._openFileModalLastDirs = self._openFileModalLastDirs or {}
+        local parent = path and path:match("^(.*)[/\\][^/\\]+$")
+        self._openFileModalLastDirs[OPEN_FILE_MODAL_RUNTIME_DIR_KEY.png] = parent
+          or self._openFileModalLastDirs[OPEN_FILE_MODAL_RUNTIME_DIR_KEY.png]
         if path and ReferenceBackgroundController.setReferenceFromAbsolutePath(targetWin, self, path) then
           local short = path:match("[^/\\]+$") or path
           self:setStatus(("Reference PNG: %s (Alt+R toggles view)"):format(short))

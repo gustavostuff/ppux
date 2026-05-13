@@ -116,7 +116,6 @@ function ColorPickerDropdown.new(opts)
     w = prev.w,
     h = prev.h,
     enabled = opts.enabled ~= false,
-    alwaysOpaqueContent = true,
   })
   trigger:setPosition(prev.x, prev.y)
 

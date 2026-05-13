@@ -59,7 +59,6 @@ function Button.new(opts)
     pressed = false,
     focused = false,
     enabled = opts.enabled ~= false,
-    alwaysOpaqueContent = opts.alwaysOpaqueContent == true,
     normalContentAlpha = opts.normalContentAlpha,
     transparent = opts.transparent == true,
     textAlign = opts.textAlign or "center",
@@ -69,6 +68,8 @@ function Button.new(opts)
     bgColor = opts.bgColor,
     bgAlpha = (opts.bgAlpha ~= nil) and opts.bgAlpha or 1,
     contentColor = opts.contentColor,
+    --- When set, icon multiply tint only (e.g. white glyphs); label/text still uses `contentColor`.
+    iconTintColor = opts.iconTintColor,
     iconRespectTheme = opts.iconRespectTheme,
     literalContentColor = opts.literalContentColor == true,
     skipIconContrastAdapt = opts.skipIconContrastAdapt == true,
@@ -106,11 +107,10 @@ function Button:draw()
     if self.enabled == false then
       return 0.12
     end
-    if self.alwaysOpaqueContent then
-      return 1.0
+    if self.normalContentAlpha ~= nil then
+      return (self.hovered or self.pressed or self.focused) and 1.0 or self.normalContentAlpha
     end
-    local idleAlpha = (self.normalContentAlpha ~= nil) and self.normalContentAlpha or 0.4
-    return (self.hovered or self.pressed or self.focused) and 1.0 or idleAlpha
+    return 1.0
   end
 
   local function contentColorWithAlpha(alpha)
@@ -120,6 +120,10 @@ function Button:draw()
 
   --- Icons are bitmap white-fill; tint via multiply. With literal + contentColor, use contentColor (Appearance).
   local function iconInkRgba(alpha)
+    local tint = self.iconTintColor
+    if type(tint) == "table" then
+      return tint[1] or 1, tint[2] or 1, tint[3] or 1, alpha
+    end
     if self.skipIconContrastAdapt == true then
       return colors.white[1], colors.white[2], colors.white[3], alpha
     end

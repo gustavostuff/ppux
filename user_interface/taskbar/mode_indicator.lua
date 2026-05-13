@@ -9,6 +9,10 @@ local M = {}
 
 local MODE_BADGE_TEXT_PAD_X = 6
 local MODE_BADGE_ICON_GAP = 0
+--- Colored badge fill is inset from layout slot (chrome margin). Extra inset on top/bottom.
+local MODE_BADGE_FILL_INSET_X = 1
+local MODE_BADGE_FILL_INSET_Y = 2
+local MODE_BADGE_CORNER_RADIUS = 2
 local MODE_BADGE_TILE_BG = { 0.0, 0.56, 0.0 }
 local MODE_BADGE_EDIT_BG = { 0.82, 0.64, 0.16 }
 
@@ -145,7 +149,11 @@ function M.install(Taskbar, Helpers)
 
   function Taskbar:_modeIndicatorContains(x, y)
     local layout = getModeIndicatorLayout(self)
-    if Helpers.pointInRect(x, y, layout.badgeX, layout.badgeY, layout.badgeW, layout.badgeH) then
+    local ix = MODE_BADGE_FILL_INSET_X
+    local iy = MODE_BADGE_FILL_INSET_Y
+    local iw = math.max(0, layout.badgeW - 2 * ix)
+    local ih = math.max(0, layout.badgeH - 2 * iy)
+    if Helpers.pointInRect(x, y, layout.badgeX + ix, layout.badgeY + iy, iw, ih) then
       return true
     end
     if Helpers.pointInRect(x, y, layout.iconDrawX, layout.iconDrawY, layout.iconDrawW, layout.iconDrawH) then
@@ -172,13 +180,21 @@ function M.install(Taskbar, Helpers)
     local layout = getModeIndicatorLayout(self)
     local data = layout.data
 
+    local ix = MODE_BADGE_FILL_INSET_X
+    local iy = MODE_BADGE_FILL_INSET_Y
+    local fillX = layout.badgeX + ix
+    local fillY = layout.badgeY + iy
+    local fillW = math.max(0, layout.badgeW - 2 * ix)
+    local fillH = math.max(0, layout.badgeH - 2 * iy)
+    local rx = MODE_BADGE_CORNER_RADIUS
+
     local bg = data.bg
     love.graphics.setColor(bg[1], bg[2], bg[3], 1)
-    love.graphics.rectangle("fill", layout.badgeX, layout.badgeY, layout.badgeW, layout.badgeH)
+    love.graphics.rectangle("fill", fillX, fillY, fillW, fillH, rx, rx)
 
     local tc = data.textColor
-    local textX = math.floor(layout.badgeX + (layout.badgeW - layout.textW) * 0.5)
-    local textY = math.floor(layout.badgeY + (layout.badgeH - layout.textH) * 0.5)
+    local textX = math.floor(fillX + (fillW - layout.textW) * 0.5)
+    local textY = math.floor(fillY + (fillH - layout.textH) * 0.5)
     Text.print(data.label, textX, textY, {
       color = { tc[1], tc[2], tc[3], 1 },
       -- text_utils remaps near-white to textPrimary unless literal; badge needs fixed colors.

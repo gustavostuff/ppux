@@ -91,7 +91,6 @@ function M.install(Taskbar, Helpers)
     local wm = self.app and self.app.wm
     local focused = wm and wm.getFocus and wm:getFocus() or nil
     button.focused = (focused == win)
-    button.alwaysOpaqueContent = true
     button.underlayOnHoverOnly = true
     button.bgColor = nil
     local hot = button.enabled ~= false and (button.hovered or button.pressed)

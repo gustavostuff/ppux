@@ -77,7 +77,6 @@ function AppCoreController.new()
   self.edits = nil
   self.projectPath = nil
   self.encodedProjectPath = nil
-  self.lastOpenProjectDir = nil
   self.recentProjects = {}
   self.groupedPaletteWindows = false
   self.paletteGroupState = nil
@@ -85,6 +84,8 @@ function AppCoreController.new()
 
   --- Runtime only: last selected tab id per tabbed modal (e.g. `settings` -> `"colors"`).
   self._tabbedModalActiveTabIds = {}
+  --- Runtime only: last browsed directory per open-file picker preset (`project`, `png`).
+  self._openFileModalLastDirs = {}
 
   -- windows + manager
   self.wm = WindowController.new()

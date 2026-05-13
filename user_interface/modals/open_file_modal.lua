@@ -246,10 +246,8 @@ local function makeClippedFileButton(slotAction)
     contentPaddingX = 4,
     enabled = false,
     action = slotAction,
-    contentColor = colors.white,
-    literalContentColor = true,
+    iconTintColor = colors.white,
     iconRespectTheme = false,
-    -- preserveModalContentColor set per row in _refreshFileButtons (white only for .ppux/.lua/.nes).
   })
 
   function button:draw()
@@ -361,6 +359,8 @@ function Dialog.new(config)
     transparent = true,
     textAlign = "left",
     contentPaddingX = 4,
+    -- Themed chrome ink for icon + label (no iconTintColor).
+    iconRespectTheme = false,
     action = function()
       self:_goUp()
     end,
@@ -372,6 +372,8 @@ function Dialog.new(config)
     transparent = true,
     textAlign = "left",
     contentPaddingX = 4,
+    -- Folder glyph: theme chrome ink (no iconTintColor).
+    iconRespectTheme = false,
     action = function()
       self:_goHome()
     end,
@@ -461,7 +463,8 @@ function Dialog:_refreshFileButtons()
       if entry.isDir then
         button.icon = images.icons.actions.icon_folder
         button.text = tostring(entry.name or "") .. "/"
-        button.preserveModalContentColor = false
+        -- Folder: match themed label ink (modal applies chrome colors). Files keep white glyph tint.
+        button.iconTintColor = nil
       else
         local ext = fileExt(entry.name)
         local types = images.icons.image_types
@@ -477,14 +480,7 @@ function Dialog:_refreshFileButtons()
           button.icon = images.icons.actions.icon_project
         end
         button.text = tostring(entry.name or "")
-        if ext == "ppux" or ext == "lua" or ext == "nes" or ext == "png" or ext == "jpg" or ext == "jpeg" or ext == "bmp" then
-          button.preserveModalContentColor = true
-          button.contentColor = colors.white
-          button.literalContentColor = true
-          button.iconRespectTheme = false
-        else
-          button.preserveModalContentColor = false
-        end
+        button.iconTintColor = colors.white
       end
       button.tooltip = tostring(entry.path or "")
       button.enabled = true
@@ -493,7 +489,7 @@ function Dialog:_refreshFileButtons()
       button.text = ""
       button.tooltip = ""
       button.enabled = false
-      button.preserveModalContentColor = false
+      button.iconTintColor = colors.white
     end
     button.pressed = false
     button.hovered = false

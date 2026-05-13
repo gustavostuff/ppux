@@ -1,5 +1,6 @@
 local Taskbar = require("user_interface.taskbar")
 local WM = require("controllers.window.window_controller")
+local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
 local images = require("images")
 
 describe("taskbar.lua - minimized windows strip", function()
@@ -408,8 +409,6 @@ describe("taskbar.lua - minimized windows strip", function()
     local b2 = buttonForWindow(taskbar, w2)
     expect(b1).toBeTruthy()
     expect(b2).toBeTruthy()
-    expect(b1.alwaysOpaqueContent).toBe(true)
-    expect(b2.alwaysOpaqueContent).toBe(true)
     expect(b1.underlayOnHoverOnly).toBe(true)
     expect(b2.underlayOnHoverOnly).toBe(true)
     expect(b1.bgColor).toBeNil()
@@ -598,7 +597,7 @@ describe("taskbar.lua - minimized windows strip", function()
     })
   end)
 
-  it("keeps taskbar strip buttons fully opaque while menus use their own alpha", function()
+  it("uses full-opacity button content by default; menus pass explicit normalContentAlpha", function()
     local wm = WM.new()
     local app = {
       wm = wm,
@@ -613,7 +612,7 @@ describe("taskbar.lua - minimized windows strip", function()
 
     for _, button in ipairs(taskbar.buttons) do
       if not button.isMinimizedWindowButton then
-        expect(button.alwaysOpaqueContent).toBe(true)
+        expect(button.normalContentAlpha).toBeNil()
       end
     end
 
@@ -622,7 +621,7 @@ describe("taskbar.lua - minimized windows strip", function()
     for row = 1, panel.rows do
       local cell = panel.cells[row][1]
       if cell and cell.button then
-        expect(cell.button.alwaysOpaqueContent).toBeFalsy()
+        expect(cell.button.normalContentAlpha).toBe(ContextualMenuController.NORMAL_CONTENT_ALPHA)
       end
     end
   end)
