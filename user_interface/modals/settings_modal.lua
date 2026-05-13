@@ -398,6 +398,7 @@ function Dialog.new()
     onSetTheme = nil,
     onSetPaletteLinks = nil,
     onSetSeparateToolbar = nil,
+    onSetNeverShowResizeHandle = nil,
     getScale = nil,
     getFullscreen = nil,
     getResizable = nil,
@@ -407,6 +408,7 @@ function Dialog.new()
     getTheme = nil,
     getPaletteLinks = nil,
     getSeparateToolbar = nil,
+    getNeverShowResizeHandle = nil,
     extraRows = nil,
     _getExtraRows = nil,
     bgColor = nil,
@@ -637,6 +639,7 @@ function Dialog:show(opts)
   self.onSetTheme = opts.onSetTheme
   self.onSetPaletteLinks = opts.onSetPaletteLinks
   self.onSetSeparateToolbar = opts.onSetSeparateToolbar
+  self.onSetNeverShowResizeHandle = opts.onSetNeverShowResizeHandle
   self.getScale = opts.getScale
   self.getFullscreen = opts.getFullscreen
   self.getResizable = opts.getResizable
@@ -646,6 +649,7 @@ function Dialog:show(opts)
   self.getTheme = opts.getTheme
   self.getPaletteLinks = opts.getPaletteLinks
   self.getSeparateToolbar = opts.getSeparateToolbar
+  self.getNeverShowResizeHandle = opts.getNeverShowResizeHandle
   self.extraRows = opts.extraRows
   self._getExtraRows = opts.getExtraRows
   self.getAppearanceChromeRgb = opts.getAppearanceChromeRgb
@@ -723,6 +727,19 @@ function Dialog:_generalTabRowSpecs()
         action = function()
           if self.onSetSeparateToolbar then
             self.onSetSeparateToolbar(not (self.getSeparateToolbar and self.getSeparateToolbar() == true))
+          end
+        end,
+      },
+    },
+    {
+      id = "never_show_resize_handle",
+      label = "Never show resize handle",
+      buttonSpec = {
+        id = "never_show_resize_handle_toggle",
+        text = (self.getNeverShowResizeHandle and self.getNeverShowResizeHandle() == true) and "On" or "Off",
+        action = function()
+          if self.onSetNeverShowResizeHandle then
+            self.onSetNeverShowResizeHandle(not (self.getNeverShowResizeHandle and self.getNeverShowResizeHandle() == true))
           end
         end,
       },

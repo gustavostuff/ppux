@@ -183,8 +183,23 @@ local function getResizeHandleCapabilities(self)
   return canResizeLess, canResizeMore
 end
 
-function Window:drawResizeHandle(isFocused, _scaledMouse)
+function Window:drawResizeHandle(isFocused, scaledMouse, neverShowResizeHandle)
   if self.resizable and isFocused and not self._collapsed then
+    if neverShowResizeHandle == true then
+      love.graphics.setColor(colors.white)
+      return
+    end
+    local mx = scaledMouse and scaledMouse.x
+    local my = scaledMouse and scaledMouse.y
+    local hideHandle = self.resizing == true
+    if not hideHandle and type(mx) == "number" and type(my) == "number" and self:mouseOnResizeHandle(mx, my) then
+      hideHandle = true
+    end
+    if hideHandle then
+      love.graphics.setColor(colors.white)
+      return
+    end
+
     local hx, hy, hw, hh = self:getResizeHandleRect()
     local canResizeLess, canResizeMore = getResizeHandleCapabilities(self)
 

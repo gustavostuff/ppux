@@ -15,6 +15,9 @@ local DEFAULT_SETTINGS = {
   canvasFilter = "sharp",
   paletteLinks = "auto_hide",
   separateToolbar = false,
+  --- When true, the resize-corner glyph is never drawn (resize hotspot/cursor unchanged).
+  --- When false, the glyph hides while the pointer is over the handle or during resize drag.
+  neverShowResizeHandle = false,
   --- Soft blurred drop shadow behind each window (shader).
   windowShadowEnabled = true,
   --- 0 = sharp edge, 1 = softest falloff (maps to feather range in pixels).
@@ -279,6 +282,7 @@ local function withDefaults(data)
   out.canvasFilter = normalizeCanvasFilterKey(data and data.canvasFilter)
   out.paletteLinks = normalizePaletteLinksKey(data and data.paletteLinks)
   out.separateToolbar = (data and data.separateToolbar == true)
+  out.neverShowResizeHandle = (data and data.neverShowResizeHandle == true)
   out.windowShadowEnabled = not (data and data.windowShadowEnabled == false)
   out.windowShadowBlur = normalizeWindowShadowBlur(data and data.windowShadowBlur)
   out.windowShadowStrength = normalizeWindowShadowStrength(data and data.windowShadowStrength)
@@ -353,6 +357,7 @@ function AppSettingsController.save(opts)
   if opts.canvasFilter ~= nil then data.canvasFilter = opts.canvasFilter end
   if opts.paletteLinks ~= nil then data.paletteLinks = normalizePaletteLinksKey(opts.paletteLinks) end
   if opts.separateToolbar ~= nil then data.separateToolbar = (opts.separateToolbar == true) end
+  if opts.neverShowResizeHandle ~= nil then data.neverShowResizeHandle = (opts.neverShowResizeHandle == true) end
   if opts.windowShadowEnabled ~= nil then data.windowShadowEnabled = (opts.windowShadowEnabled == true) end
   if opts.windowShadowBlur ~= nil then data.windowShadowBlur = normalizeWindowShadowBlur(opts.windowShadowBlur) end
   if opts.windowShadowStrength ~= nil then data.windowShadowStrength = normalizeWindowShadowStrength(opts.windowShadowStrength) end

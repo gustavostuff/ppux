@@ -29,6 +29,7 @@ local CURSOR_FILES_BY_SET = {
     pick = "cursor_pick_2_27.png",
     rect_fill = "cursor_rect_14_14.png",
     unavailable = "cursor_unavailable_14_14.png",
+    resize = "cursor_resize_14_14.png",
   },
   ["1x"] = {
     arrow = "cursor_arrow_0_0.png",
@@ -38,6 +39,7 @@ local CURSOR_FILES_BY_SET = {
     pick = "cursor_pick_1_13.png",
     rect_fill = "cursor_rect_7_7.png",
     unavailable = "cursor_unavailable_7_7.png",
+    resize = "cursor_resize_7_7.png",
   },
 }
 
@@ -549,6 +551,21 @@ local function isHoveringDisabledUiAt(app, mx, my)
   return false
 end
 
+local function shouldUseResizeCursor(app, mx, my)
+  local wm = app and app.wm
+  if not wm then
+    return false
+  end
+  if type(mx) ~= "number" or type(my) ~= "number" then
+    return false
+  end
+  if type(wm.focusedResizeHandleAt) == "function" and wm:focusedResizeHandleAt(mx, my) then
+    return true
+  end
+  local win = wm.getFocus and wm:getFocus() or nil
+  return win and win.resizing == true
+end
+
 local function resolveTargetCursorName(app, mode)
   local mx, my = getMouseCanvasPosition()
   if type(mx) == "number" and type(my) == "number" then
@@ -559,6 +576,9 @@ local function resolveTargetCursorName(app, mode)
     end
     if isHoveringDisabledUiAt(app, mx, my) then
       return "unavailable"
+    end
+    if shouldUseResizeCursor(app, mx, my) then
+      return "resize"
     end
     if isHoveringHandTargetAt(app, mx, my) then
       return "hand"
@@ -616,6 +636,9 @@ function CursorsController.applyModeCursor(app, mode)
   if app and targetName == "unavailable" and not cursors.unavailable then
     cursors.unavailable = ensureNamedCursorLoaded(app, "unavailable")
   end
+  if app and targetName == "resize" and not cursors.resize then
+    cursors.resize = ensureNamedCursorLoaded(app, "resize")
+  end
 
   local useSoftwareCursor = shouldUseSoftwareCursor(app)
   if useSoftwareCursor then
@@ -624,6 +647,9 @@ function CursorsController.applyModeCursor(app, mode)
     end
     if app and targetName == "unavailable" then
       ensureNamedSoftwareCursorLoaded(app, "unavailable")
+    end
+    if app and targetName == "resize" then
+      ensureNamedSoftwareCursorLoaded(app, "resize")
     end
     setMouseVisibility(app, false)
     if love.mouse.setCursor then
@@ -684,6 +710,7 @@ local function loadAllCursorAssets(app)
     pick = loadNamedCursor("pick", cursorSet),
     rect_fill = loadNamedCursor("rect_fill", cursorSet),
     unavailable = loadNamedCursor("unavailable", cursorSet),
+    resize = loadNamedCursor("resize", cursorSet),
   }
   -- Clear before repopulating so CRT toggles do not reuse stale Image objects.
   app.softwareCursors = {}
@@ -694,6 +721,7 @@ local function loadAllCursorAssets(app)
   app.softwareCursors.pick = ensureNamedSoftwareCursorLoaded(app, "pick")
   app.softwareCursors.rect_fill = ensureNamedSoftwareCursorLoaded(app, "rect_fill")
   app.softwareCursors.unavailable = ensureNamedSoftwareCursorLoaded(app, "unavailable")
+  app.softwareCursors.resize = ensureNamedSoftwareCursorLoaded(app, "resize")
   app._softwareCursorModeActive = false
   app._cursorVisible = nil
 

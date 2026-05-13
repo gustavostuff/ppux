@@ -667,6 +667,22 @@ function AppCoreController:_applySeparateToolbarSetting(enabled, saveSetting)
   return self.separateToolbar
 end
 
+function AppCoreController:_getNeverShowResizeHandleForSettings()
+  if self.neverShowResizeHandle ~= nil then
+    return self.neverShowResizeHandle == true
+  end
+  local settings = AppSettingsController.load()
+  return settings and settings.neverShowResizeHandle == true
+end
+
+function AppCoreController:_applyNeverShowResizeHandleSetting(enabled, saveSetting)
+  self.neverShowResizeHandle = (enabled == true)
+  if saveSetting ~= false then
+    AppSettingsController.save({ neverShowResizeHandle = self.neverShowResizeHandle })
+  end
+  return self.neverShowResizeHandle
+end
+
 function AppCoreController:_getWindowShadowEnabledForSettings()
   if self.windowShadowEnabled ~= nil then
     return self.windowShadowEnabled == true
@@ -1119,6 +1135,7 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
   self:_applyCanvasFilterSetting(D.canvasFilter, false)
   self:_applyPaletteLinksSetting(D.paletteLinks, false)
   self:_applySeparateToolbarSetting(D.separateToolbar, false)
+  self:_applyNeverShowResizeHandleSetting(D.neverShowResizeHandle == true, false)
   self:_applyWindowShadowSetting(D.windowShadowEnabled == true, false)
   self:_applyWindowShadowBlurSetting(D.windowShadowBlur, false)
   self:_applyWindowShadowStrengthSetting(D.windowShadowStrength, false)
@@ -1135,6 +1152,7 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
     canvasFilter = D.canvasFilter,
     paletteLinks = D.paletteLinks,
     separateToolbar = D.separateToolbar,
+    neverShowResizeHandle = D.neverShowResizeHandle,
     windowShadowEnabled = D.windowShadowEnabled,
     windowShadowBlur = D.windowShadowBlur,
     windowShadowStrength = D.windowShadowStrength,
@@ -1206,6 +1224,9 @@ function AppCoreController:showSettingsModal()
     getSeparateToolbar = function()
       return appRef:_getSeparateToolbarForSettings()
     end,
+    getNeverShowResizeHandle = function()
+      return appRef:_getNeverShowResizeHandleForSettings()
+    end,
     getFullscreen = function()
       return love.window.getFullscreen() == true
     end,
@@ -1269,6 +1290,9 @@ function AppCoreController:showSettingsModal()
     end,
     onSetSeparateToolbar = function(enabled)
       appRef:_applySeparateToolbarSetting(enabled, true)
+    end,
+    onSetNeverShowResizeHandle = function(enabled)
+      appRef:_applyNeverShowResizeHandleSetting(enabled, true)
     end,
     onToggleFullscreen = function()
       KeyboardWindowShortcutsController.toggleFullscreen(appRef)

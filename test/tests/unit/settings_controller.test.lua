@@ -11,6 +11,7 @@ describe("settings_controller.lua - defaults", function()
       canvasFilter = "sharp",
       paletteLinks = "auto_hide",
       separateToolbar = false,
+      neverShowResizeHandle = false,
       windowShadowEnabled = true,
       windowShadowBlur = 0.2,
       windowShadowStrength = 0.5,
@@ -72,6 +73,7 @@ describe("settings_controller.lua - persistence", function()
       skipSplash = true,
       tooltipsEnabled = false,
       groupedPaletteWindows = true,
+      neverShowResizeHandle = true,
       recentProjects = {
         "/tmp/foo.lua",
         "/tmp/foo_edited.nes",
@@ -90,6 +92,7 @@ describe("settings_controller.lua - persistence", function()
     expect(loaded.canvasFilter).toBe("soft")
     expect(loaded.paletteLinks).toBe("on_hover")
     expect(loaded.separateToolbar).toBe(false)
+    expect(loaded.neverShowResizeHandle).toBe(true)
     expect(loaded.groupedPaletteWindows).toBe(true)
     expect(loaded.crtEnabled).toBe(false)
     expect(loaded.crtDistortion).toBe(0.1)

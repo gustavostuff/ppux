@@ -975,7 +975,7 @@ local function drawCrtLensVisualizerWindow(app, w, wm)
     end
   end
 
-  w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true))
+  w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true), app.neverShowResizeHandle == true)
 
   if w.drawSelectionOverlays then
     w:drawSelectionOverlays(isFocused)
@@ -1014,7 +1014,7 @@ local function drawCrtLensWindowChromeOnly(app, w, wm)
   end
 
   -- Legacy: post-render "lens" samples the composed workspace; use only when crtLensPostCanvasOverlayEnabled.
-  w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true))
+  w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true), app.neverShowResizeHandle == true)
 
   if w.drawSelectionOverlays then
     w:drawSelectionOverlays(isFocused)
@@ -1148,7 +1148,7 @@ drawNormalWindow = function(app, w, wm)
     renderWindowLinesGrid(w)
   end
 
-  w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true))
+  w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true), app.neverShowResizeHandle == true)
 
   if w.drawSelectionOverlays then
     w:drawSelectionOverlays(isFocused)

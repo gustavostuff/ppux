@@ -13,7 +13,7 @@ end
 
 return function(Window)
 function Window:update(dt)
-  self.scrollbarOpacity = math.max(0.0, math.min(1.0, self.scrollbarOpacity - dt))
+  self.scrollbarOpacity = math.max(0.0, math.min(1.0, self.scrollbarOpacity - dt / 3))
 end
 
 -- ==== Layers (unchanged) ====
