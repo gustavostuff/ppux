@@ -96,22 +96,6 @@ describe("toast_controller.lua", function()
     expect(#controller.toasts).toBe(0)
   end)
 
-  it("closes a toast when clicking its close icon", function()
-    local controller = makeController()
-    local toast = controller:show("warning", "Removed window")
-    advance(controller, 0.25)
-
-    local x, y, w, h = controller:_closeRect(toast)
-    local clickX = x + math.floor(w / 2)
-    local clickY = y + math.floor(h / 2)
-
-    expect(controller:mousepressed(clickX, clickY, 1)).toBeTruthy()
-    expect(controller:mousereleased(clickX, clickY, 1)).toBeTruthy()
-
-    advance(controller, 0.2)
-    expect(#controller.toasts).toBe(0)
-  end)
-
   it("can expand toast width beyond the old max for long text", function()
     local controller = makeController()
     local longText = string.rep("long toast text ", 18)

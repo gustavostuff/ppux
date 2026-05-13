@@ -1,24 +1,21 @@
 local colors = require("app_colors")
-local images = require("images")
 local Timer = require("utils.timer_utils")
-local UiScale = require("user_interface.ui_scale")
 local Text = require("utils.text_utils")
-local Draw = require("utils.draw_utils")
 
 local ToastController = {}
 ToastController.__index = ToastController
 
 local DEFAULT_DURATION = 3.0
 local DEFAULT_FADE_DURATION = 0.5
-local STACK_GAP = 6
-local MARGIN_RIGHT = 8
-local MARGIN_BOTTOM = 6
+local STACK_GAP = 5
+local MARGIN_RIGHT = 6
+local MARGIN_BOTTOM = 4
 local TOAST_MIN_W = 150
 local TOAST_BASE_MAX_W = 260
 local TOAST_EXPANDED_MAX_W = TOAST_BASE_MAX_W * 2
-local TOAST_H = 24
-local TOAST_PAD_X = 8
-local CLOSE_PAD_RIGHT = 6
+local TOAST_H = 22
+local TOAST_PAD_X = 6
+local TOAST_CORNER_RADIUS = 2
 
 -- Background only; foreground is always colors.white except warning (colors.black).
 -- Text uses literalColor so near-white is not remapped to theme textPrimary.
@@ -94,14 +91,6 @@ local function toastForegroundRgb(kind)
   return colors.white[1], colors.white[2], colors.white[3]
 end
 
-local function closeIconSize()
-  local icon = images and images.icons and images.icons.chrome.icon_x or nil
-  if icon and icon.getWidth and icon.getHeight then
-    return icon:getWidth(), icon:getHeight()
-  end
-  return 8, 8
-end
-
 function ToastController.new(app, opts)
   opts = opts or {}
   local self = setmetatable({
@@ -146,13 +135,6 @@ function ToastController:_taskbarTop()
   end
   local _, canvasH = self:_canvasSize()
   return canvasH
-end
-
-function ToastController:_closeRect(toast)
-  local iconW, iconH = closeIconSize()
-  local x = math.floor((toast.x or toast.targetX or 0) + toast.w - CLOSE_PAD_RIGHT - iconW)
-  local y = math.floor((toast.y or toast.targetY or 0) + math.floor((toast.h - iconH) * 0.5))
-  return x, y, iconW, iconH
 end
 
 function ToastController:_toastAt(x, y)
@@ -229,13 +211,12 @@ end
 
 function ToastController:_makeWidth(kind, text)
   local font = currentFont()
-  local iconW = select(1, closeIconSize())
   if not font then
     return TOAST_BASE_MAX_W
   end
 
   local textW = font:getWidth(tostring(text or ""))
-  local desiredWidth = (TOAST_PAD_X * 2) + textW + TOAST_PAD_X + iconW + CLOSE_PAD_RIGHT
+  local desiredWidth = (TOAST_PAD_X * 2) + textW
   local width = desiredWidth
 
   if width < TOAST_MIN_W then
@@ -281,8 +262,6 @@ function ToastController:show(kind, text, opts)
     state = "visible",
     hovered = false,
     pressed = false,
-    closeHovered = false,
-    closePressed = false,
     action = opts.action,
   }
 
@@ -351,14 +330,9 @@ function ToastController:mousemoved(x, y)
   for i = 1, #self.toasts do
     local toast = self.toasts[i]
     toast.hovered = false
-    toast.closeHovered = false
     if pointInRect(x, y, toast.x or toast.targetX or 0, toast.y or toast.targetY or 0, toast.w, toast.h) then
       handled = true
       toast.hovered = true
-      local cx, cy, cw, ch = self:_closeRect(toast)
-      if pointInRect(x, y, cx, cy, cw, ch) then
-        toast.closeHovered = true
-      end
     end
   end
 
@@ -373,8 +347,6 @@ function ToastController:mousepressed(x, y, button)
 
   self.pressedToast = toast
   toast.pressed = true
-  local cx, cy, cw, ch = self:_closeRect(toast)
-  toast.closePressed = pointInRect(x, y, cx, cy, cw, ch)
   return true
 end
 
@@ -387,7 +359,6 @@ function ToastController:mousereleased(x, y, button)
 
   local insideToast = pointInRect(x, y, toast.x or toast.targetX or 0, toast.y or toast.targetY or 0, toast.w, toast.h)
   toast.pressed = false
-  toast.closePressed = false
 
   if insideToast then
     self:_dismissToast(toast)
@@ -419,8 +390,6 @@ function ToastController:draw(canvasW, canvasH)
   end
 
   local font = currentFont()
-  local icon = images and images.icons and images.icons.chrome.icon_x or nil
-  local iconW, iconH = closeIconSize()
 
   for i = #self.toasts, 1, -1 do
     local toast = self.toasts[i]
@@ -430,28 +399,16 @@ function ToastController:draw(canvasW, canvasH)
     local y = math.floor(toast.y or toast.targetY or 0)
 
     love.graphics.setColor(style.bg[1], style.bg[2], style.bg[3], alpha)
-    love.graphics.rectangle("fill", x, y, toast.w, toast.h)
+    love.graphics.rectangle("fill", x, y, toast.w, toast.h, TOAST_CORNER_RADIUS, TOAST_CORNER_RADIUS)
 
     local fr, fg, fb = toastForegroundRgb(toast.kind)
     if font then
       local textX = x + TOAST_PAD_X
       local textY = y + math.floor((toast.h - font:getHeight()) * 0.5)
-      local closeX = x + toast.w - CLOSE_PAD_RIGHT - iconW
-      local messageMaxW = closeX - TOAST_PAD_X - textX
+      local messageMaxW = toast.w - (TOAST_PAD_X * 2)
       local message = truncateToWidth(toast.text, messageMaxW)
 
       Text.print(message, textX, textY, {
-        color = { fr, fg, fb, alpha },
-        literalColor = true,
-      })
-    end
-
-    local closeX, closeY = self:_closeRect(toast)
-    love.graphics.setColor(fr, fg, fb, alpha)
-    if icon then
-      Draw.drawIcon(icon, closeX, closeY, { respectTheme = false })
-    elseif font then
-      Text.print("x", closeX, closeY - 1, {
         color = { fr, fg, fb, alpha },
         literalColor = true,
       })
