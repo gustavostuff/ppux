@@ -51,14 +51,17 @@ local function notifyChrDropPatternTableRejected(env)
 end
 
 local function chrTileMappedToDestinationPpuPatternTable(dst, dstLayerIdx, srcWin, rawItem, srcLayerIdx)
-  if not WindowCaps.isPpuFrame(dst) then
+  if not (WindowCaps.isPpuFrame(dst) or WindowCaps.isOamAnimation(dst)) then
     return true
   end
   local layer = dst.layers and dst.layers[dstLayerIdx]
-  if not (layer and layer.kind == "tile") then
+  if not (layer and (layer.kind == "tile" or layer.kind == "sprite")) then
     return true
   end
-  if layer._runtimePatternTableRefLayer == true then
+  if layer.kind == "tile" and layer._runtimePatternTableRefLayer == true then
+    return true
+  end
+  if type(layer.patternTable) ~= "table" or type(layer.patternTable.ranges) ~= "table" or #layer.patternTable.ranges == 0 then
     return true
   end
   local item = resolveChrTileItem(srcWin, rawItem, srcLayerIdx)
@@ -518,10 +521,8 @@ local function getChrGroupDropState(env, x, y, wm)
     return state
   end
 
-  if WindowCaps.isPpuFrame(dst)
-    and layer.kind == "tile"
-    and not layer._runtimePatternTableRefLayer
-  then
+  local skipPatternCheck = (layer.kind == "tile" and layer._runtimePatternTableRefLayer == true)
+  if not skipPatternCheck and (WindowCaps.isPpuFrame(dst) or WindowCaps.isOamAnimation(dst)) then
     for _, entry in ipairs(placementEntries) do
       if not chrTileMappedToDestinationPpuPatternTable(dst, dstLayer, drag.srcWin, entry.item, drag.srcLayer) then
         state.reason = "tile_not_in_pattern_table"

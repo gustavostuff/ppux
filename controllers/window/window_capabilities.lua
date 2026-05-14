@@ -19,8 +19,16 @@ function M.isPatternSketchCanvas(win)
   return win and win.kind == "pattern_sketch_canvas"
 end
 
+function M.isPatternTable(win)
+  return win and win.kind == "pattern_table"
+end
+
 function M.isStaticOrAnimationArt(win)
-  return M.isStaticArt(win) or M.isPatternSketchCanvas(win) or M.isAnimationLike(win)
+  -- Includes pattern_table: tile-grid editor with same input/invalidation expectations as static art.
+  return M.isStaticArt(win)
+    or M.isPatternSketchCanvas(win)
+    or M.isAnimationLike(win)
+    or M.isPatternTable(win)
 end
 
 function M.isPpuFrame(win)

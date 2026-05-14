@@ -723,12 +723,13 @@ function M.snapshotNametableLayer(win, layer)
     return nil
   end
 
+  local linkedId = type(layer.linkedPatternTableWindowId) == "string" and layer.linkedPatternTableWindowId ~= ""
+
   local out = {
     name               = layer.name,
     kind               = "tile",
     opacity            = (layer.opacity ~= nil) and layer.opacity or 1.0,
     mode               = layer.mode or "8x8",
-    patternTable       = TableUtils.deepcopy(layer.patternTable),
     nametableStartAddr = layer.nametableStartAddr,
     nametableEndAddr   = layer.nametableEndAddr,
     items              = {},  -- always empty: base tiles come from ROM
@@ -736,7 +737,14 @@ function M.snapshotNametableLayer(win, layer)
   if layer.noOverflowSupported ~= nil then
     out.noOverflowSupported = (layer.noOverflowSupported == true)
   end
-  out.patternTable = out.patternTable or {}
+
+  if linkedId then
+    out.linkedPatternTableWindowId = layer.linkedPatternTableWindowId
+    -- patternTable ranges live only on linked kind=pattern_table window entries.
+  else
+    out.patternTable = TableUtils.deepcopy(layer.patternTable)
+    out.patternTable = out.patternTable or {}
+  end
 
   -- Swaps as pretty list { {col,row,val}, ... }
   local swaps = buildTileSwapsList(win)

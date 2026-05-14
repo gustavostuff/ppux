@@ -18,7 +18,8 @@ local TASKBAR_KIND_SORT_RANK = {
   ppu_frame = 6,
   palette = 7,
   rom_palette = 8,
-  generic = 9,
+  pattern_table = 9,
+  generic = 10,
 }
 
 function M.pointInRect(px, py, x, y, w, h)
@@ -102,6 +103,7 @@ function M.getTaskbarIconKeyForWindow(win)
 
   if kind == "chr" then return "chr" end
   if kind == "ppu_frame" then return "ppu_frame" end
+  if kind == "pattern_table" then return "pattern_table" end
   if kind == "palette" then return "palette" end
   if kind == "rom_palette" then return "rom_palette" end
   return "generic"

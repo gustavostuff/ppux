@@ -3,6 +3,7 @@
 
 local chr = require("chr")
 local Tile = require("user_interface.windows_system.tile_item")
+local TableUtils = require("utils.table_utils")
 
 local M = {}
 
@@ -226,6 +227,15 @@ function M.snapshotSpriteLayer(layer)
     ::continue::
   end
 
+  local linkedPt =
+    type(layer.linkedPatternTableWindowId) == "string" and layer.linkedPatternTableWindowId ~= ""
+
+  if linkedPt then
+    out.linkedPatternTableWindowId = layer.linkedPatternTableWindowId
+  elseif type(layer.patternTable) == "table" then
+    out.patternTable = TableUtils.deepcopy(layer.patternTable)
+  end
+
   return out
 end
 
@@ -241,6 +251,16 @@ function M.applySnapshotToSpriteLayer(layer, snapshot, opts)
   if snapshot.paletteData ~= nil then
     local TableUtils = require("utils.table_utils")
     layer.paletteData = TableUtils.deepcopy(snapshot.paletteData)
+  end
+
+  if type(snapshot.linkedPatternTableWindowId) == "string" and snapshot.linkedPatternTableWindowId ~= "" then
+    layer.linkedPatternTableWindowId = snapshot.linkedPatternTableWindowId
+  else
+    layer.linkedPatternTableWindowId = nil
+  end
+  if snapshot.patternTable ~= nil then
+    local TableUtils = require("utils.table_utils")
+    layer.patternTable = TableUtils.deepcopy(snapshot.patternTable)
   end
 
   local romRaw = opts and opts.romRaw or ""

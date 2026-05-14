@@ -479,7 +479,10 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
     purgeRemovedTiles(w)
     placedZ = placedZ + 1
     local isPalette = WindowCaps.isAnyPaletteWindow(w)
-    local entryKind = WindowCaps.isRomPaletteWindow(w) and "rom_palette" or (isPalette and "palette" or (w.kind or "normal"))
+    local entryKind = WindowCaps.isRomPaletteWindow(w) and "rom_palette"
+      or (isPalette and "palette")
+      or (WindowCaps.isPatternTable(w) and "pattern_table")
+      or (w.kind or "normal")
     local entry = {
       id    = (w == bankWindow) and "bank" or (w._id or ""),
       title = w.title,
@@ -594,6 +597,20 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
           items   = {},
         }
       }
+    elseif entry.kind == "pattern_table" then
+      entry.activeLayer = w.activeLayer or 1
+      entry.layers = {}
+      local L = w.layers and w.layers[1]
+      if L then
+        entry.layers[#entry.layers + 1] = {
+          name = L.name or "Pattern table",
+          kind = "tile",
+          mode = L.mode or "8x8",
+          opacity = (L.opacity ~= nil) and L.opacity or 1.0,
+          patternTable = TableUtils.deepcopy(L.patternTable or { ranges = {} }),
+          items = {},
+        }
+      end
     else
       entry.activeLayer = w.activeLayer or 1
       entry.layers = {}

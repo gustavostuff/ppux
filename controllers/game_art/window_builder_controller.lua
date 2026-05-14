@@ -62,13 +62,16 @@ function M.buildWindowsFromLayout(layout, opts)
     animation = function(w)
       return GameArtWindowFactoryController.createAnimationWindow(w, tilesPool, ensureTiles)
     end,
-    -- Free paint buffer; ROM-backed packed pattern UI will use kind "pattern_table" later.
+    -- Free paint buffer; ROM-backed pattern UI uses kind "pattern_table".
     pattern_sketch_canvas = function(w)
       return GameArtWindowFactoryController.createPatternSketchCanvasWindow(
         w,
         decodePatternCanvasSnapshot,
         onPatternCanvasRestoreError
       )
+    end,
+    pattern_table = function(w)
+      return GameArtWindowFactoryController.createPatternTableWindow(w, tilesPool, ensureTiles)
     end,
     oam_animation = function(w)
       return GameArtWindowFactoryController.createOamAnimationWindow(w, tilesPool, ensureTiles)
@@ -121,6 +124,13 @@ function M.buildWindowsFromLayout(layout, opts)
     end
   end
   DebugController.log("info", "LOAD_PERF", "window_builder palette_activation duration=%.3fs", nowSeconds() - paletteSyncStartedAt)
+
+  local patternTableStartedAt = nowSeconds()
+  GameArtWindowFactoryController.afterLayoutPatternTablesHydrate(wm, tilesPool, ensureTiles, {
+    romRaw = romRaw,
+    appEditState = nil,
+  })
+  DebugController.log("info", "LOAD_PERF", "window_builder pattern_table_hydrate duration=%.3fs", nowSeconds() - patternTableStartedAt)
 
   local bankWin = windowsById["bank"]
   if WindowCaps.isChrLike(bankWin) then

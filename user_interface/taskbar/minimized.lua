@@ -200,6 +200,7 @@ function M.install(Taskbar, Helpers)
       ppu_frame = windowIcons.icon_ppu_frame_window or nil,
       palette = windowIcons.icon_palette_window or nil,
       rom_palette = windowIcons.icon_rom_palette_window or nil,
+      pattern_table = windowIcons.icon_generic_window or nil,
       generic = windowIcons.icon_generic_window or nil,
     }
     self.taskbarAnimatedIconByKind = {}

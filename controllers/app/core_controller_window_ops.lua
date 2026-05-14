@@ -7,6 +7,7 @@ local UiScale = require("user_interface.ui_scale")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
 local AppSettingsController = require("controllers.app.settings_controller")
 
 --- When false, the CRT layer visualizer window is not created, toggled, or restored from settings.
@@ -835,6 +836,156 @@ function AppCoreController:showPaletteLinkDestinationContextMenu(win, x, y)
   self:_hideAllContextMenus()
   local cx, cy = self:contentPointToCanvasPoint(x, y)
   self.paletteLinkContextMenu:showAt(cx, cy, self:_buildPaletteLinkDestinationContextMenuItems(win))
+  return self.paletteLinkContextMenu:isVisible()
+end
+
+local function resolvePatternTableLinkLayerIndex(win)
+  if not win then
+    return 1
+  end
+  local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+  li = math.floor(tonumber(li) or 1)
+  local layer = win.layers and win.layers[li]
+  if WindowCaps.isPpuFrame(win)
+    and layer
+    and layer._runtimePatternTableRefLayer == true
+    and type(layer._runtimePatternTableRefTargetLayerIndex) == "number"
+  then
+    return math.floor(layer._runtimePatternTableRefTargetLayerIndex)
+  end
+  return li
+end
+
+--- Restore minimized / hidden / collapsed state so WM:setFocus actually runs; then bring to front
+--- (setFocus is a no-op for minimized windows; it also skips bringToFront when focus is unchanged).
+local function activateWindowForJump(wm, win)
+  if not (wm and win) or win._closed then
+    return
+  end
+  if win._collapsed == true then
+    win._collapsed = false
+  end
+  if win._groupHidden == true then
+    win._groupHidden = false
+  end
+  if win._minimized == true and wm.restoreMinimizedWindow then
+    wm:restoreMinimizedWindow(win, { recordUndo = false })
+  elseif wm.setFocus then
+    wm:setFocus(win)
+  end
+  if wm.bringToFront and win._closed ~= true and win._minimized ~= true and win._groupHidden ~= true then
+    wm:bringToFront(win)
+  end
+end
+
+function AppCoreController:_afterPatternTableLinkChange(contentWin, layerIndex)
+  local layer = contentWin.layers and contentWin.layers[layerIndex]
+  if not layer then
+    return
+  end
+  if WindowCaps.isPpuFrame(contentWin)
+    and layer.kind == "tile"
+    and layer._runtimePatternTableRefLayer ~= true
+    and self._ensurePpuPatternTableReferenceLayer
+  then
+    self:_ensurePpuPatternTableReferenceLayer({
+      win = contentWin,
+      layer = layer,
+      layerIndex = layerIndex,
+    }, { keepActiveLayer = true })
+  end
+  PatternTableDisplayController.invalidateConsumersUsingPatternTable(self, layer.patternTable)
+  if contentWin.specializedToolbar and contentWin.specializedToolbar.updateIcons then
+    contentWin.specializedToolbar:updateIcons()
+  end
+end
+
+function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(contentWin)
+  local layerIndex = resolvePatternTableLinkLayerIndex(contentWin)
+  local layer = contentWin.layers and contentWin.layers[layerIndex]
+  local items = {}
+
+  if not (layer and (layer.kind == "tile" or layer.kind == "sprite")) then
+    items[1] = {
+      text = "No linkable layer",
+      callback = function() end,
+    }
+    return items
+  end
+
+  local ptWindows = PatternTableDisplayController.collectPatternTableWindows(self.wm)
+
+  items[#items + 1] = {
+    text = "Link pattern table",
+    children = function()
+      local childItems = {}
+      for _, pt in ipairs(ptWindows) do
+        if pt ~= contentWin then
+          childItems[#childItems + 1] = {
+            text = tostring(pt.title or pt._id or "Pattern table"),
+            callback = function()
+              PatternTableDisplayController.linkContentLayerToPatternTableWindow(contentWin, layerIndex, pt)
+              self:_afterPatternTableLinkChange(contentWin, layerIndex)
+              if self.hideAppContextMenus then
+                self:hideAppContextMenus()
+              end
+            end,
+          }
+        end
+      end
+      if #childItems == 0 then
+        childItems[1] = {
+          text = "No pattern table windows",
+          callback = function() end,
+        }
+      end
+      return childItems
+    end,
+  }
+
+  if type(layer.linkedPatternTableWindowId) == "string" and layer.linkedPatternTableWindowId ~= "" then
+    local linkedWin = nil
+    if self.wm and self.wm.getWindows then
+      for _, w in ipairs(self.wm:getWindows()) do
+        if w._id == layer.linkedPatternTableWindowId then
+          linkedWin = w
+          break
+        end
+      end
+    end
+    if linkedWin then
+      items[#items + 1] = {
+        text = "Jump to pattern table",
+        callback = function()
+          activateWindowForJump(self.wm, linkedWin)
+          if self.hideAppContextMenus then
+            self:hideAppContextMenus()
+          end
+        end,
+      }
+    end
+    items[#items + 1] = {
+      text = "Unlink pattern table",
+      callback = function()
+        PatternTableDisplayController.unlinkContentLayerPatternTable(contentWin, layerIndex)
+        self:_afterPatternTableLinkChange(contentWin, layerIndex)
+        if self.hideAppContextMenus then
+          self:hideAppContextMenus()
+        end
+      end,
+    }
+  end
+
+  return items
+end
+
+function AppCoreController:showPatternTableLinkDestinationContextMenu(win, x, y)
+  if not (self.paletteLinkContextMenu and win and type(x) == "number" and type(y) == "number") then
+    return false
+  end
+  self:_hideAllContextMenus()
+  local cx, cy = self:contentPointToCanvasPoint(x, y)
+  self.paletteLinkContextMenu:showAt(cx, cy, self:_buildPatternTableLinkDestinationContextMenuItems(win))
   return self.paletteLinkContextMenu:isVisible()
 end
 

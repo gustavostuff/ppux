@@ -114,9 +114,15 @@ local function buildPpuToolbarPatternRangesScenario(harness, app, runner)
     assert(#ranges == 2, "expected two pattern ranges after second add")
   end)
 
-  appendClick(steps, "Toggle pattern layer mode off", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
-    return toolbar.patternLayerToggleButton
-  end), { moveDuration = 0.1, postPause = 0.2 })
+  steps[#steps + 1] = call("Turn pattern solo mode off (manual)", function(_, _, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    if ppu.setPatternLayerSoloMode then
+      ppu:setPatternLayerSoloMode(false)
+    end
+    if ppu.specializedToolbar and ppu.specializedToolbar.updateIcons then
+      ppu.specializedToolbar:updateIcons()
+    end
+  end)
   steps[#steps + 1] = call("Assert normal mode restored", function(_, _, currentRunner)
     local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
     assert(ppu.patternLayerSoloMode ~= true, "expected pattern mode to be off")
@@ -132,9 +138,15 @@ local function buildPpuToolbarPatternRangesScenario(harness, app, runner)
     end
   end)
 
-  appendClick(steps, "Toggle pattern layer mode on", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
-    return toolbar.patternLayerToggleButton
-  end), { moveDuration = 0.1, postPause = 0.2 })
+  steps[#steps + 1] = call("Turn pattern solo mode on (manual)", function(_, _, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    if ppu.setPatternLayerSoloMode then
+      ppu:setPatternLayerSoloMode(true)
+    end
+    if ppu.specializedToolbar and ppu.specializedToolbar.updateIcons then
+      ppu.specializedToolbar:updateIcons()
+    end
+  end)
   steps[#steps + 1] = keyPress("Try layer navigation in pattern mode", "up", { "lshift" })
   steps[#steps + 1] = call("Assert navigation locked to pattern layer", function(_, _, currentRunner)
     local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
@@ -221,17 +233,33 @@ local function buildPpuToolbarSpriteAndModeControlsScenario(harness, app, runner
     assert(ppu.showSpriteOriginGuides ~= true, "expected origin guides disabled")
   end)
 
-  appendClick(steps, "Enable pattern layer mode", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
-    return toolbar.patternLayerToggleButton
-  end), { moveDuration = 0.1, postPause = 0.2 })
-  steps[#steps + 1] = call("Assert pattern mode toggle action ran", function(currentHarness)
-    assert(tostring(currentHarness:getStatusText() or "") ~= "", "expected status feedback after enabling pattern mode")
+  steps[#steps + 1] = call("Enable pattern solo mode (manual)", function(_, _, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    if ppu.setPatternLayerSoloMode then
+      local ok = ppu:setPatternLayerSoloMode(true)
+      assert(ok ~= false, "expected setPatternLayerSoloMode to succeed")
+    end
+    if ppu.specializedToolbar and ppu.specializedToolbar.updateIcons then
+      ppu.specializedToolbar:updateIcons()
+    end
   end)
-  appendClick(steps, "Disable pattern layer mode", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
-    return toolbar.patternLayerToggleButton
-  end), { moveDuration = 0.1, postPause = 0.2 })
-  steps[#steps + 1] = call("Assert pattern mode disable action ran", function(currentHarness)
-    assert(tostring(currentHarness:getStatusText() or "") ~= "", "expected status feedback after disabling pattern mode")
+  steps[#steps + 1] = call("Assert pattern solo mode engaged", function(_, _, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    assert(ppu.patternLayerSoloMode == true, "expected pattern layer solo mode on")
+  end)
+  steps[#steps + 1] = call("Disable pattern solo mode (manual)", function(_, _, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    if ppu.setPatternLayerSoloMode then
+      local ok = ppu:setPatternLayerSoloMode(false)
+      assert(ok ~= false, "expected setPatternLayerSoloMode to succeed")
+    end
+    if ppu.specializedToolbar and ppu.specializedToolbar.updateIcons then
+      ppu.specializedToolbar:updateIcons()
+    end
+  end)
+  steps[#steps + 1] = call("Assert pattern solo mode off", function(_, _, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    assert(ppu.patternLayerSoloMode ~= true, "expected pattern layer solo mode off")
   end)
 
   appendClick(steps, "Previous layer toolbar button", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)

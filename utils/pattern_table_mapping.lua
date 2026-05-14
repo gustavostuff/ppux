@@ -153,7 +153,16 @@ function M.logicalIndexForTileRef(layer, tileRef, fallbackBank, fallbackPage)
   return nil, "tile_not_mapped_in_pattern_table"
 end
 
+--- Layout / persistence validation: require an explicit `ranges` list that maps exactly 256 indices.
+--- Do **not** treat nil or `{ ranges = nil }` as valid — `buildMap` would silently fall back to bank 1
+--- for every tile and would mask linked-only nametable layers until after `resolveLinkedPatternTableLayers`.
 function M.validate(patternTable)
+  if type(patternTable) ~= "table" then
+    return false, "pattern_table_missing"
+  end
+  if type(patternTable.ranges) ~= "table" then
+    return false, "pattern_table_missing_ranges"
+  end
   local _, err = M.buildMap(patternTable, 1, 1)
   if err then
     return false, err

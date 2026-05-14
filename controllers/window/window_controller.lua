@@ -2,6 +2,7 @@
 local DebugController    = require("controllers.dev.debug_controller")
 local StaticArtWindow    = require("user_interface.windows_system.static_art_window")
 local PixelSketchCanvasWindow = require("user_interface.windows_system.pixel_sketch_canvas_window")
+local PatternTableWindow = require("user_interface.windows_system.pattern_table_window")
 local PPUFrameWindow   = require("user_interface.windows_system.ppu_frame_window")
 local AnimationWindow    = require("user_interface.windows_system.animation_window")
 local OAMAnimationWindow = require("user_interface.windows_system.oam_animation_window")
@@ -1116,6 +1117,51 @@ function WM:createPatternSketchCanvasWindow(opts)
       visibleRows = opts.visibleRows or defaults.rows,
     }
   )
+
+  return self:finalizeNewWindow(win)
+end
+
+function WM:createPatternTableWindow(opts)
+  opts = opts or {}
+  local defaults = extractWindowOptions(opts)
+  defaults.title = opts.title or "Pattern table"
+  defaults.x = opts.x or 96
+  defaults.y = opts.y or 96
+  defaults.cols = opts.cols or 16
+  defaults.rows = opts.rows or 16
+  defaults.cellW = opts.cellW or 8
+  defaults.cellH = opts.cellH or 8
+  defaults.zoom = opts.zoom or 2
+
+  local win = PatternTableWindow.new(
+    defaults.x,
+    defaults.y,
+    defaults.cellW,
+    defaults.cellH,
+    defaults.cols,
+    defaults.rows,
+    defaults.zoom,
+    {
+      title = defaults.title,
+      visibleCols = opts.visibleCols or defaults.cols,
+      visibleRows = opts.visibleRows or defaults.rows,
+    }
+  )
+
+  win.layers = {}
+  win:addLayer({
+    opacity = 1.0,
+    name = "Pattern table",
+    kind = "tile",
+    mode = "8x8",
+  })
+  local L = win.layers[1]
+  if L then
+    L.patternTable = type(opts.patternTable) == "table" and opts.patternTable or { ranges = {} }
+  end
+
+  win._id = opts.id
+  win.nonActiveLayerOpacity = 1.0
 
   return self:finalizeNewWindow(win)
 end

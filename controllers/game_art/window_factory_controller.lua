@@ -7,6 +7,7 @@ local PaletteWindow = require("user_interface.windows_system.palette_window")
 local RomPaletteWindow = require("user_interface.windows_system.rom_palette_window")
 local PPUFrameWindow = require("user_interface.windows_system.ppu_frame_window")
 local PixelSketchCanvasWindow = require("user_interface.windows_system.pixel_sketch_canvas_window")
+local PatternTableWindow = require("user_interface.windows_system.pattern_table_window")
 
 local SpriteController = require("controllers.sprite.sprite_controller")
 local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
@@ -17,6 +18,7 @@ local PatternTableMapping = require("utils.pattern_table_mapping")
 
 local TableUtils = require("utils.table_utils")
 local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
+local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
 
 local M = {}
 
@@ -36,9 +38,44 @@ local function logPerf(label, startedAt, extra)
   end
 end
 
+--- Layout may store visibleCols/visibleRows as 0; in Lua `0 or cols` keeps 0, yielding 0px viewport (invisible window).
+local function positiveIntOrFallback(value, fallback)
+  local n = tonumber(value)
+  if n == nil or n < 1 then
+    n = tonumber(fallback)
+  end
+  if n == nil or n < 1 then
+    return 1
+  end
+  return math.max(1, math.floor(n))
+end
+
+--- Same issue as visibleCols: `w.cellW or 8` keeps 0 (0 is truthy), so the window has 0×N px content.
+local function layoutCellDim(value, default)
+  local n = tonumber(value)
+  local d = tonumber(default) or 8
+  if n == nil or n < 1 then
+    return math.max(1, math.floor(d))
+  end
+  return math.max(1, math.floor(n))
+end
+
+--- `Window.new` uses `zoom or 1.0`; zoom=0 is truthy in Lua and yields invisible geometry and bad mouse math.
+local function layoutZoomOrDefault(z, default)
+  local n = tonumber(z)
+  local d = tonumber(default) or 2
+  if n == nil or n < 0.01 then
+    n = d
+  end
+  return n
+end
+
 local function setScrollAndVisibleArea(targetWin, source)
-  targetWin.visibleCols = source.visibleCols or source.cols
-  targetWin.visibleRows = source.visibleRows or source.rows
+  if not (targetWin and source) then
+    return
+  end
+  targetWin.visibleCols = positiveIntOrFallback(source.visibleCols, source.cols)
+  targetWin.visibleRows = positiveIntOrFallback(source.visibleRows, source.rows)
   targetWin:setScroll(source.scrollCol or 0, source.scrollRow or 0)
 end
 
@@ -223,6 +260,46 @@ function M.createStaticArtWindow(w, tilesPool, ensureTiles)
   hydrateTileLayersFromLayout(win, w, tilesPool, ensureTiles)
   applyNonActiveLayerOpacity(win)
 
+  return win
+end
+
+function M.createPatternTableWindow(w, tilesPool, ensureTiles)
+  local cols = math.max(1, math.floor(tonumber(w.cols) or 16))
+  local rows = math.max(1, math.floor(tonumber(w.rows) or 16))
+  local cellW = layoutCellDim(w.cellW, 8)
+  local cellH = layoutCellDim(w.cellH, 8)
+  local zoom = layoutZoomOrDefault(w.zoom, 2)
+  local win = PatternTableWindow.new(
+    w.x or 0,
+    w.y or 0,
+    cellW,
+    cellH,
+    cols,
+    rows,
+    zoom,
+    {
+      title = w.title,
+      visibleRows = w.visibleRows or rows,
+      visibleCols = w.visibleCols or cols,
+      nonActiveLayerOpacity = w.nonActiveLayerOpacity,
+    }
+  )
+
+  win.layers = {}
+  local Lsrc = ((w.layers or {})[1] or {})
+  win:addLayer({
+    opacity = 1.0,
+    name = Lsrc.name or "Pattern table",
+    kind = "tile",
+    mode = Lsrc.mode or "8x8",
+  })
+
+  win._id = w.id
+  win.kind = "pattern_table"
+  win.activeLayer = w.activeLayer or 1
+  win.nonActiveLayerOpacity = w.nonActiveLayerOpacity or 1.0
+
+  applyNonActiveLayerOpacity(win)
   return win
 end
 
@@ -436,6 +513,9 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
   end
   local patternTable = ntLayer and ntLayer.patternTable or nil
   local mapOk, mapErr = PatternTableMapping.validate(patternTable)
+  local linkedPatternTableWindowId =
+    ntLayer and type(ntLayer.linkedPatternTableWindowId) == "string" and ntLayer.linkedPatternTableWindowId ~= ""
+  local deferNametableHydrate = linkedPatternTableWindowId and not mapOk
 
   local win = PPUFrameWindow.new(w.x, w.y, w.zoom, {
     romRaw = romRaw,
@@ -451,7 +531,23 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
   local ntRuntimeLayer = win.layers and win.layers[1]
   if ntRuntimeLayer then
     local hydrateStartedAt = nowSeconds()
-    if not mapOk then
+    if deferNametableHydrate then
+      win._ppuxDeferNametableHydrate = {
+        layerIndex = 1,
+        nametableStartAddr = nametableStart,
+        nametableEndAddr = nametableEnd,
+        codec = (ntLayer and ntLayer.codec) or "konami",
+        noOverflowSupported = ntLayer and ntLayer.noOverflowSupported == true,
+        tileSwaps = ntLayer and ntLayer.tileSwaps,
+        userDefinedAttrs = ntLayer and ntLayer.userDefinedAttrs,
+      }
+      DebugController.log(
+        "info",
+        "GAM",
+        "Defer nametable hydrate for '%s' until linked pattern table window is resolved",
+        tostring(w.title or "")
+      )
+    elseif not mapOk then
       DebugController.log(
         "warning",
         "GAM",
@@ -541,7 +637,12 @@ local function applyLayerMetadataFromLayout(win, layoutLayers)
       if Lsrc.noOverflowSupported ~= nil then
         Ldst.noOverflowSupported = (Lsrc.noOverflowSupported == true)
       end
-      if type(Lsrc.patternTable) == "table" then
+      if type(Lsrc.linkedPatternTableWindowId) == "string" and Lsrc.linkedPatternTableWindowId ~= "" then
+        Ldst.linkedPatternTableWindowId = Lsrc.linkedPatternTableWindowId
+      end
+      if type(Lsrc.patternTable) == "table"
+        and not (type(Lsrc.linkedPatternTableWindowId) == "string" and Lsrc.linkedPatternTableWindowId ~= "")
+      then
         Ldst.patternTable = TableUtils.deepcopy(Lsrc.patternTable)
       end
       if Lsrc.tileSwaps ~= nil then
@@ -619,6 +720,106 @@ function M.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool)
     end
   end
   logPerf("window_finalize.register_window", registerStartedAt, string.format("title=%s", tostring(w.title or "")))
+
+  if WindowCaps.isPatternTable(win) then
+    local _, _, sw, sh = win:getScreenRect()
+    local layer1 = win.layers and win.layers[1]
+    local hasPt = layer1 and type(layer1.patternTable) == "table"
+    DebugController.log(
+      "info",
+      "PATTERN_TABLE",
+      "finalizeWindow kind=pattern_table id=%s title=%q pos=(%.1f,%.1f) screenRect=%.1fx%.1f cell=%dx%d zoom=%s visible=%dx%d colsxrows=%dx%d minimized=%s collapsed=%s layer1.patternTable=%s",
+      tostring(win._id or "?"),
+      tostring(win.title or ""),
+      tonumber(win.x) or 0,
+      tonumber(win.y) or 0,
+      tonumber(sw) or 0,
+      tonumber(sh) or 0,
+      tonumber(win.cellW) or 0,
+      tonumber(win.cellH) or 0,
+      tostring(win.zoom),
+      tonumber(win.visibleCols) or 0,
+      tonumber(win.visibleRows) or 0,
+      tonumber(win.cols) or 0,
+      tonumber(win.rows) or 0,
+      tostring(win._minimized == true),
+      tostring(win._collapsed == true),
+      tostring(hasPt)
+    )
+  end
+end
+
+function M.finalizeDeferredPpuNametableHydrates(wm, romRaw, tilesPool, ensureTiles)
+  if not wm or not wm.getWindows then
+    return
+  end
+  romRaw = romRaw or ""
+  for _, win in ipairs(wm:getWindows()) do
+    local pend = win and win._ppuxDeferNametableHydrate
+    if WindowCaps.isPpuFrame(win) and type(pend) == "table" then
+      win._ppuxDeferNametableHydrate = nil
+      local layerIndex = math.max(1, math.floor(tonumber(pend.layerIndex) or 1))
+      local layer = win.layers and win.layers[layerIndex]
+      local patternTable = layer and layer.patternTable
+      local mapOk, mapErr = PatternTableMapping.validate(patternTable)
+      if not mapOk then
+        DebugController.log(
+          "warning",
+          "GAM",
+          "Deferred nametable hydrate for '%s': patternTable still unusable (%s)",
+          tostring(win.title or win._id or ""),
+          tostring(mapErr or "?")
+        )
+      else
+        local ok, err = NametableTilesController.hydrateWindowNametable(win, layer, {
+          romRaw = romRaw,
+          tilesPool = tilesPool,
+          ensureTiles = ensureTiles,
+          nametableStartAddr = pend.nametableStartAddr,
+          nametableEndAddr = pend.nametableEndAddr,
+          codec = pend.codec or "konami",
+          noOverflowSupported = pend.noOverflowSupported == true,
+          tileSwaps = pend.tileSwaps,
+          userDefinedAttrs = pend.userDefinedAttrs,
+        })
+        if not ok then
+          DebugController.log(
+            "info",
+            "GAM",
+            "Deferred hydrateWindowNametable failed for '%s': %s",
+            tostring(win.title or win._id or ""),
+            tostring(err)
+          )
+        end
+      end
+    end
+  end
+end
+
+function M.afterLayoutPatternTablesHydrate(wm, tilesPool, ensureTiles, opts)
+  opts = type(opts) == "table" and opts or {}
+  PatternTableDisplayController.resolveLinkedPatternTableLayers(wm)
+  PatternTableDisplayController.refreshAllPatternTableWindows(wm, {
+    tilesPool = tilesPool,
+    ensureTiles = ensureTiles,
+    appEditState = opts.appEditState,
+  })
+  M.finalizeDeferredPpuNametableHydrates(wm, opts.romRaw, tilesPool, ensureTiles)
+
+  if wm and wm.getWindows then
+    local n = 0
+    for _, w in ipairs(wm:getWindows()) do
+      if WindowCaps.isPatternTable(w) and not w._closed then
+        n = n + 1
+      end
+    end
+    DebugController.log(
+      "info",
+      "PATTERN_TABLE",
+      "afterLayoutPatternTablesHydrate: open pattern_table windows in WM count=%d",
+      n
+    )
+  end
 end
 
 return M

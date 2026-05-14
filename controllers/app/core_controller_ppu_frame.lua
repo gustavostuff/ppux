@@ -6,6 +6,7 @@ local SpriteStateSnapshot = require("controllers.sprite.sprite_state_snapshot")
 local TableUtils = require("utils.table_utils")
 local WindowCaps = require("controllers.window.window_capabilities")
 local PpuRange = require("controllers.app.ppu_frame_range_helpers")
+local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
 
 return function(AppCoreController)
 
@@ -816,14 +817,22 @@ function AppCoreController:showPpuFrameRangeModal(win)
 end
 
 function AppCoreController:showPpuFramePatternRangeModal(win)
-  if not (self.ppuFramePatternRangeModal and win and win.kind == "ppu_frame") then
+  if not (self.ppuFramePatternRangeModal and win and (win.kind == "ppu_frame" or win.kind == "pattern_table")) then
     return false
   end
 
-  local targetLayer = getPpuPatternTableTargetLayer(win)
+  local targetLayer
+  if win.kind == "pattern_table" then
+    targetLayer = win.layers and win.layers[1]
+  else
+    targetLayer = select(1, getPpuPatternTableTargetLayer(win))
+  end
   if not targetLayer then
-    self:setStatus("PPU frame window is missing a target tile layer")
-    self:showToast("error", "PPU frame window is missing a target tile layer")
+    local message = (win.kind == "pattern_table")
+      and "Pattern table window is missing its tile layer"
+      or "PPU frame window is missing a target tile layer"
+    self:setStatus(message)
+    self:showToast("error", message)
     return false
   end
   local existingPatternTable = type(targetLayer.patternTable) == "table" and targetLayer.patternTable or {}
@@ -852,7 +861,12 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
     initialFrom = initialFrom,
     initialTo = initialTo,
     onConfirm = function(bankText, pageValue, fromText, toText, targetWindow)
+      local isPatternOnly = (targetWindow and targetWindow.kind == "pattern_table")
+
       local function activatePatternLayerView()
+        if isPatternOnly then
+          return
+        end
         if targetWindow and targetWindow.setPatternLayerSoloMode then
           targetWindow:setPatternLayerSoloMode(true)
         end
@@ -861,9 +875,17 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
         end
       end
 
-      local layer, layerIndex = getPpuPatternTableTargetLayer(targetWindow)
+      local layer, layerIndex
+      if isPatternOnly then
+        layer = targetWindow.layers and targetWindow.layers[1]
+        layerIndex = 1
+      else
+        layer, layerIndex = getPpuPatternTableTargetLayer(targetWindow)
+      end
       if not layer then
-        local message = "PPU frame window is missing a target tile layer"
+        local message = isPatternOnly
+          and "Pattern table window is missing its tile layer"
+          or "PPU frame window is missing a target tile layer"
         self:setStatus(message)
         self:showToast("error", message)
         return false
@@ -907,7 +929,7 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
         return false
       end
 
-      local beforeState = PpuRange.snapshotPpuFrameRangeState(targetWindow, layerIndex)
+      local beforeState = (not isPatternOnly) and PpuRange.snapshotPpuFrameRangeState(targetWindow, layerIndex) or nil
       layer.patternTable = type(layer.patternTable) == "table" and layer.patternTable or {}
       layer.patternTable.ranges = type(layer.patternTable.ranges) == "table" and layer.patternTable.ranges or {}
       local currentTotal = PpuRange.patternTableLogicalSize(layer.patternTable) or 0
@@ -927,17 +949,80 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
           to = toTile,
         },
       }
-      local hydrated, hydrateErr = hydrateNametableLayerIfReady(self, targetWindow, layer, layerIndex)
-      if not hydrated and targetWindow.invalidateNametableLayerCanvas then
-        targetWindow:invalidateNametableLayerCanvas(layerIndex)
+      if isPatternOnly then
+        PatternTableDisplayController.populateTileLayerItemsFromPatternTable(targetWindow, 1, {
+          tilesPool = self.appEditState and self.appEditState.tilesPool,
+          ensureTiles = function(bankIdx)
+            local st = self.appEditState
+            if st and st.chrBanksBytes and st.chrBanksBytes[bankIdx] then
+              BankViewController.ensureBankTiles(st, bankIdx)
+            end
+          end,
+          appEditState = self.appEditState,
+        })
+        PatternTableDisplayController.invalidateConsumersUsingPatternTable(self, layer.patternTable)
+        if targetWindow.invalidateNametableLayerCanvas then
+          targetWindow:invalidateNametableLayerCanvas(layerIndex)
+        end
+      else
+        local hydrated, hydrateErr = hydrateNametableLayerIfReady(self, targetWindow, layer, layerIndex)
+        if not hydrated and targetWindow.invalidateNametableLayerCanvas then
+          targetWindow:invalidateNametableLayerCanvas(layerIndex)
+        end
+        self:_ensurePpuPatternTableReferenceLayer({
+          win = targetWindow,
+          layer = layer,
+          layerIndex = layerIndex,
+        }, {
+          keepActiveLayer = true,
+        })
+
+        local hydratedNt = hydrated
+        local hydrateErrNt = hydrateErr
+        local totalNt = PpuRange.patternTableLogicalSize(layer.patternTable)
+        if totalNt == 256 then
+          self:showToast("success", "Pattern table ranges complete (256/256).")
+        end
+        if targetWindow.specializedToolbar and targetWindow.specializedToolbar.updateIcons then
+          targetWindow.specializedToolbar:updateIcons()
+        end
+        activatePatternLayerView()
+
+        local afterState = PpuRange.snapshotPpuFrameRangeState(targetWindow, layerIndex)
+        if self.undoRedo and self.undoRedo.addPpuFrameRangeEvent
+          and PpuRange.didPpuFrameRangeSettingsChange(beforeState, afterState)
+        then
+          self.undoRedo:addPpuFrameRangeEvent({
+            type = "ppu_frame_range",
+            win = targetWindow,
+            layerIndex = layerIndex,
+            beforeState = beforeState,
+            afterState = afterState,
+          })
+        end
+
+        if hydratedNt then
+          self:setStatus(string.format(
+            "Added tile range [%d..%d] bank %d page %d (%d/256)",
+            fromTile,
+            toTile,
+            bankIndex,
+            pageIndex,
+            tonumber(totalNt) or 0
+          ))
+        else
+          self:setStatus(string.format(
+            "Added tile range [%d..%d] bank %d page %d (%d/256, waiting: %s)",
+            fromTile,
+            toTile,
+            bankIndex,
+            pageIndex,
+            tonumber(totalNt) or 0,
+            tostring(hydrateErrNt or "incomplete setup")
+          ))
+        end
+        return true
       end
-      self:_ensurePpuPatternTableReferenceLayer({
-        win = targetWindow,
-        layer = layer,
-        layerIndex = layerIndex,
-      }, {
-        keepActiveLayer = true,
-      })
 
       local total = PpuRange.patternTableLogicalSize(layer.patternTable)
       if total == 256 then
@@ -946,41 +1031,14 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
       if targetWindow.specializedToolbar and targetWindow.specializedToolbar.updateIcons then
         targetWindow.specializedToolbar:updateIcons()
       end
-      activatePatternLayerView()
-
-      local afterState = PpuRange.snapshotPpuFrameRangeState(targetWindow, layerIndex)
-      if self.undoRedo and self.undoRedo.addPpuFrameRangeEvent
-        and PpuRange.didPpuFrameRangeSettingsChange(beforeState, afterState)
-      then
-        self.undoRedo:addPpuFrameRangeEvent({
-          type = "ppu_frame_range",
-          win = targetWindow,
-          layerIndex = layerIndex,
-          beforeState = beforeState,
-          afterState = afterState,
-        })
-      end
-
-      if hydrated then
-        self:setStatus(string.format(
-          "Added tile range [%d..%d] bank %d page %d (%d/256)",
-          fromTile,
-          toTile,
-          bankIndex,
-          pageIndex,
-          tonumber(total) or 0
-        ))
-      else
-        self:setStatus(string.format(
-          "Added tile range [%d..%d] bank %d page %d (%d/256, waiting: %s)",
-          fromTile,
-          toTile,
-          bankIndex,
-          pageIndex,
-          tonumber(total) or 0,
-          tostring(hydrateErr or "incomplete setup")
-        ))
-      end
+      self:setStatus(string.format(
+        "Added tile range [%d..%d] bank %d page %d (%d/256)",
+        fromTile,
+        toTile,
+        bankIndex,
+        pageIndex,
+        tonumber(total) or 0
+      ))
       return true
     end,
   })

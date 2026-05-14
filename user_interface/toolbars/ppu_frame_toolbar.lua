@@ -129,16 +129,16 @@ function PPUFrameToolbar.new(window, ctx, windowController)
     self:_onAddSprite()
   end, "Add a sprite on sprite layer")
 
-  self.patternLayerToggleButton = self:addButton(images.icons.actions.icon_pattern_table or images.icons.actions.icon_nametable_range, function()
-    self:_onTogglePatternLayerSolo()
-  end, "Show pattern table layer only")
+  self.patternTableLinkButton = self:addButton(images.icons.actions.icon_pattern_table or images.icons.actions.icon_nametable_range, function()
+    self:_onPatternTableLinkMenu()
+  end, "Link pattern table")
 
   self.toggleOriginGuidesButton = self:addButton(images.icons.actions.icon_dotted_lines, function()
     self:_onToggleOriginGuides()
   end, "Toggle origin guides")
 
   self:updatePatternRangeButton()
-  self:updatePatternLayerToggleButton()
+  self:updatePatternTableLinkButton()
   self:updateRangeButton()
   self:updateSpriteButton()
   self:updateOriginButtons()
@@ -149,24 +149,23 @@ function PPUFrameToolbar.new(window, ctx, windowController)
   return self
 end
 
-function PPUFrameToolbar:_onTogglePatternLayerSolo()
-  if not self.window then return end
-  local currentlyOn = (self.window.patternLayerSoloMode == true)
-  local ok, reason = true, nil
-  if self.window.setPatternLayerSoloMode then
-    ok, reason = self.window:setPatternLayerSoloMode(not currentlyOn)
-  end
-  if not ok then
-    setStatus(self.ctx, tostring(reason or "Pattern table layer is not available"))
-    if self.ctx and self.ctx.showToast then
-      self.ctx.showToast("warning", tostring(reason or "Pattern table layer is not available"))
-    end
-    self:updatePatternLayerToggleButton()
+function PPUFrameToolbar:_onPatternTableLinkMenu()
+  if not self.window then
     return
   end
-  self:updatePatternLayerToggleButton()
-  self:updateOriginButtons()
-  if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
+  local app = self.ctx and self.ctx.app
+  if not app or not app.showPatternTableLinkDestinationContextMenu then
+    setStatus(self.ctx, "Pattern table link is not available")
+    return
+  end
+  local btn = self.patternTableLinkButton
+  if not btn then
+    return
+  end
+  self:updatePosition()
+  local x = btn.x + btn.w * 0.5
+  local y = btn.y + btn.h * 0.5
+  app:showPatternTableLinkDestinationContextMenu(self.window, x, y)
 end
 
 -- Handle previous layer
@@ -175,6 +174,7 @@ function PPUFrameToolbar:_onPrevLayer()
   
   self.window:prevLayer()
   self:updatePatternRangeButton()
+  self:updatePatternTableLinkButton()
   self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
   
@@ -193,6 +193,7 @@ function PPUFrameToolbar:_onNextLayer()
   
   self.window:nextLayer()
   self:updatePatternRangeButton()
+  self:updatePatternTableLinkButton()
   self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
   
@@ -405,33 +406,36 @@ end
 -- Empty updateIcons method
 function PPUFrameToolbar:updateIcons()
   self:updatePatternRangeButton()
-  self:updatePatternLayerToggleButton()
+  self:updatePatternTableLinkButton()
   self:updateRangeButton()
   self:updateSpriteButton()
   self:updateOriginButtons()
 end
 
-function PPUFrameToolbar:updatePatternLayerToggleButton()
-  local button = self.patternLayerToggleButton
-  if not button then return end
+function PPUFrameToolbar:updatePatternTableLinkButton()
+  local button = self.patternTableLinkButton
+  if not button then
+    return
+  end
   button.icon = images.icons.actions.icon_pattern_table or images.icons.actions.icon_nametable_range or button.icon
-  local enabled = (self.window and self.window.findPatternReferenceLayerIndex and self.window:findPatternReferenceLayerIndex() ~= nil)
   button.enabled = true
-  local active = self.window and self.window.patternLayerSoloMode == true
-  if active then
+  local layer = nil
+  if self.window and self.window.layers then
+    local li = self.window.getActiveLayerIndex and self.window:getActiveLayerIndex() or self.window.activeLayer or 1
+    layer = self.window.layers[li]
+    if layer and layer._runtimePatternTableRefLayer == true and type(layer._runtimePatternTableRefTargetLayer) == "table" then
+      layer = layer._runtimePatternTableRefTargetLayer
+    end
+  end
+  local linked = layer and type(layer.linkedPatternTableWindowId) == "string" and layer.linkedPatternTableWindowId ~= ""
+  if linked then
     button.bgColor = colors.green
     button.contentColor = colors.white
-    button.tooltip = "Return to tile/sprite layers"
+    button.tooltip = "Pattern table linked (click for menu)"
   else
-    if enabled then
-      button.bgColor = nil
-      button.contentColor = colors.white
-      button.tooltip = "Show pattern table layer only"
-    else
-      button.bgColor = colors.gray20
-      button.contentColor = colors.white
-      button.tooltip = "Pattern table layer is not available"
-    end
+    button.bgColor = nil
+    button.contentColor = colors.white
+    button.tooltip = "Link pattern table"
   end
 end
 

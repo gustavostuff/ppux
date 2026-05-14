@@ -12,7 +12,10 @@ local function shouldUseTileLayerCanvas(win)
   if WindowCaps.isPpuFrame(win) or WindowCaps.isChrLike(win) then
     return false
   end
-  return WindowCaps.isStaticArt(win) or WindowCaps.isAnimationLike(win)
+  -- pattern_table shares the standard tile-layer canvas path with static_art / animation windows.
+  return WindowCaps.isStaticArt(win)
+    or WindowCaps.isAnimationLike(win)
+    or WindowCaps.isPatternTable(win)
 end
 
 local function lin(cols, col, row)

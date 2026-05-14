@@ -125,6 +125,14 @@ function AnimationToolbar.new(window, ctx, windowController)
     row = secondaryRow,
   })
 
+  if WindowCaps.isOamAnimation(window) then
+    self.patternTableLinkButton = self:addButton(images.icons.actions.icon_pattern_table or images.icons.chrome.icon_connect, function()
+      self:_onPatternTableLinkMenu()
+    end, "Link pattern table", {
+      row = secondaryRow or primaryRow,
+    })
+  end
+
   -- Link handle last (palette connections); kept in screen order as the rightmost toolbar control.
   self.linkButton = self:addButton(images.icons.actions.icon_connect, nil, "Palette link handle; right-drag to a ROM palette to link; left-click for menu", {
     row = secondaryRow or primaryRow,
@@ -159,6 +167,7 @@ function AnimationToolbar:_onPrevLayer()
   self.window:prevLayer()
   
   self:updateOriginButtons()
+  self:updateIcons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
 end
 
@@ -175,6 +184,7 @@ function AnimationToolbar:_onNextLayer()
   self.window:nextLayer()
   
   self:updateOriginButtons()
+  self:updateIcons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
 end
 
@@ -200,6 +210,23 @@ function AnimationToolbar:_onAddSprite()
   end
 
   setStatus(self.ctx, "Add sprite dialog is unavailable")
+end
+
+function AnimationToolbar:_onPatternTableLinkMenu()
+  if not WindowCaps.isOamAnimation(self.window) then
+    return
+  end
+  local app = self.ctx and self.ctx.app
+  if not app or not app.showPatternTableLinkDestinationContextMenu then
+    setStatus(self.ctx, "Pattern table link is not available")
+    return
+  end
+  local btn = self.patternTableLinkButton
+  if not btn then
+    return
+  end
+  self:updatePosition()
+  app:showPatternTableLinkDestinationContextMenu(self.window, btn.x + btn.w * 0.5, btn.y + btn.h * 0.5)
 end
 
 function AnimationToolbar:_getActiveSpriteLayer()
@@ -307,6 +334,19 @@ function AnimationToolbar:updateIcons()
     self.addSpriteButton.icon = images.icons.actions.icon_add_sprite or self.addSpriteButton.icon
   end
   self:updateOriginButtons()
+
+  if self.patternTableLinkButton and WindowCaps.isOamAnimation(self.window) then
+    local layer = select(1, self:_getActiveSpriteLayer())
+    local linked = layer and type(layer.linkedPatternTableWindowId) == "string" and layer.linkedPatternTableWindowId ~= ""
+    self.patternTableLinkButton.icon = images.icons.actions.icon_pattern_table or self.patternTableLinkButton.icon
+    if linked then
+      self.patternTableLinkButton.bgColor = colors.green
+      self.patternTableLinkButton.tooltip = "Pattern table linked (click for menu)"
+    else
+      self.patternTableLinkButton.bgColor = colors.gray20
+      self.patternTableLinkButton.tooltip = "Link pattern table"
+    end
+  end
 
   -- Update play button icon based on current play state
   if self.playButton and self.window then

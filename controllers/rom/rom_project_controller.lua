@@ -806,6 +806,12 @@ local function loadFromProject(app, project)
   end
 
   local function openRuntimePatternTableRefs()
+    local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
+    PatternTableDisplayController.refreshAllPatternTableWindows(app.wm, {
+      tilesPool = state.tilesPool,
+      ensureTiles = function(bankIdx) ensureBankTilesInner(state, bankIdx) end,
+      appEditState = state,
+    })
     if type(app._ensurePpuPatternTableReferenceLayer) ~= "function" then
       return 0
     end
@@ -930,6 +936,12 @@ local function loadFromDBLayout(app, sha)
   logPerf("db_layout.sync_duplicate_indexes", dupesStartedAt, string.format("enabled=%s", tostring(app.syncDuplicateTiles == true)))
 
   local function openRuntimePatternTableRefs()
+    local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
+    PatternTableDisplayController.refreshAllPatternTableWindows(app.wm, {
+      tilesPool = state.tilesPool,
+      ensureTiles = function(bankIdx) ensureBankTilesInner(state, bankIdx) end,
+      appEditState = state,
+    })
     if type(app._ensurePpuPatternTableReferenceLayer) ~= "function" then
       return 0
     end
