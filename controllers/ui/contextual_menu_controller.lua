@@ -221,6 +221,8 @@ local function rebuildPanel(menu)
       visible = menu.visible,
       bgColor = panelBg,
       _modalChromeOverBlue = modalChrome,
+      menuRowSeparators = menu.menuRowSeparators == true,
+      menuOutline = menu.menuOutline == true,
     })
     panel.cellWidths = {}
     panel.cellWidths[1] = menu.cellH
@@ -241,6 +243,8 @@ local function rebuildPanel(menu)
       visible = menu.visible,
       bgColor = panelBg,
       _modalChromeOverBlue = modalChrome,
+      menuRowSeparators = menu.menuRowSeparators == true,
+      menuOutline = menu.menuOutline == true,
     })
   end
 
@@ -313,6 +317,29 @@ local function rebuildPanel(menu)
     end
   end
 
+  local sepAfterRow = nil
+  if menu.menuRowSeparators == true and #items > 1 then
+    sepAfterRow = {}
+    for i = 1, #items - 1 do
+      local prevIt, nextIt = items[i], items[i + 1]
+      local wantSep = false
+      if nextIt and nextIt.separatorBefore == true then
+        wantSep = true
+      else
+        local ga = prevIt and prevIt.menuGroup
+        local gb = nextIt and nextIt.menuGroup
+        if ga ~= nil and gb ~= nil and ga ~= gb then
+          wantSep = true
+        end
+      end
+      if wantSep then
+        sepAfterRow[i] = true
+      end
+    end
+  end
+
+  panel._menuSeparatorAfterRow = sepAfterRow
+
   menu.visibleItems = items
   menu.activeSplitIconCell = splitIconCell
   menu.resolvedCellW = cellW
@@ -370,6 +397,8 @@ function ContextualMenuController.new(opts)
     bgColor = opts.bgColor,
     _modalChromeOverBlue = opts._modalChromeOverBlue,
     splitIconCell = (opts.splitIconCell ~= false),
+    menuRowSeparators = (opts.menuRowSeparators ~= false),
+    menuOutline = (opts.menuOutline ~= false),
     childHoverGraceSeconds = tonumber(opts.childHoverGraceSeconds) or ContextualMenuController.CHILD_HOVER_GRACE_SECONDS,
     childHoverGraceUntil = nil,
     pendingChildRow = nil,
@@ -390,10 +419,7 @@ function ContextualMenuController:accumulateVisiblePanelShadowRectsInto(list)
     return
   end
   local p = self.panel
-  local x = tonumber(p.x) or 0
-  local y = tonumber(p.y) or 0
-  local w = tonumber(p.w) or 0
-  local h = tonumber(p.h) or 0
+  local x, y, w, h = p:chromeEnvelopeRectPx()
   if w > 0 and h > 0 then
     list[#list + 1] = { x, y, w, h }
   end
@@ -559,6 +585,8 @@ function ContextualMenuController:_openChildForRow(row)
     bgColor = self.bgColor,
     _modalChromeOverBlue = self._modalChromeOverBlue,
     splitIconCell = self.splitIconCell,
+    menuRowSeparators = self.menuRowSeparators,
+    menuOutline = self.menuOutline,
   })
   if not childMenu:setItems(childItems) then
     return false

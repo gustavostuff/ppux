@@ -717,8 +717,8 @@ function M.draw(app)
   if statusW > 0 then
     local slx = math.floor(statusLeftX + 1e-6)
     if slx > 0 then
-      local ink = colors:chromeTextIconsColorNonFocused()
-      love.graphics.setColor(ink[1], ink[2], ink[3], 0.5)
+      local sep = colors:chromeMenuRowSeparatorColor()
+      love.graphics.setColor(sep[1], sep[2], sep[3], sep[4] or 1)
       love.graphics.rectangle("fill", slx - 1, 0, 1, h)
       love.graphics.setColor(colors.white)
     end

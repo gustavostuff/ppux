@@ -608,6 +608,7 @@ function AppCoreController:_buildOamSpriteEmptySpaceContextMenuItems(context)
   if context and context.isOam then
     items[#items + 1] = {
       text = "Add new sprite",
+      menuGroup = "spr_sheet_insert",
       enabled = true,
       callback = function()
         return self:showPpuFrameAddSpriteModal(context.win)
@@ -632,6 +633,7 @@ function AppCoreController:_buildOamSpriteEmptySpaceContextMenuItems(context)
       if hasRemovable then
         items[#items + 1] = {
           text = "Remove selected sprites",
+          menuGroup = "spr_sheet_remove",
           enabled = true,
           callback = function()
             local MultiSelectController = require("controllers.input_support.multi_select_controller")

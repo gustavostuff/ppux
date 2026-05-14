@@ -159,6 +159,8 @@ function Panel.new(opts)
     pressedComponent = nil,
     focusedComponent = nil,
     _modalChromeOverBlue = opts._modalChromeOverBlue == true,
+    menuRowSeparators = opts.menuRowSeparators == true,
+    menuOutline = opts.menuOutline == true,
   }, Panel)
 
   self:updateLayout()

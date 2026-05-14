@@ -1,5 +1,17 @@
 local colors = require("app_colors")
 
+--- LOVE tessellates rounded rects unevenly when outer bounds drift off the pixel grid; keep r within the box.
+local function clampRoundedRectCornerRadius(requestedRadius, ww, hh)
+  local rr = math.max(0, math.floor(tonumber(requestedRadius) or 0))
+  ww = tonumber(ww) or 0
+  hh = tonumber(hh) or 0
+  if ww <= 0 or hh <= 0 then
+    return 0
+  end
+  local cap = math.floor(math.min(ww, hh) / 2)
+  return math.min(rr, math.max(0, cap))
+end
+
 local function chromeInkForModalButton(b)
   if not b then
     return colors:chromeTextIconsColorNonFocused()
@@ -148,6 +160,94 @@ end
 
 --- One hover/focus underlay spanning all cells in a row that share `menuItem` (split icon + text).
 --- Matches Button's hover fill: semi-transparent black, 2px corner radius.
+--- Horizontal separators between stacked menu rows (default chrome/menu text ink).
+local function drawMenuRowSeparators(panel)
+  if panel.menuRowSeparators ~= true or panel.rows < 1 then
+    return
+  end
+
+  local gx, gy, gw, gh = panel:chromeEnvelopeRectPx()
+
+  local titleRowH = (panel.title and panel.title ~= "") and (panel.titleH > 0 and panel.titleH or panel.cellH) or 0
+  local titleSpacing = (titleRowH > 0 and panel.rows > 0) and panel.spacingY or 0
+  local gridTop = gy + panel.padding + titleRowH + titleSpacing
+  local innerL = gx + panel.padding
+  local innerR = gx + gw - panel.padding
+  local lineW = math.max(0, innerR - innerL)
+  if lineW <= 0 then
+    return
+  end
+
+  local sep = colors:chromeMenuRowSeparatorColor()
+  love.graphics.setColor(sep[1], sep[2], sep[3], sep[4] or 1)
+
+  if titleRowH > 0 and panel.rows >= 1 then
+    local sepYT
+    if (titleSpacing or 0) > 0 then
+      sepYT = math.floor(gy + panel.padding + titleRowH + titleSpacing * 0.5)
+    else
+      sepYT = math.floor(gy + panel.padding + titleRowH)
+    end
+    love.graphics.rectangle("fill", math.floor(innerL), sepYT, math.ceil(lineW), 1)
+  end
+
+  local sepMap = panel._menuSeparatorAfterRow
+  local cellH = panel.cellH or 0
+  local spacingY = panel.spacingY or 0
+  for r = 1, (panel.rows or 1) - 1 do
+    if sepMap == nil or sepMap[r] then
+      local gutterTop = gridTop + r * cellH + (r - 1) * spacingY
+      local sepY = math.floor(gutterTop + spacingY * 0.5)
+      love.graphics.rectangle("fill", math.floor(innerL), sepY, math.ceil(lineW), 1)
+    end
+  end
+
+  love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
+end
+
+--- Thin rounded perimeter for floating menus (same ink as horizontal row separators; see `menuOutlineCornerSegments`).
+local function drawMenuOutline(panel)
+  if panel.menuOutline ~= true then
+    return
+  end
+
+  local bx, by, bw, bh, snappedChrome = panel:chromeEnvelopeRectPx()
+  if bw <= 0 or bh <= 0 then
+    return
+  end
+
+  local rxRequested = tonumber(panel.menuOutlineCornerRadius)
+  if rxRequested == nil or rxRequested < 0 then
+    rxRequested = 2
+  end
+
+  local ox, oy, ow, oh = bx, by, bw, bh
+  if snappedChrome == true and bw >= 2 and bh >= 2 then
+    -- 1 px stroke through pixel centers; reduces uneven corner arcs on fractional menu bounds.
+    ox = bx + 0.5
+    oy = by + 0.5
+    ow = bw - 1
+    oh = bh - 1
+  end
+
+  local rf = clampRoundedRectCornerRadius(rxRequested, ow, oh)
+
+  local sep = colors:chromeMenuRowSeparatorColor()
+  love.graphics.setColor(sep[1], sep[2], sep[3], sep[4] or 1)
+  local lw = tonumber(panel.menuOutlineLineWidth)
+  love.graphics.setLineWidth((lw ~= nil and lw > 0) and lw or 1)
+  local seg = tonumber(panel.menuOutlineCornerSegments) or 30
+  seg = math.max(1, math.floor(seg))
+
+  if rf <= 0 then
+    love.graphics.rectangle("line", ox, oy, ow, oh)
+  else
+    love.graphics.rectangle("line", ox, oy, ow, oh, rf, rf, seg)
+  end
+  love.graphics.setLineWidth(1)
+  love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
+end
+
 local function drawUnifiedSplitMenuRowHovers(panel)
   local byRow = {}
   for _, cell in ipairs(panel:_iterCells()) do
@@ -186,17 +286,25 @@ local function install(Panel, utils)
   function Panel:draw()
     if not self.visible then return end
 
+    local gx, gy, gw, gh = self:chromeEnvelopeRectPx()
     local bg = self.bgColor
     local bgRadius = 2
     local bgAlpha = (type(bg) == "table" and type(bg[4]) == "number") and bg[4] or 1
+    local rrFill = clampRoundedRectCornerRadius(bgRadius, gw, gh)
     if bgAlpha > 0 then
       love.graphics.setColor(bg[1] or 0, bg[2] or 0, bg[3] or 0, bgAlpha)
-      love.graphics.rectangle("fill", self.x, self.y, self.w, self.h, bgRadius)
+      if rrFill <= 0 then
+        love.graphics.rectangle("fill", gx, gy, gw, gh)
+      else
+        love.graphics.rectangle("fill", gx, gy, gw, gh, rrFill, rrFill)
+      end
     end
 
     drawPanelTitle(self, utils)
 
     drawTabbedModalNormalSurface(self)
+
+    drawMenuRowSeparators(self)
 
     drawUnifiedSplitMenuRowHovers(self)
 
@@ -276,6 +384,8 @@ local function install(Panel, utils)
         })
       end
     end
+
+    drawMenuOutline(self)
 
     love.graphics.setColor(utils.colors.white[1], utils.colors.white[2], utils.colors.white[3], 1)
   end

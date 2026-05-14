@@ -306,6 +306,7 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
   local items = {
     {
       text = "Build/refresh pattern table reference layer",
+      menuGroup = "ppt_pattern_table",
       enabled = context and context.layer and type(context.layer.patternTable) == "table",
       callback = function()
         self:_ensurePpuPatternTableReferenceLayer(context, { keepActiveLayer = false })
@@ -313,6 +314,7 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
     },
     {
       text = "Undo pixel edits",
+      menuGroup = "ppt_edit_history",
       enabled = RevertTilePixelsController.canRevertContext(self, context),
       callback = function()
         local ok, err = RevertTilePixelsController.revertForContext(self, context)
@@ -327,12 +329,14 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
   if context and context.tileIndex ~= nil then
     items[#items + 1] = {
       text = "Select in CHR/ROM window",
+      menuGroup = "ppt_selection",
       callback = function()
         self:_selectPpuTileInChrWindow(context)
       end,
     }
     items[#items + 1] = {
       text = "Select all references",
+      menuGroup = "ppt_selection",
       enabled = true,
       callback = function()
         self:_selectAllReferencesFromContext(context)
@@ -442,6 +446,7 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
   local items = {
     {
       text = "Undo pixel edits",
+      menuGroup = "sel_chr_undo",
       enabled = RevertTilePixelsController.canRevertContext(self, context),
       callback = function()
         local ok, err = RevertTilePixelsController.revertForContext(self, context)
@@ -454,6 +459,7 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
     },
     {
       text = "Select in CHR/ROM window",
+      menuGroup = "sel_chr_navigate",
       enabled = context and context.tileIndex ~= nil,
       callback = function()
         self:_selectPpuTileInChrWindow(context)
@@ -461,6 +467,7 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
     },
     {
       text = "Select all references",
+      menuGroup = "sel_chr_navigate",
       enabled = canSelectAllRefs,
       callback = function()
         self:_selectAllReferencesFromContext(context)
@@ -473,6 +480,7 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
       and type(context.itemIndex) == "number" then
     table.insert(items, 1, {
       text = "Edit sprite",
+      menuGroup = "sel_chr_sprite_edit",
       enabled = true,
       callback = function()
         return self:showPpuFrameAddSpriteModal(context.win, {
@@ -487,6 +495,7 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
   if context and context.layer and context.layer._runtimePatternTableRefLayer == true then
     items[#items + 1] = {
       text = "Remove tile range at this tile",
+      menuGroup = "sel_chr_pattern_ref",
       enabled = type(context.logicalIndex) == "number",
       callback = function()
         self:_removePpuPatternRangeFromRuntimeReference(context)
@@ -503,6 +512,7 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
       and type(context.itemIndex) == "number" then
     items[#items + 1] = {
       text = "Remove sprite",
+      menuGroup = "sel_chr_sprite_remove",
       enabled = true,
       callback = function()
         local MultiSelectController = require("controllers.input_support.multi_select_controller")
@@ -567,6 +577,7 @@ function AppCoreController:_buildChrBankTileContextMenuItems(context)
   local items = {
     {
       text = "Undo pixel edits",
+      menuGroup = "chr_bank_undo",
       enabled = RevertTilePixelsController.canRevertContext(self, context),
       callback = function()
         local ok, err = RevertTilePixelsController.revertForContext(self, context)
@@ -579,6 +590,7 @@ function AppCoreController:_buildChrBankTileContextMenuItems(context)
     },
     {
       text = "Copy tile bytes (hex)",
+      menuGroup = "chr_bank_copy",
       enabled = not not copyHexEnabled,
       callback = function()
         local ok, msg = ChrBankUiHelpers.copyChrTileHexToClipboard(self, bankIdx, ti)
@@ -661,6 +673,7 @@ function AppCoreController:_buildRomPaletteCellContextMenuItems(context)
   return {
     {
       text = "Clear value",
+      menuGroup = "rom_palette_cell_edit",
       enabled = editable == true,
       callback = function()
         selfRef:hideAppContextMenus()
@@ -688,6 +701,7 @@ function AppCoreController:_buildRomPaletteCellContextMenuItems(context)
     },
     {
       text = "Change ROM address",
+      menuGroup = "rom_palette_cell_metadata",
       enabled = true,
       callback = function()
         selfRef:hideAppContextMenus()

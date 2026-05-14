@@ -1,4 +1,27 @@
 local function install(Panel, utils)
+  --- Pixel-aligned outer rect for floating menus (fractional rects make LOVE rounded quads tessellate corners unevenly).
+  --- When `chromeEnvelopeRectPx` reports didSnap, use its x,y,w,h for menu fill, separators, outline, and shadow masks.
+  function Panel:chromeEnvelopeRectPx()
+    if self.menuOutline ~= true and self.menuRowSeparators ~= true then
+      return tonumber(self.x) or 0, tonumber(self.y) or 0, tonumber(self.w) or 0, tonumber(self.h) or 0, false
+    end
+
+    local x = tonumber(self.x) or 0
+    local y = tonumber(self.y) or 0
+    local w = tonumber(self.w) or 0
+    local h = tonumber(self.h) or 0
+    if w <= 0 or h <= 0 then
+      return x, y, math.max(0, w), math.max(0, h), true
+    end
+
+    local ix = math.floor(x + 1e-4)
+    local iy = math.floor(y + 1e-4)
+    local iw = math.max(1, math.ceil(x + w - 1e-4) - ix)
+    local ih = math.max(1, math.ceil(y + h - 1e-4) - iy)
+
+    return ix, iy, iw, ih, true
+  end
+
   function Panel:updateLayout()
     local gridW = 0
     if type(self.cellWidths) == "table" and next(self.cellWidths) ~= nil then

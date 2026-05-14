@@ -179,7 +179,7 @@ function M.install(Taskbar, Helpers)
       stemCounts[stem] = (stemCounts[stem] or 0) + 1
     end
 
-    for _, path in ipairs(recent) do
+    for ri, path in ipairs(recent) do
       local dir, stem = Helpers.splitPath(path)
       local label = stem
       if (stemCounts[stem] or 0) > 1 then
@@ -189,6 +189,7 @@ function M.install(Taskbar, Helpers)
       entries[#entries + 1] = {
         icon = (self._menuIcons and self._menuIcons.recentProjectItem) or nil,
         text = label,
+        menuGroup = "tb_recent_" .. tostring(ri),
         callback = function()
           if self.app and self.app.openRecentProject then
             self.app:openRecentProject(path)
@@ -207,42 +208,49 @@ function M.install(Taskbar, Helpers)
       {
         icon = self._menuIcons and self._menuIcons.newWindow or nil,
         text = "New Window",
+        menuGroup = "tb_wm_new_window",
         enabled = hasRom,
         callback = self._menuActions and self._menuActions.newWindow or nil,
       },
       {
         icon = self._menuIcons and self._menuIcons.expandAll or nil,
         text = "Expand all",
+        menuGroup = "tb_wm_expand_all",
         enabled = hasRom,
         callback = self._menuActions and self._menuActions.expandAll or nil,
       },
       {
         icon = self._menuIcons and self._menuIcons.collapseAll or nil,
         text = "Collapse all",
+        menuGroup = "tb_wm_collapse_all",
         enabled = hasRom,
         callback = self._menuActions and self._menuActions.collapseAll or nil,
       },
       {
         icon = self.sortAlphaButton and self.sortAlphaButton.icon or nil,
         text = "Sort by title",
+        menuGroup = "tb_wm_sort_by_title",
         enabled = hasRom,
         callback = self._menuActions and self._menuActions.sortByTitle or nil,
       },
       {
         icon = self.sortKindButton and self.sortKindButton.icon or nil,
         text = "Sort by kind",
+        menuGroup = "tb_wm_sort_by_kind",
         enabled = hasRom,
         callback = self._menuActions and self._menuActions.sortByType or nil,
       },
       {
         icon = self._menuIcons and self._menuIcons.minimizeAll or nil,
         text = "Minimize all",
+        menuGroup = "tb_wm_minimize_all",
         enabled = hasRom,
         callback = self._menuActions and self._menuActions.minimizeAll or nil,
       },
       {
         icon = self._menuIcons and self._menuIcons.maximizeAll or nil,
         text = "Maximize all",
+        menuGroup = "tb_wm_maximize_all",
         enabled = hasRom,
         callback = self._menuActions and self._menuActions.maximizeAll or nil,
       },
@@ -252,6 +260,7 @@ function M.install(Taskbar, Helpers)
       {
         icon = self._menuIcons and self._menuIcons.recentProjects or nil,
         text = "Recent Projects",
+        menuGroup = "tb_root_recent_projects",
         enabled = #recentItems > 0,
         children = (#recentItems > 0) and function()
           return self:_buildRecentProjectMenuItems()
@@ -260,6 +269,7 @@ function M.install(Taskbar, Helpers)
       {
         icon = self._menuIcons and self._menuIcons.windows or nil,
         text = "Windows",
+        menuGroup = "tb_root_windows",
         enabled = hasRom,
         children = hasRom and function()
           return windowsItems
@@ -268,24 +278,28 @@ function M.install(Taskbar, Helpers)
       {
         icon = self._menuIcons and self._menuIcons.quit or nil,
         text = "Quit",
+        menuGroup = "tb_root_quit",
         enabled = true,
         callback = self._menuActions and self._menuActions.quit or nil,
       },
       {
         icon = self._menuIcons and self._menuIcons.closeProject or nil,
         text = "Close Project",
+        menuGroup = "tb_root_close_project",
         enabled = hasRom,
         callback = self._menuActions and self._menuActions.closeProject or nil,
       },
       {
         icon = self._menuIcons and self._menuIcons.settings or nil,
         text = "Settings",
+        menuGroup = "tb_root_settings",
         enabled = true,
         callback = self._menuActions and self._menuActions.settings or nil,
       },
       {
         icon = self._menuIcons and self._menuIcons.save or nil,
         text = "Save",
+        menuGroup = "tb_root_save",
         enabled = hasRom,
         callback = self._menuActions and self._menuActions.save or nil,
       },

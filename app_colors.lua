@@ -150,6 +150,12 @@ function colors:chromeTextIconsColorNonFocused()
   return copyColor(self:appearanceChromeResolved(prefix .. "_text_icons_non_focused"))
 end
 
+--- Horizontal menu row separators / related rules: idle "default" chrome/menu text ink
+--- (muted text/icons appearance slot — same semantic as contextual menu idle labels).
+function colors:chromeMenuRowSeparatorColor()
+  return copyColor(self:chromeTextIconsColorNonFocused())
+end
+
 --- Backward-compatible alias for chromeTextIconsColorFocused().
 function colors:chromeTextIconsColor()
   return self:chromeTextIconsColorFocused()

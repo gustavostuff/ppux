@@ -426,6 +426,7 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
   local items = {
     {
       text = "Rename",
+      menuGroup = "hdr_identity",
       enabled = win ~= nil and win._closed ~= true and win.titleLocked ~= true,
       callback = function()
         self:hideAppContextMenus()
@@ -434,6 +435,7 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
     },
     {
       text = "Close",
+      menuGroup = "hdr_identity",
       enabled = win ~= nil and win._closed ~= true,
       callback = function()
         self:hideAppContextMenus()
@@ -448,6 +450,7 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
     },
     {
       text = collapseLabel,
+      menuGroup = "hdr_window_state",
       enabled = win ~= nil and win._closed ~= true and win._minimized ~= true,
       callback = function()
         self:hideAppContextMenus()
@@ -466,6 +469,7 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
   if forMinimizedTaskbar and win and win._minimized == true then
     items[#items + 1] = {
       text = "Maximize",
+      menuGroup = "hdr_window_state",
       enabled = win._closed ~= true,
       callback = function()
         self:hideAppContextMenus()
@@ -476,6 +480,7 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
   else
     items[#items + 1] = {
       text = "Minimize",
+      menuGroup = "hdr_window_state",
       enabled = win ~= nil and win._closed ~= true and win._minimized ~= true,
       callback = function()
         self:hideAppContextMenus()
@@ -492,6 +497,7 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
 
   items[#items + 1] = {
     text = "Minimize all but this one",
+    menuGroup = "hdr_workspace",
     enabled = hasAnotherMinimizableWindow(),
     callback = function()
       self:hideAppContextMenus()
@@ -503,6 +509,7 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
 
   items[#items + 1] = {
     text = (win and win._alwaysOnTop) and "Don't keep always on top" or "Keep always on top",
+    menuGroup = "hdr_always_on_top",
     enabled = win ~= nil and win._closed ~= true,
     callback = function()
       self:hideAppContextMenus()
@@ -527,6 +534,7 @@ function AppCoreController:_buildEmptySpaceContextMenuItems()
   return {
     {
       text = "New Window",
+      menuGroup = "empty_new_win",
       enabled = hasRom,
       callback = function()
         self:hideAppContextMenus()
@@ -535,6 +543,7 @@ function AppCoreController:_buildEmptySpaceContextMenuItems()
     },
     {
       text = "Minimize all",
+      menuGroup = "empty_wm_bulk",
       enabled = hasWindows,
       callback = function()
         self:hideAppContextMenus()
@@ -544,6 +553,7 @@ function AppCoreController:_buildEmptySpaceContextMenuItems()
     },
     {
       text = "Collapse all",
+      menuGroup = "empty_wm_bulk",
       enabled = hasWindows,
       callback = function()
         self:hideAppContextMenus()
@@ -616,6 +626,7 @@ function AppCoreController:_buildPaletteLinkSourceContextMenuItems(paletteWin)
 
   items[#items + 1] = {
     text = "Jump to linked layer",
+    menuGroup = "palette_src_navigate",
     children = function()
       if #targets == 0 then
         return {
@@ -640,6 +651,7 @@ function AppCoreController:_buildPaletteLinkSourceContextMenuItems(paletteWin)
 
   items[#items + 1] = {
     text = "Remove all links",
+    menuGroup = "palette_src_remove",
     callback = function()
       PaletteLinkController.removeAllLinksForPalette(self.wm, paletteWin)
     end,
@@ -658,6 +670,7 @@ function AppCoreController:_buildPaletteLinkDestinationContextMenuItems(contentW
 
   items[#items + 1] = {
       text = "Link To Palette",
+      menuGroup = "palette_dest_link",
       children = function()
         local childItems = {}
         for _, paletteWin in ipairs(paletteWindows) do
@@ -681,6 +694,7 @@ function AppCoreController:_buildPaletteLinkDestinationContextMenuItems(contentW
   if linkedPalette then
     items[#items + 1] = {
       text = "Jump to linked palette",
+      menuGroup = "palette_dest_linked_ops",
       callback = function()
         if self.focusPaletteWindowWithGrouping then
           self:focusPaletteWindowWithGrouping(linkedPalette)
@@ -691,6 +705,7 @@ function AppCoreController:_buildPaletteLinkDestinationContextMenuItems(contentW
     }
     items[#items + 1] = {
       text = "Remove ROM palette link",
+      menuGroup = "palette_dest_linked_ops",
       callback = function()
         self:hideAppContextMenus()
         PaletteLinkController.removeLinkForLayer(contentWin, layerIndex)
@@ -728,6 +743,7 @@ function AppCoreController:_appendJumpToLinkedPaletteMenuItem(items, win, layerI
   end
   items[#items + 1] = {
     text = "Jump to linked palette",
+    menuGroup = "layer_palette_linked",
     callback = function()
       if self.focusPaletteWindowWithGrouping then
         self:focusPaletteWindowWithGrouping(paletteWin)
@@ -752,6 +768,7 @@ function AppCoreController:_appendRemoveRomPaletteLinkMenuItem(items, win, layer
   local selfRef = self
   items[#items + 1] = {
     text = "Remove ROM palette link",
+    menuGroup = "layer_palette_linked",
     callback = function()
       selfRef:hideAppContextMenus()
       PaletteLinkController.removeLinkForLayer(win, layerIndex)
@@ -810,6 +827,7 @@ function AppCoreController:_appendPasteContextMenuItem(items, context)
 
   items[#items + 1] = {
     text = "Paste",
+    menuGroup = "layer_clipboard",
     callback = function()
       if self.performClipboardToolbarAction then
         self:performClipboardToolbarAction("paste", context.win, context.layerIndex, pasteOpts)
@@ -1020,9 +1038,9 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
 
     local iconsOam = patternTableRootMenuIcons()
     items[#items + 1] = {
-      text = "Link",
+      text = "Link pattern table",
       icon = iconsOam.link,
-      tooltip = "Link pattern table (all animation frames)",
+      menuGroup = "pt_oam_link",
       children = function()
         local childItems = {}
         local linkedId = oamAnimationLinkedPatternTableId(contentWin)
@@ -1056,10 +1074,22 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
     local linkedIdFound = oamAnimationLinkedPatternTableId(contentWin)
 
     if linkedIdFound then
+      local linkedWin = findWindowByLinkedPatternTableId(self.wm, linkedIdFound)
+      if linkedWin then
+        items[#items + 1] = {
+          text = "Jump to pattern table",
+          icon = iconsOam.jump,
+          menuGroup = "pt_oam_follow",
+          callback = function()
+            activateWindowForJump(self.wm, linkedWin)
+            hideMenus()
+          end,
+        }
+      end
       items[#items + 1] = {
-        text = "Unlink",
+        text = "Unlink pattern table",
         icon = iconsOam.unlink,
-        tooltip = "Unlink pattern table",
+        menuGroup = "pt_oam_follow",
         callback = function()
           PatternTableDisplayController.unlinkAllOamSpriteLayersPatternTable(contentWin)
           for li, L in ipairs(contentWin.layers or {}) do
@@ -1070,18 +1100,6 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
           hideMenus()
         end,
       }
-      local linkedWin = findWindowByLinkedPatternTableId(self.wm, linkedIdFound)
-      if linkedWin then
-        items[#items + 1] = {
-          text = "Jump",
-          icon = iconsOam.jump,
-          tooltip = "Jump to pattern table window",
-          callback = function()
-            activateWindowForJump(self.wm, linkedWin)
-            hideMenus()
-          end,
-        }
-      end
     end
 
     return items
@@ -1093,10 +1111,9 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
     local sprIdx = findPpuFirstSpriteLayerIndex(contentWin)
 
     items[#items + 1] = {
-      text = "Link",
+      text = "Link background pattern table",
       icon = iconsRoot.link,
-      tooltip = bgIdx and "Link background (nametable) pattern table"
-        or "No background nametable layer",
+      menuGroup = "pt_ppu_link_layers",
       children = function()
         if not bgIdx then
           return {
@@ -1137,9 +1154,9 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
 
     if sprIdx then
       items[#items + 1] = {
-        text = "Link",
+        text = "Link sprites pattern table",
         icon = iconsRoot.link,
-        tooltip = "Link sprites pattern table",
+        menuGroup = "pt_ppu_link_layers",
         children = function()
           local childItems = {}
           local sprLinkedId = nil
@@ -1172,40 +1189,15 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
     end
 
     local bgLayer = bgIdx and contentWin.layers and contentWin.layers[bgIdx]
-    if bgLayer and type(bgLayer.linkedPatternTableWindowId) == "string" and bgLayer.linkedPatternTableWindowId ~= "" then
-      items[#items + 1] = {
-        text = "Unlink",
-        icon = iconsRoot.unlink,
-        tooltip = "Unlink background pattern table",
-        callback = function()
-          PatternTableDisplayController.unlinkContentLayerPatternTable(contentWin, bgIdx)
-          self:_afterPatternTableLinkChange(contentWin, bgIdx)
-          hideMenus()
-        end,
-      }
-    end
-
     local sprLayer = sprIdx and contentWin.layers and contentWin.layers[sprIdx]
-    if sprLayer and type(sprLayer.linkedPatternTableWindowId) == "string" and sprLayer.linkedPatternTableWindowId ~= "" then
-      items[#items + 1] = {
-        text = "Unlink",
-        icon = iconsRoot.unlink,
-        tooltip = "Unlink sprites pattern table",
-        callback = function()
-          PatternTableDisplayController.unlinkContentLayerPatternTable(contentWin, sprIdx)
-          self:_afterPatternTableLinkChange(contentWin, sprIdx)
-          hideMenus()
-        end,
-      }
-    end
 
     if bgLayer and type(bgLayer.linkedPatternTableWindowId) == "string" and bgLayer.linkedPatternTableWindowId ~= "" then
       local lw = findWindowByLinkedPatternTableId(self.wm, bgLayer.linkedPatternTableWindowId)
       if lw then
         items[#items + 1] = {
-          text = "Jump",
+          text = "Jump to background pattern table",
           icon = iconsRoot.jump,
-          tooltip = "Jump to background pattern table",
+          menuGroup = "pt_ppu_jump",
           callback = function()
             activateWindowForJump(self.wm, lw)
             hideMenus()
@@ -1218,15 +1210,41 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
       local lw = findWindowByLinkedPatternTableId(self.wm, sprLayer.linkedPatternTableWindowId)
       if lw then
         items[#items + 1] = {
-          text = "Jump",
+          text = "Jump to sprites pattern table",
           icon = iconsRoot.jump,
-          tooltip = "Jump to sprites pattern table",
+          menuGroup = "pt_ppu_jump",
           callback = function()
             activateWindowForJump(self.wm, lw)
             hideMenus()
           end,
         }
       end
+    end
+
+    if bgLayer and type(bgLayer.linkedPatternTableWindowId) == "string" and bgLayer.linkedPatternTableWindowId ~= "" then
+      items[#items + 1] = {
+        text = "Unlink background pattern table",
+        icon = iconsRoot.unlink,
+        menuGroup = "pt_ppu_unlink",
+        callback = function()
+          PatternTableDisplayController.unlinkContentLayerPatternTable(contentWin, bgIdx)
+          self:_afterPatternTableLinkChange(contentWin, bgIdx)
+          hideMenus()
+        end,
+      }
+    end
+
+    if sprLayer and type(sprLayer.linkedPatternTableWindowId) == "string" and sprLayer.linkedPatternTableWindowId ~= "" then
+      items[#items + 1] = {
+        text = "Unlink sprites pattern table",
+        icon = iconsRoot.unlink,
+        menuGroup = "pt_ppu_unlink",
+        callback = function()
+          PatternTableDisplayController.unlinkContentLayerPatternTable(contentWin, sprIdx)
+          self:_afterPatternTableLinkChange(contentWin, sprIdx)
+          hideMenus()
+        end,
+      }
     end
 
     return items
@@ -1245,9 +1263,9 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
 
   local iconsFb = patternTableRootMenuIcons()
   items[#items + 1] = {
-    text = "Link",
+    text = "Link pattern table",
     icon = iconsFb.link,
-    tooltip = "Link pattern table",
+    menuGroup = "pt_layer_link",
     children = function()
       local childItems = {}
       local layerLinkedId = nil
@@ -1278,28 +1296,28 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
   }
 
   if type(layer.linkedPatternTableWindowId) == "string" and layer.linkedPatternTableWindowId ~= "" then
-    items[#items + 1] = {
-      text = "Unlink",
-      icon = iconsFb.unlink,
-      tooltip = "Unlink pattern table",
-      callback = function()
-        PatternTableDisplayController.unlinkContentLayerPatternTable(contentWin, layerIndex)
-        self:_afterPatternTableLinkChange(contentWin, layerIndex)
-        hideMenus()
-      end,
-    }
     local linkedWin = findWindowByLinkedPatternTableId(self.wm, layer.linkedPatternTableWindowId)
     if linkedWin then
       items[#items + 1] = {
-        text = "Jump",
+        text = "Jump to pattern table",
         icon = iconsFb.jump,
-        tooltip = "Jump to pattern table window",
+        menuGroup = "pt_layer_linked",
         callback = function()
           activateWindowForJump(self.wm, linkedWin)
           hideMenus()
         end,
       }
     end
+    items[#items + 1] = {
+      text = "Unlink pattern table",
+      icon = iconsFb.unlink,
+      menuGroup = "pt_layer_linked",
+      callback = function()
+        PatternTableDisplayController.unlinkContentLayerPatternTable(contentWin, layerIndex)
+        self:_afterPatternTableLinkChange(contentWin, layerIndex)
+        hideMenus()
+      end,
+    }
   end
 
   return items
@@ -1656,6 +1674,7 @@ function AppCoreController:showCrtLayerVizContextMenu(crtWin, x, y)
   local items = {
     {
       text = "Add window layer",
+      menuGroup = "crt_viz_add",
       children = function()
         if #addWinItems == 0 then
           if not hasAnyCrtVizLayoutWindow() then
@@ -1680,6 +1699,7 @@ function AppCoreController:showCrtLayerVizContextMenu(crtWin, x, y)
     },
     {
       text = "Remove window layer",
+      menuGroup = "crt_viz_remove_tree",
       enabled = #removeWinItems > 0,
       children = function()
         return removeWinItems
@@ -1687,6 +1707,7 @@ function AppCoreController:showCrtLayerVizContextMenu(crtWin, x, y)
     },
     {
       text = "Remove current layer",
+      menuGroup = "crt_viz_remove_active",
       enabled = #(crtWin.crtRefLayers or {}) > 0,
       action = function()
         local idx = crtWin.getActiveLayerIndex and crtWin:getActiveLayerIndex() or 1
