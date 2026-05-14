@@ -511,6 +511,14 @@ local function getChrGroupDropState(env, x, y, wm)
     reason = nil,
   }
 
+  if type(dst.isPatternTableInteractionLocked) == "function" then
+    local locked = select(1, dst:isPatternTableInteractionLocked(dstLayer))
+    if locked then
+      state.reason = "pattern_layer_not_ready"
+      return state
+    end
+  end
+
   if isBlockedChr8x8ToSprite8x16(drag.tileGroup, layer) then
     state.reason = "chr_8x8_multi_into_sprite_8x16"
     return state

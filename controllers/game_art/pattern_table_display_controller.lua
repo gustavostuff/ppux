@@ -190,6 +190,34 @@ function M.linkContentLayerToPatternTableWindow(contentWin, layerIndex, patternT
   return true
 end
 
+--- ROM OAM animations: tie every sprite frame layer to the same pattern-table window CHR map.
+function M.linkAllOamSpriteLayersToPatternTableWindow(contentWin, patternTableWin)
+  if not (contentWin and patternTableWin and WindowCaps.isOamAnimation(contentWin)) then
+    return false
+  end
+  for li, layer in ipairs(contentWin.layers or {}) do
+    if layer and layer.kind == "sprite" then
+      local ok = M.linkContentLayerToPatternTableWindow(contentWin, li, patternTableWin)
+      if ok ~= true then
+        return ok
+      end
+    end
+  end
+  return true
+end
+
+function M.unlinkAllOamSpriteLayersPatternTable(contentWin)
+  if not (contentWin and WindowCaps.isOamAnimation(contentWin)) then
+    return false
+  end
+  for li, layer in ipairs(contentWin.layers or {}) do
+    if layer and layer.kind == "sprite" then
+      M.unlinkContentLayerPatternTable(contentWin, li)
+    end
+  end
+  return true
+end
+
 --- After editing a shared patternTable table in-place (same table ref), refresh PPU runtime ref layers.
 function M.invalidateConsumersUsingPatternTable(app, patternTableRef)
   if not (app and patternTableRef and app.wm and app.wm.getWindows) then
@@ -228,7 +256,14 @@ function M.unlinkContentLayerPatternTable(contentWin, layerIndex)
     return false
   end
   layer.linkedPatternTableWindowId = nil
-  if type(layer.patternTable) == "table" then
+  -- PPU nametable tile layer: unlink means stop using linked CHR ranges here.
+  -- A detached deepcopy keeps the old mapping and leaves tiles looking linked; clear instead.
+  if WindowCaps.isPpuFrame(contentWin)
+    and layer.kind == "tile"
+    and layer._runtimePatternTableRefLayer ~= true
+  then
+    layer.patternTable = { ranges = {} }
+  elseif type(layer.patternTable) == "table" then
     layer.patternTable = TableUtils.deepcopy(layer.patternTable)
   else
     layer.patternTable = { ranges = {} }

@@ -883,6 +883,26 @@ function AppCoreController:_afterPatternTableLinkChange(contentWin, layerIndex)
   if not layer then
     return
   end
+  local isPpuNametableTileLayer = WindowCaps.isPpuFrame(contentWin)
+    and layer.kind == "tile"
+    and layer._runtimePatternTableRefLayer ~= true
+
+  -- Linking swaps `layer.patternTable` to the PT window snapshot, but nametable visuals are
+  -- tile refs accumulated in layer.items via the *previous* mapping. Re-sync from nametableBytes.
+  if isPpuNametableTileLayer then
+    if contentWin.refreshNametableVisuals and self.appEditState then
+      if type(layer.patternTable) == "table" and type(layer.patternTable.ranges) == "table" then
+        for _, r in ipairs(layer.patternTable.ranges) do
+          local bank = tonumber(r and r.bank)
+          if bank and self.appEditState.chrBanksBytes and self.appEditState.chrBanksBytes[bank] then
+            BankViewController.ensureBankTiles(self.appEditState, bank)
+          end
+        end
+      end
+      contentWin:refreshNametableVisuals(self.appEditState.tilesPool, layerIndex)
+    end
+  end
+
   if WindowCaps.isPpuFrame(contentWin)
     and layer.kind == "tile"
     and layer._runtimePatternTableRefLayer ~= true
@@ -900,10 +920,320 @@ function AppCoreController:_afterPatternTableLinkChange(contentWin, layerIndex)
   end
 end
 
+local function findPpuNametableTileLayerIndex(win)
+  if not win or not win.layers then
+    return nil
+  end
+  for i, layer in ipairs(win.layers) do
+    if layer and layer.kind == "tile" and layer._runtimePatternTableRefLayer ~= true then
+      if type(layer.nametableStartAddr) == "number" and type(layer.nametableEndAddr) == "number" then
+        return i
+      end
+    end
+  end
+  for i, layer in ipairs(win.layers) do
+    if layer and layer.kind == "tile" and layer._runtimePatternTableRefLayer ~= true then
+      return i
+    end
+  end
+  return nil
+end
+
+local function findPpuFirstSpriteLayerIndex(win)
+  if not win or not win.layers then
+    return nil
+  end
+  for i, layer in ipairs(win.layers) do
+    if layer and layer.kind == "sprite" then
+      return i
+    end
+  end
+  return nil
+end
+
+local function findWindowByLinkedPatternTableId(wm, linkedId)
+  if type(linkedId) ~= "string" or linkedId == "" or not wm or not wm.getWindows then
+    return nil
+  end
+  for _, w in ipairs(wm:getWindows()) do
+    if w._id == linkedId then
+      return w
+    end
+  end
+  return nil
+end
+
+--- Icon for picking a pattern table in link submenus (radio-style: filled circle = current link).
+local function patternTablePickMenuIcon(ptWindow, linkedWindowId)
+  local chrome = images.icons and images.icons.chrome or nil
+  local circle = chrome and chrome.icon_circle or nil
+  local empty = chrome and chrome.icon_empty or nil
+  if linkedWindowId and ptWindow and ptWindow._id == linkedWindowId then
+    return circle
+  end
+  return empty
+end
+
+local function oamAnimationLinkedPatternTableId(contentWin)
+  for _, layer in ipairs(contentWin.layers or {}) do
+    if layer and layer.kind == "sprite" and type(layer.linkedPatternTableWindowId) == "string" and layer.linkedPatternTableWindowId ~= "" then
+      return layer.linkedPatternTableWindowId
+    end
+  end
+  return nil
+end
+
+local function patternTableRootMenuIcons()
+  local actions = images.icons and images.icons.actions or nil
+  local chrome = images.icons and images.icons.chrome or nil
+  return {
+    link = actions and actions.icon_connect,
+    unlink = chrome and chrome.icon_x,
+    jump = chrome and chrome.icon_windows,
+  }
+end
+
 function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(contentWin)
+  local items = {}
+  local ptWindows = PatternTableDisplayController.collectPatternTableWindows(self.wm)
+  local hideMenus = function()
+    if self.hideAppContextMenus then
+      self:hideAppContextMenus()
+    end
+  end
+
+  if WindowCaps.isOamAnimation(contentWin) then
+    local spriteCount = 0
+    for _, layer in ipairs(contentWin.layers or {}) do
+      if layer and layer.kind == "sprite" then
+        spriteCount = spriteCount + 1
+      end
+    end
+
+    if spriteCount <= 0 then
+      items[1] = {
+        text = "No sprite layers",
+        callback = function() end,
+      }
+      return items
+    end
+
+    local iconsOam = patternTableRootMenuIcons()
+    items[#items + 1] = {
+      text = "Link",
+      icon = iconsOam.link,
+      tooltip = "Link pattern table (all animation frames)",
+      children = function()
+        local childItems = {}
+        local linkedId = oamAnimationLinkedPatternTableId(contentWin)
+        for _, pt in ipairs(ptWindows) do
+          if pt ~= contentWin then
+            childItems[#childItems + 1] = {
+              text = tostring(pt.title or pt._id or "Pattern table"),
+              icon = patternTablePickMenuIcon(pt, linkedId),
+              callback = function()
+                PatternTableDisplayController.linkAllOamSpriteLayersToPatternTableWindow(contentWin, pt)
+                for li, L in ipairs(contentWin.layers or {}) do
+                  if L and L.kind == "sprite" then
+                    self:_afterPatternTableLinkChange(contentWin, li)
+                  end
+                end
+                hideMenus()
+              end,
+            }
+          end
+        end
+        if #childItems == 0 then
+          childItems[1] = {
+            text = "No pattern table windows",
+            callback = function() end,
+          }
+        end
+        return childItems
+      end,
+    }
+
+    local linkedIdFound = oamAnimationLinkedPatternTableId(contentWin)
+
+    if linkedIdFound then
+      items[#items + 1] = {
+        text = "Unlink",
+        icon = iconsOam.unlink,
+        tooltip = "Unlink pattern table",
+        callback = function()
+          PatternTableDisplayController.unlinkAllOamSpriteLayersPatternTable(contentWin)
+          for li, L in ipairs(contentWin.layers or {}) do
+            if L and L.kind == "sprite" then
+              self:_afterPatternTableLinkChange(contentWin, li)
+            end
+          end
+          hideMenus()
+        end,
+      }
+      local linkedWin = findWindowByLinkedPatternTableId(self.wm, linkedIdFound)
+      if linkedWin then
+        items[#items + 1] = {
+          text = "Jump",
+          icon = iconsOam.jump,
+          tooltip = "Jump to pattern table window",
+          callback = function()
+            activateWindowForJump(self.wm, linkedWin)
+            hideMenus()
+          end,
+        }
+      end
+    end
+
+    return items
+  end
+
+  if WindowCaps.isPpuFrame(contentWin) then
+    local iconsRoot = patternTableRootMenuIcons()
+    local bgIdx = findPpuNametableTileLayerIndex(contentWin)
+    local sprIdx = findPpuFirstSpriteLayerIndex(contentWin)
+
+    items[#items + 1] = {
+      text = "Link",
+      icon = iconsRoot.link,
+      tooltip = bgIdx and "Link background (nametable) pattern table"
+        or "No background nametable layer",
+      children = function()
+        if not bgIdx then
+          return {
+            {
+              text = "No background layer",
+              callback = function() end,
+            },
+          }
+        end
+        local childItems = {}
+        local bgLinkedId = nil
+        local bgL = contentWin.layers and contentWin.layers[bgIdx]
+        if bgL and type(bgL.linkedPatternTableWindowId) == "string" and bgL.linkedPatternTableWindowId ~= "" then
+          bgLinkedId = bgL.linkedPatternTableWindowId
+        end
+        for _, pt in ipairs(ptWindows) do
+          if pt ~= contentWin then
+            childItems[#childItems + 1] = {
+              text = tostring(pt.title or pt._id or "Pattern table"),
+              icon = patternTablePickMenuIcon(pt, bgLinkedId),
+              callback = function()
+                PatternTableDisplayController.linkContentLayerToPatternTableWindow(contentWin, bgIdx, pt)
+                self:_afterPatternTableLinkChange(contentWin, bgIdx)
+                hideMenus()
+              end,
+            }
+          end
+        end
+        if #childItems == 0 then
+          childItems[1] = {
+            text = "No pattern table windows",
+            callback = function() end,
+          }
+        end
+        return childItems
+      end,
+    }
+
+    if sprIdx then
+      items[#items + 1] = {
+        text = "Link",
+        icon = iconsRoot.link,
+        tooltip = "Link sprites pattern table",
+        children = function()
+          local childItems = {}
+          local sprLinkedId = nil
+          local sprL = contentWin.layers and contentWin.layers[sprIdx]
+          if sprL and type(sprL.linkedPatternTableWindowId) == "string" and sprL.linkedPatternTableWindowId ~= "" then
+            sprLinkedId = sprL.linkedPatternTableWindowId
+          end
+          for _, pt in ipairs(ptWindows) do
+            if pt ~= contentWin then
+              childItems[#childItems + 1] = {
+                text = tostring(pt.title or pt._id or "Pattern table"),
+                icon = patternTablePickMenuIcon(pt, sprLinkedId),
+                callback = function()
+                  PatternTableDisplayController.linkContentLayerToPatternTableWindow(contentWin, sprIdx, pt)
+                  self:_afterPatternTableLinkChange(contentWin, sprIdx)
+                  hideMenus()
+                end,
+              }
+            end
+          end
+          if #childItems == 0 then
+            childItems[1] = {
+              text = "No pattern table windows",
+              callback = function() end,
+            }
+          end
+          return childItems
+        end,
+      }
+    end
+
+    local bgLayer = bgIdx and contentWin.layers and contentWin.layers[bgIdx]
+    if bgLayer and type(bgLayer.linkedPatternTableWindowId) == "string" and bgLayer.linkedPatternTableWindowId ~= "" then
+      items[#items + 1] = {
+        text = "Unlink",
+        icon = iconsRoot.unlink,
+        tooltip = "Unlink background pattern table",
+        callback = function()
+          PatternTableDisplayController.unlinkContentLayerPatternTable(contentWin, bgIdx)
+          self:_afterPatternTableLinkChange(contentWin, bgIdx)
+          hideMenus()
+        end,
+      }
+    end
+
+    local sprLayer = sprIdx and contentWin.layers and contentWin.layers[sprIdx]
+    if sprLayer and type(sprLayer.linkedPatternTableWindowId) == "string" and sprLayer.linkedPatternTableWindowId ~= "" then
+      items[#items + 1] = {
+        text = "Unlink",
+        icon = iconsRoot.unlink,
+        tooltip = "Unlink sprites pattern table",
+        callback = function()
+          PatternTableDisplayController.unlinkContentLayerPatternTable(contentWin, sprIdx)
+          self:_afterPatternTableLinkChange(contentWin, sprIdx)
+          hideMenus()
+        end,
+      }
+    end
+
+    if bgLayer and type(bgLayer.linkedPatternTableWindowId) == "string" and bgLayer.linkedPatternTableWindowId ~= "" then
+      local lw = findWindowByLinkedPatternTableId(self.wm, bgLayer.linkedPatternTableWindowId)
+      if lw then
+        items[#items + 1] = {
+          text = "Jump",
+          icon = iconsRoot.jump,
+          tooltip = "Jump to background pattern table",
+          callback = function()
+            activateWindowForJump(self.wm, lw)
+            hideMenus()
+          end,
+        }
+      end
+    end
+
+    if sprLayer and type(sprLayer.linkedPatternTableWindowId) == "string" and sprLayer.linkedPatternTableWindowId ~= "" then
+      local lw = findWindowByLinkedPatternTableId(self.wm, sprLayer.linkedPatternTableWindowId)
+      if lw then
+        items[#items + 1] = {
+          text = "Jump",
+          icon = iconsRoot.jump,
+          tooltip = "Jump to sprites pattern table",
+          callback = function()
+            activateWindowForJump(self.wm, lw)
+            hideMenus()
+          end,
+        }
+      end
+    end
+
+    return items
+  end
+
   local layerIndex = resolvePatternTableLinkLayerIndex(contentWin)
   local layer = contentWin.layers and contentWin.layers[layerIndex]
-  local items = {}
 
   if not (layer and (layer.kind == "tile" or layer.kind == "sprite")) then
     items[1] = {
@@ -913,22 +1243,26 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
     return items
   end
 
-  local ptWindows = PatternTableDisplayController.collectPatternTableWindows(self.wm)
-
+  local iconsFb = patternTableRootMenuIcons()
   items[#items + 1] = {
-    text = "Link pattern table",
+    text = "Link",
+    icon = iconsFb.link,
+    tooltip = "Link pattern table",
     children = function()
       local childItems = {}
+      local layerLinkedId = nil
+      if type(layer.linkedPatternTableWindowId) == "string" and layer.linkedPatternTableWindowId ~= "" then
+        layerLinkedId = layer.linkedPatternTableWindowId
+      end
       for _, pt in ipairs(ptWindows) do
         if pt ~= contentWin then
           childItems[#childItems + 1] = {
             text = tostring(pt.title or pt._id or "Pattern table"),
+            icon = patternTablePickMenuIcon(pt, layerLinkedId),
             callback = function()
               PatternTableDisplayController.linkContentLayerToPatternTableWindow(contentWin, layerIndex, pt)
               self:_afterPatternTableLinkChange(contentWin, layerIndex)
-              if self.hideAppContextMenus then
-                self:hideAppContextMenus()
-              end
+              hideMenus()
             end,
           }
         end
@@ -944,36 +1278,28 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
   }
 
   if type(layer.linkedPatternTableWindowId) == "string" and layer.linkedPatternTableWindowId ~= "" then
-    local linkedWin = nil
-    if self.wm and self.wm.getWindows then
-      for _, w in ipairs(self.wm:getWindows()) do
-        if w._id == layer.linkedPatternTableWindowId then
-          linkedWin = w
-          break
-        end
-      end
-    end
-    if linkedWin then
-      items[#items + 1] = {
-        text = "Jump to pattern table",
-        callback = function()
-          activateWindowForJump(self.wm, linkedWin)
-          if self.hideAppContextMenus then
-            self:hideAppContextMenus()
-          end
-        end,
-      }
-    end
     items[#items + 1] = {
-      text = "Unlink pattern table",
+      text = "Unlink",
+      icon = iconsFb.unlink,
+      tooltip = "Unlink pattern table",
       callback = function()
         PatternTableDisplayController.unlinkContentLayerPatternTable(contentWin, layerIndex)
         self:_afterPatternTableLinkChange(contentWin, layerIndex)
-        if self.hideAppContextMenus then
-          self:hideAppContextMenus()
-        end
+        hideMenus()
       end,
     }
+    local linkedWin = findWindowByLinkedPatternTableId(self.wm, layer.linkedPatternTableWindowId)
+    if linkedWin then
+      items[#items + 1] = {
+        text = "Jump",
+        icon = iconsFb.jump,
+        tooltip = "Jump to pattern table window",
+        callback = function()
+          activateWindowForJump(self.wm, linkedWin)
+          hideMenus()
+        end,
+      }
+    end
   end
 
   return items

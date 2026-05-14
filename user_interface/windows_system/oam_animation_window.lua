@@ -16,6 +16,12 @@ function OAMAnimationWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
   return self
 end
 
+--- Same CHR-mapping readiness rules as PPU sprite layers (256-entry pattern table).
+function OAMAnimationWindow:isPatternTableInteractionLocked(layerIndex)
+  local PatternLayerGate = require("controllers.window.pattern_layer_gate")
+  return PatternLayerGate.isLayerInteractionLocked(self, layerIndex)
+end
+
 function OAMAnimationWindow:addLayerAfterActive(opts)
   opts = opts or {}
   local firstLayer = self.layers and self.layers[1] or nil

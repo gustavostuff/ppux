@@ -177,14 +177,6 @@ local function isSpriteMultiSelectWindow(env, win, layerIdx)
   return layer and layer.kind == "sprite"
 end
 
-local function isPpuTileLayerLocked(win, layerIdx)
-  if not (WindowCaps.isPpuFrame(win) and win and type(win.isPatternTableInteractionLocked) == "function") then
-    return false, nil
-  end
-  local locked, reason = win:isPatternTableInteractionLocked(layerIdx)
-  return locked == true, reason
-end
-
 local function startTileDrag(env, win, col, row, layerIdx, item, wm, x, y, copyMode, tileGroup)
   local drag = env.drag
   drag.pending = true
@@ -199,6 +191,14 @@ local function startTileDrag(env, win, col, row, layerIdx, item, wm, x, y, copyM
   drag.srcStackIndex = (stack and #stack) or 1
 end
 
+local function isPatternLayerGatedLocked(win, layerIdx)
+  if not win or type(win.isPatternTableInteractionLocked) ~= "function" then
+    return false, nil
+  end
+  local locked, reason = win:isPatternTableInteractionLocked(layerIdx)
+  return locked == true, reason
+end
+
 local function handleSpriteClick(env, button, x, y, win, wm)
   local ctx = env.ctx
   local utils = env.utils or {}
@@ -211,6 +211,12 @@ local function handleSpriteClick(env, button, x, y, win, wm)
   local li = win:getActiveLayerIndex()
   local L = win.layers[li]
   if not (L and L.kind == "sprite") then return false end
+
+  local sprLocked, sprLockReason = isPatternLayerGatedLocked(win, li)
+  if sprLocked then
+    setStatus(ctx, sprLockReason or "Sprite layer is not ready (pattern table)")
+    return true
+  end
 
   local shiftDown = utils.shiftDown and utils.shiftDown()
   local ctrlDown = utils.ctrlDown and utils.ctrlDown()
@@ -362,7 +368,7 @@ local function handleRightButton(env, button, x, y, win, wm)
     if not (layer and layer.kind == "tile") then
       return false
     end
-    local locked = isPpuTileLayerLocked(win, li)
+    local locked = isPatternLayerGatedLocked(win, li)
     if locked then
       return false
     end
@@ -747,7 +753,7 @@ local function handleEditModeClick(env, button, x, y, win, wm)
   local ok, col, row, lx, ly = win:toGridCoords(x, y)
   if ok then
     local layerIdx = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
-    local locked, reason = isPpuTileLayerLocked(win, layerIdx)
+    local locked, reason = isPatternLayerGatedLocked(win, layerIdx)
     if locked then
       setStatus(ctx, reason or "patternTable ranges must add up to 256 before tile edits")
       ctx.setPainting(false)
@@ -813,7 +819,7 @@ local function handleTilePaintMode(env, button, x, y, win, wm)
   local layerIdx = win:getActiveLayerIndex()
   local layer = win.layers and win.layers[layerIdx]
   if not layer or layer.kind ~= "tile" then return false end
-  local locked, reason = isPpuTileLayerLocked(win, layerIdx)
+  local locked, reason = isPatternLayerGatedLocked(win, layerIdx)
   if locked then
     setStatus(ctx, reason or "patternTable ranges must add up to 256 before tile edits")
     return true
@@ -862,7 +868,7 @@ local function handleTileSelection(env, button, x, y, win, wm)
   if win.layers and win.layers[layerIdx] and win.layers[layerIdx].kind == "sprite" then
     return false
   end
-  local locked, reason = isPpuTileLayerLocked(win, layerIdx)
+  local locked, reason = isPatternLayerGatedLocked(win, layerIdx)
   if locked then
     setStatus(ctx, reason or "patternTable ranges must add up to 256 before tile edits")
     return true

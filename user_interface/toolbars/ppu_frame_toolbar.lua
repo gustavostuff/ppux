@@ -44,6 +44,37 @@ local function getFirstSpriteLayer(window)
   return nil, nil
 end
 
+local function findPpuNametableTileLayerIndexForToolbar(window)
+  if not (window and window.layers) then
+    return nil
+  end
+  for i, layer in ipairs(window.layers) do
+    if layer and layer.kind == "tile" and layer._runtimePatternTableRefLayer ~= true then
+      if type(layer.nametableStartAddr) == "number" and type(layer.nametableEndAddr) == "number" then
+        return i
+      end
+    end
+  end
+  for i, layer in ipairs(window.layers) do
+    if layer and layer.kind == "tile" and layer._runtimePatternTableRefLayer ~= true then
+      return i
+    end
+  end
+  return nil
+end
+
+local function findPpuFirstSpriteLayerIndexForToolbar(window)
+  if not (window and window.layers) then
+    return nil
+  end
+  for i, layer in ipairs(window.layers) do
+    if layer and layer.kind == "sprite" then
+      return i
+    end
+  end
+  return nil
+end
+
 local function hasConfiguredRange(window)
   local layer = getNametableLayer(window)
   return layer
@@ -131,7 +162,7 @@ function PPUFrameToolbar.new(window, ctx, windowController)
 
   self.patternTableLinkButton = self:addButton(images.icons.actions.icon_pattern_table or images.icons.actions.icon_nametable_range, function()
     self:_onPatternTableLinkMenu()
-  end, "Link pattern table")
+  end, "Background and sprite pattern table links")
 
   self.toggleOriginGuidesButton = self:addButton(images.icons.actions.icon_dotted_lines, function()
     self:_onToggleOriginGuides()
@@ -419,23 +450,21 @@ function PPUFrameToolbar:updatePatternTableLinkButton()
   end
   button.icon = images.icons.actions.icon_pattern_table or images.icons.actions.icon_nametable_range or button.icon
   button.enabled = true
-  local layer = nil
-  if self.window and self.window.layers then
-    local li = self.window.getActiveLayerIndex and self.window:getActiveLayerIndex() or self.window.activeLayer or 1
-    layer = self.window.layers[li]
-    if layer and layer._runtimePatternTableRefLayer == true and type(layer._runtimePatternTableRefTargetLayer) == "table" then
-      layer = layer._runtimePatternTableRefTargetLayer
-    end
-  end
-  local linked = layer and type(layer.linkedPatternTableWindowId) == "string" and layer.linkedPatternTableWindowId ~= ""
+  local bgIdx = self.window and findPpuNametableTileLayerIndexForToolbar(self.window)
+  local sprIdx = self.window and findPpuFirstSpriteLayerIndexForToolbar(self.window)
+  local bgLayer = bgIdx and self.window.layers and self.window.layers[bgIdx]
+  local sprLayer = sprIdx and self.window.layers and self.window.layers[sprIdx]
+  local bgLinked = bgLayer and type(bgLayer.linkedPatternTableWindowId) == "string" and bgLayer.linkedPatternTableWindowId ~= ""
+  local sprLinked = sprLayer and type(sprLayer.linkedPatternTableWindowId) == "string" and sprLayer.linkedPatternTableWindowId ~= ""
+  local linked = bgLinked or sprLinked
   if linked then
     button.bgColor = colors.green
     button.contentColor = colors.white
-    button.tooltip = "Pattern table linked (click for menu)"
+    button.tooltip = "Background and/or sprite pattern table linked (menu)"
   else
     button.bgColor = nil
     button.contentColor = colors.white
-    button.tooltip = "Link pattern table"
+    button.tooltip = "Link background and sprite pattern tables (menu)"
   end
 end
 

@@ -1154,7 +1154,11 @@ drawNormalWindow = function(app, w, wm)
         local layerOpacity = (L.opacity ~= nil) and L.opacity or 1.0
         if layerOpacity > 0.001 then
           if L.kind == "sprite" then
-            w:drawSprites(nil, isFocused, li, app.appEditState.romRaw)
+            local skipSprites = w.isPatternTableInteractionLocked
+              and select(1, w:isPatternTableInteractionLocked(li))
+            if not skipSprites then
+              w:drawSprites(nil, isFocused, li, app.appEditState.romRaw)
+            end
           elseif L.kind == "canvas" then
             drawCanvasLayer(app, w, li, isFocused)
           else

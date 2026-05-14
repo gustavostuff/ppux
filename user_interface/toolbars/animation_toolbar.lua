@@ -34,6 +34,29 @@ local function clamp(value, minValue, maxValue)
   return value
 end
 
+local function oamBulkPatternTableFullyLinked(window)
+  if not (window and window.layers) then
+    return false
+  end
+  local firstId = nil
+  local sawSprite = false
+  for _, layer in ipairs(window.layers) do
+    if layer and layer.kind == "sprite" then
+      sawSprite = true
+      local id = layer.linkedPatternTableWindowId
+      if type(id) ~= "string" or id == "" then
+        return false
+      end
+      if firstId == nil then
+        firstId = id
+      elseif firstId ~= id then
+        return false
+      end
+    end
+  end
+  return sawSprite == true and firstId ~= nil
+end
+
 local function isOamMultiRowEnabled(window)
   if not WindowCaps.isOamAnimation(window) then
     return false
@@ -128,7 +151,7 @@ function AnimationToolbar.new(window, ctx, windowController)
   if WindowCaps.isOamAnimation(window) then
     self.patternTableLinkButton = self:addButton(images.icons.actions.icon_pattern_table or images.icons.chrome.icon_connect, function()
       self:_onPatternTableLinkMenu()
-    end, "Link pattern table", {
+    end, "Link pattern table for all frames (menu)", {
       row = secondaryRow or primaryRow,
     })
   end
@@ -336,15 +359,14 @@ function AnimationToolbar:updateIcons()
   self:updateOriginButtons()
 
   if self.patternTableLinkButton and WindowCaps.isOamAnimation(self.window) then
-    local layer = select(1, self:_getActiveSpriteLayer())
-    local linked = layer and type(layer.linkedPatternTableWindowId) == "string" and layer.linkedPatternTableWindowId ~= ""
+    local linked = oamBulkPatternTableFullyLinked(self.window)
     self.patternTableLinkButton.icon = images.icons.actions.icon_pattern_table or self.patternTableLinkButton.icon
     if linked then
       self.patternTableLinkButton.bgColor = colors.green
-      self.patternTableLinkButton.tooltip = "Pattern table linked (click for menu)"
+      self.patternTableLinkButton.tooltip = "Pattern table linked for all frames (menu)"
     else
       self.patternTableLinkButton.bgColor = colors.gray20
-      self.patternTableLinkButton.tooltip = "Link pattern table"
+      self.patternTableLinkButton.tooltip = "Link pattern table for all animation frames (menu)"
     end
   end
 

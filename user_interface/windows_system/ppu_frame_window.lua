@@ -449,28 +449,8 @@ function PPUFrameWindow:syncNametableVisualCell(col, row, byteVal, tilesPool, la
 end
 
 function PPUFrameWindow:isPatternTableInteractionLocked(layerIndex)
-  local li = layerIndex or self.activeLayer or 1
-  local layer = self:getLayer(li)
-  if not layer or layer.kind ~= "tile" or layer._runtimePatternTableRefLayer == true then
-    return false, nil
-  end
-  if type(layer.nametableStartAddr) ~= "number" then
-    return true, "nametableStartAddr is missing"
-  end
-  if type(layer.nametableEndAddr) ~= "number" then
-    return true, "nametableEndAddr is missing"
-  end
-  if type(layer.patternTable) ~= "table" then
-    return true, "patternTable.ranges is missing"
-  end
-  local total, err = patternTableLogicalSize(layer.patternTable)
-  if err then
-    return true, err
-  end
-  if total ~= 256 then
-    return true, string.format("patternTable ranges must add up to 256 tiles (got %d)", total)
-  end
-  return false, nil
+  local PatternLayerGate = require("controllers.window.pattern_layer_gate")
+  return PatternLayerGate.isLayerInteractionLocked(self, layerIndex)
 end
 
 function PPUFrameWindow:drawVisibleNametableCells(renderCell, layerIndex)
@@ -1458,14 +1438,19 @@ function PPUFrameWindow:findPatternReferenceLayerIndex()
 end
 
 function PPUFrameWindow:getNormalInteractiveLayerIndices()
+  local PatternLayerGate = require("controllers.window.pattern_layer_gate")
   local out = {}
   local nametableLayer, nametableIndex = getNametableLayer(self)
   if nametableLayer and nametableIndex then
-    out[#out + 1] = nametableIndex
+    if not select(1, PatternLayerGate.isLayerInteractionLocked(self, nametableIndex)) then
+      out[#out + 1] = nametableIndex
+    end
   end
   for i, layer in ipairs(self.layers or {}) do
     if layer and layer.kind == "sprite" then
-      out[#out + 1] = i
+      if not select(1, PatternLayerGate.isLayerInteractionLocked(self, i)) then
+        out[#out + 1] = i
+      end
       break
     end
   end

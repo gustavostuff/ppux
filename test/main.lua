@@ -49,6 +49,12 @@ do
         getHeight = function() return 15 end,
       }
     end
+    if not images.icons.chrome.icon_empty then
+      images.icons.chrome.icon_empty = {
+        getWidth = function() return 15 end,
+        getHeight = function() return 15 end,
+      }
+    end
   end
 end
 

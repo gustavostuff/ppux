@@ -6,20 +6,20 @@
 --     plus keep or drop inline `patternTable` (resolve pass overwrites `.patternTable`
 --     with the linked window's shared table when the id matches).
 --   * PPU / OAM `sprite` layers: same field; add `patternTable` in the sketch window,
---     then link — CHR drops validate against the shared table when ranges are configured.
+--     then link; CHR drops validate against the shared table when ranges are configured.
 --
 -- Window indices in the original file (for orientation only): 
---   [15] id=ppu_01 kind=ppu_frame — Layer 1 tile (nametable), Layer 2 sprites
---   [16] id=ppu_frame_1 kind=ppu_frame — Layer 1 tile, Layer 2 sprites  
---   [9] id=oam_static_poses kind=oam_animation — Frames 1–5 sprite layers
---   [14] id=oam_animation_01 kind=oam_animation — Frames 1–6 sprite layers
+--   [15] id=ppu_01 kind=ppu_frame - Layer 1 tile (nametable), Layer 2 sprites
+--   [16] id=ppu_frame_1 kind=ppu_frame - Layer 1 tile, Layer 2 sprites  
+--   [9] id=oam_static_poses kind=oam_animation - Frames 1-5 sprite layers
+--   [14] id=oam_animation_01 kind=oam_animation - Frames 1-6 sprite layers
 
 return {
   new_windows = {
     pattern_table_title_nametable = {
       kind = "pattern_table",
       id = "pattern_table_title_nametable",
-      title = "Pattern — Title BG (linked ppu_01 L1)",
+      title = "Pattern - Title BG (linked ppu_01 L1)",
       x = 30,
       y = 200,
       z = 200,
@@ -57,7 +57,7 @@ return {
     pattern_table_title_sprites = {
       kind = "pattern_table",
       id = "pattern_table_title_sprites",
-      title = "Pattern — Title sprites (ppu_01 L2 sketch)",
+      title = "Pattern - Title sprites (ppu_01 L2 sketch)",
       x = 30,
       y = 340,
       z = 205,
@@ -88,7 +88,7 @@ return {
     pattern_table_cutscene_nametable = {
       kind = "pattern_table",
       id = "pattern_table_cutscene_nametable",
-      title = "Pattern — Cutscene BG (linked ppu_frame_1 L1)",
+      title = "Pattern - Cutscene BG (linked ppu_frame_1 L1)",
       x = 200,
       y = 200,
       z = 210,
@@ -131,7 +131,7 @@ return {
     pattern_table_cutscene_sprites = {
       kind = "pattern_table",
       id = "pattern_table_cutscene_sprites",
-      title = "Pattern — Cutscene sprites (ppu_frame_1 L2)",
+      title = "Pattern - Cutscene sprites (ppu_frame_1 L2)",
       x = 200,
       y = 340,
       z = 215,
@@ -161,7 +161,7 @@ return {
     pattern_table_oam_static = {
       kind = "pattern_table",
       id = "pattern_table_oam_static",
-      title = "Pattern — OAM static poses",
+      title = "Pattern - OAM static poses",
       x = 380,
       y = 200,
       z = 220,
@@ -184,7 +184,7 @@ return {
     pattern_table_oam_run = {
       kind = "pattern_table",
       id = "pattern_table_oam_run",
-      title = "Pattern — OAM running",
+      title = "Pattern - OAM running",
       x = 380,
       y = 340,
       z = 225,
@@ -223,7 +223,7 @@ return {
       linkedPatternTableWindowId = "pattern_table_cutscene_sprites",
     },
 
-    -- OAM: each frame layer is sprite — link all frames that should share one logical table,
+    -- OAM: each frame layer is sprite - link all frames that should share one logical table,
     -- or split into multiple pattern_table windows per animation.
     ["oam_static_poses.frames"] = {
       linkedPatternTableWindowId = "pattern_table_oam_static",

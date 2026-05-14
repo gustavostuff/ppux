@@ -161,7 +161,9 @@ function AppCoreController.new()
     padding = 0,
     colGap = 0,
     rowGap = 1,
-    splitIconCell = false,
+    -- Enables left icon column only for item lists that attach `icon` (e.g. pattern table pickers).
+    -- Palettes/other entries stay single-column because `menuUsesSplitIconCell` requires an icon somewhere.
+    splitIconCell = true,
   })
   self.tooltipsEnabled = true
   self.tooltipController = TooltipController.new({

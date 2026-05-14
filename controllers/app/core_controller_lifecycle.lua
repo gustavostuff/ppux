@@ -405,9 +405,9 @@ function AppCoreController:load()
 
   -- Initialize debug manager (logging requires init(true); use setCategoryFilter to reduce noise)
   local DebugController = require("controllers.dev.debug_controller")
-  DebugController.init(true)
-  DebugController.setCategoryFilter({ "PATTERN_TABLE" })
-  DebugController.log("info", "PATTERN_TABLE", "startup: category filter = PATTERN_TABLE only")
+  DebugController.init(false)
+  -- DebugController.setCategoryFilter({ "PATTERN_TABLE" })
+  -- DebugController.log("info", "PATTERN_TABLE", "startup: category filter = PATTERN_TABLE only")
 
   local ctx = self:_buildCtx()
   ctx.app = self  -- Add app reference to context
