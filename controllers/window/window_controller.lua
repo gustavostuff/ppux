@@ -1,7 +1,7 @@
 -- window_controller.lua - z-order, focus, hit-test, borders
 local DebugController    = require("controllers.dev.debug_controller")
 local StaticArtWindow    = require("user_interface.windows_system.static_art_window")
-local PatternTableBuilderWindow = require("user_interface.windows_system.pattern_table_builder_window")
+local PixelSketchCanvasWindow = require("user_interface.windows_system.pixel_sketch_canvas_window")
 local PPUFrameWindow   = require("user_interface.windows_system.ppu_frame_window")
 local AnimationWindow    = require("user_interface.windows_system.animation_window")
 local OAMAnimationWindow = require("user_interface.windows_system.oam_animation_window")
@@ -1093,10 +1093,10 @@ function WM:createSpriteWindow(opts)
   return self:finalizeNewWindow(win)
 end
 
-function WM:createPatternTableBuilderWindow(opts)
+function WM:createPatternSketchCanvasWindow(opts)
   opts = opts or {}
   local defaults = extractWindowOptions(opts)
-  defaults.title = opts.title or "Pattern Table Builder"
+  defaults.title = opts.title or "Pixel sketch"
   defaults.x = opts.x or 80
   defaults.y = opts.y or 80
   defaults.cols = opts.cols or 32
@@ -1105,7 +1105,7 @@ function WM:createPatternTableBuilderWindow(opts)
   defaults.cellH = opts.cellH or 8
   defaults.zoom = opts.zoom or 2
 
-  local win = PatternTableBuilderWindow.new(
+  local win = PixelSketchCanvasWindow.new(
     defaults.x, defaults.y,
     defaults.cellW, defaults.cellH,
     defaults.cols, defaults.rows,
@@ -1114,7 +1114,6 @@ function WM:createPatternTableBuilderWindow(opts)
       title = defaults.title,
       visibleCols = opts.visibleCols or defaults.cols,
       visibleRows = opts.visibleRows or defaults.rows,
-      patternTolerance = opts.patternTolerance or 0,
     }
   )
 

@@ -597,9 +597,6 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
     else
       entry.activeLayer = w.activeLayer or 1
       entry.layers = {}
-      if WindowCaps.isPatternTableBuilder(w) then
-        entry.patternTolerance = w.patternTolerance or 0
-      end
 
       for li = 1, #(w.layers or {}) do
         local L = w.layers[li]

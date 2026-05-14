@@ -732,7 +732,7 @@ local function loadFromProject(app, project)
     local title = tostring(
       (info and info.windowSpec and info.windowSpec.title)
       or (info and info.window and info.window.title)
-      or "Pattern Table Builder"
+      or "Pixel sketch"
     )
     local layerIndex = tonumber(info and info.layerIndex) or 0
     local reason = tostring(info and info.reason or "unknown error")
@@ -880,7 +880,7 @@ local function loadFromDBLayout(app, sha)
     local title = tostring(
       (info and info.windowSpec and info.windowSpec.title)
       or (info and info.window and info.window.title)
-      or "Pattern Table Builder"
+      or "Pixel sketch"
     )
     local layerIndex = tonumber(info and info.layerIndex) or 0
     local reason = tostring(info and info.reason or "unknown error")

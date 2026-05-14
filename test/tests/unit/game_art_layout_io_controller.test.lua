@@ -213,9 +213,9 @@ describe("game_art_layout_io_controller.lua", function()
     expect(string.find(err, "Unsupported project version", 1, true)).toNotBe(nil)
   end)
 
-  it("stores pattern builder source canvas snapshots in the layer edits field and restores them", function()
+  it("stores pattern sketch canvas snapshots in the layer edits field and restores them", function()
     local wm = require("controllers.window.window_controller").new()
-    local win = wm:createPatternTableBuilderWindow({ title = "PTB" })
+    local win = wm:createPatternSketchCanvasWindow({ title = "PTB" })
     win._id = "ptb_01"
     win.layers[1].canvas:edit(0, 0, 1)
     win.layers[1].canvas:edit(9, 0, 2)
@@ -223,12 +223,12 @@ describe("game_art_layout_io_controller.lua", function()
 
     local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1)
     local entry = snapshot.windows[1]
-    expect(entry.kind).toBe("pattern_table_builder")
+    expect(entry.kind).toBe("pattern_sketch_canvas")
+    expect(#entry.layers).toBe(1)
     expect(entry.layers[1].edits).toBeTruthy()
     expect(entry.layers[1].edits.kind).toBe("canvas_snapshot")
     expect(entry.layers[1].edits.encoding).toBe("2bpp_v1")
     expect(type(entry.layers[1].edits.data)).toBe("string")
-    expect(entry.layers[2].edits).toBeTruthy()
 
     local built = GameArtWindowBuilderController.buildWindowsFromLayout(snapshot, {
       wm = require("controllers.window.window_controller").new(),
@@ -241,17 +241,15 @@ describe("game_art_layout_io_controller.lua", function()
 
     local restored = built.windowsById["ptb_01"]
     expect(restored).toBeTruthy()
-    expect(restored.kind).toBe("pattern_table_builder")
+    expect(restored.kind).toBe("pattern_sketch_canvas")
     expect(restored.layers[1].canvas:getPixel(0, 0)).toBe(1)
     expect(restored.layers[1].canvas:getPixel(9, 0)).toBe(2)
     expect(restored.layers[1].canvas:getPixel(5, 7)).toBe(3)
-    expect(restored.layers[2].canvas:getPixel(0, 0)).toBe(1)
-    expect(restored.layers[2].canvas:getPixel(9, 0)).toBe(2)
   end)
 
-  it("reports pattern builder snapshot restore failures", function()
+  it("reports pattern sketch canvas snapshot restore failures", function()
     local wm = require("controllers.window.window_controller").new()
-    local win = wm:createPatternTableBuilderWindow({ title = "PTB Hash" })
+    local win = wm:createPatternSketchCanvasWindow({ title = "PTB Hash" })
     win._id = "ptb_hash"
     win.layers[1].canvas:edit(0, 0, 1)
 

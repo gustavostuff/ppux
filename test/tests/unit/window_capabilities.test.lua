@@ -11,6 +11,8 @@ describe("window_capabilities.lua", function()
     expect(WindowCaps.isStaticOrAnimationArt({ kind = "static_art" })).toBeTruthy()
     expect(WindowCaps.isStaticOrAnimationArt({ kind = "animation" })).toBeTruthy()
     expect(WindowCaps.isStaticOrAnimationArt({ kind = "oam_animation" })).toBeTruthy()
+    expect(WindowCaps.isStaticOrAnimationArt({ kind = "pattern_sketch_canvas" })).toBeTruthy()
+    expect(WindowCaps.isPatternSketchCanvas({ kind = "pattern_sketch_canvas" })).toBeTruthy()
     expect(WindowCaps.isStaticOrAnimationArt({ kind = "chr" })).toBeFalsy()
   end)
 

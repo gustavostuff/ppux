@@ -62,8 +62,9 @@ function M.buildWindowsFromLayout(layout, opts)
     animation = function(w)
       return GameArtWindowFactoryController.createAnimationWindow(w, tilesPool, ensureTiles)
     end,
-    pattern_table_builder = function(w)
-      return GameArtWindowFactoryController.createPatternTableBuilderWindow(
+    -- Free paint buffer; ROM-backed packed pattern UI will use kind "pattern_table" later.
+    pattern_sketch_canvas = function(w)
+      return GameArtWindowFactoryController.createPatternSketchCanvasWindow(
         w,
         decodePatternCanvasSnapshot,
         onPatternCanvasRestoreError

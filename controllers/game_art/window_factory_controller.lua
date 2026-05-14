@@ -6,7 +6,7 @@ local RomWindow = require("user_interface.windows_system.rom_window")
 local PaletteWindow = require("user_interface.windows_system.palette_window")
 local RomPaletteWindow = require("user_interface.windows_system.rom_palette_window")
 local PPUFrameWindow = require("user_interface.windows_system.ppu_frame_window")
-local PatternTableBuilderWindow = require("user_interface.windows_system.pattern_table_builder_window")
+local PixelSketchCanvasWindow = require("user_interface.windows_system.pixel_sketch_canvas_window")
 
 local SpriteController = require("controllers.sprite.sprite_controller")
 local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
@@ -495,18 +495,16 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
   return win
 end
 
-function M.createPatternTableBuilderWindow(w, decodePatternCanvasSnapshot, onPatternCanvasRestoreError)
-  local win = PatternTableBuilderWindow.new(
+function M.createPatternSketchCanvasWindow(w, decodePatternCanvasSnapshot, onPatternCanvasRestoreError)
+  local win = PixelSketchCanvasWindow.new(
     w.x, w.y, w.cellW, w.cellH, w.cols, w.rows, w.zoom, {
       title = w.title,
       visibleRows = w.visibleRows or w.rows,
       visibleCols = w.visibleCols or w.cols,
-      patternTolerance = w.patternTolerance or 0,
     }
   )
 
   win._id = w.id
-  win.kind = "pattern_table_builder"
   win.activeLayer = w.activeLayer or 1
 
   for li, Lsrc in ipairs(w.layers or {}) do
@@ -523,10 +521,6 @@ function M.createPatternTableBuilderWindow(w, decodePatternCanvasSnapshot, onPat
         })
       end
     end
-  end
-
-  if win.generatePackedPatternTable then
-    win:generatePackedPatternTable()
   end
 
   return win
