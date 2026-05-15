@@ -128,7 +128,7 @@ function M.buildWindowsFromLayout(layout, opts)
   local patternTableStartedAt = nowSeconds()
   GameArtWindowFactoryController.afterLayoutPatternTablesHydrate(wm, tilesPool, ensureTiles, {
     romRaw = romRaw,
-    appEditState = nil,
+    appEditState = opts.appEditState,
   })
   DebugController.log("info", "LOAD_PERF", "window_builder pattern_table_hydrate duration=%.3fs", nowSeconds() - patternTableStartedAt)
 

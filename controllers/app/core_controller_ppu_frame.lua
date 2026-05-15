@@ -275,12 +275,29 @@ local function collectSpritesSharingOamStartAddr(app, oldStartAddr)
 end
 
 -- Updates every non-removed sprite item sharing oldStartAddr (PPU frame + OAM windows).
-local function patchSharedOamSpriteBinding(app, oldStartAddr, bankNumber, tileNumber, oamStart)
+-- OAM-only windows (`oam_animation`): only adjust `oamStart`; ROM-backed tile byte stays `oamTile` after hydrate.
+-- When confirming from OAM CHR-hidden modal (`chrHiddenModal`): OAM sprites get `bank=nil`; PPU-frame peers only
+-- get `startAddr` updated (preserve their bank/tile modal binding).
+local function patchSharedOamSpriteBinding(app, oldStartAddr, bankNumber, tileNumber, oamStart, chrHiddenModal)
   local layersToHydrate = {}
   for _, e in ipairs(collectSpritesSharingOamStartAddr(app, oldStartAddr)) do
-    e.sprite.bank = bankNumber
-    e.sprite.tile = tileNumber
-    e.sprite.startAddr = oamStart
+    local win = e.win
+    if win and WindowCaps.isOamAnimation(win) then
+      if type(oamStart) == "number" then
+        e.sprite.startAddr = oamStart
+      end
+      e.sprite.bank = nil
+    elseif chrHiddenModal then
+      if type(oamStart) == "number" then
+        e.sprite.startAddr = oamStart
+      end
+    else
+      e.sprite.bank = bankNumber
+      e.sprite.tile = tileNumber
+      if type(oamStart) == "number" then
+        e.sprite.startAddr = oamStart
+      end
+    end
     reset8x16SpriteTilePairAfterChrEdit(e.layer, e.sprite)
     layersToHydrate[e.layer] = true
   end
@@ -332,6 +349,10 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
     initialTile = tostring(tonumber(editItem.tile) or 0)
     initialOamStart = (type(editItem.startAddr) == "number")
         and string.format("0x%06X", editItem.startAddr) or ""
+    if WindowCaps.isOamAnimation(win) then
+      initialBank = ""
+      initialTile = ""
+    end
   else
     initialBank, initialTile, initialOamStart = getInitialPpuSpriteModalValues(self)
   end
@@ -343,10 +364,12 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
     title = modalTitle,
     primaryButtonText = primaryButtonText,
     window = win,
+    chrFieldsHidden = WindowCaps.isOamAnimation(win) == true,
     initialBank = initialBank,
     initialTile = initialTile,
     initialOamStart = initialOamStart,
     onConfirm = function(bankText, tileText, oamStartText, targetWindow)
+      local chrHidden = targetWindow and WindowCaps.isOamAnimation(targetWindow)
       local spriteLayer, spriteLayerIndex = getTargetSpriteLayerForAddSprite(targetWindow)
       if not spriteLayer then
         local message = "PPU frame window is missing a sprite layer"
@@ -358,24 +381,29 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
         return false
       end
 
-      local bankNumber, bankErr = Shared.parseNonNegativeInteger(bankText, "Bank number")
-      if not bankNumber then
-        self:setStatus(bankErr)
-        self:showToast("error", bankErr)
-        return false
-      end
-      if bankNumber < 1 then
-        local message = "Bank number must be 1 or greater"
-        self:setStatus(message)
-        self:showToast("error", message)
-        return false
-      end
+      local bankNumber, tileNumber
+      if chrHidden ~= true then
+        local bn, bankErr = Shared.parseNonNegativeInteger(bankText, "Bank number")
+        if not bn then
+          self:setStatus(bankErr)
+          self:showToast("error", bankErr)
+          return false
+        end
+        bankNumber = bn
+        if bankNumber < 1 then
+          local message = "Bank number must be 1 or greater"
+          self:setStatus(message)
+          self:showToast("error", message)
+          return false
+        end
 
-      local tileNumber, tileErr = Shared.parseNonNegativeInteger(tileText, "Tile number")
-      if not tileNumber then
-        self:setStatus(tileErr)
-        self:showToast("error", tileErr)
-        return false
+        local tn, tileErr = Shared.parseNonNegativeInteger(tileText, "Tile number")
+        if not tn then
+          self:setStatus(tileErr)
+          self:showToast("error", tileErr)
+          return false
+        end
+        tileNumber = tn
       end
 
       local trimmedOam = tostring(oamStartText or ""):match("^%s*(.-)%s*$")
@@ -400,17 +428,20 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
         self:showToast("error", message)
         return false
       end
-      if not (tilesPool and tilesPool[bankNumber]) then
-        local message = string.format("CHR bank %d is not available", bankNumber)
-        self:setStatus(message)
-        self:showToast("error", message)
-        return false
-      end
-      if not tilesPool[bankNumber][tileNumber] then
-        local message = string.format("Tile %d is not available in CHR bank %d", tileNumber, bankNumber)
-        self:setStatus(message)
-        self:showToast("error", message)
-        return false
+
+      if chrHidden ~= true then
+        if not (tilesPool and tilesPool[bankNumber]) then
+          local message = string.format("CHR bank %d is not available", bankNumber)
+          self:setStatus(message)
+          self:showToast("error", message)
+          return false
+        end
+        if not tilesPool[bankNumber][tileNumber] then
+          local message = string.format("Tile %d is not available in CHR bank %d", tileNumber, bankNumber)
+          self:setStatus(message)
+          self:showToast("error", message)
+          return false
+        end
       end
 
       if isEdit then
@@ -448,8 +479,16 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
             oldStartAddr,
             bankNumber,
             tileNumber,
-            oamStart
+            oamStart,
+            chrHidden == true
           )
+        elseif chrHidden then
+          if type(oamStart) == "number" then
+            sprite.startAddr = oamStart
+          end
+          sprite.bank = nil
+          reset8x16SpriteTilePairAfterChrEdit(layer, sprite)
+          layersToHydrate[layer] = true
         else
           sprite.bank = bankNumber
           sprite.tile = tileNumber
@@ -495,7 +534,16 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
         end
 
         self:markUnsaved("sprite_move")
-        if type(oamStart) == "number" then
+        if chrHidden then
+          if type(oamStart) == "number" then
+            self:setStatus(string.format(
+              "Updated OAM-backed sprite binding at 0x%06X (tile from ROM + pattern table)",
+              oamStart
+            ))
+          else
+            self:setStatus("Updated OAM-backed sprite binding")
+          end
+        elseif type(oamStart) == "number" then
           self:setStatus(string.format(
             "Updated sprite at OAM 0x%06X (bank %d, tile %d)",
             oamStart,
@@ -513,11 +561,17 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
       end
 
       spriteLayer.items = spriteLayer.items or {}
-      table.insert(spriteLayer.items, {
-        bank = bankNumber,
-        startAddr = oamStart,
-        tile = tileNumber,
-      })
+      if chrHidden then
+        table.insert(spriteLayer.items, {
+          startAddr = oamStart,
+        })
+      else
+        table.insert(spriteLayer.items, {
+          bank = bankNumber,
+          startAddr = oamStart,
+          tile = tileNumber,
+        })
+      end
 
       SpriteController.hydrateSpriteLayer(spriteLayer, {
         romRaw = romRaw,
@@ -572,12 +626,19 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
       end
 
       self:markUnsaved("sprite_move")
-      self:setStatus(string.format(
-        "Added sprite from OAM 0x%06X on bank %d tile %d",
-        oamStart,
-        bankNumber,
-        tileNumber
-      ))
+      if chrHidden then
+        self:setStatus(string.format(
+          "Added OAM-backed sprite at 0x%06X (CHR from ROM tile byte + pattern table)",
+          oamStart
+        ))
+      else
+        self:setStatus(string.format(
+          "Added sprite from OAM 0x%06X on bank %d tile %d",
+          oamStart,
+          bankNumber,
+          tileNumber
+        ))
+      end
       return true
     end,
   })

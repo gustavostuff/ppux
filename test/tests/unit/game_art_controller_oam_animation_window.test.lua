@@ -513,4 +513,42 @@ describe("game_art_controller.lua - oam_animation hydration", function()
     expect(readErr).toBeNil()
     expect(out[3]).toBe(0x00) -- mirrorX cleared from attr bit 6
   end)
+
+  it("drops stale Lua bank/tile CHR binding when ROM OAM resolves through valid patternTable", function()
+    local startAddr = 10
+    local romRaw = makeRom(128, {
+      [startAddr + 0] = 0,
+      [startAddr + 1] = 42, -- logical pattern index written to ROM byte 2
+      [startAddr + 2] = 0,
+      [startAddr + 3] = 0,
+    })
+    local rightTile = { _bankIndex = 2, index = 42, pixels = {}, __marker = "pattern_mapped" }
+    local wrongTile = { _bankIndex = 99, index = 111, pixels = {}, __marker = "stale_lua" }
+    local tilesPool = {
+      [2] = { [42] = rightTile },
+      [99] = { [111] = wrongTile },
+    }
+
+    local layer = {
+      kind = "sprite",
+      mode = "8x8",
+      patternTable = {
+        ranges = { { bank = 2, page = 1, from = 0, to = 255 } },
+      },
+      items = {
+        {
+          startAddr = startAddr,
+          bank = 99,
+          tile = 111,
+        },
+      },
+    }
+
+    SpriteController.hydrateSpriteLayer(layer, { romRaw = romRaw, tilesPool = tilesPool })
+    local s = layer.items[1]
+    expect(s.bank).toBeNil()
+    expect(s.tile).toBe(42)
+    expect(s.oamTile).toBe(42)
+    expect(s.topRef).toBe(rightTile)
+  end)
 end)

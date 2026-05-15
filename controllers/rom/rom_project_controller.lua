@@ -756,6 +756,7 @@ local function loadFromProject(app, project)
     tilesPool   = state.tilesPool,
     ensureTiles = function(bankIdx) ensureBankTilesInner(state, bankIdx) end,
     romRaw      = state.romRaw,
+    appEditState = state,
     chrBackingMode = ChrBackingController.getMode(state),
     onPatternCanvasRestoreError = onPatternCanvasRestoreError,
   })

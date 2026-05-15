@@ -110,12 +110,16 @@ function M.drawDefaultSpriteBody(L, s, isActiveLayer, cw, ch, mode, layerOpacity
   )
 
   local top = s.topRef
-  if mode == "8x16" and (not top or not s.botRef) then
+  local needRefs =
+    mode == "8x16"
+      and (not top or not s.botRef)
+      or (mode ~= "8x16" and not top)
+  if needRefs then
     local ctx = rawget(_G, "ctx")
     local app = ctx and ctx.app or nil
     local state = app and app.appEditState or nil
     if state and state.tilesPool then
-      SpriteHydrationController.ensureTileRefsForSpriteItem(s, mode, state.tilesPool, state)
+      SpriteHydrationController.ensureTileRefsForSpriteItem(s, mode, state.tilesPool, state, L)
       top = s.topRef
     end
   end

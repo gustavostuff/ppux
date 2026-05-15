@@ -360,6 +360,7 @@ function AppCoreController:cloneFocusedWindow()
       BankViewController.ensureBankTiles(state, bankIdx)
     end,
     romRaw = state and state.romRaw or "",
+    appEditState = state,
     chrBackingMode = ChrBackingController.getMode(state),
   })
 
@@ -933,6 +934,16 @@ function AppCoreController:_afterPatternTableLinkChange(contentWin, layerIndex)
     }, { keepActiveLayer = true })
   end
   PatternTableDisplayController.invalidateConsumersUsingPatternTable(self, layer.patternTable)
+
+  if layer.kind == "sprite" and self.appEditState then
+    local SpriteController = require("controllers.sprite.sprite_controller")
+    SpriteController.hydrateSpriteLayer(layer, {
+      romRaw = self.appEditState.romRaw or "",
+      tilesPool = self.appEditState.tilesPool,
+      appEditState = self.appEditState,
+    })
+  end
+
   if contentWin.specializedToolbar and contentWin.specializedToolbar.updateIcons then
     contentWin.specializedToolbar:updateIcons()
   end

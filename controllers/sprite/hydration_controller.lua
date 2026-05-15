@@ -4,6 +4,7 @@
 local chr = require("chr")
 local Tile = require("user_interface.windows_system.tile_item")
 local TableUtils = require("utils.table_utils")
+local PatternTableMapping = require("utils.pattern_table_mapping")
 
 local M = {}
 
@@ -22,6 +23,30 @@ local function resolve8x16Pair(tileIndex, tileBelow)
   -- The top tile index is always even, with the bottom tile at +1.
   topIndex = topIndex - (topIndex % 2)
   return topIndex, topIndex + 1
+end
+
+-- NES 8x16 OAM uses an even logical pattern index (0–255) with the bottom half at +1.
+local function resolve8x16PairLogical(tileIndex, tileBelow)
+  local topIdx = tonumber(tileIndex)
+  if type(topIdx) ~= "number" then
+    return nil, nil
+  end
+  topIdx = math.floor(topIdx % 256)
+  if topIdx < 0 then topIdx = topIdx + 256 end
+
+  local belowIdx = tonumber(tileBelow)
+  if type(belowIdx) == "number" then
+    belowIdx = math.floor(belowIdx % 256)
+    if belowIdx < 0 then belowIdx = belowIdx + 256 end
+    return topIdx, belowIdx
+  end
+
+  local evenTop = topIdx - (topIdx % 2)
+  local botLogical = evenTop + 1
+  if botLogical > 255 then
+    botLogical = 255
+  end
+  return evenTop, botLogical
 end
 
 local function getAppEditStateHint(overrideState)
@@ -55,9 +80,45 @@ local function resolveTileRef(tilesPool, appEditState, bankIndex, tileIndex)
   return created
 end
 
--- Resolve tile references for a sprite item using tilesPool[bank][tileIndex]
-function M.ensureTileRefsForSpriteItem(item, layerMode, tilesPool, appEditState)
-  if not (item and item.bank and item.tile and tilesPool) then return end
+-- Resolve tile refs: CHR/bank path uses tilesPool[bank][tileIndex] only when ROM OAM sprites have no
+-- valid layer pattern map (legacy). Normal OAM + pattern-table layers: ROM byte 2 is the logical
+-- pattern-table index (same 256-slot ordering as populateTileLayerItemsFromPatternTable).
+function M.ensureTileRefsForSpriteItem(item, layerMode, tilesPool, appEditState, layer)
+  if not (item and tilesPool) then
+    return
+  end
+
+  local usePatternTable = type(item.startAddr) == "number"
+      and layer ~= nil
+      and PatternTableMapping.validate(layer.patternTable)
+
+  if usePatternTable then
+    if layerMode == "8x16" then
+      local topLogical, botLogical = resolve8x16PairLogical(item.tile, item.tileBelow)
+      if topLogical == nil then
+        item.topRef = nil
+        item.botRef = nil
+        return
+      end
+      item.tile = topLogical
+      item.tileBelow = botLogical
+      item.topRef = select(1, PatternTableMapping.resolveTile(tilesPool, layer, topLogical))
+      item.botRef = select(1, PatternTableMapping.resolveTile(tilesPool, layer, botLogical))
+    else
+      local lg = tonumber(item.tile) or 0
+      lg = math.floor(lg % 256)
+      if lg < 0 then lg = lg + 256 end
+      item.tile = lg
+      item.tileBelow = nil
+      item.topRef = select(1, PatternTableMapping.resolveTile(tilesPool, layer, lg))
+      item.botRef = nil
+    end
+    return
+  end
+
+  if not (item.bank and item.tile) then
+    return
+  end
 
   if layerMode == "8x16" then
     local topIndex, belowIndex = resolve8x16Pair(item.tile, item.tileBelow)
@@ -122,8 +183,18 @@ function M.hydrateSpriteLayer(layer, opts)
         s.baseX = baseX
         s.baseY = baseY
         s.oamTile = baseTile
-        if s.tile == nil then
+        local layerPtOk = PatternTableMapping.validate(layer.patternTable)
+        if layerPtOk then
+          -- Stale `{ bank, tile }` from Lua / old projects must not drive CHR once a sprite layer
+          -- pattern map exists — ROM byte 2 selects the mapped tile grid slot.
+          s.bank = nil
           s.tile = baseTile
+        else
+          if s.bank == nil then
+            s.tile = baseTile
+          elseif s.tile == nil then
+            s.tile = baseTile
+          end
         end
         s.attr = attr
         s.paletteNumber = palNum
@@ -164,7 +235,7 @@ function M.hydrateSpriteLayer(layer, opts)
       s.hasMoved = false
     end
 
-    M.ensureTileRefsForSpriteItem(s, mode, tilesPool, opts.appEditState)
+    M.ensureTileRefsForSpriteItem(s, mode, tilesPool, opts.appEditState, layer)
 
     if s.mirrorX == nil then s.mirrorX = false end
     if s.mirrorY == nil then s.mirrorY = false end
@@ -197,13 +268,15 @@ function M.snapshotSpriteLayer(layer)
     end
 
     local entry = {
-      bank = s.bank,
-      tile = s.tile,
       paletteNumber = s.paletteNumber,
     }
 
     if s.startAddr then
       entry.startAddr = s.startAddr
+      if s.bank ~= nil then
+        entry.bank = s.bank
+        entry.tile = s.tile
+      end
       if s._mirrorXOverrideSet == true then
         entry.mirrorX = (s.mirrorX == true)
       end
@@ -217,6 +290,8 @@ function M.snapshotSpriteLayer(layer)
         entry.dy = dy
       end
     else
+      entry.bank = s.bank
+      entry.tile = s.tile
       entry.mirrorX = (s.mirrorX ~= nil) and s.mirrorX or nil
       entry.mirrorY = (s.mirrorY ~= nil) and s.mirrorY or nil
       entry.x = s.x or s.worldX or 0

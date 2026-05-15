@@ -36,6 +36,7 @@ function M.captureSpriteBindingState(sprite)
   return {
     bank = sprite.bank,
     tile = sprite.tile,
+    oamTile = sprite.oamTile,
     startAddr = sprite.startAddr,
     tileBelow = sprite.tileBelow,
   }
@@ -47,6 +48,7 @@ function M.bindingStatesEqual(a, b)
   end
   return a.bank == b.bank
     and a.tile == b.tile
+    and a.oamTile == b.oamTile
     and a.startAddr == b.startAddr
     and a.tileBelow == b.tileBelow
 end

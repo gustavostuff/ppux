@@ -7,9 +7,12 @@ local Dialog = {}
 Dialog.__index = Dialog
 
 local function rebuildPanel(self)
+  local chrHidden = self.chrFieldsHidden == true
+  local rows = chrHidden and 3 or 5
+
   self.panel = Panel.new({
     cols = 2,
-    rows = 5,
+    rows = rows,
     cellW = self.cellW,
     cellH = self.cellH,
     padding = self.padding,
@@ -25,15 +28,26 @@ local function rebuildPanel(self)
     _modalChromeOverBlue = self._modalChromeOverBlue == true,
   })
 
-  self.panel:setCell(1, 1, { text = "Bank:" })
-  self.panel:setCell(2, 1, { component = self.bankField })
-  self.panel:setCell(1, 2, { text = "Tile number:" })
-  self.panel:setCell(2, 2, { component = self.tileField })
-  self.panel:setCell(1, 3, { text = "OAM start:" })
-  self.panel:setCell(2, 3, { component = self.oamStartField })
-  self.panel:setCell(1, 4, { component = self.addButton })
-  self.panel:setCell(2, 4, { component = self.cancelButton })
-  self.panel:setCell(1, 5, { text = "Esc) Close", colspan = 2 })
+  local r = 1
+  if not chrHidden then
+    self.panel:setCell(1, r, { text = "Bank:" })
+    self.panel:setCell(2, r, { component = self.bankField })
+    r = r + 1
+
+    self.panel:setCell(1, r, { text = "Tile number:" })
+    self.panel:setCell(2, r, { component = self.tileField })
+    r = r + 1
+  end
+
+  self.panel:setCell(1, r, { text = "OAM start:" })
+  self.panel:setCell(2, r, { component = self.oamStartField })
+  r = r + 1
+
+  self.panel:setCell(1, r, { component = self.addButton })
+  self.panel:setCell(2, r, { component = self.cancelButton })
+  r = r + 1
+
+  self.panel:setCell(1, r, { text = "Esc) Close", colspan = 2 })
 end
 
 function Dialog.new()
@@ -54,6 +68,7 @@ function Dialog.new()
     onConfirm = nil,
     onCancel = nil,
     targetWindow = nil,
+    chrFieldsHidden = false,
     panel = nil,
     _focusIndex = 1,
   }, Dialog)
@@ -101,6 +116,14 @@ function Dialog:isVisible()
 end
 
 function Dialog:_setFocus(index)
+  if self.chrFieldsHidden then
+    self._focusIndex = 1
+    self.bankField:setFocused(false)
+    self.tileField:setFocused(false)
+    self.oamStartField:setFocused(true)
+    return
+  end
+
   self._focusIndex = math.max(1, math.min(3, tonumber(index) or 1))
   self.bankField:setFocused(self._focusIndex == 1)
   self.tileField:setFocused(self._focusIndex == 2)
@@ -108,6 +131,9 @@ function Dialog:_setFocus(index)
 end
 
 function Dialog:_focusNext()
+  if self.chrFieldsHidden then
+    return
+  end
   self:_setFocus((self._focusIndex % 3) + 1)
 end
 
@@ -118,6 +144,7 @@ function Dialog:show(opts)
   self.onConfirm = opts.onConfirm
   self.onCancel = opts.onCancel
   self.visible = true
+  self.chrFieldsHidden = opts.chrFieldsHidden == true
 
   self.addButton.text = opts.primaryButtonText or "Add"
 
@@ -142,6 +169,7 @@ function Dialog:hide()
   self.onConfirm = nil
   self.onCancel = nil
   self.targetWindow = nil
+  self.chrFieldsHidden = false
   if self.panel then
     self.panel:setVisible(false)
   end
@@ -238,12 +266,18 @@ function Dialog:mousepressed(x, y, button)
     return true
   end
 
-  if self.bankField:contains(x, y) then
-    self:_setFocus(1)
-  elseif self.tileField:contains(x, y) then
-    self:_setFocus(2)
-  elseif self.oamStartField:contains(x, y) then
-    self:_setFocus(3)
+  if not self.chrFieldsHidden then
+    if self.bankField:contains(x, y) then
+      self:_setFocus(1)
+    elseif self.tileField:contains(x, y) then
+      self:_setFocus(2)
+    elseif self.oamStartField:contains(x, y) then
+      self:_setFocus(3)
+    end
+  else
+    if self.oamStartField:contains(x, y) then
+      self:_setFocus(1)
+    end
   end
 
   return self.panel and self.panel:mousepressed(x, y, button) or true

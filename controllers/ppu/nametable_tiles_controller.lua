@@ -535,7 +535,13 @@ function M.hydrateWindowNametable(win, layer, opts)
   local li = findLayerIndex(win, layer) or 1
 
   if type(opts.patternTable) == "table" then
-    layer.patternTable = TableUtils.deepcopy(opts.patternTable)
+    local linkedPtId =
+      type(layer.linkedPatternTableWindowId) == "string" and layer.linkedPatternTableWindowId ~= ""
+    if linkedPtId then
+      layer.patternTable = opts.patternTable
+    else
+      layer.patternTable = TableUtils.deepcopy(opts.patternTable)
+    end
   end
   if type(layer.patternTable) ~= "table" then
     layer.patternTable = {}

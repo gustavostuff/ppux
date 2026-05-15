@@ -1,6 +1,7 @@
 -- sprite_rom_persistence_controller.lua
 -- Writes sprite OAM-backed displacements/attributes back into ROM bytes.
-
+-- For ROM-backed sprites with no overlay `bank`, the persisted tile byte is the pattern-table logical
+-- index (matching the linked pattern_table window ordering), consistent with hydrate + resolveTile.
 local chr = require("chr")
 
 local M = {}

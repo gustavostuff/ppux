@@ -218,7 +218,8 @@ function M.unlinkAllOamSpriteLayersPatternTable(contentWin)
   return true
 end
 
---- After editing a shared patternTable table in-place (same table ref), refresh PPU runtime ref layers.
+--- After editing a shared patternTable table in-place (same table ref), refresh PPU runtime ref layers,
+--- nametable CHR cells, and any linked sprite layers that resolve ROM OAM tiles through this map.
 function M.invalidateConsumersUsingPatternTable(app, patternTableRef)
   if not (app and patternTableRef and app.wm and app.wm.getWindows) then
     return
@@ -226,12 +227,35 @@ function M.invalidateConsumersUsingPatternTable(app, patternTableRef)
   if type(patternTableRef) ~= "table" then
     return
   end
-  if type(app._ensurePpuPatternTableReferenceLayer) ~= "function" then
-    return
+
+  local SpriteController = require("controllers.sprite.sprite_controller")
+  local state = app.appEditState or {}
+  local romRaw = type(state.romRaw) == "string" and state.romRaw or ""
+  local tilesPool = state.tilesPool
+
+  local function hydrateLinkedSprite(layer)
+    if layer and layer.kind == "sprite" and layer.patternTable == patternTableRef then
+      SpriteController.hydrateSpriteLayer(layer, {
+        romRaw = romRaw,
+        tilesPool = tilesPool,
+        appEditState = state,
+      })
+    end
   end
 
   for _, win in ipairs(app.wm:getWindows()) do
-    if win and win.layers and WindowCaps.isPpuFrame(win) then
+    if not (win and win.layers) then
+      goto continue
+    end
+
+    if WindowCaps.isOamAnimation(win) then
+      for _, layer in ipairs(win.layers) do
+        hydrateLinkedSprite(layer)
+      end
+      goto continue
+    end
+
+    if WindowCaps.isPpuFrame(win) and type(app._ensurePpuPatternTableReferenceLayer) == "function" then
       for li, layer in ipairs(win.layers) do
         if layer
           and layer.kind == "tile"
@@ -246,6 +270,27 @@ function M.invalidateConsumersUsingPatternTable(app, patternTableRef)
         end
       end
     end
+
+    if WindowCaps.isPpuFrame(win) and type(tilesPool) == "table" and type(win.refreshNametableVisuals) == "function" then
+      for li, layer in ipairs(win.layers) do
+        if layer
+          and layer.kind == "tile"
+          and layer._runtimePatternTableRefLayer ~= true
+          and layer.patternTable == patternTableRef
+          and type(layer.nametableStartAddr) == "number"
+          and type(layer.nametableEndAddr) == "number"
+        then
+          win:refreshNametableVisuals(tilesPool, li)
+        end
+        hydrateLinkedSprite(layer)
+      end
+    elseif WindowCaps.isPpuFrame(win) then
+      for _, layer in ipairs(win.layers) do
+        hydrateLinkedSprite(layer)
+      end
+    end
+
+    ::continue::
   end
 end
 
