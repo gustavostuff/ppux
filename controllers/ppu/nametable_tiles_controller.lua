@@ -20,6 +20,7 @@ local TableUtils     = require("utils.table_utils")
 local DebugController   = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local PatternTableMapping = require("utils.pattern_table_mapping")
+local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 
 local M = {}
 
@@ -118,9 +119,7 @@ local function ensurePatternTableBanks(patternTable, ensureTiles)
 
   if type(patternTable) == "table" and type(patternTable.ranges) == "table" then
     for _, r in ipairs(patternTable.ranges) do
-      if type(r) == "table" then
-        ensureOne(r.bank)
-      end
+      PpuRange.foreachBankInPatternRange(r, ensureOne)
     end
   end
 end

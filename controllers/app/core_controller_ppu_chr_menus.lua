@@ -108,10 +108,12 @@ function AppCoreController:_ensurePpuPatternTableReferenceLayer(context, opts)
   end
   if self.appEditState and self.appEditState.chrBanksBytes and type(layer.patternTable.ranges) == "table" then
     for _, r in ipairs(layer.patternTable.ranges) do
-      local bank = type(r) == "table" and tonumber(r.bank) or nil
-      if bank and self.appEditState.chrBanksBytes[bank] then
-        BankViewController.ensureBankTiles(self.appEditState, bank)
-      end
+      PpuRange.foreachBankInPatternRange(r, function(bank)
+        bank = tonumber(bank)
+        if bank and self.appEditState.chrBanksBytes[bank] then
+          BankViewController.ensureBankTiles(self.appEditState, bank)
+        end
+      end)
     end
     tilesPool = self.appEditState.tilesPool or tilesPool
   end
@@ -365,9 +367,8 @@ function AppCoreController:_removeTileRangeFromPatternTableLayer(targetWin, targ
   local cursor = 0
   local removeIndex = nil
   for i, range in ipairs(ranges) do
-    local from, to = PpuRange.parsePatternRangeBounds(range)
-    if from ~= nil and to ~= nil then
-      local len = to - from + 1
+    local len, cerr = PpuRange.patternRangeLogicalLength(range)
+    if cerr == nil and type(len) == "number" then
       if idx >= cursor and idx < (cursor + len) then
         removeIndex = i
         break

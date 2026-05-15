@@ -57,18 +57,22 @@ function M.populateTileLayerItemsFromPatternTable(win, layerIndex, opts)
   local state = getEditState(opts)
   if state and state.chrBanksBytes and type(layer.patternTable.ranges) == "table" then
     for _, r in ipairs(layer.patternTable.ranges) do
-      local bank = type(r) == "table" and tonumber(r.bank) or nil
-      if bank and state.chrBanksBytes[bank] then
-        BankViewController.ensureBankTiles(state, bank)
-      end
+      PpuRange.foreachBankInPatternRange(r, function(bank)
+        bank = tonumber(bank)
+        if bank and state.chrBanksBytes[bank] then
+          BankViewController.ensureBankTiles(state, bank)
+        end
+      end)
     end
   end
   if opts and type(opts.ensureTiles) == "function" and type(layer.patternTable.ranges) == "table" then
     for _, r in ipairs(layer.patternTable.ranges) do
-      local bank = type(r) == "table" and tonumber(r.bank) or nil
-      if bank then
-        pcall(opts.ensureTiles, bank)
-      end
+      PpuRange.foreachBankInPatternRange(r, function(bank)
+        bank = tonumber(bank)
+        if bank then
+          pcall(opts.ensureTiles, bank)
+        end
+      end)
     end
   end
 
@@ -95,6 +99,38 @@ function M.populateTileLayerItemsFromPatternTable(win, layerIndex, opts)
     win:invalidateTileLayerCanvas(layerIndex)
   end
   return true
+end
+
+--- Toggle CHR grid ordering between 8×8 row-major vs 8×16 vertical pairs (`BankViewController` mapping).
+--- @return `"8×8"|"8×16 pairs"|nil`
+function M.toggleTileLayerChrLayout(win, layerIndex, app)
+  layerIndex = math.floor(tonumber(layerIndex) or 1)
+  local layer = win and win.layers and win.layers[layerIndex]
+  if not (layer and layer.kind == "tile") then
+    return nil
+  end
+
+  local m = layer.mode or "8x8"
+  local was16 = (m == "8x16" or m == "oddEven")
+  layer.mode = was16 and "8x8" or "8x16"
+
+  local pool = app and app.appEditState and app.appEditState.tilesPool
+  if pool then
+    M.populateTileLayerItemsFromPatternTable(win, layerIndex, {
+      tilesPool = pool,
+      appEditState = app and app.appEditState,
+      ensureTiles = function(bankIdx)
+        local st = app and app.appEditState
+        if st and st.chrBanksBytes and st.chrBanksBytes[bankIdx] then
+          BankViewController.ensureBankTiles(st, bankIdx)
+        end
+      end,
+    })
+  elseif win.invalidateTileLayerCanvas then
+    win:invalidateTileLayerCanvas(layerIndex)
+  end
+
+  return ((layer.mode or "8x8") == "8x16") and "8x16 pairs" or "8x8"
 end
 
 function M.resolveLinkedPatternTableLayers(wm)

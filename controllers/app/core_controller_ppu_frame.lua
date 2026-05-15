@@ -996,9 +996,18 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
       layer.patternTable = type(layer.patternTable) == "table" and layer.patternTable or {}
       layer.patternTable.ranges = type(layer.patternTable.ranges) == "table" and layer.patternTable.ranges or {}
       local currentTotal = PpuRange.patternTableLogicalSize(layer.patternTable) or 0
-      local nextTotal = currentTotal + (toTile - fromTile + 1)
+      local span = (toTile - fromTile + 1)
+      local parityOkModal, parityErrModal = PpuRange.patternTableAppendChrParityOk(layer, currentTotal, span)
+      if not parityOkModal then
+        local message = parityErrModal or "Pattern table tiling check failed"
+        self:setStatus(message)
+        self:showToast("error", message)
+        activatePatternLayerView()
+        return false
+      end
+      local nextTotal = currentTotal + span
       if nextTotal > 256 then
-        local message = string.format("Range exceeds 256 logical tiles (%d/256)", nextTotal)
+        local message = string.format("Range exceeds pattern table CHR capacity (%d/256 tiles)", nextTotal)
         self:setStatus(message)
         self:showToast("error", message)
         activatePatternLayerView()
@@ -1150,11 +1159,13 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
   if state.chrBanksBytes and type(layer.patternTable) == "table" and type(layer.patternTable.ranges) == "table" then
     local ensuredBanks = {}
     for _, range in ipairs(layer.patternTable.ranges) do
-      local bankIndex = type(range) == "table" and tonumber(range.bank) or nil
-      if bankIndex and bankIndex >= 1 and not ensuredBanks[bankIndex] and state.chrBanksBytes[bankIndex] then
-        ensuredBanks[bankIndex] = true
-        BankViewController.ensureBankTiles(state, bankIndex)
-      end
+      PpuRange.foreachBankInPatternRange(range, function(bankIndex)
+        local b = tonumber(bankIndex)
+        if b and b >= 1 and not ensuredBanks[b] and state.chrBanksBytes[b] then
+          ensuredBanks[b] = true
+          BankViewController.ensureBankTiles(state, b)
+        end
+      end)
     end
   end
 
@@ -1189,4 +1200,153 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
   return true
 end
 
+function AppCoreController:_refreshPatternTableWindowLayer(dstWin, layerIndex)
+  if not WindowCaps.isPatternTable(dstWin) then
+    return false
+  end
+  layerIndex = math.floor(tonumber(layerIndex) or 1)
+  local layerRef = dstWin.layers and dstWin.layers[layerIndex]
+  if not (layerRef and layerRef.kind == "tile") then
+    return false
+  end
+  PatternTableDisplayController.populateTileLayerItemsFromPatternTable(dstWin, layerIndex, {
+    tilesPool = self.appEditState and self.appEditState.tilesPool,
+    ensureTiles = function(bankIdx)
+      local st = self.appEditState
+      if st and st.chrBanksBytes and st.chrBanksBytes[bankIdx] then
+        BankViewController.ensureBankTiles(st, bankIdx)
+      end
+    end,
+    appEditState = self.appEditState,
+  })
+  PatternTableDisplayController.invalidateConsumersUsingPatternTable(self, layerRef.patternTable)
+  if dstWin.invalidateTileLayerCanvas then
+    dstWin:invalidateTileLayerCanvas(layerIndex)
+  end
+  if dstWin.specializedToolbar and dstWin.specializedToolbar.updateIcons then
+    dstWin.specializedToolbar:updateIcons()
+  end
+  return true
 end
+
+--- Restore standalone pattern-table window tile mapping from a persisted snapshot (undo/redo).
+function AppCoreController:applyPatternTableWindowPatternSnapshot(dstWin, layerIndex, patternTableSnapshot)
+  if not WindowCaps.isPatternTable(dstWin) then
+    return false
+  end
+  layerIndex = math.floor(tonumber(layerIndex) or 1)
+  local layerRef = dstWin.layers and dstWin.layers[layerIndex]
+  if not (layerRef and layerRef.kind == "tile") then
+    return false
+  end
+  layerRef.patternTable = TableUtils.deepcopy(patternTableSnapshot)
+  local ok = self:_refreshPatternTableWindowLayer(dstWin, layerIndex)
+  local total = select(1, PpuRange.patternTableLogicalSize(layerRef.patternTable))
+  if type(total) == "number" then
+    self:setStatus(string.format("Pattern table: %d/256 CHR slots", total))
+  end
+  return ok
+end
+
+--- Append CHR/ROM grouped selection as pattern-table ranges (drag-drop). Validates like the Add tile range modal.
+function AppCoreController:applyChrTileGroupToPatternTableWindow(dstWin, drag)
+  if not (WindowCaps.isPatternTable(dstWin) and drag and drag.tileGroup and drag.srcWin) then
+    return false
+  end
+
+  local layerIndex = 1
+  local layer = dstWin.layers and dstWin.layers[layerIndex]
+  if not (layer and layer.kind == "tile") then
+    local message = "Pattern table window is missing its tile layer"
+    self:setStatus(message)
+    self:showToast("error", message)
+    return false
+  end
+
+  if not PpuRange.chrLayoutMatchesPatternTableLayer(drag.srcWin, layer) then
+    local message = "CHR tile layout must match the pattern table (both 8×8 rows or both 8×16 pairs)"
+    self:setStatus(message)
+    self:showToast("warning", message)
+    return false
+  end
+
+  local plannedRanges, addCount, planErr = PpuRange.planPatternRangesFromChrTileGroup(
+    drag.srcWin,
+    drag.srcLayer or 1,
+    drag.tileGroup
+  )
+  if planErr then
+    self:setStatus(planErr)
+    self:showToast("error", planErr)
+    return false
+  end
+  if not (plannedRanges and #plannedRanges > 0 and type(addCount) == "number" and addCount > 0) then
+    local message = "No CHR tiles to add"
+    self:setStatus(message)
+    self:showToast("error", message)
+    return false
+  end
+
+  layer.patternTable = type(layer.patternTable) == "table" and layer.patternTable or {}
+  layer.patternTable.ranges = type(layer.patternTable.ranges) == "table" and layer.patternTable.ranges or {}
+
+  local beforeUndoRanges = TableUtils.deepcopy(layer.patternTable)
+
+  local currentTotal, cerr = PpuRange.patternTableLogicalSize(layer.patternTable)
+  if cerr then
+    self:setStatus(cerr)
+    self:showToast("error", cerr)
+    return false
+  end
+
+  local parityOk, parityErr = PpuRange.patternTableAppendChrParityOk(layer, currentTotal, addCount)
+  if not parityOk then
+    self:setStatus(parityErr)
+    self:showToast("error", parityErr or "")
+    return false
+  end
+
+  local nextTotal = currentTotal + addCount
+  if nextTotal > 256 then
+    local message = string.format("Range exceeds pattern table CHR capacity (%d/256 tiles)", nextTotal)
+    self:setStatus(message)
+    self:showToast("error", message)
+    return false
+  end
+
+  for ri, rng in ipairs(plannedRanges) do
+    local verr = PpuRange.validatePatternRangeAppendShape(rng, ri)
+    if verr then
+      self:setStatus(verr)
+      self:showToast("error", verr)
+      return false
+    end
+  end
+
+  for _, rng in ipairs(plannedRanges) do
+    layer.patternTable.ranges[#layer.patternTable.ranges + 1] = TableUtils.deepcopy(rng)
+  end
+
+  self:_refreshPatternTableWindowLayer(dstWin, layerIndex)
+
+  if self.undoRedo and type(self.undoRedo.addPatternTableAppendEvent) == "function" then
+    self.undoRedo:addPatternTableAppendEvent({
+      type = "pattern_table_append",
+      win = dstWin,
+      layerIndex = layerIndex,
+      beforePatternTable = beforeUndoRanges,
+      afterPatternTable = TableUtils.deepcopy(layer.patternTable),
+    })
+  end
+
+  local total = select(1, PpuRange.patternTableLogicalSize(layer.patternTable))
+  if total == 256 then
+    self:showToast("success", "Pattern table ranges complete (256/256).")
+  end
+
+  self:setStatus(string.format("Appended %d CHR tile(s) to pattern table (%d/256)", addCount, tonumber(total) or 0))
+  return true
+end
+
+end
+

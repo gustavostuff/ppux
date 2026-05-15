@@ -371,6 +371,28 @@ function UndoRedoController:addPpuFrameRangeEvent(event)
   return pushed
 end
 
+--- Standalone pattern table window: append ranges via CHR drag-drop (logical snapshot before / after append).
+function UndoRedoController:addPatternTableAppendEvent(event)
+  if not event or event.type ~= "pattern_table_append" or not event.win then
+    return false
+  end
+  if type(event.beforePatternTable) ~= "table" or type(event.afterPatternTable) ~= "table" then
+    return false
+  end
+  local stored = {
+    type = "pattern_table_append",
+    win = event.win,
+    layerIndex = math.floor(tonumber(event.layerIndex) or 1),
+    beforePatternTable = TableUtils.deepcopy(event.beforePatternTable),
+    afterPatternTable = TableUtils.deepcopy(event.afterPatternTable),
+  }
+  local pushed = self:_pushEvent(stored)
+  if pushed then
+    self:_notifyUnsaved("pattern_table_append")
+  end
+  return pushed
+end
+
 -- Menu "Undo pixel edits": before = CHR bytes before revert, after = baseline bytes (from originalChrBanksBytes).
 -- Undo (Ctrl+Z) restores before; redo (Ctrl+Y) restores after.
 function UndoRedoController:addChrTileRevertEvent(event)
@@ -674,6 +696,19 @@ local function applyPpuFrameRangeEvent(event, direction, app)
   end
 
   return app:applyPpuFrameRangeState(state)
+end
+
+local function applyPatternTableAppendEvent(event, direction, app)
+  if not (event and event.type == "pattern_table_append" and app and app.applyPatternTableWindowPatternSnapshot) then
+    return false
+  end
+  local win = event.win
+  if win and win._closed then
+    return false
+  end
+  local snap = (direction == "undo") and event.beforePatternTable or event.afterPatternTable
+  local li = math.floor(tonumber(event.layerIndex) or 1)
+  return app:applyPatternTableWindowPatternSnapshot(win, li, snap)
 end
 
 local function applySpriteState(sprite, state)
@@ -1320,6 +1355,8 @@ function UndoRedoController:_applyEvent(event, direction, app)
     return applyWindowCreateEvent(event, direction, app)
   elseif event.type == "ppu_frame_range" then
     return applyPpuFrameRangeEvent(event, direction, app)
+  elseif event.type == "pattern_table_append" then
+    return applyPatternTableAppendEvent(event, direction, app)
   elseif event.type == "animation_window_state" then
     local snap = (direction == "undo") and event.beforeState or event.afterState
     if not (event.win and snap) then

@@ -2,6 +2,7 @@
 -- and core_controller_ppu_chr_menus (must not rely on mixin load order).
 
 local TableUtils = require("utils.table_utils")
+local BankViewController = require("controllers.chr.bank_view_controller")
 
 local M = {}
 
@@ -41,6 +42,102 @@ function M.parsePatternRangeBounds(range)
   return from, to
 end
 
+--- One logical "range" row may list explicit `{ bank, page, byte }` tiles (CHR multi-drop), instead of
+--- a single bank+page plus contiguous `from`..`to` (modal / legacy).
+function M.patternRangeUsesExplicitTiles(range)
+  return type(range) == "table" and type(range.tiles) == "table" and #range.tiles > 0
+end
+
+local function explicitTileBankPageByte(t, idxForErr)
+  if type(t) ~= "table" then
+    return nil, nil, nil, (idxForErr and string.format("tiles[%d] is not a table", idxForErr)) or "invalid tile"
+  end
+  local bank = math.floor(tonumber(t.bank) or -1)
+  local page = math.floor(tonumber(t.page) or -1)
+  local byteRaw = t.byte
+  if byteRaw == nil and t.tileByte ~= nil then
+    byteRaw = t.tileByte
+  end
+  local byte = math.floor(tonumber(byteRaw) or -1)
+  if bank < 1 then
+    return nil, nil, nil, (idxForErr and string.format("tiles[%d] has invalid bank", idxForErr)) or "invalid bank"
+  end
+  if page ~= 1 and page ~= 2 then
+    return nil, nil, nil, (idxForErr and string.format("tiles[%d] has invalid page", idxForErr)) or "invalid page"
+  end
+  if byte < 0 or byte > 255 then
+    return nil, nil, nil, (idxForErr and string.format("tiles[%d] has invalid byte", idxForErr)) or "invalid byte"
+  end
+  return bank, page, byte, nil
+end
+
+--- @return length, err
+function M.patternRangeLogicalLength(range)
+  if M.patternRangeUsesExplicitTiles(range) then
+    for i, t in ipairs(range.tiles) do
+      local _, _, _, terr = explicitTileBankPageByte(t, i)
+      if terr then
+        return nil, terr
+      end
+    end
+    return #range.tiles, nil
+  end
+  local from, to = M.parsePatternRangeBounds(range)
+  if from == nil or to == nil then
+    return nil, "invalid contiguous from/to"
+  end
+  return (to - from + 1), nil
+end
+
+function M.foreachBankInPatternRange(range, fn)
+  if type(fn) ~= "function" or type(range) ~= "table" then
+    return
+  end
+  if M.patternRangeUsesExplicitTiles(range) then
+    for _, t in ipairs(range.tiles) do
+      local b = math.floor(tonumber(t.bank) or -1)
+      if b >= 1 then
+        fn(b)
+      end
+    end
+    return
+  end
+  local b = math.floor(tonumber(range.bank) or -1)
+  if b >= 1 then
+    fn(b)
+  end
+end
+
+--- Human / validation errors when appending a range row (modal uses classic shape only).
+function M.validatePatternRangeAppendShape(range, rangeIndex)
+  rangeIndex = tonumber(rangeIndex) or 0
+  local label = rangeIndex > 0 and string.format("pattern range %d", rangeIndex) or "pattern range"
+
+  if M.patternRangeUsesExplicitTiles(range) then
+    for i, t in ipairs(range.tiles) do
+      local _, _, _, terr = explicitTileBankPageByte(t, i)
+      if terr then
+        return label .. ": " .. terr
+      end
+    end
+    return nil
+  end
+
+  local bank = math.floor(tonumber(range.bank) or -1)
+  if bank < 1 then
+    return label .. " is missing bank"
+  end
+  local page = math.floor(tonumber(range.page) or -1)
+  if page ~= 1 and page ~= 2 then
+    return label .. ": page must be 1 or 2"
+  end
+  local fromTile, toTile = M.parsePatternRangeBounds(range)
+  if fromTile == nil or toTile == nil then
+    return label .. ": invalid CHR tile range bounds"
+  end
+  return nil
+end
+
 --- Row-major logical indices 0..255 across patternTable.ranges (same packing as populateTileLayerItemsFromPatternTable).
 --- Returns startLogical, endLogical for the segment containing logicalIndex, or nil if none / invalid.
 function M.patternLogicalSpanContainingIndex(patternTable, logicalIndex)
@@ -53,18 +150,18 @@ function M.patternLogicalSpanContainingIndex(patternTable, logicalIndex)
   end
   local cursor = 0
   for _, range in ipairs(patternTable.ranges) do
-    local from, to = M.parsePatternRangeBounds(range)
-    if from ~= nil and to ~= nil then
-      local len = to - from + 1
-      local startLogical = cursor
-      local endLogical = cursor + len - 1
-      if idx >= startLogical and idx <= endLogical then
-        return startLogical, endLogical
-      end
-      cursor = cursor + len
-      if cursor > 256 then
-        break
-      end
+    local len, cerr = M.patternRangeLogicalLength(range)
+    if not len then
+      return nil, nil
+    end
+    local startLogical = cursor
+    local endLogical = cursor + len - 1
+    if idx >= startLogical and idx <= endLogical then
+      return startLogical, endLogical
+    end
+    cursor = cursor + len
+    if cursor > 256 then
+      break
     end
   end
   return nil, nil
@@ -76,11 +173,11 @@ function M.patternTableLogicalSize(patternTable)
   end
   local total = 0
   for i, range in ipairs(patternTable.ranges) do
-    local from, to = M.parsePatternRangeBounds(range)
-    if from == nil or to == nil then
-      return total, string.format("patternTable.ranges[%d] has invalid from/to", i)
+    local len, cerr = M.patternRangeLogicalLength(range)
+    if not len then
+      return total, string.format("patternTable.ranges[%d]: %s", i, tostring(cerr or "invalid"))
     end
-    total = total + (to - from + 1)
+    total = total + len
   end
   return total, nil
 end
@@ -94,30 +191,53 @@ function M.buildPatternTableMapAllowPartial(patternTable)
 
   local logicalIndex = 0
   for i, range in ipairs(patternTable.ranges) do
-    local from, to = M.parsePatternRangeBounds(range)
-    if from == nil or to == nil then
-      return nil, string.format("patternTable.ranges[%d] has invalid from/to", i)
-    end
-    local bank = math.max(1, math.floor(tonumber(range.bank) or -1))
-    local page = math.floor(tonumber(range.page) or -1)
-    if bank < 1 then
-      return nil, string.format("patternTable.ranges[%d] is missing bank", i)
-    end
-    if page < 1 then
-      return nil, string.format("patternTable.ranges[%d] is missing page", i)
-    end
-    if page < 1 then page = 1 elseif page > 2 then page = 2 end
-    for src = from, to do
-      if logicalIndex > 255 then
-        return nil, "patternTable ranges exceed 256 tiles"
+    if M.patternRangeUsesExplicitTiles(range) then
+      for j, t in ipairs(range.tiles) do
+        local bank, page, src, terr = explicitTileBankPageByte(t, j)
+        if terr then
+          return nil, string.format("patternTable.ranges[%d] %s", i, terr)
+        end
+        if logicalIndex > 255 then
+          return nil, "patternTable ranges exceed 256 tiles"
+        end
+        map[logicalIndex] = {
+          bank = bank,
+          page = page,
+          tileByte = src,
+          tileIndex = (page == 2) and (256 + src) or src,
+        }
+        logicalIndex = logicalIndex + 1
       end
-      map[logicalIndex] = {
-        bank = bank,
-        page = page,
-        tileByte = src,
-        tileIndex = (page == 2) and (256 + src) or src,
-      }
-      logicalIndex = logicalIndex + 1
+    else
+      local from, to = M.parsePatternRangeBounds(range)
+      if from == nil or to == nil then
+        return nil, string.format("patternTable.ranges[%d] has invalid from/to", i)
+      end
+      local bank = math.max(1, math.floor(tonumber(range.bank) or -1))
+      local page = math.floor(tonumber(range.page) or -1)
+      if bank < 1 then
+        return nil, string.format("patternTable.ranges[%d] is missing bank", i)
+      end
+      if page < 1 then
+        return nil, string.format("patternTable.ranges[%d] is missing page", i)
+      end
+      if page < 1 then
+        page = 1
+      elseif page > 2 then
+        page = 2
+      end
+      for src = from, to do
+        if logicalIndex > 255 then
+          return nil, "patternTable ranges exceed 256 tiles"
+        end
+        map[logicalIndex] = {
+          bank = bank,
+          page = page,
+          tileByte = src,
+          tileIndex = (page == 2) and (256 + src) or src,
+        }
+        logicalIndex = logicalIndex + 1
+      end
     end
   end
   return map, nil
@@ -188,20 +308,32 @@ function M.didPpuFrameRangeSettingsChange(beforeState, afterState)
     end
     local parts = {}
     for i, range in ipairs(patternTable.ranges) do
-      local from, to = M.parsePatternRangeBounds(range)
-      parts[#parts + 1] = string.format(
-        "%d:%d:%s:%s",
-        math.floor(tonumber(range.bank) or -1),
-        math.floor(tonumber(range.page) or -1),
-        tostring(from),
-        tostring(to)
-      )
-      if type(range.tileRange) == "table" then
+      if M.patternRangeUsesExplicitTiles(range) then
+        parts[#parts + 1] = "tiles"
+        for j, t in ipairs(range.tiles) do
+          local b, p, bb, terr = explicitTileBankPageByte(t, j)
+          if terr then
+            parts[#parts + 1] = ":?"
+          else
+            parts[#parts + 1] = string.format(":%d:%d:%d", b, p, bb)
+          end
+        end
+      else
+        local from, to = M.parsePatternRangeBounds(range)
         parts[#parts + 1] = string.format(
-          "tr:%s:%s",
-          tostring(range.tileRange.from),
-          tostring(range.tileRange.to)
+          "%d:%d:%s:%s",
+          math.floor(tonumber(range.bank) or -1),
+          math.floor(tonumber(range.page) or -1),
+          tostring(from),
+          tostring(to)
         )
+        if type(range.tileRange) == "table" then
+          parts[#parts + 1] = string.format(
+            "tr:%s:%s",
+            tostring(range.tileRange.from),
+            tostring(range.tileRange.to)
+          )
+        end
       end
       parts[#parts + 1] = ";"
       if i >= 512 then
@@ -216,6 +348,230 @@ function M.didPpuFrameRangeSettingsChange(beforeState, afterState)
     or beforeLayer.noOverflowSupported ~= afterLayer.noOverflowSupported
     or beforeLayer.codec ~= afterLayer.codec
     or patternTableSignature(beforeLayer.patternTable) ~= patternTableSignature(afterLayer.patternTable)
+end
+
+----------------------------------------------------------------------
+-- CHR / ROM bank multi-drag → pattern_table.ranges (append order)
+----------------------------------------------------------------------
+
+local function materializeChrDragItem(win, item, layerIdx)
+  if item == nil then
+    return nil
+  end
+  if win and win.materializeTileHandle then
+    local resolved = win:materializeTileHandle(item, layerIdx)
+    if resolved ~= nil then
+      return resolved
+    end
+  end
+  return item
+end
+
+local function chrItemBankPageByte(srcWin, srcLayer, item)
+  item = materializeChrDragItem(srcWin, item, srcLayer)
+  if type(item) ~= "table" then
+    return nil, nil, nil
+  end
+  local bank = tonumber(item._bankIndex) or tonumber(srcWin and srcWin.currentBank)
+  if bank == nil or bank < 1 then
+    return nil, nil, nil
+  end
+  bank = math.floor(bank)
+
+  local ti = tonumber(item.index)
+  if type(ti) ~= "number" and item.topRef then
+    ti = tonumber(item.topRef.index)
+  end
+  if type(ti) ~= "number" then
+    return nil, nil, nil
+  end
+  ti = math.floor(ti)
+  if ti < 0 then
+    return nil, nil, nil
+  end
+  if ti >= 512 then
+    ti = ti % 512
+  end
+  local page = (ti >= 256) and 2 or 1
+  local byte = ti % 256
+  return bank, page, byte
+end
+
+--- CHR bank/ROM viewer "oddEven" orderMode matches pattern-table layers using 8x16 CHR ordering.
+function M.chrUses8x16TileLayout(win)
+  return win and win.orderMode == "oddEven"
+end
+
+--- Pattern table tile layers use layer.mode `"8x16"`/`"oddEven"` vs `"8x8"` (and nil → 8x8).
+function M.patternTableUses8x16TileLayout(layer)
+  local m = layer and layer.mode
+  return m == "8x16" or m == "oddEven"
+end
+
+--- Drop sources must mirror destination: both 8x8-ish or both 8x16-pair ordering.
+function M.chrLayoutMatchesPatternTableLayer(win, layer)
+  return M.chrUses8x16TileLayout(win) == M.patternTableUses8x16TileLayout(layer)
+end
+
+--- 8×16 CHR layout consumes logical CHR indices in multiples of two (128 visual stacks).
+function M.patternTableAppendChrParityOk(layer, currentTotalBytes, addBytes)
+  if not M.patternTableUses8x16TileLayout(layer) then
+    return true, nil
+  end
+  if type(currentTotalBytes) ~= "number" or type(addBytes) ~= "number" then
+    return false, "Cannot verify 8×16 pattern table tiling"
+  end
+  if currentTotalBytes % 2 ~= 0 then
+    return false,
+      "Pattern table (8×16 CHR layout) has an uneven CHR tile count — only complete pairs are allowed"
+  end
+  if addBytes % 2 ~= 0 then
+    return false,
+      "8×16 CHR layout requires adding whole pairs (one visual 8×16 item = two CHR indices)"
+  end
+  return true, nil
+end
+
+--- Map row-major logical slot (next append index) to grid cell for ghost preview.
+function M.patternTableGridCellForLogicalIndex(win, layer, logicalIndex)
+  if not (win and layer) then
+    return nil, nil
+  end
+  local cols = math.max(1, math.floor(tonumber(win.cols) or 16))
+  local rows = math.max(1, math.floor(tonumber(win.rows) or 16))
+  local layoutMode = layer.mode or "8x8"
+  local li = math.floor(tonumber(logicalIndex) or 0)
+  if li < 0 then
+    li = 0
+  end
+  local maxPos = math.min(rows * cols - 1, 255)
+  for pos = 0, maxPos do
+    if BankViewController.chrOrderingIndexForGridPos(layoutMode, pos) == li then
+      return pos % cols, math.floor(pos / cols)
+    end
+  end
+  return nil, nil
+end
+
+--- Turn a CHR grouped drag payload into pattern-table range rows, in append order.
+--- One logical range per drop: an explicit `tiles` list preserving selection order (LRTB for 8×8;
+--- 8×16 path expands each column pair to two rows). Tiles may omit ROM-contiguity or share a bank.
+--- @return ranges, addedCount, err, orderedItemRefs -- orderedItemRefs: { { item = ... }, ... } for drag preview
+function M.planPatternRangesFromChrTileGroup(srcWin, srcLayer, tileGroup)
+  srcLayer = tonumber(srcLayer) or 1
+
+  local cells = {}
+  local chrUses16 = M.chrUses8x16TileLayout(srcWin)
+
+  if chrUses16 then
+    local spr = tileGroup.spriteEntries
+    if not (type(spr) == "table" and #spr > 0) then
+      return nil, 0, "CHR 8x16 layout drag is missing paired tile selections"
+    end
+    local sorted = {}
+    for _, e in ipairs(spr) do
+      sorted[#sorted + 1] = e
+    end
+    table.sort(sorted, function(a, b)
+      local ra = tonumber(a.srcRow) or 0
+      local rb = tonumber(b.srcRow) or 0
+      if ra == rb then
+        return (tonumber(a.srcCol) or 0) < (tonumber(b.srcCol) or 0)
+      end
+      return ra < rb
+    end)
+    for _, se in ipairs(sorted) do
+      local sc = se.srcCol
+      local sr = se.srcRow
+      if type(sc) ~= "number" or type(sr) ~= "number" then
+        return nil, 0, "CHR drag group entry is missing grid coordinates"
+      end
+      local bankT, pageT, byteT = chrItemBankPageByte(srcWin, srcLayer, se.item)
+      if not bankT then
+        return nil, 0, "Could not resolve CHR bank or tile index"
+      end
+      cells[#cells + 1] = {
+        srcRow = sr,
+        srcCol = sc,
+        bank = bankT,
+        page = pageT,
+        byte = byteT,
+        item = se.item,
+      }
+      local bot = se.bottomItem
+      if type(bot) ~= "table" then
+        return nil, 0, "CHR 8x16 layout requires both tiles in each vertical pair"
+      end
+      local bankB, pageB, byteB = chrItemBankPageByte(srcWin, srcLayer, bot)
+      if not bankB then
+        return nil, 0, "Could not resolve CHR bank or tile index"
+      end
+      cells[#cells + 1] = {
+        srcRow = sr + 1,
+        srcCol = sc,
+        bank = bankB,
+        page = pageB,
+        byte = byteB,
+        item = bot,
+      }
+    end
+  else
+    if not (tileGroup and type(tileGroup.entries) == "table" and #tileGroup.entries > 0) then
+      return nil, 0, "No CHR tiles in drag group"
+    end
+    for _, entry in ipairs(tileGroup.entries) do
+      local sc = entry.srcCol
+      local sr = entry.srcRow
+      if type(sc) ~= "number" or type(sr) ~= "number" then
+        return nil, 0, "CHR drag group entry is missing grid coordinates"
+      end
+      local bank, page, byte = chrItemBankPageByte(srcWin, srcLayer, entry.item)
+      if not bank then
+        return nil, 0, "Could not resolve CHR bank or tile index"
+      end
+      cells[#cells + 1] = {
+        srcRow = sr,
+        srcCol = sc,
+        bank = bank,
+        page = page,
+        byte = byte,
+        item = entry.item,
+      }
+    end
+  end
+
+  if #cells == 0 then
+    return nil, 0, "No CHR tiles in drag group"
+  end
+
+  if not chrUses16 then
+    table.sort(cells, function(a, b)
+      if a.srcRow == b.srcRow then
+        return a.srcCol < b.srcCol
+      end
+      return a.srcRow < b.srcRow
+    end)
+  end
+
+  local orderedItemRefs = {}
+  for _, c in ipairs(cells) do
+    orderedItemRefs[#orderedItemRefs + 1] = { item = c.item }
+  end
+
+  local tiles = {}
+  for _, c in ipairs(cells) do
+    if c.byte < 0 or c.byte > 255 then
+      return nil, 0, "From/To must be between 0 and 255"
+    end
+    if c.page ~= 1 and c.page ~= 2 then
+      return nil, 0, "Page must be 1 or 2"
+    end
+    tiles[#tiles + 1] = { bank = c.bank, page = c.page, byte = c.byte }
+  end
+
+  local total = #tiles
+  local ranges = { { tiles = tiles } }
+  return ranges, total, nil, orderedItemRefs
 end
 
 return M

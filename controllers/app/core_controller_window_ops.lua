@@ -9,6 +9,7 @@ local KeyboardClipboardController = require("controllers.input.keyboard_clipboar
 local WindowCaps = require("controllers.window.window_capabilities")
 local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
 local AppSettingsController = require("controllers.app.settings_controller")
+local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 
 --- When false, the CRT layer visualizer window is not created, toggled, or restored from settings.
 local CRT_LAYER_VIZ_WINDOW_ENABLED = false
@@ -1014,11 +1015,15 @@ function AppCoreController:_afterPatternTableLinkChange(contentWin, layerIndex)
   if isPpuNametableTileLayer then
     if contentWin.refreshNametableVisuals and self.appEditState then
       if type(layer.patternTable) == "table" and type(layer.patternTable.ranges) == "table" then
+        local ensured = {}
         for _, r in ipairs(layer.patternTable.ranges) do
-          local bank = tonumber(r and r.bank)
-          if bank and self.appEditState.chrBanksBytes and self.appEditState.chrBanksBytes[bank] then
-            BankViewController.ensureBankTiles(self.appEditState, bank)
-          end
+          PpuRange.foreachBankInPatternRange(r, function(bankIdx)
+            local b = math.floor(tonumber(bankIdx) or -1)
+            if b >= 1 and ensured[b] == nil and self.appEditState.chrBanksBytes[b] then
+              ensured[b] = true
+              BankViewController.ensureBankTiles(self.appEditState, b)
+            end
+          end)
         end
       end
       contentWin:refreshNametableVisuals(self.appEditState.tilesPool, layerIndex)

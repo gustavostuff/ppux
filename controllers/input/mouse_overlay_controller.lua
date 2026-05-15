@@ -160,6 +160,13 @@ function M.drawOverlay(env)
 
   if hasTileGroup and srcIsChr then
     chrGroupDropState = MouseTileDropController.getHoverDropState(env, mouseX, mouseY, wm)
+    if WindowCaps.isPatternTable(win)
+      and chrGroupDropState
+      and chrGroupDropState.patternTableAppend
+      and chrGroupDropState.valid == false
+    then
+      return
+    end
   end
 
   if isSpriteLayer and srcIsChr and not (env.isSpriteLayerDropBlocked and env.isSpriteLayerDropBlocked(win, layer, drag.srcWin)) then
@@ -251,6 +258,21 @@ function M.drawOverlay(env)
     love.graphics.setColor(colors.white)
     Draw.drawRepeatingImageAnimated(images.pattern_a, math.floor(x), math.floor(y), w, h)
     love.graphics.setColor(colors.white)
+  end
+
+  if hasTileGroup and srcIsChr and chrGroupDropState and chrGroupDropState.patternTableAppend then
+    if chrGroupDropState.valid and chrGroupDropState.placements then
+      local scol = win.scrollCol or 0
+      local srow = win.scrollRow or 0
+      for _, placement in ipairs(chrGroupDropState.placements) do
+        if type(placement.col) == "number" and type(placement.row) == "number" then
+          local px = win.x + (((placement.col - scol) * cw) * z)
+          local py = win.y + (((placement.row - srow) * ch) * z)
+          drawGhost(placement.item, px, py, cw * z, ch * z)
+        end
+      end
+      return
+    end
   end
 
   if hasTileGroup and isSpriteLayer and srcIsChr and chrGroupDropState and chrGroupDropState.placements then

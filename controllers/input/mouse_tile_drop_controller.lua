@@ -3,8 +3,12 @@ local SpriteStateSnapshot = require("controllers.sprite.sprite_state_snapshot")
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local PatternTableMapping = require("utils.pattern_table_mapping")
+local PpuRange = require("controllers.app.ppu_frame_range_helpers")
+local Shared = require("controllers.app.core_controller_shared")
 
 local CHR_DROP_PPU_PATTERN_MSG = "CHR tiles must appear in this PPU frame pattern table"
+local CHR_PATTERN_TABLE_LAYOUT_MISMATCH_MSG =
+  "CHR tile layout must match the pattern table (both 8×8 rows or both 8×16 pairs)"
 
 local M = {}
 
@@ -378,6 +382,15 @@ local function getTooltipTextForReason(reason)
   if reason == "tile_not_in_pattern_table" then
     return CHR_DROP_PPU_PATTERN_MSG
   end
+  if reason == "pattern_table_overflow" then
+    return "Would exceed pattern table CHR capacity (256 tiles, or 128× 8×16 pairs)"
+  end
+  if reason == "pattern_table_bad_ranges" then
+    return "pattern table ranges are invalid"
+  end
+  if reason == "pattern_table_layout_mismatch" then
+    return CHR_PATTERN_TABLE_LAYOUT_MISMATCH_MSG
+  end
   return nil
 end
 
@@ -459,6 +472,130 @@ local function buildChrGroupPlacements(dst, entries, anchorCol, anchorRow, ancho
   return placements
 end
 
+local function getChrPatternTableGroupDropState(env, dst, x, y, drag)
+  if not (WindowCaps.isPatternTable(dst) and drag and drag.tileGroup) then
+    return nil
+  end
+
+  if dst.isInContentArea and not dst:isInContentArea(x, y) then
+    return nil
+  end
+
+  local state = {
+    dst = dst,
+    dstLayer = 1,
+    layer = dst.layers and dst.layers[1],
+    valid = false,
+    reason = nil,
+    patternTableAppend = true,
+    anchorCol = nil,
+    anchorRow = nil,
+    planErrText = nil,
+    placements = nil,
+  }
+
+  local layer = state.layer
+  if not (layer and layer.kind == "tile") then
+    state.reason = "pattern_table_bad_ranges"
+    return state
+  end
+
+  if type(dst.isPatternTableInteractionLocked) == "function" then
+    local locked = select(1, dst:isPatternTableInteractionLocked(1))
+    if locked then
+      state.reason = "pattern_layer_not_ready"
+      return state
+    end
+  end
+
+  if not PpuRange.chrLayoutMatchesPatternTableLayer(drag.srcWin, layer) then
+    state.reason = "pattern_table_layout_mismatch"
+    state.planErrText = CHR_PATTERN_TABLE_LAYOUT_MISMATCH_MSG
+    return state
+  end
+
+  local tg = drag.tileGroup
+  if PpuRange.chrUses8x16TileLayout(drag.srcWin) then
+    if not (tg.spriteEntries and #tg.spriteEntries > 0) then
+      return nil
+    end
+  else
+    if not (tg.entries and #tg.entries > 0) then
+      return nil
+    end
+  end
+
+  local planned, addCount, planErr, orderedRefs = PpuRange.planPatternRangesFromChrTileGroup(
+    drag.srcWin,
+    drag.srcLayer or 1,
+    drag.tileGroup
+  )
+
+  layer.patternTable = type(layer.patternTable) == "table" and layer.patternTable or {}
+  layer.patternTable.ranges = type(layer.patternTable.ranges) == "table" and layer.patternTable.ranges or {}
+  local currentTotal, cerr = PpuRange.patternTableLogicalSize(layer.patternTable)
+  if cerr then
+    state.reason = "pattern_table_bad_ranges"
+    return state
+  end
+
+  if planErr then
+    state.reason = "pattern_table_plan_failed"
+    state.planErrText = planErr
+    return state
+  end
+
+  local parityOk, parityErr = PpuRange.patternTableAppendChrParityOk(layer, currentTotal, addCount)
+  if not parityOk then
+    state.reason = "pattern_table_plan_failed"
+    state.planErrText = parityErr or "8×16 pattern table parity check failed"
+    return state
+  end
+
+  if type(addCount) ~= "number" or currentTotal + addCount > 256 then
+    state.reason = "pattern_table_overflow"
+    return state
+  end
+
+  for ri, rng in ipairs(planned or {}) do
+    local verr = PpuRange.validatePatternRangeAppendShape(rng, ri)
+    if verr then
+      state.reason = "pattern_table_plan_failed"
+      state.planErrText = verr
+      return state
+    end
+  end
+
+  state.valid = true
+  local firstCol, firstRow
+  local synthetic = {}
+  local li = currentTotal
+  for _, ref in ipairs(orderedRefs or {}) do
+    local col, row = PpuRange.patternTableGridCellForLogicalIndex(dst, layer, li)
+    if type(col) ~= "number" or type(row) ~= "number" then
+      state.valid = false
+      state.reason = "pattern_table_overflow"
+      state.placements = nil
+      return state
+    end
+    if not firstCol then
+      firstCol = col
+      firstRow = row
+    end
+    synthetic[#synthetic + 1] = {
+      item = ref.item,
+      offsetCol = col - firstCol,
+      offsetRow = row - firstRow,
+    }
+    li = li + 1
+  end
+
+  state.anchorCol = firstCol
+  state.anchorRow = firstRow
+  state.placements = buildChrGroupPlacements(dst, synthetic, firstCol, firstRow)
+  return state
+end
+
 local function getChrGroupDropState(env, x, y, wm)
   local drag = env and env.drag
   if not (drag and drag.active and drag.tileGroup and WindowCaps.isChrLike(drag.srcWin)) then
@@ -468,6 +605,9 @@ local function getChrGroupDropState(env, x, y, wm)
   local dst = wm and wm:windowAt(x, y) or nil
   if not dst or dst.isPalette or not canDropOnWindow(dst) then
     return nil
+  end
+  if WindowCaps.isPatternTable(dst) then
+    return getChrPatternTableGroupDropState(env, dst, x, y, drag)
   end
   if not (WindowCaps.isStaticOrAnimationArt(dst) or WindowCaps.isPpuFrame(dst)) then
     return nil
@@ -965,9 +1105,14 @@ function M.handleTileDrop(env, x, y, wm)
       if chrGroupState and chrGroupState.reason == "tile_not_in_pattern_table" then
         notifyChrDropPatternTableRejected(env)
       else
-        local reasonText = chrGroupState and getTooltipTextForReason(chrGroupState.reason)
-        if reasonText and env.ctx and env.ctx.app and env.ctx.app.setStatus then
-          setStatusFromEnv(env, reasonText)
+        local reasonText = chrGroupState and (chrGroupState.planErrText or getTooltipTextForReason(chrGroupState.reason)) or nil
+        if reasonText and env.ctx and env.ctx.app then
+          if env.ctx.app.setStatus then
+            setStatusFromEnv(env, reasonText)
+          end
+          if chrGroupState.reason == "pattern_table_layout_mismatch" and type(env.ctx.app.showToast) == "function" then
+            env.ctx.app:showToast("warning", reasonText)
+          end
         end
       end
       env.clearDragState(false)
@@ -977,6 +1122,20 @@ function M.handleTileDrop(env, x, y, wm)
     dst = chrGroupState.dst
     local dstLayer = chrGroupState.dstLayer
     local layer = chrGroupState.layer
+
+    if chrGroupState.patternTableAppend and WindowCaps.isPatternTable(dst) then
+      if app and app.applyChrTileGroupToPatternTableWindow then
+        local ok = app:applyChrTileGroupToPatternTableWindow(dst, drag)
+        if ok and env.markUnsaved then
+          env.markUnsaved("tile_move")
+        end
+        wm:setFocus(dst)
+        env.clearDragState(ok == true)
+        return true
+      end
+      env.clearDragState(false)
+      return true
+    end
 
     if layer.kind == "sprite" then
       local tilesPool = app and app.appEditState and app.appEditState.tilesPool
@@ -1209,7 +1368,7 @@ end
 
 function M.getHoverTooltipCandidate(env, x, y, wm)
   local state = getChrGroupDropState(env, x, y, wm)
-  local text = state and getTooltipTextForReason(state.reason) or nil
+  local text = state and (state.planErrText or getTooltipTextForReason(state.reason)) or nil
   if not text then
     return nil
   end

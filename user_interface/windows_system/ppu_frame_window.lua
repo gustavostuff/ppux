@@ -10,6 +10,7 @@ local ShaderPaletteController = require("controllers.palette.shader_palette_cont
 local CanvasSpace = require("utils.canvas_space")
 local PatternTableMapping = require("utils.pattern_table_mapping")
 local Shared = require("controllers.app.core_controller_shared")
+local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 
 local PPUFrameWindow = {}
 PPUFrameWindow.__index = PPUFrameWindow
@@ -179,67 +180,6 @@ local function getCodec(layer, projectData)
   return (layer and layer.codec) or (projectData and projectData.codec) or "konami"
 end
 
-local function parsePatternRangeBounds(range)
-  if type(range) ~= "table" then
-    return nil, nil
-  end
-  local tileRange = type(range.tileRange) == "table" and range.tileRange or nil
-  local from = range.from
-  local to = range.to
-  if from == nil and tileRange then
-    from = tileRange.from
-  end
-  if to == nil and tileRange then
-    to = tileRange.to
-  end
-  from = math.floor(tonumber(from) or -1)
-  to = math.floor(tonumber(to) or -1)
-  if from < 0 or from > 255 or to < 0 or to > 255 or to < from then
-    return nil, nil
-  end
-  return from, to
-end
-
-local function patternTableLogicalSize(patternTable)
-  if type(patternTable) ~= "table" or type(patternTable.ranges) ~= "table" then
-    return nil, "patternTable.ranges is missing"
-  end
-  local total = 0
-  for i, range in ipairs(patternTable.ranges) do
-    local from, to = parsePatternRangeBounds(range)
-    if from == nil or to == nil then
-      return nil, string.format("patternTable.ranges[%d] has invalid from/to", i)
-    end
-    total = total + (to - from + 1)
-  end
-  return total, nil
-end
-
-local function getPatternLogicalRangeForIndex(patternTable, logicalIndex)
-  if type(patternTable) ~= "table" or type(patternTable.ranges) ~= "table" then
-    return nil, nil, nil
-  end
-  if type(logicalIndex) ~= "number" then
-    return nil, nil, nil
-  end
-
-  local cursor = 0
-  for i, range in ipairs(patternTable.ranges) do
-    local from, to = parsePatternRangeBounds(range)
-    if from ~= nil and to ~= nil then
-      local count = (to - from + 1)
-      local startLogical = cursor
-      local endLogical = cursor + count - 1
-      if logicalIndex >= startLogical and logicalIndex <= endLogical then
-        return i, startLogical, endLogical
-      end
-      cursor = cursor + count
-    end
-  end
-
-  return nil, nil, nil
-end
-
 local function getHoveredPatternRangeHighlight(self, layer)
   if not (self and layer and layer._runtimePatternTableRefLayer == true) then
     return nil
@@ -281,7 +221,7 @@ local function getHoveredPatternRangeHighlight(self, layer)
     return nil
   end
 
-  local _, startLogical, endLogical = getPatternLogicalRangeForIndex(patternTable, hoverLogical)
+  local startLogical, endLogical = PpuRange.patternLogicalSpanContainingIndex(patternTable, hoverLogical)
   if startLogical == nil or endLogical == nil then
     return nil
   end

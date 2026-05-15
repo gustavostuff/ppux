@@ -217,28 +217,10 @@ function M.handlePatternTableLayerModeKeys(ctx, utils, key, focus)
   if not (layer and layer.kind == "tile") then
     return false
   end
-  layer.mode = ((layer.mode or "8x8") == "8x16") and "8x8" or "8x16"
 
-  local app = ctx and ctx.app
-  if app then
-    local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
-    PatternTableDisplayController.populateTileLayerItemsFromPatternTable(focus, li, {
-      tilesPool = app.appEditState and app.appEditState.tilesPool,
-      appEditState = app.appEditState,
-      ensureTiles = function(bankIdx)
-        local st = app.appEditState
-        if st and st.chrBanksBytes and st.chrBanksBytes[bankIdx] then
-          BankViewController.ensureBankTiles(st, bankIdx)
-        end
-      end,
-    })
-  end
-
-  if focus.invalidateTileLayerCanvas then
-    focus:invalidateTileLayerCanvas(li)
-  end
-
-  local layoutLabel = (layer.mode == "8x16") and "8x16 pairs" or "8x8"
+  local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
+  local layoutLabel = PatternTableDisplayController.toggleTileLayerChrLayout(focus, li, ctx and ctx.app)
+    or ((layer.mode == "8x16") and "8x16 pairs" or "8x8")
   setStatus(ctx, "Pattern table layout: " .. layoutLabel .. " — Ctrl+M to toggle")
   return true
 end

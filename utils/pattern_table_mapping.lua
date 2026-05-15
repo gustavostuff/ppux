@@ -70,21 +70,21 @@ function M.buildMap(patternTable, fallbackBank, fallbackPage)
     return buildDefaultMap(fallbackBank, fallbackPage), nil
   end
 
-  local out = {}
-  local nextIdx = 0
-  for i, r in ipairs(patternTable.ranges) do
-    local fromRaw, toRaw = parseRangeBounds(r)
-    if fromRaw == nil or toRaw == nil then
-      return nil, string.format("patternTable.ranges[%d] missing from/to", i)
+  local function appendExplicitTilesRange(r, ri, out, nextIdx)
+    if type(r.tiles) ~= "table" or #r.tiles == 0 then
+      return nil, string.format("patternTable.ranges[%d] has empty tiles list", ri)
     end
-    local from = clampByte(fromRaw)
-    local to = clampByte(toRaw)
-    if to < from then
-      return nil, string.format("patternTable.ranges[%d] has to < from", i)
-    end
-    local bank = clampBank(r.bank)
-    local page = clampPage(r.page)
-    for src = from, to do
+    for j, t in ipairs(r.tiles) do
+      if type(t) ~= "table" then
+        return nil, string.format("patternTable.ranges[%d].tiles[%d] invalid", ri, j)
+      end
+      local bank = clampBank(t.bank)
+      local page = clampPage(t.page)
+      local rawB = t.byte
+      if rawB == nil and t.tileByte ~= nil then
+        rawB = t.tileByte
+      end
+      local src = clampByte(rawB)
       if nextIdx > 255 then
         return nil, "patternTable ranges exceed 256 tiles"
       end
@@ -95,6 +95,43 @@ function M.buildMap(patternTable, fallbackBank, fallbackPage)
         tileIndex = (page == 2) and (256 + src) or src,
       }
       nextIdx = nextIdx + 1
+    end
+    return nextIdx, nil
+  end
+
+  local out = {}
+  local nextIdx = 0
+  for i, r in ipairs(patternTable.ranges) do
+    if type(r) == "table" and type(r.tiles) == "table" and #r.tiles > 0 then
+      local nxt, terr = appendExplicitTilesRange(r, i, out, nextIdx)
+      if terr ~= nil then
+        return nil, terr
+      end
+      nextIdx = nxt
+    else
+      local fromRaw, toRaw = parseRangeBounds(r)
+      if fromRaw == nil or toRaw == nil then
+        return nil, string.format("patternTable.ranges[%d] missing from/to", i)
+      end
+      local from = clampByte(fromRaw)
+      local to = clampByte(toRaw)
+      if to < from then
+        return nil, string.format("patternTable.ranges[%d] has to < from", i)
+      end
+      local bank = clampBank(r.bank)
+      local page = clampPage(r.page)
+      for src = from, to do
+        if nextIdx > 255 then
+          return nil, "patternTable ranges exceed 256 tiles"
+        end
+        out[nextIdx] = {
+          bank = bank,
+          page = page,
+          tileByte = src,
+          tileIndex = (page == 2) and (256 + src) or src,
+        }
+        nextIdx = nextIdx + 1
+      end
     end
   end
 

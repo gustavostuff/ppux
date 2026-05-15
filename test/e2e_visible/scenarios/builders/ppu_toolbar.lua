@@ -66,7 +66,7 @@ local function buildPpuToolbarPatternRangesScenario(harness, app, runner)
     call("Create deterministic PPU fixture", function(_, currentApp, currentRunner)
       setupDeterministicPpuFixture(currentApp, currentRunner)
     end),
-    call("Create pattern table window for Add tile range", function(_, currentApp, currentRunner)
+    call("Create pattern table window for pattern ranges", function(_, currentApp, currentRunner)
       local ptWin = assert(currentApp.wm:createPatternTableWindow({
         title = "Pattern Range Fixture",
         x = 520,
@@ -80,9 +80,13 @@ local function buildPpuToolbarPatternRangesScenario(harness, app, runner)
     pause("Observe pattern-table + PPU fixtures", 0.45),
   }
 
-  appendClick(steps, "Open Add tile range modal (pattern table toolbar)", ppuToolbarButtonCenter("patternTableFixtureWin", function(toolbar)
-    return toolbar.addTileRangeButton
-  end), { moveDuration = 0.1, postPause = 0.2 })
+  steps[#steps + 1] = call("Open Add tile range modal (API)", function(_, currentApp, currentRunner)
+    local pt = assert(currentRunner.patternTableFixtureWin, "expected pattern table fixture")
+    assert(
+      currentApp.showPpuFramePatternRangeModal and currentApp:showPpuFramePatternRangeModal(pt),
+      "expected showPpuFramePatternRangeModal to open"
+    )
+  end)
   steps[#steps + 1] = call("Add first pattern range", function(currentHarness, currentApp)
     local modal = assert(currentApp.ppuFramePatternRangeModal, "expected ppuFramePatternRangeModal")
     assert(modal:isVisible(), "expected pattern range modal visible")
@@ -100,9 +104,13 @@ local function buildPpuToolbarPatternRangesScenario(harness, app, runner)
     assert(#ranges == 1, "expected one pattern range after first add")
   end)
 
-  appendClick(steps, "Open Add tile range modal again", ppuToolbarButtonCenter("patternTableFixtureWin", function(toolbar)
-    return toolbar.addTileRangeButton
-  end), { moveDuration = 0.1, postPause = 0.2 })
+  steps[#steps + 1] = call("Open Add tile range modal again (API)", function(_, currentApp, currentRunner)
+    local pt = assert(currentRunner.patternTableFixtureWin, "expected pattern table fixture")
+    assert(
+      currentApp.showPpuFramePatternRangeModal and currentApp:showPpuFramePatternRangeModal(pt),
+      "expected showPpuFramePatternRangeModal to open for second range"
+    )
+  end)
   steps[#steps + 1] = call("Add second pattern range", function(currentHarness, currentApp)
     local modal = assert(currentApp.ppuFramePatternRangeModal, "expected ppuFramePatternRangeModal")
     assert(modal:isVisible(), "expected pattern range modal visible for second add")
