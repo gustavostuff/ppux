@@ -38,7 +38,11 @@ local function resolve8x16PairLogical(tileIndex, tileBelow)
   if type(belowIdx) == "number" then
     belowIdx = math.floor(belowIdx % 256)
     if belowIdx < 0 then belowIdx = belowIdx + 256 end
-    return topIdx, belowIdx
+    -- Duplicate / useless bottom index (often stale after switching to pattern-table OAM sprites):
+    -- would map both halves to the same logical slot and repeat the top CHR.
+    if belowIdx ~= topIdx then
+      return topIdx, belowIdx
+    end
   end
 
   local evenTop = topIdx - (topIdx % 2)
@@ -94,7 +98,9 @@ function M.ensureTileRefsForSpriteItem(item, layerMode, tilesPool, appEditState,
 
   if usePatternTable then
     if layerMode == "8x16" then
-      local topLogical, botLogical = resolve8x16PairLogical(item.tile, item.tileBelow)
+      local pairBelow =
+        (type(item.startAddr) ~= "number") and item.tileBelow or nil
+      local topLogical, botLogical = resolve8x16PairLogical(item.tile, pairBelow)
       if topLogical == nil then
         item.topRef = nil
         item.botRef = nil
@@ -189,6 +195,11 @@ function M.hydrateSpriteLayer(layer, opts)
           -- pattern map exists — ROM byte 2 selects the mapped tile grid slot.
           s.bank = nil
           s.tile = baseTile
+          -- OAM only carries one tile byte; an explicit leftover `tileBelow` from CHR / layout can
+          -- duplicate the top logical index in 8x16 + pattern-table mode (both halves resolve same).
+          if mode == "8x16" then
+            s.tileBelow = nil
+          end
         else
           if s.bank == nil then
             s.tile = baseTile
