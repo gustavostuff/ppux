@@ -147,6 +147,15 @@ function M.buildWindowsFromLayout(layout, opts)
   end
   DebugController.log("info", "LOAD_PERF", "window_builder restore_focus duration=%.3fs focused=%s", nowSeconds() - focusRestoreStartedAt, tostring(layout.focusedWindowId))
 
+  if wm and type(layout.windowOrderIds) == "table" and #layout.windowOrderIds > 0 then
+    if wm.reorderWindowsByStableIds then
+      wm:reorderWindowsByStableIds(layout.windowOrderIds)
+    end
+    if wm.taskbar and wm.taskbar.restorePersistedWindowOrder then
+      wm.taskbar:restorePersistedWindowOrder(layout.windowOrderIds, wm)
+    end
+  end
+
   return {
     windowsById = windowsById,
     bankWindow = bankWin,

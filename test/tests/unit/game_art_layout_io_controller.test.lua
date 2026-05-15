@@ -449,5 +449,72 @@ describe("game_art_layout_io_controller.lua", function()
     expect(#snap.windows).toBe(1)
     expect(snap.windows[1].id).toBe("palette_01")
     expect(snap.focusedWindowId).toBeNil()
+    expect(snap.windowOrderIds).toBeNil()
+  end)
+
+  it("snapshotLayout persists windowOrderIds from taskbar minimized strip order", function()
+    local WM = require("controllers.window.window_controller")
+    local Taskbar = require("user_interface.taskbar")
+    local wm = WM.new()
+    local app = { wm = wm }
+    local tb = Taskbar.new(app, { h = 15 })
+    wm.taskbar = tb
+
+    local winA = wm:createPaletteWindow({ title = "A", activePalette = false })
+    winA._id = "win_order_a"
+    local winB = wm:createPaletteWindow({ title = "B", activePalette = false })
+    winB._id = "win_order_b"
+
+    tb.minimizedWindows = { winB, winA }
+
+    local snap = GameArtLayoutIOController.snapshotLayout(wm, nil, 1, app)
+    expect(snap.windowOrderIds).toBeTruthy()
+    expect(#snap.windowOrderIds).toBe(2)
+    expect(snap.windowOrderIds[1]).toBe("win_order_b")
+    expect(snap.windowOrderIds[2]).toBe("win_order_a")
+  end)
+
+  it("buildWindowsFromLayout restores wm order and taskbar strip from windowOrderIds", function()
+    local WM = require("controllers.window.window_controller")
+    local Taskbar = require("user_interface.taskbar")
+    local GameArtWindowBuilderController = require("controllers.game_art.window_builder_controller")
+
+    local wm1 = WM.new()
+    local app1 = { wm = wm1 }
+    wm1.taskbar = Taskbar.new(app1, { h = 15 })
+
+    local winA = wm1:createPaletteWindow({ title = "A", activePalette = false })
+    winA._id = "persist_a"
+    local winB = wm1:createPaletteWindow({ title = "B", activePalette = false })
+    winB._id = "persist_b"
+    wm1.taskbar.minimizedWindows = { winB, winA }
+
+    local snap = GameArtLayoutIOController.snapshotLayout(wm1, nil, 1, app1)
+    expect(snap.windowOrderIds[1]).toBe("persist_b")
+
+    local wm2 = WM.new()
+    local app2 = { wm = wm2 }
+    wm2.taskbar = Taskbar.new(app2, { h = 15 })
+
+    GameArtWindowBuilderController.buildWindowsFromLayout(snap, {
+      wm = wm2,
+      tilesPool = {},
+      ensureTiles = function() end,
+      romRaw = "",
+      decodeUserDefinedCodes = GameArtLayoutIOController.decodeUserDefinedCodes,
+    })
+
+    local orderIds = {}
+    for _, w in ipairs(wm2.windows) do
+      if not w._closed and not w._alwaysOnTop then
+        orderIds[#orderIds + 1] = w._id
+      end
+    end
+    expect(#orderIds).toBe(2)
+    expect(orderIds[1]).toBe("persist_b")
+    expect(orderIds[2]).toBe("persist_a")
+
+    expect(wm2.taskbar.minimizedWindows[1]._id).toBe("persist_b")
+    expect(wm2.taskbar.minimizedWindows[2]._id).toBe("persist_a")
   end)
 end)

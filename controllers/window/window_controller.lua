@@ -859,6 +859,71 @@ function WM:sortWindowsByKind(descending)
   end)
 end
 
+--- Rebuild stack order from persisted `windowOrderIds` (project load). Honors `_alwaysOnTop` buckets like other WM reorder paths.
+function WM:reorderWindowsByStableIds(ids)
+  if type(ids) ~= "table" or #ids == 0 then
+    return false
+  end
+
+  local rank = {}
+  local r = 1
+  for _, id in ipairs(ids) do
+    if type(id) == "string" and id ~= "" and rank[id] == nil then
+      rank[id] = r
+      r = r + 1
+    end
+  end
+
+  local normal, atop, closed = {}, {}, {}
+  local origPos = {}
+  for i, w in ipairs(self.windows) do
+    origPos[w] = i
+    if w._closed then
+      closed[#closed + 1] = w
+    elseif w._alwaysOnTop then
+      atop[#atop + 1] = w
+    else
+      normal[#normal + 1] = w
+    end
+  end
+
+  local function sortBucket(bucket)
+    table.sort(bucket, function(a, b)
+      local ra = rank[a._id]
+      local rb = rank[b._id]
+      if ra and rb then
+        return ra < rb
+      end
+      if ra and not rb then
+        return true
+      end
+      if rb and not ra then
+        return false
+      end
+      return (origPos[a] or 0) < (origPos[b] or 0)
+    end)
+  end
+
+  sortBucket(normal)
+  sortBucket(atop)
+
+  local i = 1
+  for _, w in ipairs(normal) do
+    self.windows[i] = w
+    i = i + 1
+  end
+  for _, w in ipairs(atop) do
+    self.windows[i] = w
+    i = i + 1
+  end
+  for _, w in ipairs(closed) do
+    self.windows[i] = w
+    i = i + 1
+  end
+  refreshZOrder(self)
+  return true
+end
+
 ----------------------------------------------------------------
 -- Helpers
 ----------------------------------------------------------------

@@ -434,6 +434,33 @@ function M.getCompressedDataFrom(win)
   return nil
 end
 
+--- Persisted global ordering: taskbar minimized-strip order first (drag/sort targets), then remaining `wm`
+--- windows (e.g. CRT lens) in controller order. String ids match `window._id`.
+local function collectWindowOrderIdsForSave(wm, taskbar)
+  local ids = {}
+  local seen = {}
+  if wm and wm.getWindows then
+    if taskbar and type(taskbar.minimizedWindows) == "table" then
+      for _, win in ipairs(taskbar.minimizedWindows) do
+        if win and not win._closed and type(win._id) == "string" and win._id ~= "" then
+          ids[#ids + 1] = win._id
+          seen[win._id] = true
+        end
+      end
+    end
+    for _, win in ipairs(wm:getWindows()) do
+      if win and not win._closed and win._runtimeOnly ~= true then
+        local id = win._id
+        if type(id) == "string" and id ~= "" and not seen[id] then
+          ids[#ids + 1] = id
+          seen[id] = true
+        end
+      end
+    end
+  end
+  return ids
+end
+
 function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
   opts = type(opts) == "table" and opts or {}
   local onlyWindow = opts.onlyWindow
@@ -742,6 +769,7 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
     if focused and not focused._closed and focused._id then
       out.focusedWindowId = focused._id
     end
+    out.windowOrderIds = collectWindowOrderIdsForSave(wm, appOpt and appOpt.wm and appOpt.wm.taskbar)
   end
 
   return out

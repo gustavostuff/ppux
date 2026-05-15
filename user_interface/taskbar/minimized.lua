@@ -442,6 +442,53 @@ function M.install(Taskbar, Helpers)
     return self:addMinimizedWindow(win)
   end
 
+  --- Align minimized-strip order with saved project `windowOrderIds` after `wm:reorderWindowsByStableIds`.
+  function Taskbar:restorePersistedWindowOrder(ids, wm)
+    if type(ids) ~= "table" or #ids == 0 or not (wm and wm.getWindows) then
+      return false
+    end
+
+    local byId = {}
+    for _, w in ipairs(wm:getWindows()) do
+      if w and type(w._id) == "string" and w._id ~= "" then
+        byId[w._id] = w
+      end
+    end
+
+    local function eligibleStrip(w)
+      return w and not w._closed and w._groupHidden ~= true and w.kind ~= "crt_lens"
+    end
+
+    local newMini = {}
+    local seenWin = {}
+    for _, id in ipairs(ids) do
+      if type(id) == "string" and id ~= "" then
+        local w = byId[id]
+        if eligibleStrip(w) then
+          newMini[#newMini + 1] = w
+          seenWin[w] = true
+          ensureTaskbarButtonForWindow(self, w)
+        end
+      end
+    end
+
+    for _, w in ipairs(wm:getWindows()) do
+      if eligibleStrip(w) and not seenWin[w] then
+        newMini[#newMini + 1] = w
+        seenWin[w] = true
+        ensureTaskbarButtonForWindow(self, w)
+      end
+    end
+
+    self.minimizedWindows = newMini
+    clampMinimizedScroll(self)
+    self:_buildVisibleToolbarButtons()
+    if self:_hasMinimizedOverflow() then
+      self:_triggerMinimizedScrollbarFade()
+    end
+    return true
+  end
+
   function Taskbar:removeMinimizedWindow(win)
     if not win then return false end
     local removedButton = self.minimizedButtonsByWindow[win]
