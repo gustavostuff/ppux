@@ -425,6 +425,11 @@ function M.createOamAnimationWindow(w, tilesPool, ensureTiles)
 
       local spriteLayer = win.layers[li]
       if spriteLayer then
+        if type(Lsrc.linkedPatternTableWindowId) == "string" and Lsrc.linkedPatternTableWindowId ~= "" then
+          spriteLayer.linkedPatternTableWindowId = Lsrc.linkedPatternTableWindowId
+        elseif type(Lsrc.patternTable) == "table" then
+          spriteLayer.patternTable = TableUtils.deepcopy(Lsrc.patternTable)
+        end
         spriteLayer.items = spriteLayer.items or {}
         for _, it in ipairs(Lsrc.items or {}) do
           local oamSlot = type(it.startAddr) == "number"

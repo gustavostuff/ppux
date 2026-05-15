@@ -268,8 +268,44 @@ function M.invalidateConsumersUsingPatternTable(app, patternTableRef)
   local romRaw = type(state.romRaw) == "string" and state.romRaw or ""
   local tilesPool = state.tilesPool
 
+  --- Which standalone pattern-table window owns this `patternTable` object (layer[1]).
+  local patternTableOwnerId = nil
+  for _, w in ipairs(app.wm:getWindows()) do
+    if WindowCaps.isPatternTable(w) and not w._closed then
+      local L1 = w.layers and w.layers[1]
+      if L1 and L1.patternTable == patternTableRef and type(w._id) == "string" and w._id ~= "" then
+        patternTableOwnerId = w._id
+        break
+      end
+    end
+  end
+
+  local function syncSpriteLayerPatternTableRef(layer)
+    if not (layer and layer.kind == "sprite") then
+      return false
+    end
+    if layer.patternTable == patternTableRef then
+      return true
+    end
+    if patternTableOwnerId and layer.linkedPatternTableWindowId == patternTableOwnerId then
+      layer.patternTable = patternTableRef
+      return true
+    end
+    return false
+  end
+
+  --- PPU nametable tile layers may still hold an outdated `patternTable` copy until the map is complete.
+  local function syncConsumerTileLayerPatternTableRef(layer)
+    if not (layer and layer.kind == "tile" and layer._runtimePatternTableRefLayer ~= true) then
+      return
+    end
+    if patternTableOwnerId and layer.linkedPatternTableWindowId == patternTableOwnerId then
+      layer.patternTable = patternTableRef
+    end
+  end
+
   local function hydrateLinkedSprite(layer)
-    if layer and layer.kind == "sprite" and layer.patternTable == patternTableRef then
+    if syncSpriteLayerPatternTableRef(layer) then
       SpriteController.hydrateSpriteLayer(layer, {
         romRaw = romRaw,
         tilesPool = tilesPool,
@@ -292,6 +328,7 @@ function M.invalidateConsumersUsingPatternTable(app, patternTableRef)
 
     if WindowCaps.isPpuFrame(win) and type(app._ensurePpuPatternTableReferenceLayer) == "function" then
       for li, layer in ipairs(win.layers) do
+        syncConsumerTileLayerPatternTableRef(layer)
         if layer
           and layer.kind == "tile"
           and layer.patternTable == patternTableRef
@@ -308,6 +345,7 @@ function M.invalidateConsumersUsingPatternTable(app, patternTableRef)
 
     if WindowCaps.isPpuFrame(win) and type(tilesPool) == "table" and type(win.refreshNametableVisuals) == "function" then
       for li, layer in ipairs(win.layers) do
+        syncConsumerTileLayerPatternTableRef(layer)
         if layer
           and layer.kind == "tile"
           and layer._runtimePatternTableRefLayer ~= true

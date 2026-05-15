@@ -10,6 +10,44 @@ describe("pattern_table_display_controller.lua", function()
     }
   end
 
+  it("invalidateConsumersUsingPatternTable rewires OAM sprite layer patternTable when linked by window id", function()
+    local shared = patternTableIdentity256()
+    local stale = { ranges = {} }
+
+    local ptWin = {
+      _id = "pt_oam_link",
+      kind = "pattern_table",
+      layers = {
+        {
+          kind = "tile",
+          patternTable = shared,
+        },
+      },
+    }
+
+    local spr = {
+      kind = "sprite",
+      linkedPatternTableWindowId = "pt_oam_link",
+      patternTable = stale,
+      items = {},
+    }
+
+    local oamWin = { kind = "oam_animation", layers = { spr } }
+    local app = {
+      wm = {
+        getWindows = function()
+          return { ptWin, oamWin }
+        end,
+      },
+      appEditState = { romRaw = "", tilesPool = {} },
+    }
+
+    PTDisplay.invalidateConsumersUsingPatternTable(app, shared)
+
+    expect(spr.patternTable).toBe(shared)
+    expect(PatternTableMapping.validate(spr.patternTable)).toBe(true)
+  end)
+
   it("unlink clears PPU sprite pattern map so CHR no longer resolves through linked ranges", function()
     local pt = patternTableIdentity256()
     local spriteLayer = {
