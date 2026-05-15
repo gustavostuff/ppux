@@ -22,9 +22,11 @@ local function lin(cols, col, row)
   return row * cols + col + 1
 end
 
-local function makeTileLayerCanvas(self)
-  local cw = math.max(1, self.cellW or 8)
-  local ch = math.max(1, self.cellH or 8)
+local function makeTileLayerCanvas(self, layerIndex)
+  local li = layerIndex or self.activeLayer or 1
+  local grid = self.getDisplayGridMetrics and self:getDisplayGridMetrics(li) or {}
+  local cw = math.max(1, grid.cellW or self.cellW or 8)
+  local ch = math.max(1, grid.cellH or self.cellH or 8)
   local w = math.max(1, (self.cols or 1) * cw)
   local h = math.max(1, (self.rows or 1) * ch)
   return love.graphics.newCanvas(w, h), w, h
@@ -35,13 +37,14 @@ return function(Window)
     local li = layerIndex or self.activeLayer or 1
     self._tileLayerCanvas = self._tileLayerCanvas or {}
     local state = self._tileLayerCanvas[li]
-    local cw = math.max(1, self.cellW or 8)
-    local ch = math.max(1, self.cellH or 8)
+    local grid = self.getDisplayGridMetrics and self:getDisplayGridMetrics(li) or {}
+    local cw = math.max(1, grid.cellW or self.cellW or 8)
+    local ch = math.max(1, grid.cellH or self.cellH or 8)
     local expectedW = math.max(1, (self.cols or 1) * cw)
     local expectedH = math.max(1, (self.rows or 1) * ch)
 
     if not state then
-      local canvas, w, h = makeTileLayerCanvas(self)
+      local canvas, w, h = makeTileLayerCanvas(self, li)
       state = {
         canvas = canvas,
         width = w,
@@ -54,7 +57,7 @@ return function(Window)
     end
 
     if not state.canvas or state.width ~= expectedW or state.height ~= expectedH then
-      local canvas, w, h = makeTileLayerCanvas(self)
+      local canvas, w, h = makeTileLayerCanvas(self, li)
       state.canvas = canvas
       state.width = w
       state.height = h
@@ -104,6 +107,10 @@ return function(Window)
   end
 
   function Window:_drawTileStackItemForCanvas(app, layer, item, x, y, idx0, li)
+    self:_drawTileStackItemForCanvasScaled(app, layer, item, x, y, idx0, li, 1)
+  end
+
+  function Window:_drawTileStackItemForCanvasScaled(app, layer, item, x, y, idx0, li, rowStride)
     if not (item and item.draw) then
       return
     end
@@ -129,7 +136,8 @@ return function(Window)
       )
     end
 
-    item:draw(x, y, 1)
+    local sy = (rowStride and rowStride > 1) and rowStride or 1
+    item:draw(x, y, 1, sy)
 
     if not isPalWindow then
       ShaderPaletteController.releaseShader()
@@ -141,9 +149,12 @@ return function(Window)
       return
     end
 
+    local grid = self.getDisplayGridMetrics and self:getDisplayGridMetrics(li) or {}
+    local cw = math.max(1, grid.cellW or self.cellW or 8)
+    local ch = math.max(1, grid.cellH or self.cellH or 8)
+    local rowStride = (grid.rowStride and grid.rowStride > 1) and grid.rowStride or 1
+
     local cols = self.cols or 1
-    local cw = self.cellW or 8
-    local ch = self.cellH or 8
     local z = idx1 - 1
     local col = z % cols
     local row = math.floor(z / cols)
@@ -165,7 +176,7 @@ return function(Window)
     local stack = self:getStack(col, row, li)
     if stack and #stack > 0 then
       for i = 1, #stack do
-        self:_drawTileStackItemForCanvas(app, layer, stack[i], x, y, idx0, li)
+        self:_drawTileStackItemForCanvasScaled(app, layer, stack[i], x, y, idx0, li, rowStride)
       end
     end
 
@@ -238,7 +249,9 @@ return function(Window)
 
     local sx, sy, sw, sh = self:getInsetContentScreenRect()
     local z = (self.getZoomLevel and self:getZoomLevel()) or self.zoom or 1
-    local cw, ch = self.cellW or 8, self.cellH or 8
+    local grid = self.getDisplayGridMetrics and self:getDisplayGridMetrics(layerIndex) or {}
+    local cw = grid.cellW or self.cellW or 8
+    local ch = grid.cellH or self.cellH or 8
 
     love.graphics.push()
     local ox, oy = self:getContentScreenOrigin()

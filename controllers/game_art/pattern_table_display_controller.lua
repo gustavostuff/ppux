@@ -75,20 +75,19 @@ function M.populateTileLayerItemsFromPatternTable(win, layerIndex, opts)
   layer.items = {}
   local cols = math.max(1, math.floor(tonumber(win.cols) or 16))
   local rows = math.max(1, math.floor(tonumber(win.rows) or 16))
+  local layoutMode = layer.mode or "8x8"
+  local maxPos = math.min(255, rows * cols - 1)
 
-  for logicalIndex = 0, 255 do
+  for pos = 0, maxPos do
+    local logicalIndex = BankViewController.chrOrderingIndexForGridPos(layoutMode, pos)
     local entry = map[logicalIndex]
-    local col = logicalIndex % 16
-    local row = math.floor(logicalIndex / 16)
-    if row < rows and col < cols then
-      local idx = row * cols + col + 1
-      if entry then
-        local bankTiles = tilesPool[entry.bank]
-        local tileRef = bankTiles and bankTiles[entry.tileIndex] or nil
-        layer.items[idx] = tileRef
-      else
-        layer.items[idx] = nil
-      end
+    local idx = pos + 1
+    if entry then
+      local bankTiles = tilesPool[entry.bank]
+      local tileRef = bankTiles and bankTiles[entry.tileIndex] or nil
+      layer.items[idx] = tileRef
+    else
+      layer.items[idx] = nil
     end
   end
 

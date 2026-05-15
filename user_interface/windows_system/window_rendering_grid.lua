@@ -41,7 +41,10 @@ function Window:drawGrid(renderCell, isFocused, layerIndex)
   love.graphics.setLineWidth(1)
   love.graphics.setLineStyle("rough")
 
-  local cw, ch = self.cellW, self.cellH
+  local li = layerIndex or self.activeLayer or 1
+  local grid = self.getDisplayGridMetrics and self:getDisplayGridMetrics(li) or {}
+  local cw = grid.cellW or self.cellW or 8
+  local ch = grid.cellH or self.cellH or 8
   local sx, sy, sw, sh = self:getInsetContentScreenRect()
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
 
@@ -62,10 +65,7 @@ function Window:drawGrid(renderCell, isFocused, layerIndex)
   local r1 = math.min(self.rows - 1, vR1 + spill)
 
   local activeLayerIndex = self.activeLayer or 1
-  local ctx = _G.ctx
-  -- Decide which layer to render: default to activeLayer if none specified
-  local li = layerIndex or activeLayerIndex
-  local L  = self:getLayer(li)
+  local L = self:getLayer(li)
   local isActiveLayer = (li == activeLayerIndex)
 
   if L then
@@ -103,15 +103,18 @@ function Window:drawSprites(renderSprite, isFocused, layerIndex, romRaw)
   love.graphics.setLineWidth(1)
   love.graphics.setLineStyle("rough")
 
-  local cw = self.cellW or 8
-  local ch = self.cellH or 8
+  local grid = self:getDisplayGridMetrics(li)
+  local gcw = grid.cellW or self.cellW or 8
+  local gch = grid.cellH or self.cellH or 8
+  local cw = grid.baseCellW or grid.cellW or self.cellW or 8
+  local ch = grid.baseCellH or grid.cellH or self.cellH or 8
   local sx, sy, sw, sh = self:getInsetContentScreenRect()
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
 
-  -- Apply scroll offset in world space
+  -- Apply scroll offset in world space (grid cell size may differ from base CHR pixel size)
   local scol = self.scrollCol or 0
   local srow = self.scrollRow or 0
-  love.graphics.translate(-scol * cw, -srow * ch)
+  love.graphics.translate(-scol * gcw, -srow * gch)
 
   local isActiveLayer = (self.activeLayer == li)
 
@@ -122,10 +125,10 @@ function Window:drawSprites(renderSprite, isFocused, layerIndex, romRaw)
     isActiveLayer = isActiveLayer,
   })
 
-  local viewMinX = scol * cw
-  local viewMinY = srow * ch
-  local viewMaxX = viewMinX + (self.visibleCols or self.cols or 0) * cw
-  local viewMaxY = viewMinY + (self.visibleRows or self.rows or 0) * ch
+  local viewMinX = scol * gcw
+  local viewMinY = srow * gch
+  local viewMaxX = viewMinX + (self.visibleCols or self.cols or 0) * gcw
+  local viewMaxY = viewMinY + (self.visibleRows or self.rows or 0) * gch
 
   SpriteLayerDraw.drawSpriteLayerInContentSpace({
     layer = L,

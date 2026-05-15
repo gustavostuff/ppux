@@ -54,7 +54,7 @@ function ChrToolbar.new(window, ctx, windowController)
   -- Mode toggle
   self.modeButton = self:addButton(images.icons.actions.icon_8x8, function()
     self:_onToggleMode()
-  end, "Sprite mode (height)")
+  end, "Tile layout 8×8 / 8×16 (Ctrl+M); M alone is mirror")
   self:updateModeIcon()
 
   self.diffModeButton = self:addButton(images.icons.actions.icon_diff_mode, function()

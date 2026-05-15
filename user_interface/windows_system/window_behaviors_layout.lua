@@ -18,11 +18,17 @@ end
 return function(Window)
 -- ==== Size helpers (viewport vs full content) ====
 function Window:getVisibleSize()
-  return self.visibleCols * self.cellW, self.visibleRows * self.cellH
+  local grid = self.getDisplayGridMetrics and self:getDisplayGridMetrics()
+  local cw = (grid and grid.cellW) or self.cellW or 8
+  local ch = (grid and grid.cellH) or self.cellH or 8
+  return self.visibleCols * cw, self.visibleRows * ch
 end
 
 function Window:getRealContentSize()
-  return self.cols * self.cellW, self.rows * self.cellH
+  local grid = self.getDisplayGridMetrics and self:getDisplayGridMetrics()
+  local cw = (grid and grid.cellW) or self.cellW or 8
+  local ch = (grid and grid.cellH) or self.cellH or 8
+  return self.cols * cw, self.rows * ch
 end
 
 function Window:getContentSize()
@@ -186,9 +192,9 @@ function Window:getDisplayGridMetrics(layerIndex)
 
   local li = layerIndex or self.activeLayer or 1
   local layer = self.layers and self.layers[li] or nil
-  if layer and layer.mode == "8x16" then
-    rowStride = 2
-  elseif self.kind == "chr" and self.orderMode == "oddEven" then
+  -- Tile/sprite layers: each logical row occupies 16px height (CHR tile scaled ×2 vertically).
+  -- CHR oddEven and pattern_table "8x16" layout only *reindex* within an 8px grid — do not inflate cellH.
+  if layer and layer.mode == "8x16" and not WindowCaps.isPatternTable(self) then
     rowStride = 2
   end
 
@@ -274,8 +280,9 @@ function Window:screenToAbsoluteCanvasXY(px, py)
   local sx, sy = self:getInsetContentScreenRect()
   local scol = self.scrollCol or 0
   local srow = self.scrollRow or 0
-  local cw = self.cellW or 8
-  local ch = self.cellH or 8
+  local grid = self.getDisplayGridMetrics and self:getDisplayGridMetrics()
+  local cw = (grid and grid.cellW) or self.cellW or 8
+  local ch = (grid and grid.cellH) or self.cellH or 8
   return scol * cw + (px - sx) / z, srow * ch + (py - sy) / z
 end
 
@@ -299,9 +306,13 @@ function Window:toGridCoords(px, py)
   local ok,cx,cy = self:toContentCoords(px,py)
   if not ok then return false end
 
+  local grid = self.getDisplayGridMetrics and self:getDisplayGridMetrics()
+  local gcw = (grid and grid.cellW) or self.cellW or 8
+  local gch = (grid and grid.cellH) or self.cellH or 8
+
   -- Map within viewport first
-  local localCol = math.floor(cx/self.cellW)
-  local localRow = math.floor(cy/self.cellH)
+  local localCol = math.floor(cx / gcw)
+  local localRow = math.floor(cy / gch)
 
   if localCol < 0 or localRow < 0 or
      localCol >= self.visibleCols or localRow >= self.visibleRows then
@@ -313,8 +324,8 @@ function Window:toGridCoords(px, py)
   local row = localRow + self.scrollRow
   if col<0 or col>=self.cols or row<0 or row>=self.rows then return false end
 
-  local lx = cx - localCol*self.cellW
-  local ly = cy - localRow*self.cellH
+  local lx = cx - localCol * gcw
+  local ly = cy - localRow * gch
   return true, col, row, lx, ly
 end
 

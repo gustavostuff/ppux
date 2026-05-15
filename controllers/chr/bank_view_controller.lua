@@ -25,6 +25,15 @@ local function mapIndexForOrder(orderMode, pos)
   return pair * 32 + col * 2 + (isOdd and 1 or 0)
 end
 
+--- Pattern-table layer `mode` ("8x8"|"8x16") or CHR `orderMode` ("normal"|"oddEven"): which logical
+--- CHR-grid index corresponds to raster cell `gridPos` (16-wide row-major), without changing pixel pitch.
+function M.chrOrderingIndexForGridPos(layoutMode, gridPos)
+  if layoutMode == "oddEven" or layoutMode == "8x16" then
+    return mapIndexForOrder("oddEven", gridPos)
+  end
+  return mapIndexForOrder("normal", gridPos)
+end
+
 -- Ensure all 512 tiles for a CHR bank are present in tilesPool.
 -- appEditState:
 --   chrBanksBytes[bankIdx] : bytes array
@@ -96,7 +105,7 @@ local function fillBankWindowLayer(winBank, appEditState, bankIdx, orderMode)
     for c = 0, winBank.cols - 1 do
       local pos = r * winBank.cols + c
       if pos >= BANK_TILE_COUNT then break end
-      local idx = mapIndexForOrder(orderMode, pos)
+      local idx = M.chrOrderingIndexForGridPos(orderMode, pos)
       local t   = bank[idx]
       if t then
         layer.items[(r * winBank.cols) + c + 1] = t

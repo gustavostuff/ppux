@@ -36,6 +36,7 @@ local focusHandlers = {
   { name = "palette_keys", fn = function(key, focus) return KeyboardNavigationController.handlePaletteKeys(ctx, utils, key, focus) end },
   { name = "tile_selection_navigation", fn = function(key, focus) return KeyboardNavigationController.handleTileSelectionNavigation(ctx, utils, key, focus) end },
   { name = "layer_navigation", fn = function(key, focus) return KeyboardNavigationController.handleLayerNavigation(ctx, utils, key, focus) end },
+  { name = "pattern_table_layer_mode", fn = function(key, focus) return KeyboardNavigationController.handlePatternTableLayerModeKeys(ctx, utils, key, focus) end },
   { name = "chr_bank_keys", fn = function(key, focus) return KeyboardNavigationController.handleChrBankKeys(ctx, utils, key, focus) end },
   { name = "animation_window_keys", fn = function(key, focus) return KeyboardNavigationController.handleAnimationWindowKeys(ctx, key, focus) end },
   { name = "edit_mode_keys", fn = function(key) return KeyboardEditToggleController.handleEditModeKeys(ctx, utils, key) end },

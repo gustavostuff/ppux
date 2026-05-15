@@ -193,7 +193,9 @@ function AppCoreController:_buildSelectInChrContext(win, layerIndex, col, row, i
       logicalIndex = (layer._runtimePatternTableRefLayer == true
         and layer._runtimePatternTableLogicalByCell
         and layer._runtimePatternTableLogicalByCell[((row * (win.cols or 32)) + col + 1)])
-        or (row * (win.cols or 16)) + col,
+        or (WindowCaps.isPatternTable(win)
+          and BankViewController.chrOrderingIndexForGridPos(layer.mode or "8x8", (row * (win.cols or 16)) + col))
+        or ((row * (win.cols or 16)) + col),
     }
   end
 

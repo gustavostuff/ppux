@@ -323,14 +323,13 @@ function AppCoreController:keypressed(k, scancode, isrepeat)
     return
   end
 
-  -- M: Toggle horizontal mirror for the focused window (CHR bank uses M for bank order; keep that first).
+  -- Bare M: horizontal mirror preview (CHR/ROM and pattern-table use Ctrl+M for layout/tile-height mode).
   do
     local shiftDown = love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
     local altDown = love.keyboard.isDown("lalt") or love.keyboard.isDown("ralt")
     if not keyRepeat and not ctrlDown and not shiftDown and not altDown and k == "m" then
-      local WindowCaps = require("controllers.window.window_capabilities")
       local focus = self.wm and self.wm.getFocus and self.wm:getFocus()
-      if not (focus and WindowCaps.isChrLike(focus))
+      if focus
           and self.hasLoadedROM
           and self:hasLoadedROM()
           and self.togglePreviewMirrorX

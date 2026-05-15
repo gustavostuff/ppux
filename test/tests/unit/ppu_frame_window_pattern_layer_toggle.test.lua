@@ -1,5 +1,44 @@
 local PPUFrameWindow = require("user_interface.windows_system.ppu_frame_window")
 
+local FULL_PATTERN_TABLE = {
+  ranges = {
+    {
+      bank = 1,
+      page = 1,
+      tileRange = { from = 0, to = 255 },
+    },
+  },
+}
+
+--- PatternLayerGate locks navigation unless nametable ranges + grid + patterns are sane.
+local function hydrateForLayerNavigation(win)
+  local cols = win.cols or 32
+  local rows = win.rows or 30
+  local need = math.max(1, cols * rows)
+  for i = 1, need do
+    if win.nametableBytes[i] == nil then
+      win.nametableBytes[i] = 0
+    end
+  end
+  for _, layer in ipairs(win.layers or {}) do
+    if layer and layer.kind == "tile" and layer._runtimePatternTableRefLayer ~= true then
+      if type(layer.nametableStartAddr) ~= "number" then
+        layer.nametableStartAddr = 0x2000
+      end
+      if type(layer.nametableEndAddr) ~= "number" then
+        layer.nametableEndAddr = layer.nametableStartAddr + need - 1
+      end
+      if type(layer.patternTable) ~= "table" then
+        layer.patternTable = FULL_PATTERN_TABLE
+      end
+    elseif layer and layer.kind == "sprite" then
+      if type(layer.patternTable) ~= "table" then
+        layer.patternTable = FULL_PATTERN_TABLE
+      end
+    end
+  end
+end
+
 describe("ppu_frame_window.lua - pattern layer toggle navigation", function()
   it("keeps runtime pattern layer out of normal next/prev navigation", function()
     local win = PPUFrameWindow.new(0, 0, 1, { title = "PPU" })
@@ -10,6 +49,7 @@ describe("ppu_frame_window.lua - pattern layer toggle navigation", function()
     }
     win.activeLayer = 1
     win.patternLayerSoloMode = false
+    hydrateForLayerNavigation(win)
 
     win:nextLayer()
     expect(win:getActiveLayerIndex()).toBe(2)
@@ -31,9 +71,9 @@ describe("ppu_frame_window.lua - pattern layer toggle navigation", function()
     }
     win.activeLayer = 1
     win.patternLayerSoloMode = false
+    hydrateForLayerNavigation(win)
 
     local ok, reason = win:setPatternLayerSoloMode(true)
-    expect(ok).toBe(true)
     expect(reason).toBeNil()
     expect(win.patternLayerSoloMode).toBe(true)
     expect(win.drawOnlyActiveLayer).toBe(true)

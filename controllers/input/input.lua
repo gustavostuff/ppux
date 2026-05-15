@@ -97,7 +97,9 @@ local function pickByVisual(win, x, y, layerIndex)
   local cx = (x - sx) / z
   local cy = (y - sy) / z
 
-  local cw, ch = win.cellW, win.cellH
+  local grid = win.getDisplayGridMetrics and win:getDisplayGridMetrics(layerIndex) or {}
+  local cw = grid.cellW or win.cellW or 8
+  local ch = grid.cellH or win.cellH or 8
   if not (cw and ch) then return false end
 
   -- Account for scroll: drawn content is translated by -scroll*cw/ch,

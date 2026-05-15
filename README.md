@@ -94,7 +94,7 @@ With a ROM (or project workspace) **loaded**, quick buttons appear **left to rig
 6. **Paste** - `Ctrl + V`
 7. **Zoom out** - steps zoom on the **focused** window (palette windows are skipped); matches **Ctrl + wheel** down behavior
 8. **Zoom in** - **Ctrl + wheel** up on the focused window
-9. **Mirror X** - toggles horizontal mirror in the **focused** window. Shortcut: `M key`
+9. **Mirror X** - toggles horizontal mirror preview in the **focused** window (where supported). Shortcut: **`M`** (no modifiers). **CHR / ROM bank** and **pattern table** windows also use **`Ctrl + M`** for **8×8 vs 8×16 pair layout** (same cell size as CHR banks); see their toolbars below.
 10. **Always on top** - toggles whether the **focused** window stays above others. Also available from the window’s title-bar menu.
 11. **Add column to the right** - for windows with a resizable tile/sprite **grid**; hold **Shift** to switch the same control to **Remove last column** (tooltip updates)
 12. **Add row below** - **Shift** switches to **Remove last row**
@@ -108,7 +108,7 @@ With a ROM (or project workspace) **loaded**, quick buttons appear **left to rig
 1. **Previous bank** - `Left` key
 2. **Next bank** - `Right` key
 3. **Open base ROM folder** - opens your OS file manager on the folder that contains the loaded base ROM (disabled until PPUX knows a ROM path; tooltip explains *load ROM first* / *path unknown* states)
-4. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - `M` key
+4. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - **`Ctrl + M`**. **`M`** alone toggles **Mirror X** (same as the app toolbar).
 5. **Diff vs loaded CHR** - toggles “git-like” overlays on the bank canvas: compares current CHR tile bytes against the ROM’s CHR snapshot from when this session loaded (`D` shortcut with a CHR Banks window focused, no modifiers). When ON: **green** tint on tiles that changed, **dark** tint on unchanged tiles ([design detail](docs/ui/CHR_ROM_DIFF_MODE.md)).
 6. **Sync duplicate tiles** - on: identical tiles edit together; off: independent cells
 
@@ -116,7 +116,12 @@ With a ROM (or project workspace) **loaded**, quick buttons appear **left to rig
 
 <img src="img/readme_images/toolbars/rom_banks_toolbar.png" alt="ROM Banks specialized toolbar">
 
-Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface makes that unsafe).
+Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface makes that unsafe). Keyboard: **`Ctrl + M`** for **tile layout**; **`M`** for **Mirror X**.
+
+#### Pattern table toolbar
+
+1. **Add tile range** - same flow as PPU Frame (bank/page/from/to logical range)
+2. Keyboard: **`Ctrl + M`** toggles **`8x8`** vs **`8x16` pair** layout (same reordering as CHR banks; each cell stays **8×8** pixels). **`M`** alone toggles **Mirror X** (same as the app toolbar).
 
 #### Static Art (tiles and sprites) toolbar
 
@@ -244,7 +249,7 @@ Tile mode is for selection, drag and drop and tile-level editing in general.
 - `Ctrl + Up/Down` to change inactive-layer opacity (disabled in PPU Frame pattern-layer-only mode)
 - `1` to `4` to assign palette numbers where supported
 - `H` / `V` to mirror selected sprites
-- Bank windows: `Left/Right` switch banks, `M` toggles `8x8` / `8x16`, `D` toggles **diff vs loaded CHR** (`8x16` pairs highlight as one unit when either half differs)
+- Bank windows: `Left/Right` switch banks, **`Ctrl + M`** toggles `8x8` / `8x16` layout, **`M`** toggles **Mirror X**, `D` toggles **diff vs loaded CHR** (`8x16` pairs highlight as one unit when either half differs)
 - With a layout window focused, hold **`Space`** to cross-highlight matching tiles in the **current CHR/ROM bank** (see [Main controls](#main-controls)).
 
 ### Edit mode

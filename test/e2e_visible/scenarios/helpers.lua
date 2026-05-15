@@ -105,9 +105,14 @@ function M.setupDeterministicPpuFixture(currentApp, currentRunner)
   layer.nametableStartAddr = nil
   layer.nametableEndAddr = nil
   if currentApp._ensurePpuPatternTableReferenceLayer then
-    currentApp:_ensurePpuPatternTableReferenceLayer(ppuWin, 1, {
+    local ok = currentApp:_ensurePpuPatternTableReferenceLayer({
+      win = ppuWin,
+      layer = layer,
+      layerIndex = 1,
+    }, {
       keepActiveLayer = true,
     })
+    assert(ok, "expected pattern table reference layer for E2E PPU fixture")
   end
 
   local oamWin = assert(currentApp.wm:createSpriteWindow({

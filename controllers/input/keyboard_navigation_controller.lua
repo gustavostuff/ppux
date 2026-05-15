@@ -137,6 +137,9 @@ function M.handleChrBankKeys(ctx, utils, key, focus)
   end
 
   if key == "m" then
+    if not utils.ctrlDown() or utils.shiftDown() then
+      return false
+    end
     focus.orderMode = (focus.orderMode == "normal") and "oddEven" or "normal"
     ctx.rebuildChrBankWindow(focus)
     if focus.specializedToolbar and focus.specializedToolbar.updateModeIcon then
@@ -196,6 +199,48 @@ function M.handleChrBankKeys(ctx, utils, key, focus)
   end
 
   return false
+end
+
+--- Pattern table tile layer: Ctrl+M toggles 8x8 / 8x16 pair layout (same reorder as CHR; bare M is mirror X).
+function M.handlePatternTableLayerModeKeys(ctx, utils, key, focus)
+  if type(utils.altDown) == "function" and utils.altDown() then return false end
+  local wm = ctx.wm()
+  local actuallyFocused = wm and wm:getFocus()
+  if not (WindowCaps.isPatternTable(actuallyFocused) and actuallyFocused == focus) then
+    return false
+  end
+  if key ~= "m" then return false end
+  if not utils.ctrlDown() or utils.shiftDown() then return false end
+
+  local li = (focus.getActiveLayerIndex and focus:getActiveLayerIndex()) or focus.activeLayer or 1
+  local layer = focus.layers and focus.layers[li]
+  if not (layer and layer.kind == "tile") then
+    return false
+  end
+  layer.mode = ((layer.mode or "8x8") == "8x16") and "8x8" or "8x16"
+
+  local app = ctx and ctx.app
+  if app then
+    local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
+    PatternTableDisplayController.populateTileLayerItemsFromPatternTable(focus, li, {
+      tilesPool = app.appEditState and app.appEditState.tilesPool,
+      appEditState = app.appEditState,
+      ensureTiles = function(bankIdx)
+        local st = app.appEditState
+        if st and st.chrBanksBytes and st.chrBanksBytes[bankIdx] then
+          BankViewController.ensureBankTiles(st, bankIdx)
+        end
+      end,
+    })
+  end
+
+  if focus.invalidateTileLayerCanvas then
+    focus:invalidateTileLayerCanvas(li)
+  end
+
+  local layoutLabel = (layer.mode == "8x16") and "8x16 pairs" or "8x8"
+  setStatus(ctx, "Pattern table layout: " .. layoutLabel .. " — Ctrl+M to toggle")
+  return true
 end
 
 function M.handleAnimationWindowKeys(ctx, key, focus)

@@ -259,16 +259,70 @@ describe("keyboard_input.lua - CHR mode status", function()
       },
     }
 
+    local ctrlHeld = false
     KeyboardInput.setup(ctx, {
-      ctrlDown = function() return false end,
+      ctrlDown = function() return ctrlHeld end,
       shiftDown = function() return false end,
       altDown = function() return false end,
     })
 
     KeyboardInput.keypressed("m", ctx.app)
+    expect(win.orderMode).toBe("normal")
+
+    ctrlHeld = true
+    KeyboardInput.keypressed("m", ctx.app)
 
     expect(win.orderMode).toBe("oddEven")
     expect(status).toBe(nil)
+  end)
+
+  it("toggles pattern table tile layer mode with Ctrl+M", function()
+    local status = nil
+    local invalidated = nil
+    local win = {
+      kind = "pattern_table",
+      activeLayer = 1,
+      layers = {
+        {
+          kind = "tile",
+          mode = "8x8",
+        },
+      },
+      getActiveLayerIndex = function(self) return self.activeLayer end,
+      invalidateTileLayerCanvas = function(self, li)
+        invalidated = li
+      end,
+    }
+
+    local ctx = {
+      getMode = function() return "tile" end,
+      setMode = function() end,
+      getFocus = function() return win end,
+      setStatus = function(msg) status = msg end,
+      setColor = function() end,
+      wm = function()
+        return {
+          getFocus = function() return win end,
+        }
+      end,
+      app = {},
+    }
+
+    local ctrlHeld = true
+    KeyboardInput.setup(ctx, {
+      ctrlDown = function() return ctrlHeld end,
+      shiftDown = function() return false end,
+      altDown = function() return false end,
+    })
+
+    KeyboardInput.keypressed("m", ctx.app)
+    expect(win.layers[1].mode).toBe("8x16")
+    expect(invalidated).toBe(1)
+    expect(status).toBe("Pattern table layout: 8x16 pairs — Ctrl+M to toggle")
+
+    KeyboardInput.keypressed("m", ctx.app)
+    expect(win.layers[1].mode).toBe("8x8")
+    expect(status).toBe("Pattern table layout: 8x8 — Ctrl+M to toggle")
   end)
 
   it("switches CHR banks by changing the active layer instead of rebuilding the window", function()

@@ -155,7 +155,8 @@ local function buildPpuToolbarPatternRangesScenario(harness, app, runner)
   steps[#steps + 1] = call("Turn pattern solo mode on (manual)", function(_, _, currentRunner)
     local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
     if ppu.setPatternLayerSoloMode then
-      ppu:setPatternLayerSoloMode(true)
+      local ok = ppu:setPatternLayerSoloMode(true)
+      assert(ok, "expected pattern solo mode to enable (PPU needs a runtime pattern reference layer)")
     end
     if ppu.specializedToolbar and ppu.specializedToolbar.updateIcons then
       ppu.specializedToolbar:updateIcons()

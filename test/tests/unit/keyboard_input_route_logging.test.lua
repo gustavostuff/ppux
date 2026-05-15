@@ -58,6 +58,7 @@ describe("keyboard_input.lua - INPUT_ROUTE logging", function()
       paletteKeys = KeyboardNavigationController.handlePaletteKeys,
       tileNav = KeyboardNavigationController.handleTileSelectionNavigation,
       layerNav = KeyboardNavigationController.handleLayerNavigation,
+      patternTableLayout = KeyboardNavigationController.handlePatternTableLayerModeKeys,
       chrBank = KeyboardNavigationController.handleChrBankKeys,
       animKeys = KeyboardNavigationController.handleAnimationWindowKeys,
     }
@@ -100,6 +101,7 @@ describe("keyboard_input.lua - INPUT_ROUTE logging", function()
     KeyboardNavigationController.handlePaletteKeys = function() return false end
     KeyboardNavigationController.handleTileSelectionNavigation = function() return false end
     KeyboardNavigationController.handleLayerNavigation = function() return false end
+    KeyboardNavigationController.handlePatternTableLayerModeKeys = function() return false end
     KeyboardNavigationController.handleChrBankKeys = function() return false end
     KeyboardNavigationController.handleAnimationWindowKeys = function() return false end
     KeyboardSelectionActionsController.handleSelectAll = function() return false end
@@ -137,6 +139,7 @@ describe("keyboard_input.lua - INPUT_ROUTE logging", function()
     KeyboardNavigationController.handlePaletteKeys = originalNavigation.paletteKeys
     KeyboardNavigationController.handleTileSelectionNavigation = originalNavigation.tileNav
     KeyboardNavigationController.handleLayerNavigation = originalNavigation.layerNav
+    KeyboardNavigationController.handlePatternTableLayerModeKeys = originalNavigation.patternTableLayout
     KeyboardNavigationController.handleChrBankKeys = originalNavigation.chrBank
     KeyboardNavigationController.handleAnimationWindowKeys = originalNavigation.animKeys
     KeyboardSelectionActionsController.handleSelectAll = originalSelectionActions.selectAll
