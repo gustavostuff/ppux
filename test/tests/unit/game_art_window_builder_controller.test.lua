@@ -194,4 +194,100 @@ describe("game_art_window_builder_controller.lua", function()
     expect(hydrateOpts.preRegisteredWork).toBeNil()
     expect(hydrateOpts.loadingProgress).toBeNil()
   end)
+
+  it("restores sprite pattern-table link metadata for PPU frames even when an extra_runtime tile layer shifts indices", function()
+    NametableTilesController.hydrateWindowNametable = function()
+      return true
+    end
+
+    PPUFrameWindow.new = function(x, y, zoom, data)
+      return {
+        x = x,
+        y = y,
+        zoom = zoom,
+        title = data and data.title or "PPU",
+        cols = 32,
+        rows = 30,
+        layers = {
+          {
+            kind = "tile",
+            items = {},
+            nametableStartAddr = 100,
+            nametableEndAddr = 199,
+          },
+        },
+        nametableBytes = {},
+        nametableAttrBytes = {},
+        setScroll = function() end,
+        getSpriteLayers = function(self)
+          local result = {}
+          for i, L in ipairs(self.layers or {}) do
+            if L.kind == "sprite" then
+              result[#result + 1] = { index = i, layer = L }
+            end
+          end
+          return result
+        end,
+      }
+    end
+
+    local w = {
+      x = 0,
+      y = 0,
+      zoom = 2,
+      id = "ppu_link",
+      title = "PPU Frame",
+      nametableStartAddr = 100,
+      nametableEndAddr = 199,
+      layers = {
+        {
+          kind = "tile",
+          nametableStartAddr = 100,
+          nametableEndAddr = 199,
+          codec = "konami",
+          patternTable = {
+            ranges = {
+              {
+                bank = 2,
+                page = 1,
+                tileRange = { from = 0, to = 255 },
+              },
+            },
+          },
+        },
+        {
+          kind = "sprite",
+          mode = "8x8",
+          name = "Sprites",
+          items = {},
+          linkedPatternTableWindowId = "pattern_tbl_a",
+        },
+      },
+    }
+
+    local win = Factory.createPPUFrameWindow(w, {}, function() end, "rom")
+    expect(win).toBeTruthy()
+
+    -- Simulate a runtime-only preview layer present in-session but omitted from the saved layout
+    table.insert(win.layers, 2, {
+      kind = "tile",
+      name = "Runtime preview",
+      items = {},
+      _runtimePatternTableRefLayer = true,
+      _runtimeOnly = true,
+    })
+
+    Factory.finalizeWindow(win, w, {}, nil, "rom", {})
+
+    local spriteLayer
+    for _, L in ipairs(win.layers or {}) do
+      if L and L.kind == "sprite" then
+        spriteLayer = L
+        break
+      end
+    end
+
+    expect(spriteLayer).toBeTruthy()
+    expect(spriteLayer.linkedPatternTableWindowId).toBe("pattern_tbl_a")
+  end)
 end)

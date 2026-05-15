@@ -473,8 +473,14 @@ local function addPpuSpriteOverlayLayers(win, w, ensureTiles)
         originY = Lsrc.originY,
       }
 
+      if type(Lsrc.linkedPatternTableWindowId) == "string" and Lsrc.linkedPatternTableWindowId ~= "" then
+        spriteLayer.linkedPatternTableWindowId = Lsrc.linkedPatternTableWindowId
+      elseif type(Lsrc.patternTable) == "table" then
+        spriteLayer.patternTable = TableUtils.deepcopy(Lsrc.patternTable)
+      end
+
       for _, it in ipairs(Lsrc.items or {}) do
-        if it.bank and it.tile then
+        if it.bank and (it.tile or it.startAddr) then
           ensureTiles(it.bank)
           table.insert(spriteLayer.items, {
             startAddr = it.startAddr,
@@ -482,6 +488,23 @@ local function addPpuSpriteOverlayLayers(win, w, ensureTiles)
             tile = it.tile,
             dx = it.dx,
             dy = it.dy,
+            x = it.x,
+            y = it.y,
+            paletteNumber = it.paletteNumber,
+            mirrorX = it.mirrorX,
+            mirrorY = it.mirrorY,
+            _mirrorXOverrideSet = (it.mirrorX ~= nil),
+            _mirrorYOverrideSet = (it.mirrorY ~= nil),
+          })
+        elseif type(it.startAddr) == "number" and it.bank == nil then
+          table.insert(spriteLayer.items, {
+            startAddr = it.startAddr,
+            bank = it.bank,
+            tile = it.tile,
+            dx = it.dx,
+            dy = it.dy,
+            x = it.x,
+            y = it.y,
             paletteNumber = it.paletteNumber,
             mirrorX = it.mirrorX,
             mirrorY = it.mirrorY,
@@ -622,6 +645,47 @@ function M.createPatternSketchCanvasWindow(w, decodePatternCanvasSnapshot, onPat
   return win
 end
 
+--- PPU frames may have runtime-only tile layers (e.g. pattern-table previews) that are not in the
+--- saved layout. Index-wise metadata then mis-assigns sprite fields onto the wrong layer; match
+--- sprite layers by order among `kind == "sprite"` entries instead.
+local function mergePpuSpriteLayerMetadataFromLayoutByOrdinal(win, layoutLayers)
+  if not (WindowCaps.isPpuFrame(win) and layoutLayers and win.layers) then
+    return
+  end
+
+  local srcSprites = {}
+  for _, L in ipairs(layoutLayers) do
+    if L and L.kind == "sprite" then
+      srcSprites[#srcSprites + 1] = L
+    end
+  end
+
+  local dstSprites = {}
+  for _, L in ipairs(win.layers) do
+    if L and L.kind == "sprite" then
+      dstSprites[#dstSprites + 1] = L
+    end
+  end
+
+  for i = 1, math.min(#srcSprites, #dstSprites) do
+    local Lsrc, Ldst = srcSprites[i], dstSprites[i]
+    if type(Lsrc.linkedPatternTableWindowId) == "string" and Lsrc.linkedPatternTableWindowId ~= "" then
+      Ldst.linkedPatternTableWindowId = Lsrc.linkedPatternTableWindowId
+    end
+    if type(Lsrc.patternTable) == "table"
+      and not (type(Lsrc.linkedPatternTableWindowId) == "string" and Lsrc.linkedPatternTableWindowId ~= "")
+    then
+      Ldst.patternTable = TableUtils.deepcopy(Lsrc.patternTable)
+    end
+    if Lsrc.paletteData ~= nil then
+      Ldst.paletteData = TableUtils.deepcopy(Lsrc.paletteData)
+    end
+    if type(Lsrc.userDefinedAttrs) == "string" then
+      Ldst.userDefinedAttrs = Lsrc.userDefinedAttrs
+    end
+  end
+end
+
 local function applyLayerMetadataFromLayout(win, layoutLayers)
   if not (win and layoutLayers and win.layers) then return end
 
@@ -656,6 +720,8 @@ local function applyLayerMetadataFromLayout(win, layoutLayers)
       end
     end
   end
+
+  mergePpuSpriteLayerMetadataFromLayoutByOrdinal(win, layoutLayers)
 end
 
 function M.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool)
