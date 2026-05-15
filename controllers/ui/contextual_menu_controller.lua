@@ -12,6 +12,12 @@ ContextualMenuController.CHILD_HOVER_GRACE_SECONDS = 0.18
 -- clamp bounds edges (app canvas for core_controller menus; taskbar getBounds matches canvas BR).
 ContextualMenuController.PARENT_GAP_PX = 2
 
+--[[ Menu chrome feature flags — set to false to revert without ripping out code paths.
+     ENABLE_MENU_GROUP_SEPARATOR_LINES: horizontal rules between rows when `menuGroup` changes.
+     ENABLE_MENU_PERIMETER_OUTLINE: rounded border around contextual menus (panel `menuOutline`). ]]
+ContextualMenuController.ENABLE_MENU_GROUP_SEPARATOR_LINES = false
+ContextualMenuController.ENABLE_MENU_PERIMETER_OUTLINE = true
+
 local function nowSeconds()
   if love.timer and love.timer.getTime then
     return love.timer.getTime()
@@ -205,6 +211,8 @@ local function rebuildPanel(menu)
   if modalChrome == nil then
     modalChrome = true
   end
+  local perimeterOn =
+    ContextualMenuController.ENABLE_MENU_PERIMETER_OUTLINE == true and menu.menuOutline == true
   local panel
 
   if splitIconCell then
@@ -222,7 +230,7 @@ local function rebuildPanel(menu)
       bgColor = panelBg,
       _modalChromeOverBlue = modalChrome,
       menuRowSeparators = menu.menuRowSeparators == true,
-      menuOutline = menu.menuOutline == true,
+      menuOutline = perimeterOn,
     })
     panel.cellWidths = {}
     panel.cellWidths[1] = menu.cellH
@@ -244,7 +252,7 @@ local function rebuildPanel(menu)
       bgColor = panelBg,
       _modalChromeOverBlue = modalChrome,
       menuRowSeparators = menu.menuRowSeparators == true,
-      menuOutline = menu.menuOutline == true,
+      menuOutline = perimeterOn,
     })
   end
 
@@ -320,12 +328,13 @@ local function rebuildPanel(menu)
   local sepAfterRow = nil
   if menu.menuRowSeparators == true and #items > 1 then
     sepAfterRow = {}
+    local groupSepEnabled = ContextualMenuController.ENABLE_MENU_GROUP_SEPARATOR_LINES == true
     for i = 1, #items - 1 do
       local prevIt, nextIt = items[i], items[i + 1]
       local wantSep = false
       if nextIt and nextIt.separatorBefore == true then
         wantSep = true
-      else
+      elseif groupSepEnabled then
         local ga = prevIt and prevIt.menuGroup
         local gb = nextIt and nextIt.menuGroup
         if ga ~= nil and gb ~= nil and ga ~= gb then

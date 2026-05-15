@@ -113,7 +113,7 @@ function AppCoreController:invalidateStaticAnimationTileLayerCanvasForChrTile(ba
     if win
       and win.layers
       and win.invalidateTileLayerCanvas
-      and (WindowCaps.isStaticArt(win) or WindowCaps.isAnimationLike(win))
+      and WindowCaps.isStaticOrAnimationArt(win)
     then
       for li, layer in ipairs(win.layers) do
         if layer and layer.kind == "tile" and layer.items then
