@@ -386,6 +386,13 @@ function UndoRedoController:addPatternTableAppendEvent(event)
     beforePatternTable = TableUtils.deepcopy(event.beforePatternTable),
     afterPatternTable = TableUtils.deepcopy(event.afterPatternTable),
   }
+  local ptm = event.patternTableTileModes
+  if type(ptm) == "table" then
+    stored.patternTableTileModes = {
+      before = ptm.before,
+      after = ptm.after,
+    }
+  end
   local pushed = self:_pushEvent(stored)
   if pushed then
     self:_notifyUnsaved("pattern_table_append")
@@ -708,6 +715,14 @@ local function applyPatternTableAppendEvent(event, direction, app)
   end
   local snap = (direction == "undo") and event.beforePatternTable or event.afterPatternTable
   local li = math.floor(tonumber(event.layerIndex) or 1)
+  local ptm = event.patternTableTileModes
+  if type(ptm) == "table" then
+    local m = (direction == "undo") and ptm.before or ptm.after
+    return app:applyPatternTableWindowPatternSnapshot(win, li, snap, {
+      applyTileLayerMode = true,
+      tileLayerMode = m,
+    })
+  end
   return app:applyPatternTableWindowPatternSnapshot(win, li, snap)
 end
 

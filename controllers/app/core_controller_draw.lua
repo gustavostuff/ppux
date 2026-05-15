@@ -18,6 +18,7 @@ local CanvasSpace = require("utils.canvas_space")
 local ChrCanvasOnlyMode = require("controllers.chr.chr_canvas_only_mode")
 local CrtLayerViz = require("controllers.crt.crt_layer_viz")
 local UiScale = require("user_interface.ui_scale")
+local GridOverlayMetrics = require("controllers.window.grid_overlay_metrics")
 
 --- Drop-shadow mask offset defaults (pixels, code-only). Positive X -> right, Y -> down.
 --- Override at runtime: app.windowShadowOffsetX / app.windowShadowOffsetY.
@@ -124,22 +125,24 @@ local function renderWindowChessPattern(window, wm)
   -- Pick base BG color: window ROM palette BG -> global active BG -> black
   local bgColor = getRomPaletteBgColorForWindow(window, wm) or getActiveGlobalPaletteBgColor(wm) or colors.black
   local grid = (window.getDisplayGridMetrics and window:getDisplayGridMetrics()) or {
+    baseCellW = window.cellW or 8,
+    baseCellH = window.cellH or 8,
     cellW = window.cellW or 8,
     cellH = window.cellH or 8,
     rowStride = 1,
   }
-  local rowStride = grid.rowStride or 1
-  local drawH = grid.cellH + 1
+  local chessRowSkip = GridOverlayMetrics.chessNominalRowSkip(window, grid)
+  local bandH = GridOverlayMetrics.overlayVerticalPeriodNes(window, grid)
 
   window:drawGrid(function(col, row, x, y, cw, ch)
-    if rowStride > 1 and (row % rowStride) ~= 0 then
+    if chessRowSkip > 1 and (row % chessRowSkip) ~= 0 then
       return
     end
 
     love.graphics.setColor(bgColor)
-    love.graphics.rectangle("fill", x, y, cw + 1, drawH)
+    love.graphics.rectangle("fill", x, y, cw + 1, bandH + 1)
 
-    if ((math.floor(row / rowStride)) + col) % 2 == 0 then
+    if (math.floor(row / chessRowSkip) + col) % 2 == 0 then
       local color = colors.white
       local checkerAlpha = 0.1
       if ResolutionController.canvasCrtShaderEnabled == true
@@ -147,7 +150,7 @@ local function renderWindowChessPattern(window, wm)
         checkerAlpha = 0.2
       end
       love.graphics.setColor(color[1], color[2], color[3], checkerAlpha)
-      love.graphics.rectangle("fill", x, y, cw + 1, drawH)
+      love.graphics.rectangle("fill", x, y, cw + 1, bandH + 1)
     end
   end)
 
@@ -186,13 +189,15 @@ local function renderWindowLinesGrid(window)
   }
   local zoom = window.zoom or 1
   local stepX = grid.cellW * zoom
-  local stepY = grid.cellH * zoom
+  local vertPeriod = GridOverlayMetrics.overlayVerticalPeriodNes(window, grid)
+  local stepY = vertPeriod * zoom
   if stepX <= 0 or stepY <= 0 then return end
 
   local x, y, w, h = window:getScreenRect()
   local thickness = 1
   local scrollOffsetX = ((window.scrollCol or 0) * (grid.baseCellW or grid.cellW) * zoom) % stepX
-  local scrollOffsetY = ((window.scrollRow or 0) * (grid.baseCellH or grid.cellH) * zoom) % stepY
+  local baseStepY = grid.baseCellH or grid.cellH or 8
+  local scrollOffsetY = ((window.scrollRow or 0) * baseStepY * zoom) % stepY
 
   love.graphics.push("all")
   love.graphics.setShader(linesGridShader)

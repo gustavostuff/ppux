@@ -7,8 +7,6 @@ local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 local Shared = require("controllers.app.core_controller_shared")
 
 local CHR_DROP_PPU_PATTERN_MSG = "CHR tiles must appear in this PPU frame pattern table"
-local CHR_PATTERN_TABLE_LAYOUT_MISMATCH_MSG =
-  "CHR tile layout must match the pattern table (both 8×8 rows or both 8×16 pairs)"
 
 local M = {}
 
@@ -388,9 +386,6 @@ local function getTooltipTextForReason(reason)
   if reason == "pattern_table_bad_ranges" then
     return "pattern table ranges are invalid"
   end
-  if reason == "pattern_table_layout_mismatch" then
-    return CHR_PATTERN_TABLE_LAYOUT_MISMATCH_MSG
-  end
   return nil
 end
 
@@ -508,11 +503,7 @@ local function getChrPatternTableGroupDropState(env, dst, x, y, drag)
     end
   end
 
-  if not PpuRange.chrLayoutMatchesPatternTableLayer(drag.srcWin, layer) then
-    state.reason = "pattern_table_layout_mismatch"
-    state.planErrText = CHR_PATTERN_TABLE_LAYOUT_MISMATCH_MSG
-    return state
-  end
+  local previewLayer = PpuRange.patternTableLayerEffectiveForChrDropPreview(layer, drag.srcWin)
 
   local tg = drag.tileGroup
   if PpuRange.chrUses8x16TileLayout(drag.srcWin) then
@@ -545,7 +536,7 @@ local function getChrPatternTableGroupDropState(env, dst, x, y, drag)
     return state
   end
 
-  local parityOk, parityErr = PpuRange.patternTableAppendChrParityOk(layer, currentTotal, addCount)
+  local parityOk, parityErr = PpuRange.patternTableAppendChrParityOk(previewLayer, currentTotal, addCount)
   if not parityOk then
     state.reason = "pattern_table_plan_failed"
     state.planErrText = parityErr or "8×16 pattern table parity check failed"
@@ -571,7 +562,7 @@ local function getChrPatternTableGroupDropState(env, dst, x, y, drag)
   local synthetic = {}
   local li = currentTotal
   for _, ref in ipairs(orderedRefs or {}) do
-    local col, row = PpuRange.patternTableGridCellForLogicalIndex(dst, layer, li)
+    local col, row = PpuRange.patternTableGridCellForLogicalIndex(dst, previewLayer, li)
     if type(col) ~= "number" or type(row) ~= "number" then
       state.valid = false
       state.reason = "pattern_table_overflow"
@@ -1109,9 +1100,6 @@ function M.handleTileDrop(env, x, y, wm)
         if reasonText and env.ctx and env.ctx.app then
           if env.ctx.app.setStatus then
             setStatusFromEnv(env, reasonText)
-          end
-          if chrGroupState.reason == "pattern_table_layout_mismatch" and type(env.ctx.app.showToast) == "function" then
-            env.ctx.app:showToast("warning", reasonText)
           end
         end
       end

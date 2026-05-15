@@ -1230,7 +1230,8 @@ function AppCoreController:_refreshPatternTableWindowLayer(dstWin, layerIndex)
 end
 
 --- Restore standalone pattern-table window tile mapping from a persisted snapshot (undo/redo).
-function AppCoreController:applyPatternTableWindowPatternSnapshot(dstWin, layerIndex, patternTableSnapshot)
+--- @param opts? { applyTileLayerMode?: boolean, tileLayerMode?: any }
+function AppCoreController:applyPatternTableWindowPatternSnapshot(dstWin, layerIndex, patternTableSnapshot, opts)
   if not WindowCaps.isPatternTable(dstWin) then
     return false
   end
@@ -1240,6 +1241,9 @@ function AppCoreController:applyPatternTableWindowPatternSnapshot(dstWin, layerI
     return false
   end
   layerRef.patternTable = TableUtils.deepcopy(patternTableSnapshot)
+  if opts and opts.applyTileLayerMode then
+    layerRef.mode = opts.tileLayerMode
+  end
   local ok = self:_refreshPatternTableWindowLayer(dstWin, layerIndex)
   local total = select(1, PpuRange.patternTableLogicalSize(layerRef.patternTable))
   if type(total) == "number" then
@@ -1260,13 +1264,6 @@ function AppCoreController:applyChrTileGroupToPatternTableWindow(dstWin, drag)
     local message = "Pattern table window is missing its tile layer"
     self:setStatus(message)
     self:showToast("error", message)
-    return false
-  end
-
-  if not PpuRange.chrLayoutMatchesPatternTableLayer(drag.srcWin, layer) then
-    local message = "CHR tile layout must match the pattern table (both 8×8 rows or both 8×16 pairs)"
-    self:setStatus(message)
-    self:showToast("warning", message)
     return false
   end
 
@@ -1299,7 +1296,8 @@ function AppCoreController:applyChrTileGroupToPatternTableWindow(dstWin, drag)
     return false
   end
 
-  local parityOk, parityErr = PpuRange.patternTableAppendChrParityOk(layer, currentTotal, addCount)
+  local previewLayerForParity = PpuRange.patternTableLayerEffectiveForChrDropPreview(layer, drag.srcWin)
+  local parityOk, parityErr = PpuRange.patternTableAppendChrParityOk(previewLayerForParity, currentTotal, addCount)
   if not parityOk then
     self:setStatus(parityErr)
     self:showToast("error", parityErr or "")
@@ -1323,6 +1321,12 @@ function AppCoreController:applyChrTileGroupToPatternTableWindow(dstWin, drag)
     end
   end
 
+  local modeBeforeSync = layer.mode
+  local modeSynced = PpuRange.syncPatternTableTileLayerModeToChr(drag.srcWin, layer)
+  if modeSynced then
+    self:_refreshPatternTableWindowLayer(dstWin, layerIndex)
+  end
+
   for _, rng in ipairs(plannedRanges) do
     layer.patternTable.ranges[#layer.patternTable.ranges + 1] = TableUtils.deepcopy(rng)
   end
@@ -1330,13 +1334,20 @@ function AppCoreController:applyChrTileGroupToPatternTableWindow(dstWin, drag)
   self:_refreshPatternTableWindowLayer(dstWin, layerIndex)
 
   if self.undoRedo and type(self.undoRedo.addPatternTableAppendEvent) == "function" then
-    self.undoRedo:addPatternTableAppendEvent({
+    local ev = {
       type = "pattern_table_append",
       win = dstWin,
       layerIndex = layerIndex,
       beforePatternTable = beforeUndoRanges,
       afterPatternTable = TableUtils.deepcopy(layer.patternTable),
-    })
+    }
+    if modeSynced then
+      ev.patternTableTileModes = {
+        before = modeBeforeSync,
+        after = layer.mode,
+      }
+    end
+    self.undoRedo:addPatternTableAppendEvent(ev)
   end
 
   local total = select(1, PpuRange.patternTableLogicalSize(layer.patternTable))

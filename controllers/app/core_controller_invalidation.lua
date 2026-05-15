@@ -113,7 +113,7 @@ function AppCoreController:invalidateStaticAnimationTileLayerCanvasForChrTile(ba
     if win
       and win.layers
       and win.invalidateTileLayerCanvas
-      and WindowCaps.isStaticOrAnimationArt(win)
+      and (WindowCaps.isStaticOrAnimationArt(win) or WindowCaps.isPatternTable(win))
     then
       for li, layer in ipairs(win.layers) do
         if layer and layer.kind == "tile" and layer.items then
@@ -180,6 +180,11 @@ function AppCoreController:invalidatePpuFramePaletteLayer(win, layerIndex)
     return true
   end
 
+  if WindowCaps.isPatternTable(win) and win.invalidateTileLayerCanvas then
+    win:invalidateTileLayerCanvas(li)
+    return true
+  end
+
   return false
 end
 
@@ -194,7 +199,11 @@ function AppCoreController:invalidateTileLayerCanvasesAffectedByPaletteWin(palet
     if win
       and win.layers
       and win.invalidateTileLayerCanvas
-      and (WindowCaps.isStaticArt(win) or WindowCaps.isAnimationLike(win))
+      and (
+        WindowCaps.isStaticArt(win)
+        or WindowCaps.isAnimationLike(win)
+        or WindowCaps.isPatternTable(win)
+      )
     then
       for li, layer in ipairs(win.layers) do
         if layer and layer.kind == "tile" and ppuLayerUsesPaletteWin(layer, paletteWin) then

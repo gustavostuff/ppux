@@ -3,6 +3,7 @@
 local colors = require("app_colors")
 local WindowCaps = require("controllers.window.window_capabilities")
 local CanvasSpace = require("utils.canvas_space")
+local GridOverlayMetrics = require("controllers.window.grid_overlay_metrics")
 
 local M = {}
 
@@ -74,12 +75,14 @@ function M.drawChessBehindBank(app, win, scrollYNes, scale, viewWNes, viewHNes, 
   end
   local bgColor = contentBgColor(app, win)
   local grid = (win.getDisplayGridMetrics and win:getDisplayGridMetrics()) or {
+    baseCellW = win.cellW or 8,
+    baseCellH = win.cellH or 8,
     cellW = win.cellW or 8,
     cellH = win.cellH or 8,
     rowStride = 1,
   }
-  local rowStride = grid.rowStride or 1
-  local drawH = (tonumber(grid.cellH) or 8) + 1
+  local rowSkip = GridOverlayMetrics.chessNominalRowSkip(win, grid)
+  local bandH = GridOverlayMetrics.overlayVerticalPeriodNes(win, grid)
   local cell = win.cellW or 8
 
   love.graphics.push("all")
@@ -100,15 +103,15 @@ function M.drawChessBehindBank(app, win, scrollYNes, scale, viewWNes, viewHNes, 
   local c1 = math.min((win.cols or 16) - 1, math.ceil(viewWNes / cell) - 1 + spill)
 
   for row = r0, r1 do
-    if not (rowStride > 1 and (row % rowStride) ~= 0) then
+    if not (rowSkip > 1 and (row % rowSkip) ~= 0) then
       for col = c0, c1 do
         local x, y = col * cell, row * cell
         love.graphics.setColor(bgColor)
-        love.graphics.rectangle("fill", x, y, cell, drawH)
-        if ((math.floor(row / rowStride)) + col) % 2 == 0 then
+        love.graphics.rectangle("fill", x, y, cell, bandH + 1)
+        if (math.floor(row / rowSkip) + col) % 2 == 0 then
           local c = colors.white
           love.graphics.setColor(c[1], c[2], c[3], 0.1)
-          love.graphics.rectangle("fill", x, y, cell, drawH)
+          love.graphics.rectangle("fill", x, y, cell, bandH + 1)
         end
       end
     end
@@ -152,7 +155,8 @@ function M.drawLinesOverlay(_app, win, scrollYNes, scale, canvasW, canvasH)
   }
   local s = tonumber(scale) or 1
   local stepX = grid.cellW * s
-  local stepY = grid.cellH * s
+  local vertPeriod = GridOverlayMetrics.overlayVerticalPeriodNes(win, grid)
+  local stepY = vertPeriod * s
   if stepX <= 0 or stepY <= 0 then
     return
   end

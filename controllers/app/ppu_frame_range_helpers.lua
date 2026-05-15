@@ -413,6 +413,35 @@ function M.chrLayoutMatchesPatternTableLayer(win, layer)
   return M.chrUses8x16TileLayout(win) == M.patternTableUses8x16TileLayout(layer)
 end
 
+--- Canonical tile-layer `layer.mode` to align pattern-table ordering with CHR `oddEven` vs normal grids.
+function M.patternTableTileLayerModeAlignedToChr(srcWin)
+  return M.chrUses8x16TileLayout(srcWin) and "8x16" or "8x8"
+end
+
+--- Sets `layer.mode` when CHR / pattern-table tile ordering disagree. Returns whether it changed `mode`.
+function M.syncPatternTableTileLayerModeToChr(srcWin, layer)
+  if type(layer) ~= "table" then
+    return false
+  end
+  if M.chrLayoutMatchesPatternTableLayer(srcWin, layer) then
+    return false
+  end
+  layer.mode = M.patternTableTileLayerModeAlignedToChr(srcWin)
+  return true
+end
+
+--- Read-only overlay for CHR→pattern-table drop preview parity/grid without mutating the real layer yet.
+function M.patternTableLayerEffectiveForChrDropPreview(layer, srcWin)
+  if not (layer and srcWin) then
+    return layer
+  end
+  if M.chrLayoutMatchesPatternTableLayer(srcWin, layer) then
+    return layer
+  end
+  local mode = M.patternTableTileLayerModeAlignedToChr(srcWin)
+  return setmetatable({ mode = mode }, { __index = layer })
+end
+
 --- 8×16 CHR layout consumes logical CHR indices in multiples of two (128 visual stacks).
 function M.patternTableAppendChrParityOk(layer, currentTotalBytes, addBytes)
   if not M.patternTableUses8x16TileLayout(layer) then
