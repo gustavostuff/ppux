@@ -209,6 +209,7 @@ function HeaderToolbar:draw()
   end
   
   local usingStencil = beginRoundedToolbarStencil(self.x, self.y, self.w, self.h)
+  local clipPushed = ToolbarBase.beginClipForToolbarRect(self.x, self.y, self.w, self.h)
 
   -- Draw labels first
   for _, label in ipairs(self.labels) do
@@ -220,6 +221,7 @@ function HeaderToolbar:draw()
     button:draw()
   end
 
+  ToolbarBase.endClipForToolbarRect(clipPushed)
   if usingStencil then
     love.graphics.setStencilTest()
   end

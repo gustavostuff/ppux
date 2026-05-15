@@ -63,6 +63,27 @@ local function drawSharpToolbarStencil(x, y, w, h)
   return true
 end
 
+--- Tight pixel scissor so translucent hover underlays / rounded-rect AA cannot affect
+--- content or other windows beside this toolbar strip.
+function ToolbarBase.beginClipForToolbarRect(x, y, w, h)
+  local ix = math.floor(tonumber(x) or 0)
+  local iy = math.floor(tonumber(y) or 0)
+  local iw = math.max(0, math.floor(tonumber(w) or 0))
+  local ih = math.max(0, math.floor(tonumber(h) or 0))
+  if iw < 1 or ih < 1 then
+    return false
+  end
+  love.graphics.push("all")
+  love.graphics.intersectScissor(ix, iy, iw, ih)
+  return true
+end
+
+function ToolbarBase.endClipForToolbarRect(pushed)
+  if pushed then
+    love.graphics.pop()
+  end
+end
+
 function ToolbarBase.new(window, data)
   data = data or {}
   _layerLabelId = _layerLabelId + 1
@@ -700,6 +721,8 @@ function ToolbarBase:draw()
     and drawSharpToolbarStencil(drawX, drawY, drawW, drawH)
     or drawRoundedToolbarStencil(drawX, drawY, drawW, drawH)
 
+  local clipPushed = ToolbarBase.beginClipForToolbarRect(drawX, drawY, drawW, drawH)
+
   local function drawToolbarContents()
     -- Draw background only behind occupied row spans.
     local focusedColor = colors:focusedChromeColor()
@@ -784,6 +807,7 @@ function ToolbarBase:draw()
   end
 
   drawToolbarContents()
+  ToolbarBase.endClipForToolbarRect(clipPushed)
   if usingStencil then
     love.graphics.setStencilTest()
   end

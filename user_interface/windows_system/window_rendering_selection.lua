@@ -7,6 +7,7 @@ local SpaceHighlightController = require("controllers.window.space_highlight_con
 local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 local CanvasSpace = require("utils.canvas_space")
 local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
+local Shared = require("controllers.app.core_controller_shared")
 
 local HOVER_OPACITY = 0.4
 local SELECTION_RECT_ANIM = {
@@ -116,6 +117,14 @@ local function hoverBlockedByResizeHandle(wm, mouse)
     return false
   end
   return wm:focusedResizeHandleAt(mouse.x, mouse.y) == true
+end
+
+local function hoverBlockedByOpenContextMenu(ctx, mouse)
+  local app = ctx and ctx.app
+  if not (app and mouse and Shared.pointerOverOpenContextMenu) then
+    return false
+  end
+  return Shared.pointerOverOpenContextMenu(app, mouse.x, mouse.y)
 end
 
 local function hoverBlockedByAppChrome(ctx, mouse)
@@ -243,7 +252,12 @@ function Window:drawSpriteSelectionOverlays(isFocused)
   local wm = ctx.wm and ctx.wm()
   local hoverBlocked = hoverBlockedByResizeHandle(wm, mouse)
     or hoverBlockedByAppChrome(ctx, mouse)
-  local hoveredWindow = (wm and mouse) and wm:windowAt(mouse.x, mouse.y) or nil
+    or hoverBlockedByOpenContextMenu(ctx, mouse)
+  local hoveredWindow
+  if wm and mouse then
+    hoveredWindow = (wm.getTopInteractiveSurfaceWindowAt and wm:getTopInteractiveSurfaceWindowAt(mouse.x, mouse.y))
+      or (wm.windowAt and wm:windowAt(mouse.x, mouse.y))
+  end
   local shouldShow = isFocused or ((not hoverBlocked) and hoveredWindow == self)
   if not shouldShow then return end
   local modeName = ctx.getMode and ctx.getMode()
@@ -394,7 +408,12 @@ function Window:drawTileSelectionOverlays(isFocused)
   local wm = ctx.wm and ctx.wm()
   local hoverBlocked = hoverBlockedByResizeHandle(wm, mouse)
     or hoverBlockedByAppChrome(ctx, mouse)
-  local hoveredWindow = (wm and mouse) and wm:windowAt(mouse.x, mouse.y) or nil
+    or hoverBlockedByOpenContextMenu(ctx, mouse)
+  local hoveredWindow
+  if wm and mouse then
+    hoveredWindow = (wm.getTopInteractiveSurfaceWindowAt and wm:getTopInteractiveSurfaceWindowAt(mouse.x, mouse.y))
+      or (wm.windowAt and wm:windowAt(mouse.x, mouse.y))
+  end
   local showHover = ((not hoverBlocked) and hoveredWindow == self)
 
   local L = self.layers and self.layers[self.activeLayer or 1]

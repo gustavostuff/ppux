@@ -298,4 +298,26 @@ function M.scrollChrWindowToCell(winBank, col, row)
   winBank.scrollRow = scrollRow
 end
 
+--- True when (x,y) is inside any visible contextual menu (see `APP_OVERLAY_CONTEXT_MENU_KEYS`) or the taskbar main menu.
+function M.pointerOverOpenContextMenu(app, x, y)
+  if type(x) ~= "number" or type(y) ~= "number" then
+    return false
+  end
+  if not app then
+    return false
+  end
+  for _, key in ipairs(M.APP_OVERLAY_CONTEXT_MENU_KEYS) do
+    local menu = app[key]
+    if menu and menu.isVisible and menu:isVisible() and menu.contains and menu:contains(x, y) then
+      return true
+    end
+  end
+  local tb = app.taskbar
+  local mc = tb and tb.menuController
+  if mc and mc.isVisible and mc:isVisible() and mc.contains and mc:contains(x, y) then
+    return true
+  end
+  return false
+end
+
 return M

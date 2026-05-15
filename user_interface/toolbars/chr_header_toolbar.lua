@@ -185,6 +185,8 @@ function ChrHeaderToolbar:draw()
     end
   end
   
+  local clipPushed = ToolbarBase.beginClipForToolbarRect(self.x, self.y, self.w, self.h)
+
   -- Draw labels first
   for _, label in ipairs(self.labels) do
     self:_drawLabel(label)
@@ -194,6 +196,8 @@ function ChrHeaderToolbar:draw()
   for _, button in ipairs(self.buttons) do
     button:draw()
   end
+
+  ToolbarBase.endClipForToolbarRect(clipPushed)
 end
 
 -- Override contains to always allow interaction (header toolbars always visible)

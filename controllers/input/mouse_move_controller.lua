@@ -3,11 +3,31 @@ local SpriteOriginDrag = require("controllers.sprite.sprite_origin_drag_controll
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
+local Shared = require("controllers.app.core_controller_shared")
 
 local M = {}
 
+local function clearSpriteHoverAllWindows(wm)
+  if not (wm and wm.getWindows) then
+    return
+  end
+  for _, win in ipairs(wm:getWindows() or {}) do
+    if not (win and win.layers) then
+      goto continue_win
+    end
+    for _, L in ipairs(win.layers) do
+      if L and L.kind == "sprite" then
+        L.hoverSpriteIndex = nil
+      end
+    end
+    ::continue_win::
+  end
+end
+
 local function updateSpriteHover(x, y, wm, fwin)
-  local win = wm:windowAt(x, y) or fwin
+  -- Topmost interactive surface (content, header, toolbars, resize handle) — not loose `contains`,
+  -- so a point on a window's detached-style toolbar still counts as that window, not what's behind it.
+  local win = (wm.getTopInteractiveSurfaceWindowAt and wm:getTopInteractiveSurfaceWindowAt(x, y)) or fwin
 
   if not (win and win.layers and win.getActiveLayerIndex and SpriteController and SpriteController.pickSpriteAt) then
     return
@@ -34,7 +54,7 @@ local function handleWindowResizing(x, y, fwin)
 end
 
 local function forwardMouseMove(x, y, dx, dy, wm)
-  local win = wm:windowAt(x, y)
+  local win = wm.getTopInteractiveSurfaceWindowAt and wm:getTopInteractiveSurfaceWindowAt(x, y) or wm:windowAt(x, y)
   if win and win.mousemoved then
     win:mousemoved(x, y)
   end
@@ -188,7 +208,7 @@ local function handleTilePaintDrag(env, x, y, wm)
   if not love.mouse.isDown(1) then return false end
   if not tilePaintState or not tilePaintState.active then return false end
 
-  local win = wm:windowAt(x, y)
+  local win = wm.getTopInteractiveSurfaceWindowAt and wm:getTopInteractiveSurfaceWindowAt(x, y) or wm:windowAt(x, y)
   if not win then return false end
   if not WindowCaps.isStaticOrAnimationArt(win) then return false end
 
@@ -295,14 +315,22 @@ function M.handleMouseMoved(env, x, y, dx, dy)
     PaletteLinkController.updateDragHover(wm, x, y)
   end
 
-  chrome.updateToolbarHover(x, y, wm)
-  updateSpriteHover(x, y, wm, fwin)
+  local overMenu = app and Shared.pointerOverOpenContextMenu(app, x, y)
+  if overMenu then
+    chrome.clearAllToolbarButtonHovers(wm)
+    clearSpriteHoverAllWindows(wm)
+  else
+    chrome.updateToolbarHover(x, y, wm)
+    updateSpriteHover(x, y, wm, fwin)
+  end
   if handleWindowResizing(x, y, fwin) then return true end
-  forwardMouseMove(x, y, dx, dy, wm)
-  if handleEditShapeDrag(env, x, y, wm) then return true end
-  if handleTilePaintDrag(env, x, y, wm) then return true end
-  if handlePaintingDrag(env, x, y, wm) then return true end
-  activateTileDrag(env, x, y)
+  if not overMenu then
+    forwardMouseMove(x, y, dx, dy, wm)
+    if handleEditShapeDrag(env, x, y, wm) then return true end
+    if handleTilePaintDrag(env, x, y, wm) then return true end
+    if handlePaintingDrag(env, x, y, wm) then return true end
+    activateTileDrag(env, x, y)
+  end
   return true
 end
 

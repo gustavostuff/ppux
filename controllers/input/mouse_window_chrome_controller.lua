@@ -260,6 +260,35 @@ function M.handleToolbarRelease(button, x, y, wm)
   return false
 end
 
+--- Clear chrome button hover on every window (e.g. pointer is over a topmost menu; windows must not show toolbar hot state).
+function M.clearAllToolbarButtonHovers(wm)
+  if not (wm and wm.getWindows) then
+    return
+  end
+  for _, w in ipairs(wm:getWindows() or {}) do
+    if not w then
+      goto continue
+    end
+    local spec = w.specializedToolbar
+    if spec and spec.buttons then
+      for _, b in ipairs(spec.buttons) do
+        if b then
+          b.hovered = false
+        end
+      end
+    end
+    local ht = w.headerToolbar
+    if ht and ht.buttons then
+      for _, b in ipairs(ht.buttons) do
+        if b then
+          b.hovered = false
+        end
+      end
+    end
+    ::continue::
+  end
+end
+
 function M.updateToolbarHover(x, y, wm)
   local gctx = rawget(_G, "ctx")
   local app = gctx and gctx.app or nil

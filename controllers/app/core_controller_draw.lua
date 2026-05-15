@@ -398,7 +398,12 @@ local function drawPatternTableRangeHoverOverlay(app, w, layerIndex)
   if not scaledMouse then
     return
   end
-  if app.wm.windowAt and app.wm:windowAt(scaledMouse.x, scaledMouse.y) ~= w then
+  if Shared.pointerOverOpenContextMenu(app, scaledMouse.x, scaledMouse.y) then
+    return
+  end
+  local topWin = (app.wm.getTopInteractiveSurfaceWindowAt and app.wm:getTopInteractiveSurfaceWindowAt(scaledMouse.x, scaledMouse.y))
+    or (app.wm.windowAt and app.wm:windowAt(scaledMouse.x, scaledMouse.y))
+  if topWin ~= w then
     return
   end
 
@@ -1539,10 +1544,20 @@ local function drawEditModeColorIndicator(app)
   if app.wm and app.wm.focusedResizeHandleAt and app.wm:focusedResizeHandleAt(mouse.x, mouse.y) then
     return
   end
-  local win = app.wm:windowAt(mouse.x, mouse.y)
+  if Shared.pointerOverOpenContextMenu(app, mouse.x, mouse.y) then
+    return
+  end
+  local win = app.wm.getTopInteractiveSurfaceWindowAt and app.wm:getTopInteractiveSurfaceWindowAt(mouse.x, mouse.y)
+    or app.wm:windowAt(mouse.x, mouse.y)
   
-  -- Only show inside window content area (not header, not outside window)
+  -- Only show inside window content area (not header, chrome toolbars, not outside window)
   if not win or win.isPalette or win:isInHeader(mouse.x, mouse.y) then
+    return
+  end
+  if win.specializedToolbar and win.specializedToolbar.contains and win.specializedToolbar:contains(mouse.x, mouse.y) then
+    return
+  end
+  if win.headerToolbar and win.headerToolbar.contains and win.headerToolbar:contains(mouse.x, mouse.y) then
     return
   end
 

@@ -9,6 +9,7 @@ local DebugController = require("controllers.dev.debug_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 local CanvasSpace = require("utils.canvas_space")
 local PatternTableMapping = require("utils.pattern_table_mapping")
+local Shared = require("controllers.app.core_controller_shared")
 
 local PPUFrameWindow = {}
 PPUFrameWindow.__index = PPUFrameWindow
@@ -250,8 +251,15 @@ local function getHoveredPatternRangeHighlight(self, layer)
     return nil
   end
 
+  local app = gctx and gctx.app or nil
+  if app and Shared.pointerOverOpenContextMenu(app, scaledMouse.x, scaledMouse.y) then
+    return nil
+  end
+
   local wm = gctx and gctx.wm and gctx.wm() or nil
-  if wm and wm.windowAt and wm:windowAt(scaledMouse.x, scaledMouse.y) ~= self then
+  local topWin = (wm.getTopInteractiveSurfaceWindowAt and wm:getTopInteractiveSurfaceWindowAt(scaledMouse.x, scaledMouse.y))
+    or (wm.windowAt and wm:windowAt(scaledMouse.x, scaledMouse.y))
+  if topWin ~= self then
     return nil
   end
 
