@@ -82,14 +82,6 @@ local function hasConfiguredRange(window)
     and type(layer.nametableEndAddr) == "number"
 end
 
-local function patternRangeCount(window)
-  local layer = getNametableLayer(window)
-  if not layer or type(layer.patternTable) ~= "table" or type(layer.patternTable.ranges) ~= "table" then
-    return 0
-  end
-  return #layer.patternTable.ranges
-end
-
 local function clamp(value, minValue, maxValue)
   value = math.floor(tonumber(value) or 0)
   if value < minValue then return minValue end
@@ -148,10 +140,6 @@ function PPUFrameToolbar.new(window, ctx, windowController)
     self:_onNextLayer()
   end, "Next layer")
 
-  self.addTileRangeButton = self:addButton(images.icons.chrome.icon_plus, function()
-    self:_onAddTileRange()
-  end, "Add tile range")
-
   self.rangeButton = self:addButton(images.icons.actions.icon_nametable_range, function()
     self:_onConfigureRange()
   end, "Set start and end addresses for nametable")
@@ -168,7 +156,6 @@ function PPUFrameToolbar.new(window, ctx, windowController)
     self:_onToggleOriginGuides()
   end, "Toggle origin guides")
 
-  self:updatePatternRangeButton()
   self:updatePatternTableLinkButton()
   self:updateRangeButton()
   self:updateSpriteButton()
@@ -204,7 +191,6 @@ function PPUFrameToolbar:_onPrevLayer()
   if not self.window then return end
   
   self.window:prevLayer()
-  self:updatePatternRangeButton()
   self:updatePatternTableLinkButton()
   self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
@@ -223,7 +209,6 @@ function PPUFrameToolbar:_onNextLayer()
   if not self.window then return end
   
   self.window:nextLayer()
-  self:updatePatternRangeButton()
   self:updatePatternTableLinkButton()
   self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
@@ -241,13 +226,6 @@ function PPUFrameToolbar:_onConfigureRange()
   local app = self.ctx and self.ctx.app or nil
   if app and app.showPpuFrameRangeModal then
     app:showPpuFrameRangeModal(self.window)
-  end
-end
-
-function PPUFrameToolbar:_onAddTileRange()
-  local app = self.ctx and self.ctx.app or nil
-  if app and app.showPpuFramePatternRangeModal then
-    app:showPpuFramePatternRangeModal(self.window)
   end
 end
 
@@ -436,7 +414,6 @@ end
 
 -- Empty updateIcons method
 function PPUFrameToolbar:updateIcons()
-  self:updatePatternRangeButton()
   self:updatePatternTableLinkButton()
   self:updateRangeButton()
   self:updateSpriteButton()
@@ -466,20 +443,6 @@ function PPUFrameToolbar:updatePatternTableLinkButton()
     button.contentColor = colors.white
     button.tooltip = "Link background and sprite pattern tables (menu)"
   end
-end
-
-function PPUFrameToolbar:updatePatternRangeButton()
-  if not self.addTileRangeButton then return end
-  self.addTileRangeButton.icon = images.icons.chrome.icon_plus or self.addTileRangeButton.icon
-  local rangeCount = patternRangeCount(self.window)
-  if rangeCount > 0 then
-    self.addTileRangeButton.bgColor = nil
-    self.addTileRangeButton.contentColor = colors.white
-  else
-    self.addTileRangeButton.bgColor = colors.yellow
-    self.addTileRangeButton.contentColor = colors.black
-  end
-  self.addTileRangeButton.tooltip = "Add tile range"
 end
 
 function PPUFrameToolbar:updateRangeButton()

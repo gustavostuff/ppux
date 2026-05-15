@@ -38,6 +38,7 @@ end
 return function(AppCoreController)
 local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
 local Shared = require("controllers.app.core_controller_shared")
+local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 -- Find the active global palette window (non-ROM) and return its first color,
 -- or nil if none is available.
 
@@ -382,6 +383,68 @@ local function drawTileLayerCell(app, w, layer, col, row, x, y, cw, ch, idx, li,
   end
 end
 
+local function drawPatternTableRangeHoverOverlay(app, w, layerIndex)
+  if not (WindowCaps.isPatternTable(w) and app and app.wm) then
+    return
+  end
+  local layer = w.layers and w.layers[layerIndex]
+  local pt = layer and layer.patternTable
+  if type(pt) ~= "table" or type(pt.ranges) ~= "table" or #pt.ranges == 0 then
+    return
+  end
+
+  local gctx = rawget(_G, "ctx")
+  local scaledMouse = gctx and gctx.scaledMouse and gctx.scaledMouse() or nil
+  if not scaledMouse then
+    return
+  end
+  if app.wm.windowAt and app.wm:windowAt(scaledMouse.x, scaledMouse.y) ~= w then
+    return
+  end
+
+  local ok, hoverCol, hoverRow = w:toGridCoords(scaledMouse.x, scaledMouse.y)
+  if not ok then
+    return
+  end
+
+  local cols = math.max(1, math.floor(tonumber(w.cols) or 16))
+  local rows = math.max(1, math.floor(tonumber(w.rows) or 16))
+  local hoverLogical = hoverRow * cols + hoverCol
+  local startL, endL = PpuRange.patternLogicalSpanContainingIndex(pt, hoverLogical)
+  if startL == nil or endL == nil then
+    return
+  end
+
+  local cw, ch = w.cellW or 8, w.cellH or 8
+  local sx, sy, sw, sh = w:getInsetContentScreenRect()
+  local z = (w.getZoomLevel and w:getZoomLevel()) or w.zoom or 1
+  local vC0 = w.scrollCol or 0
+  local vR0 = w.scrollRow or 0
+  local vC1 = math.min(cols - 1, vC0 + (w.visibleCols or cols) - 1)
+  local vR1 = math.min(rows - 1, vR0 + (w.visibleRows or rows) - 1)
+
+  love.graphics.push()
+  local ox, oy = w:getContentScreenOrigin()
+  love.graphics.translate(ox, oy)
+  love.graphics.scale(z, z)
+  CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
+  love.graphics.translate(-(w.scrollCol or 0) * cw, -(w.scrollRow or 0) * ch)
+
+  love.graphics.setColor(1, 1, 1, 0.30)
+  for row = vR0, vR1 do
+    for col = vC0, vC1 do
+      local logical = row * cols + col
+      if logical >= startL and logical <= endL then
+        love.graphics.rectangle("fill", col * cw, row * ch, cw - 1, ch - 1)
+      end
+    end
+  end
+  love.graphics.setColor(colors.white)
+
+  love.graphics.pop()
+  love.graphics.setScissor()
+end
+
 local function drawTileLayer(app, w, layerIndex, isFocused)
   local isPalWindow = WindowCaps.isGlobalPaletteWindow(w)
   local isPPUFrame = WindowCaps.isPpuFrame(w)
@@ -404,6 +467,10 @@ local function drawTileLayer(app, w, layerIndex, isFocused)
   if not isPPUFrame and layer and layer.kind == "tile" and w.drawTileLayerCanvas then
     local handledLayoutCanvas = w:drawTileLayerCanvas(app, layerIndex)
     if handledLayoutCanvas then
+      local activeLi = (w.getActiveLayerIndex and w:getActiveLayerIndex()) or w.activeLayer or 1
+      if WindowCaps.isPatternTable(w) and layerIndex == activeLi then
+        drawPatternTableRangeHoverOverlay(app, w, layerIndex)
+      end
       return
     end
   end

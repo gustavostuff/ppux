@@ -41,6 +41,35 @@ function M.parsePatternRangeBounds(range)
   return from, to
 end
 
+--- Row-major logical indices 0..255 across patternTable.ranges (same packing as populateTileLayerItemsFromPatternTable).
+--- Returns startLogical, endLogical for the segment containing logicalIndex, or nil if none / invalid.
+function M.patternLogicalSpanContainingIndex(patternTable, logicalIndex)
+  if type(patternTable) ~= "table" or type(patternTable.ranges) ~= "table" then
+    return nil, nil
+  end
+  local idx = math.floor(tonumber(logicalIndex) or -1)
+  if idx < 0 or idx > 255 then
+    return nil, nil
+  end
+  local cursor = 0
+  for _, range in ipairs(patternTable.ranges) do
+    local from, to = M.parsePatternRangeBounds(range)
+    if from ~= nil and to ~= nil then
+      local len = to - from + 1
+      local startLogical = cursor
+      local endLogical = cursor + len - 1
+      if idx >= startLogical and idx <= endLogical then
+        return startLogical, endLogical
+      end
+      cursor = cursor + len
+      if cursor > 256 then
+        break
+      end
+    end
+  end
+  return nil, nil
+end
+
 function M.patternTableLogicalSize(patternTable)
   if type(patternTable) ~= "table" or type(patternTable.ranges) ~= "table" then
     return 0, "patternTable.ranges is missing"

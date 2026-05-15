@@ -7,7 +7,7 @@ local NametableTilesController = require("controllers.ppu.nametable_tiles_contro
 local PatternTableMapping = require("utils.pattern_table_mapping")
 local WindowCaps = require("controllers.window.window_capabilities")
 local ChrBankUiHelpers = require("controllers.chr.chr_bank_ui_helpers")
-local TableUtils = require("utils.table_utils")
+local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
 
 return function(AppCoreController)
 
@@ -351,6 +351,98 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
   return items
 end
 
+--- Remove one pattern-table tile range containing the given row-major logical index (0–255).
+--- Works for PPU nametable layers and standalone pattern_table windows.
+function AppCoreController:_removeTileRangeFromPatternTableLayer(targetWin, targetLayer, targetLayerIndex, logicalIndex)
+  if not (targetWin and targetLayer and type(targetLayerIndex) == "number" and type(logicalIndex) == "number") then
+    return false
+  end
+  local patternTable = type(targetLayer.patternTable) == "table" and targetLayer.patternTable or nil
+  local ranges = patternTable and patternTable.ranges
+  if type(ranges) ~= "table" or #ranges == 0 then
+    self:setStatus("No tile ranges to remove")
+    return false
+  end
+
+  local recordUndo = WindowCaps.isPpuFrame(targetWin)
+  local beforeState = recordUndo and PpuRange.snapshotPpuFrameRangeState(targetWin, targetLayerIndex) or nil
+
+  local idx = math.max(0, math.floor(logicalIndex))
+  local cursor = 0
+  local removeIndex = nil
+  for i, range in ipairs(ranges) do
+    local from, to = PpuRange.parsePatternRangeBounds(range)
+    if from ~= nil and to ~= nil then
+      local len = to - from + 1
+      if idx >= cursor and idx < (cursor + len) then
+        removeIndex = i
+        break
+      end
+      cursor = cursor + len
+    end
+  end
+  if not removeIndex then
+    self:setStatus("Could not resolve a range at that logical tile")
+    return false
+  end
+
+  table.remove(ranges, removeIndex)
+  targetLayer.patternTable = patternTable
+
+  local tilesPool = self.appEditState and self.appEditState.tilesPool or nil
+
+  if WindowCaps.isPpuFrame(targetWin) then
+    if targetWin.refreshNametableVisuals then
+      targetWin:refreshNametableVisuals(tilesPool, targetLayerIndex)
+    elseif targetWin.invalidateNametableLayerCanvas then
+      targetWin:invalidateNametableLayerCanvas(targetLayerIndex)
+    end
+    self:_ensurePpuPatternTableReferenceLayer({
+      win = targetWin,
+      layerIndex = targetLayerIndex,
+      layer = targetLayer,
+    }, { keepActiveLayer = true })
+  elseif WindowCaps.isPatternTable(targetWin) then
+    PatternTableDisplayController.populateTileLayerItemsFromPatternTable(targetWin, targetLayerIndex, {
+      tilesPool = tilesPool,
+      ensureTiles = function(bankIdx)
+        local st = self.appEditState
+        if st and st.chrBanksBytes and st.chrBanksBytes[bankIdx] then
+          BankViewController.ensureBankTiles(st, bankIdx)
+        end
+      end,
+      appEditState = self.appEditState,
+    })
+    PatternTableDisplayController.invalidateConsumersUsingPatternTable(self, patternTable)
+    if targetWin.invalidateTileLayerCanvas then
+      targetWin:invalidateTileLayerCanvas(targetLayerIndex)
+    end
+  end
+
+  if targetWin.specializedToolbar and targetWin.specializedToolbar.updateIcons then
+    targetWin.specializedToolbar:updateIcons()
+  end
+
+  local total = PpuRange.patternTableLogicalSize(patternTable)
+  if recordUndo and beforeState then
+    local afterState = PpuRange.snapshotPpuFrameRangeState(targetWin, targetLayerIndex)
+    if self.undoRedo and self.undoRedo.addPpuFrameRangeEvent
+      and PpuRange.didPpuFrameRangeSettingsChange(beforeState, afterState)
+    then
+      self.undoRedo:addPpuFrameRangeEvent({
+        type = "ppu_frame_range",
+        win = targetWin,
+        layerIndex = targetLayerIndex,
+        beforeState = beforeState,
+        afterState = afterState,
+      })
+    end
+  end
+
+  self:setStatus(string.format("Removed tile range #%d (%d/256 tiles)", removeIndex, tonumber(total) or 0))
+  return true
+end
+
 function AppCoreController:_removePpuPatternRangeFromRuntimeReference(context)
   if not (context and context.layer and context.layer._runtimePatternTableRefLayer == true and type(context.logicalIndex) == "number") then
     return false
@@ -369,67 +461,8 @@ function AppCoreController:_removePpuPatternRangeFromRuntimeReference(context)
     self:setStatus("Target PPU tile layer is no longer available")
     return false
   end
-  local patternTable = type(targetLayer.patternTable) == "table" and targetLayer.patternTable or nil
-  local ranges = patternTable and patternTable.ranges
-  if type(ranges) ~= "table" or #ranges == 0 then
-    self:setStatus("No tile ranges to remove")
-    return false
-  end
 
-  local beforeState = PpuRange.snapshotPpuFrameRangeState(targetWin, targetLayerIndex)
-  local logicalIndex = math.max(0, math.floor(tonumber(context.logicalIndex) or 0))
-  local cursor = 0
-  local removeIndex = nil
-  for i, range in ipairs(ranges) do
-    local from, to = PpuRange.parsePatternRangeBounds(range)
-    if from ~= nil and to ~= nil then
-      local len = to - from + 1
-      if logicalIndex >= cursor and logicalIndex < (cursor + len) then
-        removeIndex = i
-        break
-      end
-      cursor = cursor + len
-    end
-  end
-  if not removeIndex then
-    self:setStatus("Could not resolve a range at that logical tile")
-    return false
-  end
-
-  table.remove(ranges, removeIndex)
-  targetLayer.patternTable = patternTable
-
-  local tilesPool = self.appEditState and self.appEditState.tilesPool or nil
-  if targetWin.refreshNametableVisuals then
-    targetWin:refreshNametableVisuals(tilesPool, targetLayerIndex)
-  elseif targetWin.invalidateNametableLayerCanvas then
-    targetWin:invalidateNametableLayerCanvas(targetLayerIndex)
-  end
-  self:_ensurePpuPatternTableReferenceLayer({
-    win = targetWin,
-    layerIndex = targetLayerIndex,
-    layer = targetLayer,
-  }, { keepActiveLayer = true })
-  if targetWin.specializedToolbar and targetWin.specializedToolbar.updateIcons then
-    targetWin.specializedToolbar:updateIcons()
-  end
-
-  local total = PpuRange.patternTableLogicalSize(patternTable)
-  local afterState = PpuRange.snapshotPpuFrameRangeState(targetWin, targetLayerIndex)
-  if self.undoRedo and self.undoRedo.addPpuFrameRangeEvent
-    and PpuRange.didPpuFrameRangeSettingsChange(beforeState, afterState)
-  then
-    self.undoRedo:addPpuFrameRangeEvent({
-      type = "ppu_frame_range",
-      win = targetWin,
-      layerIndex = targetLayerIndex,
-      beforeState = beforeState,
-      afterState = afterState,
-    })
-  end
-
-  self:setStatus(string.format("Removed tile range #%d (%d/256 tiles)", removeIndex, tonumber(total) or 0))
-  return true
+  return self:_removeTileRangeFromPatternTableLayer(targetWin, targetLayer, targetLayerIndex, context.logicalIndex)
 end
 
 function AppCoreController:_buildSelectInChrContextMenuItems(context)
@@ -499,6 +532,24 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
       enabled = type(context.logicalIndex) == "number",
       callback = function()
         self:_removePpuPatternRangeFromRuntimeReference(context)
+      end,
+    }
+  elseif context and context.layer and context.layer.kind == "tile"
+      and context.win and WindowCaps.isPatternTable(context.win)
+      and type(context.logicalIndex) == "number"
+      and type(context.layer.patternTable) == "table"
+      and type(context.layer.patternTable.ranges) == "table"
+      and #context.layer.patternTable.ranges > 0
+  then
+    items[#items + 1] = {
+      text = "Remove tile range at this tile",
+      menuGroup = "sel_chr_pattern_table",
+      enabled = true,
+      callback = function()
+        local win = context.win
+        local li = tonumber(context.layerIndex) or 1
+        local layer = win.getLayer and win:getLayer(li) or (win.layers and win.layers[li])
+        self:_removeTileRangeFromPatternTableLayer(win, layer, li, context.logicalIndex)
       end,
     }
   end

@@ -65,15 +65,22 @@ local function buildPpuToolbarPatternRangesScenario(harness, app, runner)
     pause("Start", 0.35),
     call("Create deterministic PPU fixture", function(_, currentApp, currentRunner)
       setupDeterministicPpuFixture(currentApp, currentRunner)
-      local ppu = currentRunner.ppuFixtureWin
-      local layer = ppu.layers and ppu.layers[1]
-      layer.patternTable = { ranges = {} }
-      currentApp.wm:setFocus(ppu)
     end),
-    pause("Observe clean pattern-range fixture", 0.45),
+    call("Create pattern table window for Add tile range", function(_, currentApp, currentRunner)
+      local ptWin = assert(currentApp.wm:createPatternTableWindow({
+        title = "Pattern Range Fixture",
+        x = 520,
+        y = 70,
+        zoom = 2,
+        patternTable = { ranges = {} },
+      }), "expected pattern table window")
+      currentRunner.patternTableFixtureWin = ptWin
+      currentApp.wm:setFocus(ptWin)
+    end),
+    pause("Observe pattern-table + PPU fixtures", 0.45),
   }
 
-  appendClick(steps, "Open Add tile range modal", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
+  appendClick(steps, "Open Add tile range modal (pattern table toolbar)", ppuToolbarButtonCenter("patternTableFixtureWin", function(toolbar)
     return toolbar.addTileRangeButton
   end), { moveDuration = 0.1, postPause = 0.2 })
   steps[#steps + 1] = call("Add first pattern range", function(currentHarness, currentApp)
@@ -86,15 +93,14 @@ local function buildPpuToolbarPatternRangesScenario(harness, app, runner)
     currentHarness:keyPress("return", { wait = false })
     currentHarness:wait(0.16)
   end)
-  steps[#steps + 1] = call("Assert add-range auto enables pattern mode", function(_, _, currentRunner)
-    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
-    local layer = assert(ppu.layers and ppu.layers[1], "expected tile layer")
+  steps[#steps + 1] = call("Assert first range on pattern table window", function(_, _, currentRunner)
+    local pt = assert(currentRunner.patternTableFixtureWin, "expected pattern table fixture")
+    local layer = assert(pt.layers and pt.layers[1], "expected pattern table tile layer")
     local ranges = layer.patternTable and layer.patternTable.ranges or {}
     assert(#ranges == 1, "expected one pattern range after first add")
-    assert(ppu.patternLayerSoloMode == true, "expected pattern layer solo mode after add range")
   end)
 
-  appendClick(steps, "Open Add tile range modal again", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
+  appendClick(steps, "Open Add tile range modal again", ppuToolbarButtonCenter("patternTableFixtureWin", function(toolbar)
     return toolbar.addTileRangeButton
   end), { moveDuration = 0.1, postPause = 0.2 })
   steps[#steps + 1] = call("Add second pattern range", function(currentHarness, currentApp)
@@ -107,11 +113,19 @@ local function buildPpuToolbarPatternRangesScenario(harness, app, runner)
     currentHarness:keyPress("return", { wait = false })
     currentHarness:wait(0.16)
   end)
-  steps[#steps + 1] = call("Assert second range appended", function(_, _, currentRunner)
-    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
-    local layer = assert(ppu.layers and ppu.layers[1], "expected tile layer")
+  steps[#steps + 1] = call("Assert second range appended on pattern table", function(_, _, currentRunner)
+    local pt = assert(currentRunner.patternTableFixtureWin, "expected pattern table fixture")
+    local layer = assert(pt.layers and pt.layers[1], "expected tile layer")
     local ranges = layer.patternTable and layer.patternTable.ranges or {}
     assert(#ranges == 2, "expected two pattern ranges after second add")
+  end)
+
+  steps[#steps + 1] = call("Focus PPU frame for layer-navigation checks", function(_, currentApp, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    currentApp.wm:setFocus(ppu)
+    if ppu.setActiveLayerIndex then
+      ppu:setActiveLayerIndex(1)
+    end
   end)
 
   steps[#steps + 1] = call("Turn pattern solo mode off (manual)", function(_, _, currentRunner)
@@ -158,13 +172,6 @@ local function buildPpuToolbarPatternRangesScenario(harness, app, runner)
     end
   end)
 
-  steps[#steps + 1] = keyPress("Undo last add-range event (remove range)", "z", { "lctrl" })
-  steps[#steps + 1] = call("Assert undo removed last range", function(_, _, currentRunner)
-    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
-    local layer = assert(ppu.layers and ppu.layers[1], "expected tile layer")
-    local ranges = layer.patternTable and layer.patternTable.ranges or {}
-    assert(#ranges == 1, "expected undo to remove last added range")
-  end)
   steps[#steps + 1] = pause("Observe pattern range workflow", 0.75)
   return steps
 end
