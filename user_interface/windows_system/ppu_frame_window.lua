@@ -297,7 +297,7 @@ local function drawPatternRangeHoverOverlay(self, cw, ch, c0, r0, c1, r1, rangeH
   if not rangeHighlight then
     return
   end
-  love.graphics.setColor(1, 1, 1, 0.30)
+  love.graphics.setColor(1, 1, 1, 0.14)
   for row = r0, r1 do
     for col = c0, c1 do
       local idx = lin(self.cols or 32, col, row)

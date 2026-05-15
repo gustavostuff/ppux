@@ -442,7 +442,7 @@ local function drawPatternTableRangeHoverOverlay(app, w, layerIndex)
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
   love.graphics.translate(-(w.scrollCol or 0) * cw, -(w.scrollRow or 0) * ch)
 
-  love.graphics.setColor(1, 1, 1, 0.30)
+  love.graphics.setColor(1, 1, 1, 0.14)
   for row = vR0, vR1 do
     for col = vC0, vC1 do
       local logical = row * cols + col
