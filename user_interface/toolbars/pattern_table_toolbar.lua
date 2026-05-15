@@ -51,16 +51,8 @@ function PatternTableToolbar:updatePatternRangeButton()
   if not (button and self.window) then
     return
   end
-  local layer = self.window.layers and self.window.layers[1]
-  local ranges = layer and layer.patternTable and layer.patternTable.ranges
-  local rangeCount = type(ranges) == "table" and #ranges or 0
-  if rangeCount > 0 then
-    button.bgColor = nil
-    button.contentColor = colors.white
-  else
-    button.bgColor = colors.yellow
-    button.contentColor = colors.black
-  end
+  button.bgColor = nil
+  button.contentColor = colors.white
   button.tooltip = "Add tile range"
 end
 

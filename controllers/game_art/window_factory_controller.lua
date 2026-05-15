@@ -427,8 +427,12 @@ function M.createOamAnimationWindow(w, tilesPool, ensureTiles)
       if spriteLayer then
         spriteLayer.items = spriteLayer.items or {}
         for _, it in ipairs(Lsrc.items or {}) do
-          if it.bank and (it.tile or it.startAddr) then
-            ensureTiles(it.bank)
+          local oamSlot = type(it.startAddr) == "number"
+          local chrPair = it.bank ~= nil and type(it.tile) == "number"
+          if oamSlot or chrPair then
+            if it.bank ~= nil then
+              ensureTiles(it.bank)
+            end
             table.insert(spriteLayer.items, {
               startAddr = it.startAddr,
               bank = it.bank,
@@ -480,23 +484,12 @@ local function addPpuSpriteOverlayLayers(win, w, ensureTiles)
       end
 
       for _, it in ipairs(Lsrc.items or {}) do
-        if it.bank and (it.tile or it.startAddr) then
-          ensureTiles(it.bank)
-          table.insert(spriteLayer.items, {
-            startAddr = it.startAddr,
-            bank = it.bank,
-            tile = it.tile,
-            dx = it.dx,
-            dy = it.dy,
-            x = it.x,
-            y = it.y,
-            paletteNumber = it.paletteNumber,
-            mirrorX = it.mirrorX,
-            mirrorY = it.mirrorY,
-            _mirrorXOverrideSet = (it.mirrorX ~= nil),
-            _mirrorYOverrideSet = (it.mirrorY ~= nil),
-          })
-        elseif type(it.startAddr) == "number" and it.bank == nil then
+        local oamSlot = type(it.startAddr) == "number"
+        local chrPair = it.bank ~= nil and type(it.tile) == "number"
+        if oamSlot or chrPair then
+          if it.bank ~= nil then
+            ensureTiles(it.bank)
+          end
           table.insert(spriteLayer.items, {
             startAddr = it.startAddr,
             bank = it.bank,

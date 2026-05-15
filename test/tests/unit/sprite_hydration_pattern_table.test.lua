@@ -82,4 +82,29 @@ describe("sprite hydration — pattern table + 8x16", function()
     expect(s.topRef).toBe(topTile)
     expect(s.botRef).toBe(botTile)
   end)
+
+  it("CHR-backed 8x16 ignores duplicate tileBelow when pairing bank/tile indices", function()
+    local topTile = {}
+    local botTile = {}
+    local tilesPool = {
+      [1] = {
+        [4] = topTile,
+        [5] = botTile,
+      },
+    }
+    local layer = {
+      kind = "sprite",
+      patternTable = { ranges = {} },
+    }
+    local item = {
+      bank = 1,
+      tile = 5,
+      tileBelow = 5,
+    }
+    Hydration.ensureTileRefsForSpriteItem(item, "8x16", tilesPool, {}, layer)
+    expect(item.topRef).toBe(topTile)
+    expect(item.botRef).toBe(botTile)
+    expect(item.tile).toBe(4)
+    expect(item.tileBelow).toBe(5)
+  end)
 end)

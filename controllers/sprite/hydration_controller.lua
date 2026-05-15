@@ -16,7 +16,9 @@ local function resolve8x16Pair(tileIndex, tileBelow)
   local belowIndex = tonumber(tileBelow)
   if type(belowIndex) == "number" then
     belowIndex = math.floor(belowIndex)
-    return topIndex, belowIndex
+    if belowIndex ~= topIndex then
+      return topIndex, belowIndex
+    end
   end
 
   -- NES 8x16 sprite selection uses bit 0 to select the pattern table.
