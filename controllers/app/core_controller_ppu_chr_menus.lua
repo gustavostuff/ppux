@@ -307,14 +307,6 @@ end
 function AppCoreController:_buildPpuTileContextMenuItems(context)
   local items = {
     {
-      text = "Build/refresh pattern table reference layer",
-      menuGroup = "ppt_pattern_table",
-      enabled = context and context.layer and type(context.layer.patternTable) == "table",
-      callback = function()
-        self:_ensurePpuPatternTableReferenceLayer(context, { keepActiveLayer = false })
-      end,
-    },
-    {
       text = "Undo pixel edits",
       menuGroup = "ppt_edit_history",
       enabled = RevertTilePixelsController.canRevertContext(self, context),

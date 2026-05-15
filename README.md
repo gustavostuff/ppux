@@ -1,6 +1,6 @@
 ![](img/readme_images/logo_v2.png)
 
-## Open Source NES Art Editor
+Open Source NES Art Editor
 
 Beta 0.1.4
 
@@ -16,6 +16,16 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
   - [Getting started](#getting-started)
   - [Windows system](#windows-system)
   - [Toolbars](#toolbars)
+    - [App toolbar](#app-toolbar)
+    - [CHR Banks toolbar](#chr-banks-toolbar)
+    - [ROM Banks toolbar](#rom-banks-toolbar)
+    - [Pattern table toolbar](#pattern-table-toolbar)
+    - [Static Art (tiles and sprites) toolbar](#static-art-tiles-and-sprites-toolbar)
+    - [Animation toolbar (for both sprites and tiles)](#animation-toolbar-for-both-sprites-and-tiles)
+    - [OAM Animation toolbar](#oam-animation-toolbar)
+    - [Global palette toolbar](#global-palette-toolbar)
+    - [ROM palette toolbar](#rom-palette-toolbar)
+    - [PPU Frame toolbar](#ppu-frame-toolbar)
   - [Palette windows](#palette-windows)
   - [Main controls](#main-controls)
   - [Tile mode](#tile-mode)
@@ -33,6 +43,9 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
   - [ROM palette windows](#rom-palette-windows)
   - [Window references between entries](#window-references-between-entries)
   - [ROM patches](#rom-patches)
+    - [1. Single byte (`address` + `value`)](#1-single-byte-address--value)
+    - [2. Contiguous range (`addresses.from` / optional `addresses.to` + `values`)](#2-contiguous-range-addressesfrom--optional-addressesto--values)
+    - [3. Address list (useful for non-contiguous values)](#3-address-list-useful-for-non-contiguous-values)
 - [Development](#development)
   - [Build packages](#build-packages)
   - [Unit testing](#unit-testing)
@@ -60,14 +73,15 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------|
 | CHR Banks              | <img src="img/readme_images/windows_system_table/icon_chr_window.png" alt="CHR Banks taskbar icon">                      | Primary source window for normal CHR bank data                                                           |
 | ROM Banks              | <img src="img/readme_images/windows_system_table/icon_rom_window.png" alt="ROM Banks taskbar icon">                      | Same as CHR Banks, but loads the whole ROM                                                               |
+| Pattern table          | <img src="img/readme_images/windows_system_table/icon_pattern_table_window.png" alt="Pattern table taskbar icon">        | Sub-set of CHR/ROM items, intended to mimic the actual pattern tables assemble in game run-time |
 | Static Art (tiles)     | <img src="img/readme_images/windows_system_table/icon_static_tile_window.png" alt="Static Art tiles taskbar icon">       | Single-layer tile composition window for mockups and UI pieces                                           |
 | Animation (tiles)      | <img src="img/readme_images/windows_system_table/icon_animated_tile_window.gif" alt="Animation tiles taskbar icon">                        | Tile animation window where each layer acts as a frame                                                   |
 | Static Art (sprites)   | <img src="img/readme_images/windows_system_table/icon_static_sprite_window.png" alt="Static Art sprites taskbar icon">   | Single-layer sprite composition window with pixel-level placement                                        |
 | Animation (sprites)    | <img src="img/readme_images/windows_system_table/icon_animated_sprite_window.gif" alt="Animation sprites taskbar icon">                      | Sprite animation window for frame-by-frame sprite layouts                                                |
-| OAM Animation          | <img src="img/readme_images/windows_system_table/icon_oam_animated_window.gif" alt="OAM Animation taskbar icon">                          | ROM-backed sprite animation view based on OAM data                                                       |
+| OAM Animation          | <img src="img/readme_images/windows_system_table/icon_oam_animated_window.gif" alt="OAM Animation taskbar icon">                          | ROM-backed sprite animation; **requires a linked Pattern table** window for sprite CHR                                                    |
 | Global palette         | <img src="img/readme_images/windows_system_table/icon_palette_window.png" alt="Global palette taskbar icon">             | Global palette window for items without an assigned ROM palette                                          |
 | ROM palette            | <img src="img/readme_images/windows_system_table/icon_rom_palette_window.png" alt="ROM palette taskbar icon">            | ROM palette editor tied to ROM addresses                                                                 |
-| PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view for screens assembled closer to how the game actually renders them  |
+| PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view; It **also** requires pattern table links for rendering |
 
 
 Notes:
@@ -120,8 +134,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 #### Pattern table toolbar
 
-1. **Add tile range** - same flow as PPU Frame (bank/page/from/to logical range)
-2. Keyboard: **`Ctrl + M`** toggles **`8x8`** vs **`8x16` pair** layout (same reordering as CHR banks; each cell stays **8×8** pixels). **`M`** alone toggles **Mirror X** (same as the app toolbar).
+1. **Add tile range** - Add logical ranges from CHR/ROM banks window (to mimic actual pattern tables)
 
 #### Static Art (tiles and sprites) toolbar
 
@@ -154,7 +167,8 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 6. **Toggle origin guides** - **Shift + right-drag** on the canvas moves the sprites origin
 7. **Copy from previous layer**
 8. **Play / Pause** - `P` key
-9. **Palette link handle** - rightmost; same source linking behavior as other toolbars’ connect controls.
+9. **Pattern table** - link all frames to a **Pattern table** window (**required** for sprite CHR)
+10. **Palette link handle** - rightmost; same source linking behavior as other toolbars’ connect controls.
 
 #### Global palette toolbar
 
@@ -180,13 +194,10 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 1. **Previous layer** - `Shift` + `Down` key
 2. **Next layer** - `Shift` + `Up` key
-3. **Add tile range** - appends a logical pattern-table range (bank/page/from/to)
-4. **Nametable range** - compressed nametable **start/end** ROM addresses
-5. **Add sprite** - creates sprite layer if needed, otherwise adds a sprite
-6. **Pattern layer toggle** - isolates the runtime pattern-table layer when enabled
-7. **Toggle origin guides** - available on sprite layers
-
-When **Pattern layer toggle** is ON, only the pattern reference layer is visible/navigable. When OFF, normal tile/sprite navigation resumes.
+3. **Nametable range** - compressed nametable **start/end** ROM addresses
+4. **Add sprite** - creates sprite layer if needed, otherwise adds a sprite
+5. **Pattern table** - link the **tile** and/or **sprite** layer to a **Pattern table** window (edit ranges on that window; PPU layers consume the shared map)
+6. **Toggle origin guides** - available on sprite layers
 
 ### Palette windows
 
@@ -246,7 +257,7 @@ Tile mode is for selection, drag and drop and tile-level editing in general.
 - `Delete` / `Backspace` to remove selection where supported
 - arrows to move tile selections
 - `Shift + Up/Down` to switch layers in **multi-layer** windows (animations, PPU Frame, OAM Animation, etc.): **`Up` = next layer, `Down` = previous**. **Static Art** windows stay single-layer and do not use layer switching shortcuts.
-- `Ctrl + Up/Down` to change inactive-layer opacity (disabled in PPU Frame pattern-layer-only mode)
+- `Ctrl + Up/Down` to change inactive-layer opacity
 - `1` to `4` to assign palette numbers where supported
 - `H` / `V` to mirror selected sprites
 - Bank windows: `Left/Right` switch banks, **`Ctrl + M`** toggles `8x8` / `8x16` layout, **`M`** toggles **Mirror X**, `D` toggles **diff vs loaded CHR** (`8x16` pairs highlight as one unit when either half differs)
@@ -346,7 +357,7 @@ Best practice: keep the base ROM, edited ROM, and project files in the same fold
 
 ### PPU frame windows
 
-`ppu_frame` windows are structured screen views: a **tile** layer backed by compressed nametable data in ROM, plus an optional **sprite** overlay that tracks real OAM bytes.
+`ppu_frame` windows are structured screen views: a **tile** layer backed by compressed nametable data in ROM, plus an optional **sprite** overlay that tracks real OAM bytes. Logical CHR mapping lives on a separate **`pattern_table`** window, **linked** from the PPU frame.
 
 Use **New Window > PPU Frame** and the in-app toolbars / context menus to edit nametables and sprites; saving the project persists layer state and nametable diffs.
 
@@ -368,14 +379,14 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
 
 ### PPU frame editing notes
 
-* **Empty nametable cells** use nametable byte **0** by default, which resolves to pattern-table **tile 0** using the layer's **`patternTable.ranges`** (each range contributes bank, page, and tile index span; extra ranges widen which CHR tiles the nametable can point at - byte `0` is still tile index 0 within that combined mapping).
+* **Empty nametable cells** use nametable byte **0** by default, which resolves to pattern-table **tile 0** through the **linked Pattern table** window's **`patternTable.ranges`** (each range contributes bank, page, and tile index span).
 * Tile layers render from a **cached full-canvas** nametable view for performance; after heavy edits, use the normal refresh paths the UI offers if a screen looks stale.
 * For **sprites**, use **Add sprite** on the toolbar to bind OAM entries. Sprite items that share the same `startAddr` **stay in sync** with **OAM Animation** windows (and other PPU Frame sprite layers) so moving or reconfiguring one updates the linked entries.
 * **Nametable range sync:** PPU Frame windows that share the same `nametableStartAddr` and `nametableEndAddr` keep their uncompressed nametable + attribute bytes (and ROM slice) aligned when you edit the tile layer in any one of them - similar to sprite `startAddr` sync.
 * **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. When you are not dragging, **right-click** behaves like elsewhere (in **edit mode** over paintable pixels, **Alt + right-click** opens the menu if you want the menu instead of sampling a color - see [Edit mode](#edit-mode)).
-* **Pattern layer mode**: use the pattern-table toggle button to isolate the runtime pattern reference layer. In this mode, tile/sprite layers are hidden from navigation and `Ctrl + Up/Down` inactive-layer opacity is disabled.
-* **Pattern range UX**: adding a pattern range updates the reference layer immediately and switches to pattern-layer mode to review the new logical range quickly.
-* **Pattern hover aid**: hovering a tile in pattern-layer mode highlights all tiles in the same logical range with a translucent overlay.
+* **Pattern preview** (toolbar): read-only overlay of the **linked** pattern map; tile/sprite layers are hidden from navigation and `Ctrl + Up/Down` inactive-layer opacity is disabled.
+* **Ranges** are edited on the **Pattern table** window; after changes, use **Pattern preview** on the PPU frame to inspect the combined map.
+* **Pattern hover**: in **Pattern preview**, hovering a logical cell highlights all tiles in the same range with a translucent overlay.
 
 **Project file sketch** (what the UI ultimately saves) - useful when diffing projects or contributing DB entries:
 
@@ -386,18 +397,15 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
   layers = {
     [1] = {
       kind = "tile",
-      patternTable = {
-        ranges = {
-          { bank = 9, page = 1, tileRange = { from = 0, to = 255 } },
-          ...
-        },
-      },
+      linkedPatternTableWindowId = "pattern_table_01",
+      -- legacy: `patternTable = { ranges = {...} }` inlined on the layer
       nametableEndAddr = 0x01329B,
       nametableStartAddr = 0x013110,
       paletteData = { winId = "rom_palette_01" }
     },  
     [2] = {
       kind = "sprite",
+      linkedPatternTableWindowId = "pattern_table_02",
       mode = "8x16",
       items = {
         { startAddr = 0x009F2B, bank = 4, tile = 238 },
@@ -408,9 +416,9 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
 }
 ```
 
-In tile layers, `nametableStartAddr` and `nametableEndAddr` define the ROM byte range used for the nametable data handled by that window (it's the same bytes read by an emulator when loading a specific nametable). The app reads from that range when loading the screen data, and writes back into the same range when saving changes. CHR **bank** and **page** for tiles come from **`patternTable.ranges`**.
+In tile layers, `nametableStartAddr` and `nametableEndAddr` define the ROM byte range used for the nametable data handled by that window (it's the same bytes read by an emulator when loading a specific nametable). The app reads from that range when loading the screen data, and writes back into the same range when saving changes. CHR **bank/page** indexing for nametable tiles comes from the linked **`pattern_table`** window (**`linkedPatternTableWindowId`**, its **`patternTable.ranges`**); inlined **`patternTable`** on the tile layer remains for legacy saves.
 
-For sprite layers, `startAddr` is the most important field because it links the item to the 4 OAM bytes in ROM. The app uses byte 1 for Y position, byte 3 for attributes/palette/mirroring, and byte 4 for X position directly through the app UI. Byte 2 is the exception: in real hardware or emulators, its tile value is interpreted in PPU/VRAM space, not as a direct ROM-bank tile reference. Since the app does not know the final runtime VRAM page layout, **`bank` and `tile` on each sprite item** must also be specified explicitly so the correct source graphics can be resolved in the editor context.
+For sprite layers, `startAddr` is the most important field because it links the item to the 4 OAM bytes in ROM. The app uses byte 1 for Y position, byte 3 for attributes/palette/mirroring, and byte 4 for X position directly through the app UI. Byte 2 is the tile byte in ROM; the editor resolves visible CHR using the layer's **`linkedPatternTableWindowId`** (same idea as OAM). **`bank` and `tile` on each sprite item** still identify the source tile in the UI when present.
 
 ### Current nametable codec coverage
 
@@ -423,7 +431,7 @@ PPUX currently includes one nametable codec implementation aimed at Konami-style
 **Creating and editing from the UI**
 
 1. Open **New Window** and choose **OAM Animation**.
-2. Use **Add sprite** and the frame/layer controls on the toolbar to build each frame; ROM addresses and tiles are chosen inside the modals rather than by editing Lua by hand.
+2. Link a **Pattern table** window from the toolbar (**required** for sprite CHR), then use **Add sprite** and the frame/layer controls to build each frame; ROM addresses and tiles are chosen inside the modals rather than by editing Lua by hand.
 3. Frames can be **played** from the toolbar like other animation windows; layer edits are blocked while playback is running.
 4. Items that share a `startAddr` **sync** with **PPU Frame** sprite layers (and other OAM windows) so OAM edits stay consistent everywhere that references the same bytes.
 5. **Origin** and **origin guides** behave like PPU Frame sprite layers: **Shift + right-click drag** moves `originX` / `originY`; the dotted-line button toggles guides.
@@ -437,6 +445,7 @@ PPUX currently includes one nametable codec implementation aimed at Konami-style
   layers = {
     [1] = {
       kind = "sprite",
+      linkedPatternTableWindowId = "pattern_table_oam_01",
       mode = "8x16",
       items = {
         { startAddr = 0x0095FA, bank = 1, tile = 256 },
