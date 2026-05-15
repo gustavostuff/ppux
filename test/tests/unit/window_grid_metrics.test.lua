@@ -1,7 +1,7 @@
 local Window = require("user_interface.windows_system.window")
 
 describe("window.lua - display grid metrics", function()
-  it("uses 8x16 grid spacing for sprite layers in 8x16 mode", function()
+  it("keeps 8px grid for sprite layers in 8x16 mode (OAM / pixel viewport, not CHR tile rows)", function()
     local win = Window.new(0, 0, 8, 8, 4, 4, 1, { title = "sprite-grid" })
     win.layers = {
       { kind = "sprite", mode = "8x16" },
@@ -11,8 +11,8 @@ describe("window.lua - display grid metrics", function()
     local metrics = win:getDisplayGridMetrics()
 
     expect(metrics.cellW).toBe(8)
-    expect(metrics.cellH).toBe(16)
-    expect(metrics.rowStride).toBe(2)
+    expect(metrics.cellH).toBe(8)
+    expect(metrics.rowStride).toBe(1)
   end)
 
   it("keeps 8px layout metrics for CHR windows in odd-even order mode", function()

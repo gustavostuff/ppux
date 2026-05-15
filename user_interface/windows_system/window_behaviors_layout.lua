@@ -192,9 +192,10 @@ function Window:getDisplayGridMetrics(layerIndex)
 
   local li = layerIndex or self.activeLayer or 1
   local layer = self.layers and self.layers[li] or nil
-  -- Tile/sprite layers: each logical row occupies 16px height (CHR tile scaled ×2 vertically).
-  -- CHR oddEven and pattern_table "8x16" layout only *reindex* within an 8px grid — do not inflate cellH.
-  if layer and layer.mode == "8x16" and not WindowCaps.isPatternTable(self) then
+  -- Tile layers in 8x16 mode: each logical grid row is 16px tall (two 8px CHR rows).
+  -- Sprite layers use 8x16 only for compositing OAM tiles; the viewport grid stays 8×8
+  -- (chess/lines, scroll, sprite culling) — otherwise backgrounds look vertically stretched.
+  if layer and layer.kind == "tile" and layer.mode == "8x16" and not WindowCaps.isPatternTable(self) then
     rowStride = 2
   end
 
