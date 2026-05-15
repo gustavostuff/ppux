@@ -185,6 +185,7 @@ function AppCoreController.new()
     window_close = true,
     window_rename = true,
     palette_link_change = true,
+    pattern_table_link_change = true,
     ppu_frame_range_change = true,
     animation_timeline_change = true,
     reference_background_change = true,

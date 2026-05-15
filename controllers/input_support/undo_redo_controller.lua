@@ -15,6 +15,7 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
 local GridLayoutUndo = require("controllers.input_support.grid_layout_undo")
 local SpriteController = require("controllers.sprite.sprite_controller")
+local TableUtils = require("utils.table_utils")
 
 -- Create a new undo/redo manager
 function UndoRedoController.new(maxDepth)
@@ -304,6 +305,20 @@ function UndoRedoController:addPaletteLinkEvent(event)
   return pushed
 end
 
+function UndoRedoController:addPatternTableLinkEvent(event)
+  if not event or event.type ~= "pattern_table_link" then
+    return false
+  end
+  if type(event.actions) ~= "table" or #event.actions == 0 then
+    return false
+  end
+  local pushed = self:_pushEvent(event)
+  if pushed then
+    self:_notifyUnsaved("pattern_table_link_change")
+  end
+  return pushed
+end
+
 function UndoRedoController:addPaletteColorEvent(event)
   if not event or event.type ~= "palette_color" then return false end
   if type(event.actions) ~= "table" or #event.actions == 0 then return false end
@@ -404,6 +419,64 @@ local function deepCopy(value, seen)
     copy[deepCopy(k, seen)] = deepCopy(v, seen)
   end
   return copy
+end
+
+local function undoRedoFindWindowById(wm, id)
+  if type(id) ~= "string" or id == "" or not wm or not wm.getWindows then
+    return nil
+  end
+  for _, w in ipairs(wm:getWindows()) do
+    if w and w._id == id then
+      return w
+    end
+  end
+  return nil
+end
+
+local function applyPatternTableLinkEvent(event, direction, app)
+  if not (event and event.type == "pattern_table_link" and type(event.actions) == "table" and app) then
+    return false
+  end
+
+  local applied = 0
+  for _, act in ipairs(event.actions) do
+    local win = act.win
+    local li = act.layerIndex
+    local layer = win and win.layers and li and win.layers[li] or nil
+    if layer then
+      local linkedId = (direction == "undo") and act.beforeLinkedId or act.afterLinkedId
+      local ptSnapshot = (direction == "undo") and act.beforePatternTable or act.afterPatternTable
+
+      linkedId = (type(linkedId) == "string" and linkedId ~= "") and linkedId or nil
+
+      if linkedId then
+        local ptWin = undoRedoFindWindowById(app.wm, linkedId)
+        local srcLayer = ptWin and ptWin.layers and ptWin.layers[1]
+        layer.linkedPatternTableWindowId = linkedId
+        if srcLayer and type(srcLayer.patternTable) == "table" then
+          layer.patternTable = srcLayer.patternTable
+        elseif type(ptSnapshot) == "table" then
+          layer.patternTable = TableUtils.deepcopy(ptSnapshot)
+        else
+          layer.patternTable = { ranges = {} }
+        end
+      else
+        layer.linkedPatternTableWindowId = nil
+        if type(ptSnapshot) == "table" then
+          layer.patternTable = TableUtils.deepcopy(ptSnapshot)
+        else
+          layer.patternTable = { ranges = {} }
+        end
+      end
+
+      if type(app._afterPatternTableLinkChange) == "function" then
+        app:_afterPatternTableLinkChange(win, li)
+      end
+      applied = applied + 1
+    end
+  end
+
+  return applied > 0
 end
 
 local function applyPaletteLinkEvent(event, direction)
@@ -1241,6 +1314,8 @@ function UndoRedoController:_applyEvent(event, direction, app)
     return applyRomPaletteAddressEvent(event, direction)
   elseif event.type == "palette_link" then
     return applyPaletteLinkEvent(event, direction)
+  elseif event.type == "pattern_table_link" then
+    return applyPatternTableLinkEvent(event, direction, app)
   elseif event.type == "window_create" then
     return applyWindowCreateEvent(event, direction, app)
   elseif event.type == "ppu_frame_range" then

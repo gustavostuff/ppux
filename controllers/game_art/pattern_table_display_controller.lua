@@ -300,11 +300,13 @@ function M.unlinkContentLayerPatternTable(contentWin, layerIndex)
     return false
   end
   layer.linkedPatternTableWindowId = nil
-  -- PPU nametable tile layer: unlink means stop using linked CHR ranges here.
-  -- A detached deepcopy keeps the old mapping and leaves tiles looking linked; clear instead.
+  -- PPU nametable + sprite layers: unlink means stop using linked CHR ranges here.
+  -- A detached deepcopy keeps the old mapping and leaves nametable tiles / sprites looking linked.
   if WindowCaps.isPpuFrame(contentWin)
-    and layer.kind == "tile"
-    and layer._runtimePatternTableRefLayer ~= true
+    and (
+      (layer.kind == "tile" and layer._runtimePatternTableRefLayer ~= true)
+      or layer.kind == "sprite"
+    )
   then
     layer.patternTable = { ranges = {} }
   elseif type(layer.patternTable) == "table" then

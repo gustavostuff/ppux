@@ -897,6 +897,109 @@ local function activateWindowForJump(wm, win)
   end
 end
 
+local function normalizeLinkedPatternTableWindowId(id)
+  if type(id) ~= "string" or id == "" then
+    return nil
+  end
+  return id
+end
+
+local function snapshotPatternTableLayerBeforeMutation(win, layerIndex)
+  local layer = win.layers and win.layers[layerIndex]
+  if not layer then
+    return nil
+  end
+  local pt = layer.patternTable
+  return {
+    linkedId = normalizeLinkedPatternTableWindowId(layer.linkedPatternTableWindowId),
+    patternTableDeep = type(pt) == "table" and TableUtils.deepcopy(pt) or { ranges = {} },
+    patternTableRef = pt,
+  }
+end
+
+local function snapshotPatternTableLayerAfterMutation(win, layerIndex)
+  local layer = win.layers and win.layers[layerIndex]
+  if not layer then
+    return nil
+  end
+  local pt = layer.patternTable
+  return {
+    linkedId = normalizeLinkedPatternTableWindowId(layer.linkedPatternTableWindowId),
+    patternTableDeep = type(pt) == "table" and TableUtils.deepcopy(pt) or { ranges = {} },
+  }
+end
+
+local function patternTableLayerMutationWasNoOp(beforeSnap, layerAfter)
+  if not (beforeSnap and layerAfter) then
+    return false
+  end
+  return beforeSnap.linkedId == normalizeLinkedPatternTableWindowId(layerAfter.linkedPatternTableWindowId)
+    and beforeSnap.patternTableRef == layerAfter.patternTable
+end
+
+local function pushPatternTableLinkUndoIfNeeded(self, win, layerIndex, beforeSnap)
+  if not (self and self.undoRedo and win and beforeSnap) then
+    return
+  end
+  local layer = win.layers and win.layers[layerIndex]
+  if not layer then
+    return
+  end
+  if patternTableLayerMutationWasNoOp(beforeSnap, layer) then
+    return
+  end
+  local afterSnap = snapshotPatternTableLayerAfterMutation(win, layerIndex)
+  if not afterSnap then
+    return
+  end
+  self.undoRedo:addPatternTableLinkEvent({
+    type = "pattern_table_link",
+    actions = {
+      {
+        win = win,
+        layerIndex = layerIndex,
+        beforeLinkedId = beforeSnap.linkedId,
+        afterLinkedId = afterSnap.linkedId,
+        beforePatternTable = beforeSnap.patternTableDeep,
+        afterPatternTable = afterSnap.patternTableDeep,
+      },
+    },
+  })
+end
+
+--- @param entries { { win = w, layerIndex = i, beforeSnap = snap } ... } captured before a batch mutation.
+local function pushPatternTableLinkUndoBatchAfterMutations(self, entries)
+  if not (self and self.undoRedo and type(entries) == "table") then
+    return
+  end
+  local actions = {}
+  for _, e in ipairs(entries) do
+    local win = e.win
+    local li = e.layerIndex
+    local beforeSnap = e.beforeSnap
+    local layer = win and win.layers and li and win.layers[li]
+    if layer and beforeSnap and not patternTableLayerMutationWasNoOp(beforeSnap, layer) then
+      local afterSnap = snapshotPatternTableLayerAfterMutation(win, li)
+      if afterSnap then
+        actions[#actions + 1] = {
+          win = win,
+          layerIndex = li,
+          beforeLinkedId = beforeSnap.linkedId,
+          afterLinkedId = afterSnap.linkedId,
+          beforePatternTable = beforeSnap.patternTableDeep,
+          afterPatternTable = afterSnap.patternTableDeep,
+        }
+      end
+    end
+  end
+  if #actions > 0 then
+    self.undoRedo:addPatternTableLinkEvent({
+      type = "pattern_table_link",
+      actions = actions,
+    })
+  end
+end
+
 function AppCoreController:_afterPatternTableLinkChange(contentWin, layerIndex)
   local layer = contentWin.layers and contentWin.layers[layerIndex]
   if not layer then
@@ -1061,7 +1164,18 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
               text = tostring(pt.title or pt._id or "Pattern table"),
               icon = patternTablePickMenuIcon(pt, linkedId),
               callback = function()
+                local batchBefore = {}
+                for li, L in ipairs(contentWin.layers or {}) do
+                  if L and L.kind == "sprite" then
+                    batchBefore[#batchBefore + 1] = {
+                      win = contentWin,
+                      layerIndex = li,
+                      beforeSnap = snapshotPatternTableLayerBeforeMutation(contentWin, li),
+                    }
+                  end
+                end
                 PatternTableDisplayController.linkAllOamSpriteLayersToPatternTableWindow(contentWin, pt)
+                pushPatternTableLinkUndoBatchAfterMutations(self, batchBefore)
                 for li, L in ipairs(contentWin.layers or {}) do
                   if L and L.kind == "sprite" then
                     self:_afterPatternTableLinkChange(contentWin, li)
@@ -1102,7 +1216,18 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
         icon = iconsOam.unlink,
         menuGroup = "pt_oam_follow",
         callback = function()
+          local batchBefore = {}
+          for li, L in ipairs(contentWin.layers or {}) do
+            if L and L.kind == "sprite" then
+              batchBefore[#batchBefore + 1] = {
+                win = contentWin,
+                layerIndex = li,
+                beforeSnap = snapshotPatternTableLayerBeforeMutation(contentWin, li),
+              }
+            end
+          end
           PatternTableDisplayController.unlinkAllOamSpriteLayersPatternTable(contentWin)
+          pushPatternTableLinkUndoBatchAfterMutations(self, batchBefore)
           for li, L in ipairs(contentWin.layers or {}) do
             if L and L.kind == "sprite" then
               self:_afterPatternTableLinkChange(contentWin, li)
@@ -1146,7 +1271,9 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
               text = tostring(pt.title or pt._id or "Pattern table"),
               icon = patternTablePickMenuIcon(pt, bgLinkedId),
               callback = function()
+                local beforeSnap = snapshotPatternTableLayerBeforeMutation(contentWin, bgIdx)
                 PatternTableDisplayController.linkContentLayerToPatternTableWindow(contentWin, bgIdx, pt)
+                pushPatternTableLinkUndoIfNeeded(self, contentWin, bgIdx, beforeSnap)
                 self:_afterPatternTableLinkChange(contentWin, bgIdx)
                 hideMenus()
               end,
@@ -1181,7 +1308,9 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
                 text = tostring(pt.title or pt._id or "Pattern table"),
                 icon = patternTablePickMenuIcon(pt, sprLinkedId),
                 callback = function()
+                  local beforeSnap = snapshotPatternTableLayerBeforeMutation(contentWin, sprIdx)
                   PatternTableDisplayController.linkContentLayerToPatternTableWindow(contentWin, sprIdx, pt)
+                  pushPatternTableLinkUndoIfNeeded(self, contentWin, sprIdx, beforeSnap)
                   self:_afterPatternTableLinkChange(contentWin, sprIdx)
                   hideMenus()
                 end,
@@ -1238,7 +1367,9 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
         icon = iconsRoot.unlink,
         menuGroup = "pt_ppu_unlink",
         callback = function()
+          local beforeSnap = snapshotPatternTableLayerBeforeMutation(contentWin, bgIdx)
           PatternTableDisplayController.unlinkContentLayerPatternTable(contentWin, bgIdx)
+          pushPatternTableLinkUndoIfNeeded(self, contentWin, bgIdx, beforeSnap)
           self:_afterPatternTableLinkChange(contentWin, bgIdx)
           hideMenus()
         end,
@@ -1251,7 +1382,9 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
         icon = iconsRoot.unlink,
         menuGroup = "pt_ppu_unlink",
         callback = function()
+          local beforeSnap = snapshotPatternTableLayerBeforeMutation(contentWin, sprIdx)
           PatternTableDisplayController.unlinkContentLayerPatternTable(contentWin, sprIdx)
+          pushPatternTableLinkUndoIfNeeded(self, contentWin, sprIdx, beforeSnap)
           self:_afterPatternTableLinkChange(contentWin, sprIdx)
           hideMenus()
         end,
@@ -1289,7 +1422,9 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
             text = tostring(pt.title or pt._id or "Pattern table"),
             icon = patternTablePickMenuIcon(pt, layerLinkedId),
             callback = function()
+              local beforeSnap = snapshotPatternTableLayerBeforeMutation(contentWin, layerIndex)
               PatternTableDisplayController.linkContentLayerToPatternTableWindow(contentWin, layerIndex, pt)
+              pushPatternTableLinkUndoIfNeeded(self, contentWin, layerIndex, beforeSnap)
               self:_afterPatternTableLinkChange(contentWin, layerIndex)
               hideMenus()
             end,
@@ -1324,7 +1459,9 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
       icon = iconsFb.unlink,
       menuGroup = "pt_layer_linked",
       callback = function()
+        local beforeSnap = snapshotPatternTableLayerBeforeMutation(contentWin, layerIndex)
         PatternTableDisplayController.unlinkContentLayerPatternTable(contentWin, layerIndex)
+        pushPatternTableLinkUndoIfNeeded(self, contentWin, layerIndex, beforeSnap)
         self:_afterPatternTableLinkChange(contentWin, layerIndex)
         hideMenus()
       end,

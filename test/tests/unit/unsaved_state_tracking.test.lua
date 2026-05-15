@@ -257,4 +257,30 @@ describe("undo_redo_controller.lua - unsaved tracking", function()
     expect(ok).toBe(true)
     expect(#events).toBe(0)
   end)
+
+  it("marks pattern table link undo events as unsaved", function()
+    local undo = UndoRedoController.new(10)
+    local events = {}
+    undo:setUnsavedTracker(function(eventType)
+      events[#events + 1] = eventType
+    end)
+
+    local win = { layers = { { kind = "tile", linkedPatternTableWindowId = nil, patternTable = { ranges = {} } } } }
+    local ok = undo:addPatternTableLinkEvent({
+      type = "pattern_table_link",
+      actions = {
+        {
+          win = win,
+          layerIndex = 1,
+          beforeLinkedId = nil,
+          afterLinkedId = "x",
+          beforePatternTable = { ranges = {} },
+          afterPatternTable = { ranges = {} },
+        },
+      },
+    })
+
+    expect(ok).toBe(true)
+    expect(events[#events]).toBe("pattern_table_link_change")
+  end)
 end)

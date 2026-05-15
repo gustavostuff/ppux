@@ -712,3 +712,61 @@ describe("UndoRedoController - ppu frame range", function()
     expect(appliedStates[2]).toBe(afterState)
   end)
 end)
+
+describe("UndoRedoController - pattern table link", function()
+  it("undo restores pre-link state; redo reattaches live pattern table from window manager", function()
+    local TableUtils = require("utils.table_utils")
+
+    local ptShared = { ranges = { { from = 0, to = 255, bank = 1, page = 1 } } }
+    local ptWin = { _id = "pt_a", layers = { { patternTable = ptShared } } }
+    local wm = {
+      _windows = { ptWin },
+      getWindows = function(self)
+        return self._windows
+      end,
+    }
+
+    local spriteLayer = {
+      kind = "sprite",
+      linkedPatternTableWindowId = nil,
+      patternTable = { ranges = {} },
+    }
+    local contentWin = { kind = "ppu_frame", layers = { spriteLayer } }
+
+    local refreshCalls = 0
+    local app = {
+      wm = wm,
+      _afterPatternTableLinkChange = function()
+        refreshCalls = refreshCalls + 1
+      end,
+    }
+
+    spriteLayer.linkedPatternTableWindowId = "pt_a"
+    spriteLayer.patternTable = ptShared
+
+    local ur = UndoRedoController.new(10)
+    ur:addPatternTableLinkEvent({
+      type = "pattern_table_link",
+      actions = {
+        {
+          win = contentWin,
+          layerIndex = 1,
+          beforeLinkedId = nil,
+          afterLinkedId = "pt_a",
+          beforePatternTable = { ranges = {} },
+          afterPatternTable = TableUtils.deepcopy(ptShared),
+        },
+      },
+    })
+
+    expect(ur:undo(app)).toBe(true)
+    expect(spriteLayer.linkedPatternTableWindowId).toBeNil()
+    expect(#spriteLayer.patternTable.ranges).toBe(0)
+
+    expect(ur:redo(app)).toBe(true)
+    expect(spriteLayer.linkedPatternTableWindowId).toBe("pt_a")
+    expect(spriteLayer.patternTable).toBe(ptShared)
+
+    expect(refreshCalls).toBe(2)
+  end)
+end)
