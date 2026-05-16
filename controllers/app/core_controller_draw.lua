@@ -433,6 +433,8 @@ local function drawPatternTableRangeHoverOverlay(app, w, layerIndex)
   local grid = w.getDisplayGridMetrics and w:getDisplayGridMetrics(layerIndex) or {}
   cw = grid.cellW or cw
   ch = grid.cellH or ch
+  local baseCh = grid.baseCellH or w.cellH or 8
+  local pattern16 = PpuRange.patternTableUses8x16TileLayout(layer)
   local sx, sy, sw, sh = w:getInsetContentScreenRect()
   local z = (w.getZoomLevel and w:getZoomLevel()) or w.zoom or 1
   local vC0 = w.scrollCol or 0
@@ -445,14 +447,49 @@ local function drawPatternTableRangeHoverOverlay(app, w, layerIndex)
   love.graphics.translate(ox, oy)
   love.graphics.scale(z, z)
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
-  love.graphics.translate(-(w.scrollCol or 0) * cw, -(w.scrollRow or 0) * ch)
+  love.graphics.translate(-(w.scrollCol or 0) * cw, -(w.scrollRow or 0) * baseCh)
 
   love.graphics.setColor(1, 1, 1, 0.14)
-  for row = vR0, vR1 do
-    for col = vC0, vC1 do
-      local logical = row * cols + col
-      if logical >= startL and logical <= endL then
-        love.graphics.rectangle("fill", col * cw, row * ch, cw - 1, ch - 1)
+  if pattern16 then
+    -- Nominal grid stays 8×8 CHR lines; 8×16 mode shows one translucent band per column pair (matches chess/lines).
+    local r = vR0
+    if r % 2 == 1 then
+      for col = vC0, vC1 do
+        local gridPos = r * cols + col
+        local logical = BankViewController.chrOrderingIndexForGridPos(layoutMode, gridPos)
+        if logical >= startL and logical <= endL then
+          love.graphics.rectangle("fill", col * cw, r * baseCh, cw - 1, baseCh - 1)
+        end
+      end
+      r = r + 1
+    end
+    while r + 1 <= vR1 do
+      for col = vC0, vC1 do
+        local log0 = BankViewController.chrOrderingIndexForGridPos(layoutMode, r * cols + col)
+        local log1 = BankViewController.chrOrderingIndexForGridPos(layoutMode, (r + 1) * cols + col)
+        if (log0 >= startL and log0 <= endL) or (log1 >= startL and log1 <= endL) then
+          love.graphics.rectangle("fill", col * cw, r * baseCh, cw - 1, 2 * baseCh - 1)
+        end
+      end
+      r = r + 2
+    end
+    if r == vR1 then
+      for col = vC0, vC1 do
+        local gridPos = r * cols + col
+        local logical = BankViewController.chrOrderingIndexForGridPos(layoutMode, gridPos)
+        if logical >= startL and logical <= endL then
+          love.graphics.rectangle("fill", col * cw, r * baseCh, cw - 1, baseCh - 1)
+        end
+      end
+    end
+  else
+    for row = vR0, vR1 do
+      for col = vC0, vC1 do
+        local gridPos = row * cols + col
+        local logical = BankViewController.chrOrderingIndexForGridPos(layoutMode, gridPos)
+        if logical >= startL and logical <= endL then
+          love.graphics.rectangle("fill", col * cw, row * baseCh, cw - 1, baseCh - 1)
+        end
       end
     end
   end

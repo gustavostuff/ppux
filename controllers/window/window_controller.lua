@@ -591,6 +591,73 @@ function WM:bringToFront(win)
   refreshZOrder(self)
 end
 
+local function setAppStatusForPaletteFocusWindow(app, win)
+  if not app or type(app.setStatus) ~= "function" or not win then
+    return
+  end
+  if not WindowCaps.isAnyPaletteWindow(win) then
+    return
+  end
+
+  local title = win.title or "Palette"
+  local rows = math.max(1, math.floor(tonumber(win.rows) or 1))
+  local cols = math.max(1, math.floor(tonumber(win.cols) or 4))
+  local total = rows * cols
+
+  local segments = { title }
+
+  if WindowCaps.isRomPaletteWindow(win) then
+    segments[#segments + 1] = "ROM palette"
+    segments[#segments + 1] = string.format("%d×%d (%d colors)", rows, cols, total)
+  else
+    segments[#segments + 1] = "Global palette"
+    segments[#segments + 1] = string.format("%d×%d (%d colors)", rows, cols, total)
+    if win.activePalette == true then
+      segments[#segments + 1] = "Active"
+    else
+      segments[#segments + 1] = "Inactive"
+    end
+    if type(win.paletteName) == "string" and win.paletteName ~= "" then
+      segments[#segments + 1] = "preset " .. win.paletteName
+    end
+  end
+
+  if win.compactView == true then
+    segments[#segments + 1] = "compact view"
+  end
+
+  app:setStatus(table.concat(segments, " - "))
+end
+
+local function setAppStatusForLayeredFocusWindow(app, win)
+  if not app or type(app.setStatus) ~= "function" or not win then
+    return
+  end
+  local layers = win.layers
+  if type(layers) ~= "table" or #layers == 0 then
+    return
+  end
+
+  local n = #layers
+  local li = 1
+  if type(win.getActiveLayerIndex) == "function" then
+    li = math.floor(tonumber(win:getActiveLayerIndex()) or win.activeLayer or 1)
+  else
+    li = math.floor(tonumber(win.activeLayer) or 1)
+  end
+  if li < 1 then
+    li = 1
+  end
+  if li > n then
+    li = n
+  end
+
+  local layer = layers[li]
+  local nameStr = (layer and type(layer.name) == "string" and layer.name ~= "") and layer.name or string.format("layer %d", li)
+  local title = win.title or win.kind or "Window"
+  app:setStatus(string.format("%s - layer %d/%d (%s)", title, li, n, nameStr))
+end
+
 function WM:setFocus(win)
   if win == nil then
     self.focused = nil
@@ -622,6 +689,16 @@ function WM:setFocus(win)
       win.title or "untitled",
       win.kind or "normal"
     )
+  end
+
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app or nil
+  if app and self.focused == win then
+    if WindowCaps.isAnyPaletteWindow(win) then
+      setAppStatusForPaletteFocusWindow(app, win)
+    else
+      setAppStatusForLayeredFocusWindow(app, win)
+    end
   end
 end
 
