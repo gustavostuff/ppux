@@ -232,6 +232,7 @@ In practice:
 ### Main controls
 
 - `Ctrl + 1/2/3`: change app scale
+- `Ctrl + Page Up` / `Ctrl + Page Down`: cycle which **global** (**non-ROM**) palette is active - ROM palette windows are not cycled (same effect as “Set as active palette” on a global palette window; does not focus palette windows). When **Grouped palettes** is on, the grouped **global** slot (which palette is shown) stays in sync; needs at least two global palette windows
 - `Ctrl + F`: toggle fullscreen
 - `Ctrl + N`: open `New Window`
 - `Ctrl + S`: open save options

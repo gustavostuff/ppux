@@ -20,6 +20,7 @@ local utils = {}
 local globalShortcutHandlers = {
   { name = "window_scaling", fn = function(key, _, appCoreControllerRef) return KeyboardWindowShortcutsController.handleWindowScaling(ctx, utils, key, appCoreControllerRef) end },
   { name = "cascade", fn = function(key) return KeyboardWindowShortcutsController.handleCascade(ctx, utils, key) end },
+  { name = "global_palette_cycle", fn = function(key) return KeyboardWindowShortcutsController.handleGlobalPaletteCycle(ctx, utils, key) end },
   { name = "fullscreen", fn = function(key) return KeyboardWindowShortcutsController.handleFullscreen(ctx, utils, key) end },
   { name = "mode_switch", fn = function(key) return KeyboardWindowShortcutsController.handleModeSwitch(ctx, key) end },
   { name = "space_highlight_toggle", fn = function(key) return KeyboardWindowShortcutsController.handleSpaceHighlightToggle(ctx, utils, key) end },

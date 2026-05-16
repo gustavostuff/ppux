@@ -419,4 +419,39 @@ function M:activateWindow(window)
   return true
 end
 
+--- When grouped palettes are on, align the **global** slot (active index, hidden peers, shared layout)
+--- with a given global palette window — same visibility/layout outcome as toolbar cycling, but **no
+--- window focus change** (for keyboard active-palette cycling).
+function M:syncGlobalGroupedDisplayToWindow(window)
+  if self.enabled ~= true then
+    return false
+  end
+  if not WindowCaps.isGlobalPaletteWindow(window) then
+    return false
+  end
+
+  local windows = self:_sourceWindowsForGroup("global")
+  local targetIndex = indexOfWindow(windows, window)
+  if not targetIndex then
+    return false
+  end
+
+  local group = self.state.global
+
+  -- Match toolbar `cycleWindow`: snapshot the grouped slot from the palette that is currently
+  -- visible *before* we change `activeSourceWindowId`. Otherwise `_syncGroup` re-applies a stale
+  -- `logicalWindow` from saved state and x/y drift on each keyboard cycle.
+  local current = self:_resolveActiveWindow("global", windows)
+  if current then
+    group.logicalWindow = self:_extractLogicalLayout(current)
+  end
+
+  group.activeSourceWindowId = window._id
+  group.activeIndex = targetIndex
+
+  self:_syncGroup("global")
+
+  return true
+end
+
 return M

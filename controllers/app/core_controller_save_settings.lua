@@ -9,6 +9,7 @@ local SettingsModal = require("user_interface.modals.settings_modal")
 local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
 local Dropdown = require("user_interface.dropdown")
 local TableUtils = require("utils.table_utils")
+local WindowCaps = require("controllers.window.window_capabilities")
 local colors = require("app_colors")
 
 return function(AppCoreController)
@@ -1184,6 +1185,120 @@ function AppCoreController:cycleGroupedPaletteWindow(window, delta)
     self.paletteGroupState = controller:getState()
   end
   return changed
+end
+
+--- Keyboard: cycle which **global** (non-ROM) palette window is active — `WindowCaps.isGlobalPaletteWindow`
+--- only; **ROM palette** windows are never part of this shortcut. Same net effect as "Set as active palette"
+--- on a global palette toolbar. Does not focus palette windows. If **Grouped palettes** is enabled,
+--- updates the grouped **global** slot (active index / which palette is shown) without `setFocus`.
+--- Requires at least two global palette windows.
+function AppCoreController:cycleGlobalPaletteFromKeyboard(delta)
+  local wm = self.wm
+  if not (wm and wm.getWindows) then
+    return false
+  end
+
+  delta = tonumber(delta) or 0
+  if delta == 0 then
+    return false
+  end
+
+  local orderField = "_groupOrderGlobal"
+  local windows = wm:getWindows() or {}
+  local runningMaxOrder = 0
+  for _, win in ipairs(windows) do
+    local existing = tonumber(win and win[orderField]) or 0
+    if existing > runningMaxOrder then
+      runningMaxOrder = existing
+    end
+  end
+
+  local palettes = {}
+  for _, win in ipairs(windows) do
+    if WindowCaps.isGlobalPaletteWindow(win)
+      and win._runtimeOnly ~= true
+      and win._closed ~= true
+    then
+      if tonumber(win[orderField]) == nil then
+        runningMaxOrder = runningMaxOrder + 1
+        win[orderField] = runningMaxOrder
+      end
+      palettes[#palettes + 1] = win
+    end
+  end
+
+  table.sort(palettes, function(a, b)
+    local ao = tonumber(a and a[orderField]) or math.huge
+    local bo = tonumber(b and b[orderField]) or math.huge
+    if ao == bo then
+      return tostring(a and a._id or "") < tostring(b and b._id or "")
+    end
+    return ao < bo
+  end)
+
+  if #palettes == 0 then
+    if self.setStatus then
+      self:setStatus("Open a global palette window to cycle.")
+    end
+    return true
+  end
+
+  if #palettes < 2 then
+    if self.setStatus then
+      self:setStatus("Need at least two global palettes to cycle.")
+    end
+    return true
+  end
+
+  local curIdx = nil
+  for i, win in ipairs(palettes) do
+    if win.activePalette then
+      curIdx = i
+      break
+    end
+  end
+  if not curIdx then
+    curIdx = 1
+  end
+
+  local n = #palettes
+  local nextIdx = ((curIdx - 1 + delta) % n) + 1
+  local target = palettes[nextIdx]
+  if not target then
+    return false
+  end
+
+  local allWindows = wm:getWindows() or {}
+  for _, win in ipairs(allWindows) do
+    if win.isPalette then
+      win.activePalette = false
+    end
+  end
+  target.activePalette = true
+
+  if target.syncToGlobalPalette then
+    target:syncToGlobalPalette()
+  end
+  if self.invalidatePpuFrameLayersAffectedByPaletteWin then
+    self:invalidatePpuFrameLayersAffectedByPaletteWin(target)
+  end
+
+  for _, win in ipairs(allWindows) do
+    if win.isPalette and win.specializedToolbar and win.specializedToolbar.updateActiveIcon then
+      win.specializedToolbar:updateActiveIcon()
+    end
+  end
+
+  if self.groupedPaletteWindows == true then
+    local controller = self:_ensureGroupedPaletteController()
+    if controller and controller.syncGlobalGroupedDisplayToWindow then
+      if controller:syncGlobalGroupedDisplayToWindow(target) then
+        self.paletteGroupState = controller:getState()
+      end
+    end
+  end
+
+  return true
 end
 
 function AppCoreController:focusPaletteWindowWithGrouping(window)

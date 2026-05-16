@@ -139,6 +139,26 @@ function M.handleModeSwitch(ctx, key)
   return false
 end
 
+--- Ctrl+Page Up / Page Down: cycle active **global** (non-ROM) shader palette only; ROM palette windows excluded.
+--- When grouped, updates the visible global slot without focusing palette windows.
+function M.handleGlobalPaletteCycle(ctx, utils, key)
+  if type(key) ~= "string" then
+    return false
+  end
+  if not (utils and utils.ctrlDown and utils.ctrlDown()) then
+    return false
+  end
+  if key ~= "pageup" and key ~= "pagedown" then
+    return false
+  end
+  local app = ctx and ctx.app
+  if not (app and app.cycleGlobalPaletteFromKeyboard) then
+    return false
+  end
+  local delta = (key == "pagedown") and 1 or -1
+  return app:cycleGlobalPaletteFromKeyboard(delta) == true
+end
+
 function M.handleSpaceHighlightToggle(ctx, utils, key)
   if key ~= "space" then return false end
   if utils.ctrlDown and utils.ctrlDown() then return false end
