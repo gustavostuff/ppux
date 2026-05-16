@@ -133,7 +133,7 @@ function AppCoreController.new()
     padding = 0,
     colGap = 0,
     rowGap = 1,
-    splitIconCell = false,
+    splitIconCell = true,
   })
   self.ppuTileContextMenu = ContextualMenuController.new({
     getBounds = function()

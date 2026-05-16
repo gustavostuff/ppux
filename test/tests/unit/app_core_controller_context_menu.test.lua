@@ -174,13 +174,18 @@ describe("core_controller.lua - contextual menu helpers", function()
 
     local items = app:_buildEmptySpaceContextMenuItems()
 
-    expect(#items).toBe(3)
+    expect(#items).toBe(7)
     expect(items[1].text).toBe("New Window")
-    expect(items[2].text).toBe("Minimize all")
+    expect(items[2].text).toBe("Expand all")
     expect(items[3].text).toBe("Collapse all")
-    expect(items[1].enabled).toBe(true)
-    expect(items[2].enabled).toBe(true)
-    expect(items[3].enabled).toBe(true)
+    expect(items[4].text).toBe("Sort by title")
+    expect(items[5].text).toBe("Sort by kind")
+    expect(items[6].text).toBe("Minimize all")
+    expect(items[7].text).toBe("Maximize all")
+    for i = 1, 7 do
+      expect(items[i].enabled).toBe(true)
+      expect(items[i].icon).toBeTruthy()
+    end
   end)
 
   it("builds OAM empty-space sprite context menu with add action", function()

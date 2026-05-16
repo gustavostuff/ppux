@@ -9,6 +9,7 @@ local KeyboardClipboardController = require("controllers.input.keyboard_clipboar
 local WindowCaps = require("controllers.window.window_capabilities")
 local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
 local AppSettingsController = require("controllers.app.settings_controller")
+local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 
 --- When false, the CRT layer visualizer window is not created, toggled, or restored from settings.
@@ -407,6 +408,36 @@ function AppCoreController:_collapseAllWindowsFromMenu()
   return true
 end
 
+function AppCoreController:_mosaicAllWindowsFromMenu()
+  local wm = self.wm
+  local canvas = self.canvas
+  if not (wm and wm.mosaicAll and canvas) then
+    return false
+  end
+
+  local taskbarTopY = (self.taskbar and self.taskbar.getTopY and self.taskbar:getTopY())
+    or (self.taskbar and self.taskbar.y)
+    or canvas:getHeight()
+
+  local areaX = 30
+  local topPad = AppTopToolbarController.getContentOffsetY(self)
+  local areaY = math.max(30, topPad + 8)
+  local areaH = math.max(1, taskbarTopY - areaY - 8)
+  local areaW = math.max(1, canvas:getWidth() - areaX - 8)
+
+  wm:mosaicAll({
+    areaX = areaX,
+    areaY = areaY,
+    areaW = areaW,
+    areaH = areaH,
+    gapX = 4,
+    gapY = 4,
+    batchDispX = 20,
+    batchDispY = 20,
+  })
+  return true
+end
+
 function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
   opts = opts or {}
   local forMinimizedTaskbar = (opts.forMinimizedTaskbarButton == true)
@@ -531,12 +562,16 @@ end
 
 function AppCoreController:_buildEmptySpaceContextMenuItems()
   local hasRom = self:hasLoadedROM()
-  local hasWindows = self.wm and self.wm.getWindows and #(self.wm:getWindows() or {}) > 0
+  local tb = self.taskbar
+  local sortTitleIcon = (tb and tb.sortAlphaButton and tb.sortAlphaButton.icon) or images.icons.chrome.sort_a_z
+  local sortKindIcon = (tb and tb.sortKindButton and tb.sortKindButton.icon) or images.icons.chrome.sort_kind_asc
 
+  -- Same entries and enable rules as taskbar main menu → Windows (see user_interface/taskbar/menu.lua).
   return {
     {
+      icon = images.icons.chrome.icon_new_window,
       text = "New Window",
-      menuGroup = "empty_new_win",
+      menuGroup = "empty_wm_new_window",
       enabled = hasRom,
       callback = function()
         self:hideAppContextMenus()
@@ -544,22 +579,86 @@ function AppCoreController:_buildEmptySpaceContextMenuItems()
       end,
     },
     {
-      text = "Minimize all",
-      menuGroup = "empty_wm_bulk",
-      enabled = hasWindows,
+      icon = images.icons.chrome.icon_cascade_all,
+      text = "Expand all",
+      menuGroup = "empty_wm_expand_all",
+      enabled = hasRom,
       callback = function()
         self:hideAppContextMenus()
-        if self.wm and self.wm.minimizeAll and self.wm:minimizeAll() then
+        local wm = self.wm
+        if wm and wm.expandAll then
+          wm:expandAll()
         end
       end,
     },
     {
+      icon = images.icons.chrome.icon_collapse_all,
       text = "Collapse all",
-      menuGroup = "empty_wm_bulk",
-      enabled = hasWindows,
+      menuGroup = "empty_wm_collapse_all",
+      enabled = hasRom,
       callback = function()
         self:hideAppContextMenus()
         self:_collapseAllWindowsFromMenu()
+      end,
+    },
+    --[[ Mosaic all: deactivated in UI for now (implementation remains in WM:mosaicAll / _mosaicAllWindowsFromMenu).
+    {
+      icon = images.icons.actions.icon_mosaic,
+      text = "Mosaic all",
+      menuGroup = "empty_wm_mosaic_all",
+      enabled = hasRom,
+      callback = function()
+        self:hideAppContextMenus()
+        self:_mosaicAllWindowsFromMenu()
+      end,
+    },
+    --]]
+    {
+      icon = sortTitleIcon,
+      text = "Sort by title",
+      menuGroup = "empty_wm_sort_by_title",
+      enabled = hasRom,
+      callback = function()
+        self:hideAppContextMenus()
+        if tb and tb.sortAlphaButton and tb.sortAlphaButton.action then
+          tb.sortAlphaButton.action()
+        end
+      end,
+    },
+    {
+      icon = sortKindIcon,
+      text = "Sort by kind",
+      menuGroup = "empty_wm_sort_by_kind",
+      enabled = hasRom,
+      callback = function()
+        self:hideAppContextMenus()
+        if tb and tb.sortKindButton and tb.sortKindButton.action then
+          tb.sortKindButton.action()
+        end
+      end,
+    },
+    {
+      icon = images.icons.chrome.min_all,
+      text = "Minimize all",
+      menuGroup = "empty_wm_minimize_all",
+      enabled = hasRom,
+      callback = function()
+        self:hideAppContextMenus()
+        local wm = self.wm
+        if wm and wm.minimizeAll and wm:minimizeAll() then
+        end
+      end,
+    },
+    {
+      icon = images.icons.chrome.max_all,
+      text = "Maximize all",
+      menuGroup = "empty_wm_maximize_all",
+      enabled = hasRom,
+      callback = function()
+        self:hideAppContextMenus()
+        local wm = self.wm
+        if wm and wm.maximizeAll and wm:maximizeAll() then
+        end
       end,
     },
   }

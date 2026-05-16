@@ -234,6 +234,86 @@ local function zoomOutWindowToMinimum(win)
   end
 end
 
+--- Shrink zoom / viewport until window content fits maxWidth x maxHeight (pixels).
+--- When resetViewport is true (first layout pass), viewport is reset to minimum allowed size before fitting.
+local function mosaicFitWindowToCell(win, maxContentW, maxContentH, resetViewport)
+  if not win or win._closed then
+    return
+  end
+  maxContentW = math.max(1, maxContentW)
+  maxContentH = math.max(1, maxContentH)
+
+  if win.setScroll then
+    win:setScroll(0, 0)
+  else
+    win.scrollCol = 0
+    win.scrollRow = 0
+  end
+
+  if resetViewport and win.resizeToMinimum then
+    win:resizeToMinimum()
+  end
+
+  if type(win.addZoomLevel) ~= "function" or type(win.getZoomLevel) ~= "function" then
+    return
+  end
+
+  local function contentFits()
+    local _, _, cw, ch = win:getScreenRect()
+    return cw <= maxContentW and ch <= maxContentH
+  end
+
+  for _ = 1, 24 do
+    if contentFits() then
+      break
+    end
+    local z0 = win:getZoomLevel()
+    win:addZoomLevel(-1)
+    if win:getZoomLevel() == z0 then
+      break
+    end
+  end
+
+  for _ = 1, 512 do
+    if contentFits() then
+      break
+    end
+    local vc = win.visibleCols or 1
+    local vr = win.visibleRows or 1
+    if vc <= 1 and vr <= 1 then
+      break
+    end
+    local _, _, cw, ch = win:getScreenRect()
+    if cw > maxContentW and vc > 1 then
+      win.visibleCols = vc - 1
+    elseif ch > maxContentH and vr > 1 then
+      win.visibleRows = vr - 1
+    elseif vc > 1 then
+      win.visibleCols = vc - 1
+    elseif vr > 1 then
+      win.visibleRows = vr - 1
+    else
+      break
+    end
+    if win.setScroll then
+      win:setScroll(0, 0)
+    end
+  end
+
+  for _ = 1, 16 do
+    local z0 = win:getZoomLevel()
+    win:addZoomLevel(1)
+    if win:getZoomLevel() == z0 then
+      break
+    end
+    local _, _, cw, ch = win:getScreenRect()
+    if cw > maxContentW or ch > maxContentH then
+      win:setZoomLevel(z0)
+      break
+    end
+  end
+end
+
 local function rebuildWindowStackWithSortedOpen(self, cmp)
   local open = {}
   local closed = {}
@@ -551,6 +631,183 @@ function WM:collapseAll(opts)
   end
 
   self.focused = open[#open]
+end
+
+-- Non-palette windows: horizontal flow (left-to-right, wrap at mosaic band width), new "layer" with
+-- (batchDispX,batchDispY) when the band is exhausted vertically. Palettes stay collapsed on the right.
+function WM:mosaicAll(opts)
+  opts = opts or {}
+
+  local areaX = opts.areaX or 30
+  local areaY = opts.areaY or 30
+  local areaW = opts.areaW or 800
+  local areaH = opts.areaH or 400
+  local gapX = opts.gapX or 4
+  local gapY = opts.gapY or 4
+  local batchDispX = opts.batchDispX or 20
+  local batchDispY = opts.batchDispY or 20
+  local paletteRightPadding = opts.paletteRightPadding or 8
+  local paletteStackGap = opts.paletteStackGap or gapY
+
+  local mosaicWins = {}
+  local palettes = {}
+  local originalIndex = {}
+  for i, w in ipairs(self.windows) do
+    originalIndex[w] = i
+  end
+
+  for _, w in ipairs(self.windows) do
+    if w._closed or w._minimized then
+    elseif w.kind == "crt_lens" then
+    elseif isPaletteWindow(w) then
+      table.insert(palettes, w)
+    else
+      table.insert(mosaicWins, w)
+    end
+  end
+
+  if #mosaicWins == 0 and #palettes == 0 then
+    return
+  end
+
+  local effectiveAreaW = areaW
+  if #palettes > 0 then
+    for _, p in ipairs(palettes) do
+      zoomOutWindowToMinimum(p)
+      if p.setScroll then
+        p:setScroll(0, 0)
+      else
+        p.scrollCol = 0
+        p.scrollRow = 0
+      end
+      p._collapsed = true
+      syncCollapseIcon(p)
+    end
+
+    local maxPaletteW = 0
+    for _, p in ipairs(palettes) do
+      local _, _, pw = p:getScreenRect()
+      maxPaletteW = math.max(maxPaletteW, pw)
+    end
+
+    local reserved = maxPaletteW + gapX + paletteRightPadding
+    effectiveAreaW = math.max(1, areaW - reserved)
+
+    table.sort(palettes, function(a, b)
+      local at = string.lower(tostring(a.title or ""))
+      local bt = string.lower(tostring(b.title or ""))
+      if at == bt then
+        return (originalIndex[a] or 0) < (originalIndex[b] or 0)
+      end
+      return at < bt
+    end)
+  end
+
+  local open = mosaicWins
+
+  if #open > 0 then
+    for _, w in ipairs(open) do
+      w._collapsed = false
+      syncCollapseIcon(w)
+      if w.setScroll then
+        w:setScroll(0, 0)
+      else
+        w.scrollCol = 0
+        w.scrollRow = 0
+      end
+      if w.setZoomLevel then
+        w:setZoomLevel(1)
+      end
+      w.zoom = 1
+      if w.resizeToMinimum then
+        w:resizeToMinimum()
+      end
+    end
+
+    table.sort(open, function(a, b)
+      local at = string.lower(tostring(a.title or ""))
+      local bt = string.lower(tostring(b.title or ""))
+      if at == bt then
+        return (originalIndex[a] or 0) < (originalIndex[b] or 0)
+      end
+      return at < bt
+    end)
+
+    local layer = 0
+    local curX = areaX
+    local curY = areaY
+    local rowMaxH = 0
+
+    for _, w in ipairs(open) do
+      local placed = false
+      local resetVp = true
+      local safety = 0
+      while not placed and safety < 64 do
+        safety = safety + 1
+        local lox = areaX + layer * batchDispX
+        local loy = areaY + layer * batchDispY
+        local lBottom = loy + areaH
+
+        local headerH = w.headerH or UiScale.windowHeaderHeight()
+        local maxCH = math.max(1, lBottom - curY - headerH)
+
+        mosaicFitWindowToCell(w, effectiveAreaW, maxCH, resetVp)
+        resetVp = false
+
+        local _, _, ww, wh = w:getScreenRect()
+        local totalH = wh + headerH
+
+        -- Need a new row: not at row start and this rect would cross the right edge of the mosaic band.
+        if curX > lox and curX + ww > lox + effectiveAreaW then
+          curY = curY + rowMaxH + gapY
+          curX = lox
+          rowMaxH = 0
+          resetVp = true
+        elseif curY + totalH > lBottom then
+          if curX == lox and curY == loy then
+            -- Taller than the work strip; still place so we do not loop forever.
+            w.x = curX
+            w.y = curY + headerH
+            curX = curX + ww + gapX
+            rowMaxH = math.max(rowMaxH, totalH)
+            placed = true
+          else
+            layer = layer + 1
+            curX = areaX + layer * batchDispX
+            curY = areaY + layer * batchDispY
+            rowMaxH = 0
+            resetVp = true
+          end
+        else
+          w.x = curX
+          w.y = curY + headerH
+          curX = curX + ww + gapX
+          rowMaxH = math.max(rowMaxH, totalH)
+          placed = true
+        end
+      end
+    end
+  end
+
+  if #palettes > 0 then
+    local stackRight = areaX + areaW - paletteRightPadding
+    local stackY = areaY
+    for _, p in ipairs(palettes) do
+      local _, _, pw = p:getScreenRect()
+      local headerH = p.headerH or UiScale.windowHeaderHeight()
+      p.x = stackRight - pw
+      p.y = stackY + headerH
+      stackY = stackY + headerH + paletteStackGap
+    end
+  end
+
+  if #mosaicWins > 0 then
+    self.focused = mosaicWins[#mosaicWins]
+  elseif #palettes > 0 then
+    self.focused = palettes[#palettes]
+  else
+    self.focused = nil
+  end
 end
 
 function WM:expandAll()

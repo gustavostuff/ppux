@@ -344,6 +344,56 @@ describe("window_controller.lua - collapseAll", function()
   end)
 end)
 
+describe("window_controller.lua - mosaicAll", function()
+  local previousCtx
+
+  beforeEach(function()
+    previousCtx = rawget(_G, "ctx")
+    _G.ctx = nil
+  end)
+
+  afterEach(function()
+    _G.ctx = previousCtx
+  end)
+
+  it("uncollapses windows and tiles them in title order", function()
+    local wm = WM.new()
+
+    local wA = wm:createTileWindow({
+      animated = false,
+      title = "Beta",
+      cols = 8,
+      rows = 8,
+      zoom = 2,
+    })
+    local wB = wm:createTileWindow({
+      animated = false,
+      title = "Alpha",
+      cols = 8,
+      rows = 8,
+      zoom = 2,
+    })
+
+    wA._collapsed = true
+    wB._collapsed = true
+
+    wm:mosaicAll({
+      areaX = 0,
+      areaY = 30,
+      areaW = 900,
+      areaH = 500,
+      gapX = 4,
+      gapY = 4,
+      batchDispX = 15,
+      batchDispY = 12,
+    })
+
+    expect(wB._collapsed).toBe(false)
+    expect(wA._collapsed).toBe(false)
+    expect(wB.x).toBeLessThan(wA.x)
+  end)
+end)
+
 describe("window_controller.lua - sort helpers", function()
   it("sorts open windows by title and kind in both directions", function()
     local wm = WM.new()

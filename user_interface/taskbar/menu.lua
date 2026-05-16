@@ -86,6 +86,15 @@ function M.install(Taskbar, Helpers)
       end
     end
 
+    --[[ Mosaic all: deactivated in UI for now (see WM:mosaicAll).
+    local function actionMosaicAll()
+      closeMenu()
+      if self.app and self.app._mosaicAllWindowsFromMenu then
+        self.app:_mosaicAllWindowsFromMenu()
+      end
+    end
+    --]]
+
     local function actionExpandAll()
       closeMenu()
       local wm = self.app and self.app.wm
@@ -127,6 +136,7 @@ function M.install(Taskbar, Helpers)
     self._menuActions = {
       expandAll = actionExpandAll,
       collapseAll = actionCollapseAll,
+      -- mosaicAll = actionMosaicAll,
       sortByTitle = actionSortByTitle,
       sortByType = actionSortByType,
       minimizeAll = actionMinimizeAll,
@@ -140,6 +150,7 @@ function M.install(Taskbar, Helpers)
     self._menuIcons = {
       expandAll = images.icons.chrome.icon_cascade_all,
       collapseAll = images.icons.chrome.icon_collapse_all,
+      -- mosaicAll = images.icons.actions.icon_mosaic,
       minimizeAll = images.icons.chrome.min_all,
       maximizeAll = images.icons.chrome.max_all,
       newWindow = images.icons.chrome.icon_new_window,
@@ -226,6 +237,15 @@ function M.install(Taskbar, Helpers)
         enabled = hasRom,
         callback = self._menuActions and self._menuActions.collapseAll or nil,
       },
+      --[[ Mosaic all: deactivated in UI for now.
+      {
+        icon = self._menuIcons and self._menuIcons.mosaicAll or nil,
+        text = "Mosaic all",
+        menuGroup = "tb_wm_mosaic_all",
+        enabled = hasRom,
+        callback = self._menuActions and self._menuActions.mosaicAll or nil,
+      },
+      --]]
       {
         icon = self.sortAlphaButton and self.sortAlphaButton.icon or nil,
         text = "Sort by title",
