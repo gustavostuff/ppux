@@ -205,6 +205,10 @@ function M.hydrateSpriteLayer(layer, opts)
         else
           if s.bank == nil then
             s.tile = baseTile
+            local db = opts and opts.defaultChrBank
+            if type(db) == "number" then
+              s.bank = db
+            end
           elseif s.tile == nil then
             s.tile = baseTile
           end
@@ -280,21 +284,12 @@ function M.snapshotSpriteLayer(layer)
       goto continue
     end
 
-    local entry = {
-      paletteNumber = s.paletteNumber,
-    }
-
+    local entry
     if s.startAddr then
-      entry.startAddr = s.startAddr
-      if s.bank ~= nil then
-        entry.bank = s.bank
-        entry.tile = s.tile
-      end
-      if s._mirrorXOverrideSet == true then
-        entry.mirrorX = (s.mirrorX == true)
-      end
-      if s._mirrorYOverrideSet == true then
-        entry.mirrorY = (s.mirrorY == true)
+      -- ROM OAM slots: startAddr, palette, and optional editor displacement vs ROM bytes.
+      entry = { startAddr = s.startAddr }
+      if s.paletteNumber ~= nil then
+        entry.paletteNumber = s.paletteNumber
       end
       local dx = s.dx or 0
       local dy = s.dy or 0
@@ -303,12 +298,15 @@ function M.snapshotSpriteLayer(layer)
         entry.dy = dy
       end
     else
-      entry.bank = s.bank
-      entry.tile = s.tile
-      entry.mirrorX = (s.mirrorX ~= nil) and s.mirrorX or nil
-      entry.mirrorY = (s.mirrorY ~= nil) and s.mirrorY or nil
-      entry.x = s.x or s.worldX or 0
-      entry.y = s.y or s.worldY or 0
+      entry = {
+        paletteNumber = s.paletteNumber,
+        bank = s.bank,
+        tile = s.tile,
+        mirrorX = (s.mirrorX ~= nil) and s.mirrorX or nil,
+        mirrorY = (s.mirrorY ~= nil) and s.mirrorY or nil,
+        x = s.x or s.worldX or 0,
+        y = s.y or s.worldY or 0,
+      }
     end
 
     table.insert(out.items, entry)
@@ -357,7 +355,35 @@ function M.applySnapshotToSpriteLayer(layer, snapshot, opts)
   local items = layer.items or {}
   for idx, entry in ipairs(snapshot.items or {}) do
     local s = items[idx]
-    if s then
+    if entry.startAddr then
+      local dx = entry.dx or 0
+      local dy = entry.dy or 0
+      local oam = {
+        startAddr = entry.startAddr,
+        paletteNumber = entry.paletteNumber,
+        dx = dx,
+        dy = dy,
+      }
+      if s then
+        s.startAddr = oam.startAddr
+        s.paletteNumber = oam.paletteNumber
+        s.bank = nil
+        s.tile = nil
+        s.tileBelow = nil
+        s.dx = dx
+        s.dy = dy
+        s.x = nil
+        s.y = nil
+        s.worldX = nil
+        s.worldY = nil
+        s._mirrorXOverrideSet = false
+        s._mirrorYOverrideSet = false
+        s.mirrorX = nil
+        s.mirrorY = nil
+      else
+        items[idx] = oam
+      end
+    elseif s then
       s.bank = entry.bank
       s.tile = entry.tile
       s.tileBelow = nil
@@ -366,42 +392,19 @@ function M.applySnapshotToSpriteLayer(layer, snapshot, opts)
       s._mirrorYOverrideSet = (entry.mirrorY ~= nil)
       s.mirrorX = entry.mirrorX
       s.mirrorY = entry.mirrorY
-
-      if entry.startAddr then
-        s.startAddr = entry.startAddr
-        s.dx = entry.dx or 0
-        s.dy = entry.dy or 0
-      else
-        s.startAddr = nil
-        s.x = entry.x or 0
-        s.y = entry.y or 0
-      end
+      s.startAddr = nil
+      s.x = entry.x or 0
+      s.y = entry.y or 0
     else
-      if entry.startAddr then
-        s = {
-          startAddr = entry.startAddr,
-          bank = entry.bank,
-          tile = entry.tile,
-          paletteNumber = entry.paletteNumber,
-          mirrorX = entry.mirrorX,
-          mirrorY = entry.mirrorY,
-          _mirrorXOverrideSet = (entry.mirrorX ~= nil),
-          _mirrorYOverrideSet = (entry.mirrorY ~= nil),
-          dx = entry.dx or 0,
-          dy = entry.dy or 0,
-        }
-      else
-        s = {
-          bank = entry.bank,
-          tile = entry.tile,
-          paletteNumber = entry.paletteNumber,
-          mirrorX = (entry.mirrorX ~= nil) and entry.mirrorX or false,
-          mirrorY = (entry.mirrorY ~= nil) and entry.mirrorY or false,
-          x = entry.x or 0,
-          y = entry.y or 0,
-        }
-      end
-      items[idx] = s
+      items[idx] = {
+        bank = entry.bank,
+        tile = entry.tile,
+        paletteNumber = entry.paletteNumber,
+        mirrorX = (entry.mirrorX ~= nil) and entry.mirrorX or false,
+        mirrorY = (entry.mirrorY ~= nil) and entry.mirrorY or false,
+        x = entry.x or 0,
+        y = entry.y or 0,
+      }
     end
   end
   layer.items = items
@@ -411,6 +414,7 @@ function M.applySnapshotToSpriteLayer(layer, snapshot, opts)
     tilesPool = tilesPool,
     appEditState = opts and opts.appEditState or nil,
     keepWorld = false,
+    defaultChrBank = opts and opts.defaultChrBank or nil,
   })
 end
 

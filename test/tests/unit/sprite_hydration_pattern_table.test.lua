@@ -4,7 +4,7 @@ describe("sprite hydration — pattern table + 8x16", function()
   local function identityPatternTable()
     return {
       ranges = {
-        { from = 0, to = 255, bank = 1, page = 1 },
+        { from = 0, to = 255, bank = 1 },
       },
     }
   end

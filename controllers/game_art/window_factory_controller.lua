@@ -435,12 +435,18 @@ function M.createOamAnimationWindow(w, tilesPool, ensureTiles)
         for _, it in ipairs(Lsrc.items or {}) do
           local oamSlot = type(it.startAddr) == "number"
           local chrPair = it.bank ~= nil and type(it.tile) == "number"
-          if oamSlot or chrPair then
+          if oamSlot then
+            table.insert(spriteLayer.items, {
+              startAddr = it.startAddr,
+              paletteNumber = it.paletteNumber,
+              dx = it.dx,
+              dy = it.dy,
+            })
+          elseif chrPair then
             if it.bank ~= nil then
               ensureTiles(it.bank)
             end
             table.insert(spriteLayer.items, {
-              startAddr = it.startAddr,
               bank = it.bank,
               tile = it.tile,
               dx = it.dx,
@@ -492,12 +498,18 @@ local function addPpuSpriteOverlayLayers(win, w, ensureTiles)
       for _, it in ipairs(Lsrc.items or {}) do
         local oamSlot = type(it.startAddr) == "number"
         local chrPair = it.bank ~= nil and type(it.tile) == "number"
-        if oamSlot or chrPair then
+        if oamSlot then
+          table.insert(spriteLayer.items, {
+            startAddr = it.startAddr,
+            paletteNumber = it.paletteNumber,
+            dx = it.dx,
+            dy = it.dy,
+          })
+        elseif chrPair then
           if it.bank ~= nil then
             ensureTiles(it.bank)
           end
           table.insert(spriteLayer.items, {
-            startAddr = it.startAddr,
             bank = it.bank,
             tile = it.tile,
             dx = it.dx,
@@ -734,6 +746,7 @@ function M.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool)
   SpriteController.hydrateWindowSpriteLayers(win, {
     romRaw = romRaw,
     tilesPool = tilesPool,
+    defaultChrBank = w.currentBank,
   })
   logPerf("window_finalize.hydrate_sprite_layers", spriteHydrationStartedAt, string.format("title=%s", tostring(w.title or "")))
 
