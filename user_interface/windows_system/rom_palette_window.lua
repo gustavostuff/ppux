@@ -250,14 +250,14 @@ function RomPaletteWindow:initializeFromROMOrUserCodes()
 end
 
 -- Override setSelected to add debug logging for ROM palette selection
-function RomPaletteWindow:setSelected(col, row, layerIndex)
+function RomPaletteWindow:setSelected(col, row, layerIndex, opts)
   if col ~= nil and row ~= nil and not self:isCellEditable(col, row) then
     DebugController.log("info", "ROM_PAL", "ROM Palette '%s' selection blocked for locked cell (%d,%d)", 
       self.title or "untitled", col, row)
     return
   end
 
-  Window.setSelected(self, col, row, layerIndex)
+  Window.setSelected(self, col, row, layerIndex, opts)
   if col ~= nil and row ~= nil then
     local code = self.codes2D and self.codes2D[row] and self.codes2D[row][col]
     if code then

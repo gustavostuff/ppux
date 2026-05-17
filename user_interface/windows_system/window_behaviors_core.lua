@@ -6,6 +6,17 @@ local function isChr8x16SelectionMode(win)
   return WindowCaps.isChrLike(win) and win.orderMode == "oddEven"
 end
 
+--- CHR odd/even bank layout or pattern_table tile layer using 8x16 CHR grid ordering.
+local function tileLayerUsesPairSnapRow(win, layer)
+  if not win then return false end
+  if isChr8x16SelectionMode(win) then return true end
+  if WindowCaps.isPatternTable(win) and layer and layer.kind == "tile" then
+    local m = layer.mode or "8x8"
+    return m == "8x16" or m == "oddEven"
+  end
+  return false
+end
+
 local function getChr8x16TopRow(row)
   row = math.floor(tonumber(row) or 0)
   return row - (row % 2)
@@ -243,27 +254,34 @@ function Window:getSelected(getIndex)
   local sel = self:getLayerSelection(li)
   if not sel then return nil,nil,nil end
 
+  local L = self:getLayer(li)
   local col, row = sel.col, sel.row
-  if isChr8x16SelectionMode(self) then
+  if tileLayerUsesPairSnapRow(self, L) and not sel.exactChrTile then
     row = getChr8x16TopRow(row)
   end
 
   if getIndex then
     -- calculate index in selg.items:
-    local L = self:getLayer(li)
     local idx = row * self.cols + col
     return idx, L.items[idx]
   end
 
   return col, row, li
 end
-function Window:setSelected(col, row, layerIndex)
+
+--- opts.exactChrTile: when tile selection uses vertical 8x16 pairs (CHR odd-even or pattern_table),
+--- keep `row` as-is instead of snapping to the top row (e.g. jump-to-cell from PPU/navigate).
+function Window:setSelected(col, row, layerIndex, opts)
   local li = math.max(1, math.floor(layerIndex or self.activeLayer or 1))
-  if isChr8x16SelectionMode(self) then
+  local L = self:getLayer(li)
+  if tileLayerUsesPairSnapRow(self, L) and not (type(opts) == "table" and opts.exactChrTile) then
     row = getChr8x16TopRow(row)
   end
   self.selectedByLayer = self.selectedByLayer or {}
   local sel = { col = col, row = row, layer = li }
+  if type(opts) == "table" and opts.exactChrTile then
+    sel.exactChrTile = true
+  end
   self.selectedByLayer[li] = sel
   self.selected = self.selectedByLayer[self.activeLayer or li]
 end

@@ -207,9 +207,35 @@ function M.finishRelease(ctx, button, x, y, app)
   local li = state.layerIndex
   local sx, sy = state.startX, state.startY
 
+  local oxBefore = state.originStartX
+  local oyBefore = state.originStartY
+  local oxAfter = nil
+  local oyAfter = nil
+  if wasDragging and win and win.layers and type(li) == "number" then
+    local L = win.layers[li]
+    if L and L.kind == "sprite" then
+      oxAfter = L.originX or 0
+      oyAfter = L.originY or 0
+    end
+  end
+
   M.clear()
 
   if wasDragging then
+    if app and app.undoRedo and app.undoRedo.addSpriteLayerOriginEvent then
+      if type(oxBefore) == "number" and type(oyBefore) == "number"
+          and type(oxAfter) == "number" and type(oyAfter) == "number" then
+        app.undoRedo:addSpriteLayerOriginEvent({
+          type = "sprite_layer_origin",
+          win = win,
+          layerIndex = li,
+          beforeOriginX = oxBefore,
+          beforeOriginY = oyBefore,
+          afterOriginX = oxAfter,
+          afterOriginY = oyAfter,
+        })
+      end
+    end
     return true
   end
 

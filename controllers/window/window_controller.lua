@@ -425,6 +425,7 @@ function WM:cascade(opts)
   if excludePalettes then
     if #open > 0 then
       self.focused = open[#open]
+      self:bringToFront(self.focused)
     end
     return
   end
@@ -551,8 +552,10 @@ function WM:grid(opts)
 
   if #open > 0 then
     self.focused = open[#open]
+    self:bringToFront(self.focused)
   elseif #palettes > 0 then
     self.focused = palettes[#palettes]
+    self:bringToFront(self.focused)
   else
     self.focused = nil
   end
@@ -631,6 +634,9 @@ function WM:collapseAll(opts)
   end
 
   self.focused = open[#open]
+  if self.focused then
+    self:bringToFront(self.focused)
+  end
 end
 
 -- Non-palette windows: horizontal flow (left-to-right, wrap at mosaic band width), new "layer" with
@@ -803,8 +809,10 @@ function WM:mosaicAll(opts)
 
   if #mosaicWins > 0 then
     self.focused = mosaicWins[#mosaicWins]
+    self:bringToFront(self.focused)
   elseif #palettes > 0 then
     self.focused = palettes[#palettes]
+    self:bringToFront(self.focused)
   else
     self.focused = nil
   end
@@ -890,6 +898,13 @@ local function setAppStatusForLayeredFocusWindow(app, win)
   if not app or type(app.setStatus) ~= "function" or not win then
     return
   end
+  -- Layer list is noisy or meaningless for pattern tables, CHR/ROM banks, and palettes
+  -- (palettes use setAppStatusForPaletteFocusWindow from setFocus).
+  if WindowCaps.isPatternTable(win) or WindowCaps.isChrLike(win) or WindowCaps.isAnyPaletteWindow(win) then
+    app:setStatus(win.title or win.kind or "Window")
+    return
+  end
+
   local layers = win.layers
   if type(layers) ~= "table" or #layers == 0 then
     return
@@ -937,9 +952,11 @@ function WM:setFocus(win)
   elseif win._groupHidden == true then
     return
   end
-  if win and self.focused ~= win then
-    self.focused = win
-    self:bringToFront(win)
+
+  local changed = (self.focused ~= win)
+  self.focused = win
+  self:bringToFront(win)
+  if changed then
     DebugController.log(
       "info", "WM",
       "Focus set to: %s (kind: %s)",

@@ -579,4 +579,89 @@ describe("core_controller.lua - contextual menu helpers", function()
     local changed = didChange(beforeState, afterState)
     expect(changed).toBe(true)
   end)
+
+  it("PPU nametable and OAM use pattern-table jump menu; standalone pattern_table keeps CHR jump", function()
+    local fullPattern256 = {
+      ranges = {
+        { bank = 1, page = 1, from = 0, to = 255 },
+      },
+    }
+
+    local ptWin = {
+      kind = "pattern_table",
+      _id = "pt_unit",
+      _closed = nil,
+      cols = 16,
+      rows = 16,
+      activeLayer = 1,
+      layers = {
+        { kind = "tile", mode = "8x8", patternTable = fullPattern256 },
+      },
+      getActiveLayerIndex = function() return 1 end,
+    }
+
+    local app = setmetatable({
+      wm = {
+        getWindows = function()
+          return { ptWin }
+        end,
+      },
+    }, AppCoreController)
+
+    local function findNavigateLabel(items)
+      for _, it in ipairs(items or {}) do
+        if it.menuGroup == "sel_chr_navigate" and type(it.text) == "string" and it.text:find("^[Ss]elect in ") then
+          return it.text
+        end
+      end
+      return nil
+    end
+
+    local ptTileItems = app:_buildSelectInChrContextMenuItems({
+      win = { kind = "pattern_table", layers = {} },
+      layerIndex = 1,
+      layer = { kind = "tile" },
+      col = 1,
+      row = 2,
+      item = { index = 5, _bankIndex = 1 },
+      tileIndex = 5,
+    })
+    expect(findNavigateLabel(ptTileItems)).toBe("Select in CHR/ROM window")
+
+    local oamItems = app:_buildSelectInChrContextMenuItems({
+      win = { kind = "oam_animation", layers = {} },
+      layerIndex = 1,
+      layer = {
+        kind = "sprite",
+        linkedPatternTableWindowId = "pt_unit",
+        patternTable = fullPattern256,
+      },
+      itemIndex = 1,
+      item = { tile = 9 },
+      tileIndex = 40,
+    })
+    expect(findNavigateLabel(oamItems)).toBe("Select in pattern table window")
+
+    local ppuNtItems = app:_buildPpuTileContextMenuItems({
+      win = { kind = "ppu_frame" },
+      layer = {
+        kind = "tile",
+        linkedPatternTableWindowId = "pt_unit",
+        patternTable = fullPattern256,
+      },
+      byteVal = 9,
+      tileIndex = 12,
+      col = 0,
+      row = 0,
+    })
+    local function findPpuNav(items)
+      for _, it in ipairs(items or {}) do
+        if it.menuGroup == "ppt_selection" and type(it.text) == "string" and it.text:find("^[Ss]elect in ") then
+          return it.text
+        end
+      end
+      return nil
+    end
+    expect(findPpuNav(ppuNtItems)).toBe("Select in pattern table window")
+  end)
 end)

@@ -34,6 +34,32 @@ local function clearOamSpriteEditClick()
   rememberOamSpriteEditClick(nil, nil, nil, -math.huge)
 end
 
+--- Brief status: full OAM entry Y / tile / attributes / X.
+local function formatOamSpriteBytesHex(sprite, romRaw)
+  if not sprite then
+    return nil
+  end
+  local yB, tileB, attrB, xB
+  local addr = sprite.startAddr
+  if type(addr) == "number" and addr >= 0 and type(romRaw) == "string" and #romRaw > 0 then
+    local chr = require("chr")
+    local by, ey = chr.readByteFromAddress(romRaw, addr + 0)
+    local bt, et = chr.readByteFromAddress(romRaw, addr + 1)
+    local ba, ea = chr.readByteFromAddress(romRaw, addr + 2)
+    local bx, ex = chr.readByteFromAddress(romRaw, addr + 3)
+    if not ey and not et and not ea and not ex then
+      yB, tileB, attrB, xB = by, bt, ba, bx
+    end
+  end
+  if yB == nil then
+    yB = math.floor(tonumber(sprite.y) or 0) % 256
+    tileB = math.floor(tonumber(sprite.oamTile or sprite.tile) or 0) % 256
+    attrB = math.floor(tonumber(sprite.attr) or 0) % 256
+    xB = math.floor(tonumber(sprite.x) or 0) % 256
+  end
+  return string.format("OAM %02X %02X %02X %02X", yB % 256, tileB % 256, attrB % 256, xB % 256)
+end
+
 function M._resetOamSpriteEditDoubleClickState()
   clearOamSpriteEditClick()
 end
@@ -275,6 +301,20 @@ local function handleSpriteClick(env, button, x, y, win, wm)
     showSelectedTileLabel(ctx, win, 0, 0, L.items and L.items[targetIndex] or nil)
 
     local finalSprite = L.items and L.items[targetIndex] or nil
+    do
+      local app = ctx and ctx.app
+      if app and type(app.setStatus) == "function"
+        and (WindowCaps.isOamAnimation(win) or WindowCaps.isPpuFrame(win))
+        and finalSprite and finalSprite.removed ~= true
+      then
+        local romRaw = (app.appEditState and app.appEditState.romRaw) or win.romRaw
+        local oamLine = formatOamSpriteBytesHex(finalSprite, romRaw)
+        if oamLine then
+          app:setStatus(oamLine)
+        end
+      end
+    end
+
     local spriteEditWin = WindowCaps.isOamAnimation(win) or WindowCaps.isPpuFrame(win)
     if spriteEditWin and not shiftDown and not ctrlDown
         and finalSprite and finalSprite.removed ~= true then

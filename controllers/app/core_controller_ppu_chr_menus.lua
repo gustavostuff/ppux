@@ -11,6 +11,174 @@ local PatternTableDisplayController = require("controllers.game_art.pattern_tabl
 
 return function(AppCoreController)
 
+local function wantsPatternTableJumpInsteadOfChr(context)
+  local win = context and context.win
+  if not win then return false end
+  if WindowCaps.isPatternTable(win) then return false end
+  return WindowCaps.isPpuFrame(win) or WindowCaps.isOamAnimation(win)
+end
+
+local function findWindowByStableId(wm, id)
+  if type(id) ~= "string" or id == "" or not wm or not wm.getWindows then
+    return nil
+  end
+  for _, w in ipairs(wm:getWindows()) do
+    if w._id == id and not w._closed then
+      return w
+    end
+  end
+  return nil
+end
+
+--- Layer that owns linkedPatternTableWindowId / patternTable (not the transient PPU ref overlay).
+local function consumerLayerForPatternLink(context)
+  local layer = context and context.layer
+  if layer and layer._runtimePatternTableRefLayer == true then
+    return layer._runtimePatternTableRefTargetLayer
+  end
+  return layer
+end
+
+function AppCoreController:_patternLogicalSlotForJump(context)
+  if not context then return nil end
+  if type(context.byteVal) == "number" then
+    return Shared.clampByte(context.byteVal)
+  end
+  if type(context.logicalIndex) == "number" then
+    return Shared.clampByte(context.logicalIndex)
+  end
+  if context.layer and context.layer.kind == "sprite" and context.item then
+    if type(context.item.tile) == "number" then
+      return Shared.clampByte(context.item.tile)
+    end
+  end
+  if context.layer and context.layer.kind == "tile" and context.win and WindowCaps.isPpuFrame(context.win) and context.item then
+    if PatternTableMapping.validate(context.layer.patternTable) then
+      local li = PatternTableMapping.logicalIndexForTileRef(context.layer, context.item)
+      if type(li) == "number" then
+        return Shared.clampByte(li)
+      end
+    end
+  end
+  return nil
+end
+
+function AppCoreController:_resolveLinkedPatternTableWindow(context)
+  local consumer = consumerLayerForPatternLink(context)
+  local linkedId = consumer and consumer.linkedPatternTableWindowId
+  local ptWin = findWindowByStableId(self.wm, linkedId)
+  if not (ptWin and WindowCaps.isPatternTable(ptWin)) then
+    return nil
+  end
+  return ptWin
+end
+
+function AppCoreController:_patternTableJumpNavigateEnabled(context)
+  if self.wm then
+    PatternTableDisplayController.resolveLinkedPatternTableLayers(self.wm)
+  end
+  if not wantsPatternTableJumpInsteadOfChr(context) then
+    return false
+  end
+  local layer = consumerLayerForPatternLink(context)
+  if not (layer and PatternTableMapping.validate(layer.patternTable)) then
+    return false
+  end
+  local logical = self:_patternLogicalSlotForJump(context)
+  local ptWin = self:_resolveLinkedPatternTableWindow(context)
+  return logical ~= nil and ptWin ~= nil
+end
+
+function AppCoreController:_nametablePatternTableNavigateEnabled(context)
+  if self.wm then
+    PatternTableDisplayController.resolveLinkedPatternTableLayers(self.wm)
+  end
+  if not (context and context.win and WindowCaps.isPpuFrame(context.win)) then
+    return false
+  end
+  local layer = context.layer
+  if not (layer and layer.kind == "tile") then return false end
+  if not PatternTableMapping.validate(layer.patternTable) then return false end
+  if self:_patternLogicalSlotForJump(context) == nil then return false end
+  if not self:_resolveLinkedPatternTableWindow(context) then return false end
+  return context.tileIndex ~= nil
+end
+
+function AppCoreController:_gridCellForPatternLogicalIndex(ptWin, ptLayerIndex, logicalIndex)
+  if not (
+    ptWin
+    and type(logicalIndex) == "number"
+    and ptLayerIndex
+    and WindowCaps.isPatternTable(ptWin)
+  ) then
+    return nil, nil
+  end
+  local ptLayer = ptWin.getLayer and ptWin:getLayer(ptLayerIndex) or (ptWin.layers and ptWin.layers[ptLayerIndex])
+  local cols = math.max(1, math.floor(tonumber(ptWin.cols) or 16))
+  local rows = math.max(1, math.floor(tonumber(ptWin.rows) or 16))
+  local layoutMode = (ptLayer and ptLayer.mode) or "8x8"
+  local maxPos = math.min(255, rows * cols - 1)
+  for pos = 0, maxPos do
+    if BankViewController.chrOrderingIndexForGridPos(layoutMode, pos) == logicalIndex then
+      local col = pos % cols
+      local row = math.floor(pos / cols)
+      return col, row
+    end
+  end
+  return nil, nil
+end
+
+--- Focus pattern_table window cell matching the consuming layer's linked pattern slot (PPU nametable / OAM / ref overlay).
+function AppCoreController:_selectInLinkedPatternTableWindow(context)
+  if not self:_patternTableJumpNavigateEnabled(context) then
+    self:setStatus("Link this layer to an open pattern table window to jump to it")
+    return false
+  end
+  local ptWin = self:_resolveLinkedPatternTableWindow(context)
+  local logical = self:_patternLogicalSlotForJump(context)
+  if not ptWin or logical == nil then
+    self:setStatus("Link this layer to an open pattern table window to jump to it")
+    return false
+  end
+  local ptLayerIndex = (ptWin.getActiveLayerIndex and ptWin:getActiveLayerIndex()) or ptWin.activeLayer or 1
+
+  PatternTableDisplayController.resolveLinkedPatternTableLayers(self.wm)
+  PatternTableDisplayController.populateTileLayerItemsFromPatternTable(ptWin, ptLayerIndex, {
+    tilesPool = self.appEditState and self.appEditState.tilesPool,
+    appEditState = self.appEditState,
+    ensureTiles = function(bankIdx)
+      local st = self.appEditState
+      if st and st.chrBanksBytes and st.chrBanksBytes[bankIdx] then
+        BankViewController.ensureBankTiles(st, bankIdx)
+      end
+    end,
+  })
+
+  local col, row = self:_gridCellForPatternLogicalIndex(ptWin, ptLayerIndex, logical)
+  if col == nil or row == nil then
+    self:setStatus(string.format("Pattern logical slot %d is outside the linked pattern grid", logical))
+    return false
+  end
+
+  if ptWin.setActiveLayerIndex then
+    ptWin:setActiveLayerIndex(ptLayerIndex)
+  else
+    ptWin.activeLayer = ptLayerIndex
+  end
+
+  Shared.scrollChrWindowToCell(ptWin, col, row)
+  local ptLayerResolved = ptWin.getLayer and ptWin:getLayer(ptLayerIndex)
+    or (ptWin.layers and ptWin.layers[ptLayerIndex])
+  local lm = ptLayerResolved and ptLayerResolved.mode or "8x8"
+  local selOpts = (lm == "8x16" or lm == "oddEven") and { exactChrTile = true } or nil
+  ptWin:setSelected(col, row, ptLayerIndex, selOpts)
+  if self.wm and self.wm.setFocus then
+    self.wm:setFocus(ptWin)
+  end
+  self:setStatus(string.format("Pattern table logical slot %d", logical))
+  return true
+end
+
 function AppCoreController:_buildPpuTileContext(win, layerIndex, col, row)
   if not (win and win.kind == "ppu_frame" and type(col) == "number" and type(row) == "number") then
     return nil
@@ -271,7 +439,7 @@ function AppCoreController:_selectPpuTileInChrWindow(context)
   end
 
   Shared.scrollChrWindowToCell(winBank, col, row)
-  winBank:setSelected(col, row, sourceBank)
+  winBank:setSelected(col, row, sourceBank, { exactChrTile = true })
   if self.wm and self.wm.setFocus then
     self.wm:setFocus(winBank)
   end
@@ -324,10 +492,11 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
   }
   if context and context.tileIndex ~= nil then
     items[#items + 1] = {
-      text = "Select in CHR/ROM window",
+      text = "Select in pattern table window",
       menuGroup = "ppt_selection",
+      enabled = self:_nametablePatternTableNavigateEnabled(context),
       callback = function()
-        self:_selectPpuTileInChrWindow(context)
+        self:_selectInLinkedPatternTableWindow(context)
       end,
     }
     items[#items + 1] = {
@@ -485,14 +654,21 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
         end
       end,
     },
-    {
+    (wantsPatternTableJumpInsteadOfChr(context) and {
+      text = "Select in pattern table window",
+      menuGroup = "sel_chr_navigate",
+      enabled = self:_patternTableJumpNavigateEnabled(context),
+      callback = function()
+        self:_selectInLinkedPatternTableWindow(context)
+      end,
+    } or {
       text = "Select in CHR/ROM window",
       menuGroup = "sel_chr_navigate",
       enabled = context and context.tileIndex ~= nil,
       callback = function()
         self:_selectPpuTileInChrWindow(context)
       end,
-    },
+    }),
     {
       text = "Select all references",
       menuGroup = "sel_chr_navigate",

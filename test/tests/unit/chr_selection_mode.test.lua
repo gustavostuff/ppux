@@ -20,6 +20,24 @@ describe("chr odd-even selection mode", function()
     expect(layer).toBe(1)
   end)
 
+  it("preserves the exact row when exactChrTile is set (e.g. jump from nametable)", function()
+    local win = setmetatable({
+      kind = "chr",
+      orderMode = "oddEven",
+      activeLayer = 1,
+      selectedByLayer = {},
+      cols = 16,
+      rows = 32,
+    }, { __index = Window })
+
+    win:setSelected(3, 5, 1, { exactChrTile = true })
+
+    local col, row, layer = win:getSelected()
+    expect(col).toBe(3)
+    expect(row).toBe(5)
+    expect(layer).toBe(1)
+  end)
+
   it("starts CHR drags from the top half when clicking the bottom half in 8x16 mode", function()
     local topTile = { id = "top", index = 10, _bankIndex = 1 }
     local bottomTile = { id = "bottom", index = 11, _bankIndex = 1 }
@@ -100,3 +118,43 @@ describe("chr odd-even selection mode", function()
     expect(drag.tileGroup.sourceSelectionMode).toBe("8x16")
   end)
 end)
+
+describe("pattern_table 8x16 selection", function()
+  it("snaps selection to top row of each vertical pair like CHR odd-even", function()
+    local win = setmetatable({
+      kind = "pattern_table",
+      activeLayer = 1,
+      selectedByLayer = {},
+      cols = 16,
+      rows = 16,
+      layers = {
+        { kind = "tile", mode = "8x16" },
+      },
+    }, { __index = Window })
+
+    win:setSelected(7, 5, 1)
+    local col, row, layer = win:getSelected()
+    expect(col).toBe(7)
+    expect(row).toBe(4)
+    expect(layer).toBe(1)
+  end)
+
+  it("keeps row in 8x8 mode", function()
+    local win = setmetatable({
+      kind = "pattern_table",
+      activeLayer = 1,
+      selectedByLayer = {},
+      cols = 16,
+      rows = 16,
+      layers = {
+        { kind = "tile", mode = "8x8" },
+      },
+    }, { __index = Window })
+
+    win:setSelected(7, 5, 1)
+    local col, row = win:getSelected()
+    expect(col).toBe(7)
+    expect(row).toBe(5)
+  end)
+end)
+

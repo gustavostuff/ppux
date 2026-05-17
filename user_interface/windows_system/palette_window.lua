@@ -116,8 +116,8 @@ end
 function PaletteWindow:clear(col,row) end
 
 -- Override setSelected to add debug logging for color selection
-function PaletteWindow:setSelected(col, row, layerIndex)
-  Window.setSelected(self, col, row, layerIndex)
+function PaletteWindow:setSelected(col, row, layerIndex, opts)
+  Window.setSelected(self, col, row, layerIndex, opts)
   if col ~= nil and row ~= nil then
     local code = self.codes2D and self.codes2D[row] and self.codes2D[row][col]
     if code then

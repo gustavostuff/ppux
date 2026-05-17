@@ -19,6 +19,18 @@ local function isChr8x16SelectionMode(win)
   return WindowCaps.isChrLike(win) and win.orderMode == "oddEven"
 end
 
+--- CHR odd/even ordering or pattern_table tile layer in 8x16 (/ oddEven) CHR layout mode.
+local function tileLayerSelectionUsesVerticalPairHighlight(win, layer)
+  if isChr8x16SelectionMode(win) then
+    return true
+  end
+  if WindowCaps.isPatternTable(win) and layer and layer.kind == "tile" then
+    local m = layer.mode or "8x8"
+    return m == "8x16" or m == "oddEven"
+  end
+  return false
+end
+
 local function getChr8x16TopRow(row)
   row = math.floor(tonumber(row) or 0)
   return row - (row % 2)
@@ -336,10 +348,12 @@ local function tileScreenRect(self, col, row, ctx)
   return screenX, screenY, cw * z, ch * z
 end
 
-local function getTileSelectionRect(self, col, row, ctx)
+--- layer: active tile layer (used for pattern_table 8x16 highlight span); defaults from activeLayer.
+local function getTileSelectionRect(self, col, row, ctx, layer)
   local topRow = row
   local rowSpan = 1
-  if isChr8x16SelectionMode(self) then
+  layer = layer or (self.layers and self.layers[self.activeLayer or 1])
+  if tileLayerSelectionUsesVerticalPairHighlight(self, layer) then
     topRow = getChr8x16TopRow(row)
     rowSpan = math.min(2, math.max(1, (self.rows or 0) - topRow))
   end
@@ -363,7 +377,7 @@ function Window:highlightAllTiles(L, overlayCtx, opts)
       local i = row * cols + col + 1
       local item = getSelectionTileRef(self, L, col, row, layerIndex)
       if item ~= nil and not (removedCells and removedCells[i]) then
-        local rx, ry, rw, rh, topRow = getTileSelectionRect(self, col, row, overlayCtx)
+        local rx, ry, rw, rh, topRow = getTileSelectionRect(self, col, row, overlayCtx, L)
         local drawKey = string.format("%d:%d", col, topRow or row)
         if drawnKeys[drawKey] then
           goto continue
@@ -457,7 +471,7 @@ function Window:drawTileSelectionOverlays(isFocused)
           local zeroBased = idx - 1
           local col = zeroBased % (self.cols or 1)
           local row = math.floor(zeroBased / (self.cols or 1))
-          local rx, ry, rw, rh, topRow = getTileSelectionRect(self, col, row, overlayCtx)
+          local rx, ry, rw, rh, topRow = getTileSelectionRect(self, col, row, overlayCtx, L)
           local drawKey = string.format("%d:%d", col, topRow)
           if not drawnKeys[drawKey] then
             drawnKeys[drawKey] = true
@@ -469,7 +483,7 @@ function Window:drawTileSelectionOverlays(isFocused)
     else
       local sel = self:getLayerSelection(self.activeLayer or 1)
       if mode ~= "edit" and sel and type(sel.col) == "number" and type(sel.row) == "number" then
-        local rx, ry, rw, rh, topRow = getTileSelectionRect(self, sel.col, sel.row, overlayCtx)
+        local rx, ry, rw, rh, topRow = getTileSelectionRect(self, sel.col, sel.row, overlayCtx, L)
         setOverlayColor(colors.white)
         -- love.graphics.rectangle("line", math.floor(rx), math.floor(ry), rw + 1, rh + 1)
         drawSelectionRectAnimated(rx, ry, rw, rh)
@@ -499,7 +513,7 @@ function Window:drawTileSelectionOverlays(isFocused)
   if showHover and mouse and not ReferenceBackgroundController.isReferenceTracingViewActive(self) then
     local ok, col, row = self:toGridCoords(mouse.x, mouse.y)
     if ok then
-      local rx, ry, rw, rh, topRow = getTileSelectionRect(self, col, row, overlayCtx)
+      local rx, ry, rw, rh, topRow = getTileSelectionRect(self, col, row, overlayCtx, L)
       setOverlayColor(colors.white, HOVER_OPACITY)
       -- love.graphics.rectangle("line", math.floor(rx), math.floor(ry), rw, rh)
       drawSelectionRectAnimated(rx, ry, rw, rh)

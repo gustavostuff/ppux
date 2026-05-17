@@ -201,6 +201,7 @@ end
 -- Supported types:
 --   tile_drag   -> { changes = { {win, layerIndex, col, row, before, after}, ... } }
 --   sprite_drag -> { actions = { {sprite, before, after}, ... } }
+-- Separate entry point: sprite_layer_origin (sprite layer originX/originY), see addSpriteLayerOriginEvent.
 function UndoRedoController:addDragEvent(event)
   if not event then return false end
   if event.type ~= "tile_drag" and event.type ~= "sprite_drag" then return false end
@@ -220,6 +221,39 @@ function UndoRedoController:addDragEvent(event)
     then
       self:_notifyUnsaved("sprite_move")
     end
+  end
+  return pushed
+end
+
+function UndoRedoController:addSpriteLayerOriginEvent(event)
+  if not event or event.type ~= "sprite_layer_origin" then
+    return false
+  end
+  local win = event.win
+  local li = event.layerIndex
+  if not (win and win._closed ~= true and win.layers and type(li) == "number") then
+    return false
+  end
+  local layer = win.layers[li]
+  if not (layer and layer.kind == "sprite") then
+    return false
+  end
+  local bx = math.floor(tonumber(event.beforeOriginX) or 0)
+  local by = math.floor(tonumber(event.beforeOriginY) or 0)
+  local ax = math.floor(tonumber(event.afterOriginX) or 0)
+  local ay = math.floor(tonumber(event.afterOriginY) or 0)
+  if bx < 0 then bx = 0 elseif bx > 255 then bx = 255 end
+  if by < 0 then by = 0 elseif by > 239 then by = 239 end
+  if ax < 0 then ax = 0 elseif ax > 255 then ax = 255 end
+  if ay < 0 then ay = 0 elseif ay > 239 then ay = 239 end
+  if bx == ax and by == ay then
+    return false
+  end
+  event.beforeOriginX, event.beforeOriginY = bx, by
+  event.afterOriginX, event.afterOriginY = ax, ay
+  local pushed = self:_pushEvent(event)
+  if pushed then
+    self:_notifyUnsaved("sprite_move")
   end
   return pushed
 end
@@ -724,6 +758,35 @@ local function applyPatternTableAppendEvent(event, direction, app)
     })
   end
   return app:applyPatternTableWindowPatternSnapshot(win, li, snap)
+end
+
+local function applySpriteLayerOriginEvent(event, direction)
+  if not event or event.type ~= "sprite_layer_origin" then
+    return false
+  end
+  local win = event.win
+  if not win or win._closed then
+    return false
+  end
+  local li = event.layerIndex
+  local layer = win.layers and win.layers[li]
+  if not (layer and layer.kind == "sprite") then
+    return false
+  end
+  local useAfter = direction == "redo"
+  local ox = useAfter and event.afterOriginX or event.beforeOriginX
+  local oy = useAfter and event.afterOriginY or event.beforeOriginY
+  ox = math.floor(tonumber(ox) or 0)
+  oy = math.floor(tonumber(oy) or 0)
+  if ox < 0 then ox = 0 elseif ox > 255 then ox = 255 end
+  if oy < 0 then oy = 0 elseif oy > 239 then oy = 239 end
+  layer.originX = ox
+  layer.originY = oy
+  local tb = win.specializedToolbar
+  if tb and tb.updateOriginButtons then
+    tb:updateOriginButtons()
+  end
+  return true
 end
 
 local function applySpriteState(sprite, state)
@@ -1356,6 +1419,8 @@ function UndoRedoController:_applyEvent(event, direction, app)
     return applyTileDragEvent(event, direction)
   elseif event.type == "sprite_drag" then
     return applySpriteDragEvent(event, direction, app)
+  elseif event.type == "sprite_layer_origin" then
+    return applySpriteLayerOriginEvent(event, direction)
   elseif event.type == "palette_color" then
     return applyPaletteColorEvent(event, direction)
   elseif event.type == "window_rename" then

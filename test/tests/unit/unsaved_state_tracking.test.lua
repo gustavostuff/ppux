@@ -137,6 +137,28 @@ describe("undo_redo_controller.lua - unsaved tracking", function()
     expect(events[#events]).toBe("sprite_move")
   end)
 
+  it("marks sprite layer origin changes as sprite_move unsaved", function()
+    local undo = UndoRedoController.new(10)
+    local events = {}
+    undo:setUnsavedTracker(function(eventType)
+      events[#events + 1] = eventType
+    end)
+
+    local layer = { kind = "sprite", originX = 0, originY = 0 }
+    local ok = undo:addSpriteLayerOriginEvent({
+      type = "sprite_layer_origin",
+      win = { _closed = false, layers = { layer } },
+      layerIndex = 1,
+      beforeOriginX = 0,
+      beforeOriginY = 0,
+      afterOriginX = 3,
+      afterOriginY = 5,
+    })
+
+    expect(ok).toBe(true)
+    expect(events[#events]).toBe("sprite_move")
+  end)
+
   it("marks animation timeline undo events as unsaved", function()
     local undo = UndoRedoController.new(10)
     local events = {}

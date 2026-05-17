@@ -507,6 +507,60 @@ describe("UndoRedoController - sprite binding (edit sprite modal)", function()
   end)
 end)
 
+describe("UndoRedoController - sprite layer origin", function()
+  it("undoes and redoes sprite layer originX/originY", function()
+    local ur = UndoRedoController.new(10)
+    local layer = { kind = "sprite", originX = 10, originY = 20 }
+    local toolbar = { refreshes = 0 }
+    function toolbar:updateOriginButtons()
+      self.refreshes = self.refreshes + 1
+    end
+
+    local win = {
+      kind = "ppu_frame",
+      layers = { layer },
+      specializedToolbar = toolbar,
+    }
+
+    layer.originX = 50
+    layer.originY = 88
+
+    expect(ur:addSpriteLayerOriginEvent({
+      type = "sprite_layer_origin",
+      win = win,
+      layerIndex = 1,
+      beforeOriginX = 10,
+      beforeOriginY = 20,
+      afterOriginX = 50,
+      afterOriginY = 88,
+    })).toBe(true)
+
+    expect(toolbar.refreshes).toBe(0)
+
+    expect(ur:undo({})).toBe(true)
+    expect(layer.originX).toBe(10)
+    expect(layer.originY).toBe(20)
+    expect(toolbar.refreshes).toBe(1)
+
+    expect(ur:redo({})).toBe(true)
+    expect(layer.originX).toBe(50)
+    expect(layer.originY).toBe(88)
+    expect(toolbar.refreshes).toBe(2)
+
+    local ur2 = UndoRedoController.new(5)
+    expect(ur2:addSpriteLayerOriginEvent({
+      type = "sprite_layer_origin",
+      win = win,
+      layerIndex = 1,
+      beforeOriginX = 12,
+      beforeOriginY = 12,
+      afterOriginX = 12,
+      afterOriginY = 12,
+    })).toBe(false)
+    expect(#ur2.stack).toBe(0)
+  end)
+end)
+
 describe("UndoRedoController - window close", function()
   it("undos/redos a closed window and restores prior focus", function()
     local ur = UndoRedoController.new(10)
