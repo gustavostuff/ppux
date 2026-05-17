@@ -1,11 +1,5 @@
 local M = {}
 
-----------------------------------------------------------------
--- Undo/Redo Manager
-----------------------------------------------------------------
-
-local UndoRedoController = {}
-UndoRedoController.__index = UndoRedoController
 local GameArtController = require("controllers.game_art.game_art_controller")
 local GameArtEditsController = require("controllers.game_art.edits_controller")
 local BankViewController = require("controllers.chr.bank_view_controller")
@@ -16,6 +10,95 @@ local AnimationWindowUndo = require("controllers.input_support.animation_window_
 local GridLayoutUndo = require("controllers.input_support.grid_layout_undo")
 local SpriteController = require("controllers.sprite.sprite_controller")
 local TableUtils = require("utils.table_utils")
+
+local function setUndoRedoStatus(app, text)
+  if app and type(app.setStatus) == "function" then
+    app:setStatus(text)
+  end
+end
+
+--- Short label for status bar after undo/redo (uses `event.type`).
+local function describeUndoRedoEvent(event)
+  if not event or type(event) ~= "table" then
+    return "Edit"
+  end
+  local t = event.type
+  if t == "paint" then
+    return "Paint"
+  elseif t == "composite" and type(event.events) == "table" then
+    return string.format("Composite (%d actions)", #event.events)
+  elseif t == "remove_tile" then
+    local s = event.subtype
+    if s == "sprite" then
+      return "Remove sprite"
+    elseif s == "ppu" then
+      return "Remove PPU tile"
+    elseif s == "animation" then
+      return "Remove animation tile"
+    elseif s == "static" then
+      return "Remove tile"
+    end
+    return "Remove tile"
+  elseif t == "tile_drag" then
+    local mode = event.mode
+    if mode == "copy" then
+      return "Tile copy"
+    elseif mode == "palette" then
+      return "Tile palette"
+    end
+    return "Tile move"
+  elseif t == "sprite_drag" then
+    local mode = event.mode
+    if mode == "copy" then
+      return "Sprite copy"
+    elseif mode == "mirror" then
+      return "Sprite mirror"
+    elseif mode == "palette" then
+      return "Sprite palette"
+    elseif mode == "sprite_binding" then
+      return "Sprite binding"
+    end
+    return "Sprite move"
+  elseif t == "sprite_layer_origin" then
+    return "Sprite origin"
+  elseif t == "palette_color" then
+    return "Palette color"
+  elseif t == "window_rename" then
+    return "Rename window"
+  elseif t == "rom_palette_address" then
+    return "ROM palette address"
+  elseif t == "palette_link" then
+    return "Palette link"
+  elseif t == "pattern_table_link" then
+    return "Pattern table link"
+  elseif t == "window_create" then
+    return "New window"
+  elseif t == "ppu_frame_range" then
+    return "PPU pattern table"
+  elseif t == "pattern_table_append" then
+    return "Pattern table drop"
+  elseif t == "animation_window_state" then
+    return "Animation edit"
+  elseif t == "grid_layout" then
+    return "Window layout"
+  elseif t == "chr_tile_revert" then
+    return "Revert tile"
+  elseif t == "window_minimize_batch" then
+    return "Minimize others"
+  elseif t == "window_minimize" then
+    return "Minimize window"
+  elseif t == "window_close" then
+    return "Close window"
+  end
+  return tostring(t or "edit")
+end
+
+----------------------------------------------------------------
+-- Undo/Redo Manager
+----------------------------------------------------------------
+
+local UndoRedoController = {}
+UndoRedoController.__index = UndoRedoController
 
 -- Create a new undo/redo manager
 function UndoRedoController.new(maxDepth)
@@ -1368,19 +1451,23 @@ end
 function UndoRedoController:undo(app)
   -- Check if we can undo
   if self.currentIndex >= #self.stack then
+    setUndoRedoStatus(app, "Nothing to undo")
     return false
   end
-  
+
   -- Move to next event
   self.currentIndex = self.currentIndex + 1
   local event = self.stack[self.currentIndex]
-  
+
   local applied = self:_applyEvent(event, "undo", app)
   if not applied then
     -- Revert index advance if nothing happened
     self.currentIndex = self.currentIndex - 1
+    setUndoRedoStatus(app, "Undo failed")
+    return false
   end
-  return applied
+  setUndoRedoStatus(app, "Undo: " .. describeUndoRedoEvent(event))
+  return true
 end
 
 -- Apply a redo operation
@@ -1389,11 +1476,12 @@ end
 function UndoRedoController:redo(app)
   -- Check if we can redo
   if self.currentIndex <= 0 then
+    setUndoRedoStatus(app, "Nothing to redo")
     return false
   end
-  
+
   local event = self.stack[self.currentIndex]
-  
+
   local applied = self:_applyEvent(event, "redo", app)
 
   -- Move to previous event
@@ -1401,9 +1489,11 @@ function UndoRedoController:redo(app)
   if not applied then
     -- If nothing applied, restore index
     self.currentIndex = self.currentIndex + 1
+    setUndoRedoStatus(app, "Redo failed")
+    return false
   end
-  
-  return applied
+  setUndoRedoStatus(app, "Redo: " .. describeUndoRedoEvent(event))
+  return true
 end
 
 -- Shared event dispatcher for undo/redo directions.

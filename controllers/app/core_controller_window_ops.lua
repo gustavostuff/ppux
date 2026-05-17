@@ -529,7 +529,7 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
   end
 
   items[#items + 1] = {
-    text = "Minimize all but this one",
+    text = "Minimize others",
     menuGroup = "hdr_workspace",
     enabled = hasAnotherMinimizableWindow(),
     callback = function()

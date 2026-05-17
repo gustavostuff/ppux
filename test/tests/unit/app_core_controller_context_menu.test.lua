@@ -79,7 +79,7 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(items[2].text).toBe("Close")
     expect(items[3].text).toBe("Collapse")
     expect(items[4].text).toBe("Minimize")
-    expect(items[5].text).toBe("Minimize all but this one")
+    expect(items[5].text).toBe("Minimize others")
     expect(items[6].text).toBe("Keep always on top")
     expect(items[1].enabled).toBe(true)
     expect(items[2].enabled).toBe(true)
@@ -92,7 +92,7 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(renameCalls).toBe(1)
   end)
 
-  it("enables Minimize all but this one when another window can be minimized", function()
+  it("enables Minimize others when another window can be minimized", function()
     local app = setmetatable({
       hideAppContextMenus = function() end,
     }, AppCoreController)
@@ -104,7 +104,7 @@ describe("core_controller.lua - contextual menu helpers", function()
       end,
     }
     local items = app:_buildWindowHeaderContextMenuItems(winA)
-    expect(items[5].text).toBe("Minimize all but this one")
+    expect(items[5].text).toBe("Minimize others")
     expect(items[5].enabled).toBe(true)
   end)
 
@@ -156,7 +156,7 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(items[3].enabled).toBe(false)
     expect(items[4].text).toBe("Maximize")
     expect(items[4].enabled).toBe(true)
-    expect(items[5].text).toBe("Minimize all but this one")
+    expect(items[5].text).toBe("Minimize others")
     expect(items[6].text).toBe("Keep always on top")
   end)
 
