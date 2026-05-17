@@ -1013,13 +1013,12 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
         activatePatternLayerView()
         return false
       end
+      local startChrTileIndex = (pageIndex == 2) and (256 + fromTile) or fromTile
+      local endChrTileIndex = startChrTileIndex + span - 1
       layer.patternTable.ranges[#layer.patternTable.ranges + 1] = {
         bank = bankIndex,
-        page = pageIndex,
-        tileRange = {
-          from = fromTile,
-          to = toTile,
-        },
+        from = startChrTileIndex,
+        to = endChrTileIndex,
       }
       if isPatternOnly then
         PatternTableDisplayController.populateTileLayerItemsFromPatternTable(targetWindow, 1, {

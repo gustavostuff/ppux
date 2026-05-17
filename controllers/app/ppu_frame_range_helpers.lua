@@ -3,6 +3,7 @@
 
 local TableUtils = require("utils.table_utils")
 local BankViewController = require("controllers.chr.bank_view_controller")
+local PatternTableMapping = require("utils.pattern_table_mapping")
 
 local M = {}
 
@@ -48,11 +49,24 @@ function M.patternRangeUsesExplicitTiles(range)
   return type(range) == "table" and type(range.tiles) == "table" and #range.tiles > 0
 end
 
-local function explicitTileBankPageByte(t, idxForErr)
+local function explicitTileBankPageByte(t, idxForErr, defaultBank)
+  defaultBank = math.floor(tonumber(defaultBank) or -1)
   if type(t) ~= "table" then
     return nil, nil, nil, (idxForErr and string.format("tiles[%d] is not a table", idxForErr)) or "invalid tile"
   end
-  local bank = math.floor(tonumber(t.bank) or -1)
+  local bank = math.floor(tonumber(t.bank) or defaultBank or -1)
+  if t.tileIndex ~= nil or t.startTileIndex ~= nil then
+    local ti = math.floor(tonumber(t.tileIndex or t.startTileIndex) or -1)
+    if bank < 1 then
+      return nil, nil, nil, (idxForErr and string.format("tiles[%d] has invalid bank", idxForErr)) or "invalid bank"
+    end
+    if ti < 0 or ti > 511 then
+      return nil, nil, nil, (idxForErr and string.format("tiles[%d] has invalid tileIndex", idxForErr)) or "invalid tileIndex"
+    end
+    local page = (ti >= 256) and 2 or 1
+    local byte = ti % 256
+    return bank, page, byte, nil
+  end
   local page = math.floor(tonumber(t.page) or -1)
   local byteRaw = t.byte
   if byteRaw == nil and t.tileByte ~= nil then
@@ -74,13 +88,21 @@ end
 --- @return length, err
 function M.patternRangeLogicalLength(range)
   if M.patternRangeUsesExplicitTiles(range) then
+    local db = range.bank
     for i, t in ipairs(range.tiles) do
-      local _, _, _, terr = explicitTileBankPageByte(t, i)
+      local _, _, _, terr = explicitTileBankPageByte(t, i, db)
       if terr then
         return nil, terr
       end
     end
     return #range.tiles, nil
+  end
+  if PatternTableMapping.isGlobalChrFromToRange(range) then
+    local a, b = PatternTableMapping.globalChrFromToBounds(range)
+    if a == nil or b == nil then
+      return nil, "invalid global from/to"
+    end
+    return (b - a + 1), nil
   end
   local from, to = M.parsePatternRangeBounds(range)
   if from == nil or to == nil then
@@ -95,10 +117,17 @@ function M.foreachBankInPatternRange(range, fn)
   end
   if M.patternRangeUsesExplicitTiles(range) then
     for _, t in ipairs(range.tiles) do
-      local b = math.floor(tonumber(t.bank) or -1)
+      local b = math.floor(tonumber(t.bank) or tonumber(range.bank) or -1)
       if b >= 1 then
         fn(b)
       end
+    end
+    return
+  end
+  if PatternTableMapping.isGlobalChrFromToRange(range) then
+    local b = math.floor(tonumber(range.bank) or -1)
+    if b >= 1 then
+      fn(b)
     end
     return
   end
@@ -114,11 +143,24 @@ function M.validatePatternRangeAppendShape(range, rangeIndex)
   local label = rangeIndex > 0 and string.format("pattern range %d", rangeIndex) or "pattern range"
 
   if M.patternRangeUsesExplicitTiles(range) then
+    local db = range.bank
     for i, t in ipairs(range.tiles) do
-      local _, _, _, terr = explicitTileBankPageByte(t, i)
+      local _, _, _, terr = explicitTileBankPageByte(t, i, db)
       if terr then
         return label .. ": " .. terr
       end
+    end
+    return nil
+  end
+
+  if PatternTableMapping.isGlobalChrFromToRange(range) then
+    local bank = math.floor(tonumber(range.bank) or -1)
+    if bank < 1 then
+      return label .. " is missing bank"
+    end
+    local a, b = PatternTableMapping.globalChrFromToBounds(range)
+    if a == nil or b == nil then
+      return label .. ": invalid global from/to (0..511, from <= to)"
     end
     return nil
   end
@@ -192,8 +234,9 @@ function M.buildPatternTableMapAllowPartial(patternTable)
   local logicalIndex = 0
   for i, range in ipairs(patternTable.ranges) do
     if M.patternRangeUsesExplicitTiles(range) then
+      local db = range.bank
       for j, t in ipairs(range.tiles) do
-        local bank, page, src, terr = explicitTileBankPageByte(t, j)
+        local bank, page, src, terr = explicitTileBankPageByte(t, j, db)
         if terr then
           return nil, string.format("patternTable.ranges[%d] %s", i, terr)
         end
@@ -205,6 +248,29 @@ function M.buildPatternTableMapAllowPartial(patternTable)
           page = page,
           tileByte = src,
           tileIndex = (page == 2) and (256 + src) or src,
+        }
+        logicalIndex = logicalIndex + 1
+      end
+    elseif PatternTableMapping.isGlobalChrFromToRange(range) then
+      local a, b = PatternTableMapping.globalChrFromToBounds(range)
+      if a == nil or b == nil then
+        return nil, string.format("patternTable.ranges[%d] has invalid global from/to", i)
+      end
+      local bank = math.max(1, math.floor(tonumber(range.bank) or -1))
+      if bank < 1 then
+        return nil, string.format("patternTable.ranges[%d] is missing bank", i)
+      end
+      for ti = a, b do
+        if logicalIndex > 255 then
+          return nil, "patternTable ranges exceed 256 tiles"
+        end
+        local page = (ti >= 256) and 2 or 1
+        local src = ti % 256
+        map[logicalIndex] = {
+          bank = bank,
+          page = page,
+          tileByte = src,
+          tileIndex = ti,
         }
         logicalIndex = logicalIndex + 1
       end
@@ -310,14 +376,23 @@ function M.didPpuFrameRangeSettingsChange(beforeState, afterState)
     for i, range in ipairs(patternTable.ranges) do
       if M.patternRangeUsesExplicitTiles(range) then
         parts[#parts + 1] = "tiles"
+        local db = range.bank
         for j, t in ipairs(range.tiles) do
-          local b, p, bb, terr = explicitTileBankPageByte(t, j)
+          local b, p, bb, terr = explicitTileBankPageByte(t, j, db)
           if terr then
             parts[#parts + 1] = ":?"
           else
             parts[#parts + 1] = string.format(":%d:%d:%d", b, p, bb)
           end
         end
+      elseif PatternTableMapping.isGlobalChrFromToRange(range) then
+        local a, b = PatternTableMapping.globalChrFromToBounds(range)
+        parts[#parts + 1] = string.format(
+          "g:%d:%s:%s",
+          math.floor(tonumber(range.bank) or -1),
+          tostring(a),
+          tostring(b)
+        )
       else
         local from, to = M.parsePatternRangeBounds(range)
         parts[#parts + 1] = string.format(
@@ -595,7 +670,7 @@ function M.planPatternRangesFromChrTileGroup(srcWin, srcLayer, tileGroup)
     if c.page ~= 1 and c.page ~= 2 then
       return nil, 0, "Page must be 1 or 2"
     end
-    tiles[#tiles + 1] = { bank = c.bank, page = c.page, byte = c.byte }
+    tiles[#tiles + 1] = { bank = c.bank, tileIndex = (c.page == 2) and (256 + c.byte) or c.byte }
   end
 
   local total = #tiles

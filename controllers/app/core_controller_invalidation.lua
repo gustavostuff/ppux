@@ -1,4 +1,5 @@
 local WindowCaps = require("controllers.window.window_capabilities")
+local PatternTableMapping = require("utils.pattern_table_mapping")
 
 return function(AppCoreController)
 
@@ -22,7 +23,36 @@ local function layerMayReferenceBankTile(layer, targetBank, targetTileIndex)
   local targetPage = (targetTileIndex >= 256) and 2 or 1
   local targetByte = targetTileIndex % 256
   for _, r in ipairs(pt.ranges) do
-    if type(r) == "table" then
+    if type(r) ~= "table" then
+    elseif type(r.tiles) == "table" and #r.tiles > 0 then
+      local db = math.floor(tonumber(r.bank) or 1)
+      for _, t in ipairs(r.tiles) do
+        local tb = math.floor(tonumber(t.bank) or db)
+        local ti = t.tileIndex or t.startTileIndex
+        if ti ~= nil then
+          ti = math.floor(tonumber(ti) or -1)
+          if tb == targetBank and ti == targetTileIndex then
+            return true
+          end
+        else
+          local pg = math.floor(tonumber(t.page) or 1)
+          if pg < 1 then pg = 1 elseif pg > 2 then pg = 2 end
+          local b = math.floor(tonumber(t.byte or t.tileByte) or -1)
+          local tti = (pg == 2) and (256 + b) or b
+          if tb == targetBank and tti == targetTileIndex then
+            return true
+          end
+        end
+      end
+    elseif PatternTableMapping.isGlobalChrFromToRange(r) then
+      local a, b = PatternTableMapping.globalChrFromToBounds(r)
+      local rangeBank = math.floor(tonumber(r.bank) or -1)
+      if rangeBank == targetBank and a ~= nil and b ~= nil then
+        if targetTileIndex >= a and targetTileIndex <= b then
+          return true
+        end
+      end
+    else
       local from = r.from
       local to = r.to
       local tr = r.tileRange
