@@ -48,6 +48,54 @@ describe("pattern_table_display_controller.lua", function()
     expect(PatternTableMapping.validate(spr.patternTable)).toBe(true)
   end)
 
+  it("invalidateConsumersUsingPatternTable rewires linked PPU nametable tile layer patternTable", function()
+    local shared = patternTableIdentity256()
+    local stale = { ranges = {} }
+
+    local ptWin = {
+      _id = "pt_nt_link",
+      kind = "pattern_table",
+      layers = {
+        {
+          kind = "tile",
+          patternTable = shared,
+        },
+      },
+    }
+
+    local ntLayer = {
+      kind = "tile",
+      nametableStartAddr = 0x1000,
+      nametableEndAddr = 0x10ff,
+      linkedPatternTableWindowId = "pt_nt_link",
+      patternTable = stale,
+    }
+
+    local ppuWin = {
+      kind = "ppu_frame",
+      nametableBytes = { 0, 1 },
+      cols = 32,
+      rows = 1,
+      refreshNametableVisuals = function() end,
+      layers = { ntLayer },
+    }
+
+    local app = {
+      wm = {
+        getWindows = function()
+          return { ptWin, ppuWin }
+        end,
+      },
+      appEditState = { romRaw = "", tilesPool = {} },
+      _ensurePpuPatternTableReferenceLayer = function() end,
+    }
+
+    PTDisplay.invalidateConsumersUsingPatternTable(app, shared)
+
+    expect(ntLayer.patternTable).toBe(shared)
+    expect(PatternTableMapping.validate(ntLayer.patternTable)).toBe(true)
+  end)
+
   it("unlink clears PPU sprite pattern map so CHR no longer resolves through linked ranges", function()
     local pt = patternTableIdentity256()
     local spriteLayer = {

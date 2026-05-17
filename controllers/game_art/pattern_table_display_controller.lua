@@ -2,6 +2,8 @@
 -- Populate pattern_table window tile grids, resolve linked patternTable references, helpers for linking.
 
 local BankViewController = require("controllers.chr.bank_view_controller")
+local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
+local PatternTableMapping = require("utils.pattern_table_mapping")
 local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 local TableUtils = require("utils.table_utils")
 local WindowCaps = require("controllers.window.window_capabilities")
@@ -263,6 +265,11 @@ function M.invalidateConsumersUsingPatternTable(app, patternTableRef)
     return
   end
 
+  -- Re-apply link targets first: some code paths (e.g. nametable hydrate with opts.patternTable)
+  -- can replace a linked layer's patternTable with a detached copy, so edits on the pattern_table
+  -- window no longer propagate until we re-stitch references.
+  M.resolveLinkedPatternTableLayers(app.wm)
+
   local SpriteController = require("controllers.sprite.sprite_controller")
   local state = app.appEditState or {}
   local romRaw = type(state.romRaw) == "string" and state.romRaw or ""
@@ -353,7 +360,43 @@ function M.invalidateConsumersUsingPatternTable(app, patternTableRef)
           and type(layer.nametableStartAddr) == "number"
           and type(layer.nametableEndAddr) == "number"
         then
-          win:refreshNametableVisuals(tilesPool, li)
+          local didLateHydrate = false
+          if #(win.nametableBytes or {}) == 0 then
+            local mapOk = PatternTableMapping.validate(layer.patternTable)
+            if mapOk and type(romRaw) == "string" and romRaw ~= "" then
+              local okH, errH = NametableTilesController.hydrateWindowNametable(win, layer, {
+                romRaw = romRaw,
+                tilesPool = tilesPool,
+                ensureTiles = function(bank)
+                  local st = state.chrBanksBytes
+                  if not (st and st[bank]) then
+                    return false
+                  end
+                  BankViewController.ensureBankTiles(state, bank)
+                  return true
+                end,
+                nametableStartAddr = layer.nametableStartAddr,
+                nametableEndAddr = layer.nametableEndAddr,
+                tileSwaps = layer.tileSwaps,
+                userDefinedAttrs = layer.userDefinedAttrs,
+                codec = layer.codec,
+              })
+              if okH then
+                didLateHydrate = true
+              else
+                DebugController.log(
+                  "warning",
+                  "PATTERN_TABLE",
+                  "invalidateConsumers: late nametable hydrate for %q failed: %s",
+                  tostring(win.title or win._id or "?"),
+                  tostring(errH or "?")
+                )
+              end
+            end
+          end
+          if not didLateHydrate then
+            win:refreshNametableVisuals(tilesPool, li)
+          end
         end
         hydrateLinkedSprite(layer)
       end

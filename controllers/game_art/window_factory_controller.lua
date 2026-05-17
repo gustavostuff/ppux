@@ -143,6 +143,7 @@ function M.createRomPaletteWindow(w, romRaw, decodeUserDefinedCodes)
     w.x, w.y, w.zoom or 1,
     w.paletteName or "smooth_fbx",
     rows, cols, {
+      title = w.title,
       paletteData = w.paletteData or {},
       romRaw = romRaw,
       activePalette = false,

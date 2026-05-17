@@ -122,30 +122,14 @@ function M.newTaskbarButton(opts)
 end
 
 function M.fitStatusText(text, maxWidth)
-  if maxWidth <= 0 then return "" end
-  local font = love.graphics.getFont()
-  if not font or font:getWidth(text) <= maxWidth then
-    return text
-  end
-
-  local ellipsis = M.STATUS_TRUNCATION_SUFFIX
-  local ellipsisWidth = font:getWidth(ellipsis)
-  if ellipsisWidth >= maxWidth then
-    return ""
-  end
-
-  local trimmed = text
-  while #trimmed > 0 and (font:getWidth(trimmed) + ellipsisWidth) > maxWidth do
-    trimmed = trimmed:sub(1, -2)
-  end
-  return trimmed .. ellipsis
+  return Text.fitTextToPixelWidth(text, maxWidth, love.graphics.getFont(), M.STATUS_TRUNCATION_SUFFIX)
 end
 
 function M.formatStatusText(text)
-  return Text.limitChars(
+  return Text.sanitizeForLoveFont(Text.limitChars(
     "" .. tostring(text or ""),
     M.STATUS_MAX_CHARS
-  )
+  ))
 end
 
 function M.setLastEvent(app, text)

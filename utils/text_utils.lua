@@ -275,6 +275,144 @@ function TU.limitChars(text, maxChars, opts)
   return text:sub(1, maxChars - #suffix) .. suffix
 end
 
+-- LÖVE's font measurement expects well-formed UTF-8; truncation by raw byte
+-- count (e.g. status ellipsis) can split code units and trigger decode errors.
+local luaUtf8 = rawget(_G, "utf8")
+
+local function longestValidUtf8Prefix(s)
+  s = tostring(s or "")
+  local n = #s
+  local i = 1
+  local last = 0
+  while i <= n do
+    local c1 = string.byte(s, i)
+    if c1 < 0x80 then
+      last = i
+      i = i + 1
+    elseif c1 < 0xC2 then
+      break
+    elseif c1 < 0xE0 then
+      if i + 1 > n then
+        break
+      end
+      local c2 = string.byte(s, i + 1)
+      if c2 < 0x80 or c2 > 0xBF then
+        break
+      end
+      last = i + 1
+      i = i + 2
+    elseif c1 < 0xF0 then
+      if i + 2 > n then
+        break
+      end
+      local c2, c3 = string.byte(s, i + 1, i + 2)
+      if c1 == 0xE0 and c2 < 0xA0 then
+        break
+      end
+      if c1 == 0xED and c2 > 0x9F then
+        break
+      end
+      if c2 < 0x80 or c2 > 0xBF or c3 < 0x80 or c3 > 0xBF then
+        break
+      end
+      last = i + 2
+      i = i + 3
+    elseif c1 < 0xF5 then
+      if i + 3 > n then
+        break
+      end
+      local c2, c3, c4 = string.byte(s, i + 1, i + 3)
+      if c1 == 0xF0 and c2 < 0x90 then
+        break
+      end
+      if c1 == 0xF4 and c2 > 0x8F then
+        break
+      end
+      if c2 < 0x80 or c2 > 0xBF or c3 < 0x80 or c3 > 0xBF or c4 < 0x80 or c4 > 0xBF then
+        break
+      end
+      last = i + 3
+      i = i + 4
+    else
+      break
+    end
+  end
+  return s:sub(1, last)
+end
+
+local function dropLastUtf8Codepoint(s)
+  s = longestValidUtf8Prefix(tostring(s or ""))
+  if s == "" then
+    return ""
+  end
+  if luaUtf8 and type(luaUtf8.offset) == "function" then
+    local ok, pos = pcall(function()
+      return luaUtf8.offset(s, -1)
+    end)
+    if ok and type(pos) == "number" then
+      if pos <= 1 then
+        return ""
+      end
+      return longestValidUtf8Prefix(s:sub(1, pos - 1))
+    end
+  end
+  return longestValidUtf8Prefix(s:sub(1, -2))
+end
+
+--- Safe for love.graphics.print / Font:getWidth: valid UTF-8, no split sequences.
+function TU.sanitizeForLoveFont(s)
+  return longestValidUtf8Prefix(s)
+end
+
+--- Prefer this over Font:getWidth when the string may be malformed UTF-8.
+function TU.safeGetFontWidth(text, font)
+  font = resolveFont(font)
+  local safe = longestValidUtf8Prefix(text)
+  local ok, w = pcall(function()
+    return font:getWidth(safe)
+  end)
+  if ok and type(w) == "number" then
+    return w
+  end
+  while #safe > 0 do
+    safe = dropLastUtf8Codepoint(safe)
+    ok, w = pcall(function()
+      return font:getWidth(safe)
+    end)
+    if ok and type(w) == "number" then
+      return w
+    end
+  end
+  return 0
+end
+
+-- Shrink text with an optional suffix so measured width fits `maxWidth` without
+-- splitting UTF-8 code units (avoids Font:getWidth decode errors).
+function TU.fitTextToPixelWidth(text, maxWidth, font, ellipsis)
+  text = longestValidUtf8Prefix(tostring(text or ""))
+  ellipsis = tostring(ellipsis or "")
+  maxWidth = tonumber(maxWidth) or 0
+  font = resolveFont(font)
+  if maxWidth <= 0 then
+    return ""
+  end
+  if TU.safeGetFontWidth(text, font) <= maxWidth then
+    return text
+  end
+  local ew = TU.safeGetFontWidth(ellipsis, font)
+  if ew >= maxWidth then
+    return ""
+  end
+  local trimmed = text
+  while #trimmed > 0 do
+    if TU.safeGetFontWidth(trimmed, font) + ew <= maxWidth then
+      return trimmed .. ellipsis
+    end
+    trimmed = dropLastUtf8Codepoint(trimmed)
+  end
+  return ""
+end
+
 -- Clip to marquee viewport (`width` px wide), intersecting current scissor if any.
 local function withMarqueeClip(x, y, width, fh, drawFn)
   local g = love and love.graphics
@@ -309,7 +447,7 @@ function TU.drawScrollingText(text, x, y, width, opts)
   speedPxSec = math.max(speedPxSec, 1e-3)
   local key = opts.key or text -- unique id per header
   local loop = opts.loop == true
-  text = tostring(text or "")
+  text = longestValidUtf8Prefix(tostring(text or ""))
   width = tonumber(width) or 0
   local font = resolveFont()
 
@@ -324,7 +462,7 @@ function TU.drawScrollingText(text, x, y, width, opts)
   end
 
   local len = #text
-  local tw = font:getWidth(text)
+  local tw = TU.safeGetFontWidth(text, font)
 
   -- Whole line fits: no scrolling.
   if tw <= width then

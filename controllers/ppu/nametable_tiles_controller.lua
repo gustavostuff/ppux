@@ -537,7 +537,13 @@ function M.hydrateWindowNametable(win, layer, opts)
     local linkedPtId =
       type(layer.linkedPatternTableWindowId) == "string" and layer.linkedPatternTableWindowId ~= ""
     if linkedPtId then
-      layer.patternTable = opts.patternTable
+      -- Linked nametable layers must keep the same table object as the pattern_table window
+      -- (see PatternTableDisplayController.resolveLinkedPatternTableLayers). Overwriting with
+      -- opts.patternTable — always passed from hydrate callers — replaces the shared ref with a
+      -- snapshot and breaks live updates from the linked editor.
+      if type(layer.patternTable) ~= "table" then
+        layer.patternTable = opts.patternTable
+      end
     else
       layer.patternTable = TableUtils.deepcopy(opts.patternTable)
     end

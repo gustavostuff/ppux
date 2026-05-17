@@ -258,7 +258,7 @@ function M.install(Taskbar, Helpers)
     local maxTextWidth = math.max(0, textRight - textX)
     local statusDisplay = Helpers.fitStatusText(status, maxTextWidth)
     local font = love.graphics.getFont()
-    local statusW = (font and font:getWidth(statusDisplay)) or 0
+    local statusW = Text.safeGetFontWidth(statusDisplay, font)
     local drawX = math.max(textX, textRight - statusW)
 
     if drawStatusText then
