@@ -239,8 +239,24 @@ end
 function Dialog:draw(canvas)
   if not self.visible then return end
   ModalPanelUtils.refreshTargetMetrics(self)
-  rebuildPanel(self)
-  self.panel:setVisible(true)
+  -- Avoid rebuilding Panel each frame so mouse press/release stays on one Panel instance.
+  if not self.panel then
+    rebuildPanel(self)
+  else
+    self.panel.cellW = self.cellW
+    self.panel.cellH = self.cellH
+    self.panel.padding = self.padding
+    self.panel.spacingX = self.buttonGap
+    self.panel.spacingY = self.rowGap
+    self.panel.cellPaddingX = self.cellPaddingX
+    self.panel.cellPaddingY = self.cellPaddingY
+    self.panel.title = self.title
+    self.panel.titleH = self.titleH
+    self.panel.bgColor = self.bgColor
+    self.panel.titleBgColor = self.titleBgColor
+    self.panel._modalChromeOverBlue = self._modalChromeOverBlue == true
+    self.panel:setVisible(true)
+  end
   ModalPanelUtils.drawBackdrop(canvas)
   self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)
   self.panel:draw()

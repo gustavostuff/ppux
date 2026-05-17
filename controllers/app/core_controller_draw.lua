@@ -458,7 +458,7 @@ local function drawPatternTableRangeHoverOverlay(app, w, layerIndex)
         local gridPos = r * cols + col
         local logical = BankViewController.chrOrderingIndexForGridPos(layoutMode, gridPos)
         if logical >= startL and logical <= endL then
-          love.graphics.rectangle("fill", col * cw, r * baseCh, cw - 1, baseCh - 1)
+          love.graphics.rectangle("fill", col * cw, r * baseCh, cw, baseCh)
         end
       end
       r = r + 1
@@ -468,7 +468,7 @@ local function drawPatternTableRangeHoverOverlay(app, w, layerIndex)
         local log0 = BankViewController.chrOrderingIndexForGridPos(layoutMode, r * cols + col)
         local log1 = BankViewController.chrOrderingIndexForGridPos(layoutMode, (r + 1) * cols + col)
         if (log0 >= startL and log0 <= endL) or (log1 >= startL and log1 <= endL) then
-          love.graphics.rectangle("fill", col * cw, r * baseCh, cw - 1, 2 * baseCh - 1)
+          love.graphics.rectangle("fill", col * cw, r * baseCh, cw, 2 * baseCh)
         end
       end
       r = r + 2
@@ -478,7 +478,7 @@ local function drawPatternTableRangeHoverOverlay(app, w, layerIndex)
         local gridPos = r * cols + col
         local logical = BankViewController.chrOrderingIndexForGridPos(layoutMode, gridPos)
         if logical >= startL and logical <= endL then
-          love.graphics.rectangle("fill", col * cw, r * baseCh, cw - 1, baseCh - 1)
+          love.graphics.rectangle("fill", col * cw, r * baseCh, cw, baseCh)
         end
       end
     end
@@ -488,7 +488,7 @@ local function drawPatternTableRangeHoverOverlay(app, w, layerIndex)
         local gridPos = row * cols + col
         local logical = BankViewController.chrOrderingIndexForGridPos(layoutMode, gridPos)
         if logical >= startL and logical <= endL then
-          love.graphics.rectangle("fill", col * cw, row * baseCh, cw - 1, baseCh - 1)
+          love.graphics.rectangle("fill", col * cw, row * baseCh, cw, baseCh)
         end
       end
     end
