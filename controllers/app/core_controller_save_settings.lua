@@ -377,6 +377,24 @@ function AppCoreController:saveBeforeQuit()
   return ok
 end
 
+function AppCoreController:_ensureQuitConfirmModalForUnsavedQuit()
+  if self.quitConfirmModal:isVisible() then
+    return
+  end
+  self.quitConfirmModal:show({
+    onYes = function()
+      if self:saveBeforeQuit() then
+        self._allowImmediateQuit = true
+        love.event.quit()
+      end
+    end,
+    onNo = function()
+      self._allowImmediateQuit = true
+      love.event.quit()
+    end,
+  })
+end
+
 function AppCoreController:handleQuitRequest()
   if self._allowImmediateQuit then
     return false
@@ -385,22 +403,21 @@ function AppCoreController:handleQuitRequest()
     return false
   end
 
-  if not self.quitConfirmModal:isVisible() then
-    self.quitConfirmModal:show({
-      onYes = function()
-        if self:saveBeforeQuit() then
-          self._allowImmediateQuit = true
-          love.event.quit()
-        end
-      end,
-      onNo = function()
-        self._allowImmediateQuit = true
-        love.event.quit()
-      end,
-    })
-  end
-
+  self:_ensureQuitConfirmModalForUnsavedQuit()
   return true
+end
+
+--- Escape: unsaved → save/discard modal (same as window close). Otherwise first Esc opens double-confirm modal.
+function AppCoreController:onEscapeQuitIntent()
+  if self:hasUnsavedChanges() then
+    self:_ensureQuitConfirmModalForUnsavedQuit()
+    return
+  end
+  if self.pressEscAgainExitModal then
+    self.pressEscAgainExitModal:show()
+  else
+    love.event.quit()
+  end
 end
 
 function AppCoreController:_getSettingsShortcutContext()

@@ -107,6 +107,7 @@ local function refreshModalMetrics(app)
   if not app then return end
   local modals = {
     app.quitConfirmModal,
+    app.pressEscAgainExitModal,
     app.saveOptionsModal,
     app.genericActionsModal,
     app.settingsModal,

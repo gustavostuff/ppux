@@ -1946,6 +1946,9 @@ function AppCoreController:draw()
     if self.tooltipController and self.canvas then
       self.tooltipController:draw(self.canvas:getWidth(), self.canvas:getHeight())
     end
+    if self.pressEscAgainExitModal then
+      self.pressEscAgainExitModal:draw(self.canvas)
+    end
     self.quitConfirmModal:draw(self.canvas)
     drawToasts(self)
     CursorsController.draw(self)
@@ -1984,6 +1987,9 @@ function AppCoreController:draw()
   end
   if self.splash and self.splash:isVisible() then
     self.splash:draw(self.canvas)
+  end
+  if self.pressEscAgainExitModal then
+    self.pressEscAgainExitModal:draw(self.canvas)
   end
   self.quitConfirmModal:draw(self.canvas)
   CursorsController.draw(self)

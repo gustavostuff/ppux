@@ -55,6 +55,24 @@ do
         getHeight = function() return 15 end,
       }
     end
+    -- Empty-space context menu (and similar): CWD may be `test/` so `img/` is empty; avoid nil icons.
+    local stubIcon = {
+      getWidth = function() return 16 end,
+      getHeight = function() return 16 end,
+    }
+    for _, name in ipairs({
+      "icon_new_window",
+      "icon_cascade_all",
+      "icon_collapse_all",
+      "sort_a_z",
+      "sort_kind_asc",
+      "min_all",
+      "max_all",
+    }) do
+      if not images.icons.chrome[name] then
+        images.icons.chrome[name] = stubIcon
+      end
+    end
   end
 end
 

@@ -131,6 +131,7 @@ function M.refreshModalChromeFromAppearanceChange(app)
   M.refreshMetrics()
   local modals = {
     app.quitConfirmModal,
+    app.pressEscAgainExitModal,
     app.saveOptionsModal,
     app.genericActionsModal,
     app.settingsModal,

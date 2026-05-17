@@ -231,6 +231,55 @@ describe("app_core_controller.lua - quit handling", function()
     expect(showCount).toBe(0)
   end)
 
+  it("Escape when dirty opens the same quit confirm flow as window close", function()
+    local shown = 0
+    local app = setmetatable({
+      _allowImmediateQuit = false,
+      quitConfirmModal = {
+        isVisible = function() return false end,
+        show = function()
+          shown = shown + 1
+        end,
+      },
+      hasUnsavedChanges = function()
+        return true
+      end,
+    }, AppCoreController)
+
+    app:onEscapeQuitIntent()
+    expect(shown).toBe(1)
+  end)
+
+  it("Escape when clean opens the double-Esc exit modal", function()
+    local shown = 0
+    local app = setmetatable({
+      hasUnsavedChanges = function()
+        return false
+      end,
+      pressEscAgainExitModal = {
+        show = function()
+          shown = shown + 1
+        end,
+      },
+    }, AppCoreController)
+
+    app:onEscapeQuitIntent()
+    expect(shown).toBe(1)
+  end)
+
+  it("second Escape on the double-Esc modal quits", function()
+    local quitCalls = 0
+    love.event.quit = function()
+      quitCalls = quitCalls + 1
+    end
+    local PressEscAgainExitModal = require("user_interface.modals.press_esc_again_exit_modal")
+    local modal = PressEscAgainExitModal.new()
+    modal:show()
+    modal:handleKey("escape")
+    expect(quitCalls).toBe(1)
+    expect(modal:isVisible()).toBe(false)
+  end)
+
   it("dismisses splash on escape without quitting app", function()
     local quitCalls = 0
     local inputCalls = 0

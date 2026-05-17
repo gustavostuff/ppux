@@ -315,6 +315,9 @@ local function resetStateForNewROM(app)
   if app.quitConfirmModal and app.quitConfirmModal.hide then
     app.quitConfirmModal:hide()
   end
+  if app.pressEscAgainExitModal and app.pressEscAgainExitModal.hide then
+    app.pressEscAgainExitModal:hide()
+  end
   if app.saveOptionsModal and app.saveOptionsModal.hide then
     app.saveOptionsModal:hide()
   end

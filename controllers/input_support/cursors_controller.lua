@@ -438,6 +438,7 @@ local function isHoveringHandTargetAt(app, mx, my)
 
   local modals = {
     app and app.quitConfirmModal,
+    app and app.pressEscAgainExitModal,
     app and app.saveOptionsModal,
     app and app.genericActionsModal,
     app and app.settingsModal,
@@ -520,6 +521,7 @@ local function isHoveringDisabledUiAt(app, mx, my)
 
   local modals = {
     app and app.quitConfirmModal,
+    app and app.pressEscAgainExitModal,
     app and app.saveOptionsModal,
     app and app.genericActionsModal,
     app and app.settingsModal,

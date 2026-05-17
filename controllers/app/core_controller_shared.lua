@@ -76,6 +76,7 @@ end
 --- Keys on app, top-first stack order for keyboard/mouse routing.
 M.APP_MODAL_KEYS_IN_ORDER = {
   "quitConfirmModal",
+  "pressEscAgainExitModal",
   "saveOptionsModal",
   "genericActionsModal",
   "settingsModal",
@@ -101,6 +102,7 @@ M.MODAL_KEY_REFRESH_CURSOR_KEYS = {
 --- After mousepressed/mousereleased on this modal, refresh the cursor.
 M.MODAL_MOUSE_REFRESH_CURSOR_KEYS = {
   quitConfirmModal = true,
+  pressEscAgainExitModal = true,
   saveOptionsModal = true,
   genericActionsModal = true,
 }

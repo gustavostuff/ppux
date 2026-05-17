@@ -10,6 +10,9 @@ describe("chr odd-even selection mode", function()
       selectedByLayer = {},
       cols = 16,
       rows = 32,
+      layers = {
+        { kind = "tile", items = {} },
+      },
     }, { __index = Window })
 
     win:setSelected(3, 5, 1)
@@ -28,6 +31,9 @@ describe("chr odd-even selection mode", function()
       selectedByLayer = {},
       cols = 16,
       rows = 32,
+      layers = {
+        { kind = "tile", items = {} },
+      },
     }, { __index = Window })
 
     win:setSelected(3, 5, 1, { exactChrTile = true })

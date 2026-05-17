@@ -297,6 +297,12 @@ function AppCoreController:keypressed(k, scancode, isrepeat)
     return
   end
 
+  if k == "escape" and not keyRepeat then
+    self:onEscapeQuitIntent()
+    refreshCursor(self)
+    return
+  end
+
   -- Check for Ctrl key combinations
   local ctrlDown = love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")
   

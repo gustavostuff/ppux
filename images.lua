@@ -93,6 +93,8 @@ local function loadDir(dir, node)
 end
 
 loadDir("img", images)
+-- When LOVE runs from `test/` (CWD is test), `img/` is empty; merge parent assets too.
+loadDir("../img", images)
 
 -- Ensure `icons` and standard subfolders always exist so UI code can use
 -- `images.icons.chrome.*` / `images.icons.actions.*` even when the game is

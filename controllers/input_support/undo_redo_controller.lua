@@ -507,8 +507,19 @@ local function applyPatternTableLinkEvent(event, direction, app)
     local li = act.layerIndex
     local layer = win and win.layers and li and win.layers[li] or nil
     if layer then
-      local linkedId = (direction == "undo") and act.beforeLinkedId or act.afterLinkedId
-      local ptSnapshot = (direction == "undo") and act.beforePatternTable or act.afterPatternTable
+      -- Do not use `cond and a or b` here: when undoing, `before*` may be nil/false and must win.
+      local linkedId
+      if direction == "undo" then
+        linkedId = act.beforeLinkedId
+      else
+        linkedId = act.afterLinkedId
+      end
+      local ptSnapshot
+      if direction == "undo" then
+        ptSnapshot = act.beforePatternTable
+      else
+        ptSnapshot = act.afterPatternTable
+      end
 
       linkedId = (type(linkedId) == "string" and linkedId ~= "") and linkedId or nil
 
