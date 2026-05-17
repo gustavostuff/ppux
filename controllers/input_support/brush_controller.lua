@@ -457,6 +457,16 @@ end
 -- Single pixel brush - sprite layers
 ----------------------------------------------------------------
 
+--- Pattern-table ROM OAM sprites clear `sprite.bank`; use resolved tile refs for CHR coords.
+local function chrBankIdxAndTileIdxForSpriteTileRef(s, tileRef)
+  if not tileRef then
+    return nil, nil
+  end
+  local bankIdx = tonumber(s.bank) or tonumber(tileRef._bankIndex)
+  local chrTileIdx = tonumber(tileRef.index)
+  return bankIdx, chrTileIdx
+end
+
 local function paintSpriteLayerPixel(app, win, layer, px, py, pickOnly)
   px = math.floor(px or 0)
   py = math.floor(py or 0)
@@ -538,10 +548,9 @@ local function paintSpriteLayerPixel(app, win, layer, px, py, pickOnly)
         end
       end
 
-      if not (tileIndex and tileRef) then return false end
-
-      local bankIdx = s.bank
-      if not bankIdx then return false end
+      if not tileRef then
+        return false
+      end
 
       local tx = math.floor(localX)
       local ty = math.floor(tyOnTile)
@@ -555,6 +564,9 @@ local function paintSpriteLayerPixel(app, win, layer, px, py, pickOnly)
         return true
       end
 
+      local bankIdx, chrTileIdx = chrBankIdxAndTileIdxForSpriteTileRef(s, tileRef)
+      if not bankIdx or chrTileIdx == nil then return false end
+
       -- Validate bank exists before trying to set pixel
       if not app.appEditState or not app.appEditState.chrBanksBytes or not app.appEditState.chrBanksBytes[bankIdx] then
         app:setStatus("Cannot paint: CHR bank not loaded")
@@ -562,7 +574,7 @@ local function paintSpriteLayerPixel(app, win, layer, px, py, pickOnly)
       end
       
       local color = app.currentColor
-      local targets = getSyncTargets(app, bankIdx, tileIndex, win)
+      local targets = getSyncTargets(app, bankIdx, chrTileIdx, win)
       local applied = applyPixelToTargets(app, targets, tx, ty, color, tileRef:getPixel(tx, ty) or 0)
       return applied
     end
@@ -1178,10 +1190,6 @@ function M.floodFillTile(app, win, col, row, lx, ly, targetColor, fillColor)
           localX = wTile - 1 - localX  -- Mirror horizontally
         end
         
-        local bankIdx = s.bank
-        if not bankIdx then return false end
-        
-        local tileIndex
         local tileRef
         local tyOnTile
         
@@ -1190,31 +1198,24 @@ function M.floodFillTile(app, win, col, row, lx, ly, targetColor, fillColor)
           if mirrorY then
             -- Vertical mirroring: swap top and bottom
             if localY >= 8 then
-              -- Was bottom, now top
-              tileIndex = s.tileBelow or s.tile + 1
               tileRef   = s.botRef
               tyOnTile  = 15 - localY  -- Mirror Y within bottom tile
             else
-              -- Was top, now bottom
-              tileIndex = s.tile
               tileRef   = s.topRef
               tyOnTile  = 7 - localY  -- Mirror Y within top tile
             end
           else
             -- Normal 8x16
             if localY >= 8 then
-              tileIndex = s.tileBelow or s.tile + 1
               tileRef   = s.botRef
               tyOnTile  = localY - 8
             else
-              tileIndex = s.tile
               tileRef   = s.topRef
               tyOnTile  = localY
             end
           end
         else
           -- 8x8 sprite
-          tileIndex = s.tile
           tileRef   = s.topRef
           if mirrorY then
             tyOnTile = 7 - localY  -- Mirror Y
@@ -1223,8 +1224,11 @@ function M.floodFillTile(app, win, col, row, lx, ly, targetColor, fillColor)
           end
         end
         
-        if not (tileIndex and tileRef) then return false end
-        
+        if not tileRef then return false end
+
+        local bankIdx, chrTileIdx = chrBankIdxAndTileIdxForSpriteTileRef(s, tileRef)
+        if not bankIdx or chrTileIdx == nil then return false end
+
         local tx = math.floor(localX)
         local ty = math.floor(tyOnTile)
         if tx < 0 or ty < 0 or tx >= 8 or ty >= 8 then goto continue end
@@ -1236,8 +1240,7 @@ function M.floodFillTile(app, win, col, row, lx, ly, targetColor, fillColor)
         end
 
         -- Perform flood fill on this sprite tile
-        -- For sprites, we need to pass bankIdx and tileIndex since tileRef doesn't have _bankIndex
-        return finalize(floodFillTileItemForSprite(app, tileRef, bankIdx, tileIndex, tx, ty, targetColor, fillColor, win))
+        return finalize(floodFillTileItemForSprite(app, tileRef, bankIdx, chrTileIdx, tx, ty, targetColor, fillColor, win))
       end
       ::continue::
     end
