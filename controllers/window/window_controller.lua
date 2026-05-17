@@ -1210,7 +1210,8 @@ function WM:sortWindowsByKind(descending)
   end)
 end
 
---- Rebuild stack order from persisted `windowOrderIds` (project load). Honors `_alwaysOnTop` buckets like other WM reorder paths.
+--- Rebuild compositing stack from an explicit id sequence (project load uses `layout.windows` order). Honors
+--- `_alwaysOnTop` buckets like other WM reorder paths.
 function WM:reorderWindowsByStableIds(ids)
   if type(ids) ~= "table" or #ids == 0 then
     return false
@@ -1314,6 +1315,11 @@ local function ensureWindowId(self, win)
 
   win._id = candidate
   return candidate
+end
+
+--- Ensure `win._id` is non-empty before persisting/registering (`finalizeNewWindow`, layout load).
+function WM:ensureStableWindowId(win)
+  return ensureWindowId(self, win)
 end
 
 -- Add window, set focus, and create toolbars

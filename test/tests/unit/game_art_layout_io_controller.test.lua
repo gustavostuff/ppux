@@ -474,7 +474,7 @@ describe("game_art_layout_io_controller.lua", function()
     expect(snap.windowOrderIds[2]).toBe("win_order_a")
   end)
 
-  it("buildWindowsFromLayout restores wm order and taskbar strip from windowOrderIds", function()
+  it("buildWindowsFromLayout restores wm stack from layout.windows and taskbar strip from windowOrderIds", function()
     local WM = require("controllers.window.window_controller")
     local Taskbar = require("user_interface.taskbar")
     local GameArtWindowBuilderController = require("controllers.game_art.window_builder_controller")
@@ -491,6 +491,9 @@ describe("game_art_layout_io_controller.lua", function()
 
     local snap = GameArtLayoutIOController.snapshotLayout(wm1, nil, 1, app1)
     expect(snap.windowOrderIds[1]).toBe("persist_b")
+
+    expect(snap.windows[1].id).toBe("persist_a")
+    expect(snap.windows[2].id).toBe("persist_b")
 
     local wm2 = WM.new()
     local app2 = { wm = wm2 }
@@ -511,10 +514,120 @@ describe("game_art_layout_io_controller.lua", function()
       end
     end
     expect(#orderIds).toBe(2)
-    expect(orderIds[1]).toBe("persist_b")
-    expect(orderIds[2]).toBe("persist_a")
+    expect(orderIds[1]).toBe("persist_a")
+    expect(orderIds[2]).toBe("persist_b")
 
     expect(wm2.taskbar.minimizedWindows[1]._id).toBe("persist_b")
     expect(wm2.taskbar.minimizedWindows[2]._id).toBe("persist_a")
+  end)
+
+  it("buildWindowsFromLayout uses layout.windows z-order when windowOrderIds misses a window id", function()
+    local WM = require("controllers.window.window_controller")
+    local Taskbar = require("user_interface.taskbar")
+    local GameArtWindowBuilderController = require("controllers.game_art.window_builder_controller")
+
+    local snap = {
+      windows = {
+        {
+          kind = "palette",
+          id = "pal_back",
+          title = "Back",
+          x = 10,
+          y = 10,
+          rows = 4,
+          cols = 4,
+          items = {},
+        },
+        {
+          kind = "palette",
+          id = "pal_was_omitted",
+          title = "OmittedOrder",
+          x = 20,
+          y = 10,
+          rows = 4,
+          cols = 4,
+          items = {},
+        },
+      },
+      windowOrderIds = { "pal_back" },
+      currentBank = 1,
+    }
+
+    local wm = WM.new()
+    local app = { wm = wm }
+    wm.taskbar = Taskbar.new(app, { h = 15 })
+
+    GameArtWindowBuilderController.buildWindowsFromLayout(snap, {
+      wm = wm,
+      tilesPool = {},
+      ensureTiles = function() end,
+      romRaw = "",
+      decodeUserDefinedCodes = GameArtLayoutIOController.decodeUserDefinedCodes,
+    })
+
+    local orderIds = {}
+    for _, w in ipairs(wm.windows) do
+      if not w._closed and not w._alwaysOnTop then
+        orderIds[#orderIds + 1] = w._id
+      end
+    end
+    expect(#orderIds).toBe(2)
+    expect(orderIds[1]).toBe("pal_back")
+    expect(orderIds[2]).toBe("pal_was_omitted")
+  end)
+
+  it("buildWindowsFromLayout uses construction order when layout entries have blank ids", function()
+    local WM = require("controllers.window.window_controller")
+    local Taskbar = require("user_interface.taskbar")
+    local GameArtWindowBuilderController = require("controllers.game_art.window_builder_controller")
+
+    local snap = {
+      windows = {
+        {
+          kind = "palette",
+          id = "",
+          title = "First",
+          x = 0,
+          y = 0,
+          rows = 4,
+          cols = 4,
+          items = {},
+        },
+        {
+          kind = "palette",
+          id = "",
+          title = "Second",
+          x = 10,
+          y = 0,
+          rows = 4,
+          cols = 4,
+          items = {},
+        },
+      },
+      windowOrderIds = {},
+      currentBank = 1,
+    }
+
+    local wm = WM.new()
+    local app = { wm = wm }
+    wm.taskbar = Taskbar.new(app, { h = 15 })
+
+    GameArtWindowBuilderController.buildWindowsFromLayout(snap, {
+      wm = wm,
+      tilesPool = {},
+      ensureTiles = function() end,
+      romRaw = "",
+      decodeUserDefinedCodes = GameArtLayoutIOController.decodeUserDefinedCodes,
+    })
+
+    local orderIds = {}
+    for _, w in ipairs(wm.windows) do
+      if not w._closed and not w._alwaysOnTop then
+        orderIds[#orderIds + 1] = w._id
+      end
+    end
+    expect(#orderIds).toBe(2)
+    expect(orderIds[1]).toBe("palette_1")
+    expect(orderIds[2]).toBe("palette_2")
   end)
 end)

@@ -776,6 +776,11 @@ function M.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool)
   logPerf("window_finalize.apply_layout_state", layoutStartedAt, string.format("title=%s", tostring(w.title or "")))
 
   local registerStartedAt = nowSeconds()
+  if wm then
+    if wm.ensureStableWindowId then
+      wm:ensureStableWindowId(win)
+    end
+  end
   windowsById[win._id or ("win" .. tostring((w.z or 0)))] = win
   if wm then
     wm:add(win)
@@ -864,29 +869,6 @@ function M.afterLayoutPatternTablesHydrate(wm, tilesPool, ensureTiles, opts)
   opts = type(opts) == "table" and opts or {}
   PatternTableDisplayController.resolveLinkedPatternTableLayers(wm)
 
-  -- PPU nametables that hydrated before linkage was finalized may still hold tile refs resolved
-  -- against an inlined snapshot. After shared refs are wired, remap every cell from nametableBytes.
-  if wm and wm.getWindows and type(tilesPool) == "table" then
-    for _, win in ipairs(wm:getWindows()) do
-      if WindowCaps.isPpuFrame(win)
-        and type(win.refreshNametableVisuals) == "function"
-        and #(win.nametableBytes or {}) > 0
-      then
-        for li, L in ipairs(win.layers or {}) do
-          if L
-            and L.kind == "tile"
-            and L._runtimePatternTableRefLayer ~= true
-            and type(L.linkedPatternTableWindowId) == "string"
-            and L.linkedPatternTableWindowId ~= ""
-            and PatternTableMapping.validate(L.patternTable)
-          then
-            win:refreshNametableVisuals(tilesPool, li)
-          end
-        end
-      end
-    end
-  end
-
   -- Copy linked pattern tables onto consuming layers (`patternTable`), then rebuild sprite CHR refs.
   -- OAM tile bytes are logical indices into the linked pattern-table window ordering (same 0–255 path
   -- as populateTileLayerItemsFromPatternTable: row-major 16-wide grid).
@@ -907,6 +889,36 @@ function M.afterLayoutPatternTablesHydrate(wm, tilesPool, ensureTiles, opts)
     appEditState = opts.appEditState,
   })
   M.finalizeDeferredPpuNametableHydrates(wm, opts.romRaw, tilesPool, ensureTiles)
+
+  -- hydrateWindowNametable / early layout can populate nametable visuals before tilesPool CHR keys
+  -- exist or before pattern linkage is finalized, leaving sparse layer.items until something
+  -- (e.g. switching tabs) retriggers rebuild. Refresh every real nametable tile layer once CHR is ready.
+  if wm and wm.getWindows and type(tilesPool) == "table" then
+    for _, win in ipairs(wm:getWindows()) do
+      if WindowCaps.isPpuFrame(win)
+        and type(win.refreshNametableVisuals) == "function"
+        and #(win.nametableBytes or {}) > 0
+      then
+        for li, L in ipairs(win.layers or {}) do
+          if L
+            and L.kind == "tile"
+            and L._runtimePatternTableRefLayer ~= true
+            and PatternTableMapping.validate(L.patternTable)
+          then
+            win:refreshNametableVisuals(tilesPool, li)
+          end
+        end
+      end
+    end
+  end
+
+  if wm and wm.getWindows then
+    for _, win in ipairs(wm:getWindows()) do
+      if WindowCaps.isPpuFrame(win) and win.setActiveLayerIndex and win.getActiveLayerIndex then
+        win:setActiveLayerIndex(win:getActiveLayerIndex())
+      end
+    end
+  end
 
   if wm and wm.getWindows then
     local n = 0

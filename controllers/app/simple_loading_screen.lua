@@ -1,5 +1,4 @@
 local colors = require("app_colors")
-local Palettes = require("palettes")
 local Text = require("utils.text_utils")
 
 local M = {}
@@ -8,8 +7,13 @@ local LOADING_PRESENT_DELAY_SECONDS = 0.1
 local LOADING_LABEL_FONT_SIZE = 32
 local fallbackCanvas = nil
 local loadingFont = nil
-local cachedPaletteColors = nil
 local DISABLE_LOADING_SCREEN_FLAG = "__PPUX_DISABLE_LOADING_SCREEN__"
+
+local BAR_TRACK_W = 160
+local BAR_SEGMENT_W = 52
+local BAR_H = 4
+local BAR_GAP_BELOW_TEXT = 14
+local BAR_SLIDE_SPEED = 2.0
 
 local function loadingScreenDisabled()
   return rawget(_G, DISABLE_LOADING_SCREEN_FLAG) == true
@@ -60,60 +64,21 @@ local function ensureFallbackCanvas(w, h)
   return fallbackCanvas
 end
 
-local function getLoadingPaletteColors()
-  if cachedPaletteColors then
-    return cachedPaletteColors
+local function drawIndeterminateBar(cx, trackY, bg)
+  local trackX = math.floor(cx - BAR_TRACK_W * 0.5)
+  trackY = math.floor(trackY)
+  local t = 0
+  if love and love.timer and love.timer.getTime then
+    t = love.timer.getTime()
   end
+  local phase = (math.sin(t * BAR_SLIDE_SPEED) + 1) * 0.5
+  local maxSlide = BAR_TRACK_W - BAR_SEGMENT_W
+  local barX = trackX + phase * maxSlide
 
-  cachedPaletteColors = {}
-  local palette = Palettes and Palettes.smooth_fbx or nil
-  if type(palette) == "table" then
-    for _, color in pairs(palette) do
-      if type(color) == "table" and color[1] and color[2] and color[3] then
-        cachedPaletteColors[#cachedPaletteColors + 1] = color
-      end
-    end
-  end
-
-  if #cachedPaletteColors == 0 then
-    cachedPaletteColors = { colors.white }
-  end
-
-  return cachedPaletteColors
-end
-
-local function randomPaletteColor()
-  local paletteColors = getLoadingPaletteColors()
-  local index = love.math and love.math.random and love.math.random(#paletteColors) or math.random(#paletteColors)
-  return paletteColors[index] or colors.white
-end
-
-local function drawRandomSquares(cw, ch)
-  local boxSize = 128
-  local squareSize = 16
-  local squareCount = 8
-  local cx = math.floor(cw * 0.5)
-  local cy = math.floor(ch * 0.5) - 8
-  local boxX = math.floor(cx - (boxSize * 0.5))
-  local boxY = math.floor(cy - (boxSize * 0.5))
-  local cellsPerAxis = math.max(1, math.floor(boxSize / squareSize))
-  local used = {}
-
-  for _ = 1, squareCount do
-    local cellIndex
-    repeat
-      cellIndex = (love.math and love.math.random and love.math.random(cellsPerAxis * cellsPerAxis))
-        or math.random(cellsPerAxis * cellsPerAxis)
-    until not used[cellIndex]
-    used[cellIndex] = true
-
-    local zeroIndex = cellIndex - 1
-    local gridX = zeroIndex % cellsPerAxis
-    local gridY = math.floor(zeroIndex / cellsPerAxis)
-    local color = randomPaletteColor()
-    love.graphics.setColor(color[1], color[2], color[3], 1)
-    love.graphics.rectangle("fill", boxX + gridX * squareSize, boxY + gridY * squareSize, squareSize, squareSize)
-  end
+  love.graphics.setColor(bg[1] * 0.45 + 0.12, bg[2] * 0.45 + 0.12, bg[3] * 0.45 + 0.12, 1)
+  love.graphics.rectangle("fill", trackX, trackY, BAR_TRACK_W, BAR_H)
+  love.graphics.setColor(colors.white)
+  love.graphics.rectangle("fill", barX, trackY, BAR_SEGMENT_W, BAR_H)
 end
 
 local function drawLoadingPattern(cw, ch, message, font)
@@ -122,7 +87,6 @@ local function drawLoadingPattern(cw, ch, message, font)
 
   local bg = colors:appWorkspaceFill()
   love.graphics.clear(bg[1], bg[2], bg[3], 1)
-  drawRandomSquares(cw, ch)
 
   if font then
     love.graphics.setFont(font)
@@ -130,7 +94,16 @@ local function drawLoadingPattern(cw, ch, message, font)
   local label = message or "Loading..."
   local textW = select(1, Text.measure(label, { font = font }))
   local textX = math.floor((cw - textW) * 0.5)
-  Text.print(label, textX, cy + 90, { font = font, color = colors.white })
+  local textY = cy + 90
+  Text.print(label, textX, textY, { font = font, color = colors.white })
+
+  local textBottom = textY
+  if font and font.getHeight then
+    textBottom = textY + font:getHeight()
+  else
+    textBottom = textY + LOADING_LABEL_FONT_SIZE
+  end
+  drawIndeterminateBar(cx, textBottom + BAR_GAP_BELOW_TEXT, bg)
 end
 
 local function renderLoadingPatternToCanvas(canvas, message, font)

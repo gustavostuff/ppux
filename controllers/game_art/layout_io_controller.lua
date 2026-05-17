@@ -434,8 +434,9 @@ function M.getCompressedDataFrom(win)
   return nil
 end
 
---- Persisted global ordering: taskbar minimized-strip order first (drag/sort targets), then remaining `wm`
---- windows (e.g. CRT lens) in controller order. String ids match `window._id`.
+--- Taskbar / minimized-strip ordering only: minimized entries first (drag order), then remaining `wm`
+--- windows in controller order. Not the same as compositing z-order — that matches `layout.windows` /
+--- `wm:getWindows()` at snapshot time. Loaded via `Taskbar:restorePersistedWindowOrder` only.
 local function collectWindowOrderIdsForSave(wm, taskbar)
   local ids = {}
   local seen = {}
@@ -504,6 +505,9 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
       goto continue
     end
     purgeRemovedTiles(w)
+    if wm and wm.ensureStableWindowId then
+      wm:ensureStableWindowId(w)
+    end
     placedZ = placedZ + 1
     local isPalette = WindowCaps.isAnyPaletteWindow(w)
     local entryKind = WindowCaps.isRomPaletteWindow(w) and "rom_palette"

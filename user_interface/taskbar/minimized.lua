@@ -442,7 +442,7 @@ function M.install(Taskbar, Helpers)
     return self:addMinimizedWindow(win)
   end
 
-  --- Align minimized-strip order with saved project `windowOrderIds` after `wm:reorderWindowsByStableIds`.
+  --- Align minimized-strip order with saved project `windowOrderIds` (visual stack is rebuilt separately).
   function Taskbar:restorePersistedWindowOrder(ids, wm)
     if type(ids) ~= "table" or #ids == 0 or not (wm and wm.getWindows) then
       return false

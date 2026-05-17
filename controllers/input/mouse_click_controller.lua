@@ -225,6 +225,30 @@ local function isPatternLayerGatedLocked(win, layerIdx)
   return locked == true, reason
 end
 
+--- PPU frames draw nametable tiles underneath (or beside) sprites; sprite layer being active must not
+--- block ROM nametable picks. Mirrors `findPpuNametableTileLayerIndexForToolbar`.
+local function ppuNametableTileLayerIndexForInteraction(win)
+  if not WindowCaps.isPpuFrame(win) then
+    return nil
+  end
+  if not (win.layers and #win.layers > 0) then
+    return nil
+  end
+  for i, layer in ipairs(win.layers) do
+    if layer and layer.kind == "tile" and layer._runtimePatternTableRefLayer ~= true then
+      if type(layer.nametableStartAddr) == "number" and type(layer.nametableEndAddr) == "number" then
+        return i
+      end
+    end
+  end
+  for i, layer in ipairs(win.layers) do
+    if layer and layer.kind == "tile" and layer._runtimePatternTableRefLayer ~= true then
+      return i
+    end
+  end
+  return nil
+end
+
 local function handleSpriteClick(env, button, x, y, win, wm)
   local ctx = env.ctx
   local utils = env.utils or {}
@@ -240,6 +264,10 @@ local function handleSpriteClick(env, button, x, y, win, wm)
 
   local sprLocked, sprLockReason = isPatternLayerGatedLocked(win, li)
   if sprLocked then
+    local ntFallback = WindowCaps.isPpuFrame(win) and ppuNametableTileLayerIndexForInteraction(win)
+    if ntFallback and not select(1, isPatternLayerGatedLocked(win, ntFallback)) then
+      return false
+    end
     setStatus(ctx, sprLockReason or "Sprite layer is not ready (pattern table)")
     return true
   end
@@ -359,6 +387,10 @@ local function handleSpriteClick(env, button, x, y, win, wm)
 
     SpriteController.beginDrag(win, layerIndex, targetIndex, offsetX, offsetY, ctrlDown)
     return true
+  end
+
+  if WindowCaps.isPpuFrame(win) then
+    return false
   end
 
   clearOamSpriteEditClick()
@@ -904,45 +936,58 @@ local function handleTileSelection(env, button, x, y, win, wm)
   end
 
   wm:setFocus(win)
-  local layerIdx = win:getActiveLayerIndex()
-  if win.layers and win.layers[layerIdx] and win.layers[layerIdx].kind == "sprite" then
-    return false
+
+  local activeIdx = win:getActiveLayerIndex()
+  local tileLayerIdx = activeIdx
+  local layerAtActive = win.layers and win.layers[activeIdx]
+
+  if layerAtActive and layerAtActive.kind == "sprite" then
+    if WindowCaps.isPpuFrame(win) then
+      local ntIdx = ppuNametableTileLayerIndexForInteraction(win)
+      if not ntIdx then
+        return false
+      end
+      tileLayerIdx = ntIdx
+    else
+      return false
+    end
   end
-  local locked, reason = isPatternLayerGatedLocked(win, layerIdx)
+
+  local locked, reason = isPatternLayerGatedLocked(win, tileLayerIdx)
   if locked then
     setStatus(ctx, reason or "patternTable ranges must add up to 256 before tile edits")
     return true
   end
 
-  if (utils.shiftDown and utils.shiftDown()) and isTileMultiSelectWindow(env, win, layerIdx) then
+  if (utils.shiftDown and utils.shiftDown()) and isTileMultiSelectWindow(env, win, tileLayerIdx) then
     setTileClick({ active = false })
     local ok, col, row = win:toGridCoords(x, y)
     if ok then
-      MultiSelectController.startTileMarquee(win, layerIdx, col, row, x, y)
+      MultiSelectController.startTileMarquee(win, tileLayerIdx, col, row, x, y)
     else
-      MultiSelectController.clearTileMultiSelection(win, layerIdx)
-      win:clearSelected(layerIdx)
+      MultiSelectController.clearTileMultiSelection(win, tileLayerIdx)
+      win:clearSelected(tileLayerIdx)
       clearSpriteSelection(env, win)
     end
     return true
   end
 
-  local hit, vcol, vrow, vitem = utils.pickByVisual(win, x, y, layerIdx)
+  local hit, vcol, vrow, vitem = utils.pickByVisual(win, x, y, tileLayerIdx)
   local ctrlDown = utils.ctrlDown and utils.ctrlDown()
 
   if hit and vitem then
-    vcol, vrow, vitem = canonicalizeChr8x16Target(win, layerIdx, vcol, vrow, vitem)
+    vcol, vrow, vitem = canonicalizeChr8x16Target(win, tileLayerIdx, vcol, vrow, vitem)
     local tileGroup = nil
     if isChr8x16SelectionMode(win) then
       if ctrlDown then
-        MultiSelectController.addTileCellToSelection(win, layerIdx, vcol, vrow, true)
+        MultiSelectController.addTileCellToSelection(win, tileLayerIdx, vcol, vrow, true)
       end
-      tileGroup = MultiSelectController.buildTileDragGroup(win, layerIdx, vcol, vrow)
+      tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, vcol, vrow)
     elseif ctrlDown then
-      MultiSelectController.addTileCellToSelection(win, layerIdx, vcol, vrow, true)
-      tileGroup = MultiSelectController.buildTileDragGroup(win, layerIdx, vcol, vrow)
-    elseif MultiSelectController.isTileCellSelected(win, layerIdx, vcol, vrow) then
-      tileGroup = MultiSelectController.buildTileDragGroup(win, layerIdx, vcol, vrow)
+      MultiSelectController.addTileCellToSelection(win, tileLayerIdx, vcol, vrow, true)
+      tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, vcol, vrow)
+    elseif MultiSelectController.isTileCellSelected(win, tileLayerIdx, vcol, vrow) then
+      tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, vcol, vrow)
     end
 
     if not ctrlDown then
@@ -950,7 +995,7 @@ local function handleTileSelection(env, button, x, y, win, wm)
         active = true,
         moved = false,
         win = win,
-        layerIdx = layerIdx,
+        layerIdx = tileLayerIdx,
         col = vcol,
         row = vrow,
       })
@@ -958,31 +1003,31 @@ local function handleTileSelection(env, button, x, y, win, wm)
       setTileClick({ active = false })
     end
     if not ctrlDown then
-      win:setSelected(vcol, vrow, layerIdx)
+      win:setSelected(vcol, vrow, tileLayerIdx)
     end
     showSelectedTileLabel(ctx, win, vcol, vrow, vitem)
     setTilePickStatus(ctx, win, vcol, vrow, vitem)
-    startTileDrag(env, win, vcol, vrow, layerIdx, vitem, wm, x, y, ctrlDown, tileGroup)
+    startTileDrag(env, win, vcol, vrow, tileLayerIdx, vitem, wm, x, y, ctrlDown, tileGroup)
     return true
   end
 
   local ok, col, row = win:toGridCoords(x, y)
   if ok then
-    local item = (win.getVirtualTileHandle and win:getVirtualTileHandle(col, row, layerIdx))
-      or win:get(col, row, layerIdx)
+    local item = (win.getVirtualTileHandle and win:getVirtualTileHandle(col, row, tileLayerIdx))
+      or win:get(col, row, tileLayerIdx)
     if item then
-      col, row, item = canonicalizeChr8x16Target(win, layerIdx, col, row, item)
+      col, row, item = canonicalizeChr8x16Target(win, tileLayerIdx, col, row, item)
       local tileGroup = nil
       if isChr8x16SelectionMode(win) then
         if ctrlDown then
-          MultiSelectController.addTileCellToSelection(win, layerIdx, col, row, true)
+          MultiSelectController.addTileCellToSelection(win, tileLayerIdx, col, row, true)
         end
-        tileGroup = MultiSelectController.buildTileDragGroup(win, layerIdx, col, row)
+        tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, col, row)
       elseif ctrlDown then
-        MultiSelectController.addTileCellToSelection(win, layerIdx, col, row, true)
-        tileGroup = MultiSelectController.buildTileDragGroup(win, layerIdx, col, row)
-      elseif MultiSelectController.isTileCellSelected(win, layerIdx, col, row) then
-        tileGroup = MultiSelectController.buildTileDragGroup(win, layerIdx, col, row)
+        MultiSelectController.addTileCellToSelection(win, tileLayerIdx, col, row, true)
+        tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, col, row)
+      elseif MultiSelectController.isTileCellSelected(win, tileLayerIdx, col, row) then
+        tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, col, row)
       end
 
       if not ctrlDown then
@@ -990,7 +1035,7 @@ local function handleTileSelection(env, button, x, y, win, wm)
           active = true,
           moved = false,
           win = win,
-          layerIdx = layerIdx,
+          layerIdx = tileLayerIdx,
           col = col,
           row = row,
         })
@@ -998,20 +1043,20 @@ local function handleTileSelection(env, button, x, y, win, wm)
         setTileClick({ active = false })
       end
       if not ctrlDown then
-        win:setSelected(col, row, layerIdx)
+        win:setSelected(col, row, tileLayerIdx)
       end
       showSelectedTileLabel(ctx, win, col, row, item)
       setTilePickStatus(ctx, win, col, row, item)
-      startTileDrag(env, win, col, row, layerIdx, item, wm, x, y, ctrlDown, tileGroup)
+      startTileDrag(env, win, col, row, tileLayerIdx, item, wm, x, y, ctrlDown, tileGroup)
     else
       setTileClick({ active = false })
-      MultiSelectController.clearTileMultiSelection(win, layerIdx)
+      MultiSelectController.clearTileMultiSelection(win, tileLayerIdx)
       win:clearSelected()
       clearSpriteSelection(env, win)
     end
   else
     setTileClick({ active = false })
-    MultiSelectController.clearTileMultiSelection(win, layerIdx)
+    MultiSelectController.clearTileMultiSelection(win, tileLayerIdx)
     win:clearSelected()
     clearSpriteSelection(env, win)
   end

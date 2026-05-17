@@ -23,6 +23,48 @@ local function describeWindowSpec(w)
   )
 end
 
+--- Bottom-to-front IDs persisted on layout entries (omit windows whose snapshot had blank `id`).
+local function flattenedLayoutWindowIds(specs)
+  local out = {}
+  local seen = {}
+  for _, ws in ipairs(specs or {}) do
+    local id = type(ws.id) == "string" and ws.id ~= "" and ws.id
+    if id and not seen[id] then
+      seen[id] = true
+      out[#out + 1] = id
+    end
+  end
+  return out
+end
+
+--- Deduped wm stack IDs in strict layout-build order — matches `snapshotLayout` iteration over `wm:getWindows()`.
+local function constructionStackIdsDedupedInOrder(builtOrderedWins)
+  local out = {}
+  local seen = {}
+  for _, win in ipairs(builtOrderedWins or {}) do
+    local id = win and type(win._id) == "string" and win._id ~= "" and win._id
+    if id and not seen[id] then
+      seen[id] = true
+      out[#out + 1] = id
+    end
+  end
+  return out
+end
+
+--- Visual z-order for `WM:reorderWindowsByStableIds`. Must match saved render stack (`layout.windows` order),
+--- not `windowOrderIds` (which lists taskbar minimized-strip first, then wm ids — wrong for compositing).
+local function wmRenderStackIdsForRestore(layout, builtOrderedWins)
+  local constructionIds = constructionStackIdsDedupedInOrder(builtOrderedWins)
+  if #constructionIds > 0 then
+    return constructionIds
+  end
+  local flat = flattenedLayoutWindowIds(layout and layout.windows)
+  if #flat > 0 then
+    return flat
+  end
+  return nil
+end
+
 function M.buildWindowsFromLayout(layout, opts)
   if not layout or type(layout) ~= "table" then return nil, "invalid-layout" end
 
@@ -80,6 +122,9 @@ function M.buildWindowsFromLayout(layout, opts)
 
   local windowsById = {}
 
+  --- Same order as `wm:add` during this load; used to rebuild z-order when persisted ids omit entries (often pattern_table).
+  local builtOrderedWins = {}
+
   for _, w in ipairs(layout.windows or {}) do
     local kind = w.kind or "normal"
     local builder = builders[kind]
@@ -89,6 +134,9 @@ function M.buildWindowsFromLayout(layout, opts)
 
     local finalizeStartedAt = nowSeconds()
     GameArtWindowFactoryController.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool)
+    if win then
+      builtOrderedWins[#builtOrderedWins + 1] = win
+    end
     local finalizeElapsed = nowSeconds() - finalizeStartedAt
 
     DebugController.log(
@@ -147,13 +195,14 @@ function M.buildWindowsFromLayout(layout, opts)
   end
   DebugController.log("info", "LOAD_PERF", "window_builder restore_focus duration=%.3fs focused=%s", nowSeconds() - focusRestoreStartedAt, tostring(layout.focusedWindowId))
 
-  if wm and type(layout.windowOrderIds) == "table" and #layout.windowOrderIds > 0 then
-    if wm.reorderWindowsByStableIds then
-      wm:reorderWindowsByStableIds(layout.windowOrderIds)
-    end
-    if wm.taskbar and wm.taskbar.restorePersistedWindowOrder then
-      wm.taskbar:restorePersistedWindowOrder(layout.windowOrderIds, wm)
-    end
+  local wmStackIds = wmRenderStackIdsForRestore(layout, builtOrderedWins)
+  if wm and type(wmStackIds) == "table" and #wmStackIds > 0 and wm.reorderWindowsByStableIds then
+    wm:reorderWindowsByStableIds(wmStackIds)
+  end
+
+  local taskbarOrderIds = type(layout.windowOrderIds) == "table" and layout.windowOrderIds or {}
+  if wm and wm.taskbar and wm.taskbar.restorePersistedWindowOrder and #taskbarOrderIds > 0 then
+    wm.taskbar:restorePersistedWindowOrder(taskbarOrderIds, wm)
   end
 
   return {
