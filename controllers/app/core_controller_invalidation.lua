@@ -20,8 +20,6 @@ local function layerMayReferenceBankTile(layer, targetBank, targetTileIndex)
     return false
   end
 
-  local targetPage = (targetTileIndex >= 256) and 2 or 1
-  local targetByte = targetTileIndex % 256
   for _, r in ipairs(pt.ranges) do
     if type(r) ~= "table" then
     elseif type(r.tiles) == "table" and #r.tiles > 0 then
@@ -51,24 +49,6 @@ local function layerMayReferenceBankTile(layer, targetBank, targetTileIndex)
         if targetTileIndex >= a and targetTileIndex <= b then
           return true
         end
-      end
-    else
-      local from = r.from
-      local to = r.to
-      local tr = r.tileRange
-      if type(tr) == "table" then
-        if from == nil then from = tr.from or tr.start end
-        if to == nil then to = tr.to or tr["end"] end
-      end
-      if from == nil then from = r.start end
-      if to == nil then to = r["end"] end
-      from = math.floor(tonumber(from) or -1)
-      to = math.floor(tonumber(to) or -1)
-      local rangeBank = math.floor(tonumber(r.bank) or 1)
-      local rangePage = math.floor(tonumber(r.page) or 1)
-      if rangePage < 1 then rangePage = 1 elseif rangePage > 2 then rangePage = 2 end
-      if rangeBank == targetBank and rangePage == targetPage and from >= 0 and to >= from and targetByte >= from and targetByte <= to then
-        return true
       end
     end
   end

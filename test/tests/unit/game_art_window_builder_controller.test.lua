@@ -249,8 +249,8 @@ describe("game_art_window_builder_controller.lua", function()
             ranges = {
               {
                 bank = 2,
-                page = 1,
-                tileRange = { from = 0, to = 255 },
+                from = 0,
+                to = 255,
               },
             },
           },

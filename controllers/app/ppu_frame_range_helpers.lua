@@ -22,29 +22,38 @@ function M.getPpuNametableLayer(win)
   return nil
 end
 
-function M.parsePatternRangeBounds(range)
-  if type(range) ~= "table" then
-    return nil, nil
+--- Default "Add tile range" modal fields from the last persisted range row.
+--- @return initialBank, initialPage, initialFrom, initialTo (strings for from/to except bank)
+function M.patternRangeModalInitialValues(lastRange)
+  local initialBank = "1"
+  local initialPage = 1
+  local initialFrom = "0"
+  local initialTo = "255"
+  if type(lastRange) ~= "table" then
+    return initialBank, initialPage, initialFrom, initialTo
   end
-  local tileRange = type(range.tileRange) == "table" and range.tileRange or nil
-  local from = range.from
-  local to = range.to
-  if from == nil and tileRange then
-    from = tileRange.from
+  initialBank = tostring(tonumber(lastRange.bank) or 1)
+  if M.patternRangeUsesExplicitTiles(lastRange) then
+    return initialBank, initialPage, initialFrom, initialTo
   end
-  if to == nil and tileRange then
-    to = tileRange.to
+  if PatternTableMapping.isGlobalChrFromToRange(lastRange) then
+    local a, b = PatternTableMapping.globalChrFromToBounds(lastRange)
+    if a == nil or b == nil then
+      return initialBank, initialPage, initialFrom, initialTo
+    end
+    if a <= 255 and b <= 255 then
+      return initialBank, 1, tostring(a), tostring(b)
+    end
+    if a >= 256 and b >= 256 then
+      return initialBank, 2, tostring(a - 256), tostring(b - 256)
+    end
+    return initialBank, 1, tostring(a), tostring(255)
   end
-  from = math.floor(tonumber(from) or -1)
-  to = math.floor(tonumber(to) or -1)
-  if from < 0 or from > 255 or to < 0 or to > 255 or to < from then
-    return nil, nil
-  end
-  return from, to
+  return initialBank, initialPage, initialFrom, initialTo
 end
 
---- One logical "range" row may list explicit `{ bank, page, byte }` tiles (CHR multi-drop), instead of
---- a single bank+page plus contiguous `from`..`to` (modal / legacy).
+--- One logical "range" row may list explicit `{ bank, page, byte }` or `{ bank, tileIndex }` tiles (CHR multi-drop),
+--- instead of contiguous `{ bank, from, to }` (global CHR 0..511).
 function M.patternRangeUsesExplicitTiles(range)
   return type(range) == "table" and type(range.tiles) == "table" and #range.tiles > 0
 end
@@ -104,11 +113,7 @@ function M.patternRangeLogicalLength(range)
     end
     return (b - a + 1), nil
   end
-  local from, to = M.parsePatternRangeBounds(range)
-  if from == nil or to == nil then
-    return nil, "invalid contiguous from/to"
-  end
-  return (to - from + 1), nil
+  return nil, "pattern range must use explicit tiles or { bank, from, to } (CHR 0..511)"
 end
 
 function M.foreachBankInPatternRange(range, fn)
@@ -129,11 +134,6 @@ function M.foreachBankInPatternRange(range, fn)
     if b >= 1 then
       fn(b)
     end
-    return
-  end
-  local b = math.floor(tonumber(range.bank) or -1)
-  if b >= 1 then
-    fn(b)
   end
 end
 
@@ -165,19 +165,7 @@ function M.validatePatternRangeAppendShape(range, rangeIndex)
     return nil
   end
 
-  local bank = math.floor(tonumber(range.bank) or -1)
-  if bank < 1 then
-    return label .. " is missing bank"
-  end
-  local page = math.floor(tonumber(range.page) or -1)
-  if page ~= 1 and page ~= 2 then
-    return label .. ": page must be 1 or 2"
-  end
-  local fromTile, toTile = M.parsePatternRangeBounds(range)
-  if fromTile == nil or toTile == nil then
-    return label .. ": invalid CHR tile range bounds"
-  end
-  return nil
+  return label .. ": use explicit tiles or { bank, from, to } without page on the row"
 end
 
 --- Row-major logical indices 0..255 across patternTable.ranges (same packing as populateTileLayerItemsFromPatternTable).
@@ -275,35 +263,7 @@ function M.buildPatternTableMapAllowPartial(patternTable)
         logicalIndex = logicalIndex + 1
       end
     else
-      local from, to = M.parsePatternRangeBounds(range)
-      if from == nil or to == nil then
-        return nil, string.format("patternTable.ranges[%d] has invalid from/to", i)
-      end
-      local bank = math.max(1, math.floor(tonumber(range.bank) or -1))
-      local page = math.floor(tonumber(range.page) or -1)
-      if bank < 1 then
-        return nil, string.format("patternTable.ranges[%d] is missing bank", i)
-      end
-      if page < 1 then
-        return nil, string.format("patternTable.ranges[%d] is missing page", i)
-      end
-      if page < 1 then
-        page = 1
-      elseif page > 2 then
-        page = 2
-      end
-      for src = from, to do
-        if logicalIndex > 255 then
-          return nil, "patternTable ranges exceed 256 tiles"
-        end
-        map[logicalIndex] = {
-          bank = bank,
-          page = page,
-          tileByte = src,
-          tileIndex = (page == 2) and (256 + src) or src,
-        }
-        logicalIndex = logicalIndex + 1
-      end
+      return nil, string.format("patternTable.ranges[%d] must use tiles or global { bank, from, to }", i)
     end
   end
   return map, nil
@@ -394,21 +354,7 @@ function M.didPpuFrameRangeSettingsChange(beforeState, afterState)
           tostring(b)
         )
       else
-        local from, to = M.parsePatternRangeBounds(range)
-        parts[#parts + 1] = string.format(
-          "%d:%d:%s:%s",
-          math.floor(tonumber(range.bank) or -1),
-          math.floor(tonumber(range.page) or -1),
-          tostring(from),
-          tostring(to)
-        )
-        if type(range.tileRange) == "table" then
-          parts[#parts + 1] = string.format(
-            "tr:%s:%s",
-            tostring(range.tileRange.from),
-            tostring(range.tileRange.to)
-          )
-        end
+        parts[#parts + 1] = "invalid_range"
       end
       parts[#parts + 1] = ";"
       if i >= 512 then

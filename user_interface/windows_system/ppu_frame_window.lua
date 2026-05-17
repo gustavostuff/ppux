@@ -714,12 +714,16 @@ function PPUFrameWindow:setNametableBytes(bytesTbl, bankIndex, pageIndex, tilesP
 
   local Lnt = select(1, getNametableLayer(self))
   if Lnt and type(Lnt.patternTable) ~= "table" then
+    local bankNum = tonumber(bankIndex) or 1
+    local pg = (pageIndex == 2) and 2 or 1
+    local chrFrom = (pg == 2) and 256 or 0
+    local chrTo = (pg == 2) and 511 or 255
     Lnt.patternTable = {
       ranges = {
         {
-          bank = tonumber(bankIndex) or 1,
-          page = (pageIndex == 2) and 2 or 1,
-          tileRange = { from = 0, to = 255 },
+          bank = bankNum,
+          from = chrFrom,
+          to = chrTo,
         },
       },
     }
@@ -863,11 +867,15 @@ function PPUFrameWindow:setBankPage(bankIndex, pageIndex, tilesPool)
   local Lnt = select(1, getNametableLayer(self))
   if not Lnt then return end
   Lnt.patternTable = type(Lnt.patternTable) == "table" and Lnt.patternTable or {}
+  local bankNum = tonumber(bankIndex) or 1
+  local pg = (pageIndex == 2) and 2 or 1
+  local chrFrom = (pg == 2) and 256 or 0
+  local chrTo = (pg == 2) and 511 or 255
   Lnt.patternTable.ranges = {
     {
-      bank = tonumber(bankIndex) or 1,
-      page = (pageIndex == 2) and 2 or 1,
-      tileRange = { from = 0, to = 255 },
+      bank = bankNum,
+      from = chrFrom,
+      to = chrTo,
     },
   }
 

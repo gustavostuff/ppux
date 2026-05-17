@@ -358,7 +358,7 @@ local function buildWindowResizeAndHoverPriorityScenario(harness, app, runner)
         -- Ensure PPU interaction-readiness gates are satisfied in tests.
         layer.patternTable = {
           ranges = {
-            { bank = 1, page = 1, tileRange = { from = 0, to = 255 } },
+            { bank = 1, from = 0, to = 255 },
           },
         }
         -- PPU interactions are now gated by explicit nametable address bounds.

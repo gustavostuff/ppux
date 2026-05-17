@@ -99,7 +99,7 @@ function M.setupDeterministicPpuFixture(currentApp, currentRunner)
   local layer = assert(ppuWin.layers and ppuWin.layers[1], "expected PPU tile layer")
   layer.patternTable = {
     ranges = {
-      { bank = 1, page = 1, tileRange = { from = 0, to = 255 } },
+      { bank = 1, from = 0, to = 255 },
     },
   }
   layer.nametableStartAddr = nil

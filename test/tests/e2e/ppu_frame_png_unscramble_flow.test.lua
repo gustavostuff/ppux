@@ -107,7 +107,7 @@ describe("ppu_frame PNG drop flow - CHR import then nametable unscramble", funct
           romRaw = app.appEditState and app.appEditState.romRaw,
           patternTable = {
             ranges = {
-              { bank = 1, page = 1, tileRange = { from = 0, to = 255 } },
+              { bank = 1, from = 0, to = 255 },
             },
           },
         }),

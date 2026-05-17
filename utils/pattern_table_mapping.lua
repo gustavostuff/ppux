@@ -35,36 +35,6 @@ local function chrTileIndexToPageByte(ti)
   return page, tileByte
 end
 
-local function parseRangeBounds(range)
-  if type(range) ~= "table" then
-    return nil, nil
-  end
-  local from = range.from
-  local to = range.to
-  if from == nil and range.start ~= nil then
-    from = range.start
-  end
-  if to == nil and range["end"] ~= nil then
-    to = range["end"]
-  end
-  if type(range.tileRange) == "table" then
-    local tr = range.tileRange
-    if from == nil and tr.from ~= nil then
-      from = tr.from
-    end
-    if to == nil and tr.to ~= nil then
-      to = tr.to
-    end
-    if from == nil and tr.start ~= nil then
-      from = tr.start
-    end
-    if to == nil and tr["end"] ~= nil then
-      to = tr["end"]
-    end
-  end
-  return from, to
-end
-
 local function readGlobalChrFromTo(r)
   if type(r) ~= "table" then
     return nil, nil
@@ -76,22 +46,6 @@ local function readGlobalChrFromTo(r)
   end
   if to == nil and r["end"] ~= nil then
     to = r["end"]
-  end
-  -- Legacy compact row: `{ bank, tileIndex, count }` (same CHR semantics as from/to).
-  if (from == nil or to == nil) and type(r.tiles) ~= "table" then
-    local ti = r.tileIndex
-    if ti == nil then
-      ti = r.startTileIndex
-    end
-    local cnt = r.count
-    if ti ~= nil and cnt ~= nil then
-      ti = math.floor(tonumber(ti) or -1)
-      cnt = math.floor(tonumber(cnt) or -1)
-      if cnt >= 1 and ti >= 0 and ti <= 511 and ti + cnt - 1 <= 511 then
-        from = ti
-        to = ti + cnt - 1
-      end
-    end
   end
   if from == nil or to == nil then
     return nil, nil
@@ -105,7 +59,7 @@ local function readGlobalChrFromTo(r)
 end
 
 --- Contiguous CHR indices 0..511 within `bank`, **without** legacy `page` (1/2).
---- Use top-level `from` / `to` (or `start` / `end`). Do not read `tileRange` here — that stays legacy + page.
+--- Use top-level `from` / `to` (or `start` / `end`) as CHR indices 0..511; no `page` (1/2) on the row.
 local function rangeUsesGlobalChrFromTo(r)
   if type(r) ~= "table" then
     return false
@@ -212,29 +166,10 @@ function M.buildMap(patternTable, fallbackBank, fallbackPage)
         nextIdx = nextIdx + 1
       end
     else
-      local fromRaw, toRaw = parseRangeBounds(r)
-      if fromRaw == nil or toRaw == nil then
-        return nil, string.format("patternTable.ranges[%d] missing from/to (global 0..511 without page, or legacy page+byte range)", i)
-      end
-      local from = clampByte(fromRaw)
-      local to = clampByte(toRaw)
-      if to < from then
-        return nil, string.format("patternTable.ranges[%d] has to < from", i)
-      end
-      local bank = clampBank(r.bank)
-      local page = clampPage(r.page)
-      for src = from, to do
-        if nextIdx > 255 then
-          return nil, "patternTable ranges exceed 256 tiles"
-        end
-        out[nextIdx] = {
-          bank = bank,
-          page = page,
-          tileByte = src,
-          tileIndex = (page == 2) and (256 + src) or src,
-        }
-        nextIdx = nextIdx + 1
-      end
+      return nil, string.format(
+        "patternTable.ranges[%d] must use explicit `tiles` or contiguous `{ bank, from, to }` (CHR 0..511, no page on row)",
+        i
+      )
     end
   end
 

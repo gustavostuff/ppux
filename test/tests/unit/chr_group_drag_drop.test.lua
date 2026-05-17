@@ -132,8 +132,8 @@ describe("mouse_tile_drop_controller.lua - CHR grouped drag/drop", function()
 
   local BANK1_PATTERN_EXCLUDES_PAGE1_FROM_250_UP = {
     ranges = {
-      { bank = 1, page = 1, tileRange = { from = 0, to = 249 } },
-      { bank = 1, page = 2, tileRange = { from = 0, to = 5 } },
+      { bank = 1, from = 0, to = 249 },
+      { bank = 1, from = 256, to = 261 },
     },
   }
 

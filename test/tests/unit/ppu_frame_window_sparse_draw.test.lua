@@ -59,7 +59,7 @@ describe("ppu_frame_window.lua sparse tile rendering", function()
     local layer = win.layers[1]
     layer.patternTable = {
       ranges = {
-        { bank = 1, page = 1, tileRange = { from = 0, to = 255 } },
+        { bank = 1, from = 0, to = 255 },
       },
     }
 
@@ -85,7 +85,7 @@ describe("ppu_frame_window.lua sparse tile rendering", function()
     local layer = win.layers[1]
     layer.patternTable = {
       ranges = {
-        { bank = 1, page = 1, tileRange = { from = 0, to = 255 } },
+        { bank = 1, from = 0, to = 255 },
       },
     }
 

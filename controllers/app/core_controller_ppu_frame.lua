@@ -901,20 +901,11 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
   local existingPatternTable = type(targetLayer.patternTable) == "table" and targetLayer.patternTable or {}
   local existingRanges = type(existingPatternTable.ranges) == "table" and existingPatternTable.ranges or {}
 
-  local initialBank = "1"
-  local initialPage = 1
-  local initialFrom = "0"
-  local initialTo = "255"
   local lastRange = existingRanges[#existingRanges]
-  if type(lastRange) == "table" then
-    initialBank = tostring(tonumber(lastRange.bank) or tonumber(initialBank) or 1)
-    initialPage = tonumber(lastRange.page) or initialPage
-    local lastFrom, lastTo = PpuRange.parsePatternRangeBounds(lastRange)
-    if lastFrom ~= nil and lastTo ~= nil then
-      initialFrom = tostring(lastFrom)
-      initialTo = tostring(lastTo)
-    end
-  end
+  local initialBank, initialPage, initialFrom, initialTo = PpuRange.patternRangeModalInitialValues(lastRange)
+  initialBank = tostring(initialBank)
+  initialFrom = tostring(initialFrom)
+  initialTo = tostring(initialTo)
 
   self.ppuFramePatternRangeModal:show({
     title = "Add tile range",

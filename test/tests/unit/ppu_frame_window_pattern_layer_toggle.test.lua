@@ -4,8 +4,8 @@ local FULL_PATTERN_TABLE = {
   ranges = {
     {
       bank = 1,
-      page = 1,
-      tileRange = { from = 0, to = 255 },
+      from = 0,
+      to = 255,
     },
   },
 }
