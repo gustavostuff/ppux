@@ -388,13 +388,14 @@ function E2EHarness:findTaskbarButton(query)
     local mode = (self.app and self.app.mode == "edit") and "Edit" or "Tile"
     local textW = (font and font:getWidth(mode)) or 0
     local badgeW = math.max(24, textW + 12)
-    local totalW = badgeW + taskbar.h
-    local badgeX = math.floor((taskbar.x + taskbar.w) - 6 - totalW)
+    local rightPad = 2
+    local badgeX = math.floor((taskbar.x + taskbar.w) - rightPad - badgeW)
+    local padY = 2
     return {
       x = badgeX,
-      y = taskbar.y,
-      w = totalW,
-      h = taskbar.h,
+      y = taskbar.y + padY,
+      w = badgeW,
+      h = math.max(0, taskbar.h - padY * 2),
     }
   end
 

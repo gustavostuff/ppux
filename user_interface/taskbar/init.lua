@@ -5,6 +5,7 @@ local UiPulse = require("utils.ui_pulse")
 
 local UserInput = require("controllers.input.input")
 local Helpers = require("user_interface.taskbar.helpers")
+local BrushIndicator = require("user_interface.taskbar.brush_indicator")
 local ModeIndicator = require("user_interface.taskbar.mode_indicator")
 local Minimized = require("user_interface.taskbar.minimized")
 local Menu = require("user_interface.taskbar.menu")
@@ -37,6 +38,7 @@ local function drawWindowIconBlinkBackdrop(button, luminance, focusedWin)
   love.graphics.rectangle("fill", cx, cy, size, size)
 end
 
+BrushIndicator.install(Taskbar, Helpers)
 ModeIndicator.install(Taskbar, Helpers)
 Minimized.install(Taskbar, Helpers)
 Menu.install(Taskbar, Helpers)
