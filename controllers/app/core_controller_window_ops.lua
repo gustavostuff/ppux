@@ -60,6 +60,7 @@ local NEW_WINDOW_ICON_SHEETS_BY_KEY = {
   animated_sprite = "icon_animated_sprite_window",
   oam_animated = "icon_oam_animated_window",
   ppu_frame = "icon_ppu_frame_window",
+  pattern_table = "icon_pattern_table_window",
   palette = "icon_palette_window",
   rom_palette = "icon_rom_palette_window",
   generic = "icon_generic_window",
@@ -206,6 +207,25 @@ function AppCoreController:_buildNewWindowOptions()
       end
     },
     {
+      text = "Pattern table window",
+      icon = getNewWindowOptionIcon("pattern_table"),
+      buttonText = "Pattern table",
+      fixedGrid = true,
+      fixedCols = 16,
+      fixedRows = 16,
+      fixedSpriteMode = "8x8",
+      suggestedWindowName = "Pattern table",
+      callback = function(cols, rows, _, windowTitle)
+        local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
+        local win = self.wm:createPatternTableWindow({
+          title = windowTitle or "Pattern table",
+          cols = cols or 16,
+          rows = rows or 16,
+        })
+        Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
+      end
+    },
+    {
       text = "OAM animation",
       icon = getNewWindowOptionIcon("oam_animated"),
       buttonText = "OAM animation",
@@ -251,7 +271,7 @@ function AppCoreController:showNewWindowModal()
           self.newWindowModal:show({
             title = configTitle,
             option = option,
-            initialName = "New Window",
+            initialName = option.suggestedWindowName or "New Window",
             onConfirm = function(cols, rows, spriteMode, windowName, selectedOption)
               local targetOption = selectedOption or option
               if not (targetOption and targetOption.callback) then

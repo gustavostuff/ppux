@@ -1,6 +1,34 @@
 local NewWindowModal = require("user_interface.modals.new_window_modal")
 
 describe("new_window_modal.lua", function()
+  it("uses fixed grid and sprite mode for pattern-table-style options", function()
+    local captured = nil
+    local modal = NewWindowModal.new()
+
+    modal:show({
+      title = "Window Settings",
+      option = {
+        fixedGrid = true,
+        fixedCols = 16,
+        fixedRows = 16,
+        fixedSpriteMode = "8x8",
+        suggestedWindowName = "Pattern table",
+      },
+      onConfirm = function(cols, rows, spriteMode, windowName)
+        captured = { cols = cols, rows = rows, spriteMode = spriteMode, windowName = windowName }
+      end,
+    })
+
+    expect(modal.useFixedGrid).toBe(true)
+    expect(modal:handleKey("return")).toBe(true)
+    expect(captured).toBeTruthy()
+    expect(captured.cols).toBe(16)
+    expect(captured.rows).toBe(16)
+    expect(captured.spriteMode).toBe("8x8")
+    expect(captured.windowName).toBe("Pattern table")
+    expect(modal:isVisible()).toBe(false)
+  end)
+
   it("passes selected sprite mode to option callback", function()
     local captured = nil
     local modal = NewWindowModal.new()

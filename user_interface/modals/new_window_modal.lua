@@ -36,10 +36,14 @@ local function rebuildPanel(self)
     spriteModeRow = rowCursor
     rowCursor = rowCursor + 1
   end
-  local colsRow = rowCursor
-  rowCursor = rowCursor + 1
-  local rowsRow = rowCursor
-  rowCursor = rowCursor + 1
+  local colsRow = nil
+  local rowsRow = nil
+  if not self.useFixedGrid then
+    colsRow = rowCursor
+    rowCursor = rowCursor + 1
+    rowsRow = rowCursor
+    rowCursor = rowCursor + 1
+  end
   local buttonsRow = rowCursor
   rowCursor = rowCursor + 1
   local footerRow = rowCursor
@@ -75,11 +79,13 @@ local function rebuildPanel(self)
     })
   end
 
-  self.panel:setCell(1, colsRow, { text = "Cols:" })
-  self.panel:setCell(2, colsRow, { component = self.colsSpinner, colspan = 2 })
+  if colsRow and rowsRow then
+    self.panel:setCell(1, colsRow, { text = "Cols:" })
+    self.panel:setCell(2, colsRow, { component = self.colsSpinner, colspan = 2 })
 
-  self.panel:setCell(1, rowsRow, { text = "Rows:" })
-  self.panel:setCell(2, rowsRow, { component = self.rowsSpinner, colspan = 2 })
+    self.panel:setCell(1, rowsRow, { text = "Rows:" })
+    self.panel:setCell(2, rowsRow, { component = self.rowsSpinner, colspan = 2 })
+  end
 
   self.panel:setCell(1, buttonsRow, {
     component = self.createButton,
@@ -127,6 +133,10 @@ function Dialog.new()
     cellPaddingX = nil,
     cellPaddingY = nil,
     panel = nil,
+    useFixedGrid = false,
+    fixedCols = 16,
+    fixedRows = 16,
+    fixedSpriteMode = "8x8",
   }, Dialog)
 
   self.modeButton = Button.new({
@@ -193,19 +203,34 @@ function Dialog:show(opts)
   opts = opts or {}
   self.title = opts.title or "Window Settings"
   self.selectedOption = opts.option or nil
-  self.showSpriteMode = self.selectedOption and self.selectedOption.requiresSpriteMode == true or false
+  self.useFixedGrid = self.selectedOption and self.selectedOption.fixedGrid == true
+  self.fixedCols = tonumber(self.selectedOption and self.selectedOption.fixedCols) or 16
+  self.fixedRows = tonumber(self.selectedOption and self.selectedOption.fixedRows) or 16
+  local fsm = self.selectedOption and self.selectedOption.fixedSpriteMode
+  self.fixedSpriteMode = (fsm == "8x16") and "8x16" or "8x8"
+  self.showSpriteMode = (not self.useFixedGrid)
+    and self.selectedOption
+    and self.selectedOption.requiresSpriteMode == true
   self.onConfirm = opts.onConfirm
   self.onCancel = opts.onCancel
   self.spriteMode = "8x8"
-  self.rowsSpinner:setValue(tonumber(opts.initialRows) or 8)
-  self.colsSpinner:setValue(tonumber(opts.initialCols) or 8)
+  self.rowsSpinner:setValue(
+    self.useFixedGrid and self.fixedRows or tonumber(opts.initialRows) or 8
+  )
+  self.colsSpinner:setValue(
+    self.useFixedGrid and self.fixedCols or tonumber(opts.initialCols) or 8
+  )
   self.modeButton.pressed = false
   self.modeButton.hovered = false
   self.createButton.pressed = false
   self.cancelButton.pressed = false
   self.createButton.hovered = false
   self.cancelButton.hovered = false
-  self.nameField:setText(opts.initialName or DEFAULT_WINDOW_NAME)
+  local initialName = opts.initialName
+  if initialName == nil and self.selectedOption and self.selectedOption.suggestedWindowName then
+    initialName = self.selectedOption.suggestedWindowName
+  end
+  self.nameField:setText(initialName or DEFAULT_WINDOW_NAME)
   self.nameField:setFocused(true)
   self:_updateModeButtonVisual()
   self.visible = true
@@ -216,6 +241,10 @@ function Dialog:hide()
   self.visible = false
   self.title = "Window Settings"
   self.selectedOption = nil
+  self.useFixedGrid = false
+  self.fixedCols = 16
+  self.fixedRows = 16
+  self.fixedSpriteMode = "8x8"
   self.onConfirm = nil
   self.onCancel = nil
   self.modeButton.pressed = false
@@ -243,13 +272,10 @@ function Dialog:_confirm()
   local callback = self.onConfirm
   local option = self.selectedOption
   if callback then
-    local ok = callback(
-      self.colsSpinner.value,
-      self.rowsSpinner.value,
-      self:getSpriteMode(),
-      self:getWindowName(),
-      option
-    )
+    local cols = self.useFixedGrid and self.fixedCols or self.colsSpinner.value
+    local rows = self.useFixedGrid and self.fixedRows or self.rowsSpinner.value
+    local spriteMode = self.useFixedGrid and self.fixedSpriteMode or self:getSpriteMode()
+    local ok = callback(cols, rows, spriteMode, self:getWindowName(), option)
     if ok == false then
       return false
     end
