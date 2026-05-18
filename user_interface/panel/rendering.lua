@@ -230,6 +230,12 @@ local function drawMenuOutline(panel)
     oh = bh - 1
   end
 
+  -- Draw the perimeter 1 px outside the menu chrome on each side (slightly larger frame).
+  ox = ox - 1
+  oy = oy - 1
+  ow = ow + 2
+  oh = oh + 2
+
   local rf = clampRoundedRectCornerRadius(rxRequested, ow, oh)
 
   local sep = colors:chromeMenuRowSeparatorColor()
