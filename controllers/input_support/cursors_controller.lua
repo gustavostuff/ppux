@@ -1,5 +1,6 @@
 local CursorsController = {}
 local ResolutionController = require("controllers.app.resolution_controller")
+local Shared = require("controllers.app.core_controller_shared")
 local WindowCaps = require("controllers.window.window_capabilities")
 local AppTopToolbar = require("controllers.app.app_top_toolbar_controller")
 local MouseWindowChrome = require("controllers.input.mouse_window_chrome_controller")
@@ -571,6 +572,28 @@ end
 local function resolveTargetCursorName(app, mode)
   local mx, my = getMouseCanvasPosition()
   if type(mx) == "number" and type(my) == "number" then
+    local _, topModal = Shared.getTopModal(app)
+    if topModal then
+      if app.settingsModal == topModal and type(app.settingsModal.isHoveringColorPickerSwatchAt) == "function" then
+        if app.settingsModal:isHoveringColorPickerSwatchAt(mx, my) then
+          return "hand"
+        end
+      end
+      if app.settingsModal == topModal then
+        if type(app.settingsModal.isHoveringDisabledAppearancePickerAt) == "function"
+            and app.settingsModal:isHoveringDisabledAppearancePickerAt(mx, my) then
+          return "unavailable"
+        end
+      end
+      if modalPanelDisabledAt(topModal, mx, my) then
+        return "unavailable"
+      end
+      if modalPanelHandAt(topModal, mx, my) then
+        return "hand"
+      end
+      return "arrow"
+    end
+
     if app and app.settingsModal and type(app.settingsModal.isHoveringColorPickerSwatchAt) == "function" then
       if app.settingsModal:isHoveringColorPickerSwatchAt(mx, my) then
         return "hand"

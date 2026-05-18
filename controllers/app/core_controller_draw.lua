@@ -404,9 +404,12 @@ local function drawPatternTableRangeHoverOverlay(app, w, layerIndex)
   if not scaledMouse then
     return
   end
-  if Shared.pointerOverOpenContextMenu(app, scaledMouse.x, scaledMouse.y) then
+  if Shared.modalBlocksWorkspaceInteractions(app) then
     return
   end
+  if Shared.pointerOverOpenContextMenu(app, scaledMouse.x, scaledMouse.y) then
+    return
+  end 
   local topWin = (app.wm.getTopInteractiveSurfaceWindowAt and app.wm:getTopInteractiveSurfaceWindowAt(scaledMouse.x, scaledMouse.y))
     or (app.wm.windowAt and app.wm:windowAt(scaledMouse.x, scaledMouse.y))
   if topWin ~= w then
@@ -1591,6 +1594,9 @@ local function drawEditModeColorIndicator(app)
   
   local mouse = ResolutionController:getScaledMouse(true)
   if app.wm and app.wm.focusedResizeHandleAt and app.wm:focusedResizeHandleAt(mouse.x, mouse.y) then
+    return
+  end
+  if Shared.modalBlocksWorkspaceInteractions(app) then
     return
   end
   if Shared.pointerOverOpenContextMenu(app, mouse.x, mouse.y) then

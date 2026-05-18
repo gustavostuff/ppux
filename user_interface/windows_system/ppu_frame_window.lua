@@ -195,6 +195,9 @@ local function getHoveredPatternRangeHighlight(self, layer)
   if app and Shared.pointerOverOpenContextMenu(app, scaledMouse.x, scaledMouse.y) then
     return nil
   end
+  if app and Shared.modalBlocksWorkspaceInteractions(app) then
+    return nil
+  end
 
   local wm = gctx and gctx.wm and gctx.wm() or nil
   local topWin = (wm.getTopInteractiveSurfaceWindowAt and wm:getTopInteractiveSurfaceWindowAt(scaledMouse.x, scaledMouse.y))

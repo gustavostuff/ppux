@@ -587,6 +587,10 @@ function M.deleteTileSelection(win, layerIdx, fallbackCol, fallbackRow, app, und
   local layer = win.layers and win.layers[layerIdx]
   if not (layer and layer.kind == "tile") then return nil end
 
+  if WindowCaps.isPatternTable(win) then
+    return nil
+  end
+
   local cells = M.getSelectedTileCells(win, layerIdx, fallbackCol, fallbackRow)
   if #cells == 0 then return nil end
 
@@ -906,6 +910,10 @@ function M.applyTileDragGroup(win, layerIdx, group, anchorCol, anchorRow, opts)
 
   local layer = win.layers and win.layers[layerIdx]
   if not (layer and layer.kind == "tile") then return nil end
+
+  if WindowCaps.isPatternTable(win) then
+    return nil
+  end
 
   local cols = win.cols or 0
   local rows = win.rows or 0

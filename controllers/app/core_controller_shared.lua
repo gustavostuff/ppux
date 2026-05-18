@@ -128,6 +128,75 @@ function M.modalVisible(modal)
   return modal and modal.isVisible and modal:isVisible()
 end
 
+--- First visible modal in APP_MODAL_KEYS_IN_ORDER (same precedence as keyboard routing).
+function M.getTopModal(app)
+  if not app then
+    return nil, nil
+  end
+  for _, key in ipairs(M.APP_MODAL_KEYS_IN_ORDER) do
+    local modal = app[key]
+    if M.modalVisible(modal) then
+      return key, modal
+    end
+  end
+  return nil, nil
+end
+
+--- True while any app modal in APP_MODAL_KEYS_IN_ORDER is visible; workspace chrome should not react to pointer for hover/FX.
+function M.modalBlocksWorkspaceInteractions(app)
+  local _, m = M.getTopModal(app)
+  return m ~= nil
+end
+
+local OFFSCREEN_HOVER_X = -1000000
+local OFFSCREEN_HOVER_Y = -1000000
+
+--- Clear hover highlights on the workspace while a modal owns pointer hover (taskbar, app strip, window chrome, sprites).
+function M.clearNonModalUiHover(app)
+  if not app then
+    return
+  end
+  local MouseWindowChrome = require("controllers.input.mouse_window_chrome_controller")
+  if app.wm then
+    MouseWindowChrome.clearAllToolbarButtonHovers(app.wm)
+    for _, win in ipairs(app.wm:getWindows() or {}) do
+      if win and win.layers then
+        for _, L in ipairs(win.layers) do
+          if L and L.kind == "sprite" then
+            L.hoverSpriteIndex = nil
+          end
+        end
+      end
+    end
+  end
+  local tb = app.taskbar
+  if tb and tb.buttons then
+    for _, b in ipairs(tb.buttons) do
+      if b then
+        b.hovered = false
+      end
+    end
+  end
+  if tb and tb.menuController and type(tb.menuController.mousemoved) == "function" then
+    tb.menuController:mousemoved(OFFSCREEN_HOVER_X, OFFSCREEN_HOVER_Y)
+  end
+  local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
+  AppTopToolbarController.mousemoved(app, OFFSCREEN_HOVER_X, OFFSCREEN_HOVER_Y)
+end
+
+--- Clear panel/button hovers on any visible modal that is not the focused (top) one.
+function M.clearNonTopModalHovers(app, topModal)
+  if not app or not topModal then
+    return
+  end
+  for _, key in ipairs(M.APP_MODAL_KEYS_IN_ORDER) do
+    local m = app[key]
+    if m ~= topModal and M.modalVisible(m) and type(m.mousemoved) == "function" then
+      m:mousemoved(OFFSCREEN_HOVER_X, OFFSCREEN_HOVER_Y)
+    end
+  end
+end
+
 function M.anyModalVisible(app)
   if not app then return false end
   for _, key in ipairs(M.APP_MODAL_KEYS_IN_ORDER) do

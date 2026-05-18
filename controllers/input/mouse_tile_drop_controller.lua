@@ -1205,6 +1205,12 @@ function M.handleTileDrop(env, x, y, wm)
       return true
     end
 
+    if WindowCaps.isPatternTable(dst) then
+      setStatusFromEnv(env, "Pattern table: paint pixels or adjust ranges only")
+      env.clearDragState(false)
+      return true
+    end
+
     local anchorCol, anchorRow = MultiSelectController.clampTileDropAnchor(dst, drag.tileGroup, col, row)
     if type(anchorCol) ~= "number" or type(anchorRow) ~= "number" then
       env.clearDragState(false)
@@ -1241,6 +1247,22 @@ function M.handleTileDrop(env, x, y, wm)
   local dstItem = dst.get and dst:get(col, row, dstLayer)
 
   if handleSameCellDrop(dst, col, row, drag, wm, dstLayer) then
+    env.clearDragState(false)
+    return true
+  end
+
+  if WindowCaps.isPatternTable(dst) then
+    if srcIsChr then
+      notifyChrDropPatternTableRejected(env)
+    else
+      setStatusFromEnv(env, "Pattern table: paint pixels or adjust ranges only")
+    end
+    env.clearDragState(false)
+    return true
+  end
+
+  if not srcIsChr and WindowCaps.isPatternTable(src) and not drag.copyMode then
+    setStatusFromEnv(env, "Cannot move tiles out of pattern tables (copy-drag still works)")
     env.clearDragState(false)
     return true
   end

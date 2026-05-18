@@ -460,8 +460,12 @@ function AppCoreController:mousemoved(x, y, dx, dy)
   dy = dy or 0
   refreshCursor(self)
 
-  if Shared.modalVisible(self.quitConfirmModal) then
-    self.quitConfirmModal:mousemoved(mouse.x, mouse.y)
+  local _, topModal = Shared.getTopModal(self)
+  if topModal then
+    Shared.clearNonModalUiHover(self)
+    Shared.clearNonTopModalHovers(self, topModal)
+    topModal:mousemoved(mouse.x, mouse.y)
+    refreshCursor(self)
     return
   end
 
@@ -481,6 +485,7 @@ function AppCoreController:mousemoved(x, y, dx, dy)
   end
 
   if dispatchModalMouseMovedAfterSplash(self, mouse) then
+    refreshCursor(self)
     return
   end
 

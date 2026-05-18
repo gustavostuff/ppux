@@ -280,6 +280,35 @@ describe("app_core_controller.lua - quit handling", function()
     expect(modal:isVisible()).toBe(false)
   end)
 
+  it("Enter on the double-Esc modal dismisses without quitting", function()
+    local quitCalls = 0
+    love.event.quit = function()
+      quitCalls = quitCalls + 1
+    end
+    local PressEscAgainExitModal = require("user_interface.modals.press_esc_again_exit_modal")
+    local modal = PressEscAgainExitModal.new()
+    modal:show()
+    modal:handleKey("return")
+    expect(quitCalls).toBe(0)
+    expect(modal:isVisible()).toBe(false)
+  end)
+
+  it("Cancel on the double-Esc modal dismisses without quitting", function()
+    local quitCalls = 0
+    love.event.quit = function()
+      quitCalls = quitCalls + 1
+    end
+    local PressEscAgainExitModal = require("user_interface.modals.press_esc_again_exit_modal")
+    local modal = PressEscAgainExitModal.new()
+    modal:show()
+    local bx = modal.cancelButton.x + math.floor(modal.cancelButton.w / 2)
+    local by = modal.cancelButton.y + math.floor(modal.cancelButton.h / 2)
+    expect(modal:mousepressed(bx, by, 1)).toBe(true)
+    expect(modal:mousereleased(bx, by, 1)).toBe(true)
+    expect(quitCalls).toBe(0)
+    expect(modal:isVisible()).toBe(false)
+  end)
+
   it("dismisses splash on escape without quitting app", function()
     local quitCalls = 0
     local inputCalls = 0

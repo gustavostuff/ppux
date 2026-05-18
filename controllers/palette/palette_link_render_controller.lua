@@ -1,6 +1,7 @@
 local ResolutionController = require("controllers.app.resolution_controller")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local Shared = require("controllers.app.core_controller_shared")
 local colors = require("app_colors")
 local images = require("images")
 
@@ -401,6 +402,9 @@ function M.isMouseHoveringPaletteSourceSquare(paletteWin)
 end
 
 function M.getHoveredSourceSquareLinks(app)
+  if app and Shared.modalBlocksWorkspaceInteractions(app) then
+    return {}
+  end
   local wm = app and app.wm
   if not (wm and wm.getWindows) then
     return {}
@@ -463,6 +467,9 @@ function M.getLinkAtDestinationPoint(app, x, y)
 end
 
 function M.getHoveredDestinationLinks(app)
+  if app and Shared.modalBlocksWorkspaceInteractions(app) then
+    return {}
+  end
   local wm = app and app.wm
   if not (wm and wm.getWindows) then
     return {}
@@ -517,6 +524,9 @@ function M.getPersistentVisual(app, contentWin, paletteWin)
     return (focusedWin == paletteWin or focusedWin == contentWin), 1
   end
   if mode == "on_hover" then
+    if app and Shared.modalBlocksWorkspaceInteractions(app) then
+      return false, 1
+    end
     return M.isMouseHoveringPaletteSourceSquare(paletteWin) or M.isMouseHoveringDestinationSquare(contentWin, paletteWin), 1
   end
 

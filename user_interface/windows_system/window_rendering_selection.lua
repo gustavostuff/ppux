@@ -139,6 +139,14 @@ local function hoverBlockedByOpenContextMenu(ctx, mouse)
   return Shared.pointerOverOpenContextMenu(app, mouse.x, mouse.y)
 end
 
+local function hoverBlockedByModal(ctx, mouse)
+  local app = ctx and ctx.app
+  if not app then
+    return false
+  end
+  return Shared.modalBlocksWorkspaceInteractions(app)
+end
+
 local function hoverBlockedByAppChrome(ctx, mouse)
   if not (ctx and mouse) then
     return false
@@ -265,6 +273,7 @@ function Window:drawSpriteSelectionOverlays(isFocused)
   local hoverBlocked = hoverBlockedByResizeHandle(wm, mouse)
     or hoverBlockedByAppChrome(ctx, mouse)
     or hoverBlockedByOpenContextMenu(ctx, mouse)
+    or hoverBlockedByModal(ctx, mouse)
   local hoveredWindow
   if wm and mouse then
     hoveredWindow = (wm.getTopInteractiveSurfaceWindowAt and wm:getTopInteractiveSurfaceWindowAt(mouse.x, mouse.y))
@@ -423,6 +432,7 @@ function Window:drawTileSelectionOverlays(isFocused)
   local hoverBlocked = hoverBlockedByResizeHandle(wm, mouse)
     or hoverBlockedByAppChrome(ctx, mouse)
     or hoverBlockedByOpenContextMenu(ctx, mouse)
+    or hoverBlockedByModal(ctx, mouse)
   local hoveredWindow
   if wm and mouse then
     hoveredWindow = (wm.getTopInteractiveSurfaceWindowAt and wm:getTopInteractiveSurfaceWindowAt(mouse.x, mouse.y))

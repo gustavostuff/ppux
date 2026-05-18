@@ -1,3 +1,4 @@
+local Button = require("user_interface.button")
 local Panel = require("user_interface.panel")
 local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
 
@@ -7,7 +8,7 @@ Dialog.__index = Dialog
 local function rebuildPanel(self)
   self.panel = Panel.new({
     cols = 2,
-    rows = 1,
+    rows = 2,
     cellW = self.cellW,
     cellH = self.cellH,
     padding = self.padding,
@@ -24,7 +25,13 @@ local function rebuildPanel(self)
   })
 
   self.panel:setCell(1, 1, {
+    kind = "label",
     text = self.message,
+    align = "center",
+    colspan = 2,
+  })
+  self.panel:setCell(1, 2, {
+    component = self.cancelButton,
     colspan = 2,
   })
 end
@@ -42,8 +49,19 @@ function Dialog.new()
     bgColor = nil,
     cellPaddingX = nil,
     cellPaddingY = nil,
+    cancelButton = nil,
     panel = nil,
   }, Dialog)
+
+  self.cancelButton = Button.new({
+    text = "Cancel",
+    w = 56,
+    h = ModalPanelUtils.MODAL_BUTTON_H,
+    transparent = true,
+    action = function()
+      self:hide()
+    end,
+  })
 
   ModalPanelUtils.applyPanelDefaults(self)
   self.buttonGap = self.colGap
@@ -62,6 +80,11 @@ end
 
 function Dialog:hide()
   self.visible = false
+  if self.cancelButton then
+    self.cancelButton.pressed = false
+    self.cancelButton.hovered = false
+    self.cancelButton.focused = false
+  end
   if self.panel then
     self.panel:setVisible(false)
   end
@@ -69,10 +92,10 @@ function Dialog:hide()
 end
 
 function Dialog:_containsBox(x, y)
-  if self.panel and self._boxX then
-    return self.panel:contains(x, y)
+  if not self.panel then
+    return true
   end
-  return true
+  return self.panel:contains(x, y)
 end
 
 function Dialog:getTooltipAt(x, y)
@@ -133,7 +156,9 @@ function Dialog:draw(canvas)
   if not self.visible then
     return
   end
-  rebuildPanel(self)
+  -- Do not rebuild the panel here: a full rebuild replaces the Panel object and clears
+  -- pressedButton, so Cancel would not receive mousereleased after mousepressed (see
+  -- generic_actions_modal draw). rebuildPanel runs from new() and show() only.
   self.panel:setVisible(true)
   ModalPanelUtils.drawBackdrop(canvas)
   self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)

@@ -124,6 +124,11 @@ function M.handleDeleteKey(ctx, key, focus)
   local layer = w.layers and w.layers[layerIndex]
   if not layer or layer.kind == "sprite" then return false end
 
+  if WindowCaps.isPatternTable(w) then
+    setStatus(ctx, "Pattern table: paint pixels or adjust ranges only")
+    return true
+  end
+
   local result = MultiSelectController.deleteTileSelection(w, layerIndex, c, r, app, undoRedo)
   if not result then return false end
   setStatus(ctx, result.status)

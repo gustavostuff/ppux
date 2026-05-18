@@ -1014,6 +1014,18 @@ function M.getActionAvailability(ctx, focus, action, opts)
     return { allowed = false, reason = restriction, layerIndex = layerIndex, layer = layer, restricted = true }
   end
 
+  if layer.kind == "tile" and WindowCaps.isPatternTable(focus) then
+    if action == "cut" or action == "paste" then
+      return {
+        allowed = false,
+        reason = "Pattern table: paint pixels or adjust ranges only",
+        layerIndex = layerIndex,
+        layer = layer,
+        restricted = true,
+      }
+    end
+  end
+
   if action == "paste" then
     if not clipboard or not clipboard.kind then
       return { allowed = false, reason = "Clipboard is empty", layerIndex = layerIndex, layer = layer }
