@@ -30,6 +30,23 @@ local function isNametableLayerRenderReady(layer)
   return true, nil
 end
 
+local function spriteNeedsPositionReset(s)
+  if not s or s.removed == true then
+    return false
+  end
+  if s.hasMoved == true then
+    return true
+  end
+  local bx = s.baseX
+  local by = s.baseY
+  if bx == nil or by == nil then
+    return false
+  end
+  local wx = math.floor((tonumber(s.worldX) or tonumber(s.x) or 0) + 0.5)
+  local wy = math.floor((tonumber(s.worldY) or tonumber(s.y) or 0) + 0.5)
+  return wx ~= math.floor(tonumber(bx) + 0.5) or wy ~= math.floor(tonumber(by) + 0.5)
+end
+
 local function hydrateNametableLayerIfReady(app, win, layer, layerIndex)
   local ready, reason = isNametableLayerRenderReady(layer)
   if not ready then
@@ -646,6 +663,135 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
   return true
 end
 
+function AppCoreController:_oamSpriteSelectionNeedsPositionReset(win, layerIndex)
+  if not (win and type(layerIndex) == "number") then
+    return false
+  end
+  if win.kind ~= "oam_animation" and win.kind ~= "ppu_frame" then
+    return false
+  end
+  local layer = win.getLayer and win:getLayer(layerIndex) or (win.layers and win.layers[layerIndex])
+  if not (layer and layer.kind == "sprite") then
+    return false
+  end
+  local indices = SpriteController.getSelectedSpriteIndices(layer)
+  if #indices == 0 and layer.selectedSpriteIndex then
+    indices = { layer.selectedSpriteIndex }
+  end
+  for _, idx in ipairs(indices) do
+    local s = layer.items and layer.items[idx]
+    if s and spriteNeedsPositionReset(s) then
+      return true
+    end
+  end
+  return false
+end
+
+--- Snap selected sprites' editor positions back to ROM OAM base (dx/dy = 0). Returns count updated.
+function AppCoreController:_resetOamLinkedSpritePositions(win, layerIndex, opts)
+  opts = opts or {}
+  if not (win and type(layerIndex) == "number") then
+    return 0
+  end
+  if win.kind ~= "oam_animation" and win.kind ~= "ppu_frame" then
+    return 0
+  end
+
+  local layer = win.getLayer and win:getLayer(layerIndex) or (win.layers and win.layers[layerIndex])
+  if not (layer and layer.kind == "sprite") then
+    return 0
+  end
+
+  local capture = SpriteStateSnapshot.captureSpriteState
+  local statesEqual = SpriteStateSnapshot.statesEqual
+
+  local indices = opts.indices
+  if not indices then
+    indices = SpriteController.getSelectedSpriteIndices(layer)
+    if #indices == 0 and layer.selectedSpriteIndex then
+      indices = { layer.selectedSpriteIndex }
+    end
+  end
+
+  local tracked = {}
+  for _, idx in ipairs(indices) do
+    local s = layer.items and layer.items[idx]
+    if s and s.removed ~= true and spriteNeedsPositionReset(s) then
+      tracked[#tracked + 1] = s
+    end
+  end
+  if #tracked == 0 then
+    return 0
+  end
+
+  local beforeBySprite = {}
+  for _, s in ipairs(tracked) do
+    beforeBySprite[s] = capture(s)
+  end
+
+  for _, s in ipairs(tracked) do
+    local bx = s.baseX
+    local by = s.baseY
+    if bx == nil then
+      bx = s.worldX or s.x or 0
+    end
+    if by == nil then
+      by = s.worldY or s.y or 0
+    end
+    bx = math.floor(tonumber(bx) + 0.5)
+    by = math.floor(tonumber(by) + 0.5)
+    s.worldX = bx
+    s.worldY = by
+    s.x = bx
+    s.y = by
+    s.dx = 0
+    s.dy = 0
+    s.hasMoved = false
+    SpriteController.syncSharedOAMSpriteState(win, s, {
+      syncPosition = true,
+      syncVisual = false,
+      syncAttr = false,
+    })
+  end
+
+  local actions = {}
+  for _, s in ipairs(tracked) do
+    local beforeState = beforeBySprite[s]
+    local afterState = capture(s)
+    if beforeState and afterState and not statesEqual(beforeState, afterState) then
+      actions[#actions + 1] = {
+        win = win,
+        layerIndex = layerIndex,
+        sprite = s,
+        before = beforeState,
+        after = afterState,
+      }
+    end
+  end
+  if #actions == 0 then
+    return 0
+  end
+
+  if self.undoRedo and self.undoRedo.addDragEvent then
+    self.undoRedo:addDragEvent({
+      type = "sprite_drag",
+      mode = "move",
+      sync = {
+        syncPosition = true,
+        syncVisual = false,
+        syncAttr = false,
+      },
+      actions = actions,
+    })
+  end
+
+  if self.markUnsaved then
+    self:markUnsaved("sprite_move")
+  end
+
+  return #actions
+end
+
 function AppCoreController:_buildOamSpriteEmptySpaceContext(win, layerIndex)
   if not (win and type(layerIndex) == "number") then
     return nil
@@ -711,6 +857,28 @@ function AppCoreController:_buildOamSpriteEmptySpaceContextMenuItems(context)
       end
     end
   end
+
+  local win = context and context.win
+  local layer = context and context.layer
+  local li = context and context.layerIndex
+  if win and layer and layer.kind == "sprite" and type(li) == "number"
+      and (win.kind == "oam_animation" or win.kind == "ppu_frame")
+      and self:_oamSpriteSelectionNeedsPositionReset(win, li) then
+    items[#items + 1] = {
+      text = "Reset position",
+      menuGroup = "spr_sheet_reset",
+      enabled = true,
+      callback = function()
+        local n = self:_resetOamLinkedSpritePositions(win, li)
+        if n <= 0 then
+          self:setStatus("Sprites already at ROM positions")
+        else
+          self:setStatus((n == 1) and "Reset sprite position" or string.format("Reset %d sprite positions", n))
+        end
+      end,
+    }
+  end
+
   if context and context.win and context.layerIndex then
     self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)
     self:_appendRemoveRomPaletteLinkMenuItem(items, context.win, context.layerIndex)

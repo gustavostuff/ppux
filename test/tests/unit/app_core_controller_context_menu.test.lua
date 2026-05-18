@@ -281,8 +281,76 @@ describe("core_controller.lua - contextual menu helpers", function()
     local items = app:_buildSelectInChrContextMenuItems(context)
     expect(items[1].text).toBe("Edit sprite")
     expect(items[1].enabled).toBe(true)
+    expect(items[2].text).toBe("Reset position")
+    expect(items[2].enabled).toBe(false)
     items[1].callback()
     expect(editCalls).toBe(1)
+  end)
+
+  it("enables Reset position on OAM select-in-CHR menu when sprite is offset from ROM base", function()
+    local undoAdded = false
+    local marked = nil
+    local app = setmetatable({
+      undoRedo = {
+        addDragEvent = function(_, ev)
+          undoAdded = true
+          expect(ev.type).toBe("sprite_drag")
+          expect(ev.mode).toBe("move")
+        end,
+      },
+      markUnsaved = function(_, t)
+        marked = t
+      end,
+      setStatus = function() end,
+    }, AppCoreController)
+
+    local layer = {
+      kind = "sprite",
+      selectedSpriteIndex = 1,
+      items = {
+        {
+          bank = 1,
+          tile = 0,
+          startAddr = 0x200,
+          baseX = 10,
+          baseY = 20,
+          worldX = 50,
+          worldY = 60,
+          x = 50,
+          y = 60,
+          dx = 40,
+          dy = 40,
+          hasMoved = true,
+        },
+      },
+    }
+    local win = { kind = "oam_animation", layers = { layer } }
+    local context = {
+      win = win,
+      layerIndex = 1,
+      layer = layer,
+      itemIndex = 1,
+      item = layer.items[1],
+      tileIndex = 0,
+    }
+
+    local items = app:_buildSelectInChrContextMenuItems(context)
+    local resetItem
+    for _, it in ipairs(items) do
+      if it.text == "Reset position" then
+        resetItem = it
+        break
+      end
+    end
+    expect(resetItem ~= nil).toBe(true)
+    expect(resetItem.enabled).toBe(true)
+    resetItem.callback()
+    expect(layer.items[1].worldX).toBe(10)
+    expect(layer.items[1].worldY).toBe(20)
+    expect(layer.items[1].dx).toBe(0)
+    expect(layer.items[1].hasMoved).toBe(false)
+    expect(undoAdded).toBe(true)
+    expect(marked).toBe("sprite_move")
   end)
 
   it("puts Edit sprite first on PPU frame sprite select-in-CHR context menu", function()
@@ -318,6 +386,8 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(items[1].text).toBe("Edit sprite")
     items[1].callback()
     expect(editCalls).toBe(1)
+    expect(items[2].text).toBe("Reset position")
+    expect(items[2].enabled).toBe(false)
   end)
 
   it("builds tile-layer empty-space context menu with palette link actions when linked", function()

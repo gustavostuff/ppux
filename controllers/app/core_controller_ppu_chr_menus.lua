@@ -695,6 +695,19 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
         })
       end,
     })
+    table.insert(items, 2, {
+      text = "Reset position",
+      menuGroup = "sel_chr_sprite_reset",
+      enabled = self:_oamSpriteSelectionNeedsPositionReset(context.win, context.layerIndex),
+      callback = function()
+        local n = self:_resetOamLinkedSpritePositions(context.win, context.layerIndex)
+        if n <= 0 then
+          self:setStatus("Sprites already at ROM positions")
+        else
+          self:setStatus((n == 1) and "Reset sprite position" or string.format("Reset %d sprite positions", n))
+        end
+      end,
+    })
   end
   if context and context.layer and context.layer._runtimePatternTableRefLayer == true then
     items[#items + 1] = {
