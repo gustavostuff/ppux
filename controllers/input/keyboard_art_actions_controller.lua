@@ -343,6 +343,13 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appCoreRef)
   local paletteChanges = (not WindowCaps.isPpuFrame(w)) and {} or nil
   local undoRedo = ctx and ctx.app and ctx.app.undoRedo
 
+  local usePpuPaletteBatch = WindowCaps.isPpuFrame(w)
+    and type(w.beginNametableRomBatch) == "function"
+    and type(w.endNametableRomBatch) == "function"
+  if usePpuPaletteBatch then
+    w:beginNametableRomBatch()
+  end
+
   local updated = 0
   for _, cell in ipairs(selectedCells) do
     if paletteChanges then
@@ -370,6 +377,13 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appCoreRef)
       if success then
         updated = updated + 1
       end
+    end
+  end
+
+  if usePpuPaletteBatch then
+    w:endNametableRomBatch()
+    if updated > 0 then
+      NametableTilesController.syncPpuFrameLayerAfterPaletteBatch(w, layer, li)
     end
   end
   if updated > 0 then

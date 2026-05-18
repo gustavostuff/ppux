@@ -529,10 +529,20 @@ local function buildTilePaletteAssignmentUndoEvent(win, layerIndex, paletteNum)
       return nil
     end
     local beforeState = app:snapshotPpuFrameUndoState(win, layerIndex)
+    local batch = type(win.beginNametableRomBatch) == "function" and type(win.endNametableRomBatch) == "function"
+    if batch then
+      win:beginNametableRomBatch()
+    end
     local updated = 0
     for _, cell in ipairs(cells) do
       if NametableTilesController.setPaletteNumberForTile(win, layer, cell.col, cell.row, paletteNum) then
         updated = updated + 1
+      end
+    end
+    if batch then
+      win:endNametableRomBatch()
+      if updated > 0 then
+        NametableTilesController.syncPpuFrameLayerAfterPaletteBatch(win, layer, layerIndex)
       end
     end
     if updated == 0 then

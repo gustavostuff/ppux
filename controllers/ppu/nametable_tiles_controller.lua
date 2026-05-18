@@ -1008,6 +1008,22 @@ function M.setPaletteNumberForTile(win, layer, col, row, paletteNum)
   return true
 end
 
+--- After `beginNametableRomBatch` / `endNametableRomBatch`, recompute per-tile palettes and refresh the nametable cache.
+function M.syncPpuFrameLayerAfterPaletteBatch(win, layer, layerIndex)
+  if not (win and layer and WindowCaps.isPpuFrame(win)) then
+    return
+  end
+  local cols = win.cols or 32
+  local rows = win.rows or 30
+  M.extractPaletteNumbersFromAttributes(win, layer, cols, rows)
+  if win.invalidateNametableLayerCanvas and layerIndex then
+    win:invalidateNametableLayerCanvas(layerIndex)
+  end
+  if win.syncNametableLayerMetadata then
+    win:syncNametableLayerMetadata()
+  end
+end
+
 --- Set palette number for PPU frame window tile, updating attribute bytes.
 --  This affects all 4 tiles in the 2x2 quadrant that share the same attribute byte.
 --  Internal function (called by setPaletteNumberForTile).
@@ -1086,41 +1102,41 @@ function M._setPaletteNumberForPPUFrame(win, layer, col, row, paletteNum, cols, 
     DebugController.log("warning", "NTM", "Truncated nametableAttrBytes to 64 bytes during palette update (was %d)", originalSize)
   end
   
-  -- Sync paletteNumbers from updated attribute bytes
-  -- This ensures all 4 tiles in the 2x2 quadrant are updated correctly
-  M.extractPaletteNumbersFromAttributes(win, layer, cols, rows)
+  -- Heavy work (extract → canvas → ROM compress) once per user batch via
+  -- beginNametableRomBatch / endNametableRomBatch + syncPpuFrameLayerAfterPaletteBatch.
+  if (win._nametableRomBatchDepth or 0) <= 0 then
+    -- Sync paletteNumbers from updated attribute bytes
+    M.extractPaletteNumbersFromAttributes(win, layer, cols, rows)
 
-  -- Attribute updates affect the selected 2x2 quadrant inside this 4x4 attribute block.
-  -- Invalidate those cells for the cached PPU nametable canvas path.
-  if win.invalidateNametableLayerCanvas and win.getActiveLayerIndex then
-    local li = win:getActiveLayerIndex() or win.activeLayer or 1
-    local baseCol = attrCol * 4
-    local baseRow = attrRow * 4
-    local qCol = (localCol < 2) and 0 or 2
-    local qRow = (localRow < 2) and 0 or 2
-    for dy = 0, 1 do
-      for dx = 0, 1 do
-        local c = baseCol + qCol + dx
-        local r = baseRow + qRow + dy
-        if c >= 0 and c < cols and r >= 0 and r < rows then
-          win:invalidateNametableLayerCanvas(li, c, r)
+    if win.invalidateNametableLayerCanvas and win.getActiveLayerIndex then
+      local li = win:getActiveLayerIndex() or win.activeLayer or 1
+      local baseCol = attrCol * 4
+      local baseRow = attrRow * 4
+      local qCol = (localCol < 2) and 0 or 2
+      local qRow = (localRow < 2) and 0 or 2
+      for dy = 0, 1 do
+        for dx = 0, 1 do
+          local c = baseCol + qCol + dx
+          local r = baseRow + qRow + dy
+          if c >= 0 and c < cols and r >= 0 and r < rows then
+            win:invalidateNametableLayerCanvas(li, c, r)
+          end
         end
       end
     end
-  end
 
-  -- Keep compressed nametable bytes in ROM synchronized with edited attribute bytes.
-  if win.updateCompressedBytesInROM then
-    local ok, err = win:updateCompressedBytesInROM()
-    if not ok then
-      DebugController.log("warning", "NTM", "Failed to update ROM after palette assignment: %s", tostring(err))
+    if win.updateCompressedBytesInROM then
+      local ok, err = win:updateCompressedBytesInROM()
+      if not ok then
+        DebugController.log("warning", "NTM", "Failed to update ROM after palette assignment: %s", tostring(err))
+      end
+    end
+
+    if win.syncNametableLayerMetadata then
+      win:syncNametableLayerMetadata()
     end
   end
 
-  if win.syncNametableLayerMetadata then
-    win:syncNametableLayerMetadata()
-  end
-  
   -- Note: We no longer store paletteAssignments.
   -- User-defined attribute bytes are saved as userDefinedAttrs hex string in snapshotNametableLayer.
   
