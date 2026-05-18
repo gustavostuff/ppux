@@ -106,6 +106,48 @@ function AppCoreController:invalidatePpuFrameNametableTile(bankIdx, tileIndex)
   return touched
 end
 
+--- PPU / OAM sprite layers draw tile refs directly; ensure any on-screen sprite using this CHR
+--- cell reloads from live bank bytes (sparse tilesPool + missed :edit paths used to leave GPU stale).
+function AppCoreController:invalidatePpuFrameSpriteTilesForChrTile(bankIdx, tileIndex)
+  if not (self.wm and self.wm.getWindows) then
+    return false
+  end
+
+  local bank = math.floor(tonumber(bankIdx) or -1)
+  local tile = math.floor(tonumber(tileIndex) or -1)
+  if bank < 1 or tile < 0 then
+    return false
+  end
+
+  local state = self.appEditState
+  local bankBytes = state and state.chrBanksBytes and state.chrBanksBytes[bank]
+  if not bankBytes then
+    return false
+  end
+
+  local touched = false
+  for _, win in ipairs(self.wm:getWindows() or {}) do
+    if win and win.layers and WindowCaps.isStartAddrSpriteSyncWindow(win) then
+      for _, layer in ipairs(win.layers) do
+        if layer and layer.kind == "sprite" and layer.items then
+          for _, s in ipairs(layer.items) do
+            if s.removed ~= true then
+              for _, ref in ipairs({ s.topRef, s.botRef }) do
+                if ref and ref.loadFromCHR and tonumber(ref._bankIndex) == bank and tonumber(ref.index) == tile then
+                  ref:loadFromCHR(bankBytes, tile)
+                  touched = true
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+
+  return touched
+end
+
 function AppCoreController:invalidateStaticAnimationTileLayerCanvasForChrTile(bankIdx, tileIndex)
   if not (self.wm and self.wm.getWindows) then
     return false

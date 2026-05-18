@@ -69,6 +69,9 @@ local function statesEqual(a, b)
 end
 
 function SpriteDragSelectionController.pickSpriteAt(SpriteController, win, x, y, activeLayerIndex)
+  local SpriteLayerDraw = require("user_interface.windows_system.sprite_layer_draw")
+  local SpriteHydrationController = require("controllers.sprite.hydration_controller")
+
   if not win or not win.layers then return nil end
 
   if win.remapPreviewMirrorScreenXYIfNeeded then
@@ -76,8 +79,6 @@ function SpriteDragSelectionController.pickSpriteAt(SpriteController, win, x, y,
   end
 
   local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
-  local cw = win.cellW or 8
-  local ch = win.cellH or 8
   local scol = win.scrollCol or 0
   local srow = win.scrollRow or 0
 
@@ -87,11 +88,17 @@ function SpriteDragSelectionController.pickSpriteAt(SpriteController, win, x, y,
     return nil
   end
 
+  local grid = win.getDisplayGridMetrics and win:getDisplayGridMetrics(li) or {}
+  local gcw = grid.cellW or win.cellW or 8
+  local gch = grid.cellH or win.cellH or 8
+  local cw = grid.baseCellW or grid.cellW or win.cellW or 8
+  local ch = grid.baseCellH or grid.cellH or win.cellH or 8
+
   local originX = L.originX or 0
   local originY = L.originY or 0
   local mode = L.mode or "8x8"
-  local wTile = cw
-  local hSprite = (mode == "8x16") and (2 * ch) or ch
+  local spriteW = cw
+  local spriteH = (mode == "8x16") and (2 * ch) or ch
 
   local NES_W = SpriteController.SPRITE_X_RANGE
   local NES_H = SpriteController.SPRITE_Y_RANGE
@@ -102,9 +109,21 @@ function SpriteDragSelectionController.pickSpriteAt(SpriteController, win, x, y,
   else
     local cx = (x - win.x) / z
     local cy = (y - win.y) / z
-    cxAbs = cx + scol * cw
-    cyAbs = cy + srow * ch
+    cxAbs = cx + scol * gcw
+    cyAbs = cy + srow * gch
   end
+
+  local viewMinX = scol * gcw
+  local viewMinY = srow * gch
+  local viewMaxX = viewMinX + (win.visibleCols or win.cols or 0) * gcw
+  local viewMaxY = viewMinY + (win.visibleRows or win.rows or 0) * gch
+
+  local wrapPreview = SpriteLayerDraw.wrapPreviewEnabledForKind(win.kind)
+
+  local ctxHydrate = rawget(_G, "ctx")
+  local appHydrate = ctxHydrate and ctxHydrate.app or nil
+  local stateHydrate = appHydrate and appHydrate.appEditState or nil
+  local tilesPool = stateHydrate and stateHydrate.tilesPool or nil
 
   local items = L.items
   for idx = #items, 1, -1 do
@@ -112,16 +131,41 @@ function SpriteDragSelectionController.pickSpriteAt(SpriteController, win, x, y,
     if s.removed == true then
       goto continue
     end
-    local worldX = s.worldX or s.baseX or s.x or 0
-    local worldY = s.worldY or s.baseY or s.y or 0
-    local sx = (originX + worldX) % NES_W
-    local sy = (originY + worldY) % NES_H
 
-    if cxAbs >= sx and cxAbs < sx + wTile and
-       cyAbs >= sy and cyAbs < sy + hSprite then
-      local centerX = sx + wTile * 0.5
-      local centerY = sy + hSprite * 0.5
-      return li, idx, cxAbs - centerX, cyAbs - centerY
+    if tilesPool then
+      local topRef = s.topRef
+      local needRefs =
+        mode == "8x16"
+          and (not topRef or not s.botRef)
+          or (mode ~= "8x16" and not topRef)
+      if needRefs then
+        SpriteHydrationController.ensureTileRefsForSpriteItem(s, mode, tilesPool, stateHydrate, L)
+      end
+      if not (s.topRef and s.topRef.draw) then
+        goto continue
+      end
+    end
+
+    local wx, wy = SpriteLayerDraw.spriteWorldPixelsBeforeOrigin(s)
+    local drawX = SpriteLayerDraw.nesMod(originX + wx, NES_W)
+    local drawY = SpriteLayerDraw.nesMod(originY + wy, NES_H)
+
+    local drawXs = wrapPreview
+      and SpriteLayerDraw.collectWrappedPositions(drawX, spriteW, NES_W, viewMinX, viewMaxX)
+      or { drawX }
+    local drawYs = wrapPreview
+      and SpriteLayerDraw.collectWrappedPositions(drawY, spriteH, NES_H, viewMinY, viewMaxY)
+      or { drawY }
+
+    for _, screenY in ipairs(drawYs) do
+      for _, screenX in ipairs(drawXs) do
+        if cxAbs >= screenX and cxAbs < screenX + spriteW and
+           cyAbs >= screenY and cyAbs < screenY + spriteH then
+          local centerX = screenX + spriteW * 0.5
+          local centerY = screenY + spriteH * 0.5
+          return li, idx, cxAbs - centerX, cyAbs - centerY
+        end
+      end
     end
     ::continue::
   end

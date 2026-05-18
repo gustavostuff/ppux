@@ -2,6 +2,7 @@
 -- Brush tools: single pixel brush, flood fill, and future brush tools
 
 local chr = require("chr")
+local BankViewController = require("controllers.chr.bank_view_controller")
 local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
 local GameArtController = require("controllers.game_art.game_art_controller")
 local DebugController = require("controllers.dev.debug_controller")
@@ -399,7 +400,6 @@ local function commitPixelWriteBatch(batch)
   if not state or not state.chrBanksBytes then return false end
   if #batch.writeList == 0 then return false end
 
-  local tilesPool = state.tilesPool or {}
   local undoRedo = app.undoRedo
   local touchedTiles = {}
   local applied = false
@@ -409,7 +409,8 @@ local function commitPixelWriteBatch(batch)
   for _, write in ipairs(batch.writeList) do
     local bankBytes = state.chrBanksBytes[write.bank]
     if bankBytes then
-      local tileRef = tilesPool[write.bank] and tilesPool[write.bank][write.tileIndex] or nil
+      -- Always resolve through getTileRef so sparse pools still get in-memory tiles + GPU updates.
+      local tileRef = BankViewController.getTileRef(state, write.bank, write.tileIndex)
       if undoRedo and undoRedo.activeEvent then
         local undoStartedAt = nowSeconds()
         undoRedo:recordPixelChange(write.bank, write.tileIndex, write.tx, write.ty, write.before or 0, write.after)

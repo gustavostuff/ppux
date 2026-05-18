@@ -43,7 +43,8 @@ local function intersectsRange(startPos, size, minPos, maxPos)
   return a0 < maxPos and a1 > minPos
 end
 
-local function collectWrappedPositions(basePos, size, range, viewMin, viewMax)
+--- Torus wrap candidates that intersect the view (same for raster + pointer hit-testing).
+function M.collectWrappedPositions(basePos, size, range, viewMin, viewMax)
   local positions = {}
   local seen = {}
   for _, candidate in ipairs({ basePos - range, basePos, basePos + range }) do
@@ -215,10 +216,10 @@ function M.drawSpriteLayerInContentSpace(opts)
     local drawY = M.nesMod(originY + wy, NES_H)
 
     local drawXs = wrapPreview
-      and collectWrappedPositions(drawX, spriteW, NES_W, viewMinX, viewMaxX)
+      and M.collectWrappedPositions(drawX, spriteW, NES_W, viewMinX, viewMaxX)
       or { drawX }
     local drawYs = wrapPreview
-      and collectWrappedPositions(drawY, spriteH, NES_H, viewMinY, viewMaxY)
+      and M.collectWrappedPositions(drawY, spriteH, NES_H, viewMinY, viewMaxY)
       or { drawY }
 
     for _, screenY in ipairs(drawYs) do

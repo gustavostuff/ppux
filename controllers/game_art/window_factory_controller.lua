@@ -22,6 +22,20 @@ local PatternTableDisplayController = require("controllers.game_art.pattern_tabl
 
 local M = {}
 
+--- Layout disk format for ROM OAM slots (mirrors must match `hydration_controller.snapshotSpriteLayer`).
+local function spriteOamSlotItemFromLayout(it)
+  return {
+    startAddr = it.startAddr,
+    paletteNumber = it.paletteNumber,
+    dx = it.dx,
+    dy = it.dy,
+    mirrorX = it.mirrorX,
+    mirrorY = it.mirrorY,
+    _mirrorXOverrideSet = (it.mirrorX ~= nil),
+    _mirrorYOverrideSet = (it.mirrorY ~= nil),
+  }
+end
+
 local function nowSeconds()
   if love and love.timer and love.timer.getTime then
     return love.timer.getTime()
@@ -436,12 +450,7 @@ function M.createOamAnimationWindow(w, tilesPool, ensureTiles)
           local oamSlot = type(it.startAddr) == "number"
           local chrPair = it.bank ~= nil and type(it.tile) == "number"
           if oamSlot then
-            table.insert(spriteLayer.items, {
-              startAddr = it.startAddr,
-              paletteNumber = it.paletteNumber,
-              dx = it.dx,
-              dy = it.dy,
-            })
+            table.insert(spriteLayer.items, spriteOamSlotItemFromLayout(it))
           elseif chrPair then
             if it.bank ~= nil then
               ensureTiles(it.bank)
@@ -499,12 +508,7 @@ local function addPpuSpriteOverlayLayers(win, w, ensureTiles)
         local oamSlot = type(it.startAddr) == "number"
         local chrPair = it.bank ~= nil and type(it.tile) == "number"
         if oamSlot then
-          table.insert(spriteLayer.items, {
-            startAddr = it.startAddr,
-            paletteNumber = it.paletteNumber,
-            dx = it.dx,
-            dy = it.dy,
-          })
+          table.insert(spriteLayer.items, spriteOamSlotItemFromLayout(it))
         elseif chrPair then
           if it.bank ~= nil then
             ensureTiles(it.bank)

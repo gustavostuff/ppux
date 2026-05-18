@@ -286,7 +286,8 @@ function M.snapshotSpriteLayer(layer)
 
     local entry
     if s.startAddr then
-      -- ROM OAM slots: startAddr, palette, and optional editor displacement vs ROM bytes.
+      -- ROM OAM slots: startAddr, palette, optional editor displacement vs ROM bytes,
+      -- and mirror overrides (ROM attr bits otherwise).
       entry = { startAddr = s.startAddr }
       if s.paletteNumber ~= nil then
         entry.paletteNumber = s.paletteNumber
@@ -296,6 +297,12 @@ function M.snapshotSpriteLayer(layer)
       if dx ~= 0 or dy ~= 0 then
         entry.dx = dx
         entry.dy = dy
+      end
+      if s._mirrorXOverrideSet == true then
+        entry.mirrorX = (s.mirrorX == true)
+      end
+      if s._mirrorYOverrideSet == true then
+        entry.mirrorY = (s.mirrorY == true)
       end
     else
       entry = {
@@ -352,6 +359,23 @@ function M.applySnapshotToSpriteLayer(layer, snapshot, opts)
   local romRaw = opts and opts.romRaw or ""
   local tilesPool = opts and opts.tilesPool
 
+  local function applyMirrorsFromLayoutEntry(entry, target)
+    if entry.mirrorX ~= nil then
+      target.mirrorX = entry.mirrorX == true
+      target._mirrorXOverrideSet = true
+    else
+      target.mirrorX = nil
+      target._mirrorXOverrideSet = false
+    end
+    if entry.mirrorY ~= nil then
+      target.mirrorY = entry.mirrorY == true
+      target._mirrorYOverrideSet = true
+    else
+      target.mirrorY = nil
+      target._mirrorYOverrideSet = false
+    end
+  end
+
   local items = layer.items or {}
   for idx, entry in ipairs(snapshot.items or {}) do
     local s = items[idx]
@@ -364,6 +388,7 @@ function M.applySnapshotToSpriteLayer(layer, snapshot, opts)
         dx = dx,
         dy = dy,
       }
+      applyMirrorsFromLayoutEntry(entry, oam)
       if s then
         s.startAddr = oam.startAddr
         s.paletteNumber = oam.paletteNumber
@@ -376,10 +401,7 @@ function M.applySnapshotToSpriteLayer(layer, snapshot, opts)
         s.y = nil
         s.worldX = nil
         s.worldY = nil
-        s._mirrorXOverrideSet = false
-        s._mirrorYOverrideSet = false
-        s.mirrorX = nil
-        s.mirrorY = nil
+        applyMirrorsFromLayoutEntry(entry, s)
       else
         items[idx] = oam
       end

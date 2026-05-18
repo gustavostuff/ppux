@@ -125,6 +125,77 @@ describe("game_art_controller.lua - oam_animation hydration", function()
     expect(s.topRef).toBe(tilesPool[1][42])
   end)
 
+  it("loads mirror overrides for ROM OAM items from saved layout (not only ROM attr bits)", function()
+    local startAddr = 60
+    local romRaw = makeRom(128, {
+      [startAddr + 0] = 10,
+      [startAddr + 1] = 7,
+      [startAddr + 2] = 0x00,
+      [startAddr + 3] = 20,
+    })
+
+    local layout = {
+      currentBank = 1,
+      windows = {
+        {
+          id = "oam_mirror_reload",
+          title = "OAM Mirror Reload",
+          kind = "oam_animation",
+          x = 10,
+          y = 10,
+          cellW = 8,
+          cellH = 8,
+          cols = 32,
+          rows = 30,
+          visibleCols = 16,
+          visibleRows = 16,
+          zoom = 2,
+          activeLayer = 1,
+          layers = {
+            {
+              kind = "sprite",
+              name = "Frame 1",
+              mode = "8x8",
+              items = {
+                {
+                  startAddr = startAddr,
+                  mirrorX = true,
+                  mirrorY = false,
+                },
+              },
+            },
+          },
+        },
+      },
+    }
+
+    local wm = WM.new()
+    local tilesPool = {
+      [1] = {
+        [7] = { _bankIndex = 1, index = 7, pixels = {} },
+      },
+    }
+    local function ensureTiles(bankIdx)
+      tilesPool[bankIdx] = tilesPool[bankIdx] or {}
+    end
+
+    local result, err = GameArtController.buildWindowsFromLayout(layout, {
+      wm = wm,
+      tilesPool = tilesPool,
+      ensureTiles = ensureTiles,
+      romRaw = romRaw,
+    })
+
+    expect(err).toBeNil()
+    expect(result).toBeTruthy()
+
+    local s = wm:getWindows()[1].layers[1].items[1]
+    expect(s.mirrorX).toBe(true)
+    expect(s.mirrorY).toBe(false)
+    expect(s._mirrorXOverrideSet).toBe(true)
+    expect(s._mirrorYOverrideSet).toBe(true)
+  end)
+
   it("derives paletteNumber from attr bits when project item omits paletteNumber", function()
     local startAddr = 44 -- 0-based ROM address
     local romRaw = makeRom(128, {
@@ -239,8 +310,8 @@ describe("game_art_controller.lua - oam_animation hydration", function()
     expect(entry.layers[1].items[1].tile).toBeNil()
     expect(entry.layers[1].items[1].dx).toBe(2)
     expect(entry.layers[1].items[1].dy).toBe(-1)
-    expect(entry.layers[1].items[1].mirrorX).toBeNil()
-    expect(entry.layers[1].items[1].mirrorY).toBeNil()
+    expect(entry.layers[1].items[1].mirrorX).toBe(true)
+    expect(entry.layers[1].items[1].mirrorY).toBe(true)
   end)
 
   it("omits mirror flags for OAM sprites when no UI mirror override was set", function()

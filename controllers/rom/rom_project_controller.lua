@@ -9,6 +9,7 @@ local RomWindow       = require("user_interface.windows_system.rom_window")
 local StaticArtWindow = require("user_interface.windows_system.static_art_window")
 local AnimationWindow = require("user_interface.windows_system.animation_window")
 local BankViewController = require("controllers.chr.bank_view_controller")
+local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
 local ChrDuplicateSync = require("controllers.chr.duplicate_sync_controller")
 local ChrBackingController = require("controllers.rom.chr_backing_controller")
 local ResolutionController = require("controllers.app.resolution_controller")
@@ -791,6 +792,18 @@ local function loadFromProject(app, project)
   -- Store edits in decompressed format for runtime use (easier to add new edits)
   app.edits = GameArtController.decompressEdits(edits)
   logPerf("project.apply_edits", editsStartedAt)
+
+  do
+    local seen = {}
+    GameArtController.iterEditedTileIndices(edits, function(bankIdx, tileIdx)
+      local key = tostring(bankIdx) .. ":" .. tostring(tileIdx)
+      if seen[key] then
+        return
+      end
+      seen[key] = true
+      BankCanvasSupport.invalidateTile(app, bankIdx, tileIdx)
+    end)
+  end
 
   pulseLoading(app, "Indexing duplicate tiles...")
   local dupesStartedAt = nowSeconds()

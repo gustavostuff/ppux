@@ -300,6 +300,34 @@ function M.applyEdits(edits, tilesPool, chrBanksBytes, ensureTiles)
   end
 end
 
+--- Visit each distinct (bankIdx, tileIdx) referenced by project edits (same keys as applyEdits).
+function M.iterEditedTileIndices(edits, fn)
+  if not (edits and edits.banks and fn) then
+    return
+  end
+  for bankIdx, tiles in pairs(edits.banks) do
+    bankIdx = tonumber(bankIdx)
+    if bankIdx and type(tiles) == "table" then
+      for tileKey, _ in pairs(tiles) do
+        local startStr, endStr = tostring(tileKey):match("^(%d+)-(%d+)$")
+        if startStr and endStr then
+          local startIdx, endIdx = tonumber(startStr), tonumber(endStr)
+          if startIdx and endIdx then
+            for tileIdx = startIdx, endIdx do
+              fn(bankIdx, tileIdx)
+            end
+          end
+        else
+          local tileIdx = tonumber(tileKey)
+          if tileIdx then
+            fn(bankIdx, tileIdx)
+          end
+        end
+      end
+    end
+  end
+end
+
 function M.buildEditsFromChrDiff(originalChrBanksBytes, currentChrBanksBytes)
   local out = M.newEdits()
   if type(currentChrBanksBytes) ~= "table" then

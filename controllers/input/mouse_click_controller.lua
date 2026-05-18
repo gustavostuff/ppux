@@ -262,16 +262,6 @@ local function handleSpriteClick(env, button, x, y, win, wm)
   local L = win.layers[li]
   if not (L and L.kind == "sprite") then return false end
 
-  local sprLocked, sprLockReason = isPatternLayerGatedLocked(win, li)
-  if sprLocked then
-    local ntFallback = WindowCaps.isPpuFrame(win) and ppuNametableTileLayerIndexForInteraction(win)
-    if ntFallback and not select(1, isPatternLayerGatedLocked(win, ntFallback)) then
-      return false
-    end
-    setStatus(ctx, sprLockReason or "Sprite layer is not ready (pattern table)")
-    return true
-  end
-
   local shiftDown = utils.shiftDown and utils.shiftDown()
   local ctrlDown = utils.ctrlDown and utils.ctrlDown()
 
@@ -288,7 +278,28 @@ local function handleSpriteClick(env, button, x, y, win, wm)
   local layerIndex, itemIndex, offsetX, offsetY = SpriteController.pickSpriteAt(win, x, y, li)
   SpriteController.updateSpriteMarquee(x, y)
 
-  if layerIndex and itemIndex then
+  if not (layerIndex and itemIndex) then
+    clearOamSpriteEditClick()
+    setSpriteClick({ active = false })
+    SpriteController.clearSpriteSelection(L)
+    L.hoverSpriteIndex = nil
+    if WindowCaps.isPpuFrame(win) then
+      return false
+    end
+    return true
+  end
+
+  local sprLocked, sprLockReason = isPatternLayerGatedLocked(win, li)
+  if sprLocked then
+    local ntFallback = WindowCaps.isPpuFrame(win) and ppuNametableTileLayerIndexForInteraction(win)
+    if ntFallback and not select(1, isPatternLayerGatedLocked(win, ntFallback)) then
+      return false
+    end
+    setStatus(ctx, sprLockReason or "Sprite layer is not ready (pattern table)")
+    return true
+  end
+
+  do
     wm:setFocus(win)
 
     local targetIndex = itemIndex
@@ -388,16 +399,6 @@ local function handleSpriteClick(env, button, x, y, win, wm)
     SpriteController.beginDrag(win, layerIndex, targetIndex, offsetX, offsetY, ctrlDown)
     return true
   end
-
-  if WindowCaps.isPpuFrame(win) then
-    return false
-  end
-
-  clearOamSpriteEditClick()
-  setSpriteClick({ active = false })
-  SpriteController.clearSpriteSelection(L)
-  L.hoverSpriteIndex = nil
-  return true
 end
 
 local function handleRightButton(env, button, x, y, win, wm)

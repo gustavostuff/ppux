@@ -146,6 +146,10 @@ function M.applyEdits(edits, tilesPool, chrBanksBytes, ensureTiles)
   return GameArtEditsController.applyEdits(edits, tilesPool, chrBanksBytes, ensureTiles)
 end
 
+function M.iterEditedTileIndices(edits, fn)
+  return GameArtEditsController.iterEditedTileIndices(edits, fn)
+end
+
 function M.recordEdit(edits, bankIdx, tileIdx, x, y, color)
   return GameArtEditsController.recordEdit(edits, bankIdx, tileIdx, x, y, color)
 end
