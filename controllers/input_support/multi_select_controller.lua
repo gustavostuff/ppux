@@ -624,8 +624,14 @@ function M.deleteTileSelection(win, layerIdx, fallbackCol, fallbackRow, app, und
     end
 
     local tilesPool = (app and app.appEditState and app.appEditState.tilesPool) or nil
+    if type(win.beginNametableRomBatch) == "function" then
+      win:beginNametableRomBatch()
+    end
     for _, act in ipairs(actions) do
       win:setNametableByteAt(act.col, act.row, clearByte, tilesPool, layerIdx)
+    end
+    if type(win.endNametableRomBatch) == "function" then
+      win:endNametableRomBatch()
     end
 
     layer.multiTileSelection = nil

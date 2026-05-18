@@ -75,6 +75,22 @@ local function chrTileMappedToDestinationPpuPatternTable(dst, dstLayerIdx, srcWi
   return type(logicalIdx) == "number"
 end
 
+local function ppuNametableTileLayerAt(win, layerIdx)
+  local L = win and win.layers and win.layers[layerIdx]
+  if not (L and L.kind == "tile" and L._runtimePatternTableRefLayer ~= true) then
+    return nil
+  end
+  return L
+end
+
+local function allowsPatternTableToPpuNametableDrop(src, dst)
+  if not (WindowCaps.isPatternTable(src) and WindowCaps.isPpuFrame(dst)) then
+    return false
+  end
+  local dl = (dst.getActiveLayerIndex and dst:getActiveLayerIndex()) or 1
+  return ppuNametableTileLayerAt(dst, dl) ~= nil
+end
+
 local function normalizeSwapRowForOddEven(win, row)
   row = math.floor(tonumber(row) or 0)
   if win and win.orderMode == "oddEven" then
@@ -1003,8 +1019,10 @@ function M.handleTileDrop(env, x, y, wm)
   local recorder = makeTileDragRecorder(undoRedo, ((drag.copyMode or srcIsChr) and "copy") or "move")
 
   if src and dst and src ~= dst and (not srcIsChr) then
-    env.clearDragState(false)
-    return true
+    if not allowsPatternTableToPpuNametableDrop(src, dst) then
+      env.clearDragState(false)
+      return true
+    end
   end
 
   if src and dst and src == dst and WindowCaps.isChrLike(dst) and dst.swapCells then
@@ -1217,6 +1235,18 @@ function M.handleTileDrop(env, x, y, wm)
       return true
     end
 
+    local effectiveCopyMode = drag.copyMode == true
+    if WindowCaps.isPatternTable(src) and WindowCaps.isPpuFrame(dst) then
+      effectiveCopyMode = true
+      for _, entry in ipairs(drag.tileGroup.entries or {}) do
+        if not chrTileMappedToDestinationPpuPatternTable(dst, dstLayer, src, entry.item, drag.srcLayer) then
+          notifyChrDropPatternTableRejected(env)
+          env.clearDragState(false)
+          return true
+        end
+      end
+    end
+
     if recorder then
       local srcLayer = drag.srcLayer or 1
       for _, entry in ipairs(drag.tileGroup.entries or {}) do
@@ -1230,7 +1260,7 @@ function M.handleTileDrop(env, x, y, wm)
     end
 
     local applyResult = MultiSelectController.applyTileDragGroup(dst, dstLayer, drag.tileGroup, anchorCol, anchorRow, {
-      copyMode = drag.copyMode,
+      copyMode = effectiveCopyMode,
       srcWin = src,
       srcLayer = drag.srcLayer,
       tilesPool = app and app.appEditState and app.appEditState.tilesPool,
@@ -1262,9 +1292,12 @@ function M.handleTileDrop(env, x, y, wm)
   end
 
   if not srcIsChr and WindowCaps.isPatternTable(src) and not drag.copyMode then
-    setStatusFromEnv(env, "Cannot move tiles out of pattern tables (copy-drag still works)")
-    env.clearDragState(false)
-    return true
+    local allowPpuNametablePlace = WindowCaps.isPpuFrame(dst) and ppuNametableTileLayerAt(dst, dstLayer)
+    if not allowPpuNametablePlace then
+      setStatusFromEnv(env, "Cannot move tiles out of pattern tables (copy-drag still works)")
+      env.clearDragState(false)
+      return true
+    end
   end
 
   if WindowCaps.isPpuFrame(src) and WindowCaps.isPpuFrame(dst) then
@@ -1338,7 +1371,19 @@ function M.handleTileDrop(env, x, y, wm)
     if recorder then recorder.stageCell(dst, dstLayer, col, row) end
     handleChrBankCopy(dst, col, row, drag, dstLayer)
   else
-    if drag.copyMode then
+    local patternToPpuNametable = WindowCaps.isPatternTable(src) and WindowCaps.isPpuFrame(dst)
+      and ppuNametableTileLayerAt(dst, dstLayer) ~= nil
+    if patternToPpuNametable then
+      if not chrTileMappedToDestinationPpuPatternTable(dst, dstLayer, src, drag.item, drag.srcLayer) then
+        notifyChrDropPatternTableRejected(env)
+        env.clearDragState(false)
+        return true
+      end
+      if recorder then recorder.stageCell(dst, dstLayer, col, row) end
+      if dst.set then
+        dst:set(col, row, drag.item, dstLayer)
+      end
+    elseif drag.copyMode then
       if recorder then recorder.stageCell(dst, dstLayer, col, row) end
       if dst.set then
         dst:set(col, row, drag.item, dstLayer)

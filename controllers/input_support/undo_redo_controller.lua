@@ -1198,21 +1198,50 @@ local function applyRemovalEvent(event, direction, app)
   end
   local DebugController = require("controllers.dev.debug_controller")
 
+  if event.subtype == "ppu" then
+    local tilesPool = app and app.appEditState and app.appEditState.tilesPool
+    local applied = 0
+    local winOrder = {}
+    local byWin = {}
+    for _, act in ipairs(event.actions) do
+      local win = act.win
+      if win and not win._closed and win.setNametableByteAt then
+        local li = act.layerIndex or (win.getActiveLayerIndex and win:getActiveLayerIndex()) or 1
+        local val = (direction == "undo") and act.prevByte or act.newByte
+        if val ~= nil then
+          if not byWin[win] then
+            byWin[win] = {}
+            winOrder[#winOrder + 1] = win
+          end
+          local list = byWin[win]
+          list[#list + 1] = { act = act, li = li, val = val }
+        end
+      end
+    end
+    for _, win in ipairs(winOrder) do
+      if type(win.beginNametableRomBatch) == "function" then
+        win:beginNametableRomBatch()
+      end
+      for _, entry in ipairs(byWin[win]) do
+        local act = entry.act
+        win:setNametableByteAt(act.col, act.row, entry.val, tilesPool, entry.li)
+        DebugController.log("debug", "SPRITE_REMOVAL", "[PPU] dir=%s col=%s row=%s val=%s", direction, tostring(act.col), tostring(act.row), tostring(entry.val))
+        applied = applied + 1
+      end
+      if type(win.endNametableRomBatch) == "function" then
+        win:endNametableRomBatch()
+      end
+    end
+    return applied > 0
+  end
+
   local applied = 0
   for _, act in ipairs(event.actions) do
     local win = act.win
     if win and not win._closed then
       local li = act.layerIndex or (win.getActiveLayerIndex and win:getActiveLayerIndex()) or 1
 
-      if event.subtype == "ppu" then
-        local val = (direction == "undo") and act.prevByte or act.newByte
-        if val ~= nil and win.setNametableByteAt then
-          local tilesPool = app and app.appEditState and app.appEditState.tilesPool
-          win:setNametableByteAt(act.col, act.row, val, tilesPool, li)
-          DebugController.log("debug", "SPRITE_REMOVAL", "[PPU] dir=%s col=%s row=%s val=%s", direction, tostring(act.col), tostring(act.row), tostring(val))
-          applied = applied + 1
-        end
-      elseif event.subtype == "sprite" then
+      if event.subtype == "sprite" then
         local layer = win.layers and win.layers[li]
         if layer then
           local s = act.sprite or (layer.items and act.spriteIndex and layer.items[act.spriteIndex])
