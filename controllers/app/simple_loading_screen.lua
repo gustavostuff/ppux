@@ -83,7 +83,6 @@ end
 
 local function drawLoadingPattern(cw, ch, message, font)
   local cx = math.floor(cw * 0.5)
-  local cy = math.floor(ch * 0.5) - 8
 
   local bg = colors:appWorkspaceFill()
   love.graphics.clear(bg[1], bg[2], bg[3], 1)
@@ -94,15 +93,16 @@ local function drawLoadingPattern(cw, ch, message, font)
   local label = message or "Loading..."
   local textW = select(1, Text.measure(label, { font = font }))
   local textX = math.floor((cw - textW) * 0.5)
-  local textY = cy + 90
+
+  local textH = LOADING_LABEL_FONT_SIZE
+  if font and font.getHeight then
+    textH = font:getHeight()
+  end
+  local blockH = textH + BAR_GAP_BELOW_TEXT + BAR_H
+  local textY = math.floor((ch - blockH) * 0.5)
   Text.print(label, textX, textY, { font = font, color = colors.white })
 
-  local textBottom = textY
-  if font and font.getHeight then
-    textBottom = textY + font:getHeight()
-  else
-    textBottom = textY + LOADING_LABEL_FONT_SIZE
-  end
+  local textBottom = textY + textH
   drawIndeterminateBar(cx, textBottom + BAR_GAP_BELOW_TEXT, bg)
 end
 
