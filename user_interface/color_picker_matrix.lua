@@ -2,7 +2,8 @@
 -- Col 1: lightness (HSL L) ladder; col 1 and the 8x8 matrix each have their own selection highlight.
 -- Changing the matrix keeps the brightness row; changing brightness keeps the matrix cell.
 -- Col 2: non-interactive spacer (no drawing).
--- Cols 3-10: hue  x  saturation at fixed L=0.5 (HSL) for preview; the selected cell is drawn at the ladder L.
+-- Cols 3-10: hue × saturation at fixed L=0.5 (HSL) for preview; the selected cell is drawn at the ladder L.
+-- Matrix column hues come from assets/hue_ramp.png via tools/extract_hue_ramp.py (user_interface/hue_ramp_matrix_columns.lua).
 -- onChange / getSelected still report h, s, v as HSV [0,1] derived from the resulting RGB.
 local Panel = require("user_interface.panel")
 local colors = require("app_colors")
@@ -17,10 +18,42 @@ local SELECTION_RECT_ANIM = {
 
 local GRID_COLS = 10
 local GRID_ROWS = 8
-local MATRIX_COLS = 8
-local MATRIX_FIRST_COL = 3
+local MATRIX_COLUMN_HUES = require("user_interface.hue_ramp_matrix_columns")
+
+--- @deprecated use #MATRIX_COLUMN_HUES if lengths ever diverge
+local MATRIX_COLS = #MATRIX_COLUMN_HUES
+
 local BRIGHT_COL = 1
 local SPACER_COL = 2
+local MATRIX_FIRST_COL = 3
+
+local function hueForMatrixColumn(hueIndex)
+  local i = math.floor(tonumber(hueIndex) or 1)
+  if i < 1 then
+    i = 1
+  end
+  if i > MATRIX_COLS then
+    i = MATRIX_COLS
+  end
+  return MATRIX_COLUMN_HUES[i] % 1
+end
+
+local function nearestMatrixColumnForHue(h)
+  h = (tonumber(h) or 0) % 1
+  local bestIdx, bestD = 1, math.huge
+  for i = 1, MATRIX_COLS do
+    local hi = MATRIX_COLUMN_HUES[i]
+    local d = math.abs(h - hi)
+    if d > 0.5 then
+      d = 1 - d
+    end
+    if d < bestD then
+      bestD = d
+      bestIdx = i
+    end
+  end
+  return bestIdx
+end
 
 local function clamp01(x)
   if x < 0 then return 0 end
@@ -237,7 +270,7 @@ function ColorPickerMatrix.new(opts)
 
   -- HSL hue [0,1) and HSL saturation [0,1] for the matrix slice at L = 0.5.
   local function hueSatFromIndices(hueIndex, satRow)
-    local h = (hueIndex - 1) / MATRIX_COLS
+    local h = hueForMatrixColumn(hueIndex)
     local s = (GRID_ROWS - satRow) / (GRID_ROWS - 1)
     if GRID_ROWS == 1 then
       s = 1
@@ -388,7 +421,7 @@ function ColorPickerMatrix.new(opts)
     local iv = opts.initialHSV.v ~= nil and clamp01(opts.initialHSV.v) or 1
     local r0, g0, b0 = hsvToRgb(ih, is, iv)
     local hh, ss, ll = rgbToHsl(r0, g0, b0)
-    self._hueIndex = math.max(1, math.min(MATRIX_COLS, math.floor(hh * MATRIX_COLS) + 1))
+    self._hueIndex = nearestMatrixColumnForHue(hh)
     self._satRow = math.max(1, math.min(GRID_ROWS, GRID_ROWS - math.floor(ss * (GRID_ROWS - 1))))
     self._brightRow = brightRowFromLightness(ll)
     self._lightness = lightnessForRow(self._brightRow)
@@ -404,7 +437,7 @@ function ColorPickerMatrix.new(opts)
     b = clamp01(tonumber(b) or 0)
     self._swatchPinRgb = { r, g, b, 1 }
     local hh, ss, ll = rgbToHsl(r, g, b)
-    self._hueIndex = math.max(1, math.min(MATRIX_COLS, math.floor(hh * MATRIX_COLS) + 1))
+    self._hueIndex = nearestMatrixColumnForHue(hh)
     self._satRow = math.max(1, math.min(GRID_ROWS, GRID_ROWS - math.floor(ss * (GRID_ROWS - 1))))
     self._brightRow = brightRowFromLightness(ll)
     self._lightness = lightnessForRow(self._brightRow)
@@ -449,7 +482,7 @@ end
 function ColorPickerMatrix:getSelected()
   local r, g, b
   if self._hueIndex and self._satRow then
-    local h = (self._hueIndex - 1) / MATRIX_COLS
+    local h = hueForMatrixColumn(self._hueIndex)
     local s = (GRID_ROWS - self._satRow) / (GRID_ROWS - 1)
     if GRID_ROWS == 1 then
       s = 1
