@@ -85,6 +85,14 @@ local function describeUndoRedoEvent(event)
     return "Revert tile"
   elseif t == "window_minimize_batch" then
     return "Minimize others"
+  elseif t == "window_minimize_all" then
+    return "Minimize all"
+  elseif t == "window_restore_minimized_all" then
+    return "Maximize all"
+  elseif t == "window_collapse_all" then
+    return "Collapse all"
+  elseif t == "window_expand_all" then
+    return "Expand all"
   elseif t == "window_minimize" then
     return "Minimize window"
   elseif t == "window_close" then
@@ -407,6 +415,49 @@ function UndoRedoController:addWindowMinimizeBatchEvent(event)
     return false
   end
   if type(event.targets) ~= "table" or #event.targets == 0 then
+    return false
+  end
+  return self:_pushEvent(event)
+end
+
+function UndoRedoController:addWindowMinimizeAllEvent(event)
+  if not event or event.type ~= "window_minimize_all" then
+    return false
+  end
+  if type(event.targets) ~= "table" or #event.targets == 0 then
+    return false
+  end
+  return self:_pushEvent(event)
+end
+
+function UndoRedoController:addWindowRestoreMinimizedAllEvent(event)
+  if not event or event.type ~= "window_restore_minimized_all" then
+    return false
+  end
+  if type(event.targets) ~= "table" or #event.targets == 0 then
+    return false
+  end
+  return self:_pushEvent(event)
+end
+
+function UndoRedoController:addWindowExpandAllEvent(event)
+  if not event or event.type ~= "window_expand_all" then
+    return false
+  end
+  if type(event.targets) ~= "table" or #event.targets == 0 then
+    return false
+  end
+  return self:_pushEvent(event)
+end
+
+function UndoRedoController:addWindowCollapseAllEvent(event)
+  if not event or event.type ~= "window_collapse_all" then
+    return false
+  end
+  if type(event.beforeOrder) ~= "table" or type(event.afterOrder) ~= "table" then
+    return false
+  end
+  if type(event.beforeLayout) ~= "table" or type(event.afterLayout) ~= "table" then
     return false
   end
   return self:_pushEvent(event)
@@ -1331,6 +1382,120 @@ local function applyWindowMinimizeBatchEvent(event, direction, app)
   return true
 end
 
+local function applyWindowMinimizeAllEvent(event, direction, app)
+  if not (event and event.type == "window_minimize_all") then
+    return false
+  end
+  local wm = event.wm or (app and app.wm)
+  if not wm then
+    return false
+  end
+  local targets = event.targets or {}
+  local beforeFocusedWin = event.beforeFocusedWin
+  if direction == "undo" then
+    for i = 1, #targets do
+      local w = targets[i]
+      if w and not w._closed and w._minimized and wm.restoreMinimizedWindow then
+        wm:restoreMinimizedWindow(w, { recordUndo = false, focus = false })
+      end
+    end
+    if wm.setFocus then
+      wm:setFocus(beforeFocusedWin)
+    end
+  else
+    for i = 1, #targets do
+      local w = targets[i]
+      if w and not w._closed and wm.minimizeWindow then
+        wm:minimizeWindow(w, { recordUndo = false })
+      end
+    end
+  end
+  return true
+end
+
+local function applyWindowRestoreMinimizedAllEvent(event, direction, app)
+  if not (event and event.type == "window_restore_minimized_all") then
+    return false
+  end
+  local wm = event.wm or (app and app.wm)
+  if not wm then
+    return false
+  end
+  local targets = event.targets or {}
+  local beforeFocusedWin = event.beforeFocusedWin
+  local afterFocusedWin = event.afterFocusedWin
+  if direction == "undo" then
+    for i = 1, #targets do
+      local w = targets[i]
+      if w and not w._closed and wm.minimizeWindow then
+        wm:minimizeWindow(w, { recordUndo = false })
+      end
+    end
+    if wm.setFocus then
+      wm:setFocus(beforeFocusedWin)
+    end
+  else
+    for i = 1, #targets do
+      local w = targets[i]
+      if w and not w._closed and wm.restoreMinimizedWindow then
+        wm:restoreMinimizedWindow(w, { recordUndo = false, focus = false })
+      end
+    end
+    if wm.setFocus then
+      wm:setFocus(afterFocusedWin)
+    end
+  end
+  return true
+end
+
+local function applyWindowExpandAllEvent(event, direction, app)
+  if not (event and event.type == "window_expand_all") then
+    return false
+  end
+  local wm = event.wm or (app and app.wm)
+  if not wm or not wm._setCollapsedWithToolbarIcon then
+    return false
+  end
+  local targets = event.targets or {}
+  if direction == "undo" then
+    for i = 1, #targets do
+      wm:_setCollapsedWithToolbarIcon(targets[i], true)
+    end
+  else
+    for i = 1, #targets do
+      wm:_setCollapsedWithToolbarIcon(targets[i], false)
+    end
+  end
+  return true
+end
+
+local function applyWindowCollapseAllEvent(event, direction, app)
+  if not (event and event.type == "window_collapse_all") then
+    return false
+  end
+  local wm = event.wm or (app and app.wm)
+  if not wm or not wm._restoreWindowsArrayOrder or not wm._applyChromeLayoutSnapshot then
+    return false
+  end
+  local useBefore = (direction == "undo")
+  local order = useBefore and event.beforeOrder or event.afterOrder
+  local layout = useBefore and event.beforeLayout or event.afterLayout
+  local focusWin = useBefore and event.beforeFocusedWin or event.afterFocusedWin
+  if type(order) ~= "table" or type(layout) ~= "table" then
+    return false
+  end
+  wm:_restoreWindowsArrayOrder(order)
+  for win, snap in pairs(layout) do
+    if win and snap then
+      wm:_applyChromeLayoutSnapshot(win, snap)
+    end
+  end
+  if wm.setFocus then
+    wm:setFocus(focusWin)
+  end
+  return true
+end
+
 local function applyWindowMinimizeEvent(event, direction, app)
   if not (event and event.type == "window_minimize" and event.win) then
     return false
@@ -1554,6 +1719,14 @@ function UndoRedoController:_applyEvent(event, direction, app)
     return applyChrTileRevertEvent(event, direction, app)
   elseif event.type == "window_minimize_batch" then
     return applyWindowMinimizeBatchEvent(event, direction, app)
+  elseif event.type == "window_minimize_all" then
+    return applyWindowMinimizeAllEvent(event, direction, app)
+  elseif event.type == "window_restore_minimized_all" then
+    return applyWindowRestoreMinimizedAllEvent(event, direction, app)
+  elseif event.type == "window_expand_all" then
+    return applyWindowExpandAllEvent(event, direction, app)
+  elseif event.type == "window_collapse_all" then
+    return applyWindowCollapseAllEvent(event, direction, app)
   elseif event.type == "window_minimize" then
     return applyWindowMinimizeEvent(event, direction, app)
   elseif event.type == "window_close" then

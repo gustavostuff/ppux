@@ -210,6 +210,17 @@ local function recordMinimizeAllExceptUndo(self, keepWin, minimizedWins, beforeF
   })
 end
 
+local function shallowCopyWindowsArray(windows)
+  if type(windows) ~= "table" then
+    return {}
+  end
+  local out = {}
+  for i = 1, #windows do
+    out[i] = windows[i]
+  end
+  return out
+end
+
 local function syncCollapseIcon(win)
   if not (win and win.headerToolbar) then return end
   if win.headerToolbar.updateCollapseIcon then
@@ -217,6 +228,110 @@ local function syncCollapseIcon(win)
   elseif win.headerToolbar.updateIcons then
     win.headerToolbar:updateIcons()
   end
+end
+
+local function snapshotWindowChromeLayout(w)
+  if not w then
+    return nil
+  end
+  local zoom = w.zoom
+  if type(w.getZoomLevel) == "function" then
+    zoom = w:getZoomLevel()
+  end
+  return {
+    x = w.x,
+    y = w.y,
+    collapsed = w._collapsed == true,
+    scrollCol = tonumber(w.scrollCol) or 0,
+    scrollRow = tonumber(w.scrollRow) or 0,
+    zoom = tonumber(zoom) or 1,
+    visibleCols = w.visibleCols,
+    visibleRows = w.visibleRows,
+  }
+end
+
+local function applyWindowChromeLayout(w, s)
+  if not (w and s) then
+    return
+  end
+  w._collapsed = s.collapsed
+  w.scrollCol = s.scrollCol
+  w.scrollRow = s.scrollRow
+  if s.visibleCols ~= nil then
+    w.visibleCols = s.visibleCols
+  end
+  if s.visibleRows ~= nil then
+    w.visibleRows = s.visibleRows
+  end
+  -- Restore zoom by assignment only: `setZoomLevel` repositions x,y around a pivot and would
+  -- desync from the stored collapse-all snapshot (breaks undo/redo layout restore).
+  local prevZoom = w.zoom
+  w.zoom = tonumber(s.zoom) or 1
+  if prevZoom ~= w.zoom and w.invalidateAllTileLayerCanvases then
+    w:invalidateAllTileLayerCanvases()
+  end
+  w.x = s.x
+  w.y = s.y
+  if type(w.setScroll) == "function" then
+    w:setScroll(s.scrollCol, s.scrollRow)
+  end
+  syncCollapseIcon(w)
+end
+
+local function recordMinimizeAllUndo(self, minimizedWins, beforeFocusedWin)
+  if type(minimizedWins) ~= "table" or #minimizedWins == 0 then
+    return
+  end
+  local undoRedo = getUndoRedoFromCtx()
+  if not (undoRedo and undoRedo.addWindowMinimizeAllEvent) then
+    return
+  end
+  undoRedo:addWindowMinimizeAllEvent({
+    type = "window_minimize_all",
+    wm = self,
+    targets = minimizedWins,
+    beforeFocusedWin = beforeFocusedWin,
+  })
+end
+
+local function recordRestoreMinimizedAllUndo(self, restoredWins, beforeFocusedWin, afterFocusedWin)
+  if type(restoredWins) ~= "table" or #restoredWins == 0 then
+    return
+  end
+  local undoRedo = getUndoRedoFromCtx()
+  if not (undoRedo and undoRedo.addWindowRestoreMinimizedAllEvent) then
+    return
+  end
+  undoRedo:addWindowRestoreMinimizedAllEvent({
+    type = "window_restore_minimized_all",
+    wm = self,
+    targets = restoredWins,
+    beforeFocusedWin = beforeFocusedWin,
+    afterFocusedWin = afterFocusedWin,
+  })
+end
+
+local function recordCollapseAllUndo(self, evt)
+  local undoRedo = getUndoRedoFromCtx()
+  if not (undoRedo and undoRedo.addWindowCollapseAllEvent) then
+    return
+  end
+  undoRedo:addWindowCollapseAllEvent(evt)
+end
+
+local function recordExpandAllUndo(self, targets)
+  if type(targets) ~= "table" or #targets == 0 then
+    return
+  end
+  local undoRedo = getUndoRedoFromCtx()
+  if not (undoRedo and undoRedo.addWindowExpandAllEvent) then
+    return
+  end
+  undoRedo:addWindowExpandAllEvent({
+    type = "window_expand_all",
+    wm = self,
+    targets = targets,
+  })
 end
 
 local function zoomOutWindowToMinimum(win)
@@ -564,6 +679,7 @@ end
 -- Collapse all open windows and stack headers in columns from left to right.
 function WM:collapseAll(opts)
   opts = opts or {}
+  local recordUndo = (opts.recordUndo ~= false)
 
   local areaX = opts.areaX or 0
   local areaY = opts.areaY or 30
@@ -584,6 +700,16 @@ function WM:collapseAll(opts)
   if #open == 0 then
     self.focused = nil
     return
+  end
+
+  local beforeFocused, beforeOrder, beforeLayout
+  if recordUndo then
+    beforeFocused = self.focused
+    beforeOrder = shallowCopyWindowsArray(self.windows)
+    beforeLayout = {}
+    for _, w in ipairs(open) do
+      beforeLayout[w] = snapshotWindowChromeLayout(w)
+    end
   end
 
   for _, w in ipairs(open) do
@@ -636,6 +762,23 @@ function WM:collapseAll(opts)
   self.focused = open[#open]
   if self.focused then
     self:bringToFront(self.focused)
+  end
+
+  if recordUndo then
+    local afterLayout = {}
+    for _, w in ipairs(open) do
+      afterLayout[w] = snapshotWindowChromeLayout(w)
+    end
+    recordCollapseAllUndo(self, {
+      type = "window_collapse_all",
+      wm = self,
+      beforeOrder = beforeOrder,
+      afterOrder = shallowCopyWindowsArray(self.windows),
+      beforeFocusedWin = beforeFocused,
+      afterFocusedWin = self.focused,
+      beforeLayout = beforeLayout,
+      afterLayout = afterLayout,
+    })
   end
 end
 
@@ -818,7 +961,20 @@ function WM:mosaicAll(opts)
   end
 end
 
-function WM:expandAll()
+function WM:expandAll(opts)
+  opts = opts or {}
+  local recordUndo = (opts.recordUndo ~= false)
+
+  local targets = {}
+  for _, w in ipairs(self.windows) do
+    if not w._closed and not w._minimized and w._collapsed then
+      targets[#targets + 1] = w
+    end
+  end
+  if #targets == 0 then
+    return false
+  end
+
   local any = false
   for _, w in ipairs(self.windows) do
     if not w._closed and not w._minimized and w._collapsed then
@@ -827,7 +983,34 @@ function WM:expandAll()
       any = true
     end
   end
+  if recordUndo and any then
+    recordExpandAllUndo(self, targets)
+  end
   return any
+end
+
+--- Restore compositing stack to a previous window sequence (used by undo/redo for collapse-all batches).
+function WM:_restoreWindowsArrayOrder(order)
+  if type(order) ~= "table" then
+    return
+  end
+  self.windows = {}
+  for i = 1, #order do
+    self.windows[i] = order[i]
+  end
+  refreshZOrder(self)
+end
+
+function WM:_applyChromeLayoutSnapshot(win, snap)
+  applyWindowChromeLayout(win, snap)
+end
+
+function WM:_setCollapsedWithToolbarIcon(win, collapsed)
+  if not win then
+    return
+  end
+  win._collapsed = (collapsed == true)
+  syncCollapseIcon(win)
 end
 
 ----------------------------------------------------------------
@@ -1111,12 +1294,20 @@ function WM:restoreMinimizedWindow(win, opts)
   return true
 end
 
-function WM:minimizeAll()
+function WM:minimizeAll(opts)
+  opts = opts or {}
+  local recordUndo = (opts.recordUndo ~= false)
+  local beforeFocusedWin = self.focused
+  local minimized = {}
   local any = false
   for _, win in ipairs(self.windows) do
-    if self:minimizeWindow(win) then
+    if self:minimizeWindow(win, { recordUndo = false }) then
+      minimized[#minimized + 1] = win
       any = true
     end
+  end
+  if recordUndo and #minimized > 0 then
+    recordMinimizeAllUndo(self, minimized, beforeFocusedWin)
   end
   return any
 end
@@ -1155,19 +1346,28 @@ function WM:minimizeAllExcept(keepWin)
   return true
 end
 
-function WM:maximizeAll()
+function WM:maximizeAll(opts)
+  opts = opts or {}
+  local recordUndo = (opts.recordUndo ~= false)
   local targets = {}
   for _, win in ipairs(self.windows) do
     if win and not win._closed and win._minimized then
       targets[#targets + 1] = win
     end
   end
+  if #targets == 0 then
+    return false
+  end
 
+  local beforeFocusedWin = self.focused
   local any = false
   for _, win in ipairs(targets) do
-    if self:restoreMinimizedWindow(win) then
+    if self:restoreMinimizedWindow(win, { recordUndo = false }) then
       any = true
     end
+  end
+  if recordUndo and any then
+    recordRestoreMinimizedAllUndo(self, targets, beforeFocusedWin, self.focused)
   end
   return any
 end

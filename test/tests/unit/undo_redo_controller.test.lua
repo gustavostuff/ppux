@@ -732,6 +732,141 @@ describe("UndoRedoController - window minimize", function()
     expect(winB._minimized).toBe(true)
     expect(wm:getFocus()).toBe(winKeep)
   end)
+
+  it("minimize all records one batch; undo restores all in one step", function()
+    local ur = UndoRedoController.new(10)
+    local wm = WM.new()
+    local winA = { title = "A", _closed = false, _minimized = false }
+    local winB = { title = "B", _closed = false, _minimized = false }
+    wm:add(winA)
+    wm:add(winB)
+    wm:setFocus(winB)
+
+    local prevCtx = rawget(_G, "ctx")
+    _G.ctx = { app = { undoRedo = ur, wm = wm } }
+    expect(wm:minimizeAll()).toBe(true)
+    _G.ctx = prevCtx
+
+    expect(winA._minimized).toBe(true)
+    expect(winB._minimized).toBe(true)
+    expect(#ur.stack).toBe(1)
+    expect(ur.stack[1].type).toBe("window_minimize_all")
+
+    local app = { wm = wm }
+    expect(ur:undo(app)).toBe(true)
+    expect(winA._minimized).toBe(false)
+    expect(winB._minimized).toBe(false)
+    expect(wm:getFocus()).toBe(winB)
+
+    expect(ur:redo(app)).toBe(true)
+    expect(winA._minimized).toBe(true)
+    expect(winB._minimized).toBe(true)
+  end)
+
+  it("maximize all records one batch; undo re-minimizes all restored windows in one step", function()
+    local ur = UndoRedoController.new(10)
+    local wm = WM.new()
+    local winA = { title = "A", _closed = false, _minimized = true, _collapsed = false }
+    local winB = { title = "B", _closed = false, _minimized = true, _collapsed = false }
+    wm:add(winA)
+    wm:add(winB)
+    wm.focused = nil
+
+    local prevCtx = rawget(_G, "ctx")
+    _G.ctx = { app = { undoRedo = ur, wm = wm } }
+    expect(wm:maximizeAll()).toBe(true)
+    _G.ctx = prevCtx
+
+    expect(winA._minimized).toBe(false)
+    expect(winB._minimized).toBe(false)
+    expect(#ur.stack).toBe(1)
+    expect(ur.stack[1].type).toBe("window_restore_minimized_all")
+
+    local app = { wm = wm }
+    expect(ur:undo(app)).toBe(true)
+    expect(winA._minimized).toBe(true)
+    expect(winB._minimized).toBe(true)
+
+    expect(ur:redo(app)).toBe(true)
+    expect(winA._minimized).toBe(false)
+    expect(winB._minimized).toBe(false)
+  end)
+
+  it("collapse all records one batch; undo restores layout", function()
+    local ur = UndoRedoController.new(10)
+    local wm = WM.new()
+
+    local wB = wm:createTileWindow({
+      animated = false,
+      cols = 4,
+      rows = 4,
+      zoom = 2,
+      title = "B",
+    })
+    local wA = wm:createTileWindow({
+      animated = false,
+      cols = 4,
+      rows = 4,
+      zoom = 2,
+      title = "A",
+    })
+    wB.x, wB.y = 100, 200
+    wA.x, wA.y = 300, 400
+    wm:setFocus(wA)
+
+    local prevCtx = rawget(_G, "ctx")
+    _G.ctx = { app = { undoRedo = ur, wm = wm } }
+    wm:collapseAll({
+      areaX = 0,
+      areaY = 0,
+      areaH = 500,
+      gapX = 8,
+      gapY = 2,
+    })
+    _G.ctx = prevCtx
+
+    expect(wA._collapsed).toBe(true)
+    expect(#ur.stack).toBe(1)
+    expect(ur.stack[1].type).toBe("window_collapse_all")
+
+    expect(ur:undo({ wm = wm })).toBe(true)
+    expect(wA._collapsed).toBe(false)
+    expect(wA.x).toBe(300)
+    expect(wA.y).toBe(400)
+    expect(wB.x).toBe(100)
+    expect(wB.y).toBe(200)
+    expect(wA.zoom).toBe(2)
+
+    expect(ur:redo({ wm = wm })).toBe(true)
+    expect(wA._collapsed).toBe(true)
+    expect(wB._collapsed).toBe(true)
+  end)
+
+  it("expand all records one batch; undo re-collapses in one step", function()
+    local ur = UndoRedoController.new(10)
+    local wm = WM.new()
+    local w1 = { _closed = false, _minimized = false, _collapsed = true }
+    local w2 = { _closed = false, _minimized = false, _collapsed = true }
+    wm.windows = { w1, w2 }
+
+    local prevCtx = rawget(_G, "ctx")
+    _G.ctx = { app = { undoRedo = ur, wm = wm } }
+    expect(wm:expandAll()).toBe(true)
+    _G.ctx = prevCtx
+
+    expect(w1._collapsed).toBe(false)
+    expect(w2._collapsed).toBe(false)
+    expect(#ur.stack).toBe(1)
+    expect(ur.stack[1].type).toBe("window_expand_all")
+
+    expect(ur:undo({ wm = wm })).toBe(true)
+    expect(w1._collapsed).toBe(true)
+    expect(w2._collapsed).toBe(true)
+
+    expect(ur:redo({ wm = wm })).toBe(true)
+    expect(w1._collapsed).toBe(false)
+    expect(w2._collapsed).toBe(false)
+  end)
 end)
 
 describe("UndoRedoController - ppu frame range", function()
