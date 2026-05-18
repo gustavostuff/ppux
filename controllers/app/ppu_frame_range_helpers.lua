@@ -616,7 +616,12 @@ function M.planPatternRangesFromChrTileGroup(srcWin, srcLayer, tileGroup)
     if c.page ~= 1 and c.page ~= 2 then
       return nil, 0, "Page must be 1 or 2"
     end
-    tiles[#tiles + 1] = { bank = c.bank, tileIndex = (c.page == 2) and (256 + c.byte) or c.byte }
+    tiles[#tiles + 1] = {
+      bank = c.bank,
+      page = c.page,
+      byte = c.byte,
+      tileIndex = (c.page == 2) and (256 + c.byte) or c.byte,
+    }
   end
 
   local total = #tiles

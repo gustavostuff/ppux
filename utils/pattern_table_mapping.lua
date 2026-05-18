@@ -58,8 +58,35 @@ local function readGlobalChrFromTo(r)
   return from, to
 end
 
---- Contiguous CHR indices 0..511 within `bank`, **without** legacy `page` (1/2).
---- Use top-level `from` / `to` (or `start` / `end`) as CHR indices 0..511; no `page` (1/2) on the row.
+--- Global CHR bounds for one pattern-table range row: either raw `from`/`to` as 0..511 (no `page`),
+--- or legacy rows with `page` 1 or 2 where `from`/`to` are 0..255 indices within that pattern page.
+local function readPatternRangeGlobalChrBounds(r)
+  if type(r) ~= "table" then
+    return nil, nil
+  end
+  local rawFrom, rawTo = readGlobalChrFromTo(r)
+  if rawFrom == nil or rawTo == nil then
+    return nil, nil
+  end
+  local pageRaw = r.page
+  if pageRaw == nil then
+    return rawFrom, rawTo
+  end
+  local pn = math.floor(tonumber(pageRaw) or -1)
+  if pn == 1 then
+    if rawFrom > 255 or rawTo > 255 then
+      return nil, nil
+    end
+    return rawFrom, rawTo
+  elseif pn == 2 then
+    if rawFrom > 255 or rawTo > 255 then
+      return nil, nil
+    end
+    return rawFrom + 256, rawTo + 256
+  end
+  return nil, nil
+end
+
 local function rangeUsesGlobalChrFromTo(r)
   if type(r) ~= "table" then
     return false
@@ -67,15 +94,8 @@ local function rangeUsesGlobalChrFromTo(r)
   if type(r.tiles) == "table" and #r.tiles > 0 then
     return false
   end
-  local page = r.page
-  if page ~= nil then
-    local pn = math.floor(tonumber(page) or -1)
-    if pn == 1 or pn == 2 then
-      return false
-    end
-  end
-  local from, to = readGlobalChrFromTo(r)
-  return from ~= nil and to ~= nil
+  local a, b = readPatternRangeGlobalChrBounds(r)
+  return a ~= nil and b ~= nil
 end
 
 local function buildDefaultMap(fallbackBank, fallbackPage)
@@ -144,7 +164,7 @@ function M.buildMap(patternTable, fallbackBank, fallbackPage)
       end
       nextIdx = nxt
     elseif rangeUsesGlobalChrFromTo(r) then
-      local fromTI, toTI = readGlobalChrFromTo(r)
+      local fromTI, toTI = readPatternRangeGlobalChrBounds(r)
       if fromTI == nil then
         return nil, string.format("patternTable.ranges[%d] has invalid global from/to (0..511)", i)
       end
@@ -245,7 +265,8 @@ function M.validate(patternTable)
   return true, nil
 end
 
---- Compact layout rows: `{ bank, from, to }` with CHR indices 0..511 (no `page`).
+--- Compact layout rows: `{ bank, from, to }` with CHR indices 0..511, optionally legacy `page` 1/2
+--- (page-local 0..255 interpreted as global CHR as in `readPatternRangeGlobalChrBounds`).
 function M.isGlobalChrFromToRange(r)
   return rangeUsesGlobalChrFromTo(r)
 end
@@ -255,7 +276,7 @@ function M.globalChrFromToBounds(r)
   if not rangeUsesGlobalChrFromTo(r) then
     return nil, nil
   end
-  return readGlobalChrFromTo(r)
+  return readPatternRangeGlobalChrBounds(r)
 end
 
 return M

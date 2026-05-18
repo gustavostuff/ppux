@@ -133,7 +133,7 @@ function M.buildWindowsFromLayout(layout, opts)
     local buildElapsed = nowSeconds() - buildStartedAt
 
     local finalizeStartedAt = nowSeconds()
-    GameArtWindowFactoryController.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool)
+    GameArtWindowFactoryController.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool, layout.currentBank)
     if win then
       builtOrderedWins[#builtOrderedWins + 1] = win
     end

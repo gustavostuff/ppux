@@ -735,7 +735,7 @@ local function applyLayerMetadataFromLayout(win, layoutLayers)
   mergePpuSpriteLayerMetadataFromLayoutByOrdinal(win, layoutLayers)
 end
 
-function M.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool)
+function M.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool, layoutCurrentBank)
   if not win then return end
 
   local metadataStartedAt = nowSeconds()
@@ -746,7 +746,7 @@ function M.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool)
   SpriteController.hydrateWindowSpriteLayers(win, {
     romRaw = romRaw,
     tilesPool = tilesPool,
-    defaultChrBank = w.currentBank,
+    defaultChrBank = w.currentBank or layoutCurrentBank,
   })
   logPerf("window_finalize.hydrate_sprite_layers", spriteHydrationStartedAt, string.format("title=%s", tostring(w.title or "")))
 

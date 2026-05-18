@@ -65,8 +65,6 @@ describe("game_art_controller.lua - oam_animation hydration", function()
                 {
                   startAddr = startAddr,
                   paletteNumber = 4, -- Explicit layout override should win over attr low bits.
-                  dx = 3,
-                  dy = -2,
                 }
               }
             }
