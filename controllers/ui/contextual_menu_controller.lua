@@ -10,7 +10,7 @@ ContextualMenuController.NORMAL_CONTENT_ALPHA = 1.0
 ContextualMenuController.CHILD_HOVER_GRACE_SECONDS = 0.18
 -- Space between a menu and its parent (submenus, taskbar strip) and minimum inset from the
 -- clamp bounds edges (app canvas for core_controller menus; taskbar getBounds matches canvas BR).
-ContextualMenuController.PARENT_GAP_PX = 2
+ContextualMenuController.PARENT_GAP_PX = 3
 
 --[[ Menu chrome feature flags — set to false to revert without ripping out code paths.
      ENABLE_MENU_GROUP_SEPARATOR_LINES: horizontal rules between rows when `menuGroup` changes.
