@@ -1,4 +1,5 @@
 local colors = require("app_colors")
+local Flux = require("lib.flux")
 local Timer = require("utils.timer_utils")
 local Text = require("utils.text_utils")
 
@@ -7,6 +8,7 @@ ToastController.__index = ToastController
 
 local DEFAULT_DURATION = 3.0
 local DEFAULT_FADE_DURATION = 0.5
+local ENTER_DURATION = 0.4
 local STACK_GAP = 5
 local MARGIN_RIGHT = 6
 local MARGIN_BOTTOM = 4
@@ -107,7 +109,9 @@ function ToastController.new(app, opts)
     stackGap = opts.stackGap or STACK_GAP,
     defaultDuration = opts.defaultDuration or DEFAULT_DURATION,
     defaultFadeDuration = opts.defaultFadeDuration or DEFAULT_FADE_DURATION,
+    enterDuration = opts.enterDuration or ENTER_DURATION,
     timerMarkPrefix = string.format("toast_%s", tostring({})),
+    tweenGroup = Flux.group(),
   }, ToastController)
 
   return self
@@ -147,6 +151,25 @@ function ToastController:_toastAt(x, y)
   return nil
 end
 
+function ToastController:_stopEnterAnimation(toast)
+  if toast and toast.enterTween then
+    self.tweenGroup:remove(toast.enterTween)
+    toast.enterTween = nil
+  end
+end
+
+function ToastController:_startEnterAnimation(toast)
+  self:_stopEnterAnimation(toast)
+  toast.state = "entering"
+  toast.enterTween = self.tweenGroup:to(toast, self.enterDuration, { x = toast.targetX })
+    :ease("expoout")
+    :oncomplete(function()
+      toast.state = "visible"
+      toast.x = toast.targetX
+      toast.enterTween = nil
+    end)
+end
+
 function ToastController:_layoutToasts()
   local canvasW = self:_canvasSize()
   local bottomY = self:_taskbarTop() - self.marginBottom
@@ -154,12 +177,20 @@ function ToastController:_layoutToasts()
 
   for i = 1, #self.toasts do
     local toast = self.toasts[i]
+    local prevTargetX = toast.targetX
     toast.targetX = canvasW - self.marginRight - toast.w
     toast.targetY = bottomY - toast.h - runningOffset
     runningOffset = runningOffset + toast.h + self.stackGap
-    toast.x = toast.targetX
     toast.y = toast.targetY
-    toast.state = "visible"
+
+    if toast.state == "entering" then
+      if prevTargetX ~= toast.targetX then
+        self:_startEnterAnimation(toast)
+      end
+    else
+      toast.x = toast.targetX
+      toast.state = "visible"
+    end
   end
 
   self.lastTaskbarTop = self:_taskbarTop()
@@ -188,6 +219,7 @@ end
 function ToastController:_removeToast(toast)
   for i = #self.toasts, 1, -1 do
     if self.toasts[i] == toast then
+      self:_stopEnterAnimation(toast)
       table.remove(self.toasts, i)
       if toast.markName then
         Timer.clearMark(toast.markName)
@@ -259,7 +291,8 @@ function ToastController:show(kind, text, opts)
     y = 0,
     targetX = 0,
     targetY = 0,
-    state = "visible",
+    state = "entering",
+    enterTween = nil,
     hovered = false,
     pressed = false,
     action = opts.action,
@@ -268,6 +301,8 @@ function ToastController:show(kind, text, opts)
   table.insert(self.toasts, 1, toast)
   self.layoutDirty = true
   self:_layoutToasts()
+  toast.x = self:_canvasSize()
+  self:_startEnterAnimation(toast)
   return toast
 end
 
@@ -284,6 +319,8 @@ function ToastController:error(text, opts)
 end
 
 function ToastController:update(dt)
+  self.tweenGroup:update(dt)
+
   for i = #self.toasts, 1, -1 do
     local toast = self.toasts[i]
     local age = toast.markName and Timer.elapsed(toast.markName) or nil
