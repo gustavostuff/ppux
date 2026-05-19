@@ -18,6 +18,23 @@ local function wantsPatternTableJumpInsteadOfChr(context)
   return WindowCaps.isPpuFrame(win) or WindowCaps.isOamAnimation(win)
 end
 
+--- CHR tile index for a PPU nametable cell: prefer the placed tile ref, else pattern-table slot for the nametable byte.
+local function resolveChrTileIndexFromPpuNametableCell(layer, item, byteVal)
+  local tileIndex = Shared.normalizeTileIndex(item)
+  if type(tileIndex) == "number" then
+    return tileIndex
+  end
+  if type(byteVal) ~= "number" or not (layer and type(layer.patternTable) == "table") then
+    return nil
+  end
+  local map = PatternTableMapping.buildMap(layer.patternTable)
+  local entry = map and map[Shared.clampByte(byteVal)]
+  if entry and type(entry.tileIndex) == "number" then
+    return entry.tileIndex
+  end
+  return nil
+end
+
 local function findWindowByStableId(wm, id)
   if type(id) ~= "string" or id == "" or not wm or not wm.getWindows then
     return nil
@@ -101,7 +118,7 @@ function AppCoreController:_nametablePatternTableNavigateEnabled(context)
   if not PatternTableMapping.validate(layer.patternTable) then return false end
   if self:_patternLogicalSlotForJump(context) == nil then return false end
   if not self:_resolveLinkedPatternTableWindow(context) then return false end
-  return context.tileIndex ~= nil
+  return resolveChrTileIndexFromPpuNametableCell(context.layer, context.item, context.byteVal) ~= nil
 end
 
 function AppCoreController:_gridCellForPatternLogicalIndex(ptWin, ptLayerIndex, logicalIndex)
@@ -200,6 +217,7 @@ function AppCoreController:_buildPpuTileContext(win, layerIndex, col, row)
     sourceBank = entry and tonumber(entry.bank) or nil
   end
   sourceBank = sourceBank or 1
+  local clampedByte = (type(byteVal) == "number") and Shared.clampByte(byteVal) or nil
 
   return {
     win = win,
@@ -208,8 +226,8 @@ function AppCoreController:_buildPpuTileContext(win, layerIndex, col, row)
     col = col,
     row = row,
     item = item,
-    byteVal = (type(byteVal) == "number") and Shared.clampByte(byteVal) or nil,
-    tileIndex = Shared.normalizeTileIndex(item),
+    byteVal = clampedByte,
+    tileIndex = resolveChrTileIndexFromPpuNametableCell(layer, item, clampedByte),
     sourceBank = sourceBank,
   }
 end

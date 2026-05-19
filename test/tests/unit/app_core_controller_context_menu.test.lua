@@ -735,4 +735,42 @@ describe("core_controller.lua - contextual menu helpers", function()
     end
     expect(findPpuNav(ppuNtItems)).toBe("Select in pattern table window")
   end)
+
+  it("shows Select all references on PPU nametable tile menu from nametable byte when tile ref lacks CHR index", function()
+    local app = setmetatable({}, AppCoreController)
+    local fullPattern256 = {
+      ranges = {
+        { bank = 1, page = 1, from = 0, to = 255 },
+      },
+    }
+    local win = {
+      kind = "ppu_frame",
+      cols = 32,
+      rows = 30,
+      nametableBytes = { [1] = 12 },
+      layers = {
+        { kind = "tile", patternTable = fullPattern256 },
+      },
+      getLayer = function(self, i)
+        return self.layers[i]
+      end,
+      get = function()
+        return { id = "tile" }
+      end,
+    }
+
+    local context = app:_buildPpuTileContext(win, 1, 0, 0)
+    expect(context).toBeTruthy()
+    expect(context.tileIndex).toBe(12)
+
+    local items = app:_buildPpuTileContextMenuItems(context)
+    local selectAllRefs = nil
+    for _, it in ipairs(items) do
+      if it.text == "Select all references" then
+        selectAllRefs = it
+      end
+    end
+    expect(selectAllRefs ~= nil).toBe(true)
+    expect(selectAllRefs.enabled).toBe(true)
+  end)
 end)
