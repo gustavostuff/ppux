@@ -46,6 +46,7 @@ function M.refreshMetrics()
   local styleColor = copyColor(colors:focusedChromeColor())
   M.DEFAULT_PANEL_STYLE.bgColor = copyColor(styleColor)
   M.DEFAULT_PANEL_STYLE.titleBgColor = copyColor(styleColor)
+  M.DEFAULT_PANEL_STYLE.menuOutline = true
 end
 
 function M.centerPanel(panel, canvas)
@@ -88,6 +89,20 @@ function M.applyPanelDefaults(target)
   if target._uses_modal_default_bgColor == true then
     target._modalChromeOverBlue = true
   end
+  setTrackedDefault(target, "menuOutline", M.DEFAULT_PANEL_STYLE.menuOutline)
+end
+
+--- Keep live panel chrome flags aligned after metric refresh (draw paths that avoid rebuild).
+function M.syncPanelChrome(panel, modal)
+  if not (panel and modal) then
+    return
+  end
+  panel._modalChromeOverBlue = modal._modalChromeOverBlue == true
+  if modal.menuOutline == false then
+    panel.menuOutline = false
+  elseif panel._modalChromeOverBlue then
+    panel.menuOutline = true
+  end
 end
 
 function M.refreshTargetMetrics(target)
@@ -115,6 +130,7 @@ function M.refreshTargetMetrics(target)
   if target._uses_modal_default_bgColor == true then
     target._modalChromeOverBlue = true
   end
+  setTrackedDefault(target, "menuOutline", M.DEFAULT_PANEL_STYLE.menuOutline)
   if target._settingsTabbedChrome == true then
     local fc = colors:focusedChromeColor()
     local dr, dg, db = ColorPickerMatrix.adjustRgbLightnessByPickerSteps(fc[1], fc[2], fc[3], -1)

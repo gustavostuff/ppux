@@ -252,7 +252,7 @@ function Dialog:draw(canvas)
     self.panel.titleH = self.titleH
     self.panel.bgColor = self.bgColor
     self.panel.titleBgColor = self.titleBgColor
-    self.panel._modalChromeOverBlue = self._modalChromeOverBlue == true
+    ModalPanelUtils.syncPanelChrome(self.panel, self)
     self.panel:setVisible(true)
   end
   ModalPanelUtils.drawBackdrop(canvas)

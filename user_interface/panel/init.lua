@@ -160,7 +160,9 @@ function Panel.new(opts)
     focusedComponent = nil,
     _modalChromeOverBlue = opts._modalChromeOverBlue == true,
     menuRowSeparators = opts.menuRowSeparators == true,
-    menuOutline = opts.menuOutline == true,
+    -- Menus pass `menuOutline` explicitly; modals only pass `_modalChromeOverBlue` and get the same perimeter.
+    menuOutline = opts.menuOutline == true
+      or (opts.menuOutline == nil and opts._modalChromeOverBlue == true),
   }, Panel)
 
   self:updateLayout()
