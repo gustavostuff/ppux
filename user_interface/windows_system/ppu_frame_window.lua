@@ -1538,6 +1538,11 @@ function PPUFrameWindow:setPatternLayerSoloMode(enabled)
       self.drawOnlyActiveLayer = false
       return false, "Pattern table layer is not available"
     end
+    local current = self:getActiveLayerIndex()
+    local currentLayer = type(current) == "number" and self.layers and self.layers[current]
+    if currentLayer and not self:isRuntimeOnlyLayer(currentLayer) then
+      self._patternLayerSoloReturnLayer = current
+    end
     self.patternLayerSoloMode = true
     self.drawOnlyActiveLayer = true
     Window.setActiveLayerIndex(self, patternIndex)
@@ -1546,8 +1551,10 @@ function PPUFrameWindow:setPatternLayerSoloMode(enabled)
 
   self.patternLayerSoloMode = false
   self.drawOnlyActiveLayer = false
+  local returnLayer = self._patternLayerSoloReturnLayer
+  self._patternLayerSoloReturnLayer = nil
   self:removePatternReferenceLayers()
-  local fallbackIndex = self:_resolveAllowedLayerIndex(self.activeLayer)
+  local fallbackIndex = self:_resolveAllowedLayerIndex(returnLayer)
   if fallbackIndex then
     Window.setActiveLayerIndex(self, fallbackIndex)
   end

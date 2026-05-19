@@ -310,17 +310,21 @@ local function eachAppContextMenu(app, fn)
   end
 end
 
-local function modalPanelDisabledAt(modal, mx, my)
+local function modalPanelPointerAt(modal, mx, my)
   if not (modal and modal.isVisible and modal:isVisible()) then
     return false
   end
-  local inside = false
   if type(modal.contains) == "function" then
-    inside = modal:contains(mx, my)
-  elseif type(modal._containsBox) == "function" then
-    inside = modal:_containsBox(mx, my)
+    return modal:contains(mx, my)
   end
-  if not inside then
+  if type(modal._containsBox) == "function" then
+    return modal:_containsBox(mx, my)
+  end
+  return false
+end
+
+local function modalPanelDisabledAt(modal, mx, my)
+  if not modalPanelPointerAt(modal, mx, my) then
     return false
   end
   local p = modal.panel
@@ -328,16 +332,7 @@ local function modalPanelDisabledAt(modal, mx, my)
 end
 
 local function modalPanelHandAt(modal, mx, my)
-  if not (modal and modal.isVisible and modal:isVisible()) then
-    return false
-  end
-  local inside = false
-  if type(modal.contains) == "function" then
-    inside = modal:contains(mx, my)
-  elseif type(modal._containsBox) == "function" then
-    inside = modal:_containsBox(mx, my)
-  end
-  if not inside then
+  if not modalPanelPointerAt(modal, mx, my) then
     return false
   end
   local p = modal.panel
@@ -584,13 +579,15 @@ local function resolveTargetCursorName(app, mode)
           return "unavailable"
         end
       end
-      if modalPanelDisabledAt(topModal, mx, my) then
-        return "unavailable"
+      if modalPanelPointerAt(topModal, mx, my) then
+        if modalPanelDisabledAt(topModal, mx, my) then
+          return "unavailable"
+        end
+        if modalPanelHandAt(topModal, mx, my) then
+          return "hand"
+        end
+        return "arrow"
       end
-      if modalPanelHandAt(topModal, mx, my) then
-        return "hand"
-      end
-      return "arrow"
     end
 
     if isReferenceTracingViewAtPointer(app, mx, my) then
