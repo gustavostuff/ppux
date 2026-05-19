@@ -1199,13 +1199,17 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
         if not hydrated and targetWindow.invalidateNametableLayerCanvas then
           targetWindow:invalidateNametableLayerCanvas(layerIndex)
         end
-        self:_ensurePpuPatternTableReferenceLayer({
-          win = targetWindow,
-          layer = layer,
-          layerIndex = layerIndex,
-        }, {
-          keepActiveLayer = true,
-        })
+        activatePatternLayerView()
+        if targetWindow.patternLayerSoloMode == true then
+          self:_ensurePpuPatternTableReferenceLayer({
+            win = targetWindow,
+            layer = layer,
+            layerIndex = layerIndex,
+          }, {
+            keepActiveLayer = true,
+            allowReferenceLayer = true,
+          })
+        end
 
         local hydratedNt = hydrated
         local hydrateErrNt = hydrateErr
@@ -1216,7 +1220,6 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
         if targetWindow.specializedToolbar and targetWindow.specializedToolbar.updateIcons then
           targetWindow.specializedToolbar:updateIcons()
         end
-        activatePatternLayerView()
 
         local afterState = PpuRange.snapshotPpuFrameRangeState(targetWindow, layerIndex)
         if self.undoRedo and self.undoRedo.addPpuFrameRangeEvent
@@ -1336,16 +1339,21 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
     win:invalidateNametableLayerCanvas(li)
   end
 
-  -- Keep runtime pattern-table reference layer in sync so undo/redo is visible
-  -- immediately when the PPU frame is in pattern-layer solo mode.
-  if self._ensurePpuPatternTableReferenceLayer and type(layer.patternTable) == "table" then
+  -- Keep runtime pattern-table reference layer in sync when pattern solo mode is active.
+  if self._ensurePpuPatternTableReferenceLayer
+    and type(layer.patternTable) == "table"
+    and win.patternLayerSoloMode == true
+  then
     self:_ensurePpuPatternTableReferenceLayer({
       win = win,
       layer = layer,
       layerIndex = li,
     }, {
       keepActiveLayer = true,
+      allowReferenceLayer = true,
     })
+  elseif win.removePatternReferenceLayers then
+    win:removePatternReferenceLayers(li)
   end
 
   if win.syncNametableLayerMetadata then

@@ -252,6 +252,7 @@ local function activateTileDrag(env, x, y)
     local tileClick = getTileClick and getTileClick() or nil
     if tileClick and tileClick.active then
       tileClick.moved = true
+      tileClick.ctrlToggleDeselect = nil
     end
     drag.active = true
 
@@ -286,8 +287,21 @@ function M.handleMouseMoved(env, x, y, dx, dy)
     return true
   end
 
+  local spriteClick = getSpriteClick and getSpriteClick() or nil
+  if spriteClick and spriteClick.active and spriteClick.ctrlToggleDeselect and not spriteClick.moved then
+    local dxm = x - (spriteClick.startX or x)
+    local dym = y - (spriteClick.startY or y)
+    local tol = utils.DRAG_TOL or 4
+    if (dxm * dxm + dym * dym) >= (tol * tol) then
+      spriteClick.moved = true
+      spriteClick.ctrlToggleDeselect = nil
+      SpriteController.beginDrag(spriteClick.win, spriteClick.layerIndex, spriteClick.targetIndex, 0, 0, true)
+      SpriteController.updateDrag(x, y)
+      return true
+    end
+  end
+
   if SpriteController.isDragging() then
-    local spriteClick = getSpriteClick and getSpriteClick() or nil
     if spriteClick and spriteClick.active and not spriteClick.moved then
       local dxm = x - (spriteClick.startX or x)
       local dym = y - (spriteClick.startY or y)

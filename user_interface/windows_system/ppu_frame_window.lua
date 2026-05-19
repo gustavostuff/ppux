@@ -1396,6 +1396,66 @@ function PPUFrameWindow:findPatternReferenceLayerIndex()
   return nil
 end
 
+function PPUFrameWindow:isRuntimeOnlyLayer(layer)
+  return type(layer) == "table"
+    and (layer._runtimePatternTableRefLayer == true or layer._runtimeOnly == true)
+end
+
+function PPUFrameWindow:removePatternReferenceLayers(targetLayerIndex)
+  local layers = self.layers
+  if type(layers) ~= "table" then
+    return 0
+  end
+
+  local removed = 0
+  for i = #layers, 1, -1 do
+    local layer = layers[i]
+    if self:isRuntimeOnlyLayer(layer) then
+      if targetLayerIndex == nil
+        or tonumber(layer._runtimePatternTableRefTargetLayerIndex) == tonumber(targetLayerIndex)
+      then
+        table.remove(layers, i)
+        removed = removed + 1
+        if self.selectedByLayer then
+          self.selectedByLayer[i] = nil
+          for li = i, #layers do
+            self.selectedByLayer[li] = self.selectedByLayer[li + 1]
+          end
+          self.selectedByLayer[#layers + 1] = nil
+        end
+        if self.activeLayer == i then
+          self.activeLayer = math.max(1, i - 1)
+        elseif type(self.activeLayer) == "number" and self.activeLayer > i then
+          self.activeLayer = self.activeLayer - 1
+        end
+      end
+    end
+  end
+
+  if removed > 0 then
+    if type(self.activeLayer) == "number" and self.activeLayer > #layers then
+      self.activeLayer = math.max(1, #layers)
+    end
+    self.selected = self.selectedByLayer and self.selectedByLayer[self.activeLayer] or nil
+    if self.patternLayerSoloMode == true and not self:findPatternReferenceLayerIndex() then
+      self.patternLayerSoloMode = false
+      self.drawOnlyActiveLayer = false
+    end
+  end
+
+  return removed
+end
+
+function PPUFrameWindow:getLayerCount()
+  local count = 0
+  for _, layer in ipairs(self.layers or {}) do
+    if not self:isRuntimeOnlyLayer(layer) then
+      count = count + 1
+    end
+  end
+  return count
+end
+
 function PPUFrameWindow:getNormalInteractiveLayerIndices()
   local PatternLayerGate = require("controllers.window.pattern_layer_gate")
   local out = {}
@@ -1459,6 +1519,19 @@ end
 function PPUFrameWindow:setPatternLayerSoloMode(enabled)
   local nextEnabled = (enabled == true)
   if nextEnabled then
+    local gctx = rawget(_G, "ctx")
+    local app = gctx and gctx.app
+    local nametableLayer, nametableIndex = getNametableLayer(self)
+    if app and app._ensurePpuPatternTableReferenceLayer and nametableLayer and nametableIndex then
+      app:_ensurePpuPatternTableReferenceLayer({
+        win = self,
+        layer = nametableLayer,
+        layerIndex = nametableIndex,
+      }, {
+        keepActiveLayer = true,
+        allowReferenceLayer = true,
+      })
+    end
     local patternIndex = self:findPatternReferenceLayerIndex()
     if not patternIndex then
       self.patternLayerSoloMode = false
@@ -1473,6 +1546,7 @@ function PPUFrameWindow:setPatternLayerSoloMode(enabled)
 
   self.patternLayerSoloMode = false
   self.drawOnlyActiveLayer = false
+  self:removePatternReferenceLayers()
   local fallbackIndex = self:_resolveAllowedLayerIndex(self.activeLayer)
   if fallbackIndex then
     Window.setActiveLayerIndex(self, fallbackIndex)

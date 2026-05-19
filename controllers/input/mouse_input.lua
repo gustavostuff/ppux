@@ -466,12 +466,33 @@ local function handleSpriteDragEnd()
   return false
 end
 
+local function handleSpriteCtrlToggleDeselect()
+  if spriteClick and spriteClick.active and not spriteClick.moved and spriteClick.ctrlToggleDeselect then
+    local win = spriteClick.win
+    local layerIndex = spriteClick.layerIndex
+    local targetIndex = spriteClick.targetIndex
+    local layer = win and win.layers and layerIndex and win.layers[layerIndex] or nil
+    if layer and layer.kind == "sprite" then
+      SpriteController.toggleSpriteSelection(layer, targetIndex)
+      layer.hoverSpriteIndex = layer.selectedSpriteIndex
+    end
+    spriteClick = { active = false }
+    return true
+  end
+  return false
+end
+
 local function handleClickCancel(button)
   if button == 1 and drag and drag.pending and not drag.active then
     if tileClick and tileClick.active and not tileClick.moved then
-      MultiSelectController.clearTileMultiSelection(tileClick.win, tileClick.layerIdx)
-      if tileClick.win and tileClick.win.setSelected then
-        tileClick.win:setSelected(tileClick.col, tileClick.row, tileClick.layerIdx)
+      if tileClick.ctrlToggleDeselect then
+        MultiSelectController.toggleTileCellToSelection(
+          tileClick.win, tileClick.layerIdx, tileClick.col, tileClick.row, false)
+      else
+        MultiSelectController.clearTileMultiSelection(tileClick.win, tileClick.layerIdx)
+        if tileClick.win and tileClick.win.setSelected then
+          tileClick.win:setSelected(tileClick.col, tileClick.row, tileClick.layerIdx)
+        end
       end
     end
     clearDragState()
@@ -596,6 +617,7 @@ function M.mousereleased(x, y, button)
     tilePaintState.lastRow = nil
   end
 
+  if handleSpriteCtrlToggleDeselect() then logRoute("mousereleased", "sprite_ctrl_toggle_deselect", x, y, button, fwin); return end
   if SpriteController.finishSpriteMarquee(x, y) then logRoute("mousereleased", "finish_sprite_marquee", x, y, button, fwin); return end
   if MultiSelectController.finishTileMarquee(x, y) then logRoute("mousereleased", "finish_tile_marquee", x, y, button, fwin); return end
   local resizeEnded = handleResizeEnd(button, x, y, fwin)

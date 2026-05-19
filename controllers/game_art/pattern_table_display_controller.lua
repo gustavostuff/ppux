@@ -334,19 +334,23 @@ function M.invalidateConsumersUsingPatternTable(app, patternTableRef)
     end
 
     if WindowCaps.isPpuFrame(win) and type(app._ensurePpuPatternTableReferenceLayer) == "function" then
-      for li, layer in ipairs(win.layers) do
-        syncConsumerTileLayerPatternTableRef(layer)
-        if layer
-          and layer.kind == "tile"
-          and layer.patternTable == patternTableRef
-          and layer._runtimePatternTableRefLayer ~= true
-        then
-          app:_ensurePpuPatternTableReferenceLayer({
-            win = win,
-            layer = layer,
-            layerIndex = li,
-          }, { keepActiveLayer = true })
+      if win.patternLayerSoloMode == true then
+        for li, layer in ipairs(win.layers) do
+          syncConsumerTileLayerPatternTableRef(layer)
+          if layer
+            and layer.kind == "tile"
+            and layer.patternTable == patternTableRef
+            and layer._runtimePatternTableRefLayer ~= true
+          then
+            app:_ensurePpuPatternTableReferenceLayer({
+              win = win,
+              layer = layer,
+              layerIndex = li,
+            }, { keepActiveLayer = true, allowReferenceLayer = true })
+          end
         end
+      elseif win.removePatternReferenceLayers then
+        win:removePatternReferenceLayers()
       end
     end
 

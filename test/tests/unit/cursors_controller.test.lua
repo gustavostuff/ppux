@@ -387,6 +387,42 @@ describe("cursors_controller.lua", function()
     expect(setTo).toBe("pencil")
   end)
 
+  it("uses arrow over window content while reference tracing view is active", function()
+    local setTo = nil
+    love.mouse.setCursor = function(cursor) setTo = cursor end
+    ResolutionController.getScaledMouse = function()
+      return { x = 10, y = MY }
+    end
+
+    local layer = { kind = "tile", removedCells = {} }
+    local win = {
+      isPalette = false,
+      referenceDisplayReference = true,
+      referenceImageStoredPath = "/tmp/ref.png",
+      referenceImageDrawable = {},
+      cols = 8,
+      layers = { layer },
+      getActiveLayerIndex = function() return 1 end,
+      toGridCoords = function() return true, 1, 2 end,
+      get = function() return { id = "tile" } end,
+      isInHeader = function() return false end,
+      isInContentArea = function() return true end,
+    }
+
+    local app = {
+      hardwareCursors = { arrow = "arrow", pencil = "pencil", hand = "hand" },
+      wm = {
+        windowAt = function() return win end,
+      },
+    }
+
+    CursorsController.applyModeCursor(app, "edit")
+    expect(setTo).toBe("arrow")
+
+    CursorsController.applyModeCursor(app, "tile")
+    expect(setTo).toBe("arrow")
+  end)
+
   it("does not apply hardware cursor changes from CursorsController.update", function()
     local setCalls = 0
     love.mouse.setCursor = function()

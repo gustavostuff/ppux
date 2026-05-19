@@ -219,6 +219,13 @@ function AppCoreController:_ensurePpuPatternTableReferenceLayer(context, opts)
   if not (context and context.win and context.layer) then
     return false
   end
+  local win = context.win
+  if win.patternLayerSoloMode ~= true and opts.allowReferenceLayer ~= true then
+    if win.removePatternReferenceLayers then
+      win:removePatternReferenceLayers(context.layerIndex)
+    end
+    return true
+  end
   local layer = context.layer
   if type(layer.patternTable) ~= "table" then
     self:setStatus("This layer has no patternTable")
@@ -561,11 +568,15 @@ function AppCoreController:_removeTileRangeFromPatternTableLayer(targetWin, targ
     elseif targetWin.invalidateNametableLayerCanvas then
       targetWin:invalidateNametableLayerCanvas(targetLayerIndex)
     end
-    self:_ensurePpuPatternTableReferenceLayer({
-      win = targetWin,
-      layerIndex = targetLayerIndex,
-      layer = targetLayer,
-    }, { keepActiveLayer = true })
+    if targetWin.patternLayerSoloMode == true then
+      self:_ensurePpuPatternTableReferenceLayer({
+        win = targetWin,
+        layerIndex = targetLayerIndex,
+        layer = targetLayer,
+      }, { keepActiveLayer = true, allowReferenceLayer = true })
+    elseif targetWin.removePatternReferenceLayers then
+      targetWin:removePatternReferenceLayers(targetLayerIndex)
+    end
   elseif WindowCaps.isPatternTable(targetWin) then
     PatternTableDisplayController.populateTileLayerItemsFromPatternTable(targetWin, targetLayerIndex, {
       tilesPool = tilesPool,

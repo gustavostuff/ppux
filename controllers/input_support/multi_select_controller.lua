@@ -446,7 +446,99 @@ function M.isTileCellSelected(win, layerIdx, col, row)
   local cols = win.cols or 0
   if cols <= 0 then return false end
   local idx = (row * cols + col) + 1
-  return layer.multiTileSelection and layer.multiTileSelection[idx] == true
+  if layer.multiTileSelection and layer.multiTileSelection[idx] == true then
+    return true
+  end
+  if not layer.multiTileSelection and win.getSelected then
+    local sCol, sRow, sLayer = win:getSelected()
+    if type(sCol) == "number" and type(sRow) == "number"
+      and (sLayer == nil or sLayer == layerIdx)
+      and sCol == col and sRow == row
+    then
+      return true
+    end
+  end
+  return false
+end
+
+local function removeTileCellFromSelection(win, layerIdx, col, row)
+  local layer = win.layers and win.layers[layerIdx]
+  if not layer then return false end
+
+  local cols = win.cols or 0
+  local rows = win.rows or 0
+  if cols <= 0 then return false end
+
+  local idx = (row * cols + col) + 1
+  local selected = layer.multiTileSelection
+  local hadMulti = type(selected) == "table"
+
+  if not hadMulti then
+    if win.getSelected then
+      local sCol, sRow, sLayer = win:getSelected()
+      if type(sCol) == "number" and type(sRow) == "number"
+        and (sLayer == nil or sLayer == layerIdx)
+        and sCol == col and sRow == row
+      then
+        layer.multiTileSelection = nil
+        if win.clearSelected then
+          win:clearSelected()
+        end
+        return true
+      end
+    end
+    return false
+  end
+
+  selected[idx] = nil
+  if WindowCaps.isChrLike(win) and win.orderMode == "oddEven" then
+    local bottomRow = row + 1
+    if bottomRow < rows then
+      selected[(bottomRow * cols + col) + 1] = nil
+    end
+  end
+
+  local any = false
+  for _, on in pairs(selected) do
+    if on then
+      any = true
+      break
+    end
+  end
+
+  if not any then
+    layer.multiTileSelection = nil
+    if win.clearSelected then
+      win:clearSelected()
+    end
+    return true
+  end
+
+  layer.multiTileSelection = selected
+  local cells = M.getSelectedTileCells(win, layerIdx)
+  if #cells > 0 and win.setSelected then
+    win:setSelected(cells[1].col, cells[1].row, layerIdx)
+  end
+  return true
+end
+
+--- Toggle one tile cell in/out of multi-selection. Returns "added", "removed", or false.
+function M.toggleTileCellToSelection(win, layerIdx, col, row, includeCurrentSingle)
+  if not (win and layerIdx and col and row) then return false end
+  local layer = win.layers and win.layers[layerIdx]
+  if not (layer and layer.kind == "tile") then return false end
+
+  if M.isTileCellSelected(win, layerIdx, col, row) then
+    if removeTileCellFromSelection(win, layerIdx, col, row) then
+      return "removed"
+    end
+    return false
+  end
+
+  if M.addTileCellToSelection(win, layerIdx, col, row, includeCurrentSingle) then
+    return "added"
+  end
+  return false
 end
 
 function M.addTileCellToSelection(win, layerIdx, col, row, includeCurrentSingle)

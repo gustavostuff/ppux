@@ -318,14 +318,29 @@ local function handleSpriteClick(env, button, x, y, win, wm)
 
     if ctrlDown then
       clearOamSpriteEditClick()
-      if not contains then
-        local nextSel = {}
-        for _, idx in ipairs(currentSelOrdered) do
-          nextSel[#nextSel + 1] = idx
+      if contains then
+        if not shiftDown then
+          setSpriteClick({
+            active = true,
+            moved = false,
+            startX = x,
+            startY = y,
+            win = win,
+            layerIndex = layerIndex,
+            targetIndex = itemIndex,
+            ctrlToggleDeselect = true,
+          })
+        else
+          setSpriteClick({ active = false })
         end
-        nextSel[#nextSel + 1] = itemIndex
-        SpriteController.setSpriteSelection(L, nextSel)
+        return true
       end
+      local nextSel = {}
+      for _, idx in ipairs(currentSelOrdered) do
+        nextSel[#nextSel + 1] = idx
+      end
+      nextSel[#nextSel + 1] = itemIndex
+      SpriteController.setSpriteSelection(L, nextSel)
       targetIndex = itemIndex
     else
       local multiSelected = (#currentSel > 1)
@@ -923,6 +938,60 @@ local function handleTilePaintMode(env, button, x, y, win, wm)
   return true
 end
 
+local function handleTileHitSelection(env, ctx, win, wm, tileLayerIdx, col, row, item, x, y, ctrlDown)
+  local setTileClick = env.setTileClick
+  local tileGroup = nil
+
+  if ctrlDown then
+    if MultiSelectController.isTileCellSelected(win, tileLayerIdx, col, row) then
+      setTileClick({
+        active = true,
+        moved = false,
+        ctrlToggleDeselect = true,
+        win = win,
+        layerIdx = tileLayerIdx,
+        col = col,
+        row = row,
+      })
+      tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, col, row)
+      startTileDrag(env, win, col, row, tileLayerIdx, item, wm, x, y, true, tileGroup)
+      return true
+    end
+    local toggled = MultiSelectController.toggleTileCellToSelection(win, tileLayerIdx, col, row, true)
+    if toggled == "removed" then
+      setTileClick({ active = false })
+      setTilePickStatus(ctx, win, col, row, item)
+      return true
+    end
+    tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, col, row)
+    setTileClick({ active = false })
+    showSelectedTileLabel(ctx, win, col, row, item)
+    setTilePickStatus(ctx, win, col, row, item)
+    startTileDrag(env, win, col, row, tileLayerIdx, item, wm, x, y, true, tileGroup)
+    return true
+  end
+
+  if isChr8x16SelectionMode(win) then
+    tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, col, row)
+  elseif MultiSelectController.isTileCellSelected(win, tileLayerIdx, col, row) then
+    tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, col, row)
+  end
+
+  setTileClick({
+    active = true,
+    moved = false,
+    win = win,
+    layerIdx = tileLayerIdx,
+    col = col,
+    row = row,
+  })
+  win:setSelected(col, row, tileLayerIdx)
+  showSelectedTileLabel(ctx, win, col, row, item)
+  setTilePickStatus(ctx, win, col, row, item)
+  startTileDrag(env, win, col, row, tileLayerIdx, item, wm, x, y, false, tileGroup)
+  return true
+end
+
 local function handleTileSelection(env, button, x, y, win, wm)
   local ctx = env.ctx
   local utils = env.utils or {}
@@ -978,38 +1047,7 @@ local function handleTileSelection(env, button, x, y, win, wm)
 
   if hit and vitem then
     vcol, vrow, vitem = canonicalizeChr8x16Target(win, tileLayerIdx, vcol, vrow, vitem)
-    local tileGroup = nil
-    if isChr8x16SelectionMode(win) then
-      if ctrlDown then
-        MultiSelectController.addTileCellToSelection(win, tileLayerIdx, vcol, vrow, true)
-      end
-      tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, vcol, vrow)
-    elseif ctrlDown then
-      MultiSelectController.addTileCellToSelection(win, tileLayerIdx, vcol, vrow, true)
-      tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, vcol, vrow)
-    elseif MultiSelectController.isTileCellSelected(win, tileLayerIdx, vcol, vrow) then
-      tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, vcol, vrow)
-    end
-
-    if not ctrlDown then
-      setTileClick({
-        active = true,
-        moved = false,
-        win = win,
-        layerIdx = tileLayerIdx,
-        col = vcol,
-        row = vrow,
-      })
-    else
-      setTileClick({ active = false })
-    end
-    if not ctrlDown then
-      win:setSelected(vcol, vrow, tileLayerIdx)
-    end
-    showSelectedTileLabel(ctx, win, vcol, vrow, vitem)
-    setTilePickStatus(ctx, win, vcol, vrow, vitem)
-    startTileDrag(env, win, vcol, vrow, tileLayerIdx, vitem, wm, x, y, ctrlDown, tileGroup)
-    return true
+    return handleTileHitSelection(env, ctx, win, wm, tileLayerIdx, vcol, vrow, vitem, x, y, ctrlDown)
   end
 
   local ok, col, row = win:toGridCoords(x, y)
@@ -1018,37 +1056,7 @@ local function handleTileSelection(env, button, x, y, win, wm)
       or win:get(col, row, tileLayerIdx)
     if item then
       col, row, item = canonicalizeChr8x16Target(win, tileLayerIdx, col, row, item)
-      local tileGroup = nil
-      if isChr8x16SelectionMode(win) then
-        if ctrlDown then
-          MultiSelectController.addTileCellToSelection(win, tileLayerIdx, col, row, true)
-        end
-        tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, col, row)
-      elseif ctrlDown then
-        MultiSelectController.addTileCellToSelection(win, tileLayerIdx, col, row, true)
-        tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, col, row)
-      elseif MultiSelectController.isTileCellSelected(win, tileLayerIdx, col, row) then
-        tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, col, row)
-      end
-
-      if not ctrlDown then
-        setTileClick({
-          active = true,
-          moved = false,
-          win = win,
-          layerIdx = tileLayerIdx,
-          col = col,
-          row = row,
-        })
-      else
-        setTileClick({ active = false })
-      end
-      if not ctrlDown then
-        win:setSelected(col, row, tileLayerIdx)
-      end
-      showSelectedTileLabel(ctx, win, col, row, item)
-      setTilePickStatus(ctx, win, col, row, item)
-      startTileDrag(env, win, col, row, tileLayerIdx, item, wm, x, y, ctrlDown, tileGroup)
+      return handleTileHitSelection(env, ctx, win, wm, tileLayerIdx, col, row, item, x, y, ctrlDown)
     else
       setTileClick({ active = false })
       MultiSelectController.clearTileMultiSelection(win, tileLayerIdx)

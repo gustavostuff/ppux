@@ -42,12 +42,36 @@ function M.tryNotify(win, oldIndex, newIndex)
   end
 
   local layers = win.layers
-  local n = type(layers) == "table" and #layers or 0
+  if WindowCaps.isPpuFrame(win) and win.getAllowedLayerIndicesForNavigation then
+    local allowed = win:getAllowedLayerIndicesForNavigation() or {}
+    local n = #allowed
+    if n <= 0 then
+      return
+    end
+    local pos = 1
+    for i, idx in ipairs(allowed) do
+      if idx == newIndex then
+        pos = i
+        break
+      end
+    end
+    local L = layers and layers[newIndex]
+    local label
+    if L and type(L.name) == "string" and L.name ~= "" then
+      label = L.name
+    else
+      label = "Layer " .. tostring(newIndex)
+    end
+    app:setStatus(string.format("%s: %s (%d/%d)", windowTitle(win), label, pos, n))
+    return
+  end
+
+  local n = win.getLayerCount and win:getLayerCount() or (type(layers) == "table" and #layers or 0)
   if n <= 0 then
     return
   end
 
-  local L = layers[newIndex]
+  local L = layers and layers[newIndex]
   local label
   if L and type(L.name) == "string" and L.name ~= "" then
     label = L.name

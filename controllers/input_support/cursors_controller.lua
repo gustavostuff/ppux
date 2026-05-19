@@ -216,9 +216,8 @@ local function setMouseVisibility(app, visible)
   end
 end
 
---- Hide OS / software-drawn cursor over window content while reference-underlay preview is active.
-local function shouldHideCursorForReferenceBackgroundView(app)
-  local mx, my = getMouseCanvasPosition()
+--- True when (mx, my) is over window content while reference tracing view is active.
+local function isReferenceTracingViewAtPointer(app, mx, my)
   if type(mx) ~= "number" or type(my) ~= "number" then
     return false
   end
@@ -594,6 +593,10 @@ local function resolveTargetCursorName(app, mode)
       return "arrow"
     end
 
+    if isReferenceTracingViewAtPointer(app, mx, my) then
+      return "arrow"
+    end
+
     if app and app.settingsModal and type(app.settingsModal.isHoveringColorPickerSwatchAt) == "function" then
       if app.settingsModal:isHoveringColorPickerSwatchAt(mx, my) then
         return "hand"
@@ -636,19 +639,6 @@ end
 
 function CursorsController.applyModeCursor(app, mode)
   if not (love and love.mouse) then
-    return
-  end
-
-  if shouldHideCursorForReferenceBackgroundView(app) then
-    setMouseVisibility(app, false)
-    if love.mouse.setCursor then
-      love.mouse.setCursor()
-    end
-    if app then
-      app._softwareCursorModeActive = false
-      app.activeCursorName = nil
-      app.activeHardwareCursor = nil
-    end
     return
   end
 

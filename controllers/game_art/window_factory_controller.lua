@@ -625,6 +625,9 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
   local overlayStartedAt = nowSeconds()
   addPpuSpriteOverlayLayers(win, w, ensureTiles)
   logPerf("ppu_frame.add_sprite_overlays", overlayStartedAt, string.format("title=%s", tostring(w.title or "")))
+  if win.removePatternReferenceLayers then
+    win:removePatternReferenceLayers()
+  end
   win.activeLayer = w.activeLayer or 1
   return win
 end

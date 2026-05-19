@@ -822,39 +822,22 @@ local function loadFromProject(app, project)
     end
   end
 
-  local function openRuntimePatternTableRefs()
+  local function stripRuntimePatternTableRefLayers()
     local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
     PatternTableDisplayController.refreshAllPatternTableWindows(app.wm, {
       tilesPool = state.tilesPool,
       ensureTiles = function(bankIdx) ensureBankTilesInner(state, bankIdx) end,
       appEditState = state,
     })
-    if type(app._ensurePpuPatternTableReferenceLayer) ~= "function" then
-      return 0
-    end
-    local opened = 0
+    local stripped = 0
     for _, win in ipairs(app.wm:getWindows() or {}) do
-      if win and win.kind == "ppu_frame" and type(win.layers) == "table" then
-        for li, layer in ipairs(win.layers) do
-          if layer and layer.kind == "tile"
-            and type(layer.patternTable) == "table"
-            and type(layer.patternTable.ranges) == "table"
-          then
-            local ok = app:_ensurePpuPatternTableReferenceLayer({
-              win = win,
-              layerIndex = li,
-              layer = layer,
-            }, { keepActiveLayer = true })
-            if ok then
-              opened = opened + 1
-            end
-          end
-        end
+      if win and win.kind == "ppu_frame" and win.removePatternReferenceLayers then
+        stripped = stripped + win:removePatternReferenceLayers()
       end
     end
-    return opened
+    return stripped
   end
-  local refsOpened = openRuntimePatternTableRefs()
+  stripRuntimePatternTableRefLayers()
 
   app:setStatus("Loaded user project")
   
@@ -952,39 +935,22 @@ local function loadFromDBLayout(app, sha)
   syncDuplicateIndexesForLoad(app, state)
   logPerf("db_layout.sync_duplicate_indexes", dupesStartedAt, string.format("enabled=%s", tostring(app.syncDuplicateTiles == true)))
 
-  local function openRuntimePatternTableRefs()
+  local function stripRuntimePatternTableRefLayers()
     local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
     PatternTableDisplayController.refreshAllPatternTableWindows(app.wm, {
       tilesPool = state.tilesPool,
       ensureTiles = function(bankIdx) ensureBankTilesInner(state, bankIdx) end,
       appEditState = state,
     })
-    if type(app._ensurePpuPatternTableReferenceLayer) ~= "function" then
-      return 0
-    end
-    local opened = 0
+    local stripped = 0
     for _, win in ipairs(app.wm:getWindows() or {}) do
-      if win and win.kind == "ppu_frame" and type(win.layers) == "table" then
-        for li, layer in ipairs(win.layers) do
-          if layer and layer.kind == "tile"
-            and type(layer.patternTable) == "table"
-            and type(layer.patternTable.ranges) == "table"
-          then
-            local ok = app:_ensurePpuPatternTableReferenceLayer({
-              win = win,
-              layerIndex = li,
-              layer = layer,
-            }, { keepActiveLayer = true })
-            if ok then
-              opened = opened + 1
-            end
-          end
-        end
+      if win and win.kind == "ppu_frame" and win.removePatternReferenceLayers then
+        stripped = stripped + win:removePatternReferenceLayers()
       end
     end
-    return opened
+    return stripped
   end
-  local refsOpened = openRuntimePatternTableRefs()
+  stripRuntimePatternTableRefLayers()
 
   app:setStatus("Loaded DB layout")
   
@@ -1002,9 +968,6 @@ local function loadFromDBLayout(app, sha)
     app:refreshGroupedPaletteWindows()
   end
 
-  if refsOpened > 0 then
-    app:setStatus(string.format("Loaded DB layout (%d runtime pattern table refs opened)", refsOpened))
-  end
   DebugController.log("info", "ROM", "Loaded DB layout: %s", sha)
   DebugController.log("info", "ROM", "  #windows = %d", #(layout.windows or {}))
   logPerf("db_layout.total", loadStartedAt)

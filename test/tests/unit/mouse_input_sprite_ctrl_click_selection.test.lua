@@ -100,7 +100,7 @@ describe("mouse_input.lua - ctrl+click sprite copy selection", function()
     expect(dragArgs.copyMode).toBe(true)
   end)
 
-  it("keeps existing multi-selection when ctrl-clicking a selected sprite", function()
+  it("deselects clicked sprite from multi-selection when ctrl-clicking it again", function()
     local dragArgs = nil
     SpriteController.pickSpriteAt = function()
       return 1, 2, 0, 0
@@ -126,6 +126,7 @@ describe("mouse_input.lua - ctrl+click sprite copy selection", function()
         { bank = 1, tile = 11, x = 12, y = 4 },
       },
       multiSpriteSelection = { [1] = true, [2] = true },
+      multiSpriteSelectionOrder = { 1, 2 },
       selectedSpriteIndex = 1,
     }
 
@@ -158,19 +159,16 @@ describe("mouse_input.lua - ctrl+click sprite copy selection", function()
     })
 
     MouseInput.mousepressed(10, 10, 1)
+    MouseInput.mousereleased(10, 10, 1)
 
     local selected = SpriteController.getSelectedSpriteIndices(layer)
-    expect(#selected).toBe(2)
+    expect(#selected).toBe(1)
     expect(selected[1]).toBe(1)
-    expect(selected[2]).toBe(2)
     expect(layer.multiSpriteSelectionOrder).toBeTruthy()
     expect(layer.multiSpriteSelectionOrder[1]).toBe(1)
-    expect(layer.multiSpriteSelectionOrder[2]).toBe(2)
-    expect(layer.selectedSpriteIndex).toBe(2)
-    expect(layer.hoverSpriteIndex).toBe(2)
-    expect(dragArgs).toBeTruthy()
-    expect(dragArgs.anchorIndex).toBe(2)
-    expect(dragArgs.copyMode).toBe(true)
+    expect(layer.selectedSpriteIndex).toBe(1)
+    expect(layer.hoverSpriteIndex).toBe(1)
+    expect(dragArgs).toBeNil()
   end)
 
   it("keeps copy when ctrl is released before mouse-up", function()

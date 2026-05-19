@@ -111,6 +111,7 @@ function M.setupDeterministicPpuFixture(currentApp, currentRunner)
       layerIndex = 1,
     }, {
       keepActiveLayer = true,
+      allowReferenceLayer = true,
     })
     assert(ok, "expected pattern table reference layer for E2E PPU fixture")
   end

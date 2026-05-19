@@ -1153,12 +1153,15 @@ function AppCoreController:_afterPatternTableLinkChange(contentWin, layerIndex)
     and layer.kind == "tile"
     and layer._runtimePatternTableRefLayer ~= true
     and self._ensurePpuPatternTableReferenceLayer
+    and contentWin.patternLayerSoloMode == true
   then
     self:_ensurePpuPatternTableReferenceLayer({
       win = contentWin,
       layer = layer,
       layerIndex = layerIndex,
-    }, { keepActiveLayer = true })
+    }, { keepActiveLayer = true, allowReferenceLayer = true })
+  elseif WindowCaps.isPpuFrame(contentWin) and contentWin.removePatternReferenceLayers then
+    contentWin:removePatternReferenceLayers(layerIndex)
   end
   PatternTableDisplayController.invalidateConsumersUsingPatternTable(self, layer.patternTable)
 
