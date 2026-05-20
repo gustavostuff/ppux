@@ -9,6 +9,7 @@ ToastController.__index = ToastController
 local DEFAULT_DURATION = 3.0
 local DEFAULT_FADE_DURATION = 0.5
 local ENTER_DURATION = 0.4
+local STACK_DURATION = 0.35
 local STACK_GAP = 5
 local MARGIN_RIGHT = 6
 local MARGIN_BOTTOM = 4
@@ -110,6 +111,7 @@ function ToastController.new(app, opts)
     defaultDuration = opts.defaultDuration or DEFAULT_DURATION,
     defaultFadeDuration = opts.defaultFadeDuration or DEFAULT_FADE_DURATION,
     enterDuration = opts.enterDuration or ENTER_DURATION,
+    stackDuration = opts.stackDuration or STACK_DURATION,
     timerMarkPrefix = string.format("toast_%s", tostring({})),
     tweenGroup = Flux.group(),
   }, ToastController)
@@ -158,6 +160,26 @@ function ToastController:_stopEnterAnimation(toast)
   end
 end
 
+function ToastController:_stopStackAnimation(toast)
+  if toast and toast.stackTween then
+    self.tweenGroup:remove(toast.stackTween)
+    toast.stackTween = nil
+  end
+end
+
+function ToastController:_startStackAnimation(toast)
+  self:_stopStackAnimation(toast)
+  if toast.y == toast.targetY then
+    return
+  end
+  toast.stackTween = self.tweenGroup:to(toast, self.stackDuration, { y = toast.targetY })
+    :ease("quadout")
+    :oncomplete(function()
+      toast.y = toast.targetY
+      toast.stackTween = nil
+    end)
+end
+
 function ToastController:_startEnterAnimation(toast)
   self:_stopEnterAnimation(toast)
   toast.state = "entering"
@@ -178,10 +200,20 @@ function ToastController:_layoutToasts()
   for i = 1, #self.toasts do
     local toast = self.toasts[i]
     local prevTargetX = toast.targetX
+    local prevTargetY = toast.targetY
     toast.targetX = canvasW - self.marginRight - toast.w
     toast.targetY = bottomY - toast.h - runningOffset
     runningOffset = runningOffset + toast.h + self.stackGap
-    toast.y = toast.targetY
+
+    local targetYChanged = prevTargetY ~= toast.targetY
+    local shouldStackAnimate = targetYChanged
+      and (toast.state ~= "entering" or prevTargetY ~= 0)
+
+    if shouldStackAnimate then
+      self:_startStackAnimation(toast)
+    elseif not toast.stackTween then
+      toast.y = toast.targetY
+    end
 
     if toast.state == "entering" then
       if prevTargetX ~= toast.targetX then
@@ -220,6 +252,7 @@ function ToastController:_removeToast(toast)
   for i = #self.toasts, 1, -1 do
     if self.toasts[i] == toast then
       self:_stopEnterAnimation(toast)
+      self:_stopStackAnimation(toast)
       table.remove(self.toasts, i)
       if toast.markName then
         Timer.clearMark(toast.markName)
@@ -293,6 +326,7 @@ function ToastController:show(kind, text, opts)
     targetY = 0,
     state = "entering",
     enterTween = nil,
+    stackTween = nil,
     hovered = false,
     pressed = false,
     action = opts.action,
@@ -302,6 +336,7 @@ function ToastController:show(kind, text, opts)
   self.layoutDirty = true
   self:_layoutToasts()
   toast.x = self:_canvasSize()
+  toast.y = toast.targetY
   self:_startEnterAnimation(toast)
   return toast
 end

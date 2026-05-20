@@ -58,6 +58,23 @@ describe("toast_controller.lua", function()
     expect(controller.toasts[1].targetY).toBeGreaterThan(controller.toasts[2].targetY)
   end)
 
+  it("animates older toasts upward when a newer toast arrives", function()
+    local controller = makeController()
+    local first = controller:show("info", "Saved project")
+    advance(controller, 0.5)
+
+    local yBefore = first.y
+    controller:show("warning", "Removed layer")
+    advance(controller, 0.05)
+
+    expect(first.y).toBeLessThan(yBefore)
+    expect(first.y).toBeGreaterThan(first.targetY)
+
+    advance(controller, 0.5)
+    expect(first.y).toBe(first.targetY)
+    expect(first.stackTween).toBe(nil)
+  end)
+
   it("auto-dismisses toasts after fade-out completes", function()
     local controller = makeController()
     controller:show("info", "Saved project")
