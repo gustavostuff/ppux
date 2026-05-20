@@ -1177,6 +1177,13 @@ function AppCoreController:_afterPatternTableLinkChange(contentWin, layerIndex)
   if contentWin.specializedToolbar and contentWin.specializedToolbar.updateIcons then
     contentWin.specializedToolbar:updateIcons()
   end
+  if self.wm and self.wm.getWindows then
+    for _, w in ipairs(self.wm:getWindows()) do
+      if WindowCaps.isPatternTable(w) and w.specializedToolbar and w.specializedToolbar.updateIcons then
+        w.specializedToolbar:updateIcons()
+      end
+    end
+  end
 end
 
 local function findPpuNametableTileLayerIndex(win)
@@ -1605,6 +1612,81 @@ function AppCoreController:showPatternTableLinkDestinationContextMenu(win, x, y)
   self:_hideAllContextMenus()
   local cx, cy = self:contentPointToCanvasPoint(x, y)
   self.paletteLinkContextMenu:showAt(cx, cy, self:_buildPatternTableLinkDestinationContextMenuItems(win))
+  return self.paletteLinkContextMenu:isVisible()
+end
+
+function AppCoreController:_buildPatternTableLinkSourceContextMenuItems(patternTableWin)
+  local targets = PatternTableDisplayController.getLinkedConsumersForPatternTable(self.wm, patternTableWin)
+  local items = {}
+
+  items[#items + 1] = {
+    text = "Jump to linked layer",
+    menuGroup = "pt_src_navigate",
+    children = function()
+      if #targets == 0 then
+        return {
+          {
+            text = "No linked layers",
+            callback = function() end,
+          },
+        }
+      end
+      local childItems = {}
+      for _, target in ipairs(targets) do
+        childItems[#childItems + 1] = {
+          text = string.format("%s / layer %d", tostring(target.win.title or "window"), target.layerIndex),
+          callback = function()
+            self:_focusLinkedLayerTarget(target.win, target.layerIndex)
+          end,
+        }
+      end
+      return childItems
+    end,
+  }
+
+  items[#items + 1] = {
+    text = "Remove all links",
+    menuGroup = "pt_src_remove",
+    callback = function()
+      if #targets == 0 then
+        return
+      end
+      self:hideAppContextMenus()
+      local batchBefore = {}
+      for _, entry in ipairs(targets) do
+        batchBefore[#batchBefore + 1] = {
+          win = entry.win,
+          layerIndex = entry.layerIndex,
+          beforeSnap = snapshotPatternTableLayerBeforeMutation(entry.win, entry.layerIndex),
+        }
+      end
+      for _, entry in ipairs(targets) do
+        PatternTableDisplayController.unlinkContentLayerPatternTable(entry.win, entry.layerIndex)
+      end
+      pushPatternTableLinkUndoBatchAfterMutations(self, batchBefore)
+      for _, entry in ipairs(targets) do
+        self:_afterPatternTableLinkChange(entry.win, entry.layerIndex)
+      end
+      if self.setStatus then
+        self:setStatus(string.format(
+          "Unlinked %d layer(s) from %s",
+          #targets,
+          tostring(patternTableWin.title or "pattern table")
+        ))
+      end
+    end,
+  }
+
+  return items
+end
+
+function AppCoreController:showPatternTableLinkSourceContextMenu(win, x, y)
+  if not (self.paletteLinkContextMenu and win and type(x) == "number" and type(y) == "number") then
+    return false
+  end
+  self:_hideAllContextMenus()
+  local cx, cy = self:contentPointToCanvasPoint(x, y)
+  self.paletteLinkContextMenu:showAt(cx, cy, self:_buildPatternTableLinkSourceContextMenuItems(win))
   return self.paletteLinkContextMenu:isVisible()
 end
 

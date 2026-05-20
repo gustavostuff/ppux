@@ -344,6 +344,7 @@ function AnimationToolbar:updateIcons()
     self.linkButton.icon = images.icons.actions.icon_connect or self.linkButton.icon
     local linkedPalette = PaletteLinkController.getActiveLayerLinkedPaletteWindow(self.window, self.windowController)
     self.linkButton.bgColor = linkedPalette and colors.green or colors.gray20
+    self.linkButton.contentColor = colors.white
     if linkedPalette then
       self.linkButton.tooltip = string.format(
         "Linked to %s; right-drag to a ROM palette to change link; left-click for menu",
@@ -361,6 +362,7 @@ function AnimationToolbar:updateIcons()
   if self.patternTableLinkButton and WindowCaps.isOamAnimation(self.window) then
     local linked = oamBulkPatternTableFullyLinked(self.window)
     self.patternTableLinkButton.icon = images.icons.actions.icon_pattern_table or self.patternTableLinkButton.icon
+    self.patternTableLinkButton.contentColor = colors.white
     if linked then
       self.patternTableLinkButton.bgColor = colors.green
       self.patternTableLinkButton.tooltip = "Pattern table linked for all frames (menu)"

@@ -2,6 +2,26 @@ local PTDisplay = require("controllers.game_art.pattern_table_display_controller
 local PatternTableMapping = require("utils.pattern_table_mapping")
 
 describe("pattern_table_display_controller.lua", function()
+  it("getLinkedConsumersForPatternTable lists layers that reference the pattern table id", function()
+    local ptWin = { _id = "pt_src", kind = "pattern_table", layers = { { kind = "tile", patternTable = { ranges = {} } } } }
+    local ppuWin = {
+      kind = "ppu_frame",
+      layers = {
+        { kind = "tile", linkedPatternTableWindowId = "pt_src", patternTable = { ranges = {} } },
+        { kind = "sprite", linkedPatternTableWindowId = "other", patternTable = { ranges = {} } },
+      },
+    }
+    local wm = {
+      getWindows = function()
+        return { ptWin, ppuWin }
+      end,
+    }
+    local targets = PTDisplay.getLinkedConsumersForPatternTable(wm, ptWin)
+    expect(#targets).toBe(1)
+    expect(targets[1].win).toBe(ppuWin)
+    expect(targets[1].layerIndex).toBe(1)
+  end)
+
   local function patternTableIdentity256()
     return {
       ranges = {

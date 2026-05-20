@@ -34,6 +34,37 @@ function M.collectPatternTableWindows(wm)
   return out
 end
 
+local function collectNumericLayerKeys(layers)
+  local numericKeys = {}
+  for key, value in pairs(layers or {}) do
+    if type(key) == "number" and value ~= nil then
+      numericKeys[#numericKeys + 1] = key
+    end
+  end
+  table.sort(numericKeys)
+  return numericKeys
+end
+
+--- Layers in layout/PPU/OAM windows that link to this pattern_table window id.
+function M.getLinkedConsumersForPatternTable(wm, patternTableWin)
+  local out = {}
+  local ptId = patternTableWin and patternTableWin._id
+  if not (wm and wm.getWindows and type(ptId) == "string" and ptId ~= "") then
+    return out
+  end
+  for _, win in ipairs(wm:getWindows()) do
+    if win ~= patternTableWin and not win._closed and not WindowCaps.isPatternTable(win) then
+      for _, layerIndex in ipairs(collectNumericLayerKeys(win.layers)) do
+        local layer = win.layers[layerIndex]
+        if layer and layer.linkedPatternTableWindowId == ptId then
+          out[#out + 1] = { win = win, layerIndex = layerIndex }
+        end
+      end
+    end
+  end
+  return out
+end
+
 --- Fill layer.items for a 16x16-style grid from layer.patternTable + tilesPool.
 function M.populateTileLayerItemsFromPatternTable(win, layerIndex, opts)
   if not (win and type(layerIndex) == "number") then

@@ -31,7 +31,7 @@ local function shouldUseChromeTextTint(button)
   if not button then
     return false
   end
-  if button.bgColor == colors.yellow or button.bgColor == colors.green then
+  if button.bgColor == colors.yellow or button.bgColor == colors.green or button.bgColor == colors.gray20 then
     return false
   end
   if button.contentColor == colors.black then

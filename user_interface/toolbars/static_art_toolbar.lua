@@ -42,6 +42,7 @@ function StaticArtToolbar:updateIcons()
     self.linkButton.icon = images.icons.actions.icon_connect or self.linkButton.icon
     local linkedPalette = PaletteLinkController.getActiveLayerLinkedPaletteWindow(self.window, self.windowController)
     self.linkButton.bgColor = linkedPalette and colors.green or colors.gray20
+    self.linkButton.contentColor = colors.white
     if linkedPalette then
       self.linkButton.tooltip = string.format(
         "Linked to %s; right-drag to a ROM palette to change link; left-click for menu",

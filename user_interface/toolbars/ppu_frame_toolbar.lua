@@ -439,7 +439,7 @@ function PPUFrameToolbar:updatePatternTableLinkButton()
     button.contentColor = colors.white
     button.tooltip = "Background and/or sprite pattern table linked (menu)"
   else
-    button.bgColor = nil
+    button.bgColor = colors.gray20
     button.contentColor = colors.white
     button.tooltip = "Link background and sprite pattern tables (menu)"
   end

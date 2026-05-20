@@ -55,6 +55,7 @@ function RomPaletteToolbar:updateIcons()
     local targets = PaletteLinkController.getLinkedTargetsForPalette(self.windowController, self.window)
     local linkedCount = #(targets or {})
     self.linkButton.bgColor = linkedCount > 0 and colors.green or colors.gray20
+    self.linkButton.contentColor = colors.white
     if linkedCount > 0 then
       self.linkButton.tooltip = string.format(
         "%d linked layer(s); right-drag to link or move; left-click for menu",
