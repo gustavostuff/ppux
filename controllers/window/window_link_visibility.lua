@@ -9,7 +9,15 @@ local WindowCaps = require("controllers.window.window_capabilities")
 
 local M = {}
 
-M.REVEAL_DURATION = 1.0
+-- Code-only auto_hide timing/behavior (no settings UI).
+--- Seconds link lines stay visible after a reveal trigger before hiding.
+M.REVEAL_VISIBLE_SECONDS = 1.5
+--- When true, alpha ramps 1→0 over REVEAL_VISIBLE_SECONDS; when false, full opacity then instant hide.
+M.USE_REVEAL_FADE_OUT = true
+
+--- @deprecated Use REVEAL_VISIBLE_SECONDS.
+M.REVEAL_DURATION = M.REVEAL_VISIBLE_SECONDS
+
 M.PALETTE_REVEAL_FIELD = "_paletteLinkRevealUntil"
 M.PATTERN_REVEAL_FIELD = "_patternTableLinkRevealUntil"
 
@@ -108,7 +116,7 @@ function M.touchReveal(win, field, duration)
   if not (win and field) then
     return
   end
-  win[field] = M.nowSeconds() + (tonumber(duration) or M.REVEAL_DURATION)
+  win[field] = M.nowSeconds() + (tonumber(duration) or M.REVEAL_VISIBLE_SECONDS)
 end
 
 function M.getRevealAlpha(win, field)
@@ -121,7 +129,10 @@ function M.getRevealAlpha(win, field)
   if remaining <= 0 then
     return 0
   end
-  return remaining / M.REVEAL_DURATION
+  if M.USE_REVEAL_FADE_OUT then
+    return remaining / M.REVEAL_VISIBLE_SECONDS
+  end
+  return 1
 end
 
 function M.getRevealAlphaForEdge(edge)
@@ -264,7 +275,7 @@ local function refreshPatternRevealForWindow(app, wm, win)
   end
 end
 
---- Reset auto-hide line fade to full opacity for this window and its link partners (once per call).
+--- Reset auto-hide line visibility timer for this window and its link partners (once per call).
 function M.refreshRevealForWindow(app, wm, win)
   if not (app and wm and win) then
     return

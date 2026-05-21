@@ -625,7 +625,7 @@ function M.pulseLinkColor(semanticColor, t)
   }
 end
 
-function M.drawPivotHandle(cx, cy, innerColor, pulseT, pulseInner, chromeFillColor, chromeInkColor, innerSplit)
+function M.drawPivotHandleChrome(cx, cy, chromeFillColor)
   if not (cx and cy) then
     return
   end
@@ -633,11 +633,19 @@ function M.drawPivotHandle(cx, cy, innerColor, pulseT, pulseInner, chromeFillCol
   if not ox then
     return
   end
-
   local outer = chromeFillColor or colors:chromeBackgroundUnfocused()
   love.graphics.setColor(outer[1], outer[2], outer[3], outer[4] or 1)
   love.graphics.rectangle("fill", ox, oy, HANDLE_OUTER_W, HANDLE_OUTER_H, HANDLE_OUTER_RADIUS, HANDLE_OUTER_RADIUS)
+end
 
+function M.drawPivotHandleInner(cx, cy, innerColor, pulseT, pulseInner, chromeInkColor, innerSplit)
+  if not (cx and cy) then
+    return
+  end
+  local ox, oy = M.getPivotHandleRect(cx, cy)
+  if not ox then
+    return
+  end
   local ix = ox + math.floor((HANDLE_OUTER_W - HANDLE_INNER_W) * 0.5)
   local iy = oy + math.floor((HANDLE_OUTER_H - HANDLE_INNER_H) * 0.5)
   local idle = chromeInkColor or idleInnerColorForWindow(nil, nil)
@@ -662,6 +670,11 @@ function M.drawPivotHandle(cx, cy, innerColor, pulseT, pulseInner, chromeFillCol
     love.graphics.setColor(inner[1], inner[2], inner[3], inner[4] or 1)
     love.graphics.rectangle("fill", ix, iy, HANDLE_INNER_W, HANDLE_INNER_H)
   end
+end
+
+function M.drawPivotHandle(cx, cy, innerColor, pulseT, pulseInner, chromeFillColor, chromeInkColor, innerSplit)
+  M.drawPivotHandleChrome(cx, cy, chromeFillColor)
+  M.drawPivotHandleInner(cx, cy, innerColor, pulseT, pulseInner, chromeInkColor, innerSplit)
 end
 
 local function patternConsumerAnchorSlot(win, layer)
@@ -837,13 +850,10 @@ function M.prepareLinkDrawState(app)
   }
 end
 
-function M.drawWindowLinkOverlay(app, win, state)
-  if not (app and win and state) then
+local function drawHandlesForWindow(app, win, state, drawFn)
+  if not (app and win and state and drawFn) then
     return
   end
-
-  love.graphics.push("all")
-
   for _, handle in ipairs(state.handles or {}) do
     if handle.win ~= win then
       goto continue_handle
@@ -851,7 +861,7 @@ function M.drawWindowLinkOverlay(app, win, state)
     if not WindowLinkVisibility.shouldShowSlot(app, handle.slot) then
       goto continue_handle
     end
-    M.drawPivotHandle(
+    drawFn(
       handle.cx,
       handle.cy,
       handle.innerColor,
@@ -863,35 +873,81 @@ function M.drawWindowLinkOverlay(app, win, state)
     )
     ::continue_handle::
   end
+end
 
+--- Pass 1 for `win`: every 8×8 handle chrome rectangle (no inners, no lines).
+function M.drawWindowLinkHandleChromes(app, win, state)
+  if not (app and win and state) then
+    return
+  end
+  love.graphics.push("all")
+  drawHandlesForWindow(app, win, state, function(cx, cy, _, _, _, chromeFill)
+    M.drawPivotHandleChrome(cx, cy, chromeFill)
+  end)
+  love.graphics.pop()
+end
+
+--- Pass 2 for `win`: every 4×4 pulsating inner square (no lines).
+function M.drawWindowLinkHandleInners(app, win, state)
+  if not (app and win and state) then
+    return
+  end
+  love.graphics.push("all")
+  drawHandlesForWindow(app, win, state, function(cx, cy, innerColor, pulseT, pulseInner, _, chromeInk, innerSplit)
+    M.drawPivotHandleInner(cx, cy, innerColor, pulseT, pulseInner, chromeInk, innerSplit)
+  end)
+  love.graphics.pop()
+end
+
+--- Pass 3 for `win`: every link line owned by this window (no handles).
+function M.drawWindowLinkLines(app, win, state)
+  if not (app and win and state) then
+    return
+  end
+  love.graphics.push("all")
   for _, edge in ipairs(state.visibleEdges or {}) do
     if shouldDrawEdgeForWindow(edge, win) then
       M.drawLinkEdge(app, edge, state.layouts, state.pulseT)
     end
   end
-
   love.graphics.pop()
+end
+
+function M.drawWindowLinkOverlay(app, win, state)
+  M.drawWindowLinkHandleChromes(app, win, state)
+  M.drawWindowLinkHandleInners(app, win, state)
+  M.drawWindowLinkLines(app, win, state)
+end
+
+local function drawAllWindowLinksPhased(app, state)
+  local wm = app and app.wm
+  if not (wm and wm.getWindows and state) then
+    return
+  end
+  for _, win in ipairs(wm:getWindows()) do
+    if isLinkWindowVisible(win) then
+      M.drawWindowLinkHandleChromes(app, win, state)
+    end
+  end
+  for _, win in ipairs(wm:getWindows()) do
+    if isLinkWindowVisible(win) then
+      M.drawWindowLinkHandleInners(app, win, state)
+    end
+  end
+  for _, win in ipairs(wm:getWindows()) do
+    if isLinkWindowVisible(win) then
+      M.drawWindowLinkLines(app, win, state)
+    end
+  end
 end
 
 function M.drawLinkLines(app)
   if app and Shared.modalBlocksWorkspaceInteractions(app) then
     return
   end
-
-  local wm = app and app.wm
-  if not (wm and wm.getWindows) then
-    return
-  end
-
   local state = M.prepareLinkDrawState(app)
-  if not state then
-    return
-  end
-
-  for _, win in ipairs(wm:getWindows()) do
-    if isLinkWindowVisible(win) then
-      M.drawWindowLinkOverlay(app, win, state)
-    end
+  if state then
+    drawAllWindowLinksPhased(app, state)
   end
 end
 
