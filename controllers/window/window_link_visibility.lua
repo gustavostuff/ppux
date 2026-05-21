@@ -7,6 +7,9 @@ local PaletteLinkController = require("controllers.palette.palette_link_controll
 local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 
+--- Keep in sync with `HANDLE_OUTER_W` in window_link_visual_controller.lua.
+local HANDLE_OUTER_HIT_HALF = 4
+
 local M = {}
 
 -- Code-only auto_hide timing/behavior (no settings UI).
@@ -151,7 +154,7 @@ function M.isPointInHandle(cx, cy, x, y, pad)
     return false
   end
   pad = tonumber(pad) or 0
-  local half = 4 + pad
+  local half = HANDLE_OUTER_HIT_HALF + pad
   return x >= (cx - half) and x <= (cx + half) and y >= (cy - half) and y <= (cy + half)
 end
 

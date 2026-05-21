@@ -12,15 +12,20 @@ local WindowLinkVisibility = require("controllers.window.window_link_visibility"
 
 local M = {}
 
-local LINE_WIDTH = 2
-local HANDLE_OUTER_W = 8
-local HANDLE_OUTER_H = 8
+local LINE_WIDTH = 1
+local HANDLE_OUTER_W = 7
+local HANDLE_OUTER_H = 7
 local HANDLE_OUTER_RADIUS = 2
-local HANDLE_INNER_W = 4
-local HANDLE_INNER_H = 4
+local HANDLE_INNER_W = 3
+local HANDLE_INNER_H = 3
 local HANDLE_OUTSIDE_TOUCH_GAP = 0
 local HANDLE_GROUP_BELOW_HEADER = 3
-local HANDLE_GROUP_ROW_GAP = 2
+local HANDLE_GROUP_ROW_GAP = 3
+
+M.HANDLE_OUTER_SIZE = HANDLE_OUTER_W
+M.HANDLE_INNER_SIZE = HANDLE_INNER_W
+M.HANDLE_ROW_GAP = HANDLE_GROUP_ROW_GAP
+M.LINE_WIDTH = LINE_WIDTH
 
 local PATTERN_TABLE_SLOT = "pattern_source"
 local PPU_SLOTS = { "ppu_pattern_bg", "ppu_pattern_sprite", "ppu_palette" }
@@ -123,10 +128,6 @@ local function isPaletteOnlyConsumer(win)
   return not WindowCaps.isPpuFrame(win) and not WindowCaps.isOamAnimation(win)
 end
 
-local function isWindowCollapsed(win)
-  return win and win._collapsed == true
-end
-
 local function buildHandleAnchorPositions(win, count)
   count = math.max(1, math.floor(tonumber(count) or 1))
   local hx, hy, _, hh
@@ -139,26 +140,15 @@ local function buildHandleAnchorPositions(win, count)
     hy = y or 0
     hh = h or 16
   end
-  local rowStep = HANDLE_OUTER_W + HANDLE_GROUP_ROW_GAP
+  local rowStep = HANDLE_OUTER_H + HANDLE_GROUP_ROW_GAP
+  local anchorX = M.handleCenterXForWindowLeft(hx)
+  local firstCenterY = hy + hh + HANDLE_GROUP_BELOW_HEADER + HANDLE_OUTER_H * 0.5
   local out = {}
-  if isWindowCollapsed(win) then
-    local cy = roundPixel(hy + hh + HANDLE_OUTER_H * 0.5 - 1)
-    local firstCenterX = hx + HANDLE_GROUP_BELOW_HEADER + HANDLE_OUTER_W * 0.5
-    for i = 0, count - 1 do
-      out[#out + 1] = {
-        cx = roundPixel(firstCenterX + i * rowStep),
-        cy = cy,
-      }
-    end
-  else
-    local anchorX = M.handleCenterXForWindowLeft(hx)
-    local firstCenterY = hy + hh + HANDLE_GROUP_BELOW_HEADER + HANDLE_OUTER_H * 0.5
-    for i = 0, count - 1 do
-      out[#out + 1] = {
-        cx = anchorX,
-        cy = roundPixel(firstCenterY + i * rowStep),
-      }
-    end
+  for i = 0, count - 1 do
+    out[#out + 1] = {
+      cx = anchorX,
+      cy = roundPixel(firstCenterY + i * rowStep),
+    }
   end
   return out
 end
@@ -288,12 +278,21 @@ function M.getInnerRectForHandleCenter(cx, cy)
   return ix, iy, HANDLE_INNER_W, HANDLE_INNER_H
 end
 
+--- Center pixel of the 3×3 inner square (link line attachment point).
 function M.getInnerRectCenterPoint(cx, cy)
-  local ix, iy, iw, ih = M.getInnerRectForHandleCenter(cx, cy)
+  local ix, iy = M.getInnerRectForHandleCenter(cx, cy)
   if not ix then
-    return roundPixel(cx), roundPixel(cy)
+    return roundPixel(cx) + 1, roundPixel(cy) + 1
   end
-  return ix + math.floor(iw * 0.5), iy + math.floor(ih * 0.5)
+  return ix + 1, iy + 1
+end
+
+local function computeHandleInnerCenterPixel(cx, cy)
+  local ix, iy = M.getInnerRectForHandleCenter(cx, cy)
+  if not ix then
+    return roundPixel(cx) + 1, roundPixel(cy) + 1
+  end
+  return ix + 1, iy + 1
 end
 
 local function pinPolylineEndpoints(points, x1, y1, x2, y2)
@@ -322,25 +321,31 @@ local function buildElbowControlPoints(ax, ay, bx, by)
   return axq, midY, bxq, midY
 end
 
---- Route the last segment along the taskbar top so the line sits behind the bar and icon.
-local function buildConnectorPointsViaTaskbar(x1, y1, x2, y2, taskbarTopY)
+--- One elbow: horizontal to the mini-button x, then straight down to the taskbar anchor.
+local function buildConnectorPointsViaTaskbar(x1, y1, x2, y2)
   local axq = roundPixel(x1)
   local ayq = roundPixel(y1)
   local bxq = roundPixel(x2)
   local byq = roundPixel(y2)
-  local barY = roundPixel(taskbarTopY)
-  local c1x, c1y, c2x, c2y = buildElbowControlPoints(axq, ayq, bxq, barY)
   return {
     axq, ayq,
-    roundPixel(c1x), roundPixel(c1y),
-    roundPixel(c2x), roundPixel(c2y),
-    bxq, barY,
+    bxq, ayq,
     bxq, byq,
   }
 end
 
 local function layoutEntryUsesTaskbarAnchor(entry)
   return entry and entry.taskbarAnchor == true
+end
+
+local function getLinkLineAnchorPoint(entry, cx, cy)
+  if layoutEntryUsesTaskbarAnchor(entry) then
+    return roundPixel(cx), roundPixel(cy)
+  end
+  if entry and entry.lineCx and entry.lineCy then
+    return entry.lineCx, entry.lineCy
+  end
+  return computeHandleInnerCenterPixel(cx, cy)
 end
 
 local function getTaskbarTopY(app)
@@ -363,7 +368,7 @@ local function drawLinkPolyline(points, thickness, color, alpha)
   love.graphics.setColor(r, g, b, a)
   love.graphics.setLineStyle("rough")
   love.graphics.setLineJoin("miter")
-  love.graphics.setLineWidth(math.max(1, math.floor(thickness)))
+  love.graphics.setLineWidth(math.max(1, tonumber(thickness) or 1))
   local rounded = {}
   for i = 1, #points do
     rounded[i] = roundPixel(points[i])
@@ -507,9 +512,12 @@ function M.buildAnchorLayouts(app, edges)
         innerColor = M.innerColorForSlot(win, slot, wm)
       end
 
+      local lineCx, lineCy = computeHandleInnerCenterPixel(anchorX, cy)
       layouts[win][slot] = {
         cx = anchorX,
         cy = cy,
+        lineCx = lineCx,
+        lineCy = lineCy,
         innerColor = innerColor,
         innerSplit = innerSplit,
         pulseInner = hasLine,
@@ -771,23 +779,17 @@ function M.drawLinkEdge(app, edge, layouts, pulseT)
 
   local fromEntry = layouts[edge.fromWin] and layouts[edge.fromWin][edge.fromSlot]
   local toEntry = layouts[edge.toWin] and layouts[edge.toWin][edge.toSlot]
-  local function anchorLinePoint(entry, cx, cy)
-    if layoutEntryUsesTaskbarAnchor(entry) then
-      return roundPixel(cx), roundPixel(cy)
-    end
-    return M.getInnerRectCenterPoint(cx, cy)
-  end
-  local x1, y1 = anchorLinePoint(fromEntry, fromCx, fromCy)
-  local x2, y2 = anchorLinePoint(toEntry, toCx, toCy)
+  local x1, y1 = getLinkLineAnchorPoint(fromEntry, fromCx, fromCy)
+  local x2, y2 = getLinkLineAnchorPoint(toEntry, toCx, toCy)
   local lineColor = M.pulseLinkColor(edge.color, pulseT)
   local points
 
   local taskbarTopY = getTaskbarTopY(app)
   if taskbarTopY and layoutEntryUsesTaskbarAnchor(toEntry) then
-    points = buildConnectorPointsViaTaskbar(x1, y1, x2, y2, taskbarTopY)
+    points = buildConnectorPointsViaTaskbar(x1, y1, x2, y2)
     pinPolylineEndpoints(points, x1, y1, x2, y2)
   elseif taskbarTopY and layoutEntryUsesTaskbarAnchor(fromEntry) then
-    points = buildConnectorPointsViaTaskbar(x1, y1, x2, y2, taskbarTopY)
+    points = buildConnectorPointsViaTaskbar(x1, y1, x2, y2)
     pinPolylineEndpoints(points, x1, y1, x2, y2)
   else
     local geometry = PaletteLinkRenderController.buildConnectorGeometry(x1, y1, x2, y2, {
@@ -805,17 +807,107 @@ function M.drawLinkEdge(app, edge, layouts, pulseT)
   drawLinkPolyline(points, LINE_WIDTH, lineColor, lineAlpha)
 end
 
-local function shouldDrawEdgeForWindow(edge, win)
-  if not (edge and win) then
+local function windowZIndex(wm, win)
+  if not (wm and win and wm.getWindows) then
+    return 0
+  end
+  for i, w in ipairs(wm:getWindows()) do
+    if w == win then
+      return i
+    end
+  end
+  return 0
+end
+
+local function getEdgeDrawOwnerBackmost(wm, edge)
+  if not edge then
+    return nil
+  end
+  local fromWin = edge.fromWin
+  local toWin = edge.toWin
+  if fromWin and fromWin._minimized and toWin and not toWin._minimized then
+    return toWin
+  end
+  if toWin and toWin._minimized and fromWin and not fromWin._minimized then
+    return fromWin
+  end
+  if not (fromWin and toWin) then
+    return fromWin or toWin
+  end
+  if windowZIndex(wm, fromWin) <= windowZIndex(wm, toWin) then
+    return fromWin
+  end
+  return toWin
+end
+
+local function getEdgeDrawOwnerFrontmost(wm, edge)
+  if not edge then
+    return nil
+  end
+  local fromWin = edge.fromWin
+  local toWin = edge.toWin
+  if fromWin and fromWin._minimized and toWin and not toWin._minimized then
+    return toWin
+  end
+  if toWin and toWin._minimized and fromWin and not fromWin._minimized then
+    return fromWin
+  end
+  if not (fromWin and toWin) then
+    return fromWin or toWin
+  end
+  if windowZIndex(wm, fromWin) >= windowZIndex(wm, toWin) then
+    return fromWin
+  end
+  return toWin
+end
+
+local function edgeEndpointsDifferInZOrder(wm, edge)
+  local back = getEdgeDrawOwnerBackmost(wm, edge)
+  local front = getEdgeDrawOwnerFrontmost(wm, edge)
+  return back and front and back ~= front
+end
+
+local function appendWindowScreenBounds(bounds, win)
+  if not win then
+    return bounds
+  end
+  local x, y, w, h
+  if win._collapsed and win.getHeaderRect then
+    x, y, w, h = win:getHeaderRect()
+  elseif win.getScreenRect then
+    x, y, w, h = win:getScreenRect()
+  else
+    return bounds
+  end
+  if not (x and y and w and h) then
+    return bounds
+  end
+  local x2 = x + w
+  local y2 = y + h
+  if not bounds then
+    return { x0 = x, y0 = y, x1 = x2, y1 = y2 }
+  end
+  bounds.x0 = math.min(bounds.x0, x)
+  bounds.y0 = math.min(bounds.y0, y)
+  bounds.x1 = math.max(bounds.x1, x2)
+  bounds.y1 = math.max(bounds.y1, y2)
+  return bounds
+end
+
+local function scissorForEdgeEndpoints(edge, pad)
+  pad = math.max(0, math.floor(tonumber(pad) or 4))
+  local bounds = appendWindowScreenBounds(nil, edge.fromWin)
+  bounds = appendWindowScreenBounds(bounds, edge.toWin)
+  if not bounds then
     return false
   end
-  if edge.fromWin == win then
-    return true
-  end
-  if edge.toWin == win and edge.fromWin and edge.fromWin._minimized == true then
-    return true
-  end
-  return false
+  love.graphics.setScissor(
+    math.floor(bounds.x0) - pad,
+    math.floor(bounds.y0) - pad,
+    math.ceil(bounds.x1 - bounds.x0) + pad * 2,
+    math.ceil(bounds.y1 - bounds.y0) + pad * 2
+  )
+  return true
 end
 
 function M.prepareLinkDrawState(app)
@@ -899,16 +991,48 @@ function M.drawWindowLinkHandleInners(app, win, state)
   love.graphics.pop()
 end
 
---- Pass 3 for `win`: every link line owned by this window (no handles).
+--- Link lines for `win`: backmost underlay when endpoints differ in z; full line when same window.
 function M.drawWindowLinkLines(app, win, state)
   if not (app and win and state) then
     return
   end
+  local wm = app.wm
+  if not wm then
+    return
+  end
   love.graphics.push("all")
   for _, edge in ipairs(state.visibleEdges or {}) do
-    if shouldDrawEdgeForWindow(edge, win) then
+    if getEdgeDrawOwnerBackmost(wm, edge) ~= win then
+      goto continue_edge
+    end
+    if edgeEndpointsDifferInZOrder(wm, edge) or getEdgeDrawOwnerFrontmost(wm, edge) == win then
       M.drawLinkEdge(app, edge, state.layouts, state.pulseT)
     end
+    ::continue_edge::
+  end
+  love.graphics.pop()
+end
+
+--- Redraw lines on top of handle squares at the frontmost endpoint (clipped to both windows).
+function M.drawWindowLinkLinesFrontmostOverlay(app, state)
+  if not (app and state) then
+    return
+  end
+  local wm = app and app.wm
+  if not wm then
+    return
+  end
+
+  love.graphics.push("all")
+  for _, edge in ipairs(state.visibleEdges or {}) do
+    if not edgeEndpointsDifferInZOrder(wm, edge) then
+      goto continue_edge
+    end
+    if scissorForEdgeEndpoints(edge, 6) then
+      M.drawLinkEdge(app, edge, state.layouts, state.pulseT)
+      love.graphics.setScissor()
+    end
+    ::continue_edge::
   end
   love.graphics.pop()
 end
@@ -919,36 +1043,24 @@ function M.drawWindowLinkOverlay(app, win, state)
   M.drawWindowLinkLines(app, win, state)
 end
 
-local function drawAllWindowLinksPhased(app, state)
-  local wm = app and app.wm
-  if not (wm and wm.getWindows and state) then
-    return
-  end
-  for _, win in ipairs(wm:getWindows()) do
-    if isLinkWindowVisible(win) then
-      M.drawWindowLinkHandleChromes(app, win, state)
-    end
-  end
-  for _, win in ipairs(wm:getWindows()) do
-    if isLinkWindowVisible(win) then
-      M.drawWindowLinkHandleInners(app, win, state)
-    end
-  end
-  for _, win in ipairs(wm:getWindows()) do
-    if isLinkWindowVisible(win) then
-      M.drawWindowLinkLines(app, win, state)
-    end
-  end
-end
-
 function M.drawLinkLines(app)
   if app and Shared.modalBlocksWorkspaceInteractions(app) then
     return
   end
-  local state = M.prepareLinkDrawState(app)
-  if state then
-    drawAllWindowLinksPhased(app, state)
+  local wm = app and app.wm
+  if not (wm and wm.getWindows) then
+    return
   end
+  local state = M.prepareLinkDrawState(app)
+  if not state then
+    return
+  end
+  for _, win in ipairs(wm:getWindows()) do
+    if isLinkWindowVisible(win) then
+      M.drawWindowLinkOverlay(app, win, state)
+    end
+  end
+  M.drawWindowLinkLinesFrontmostOverlay(app, state)
 end
 
 return M

@@ -1167,38 +1167,12 @@ end
 -- Forward declaration: drawWindows calls this; a later `local function` would be out of scope here (Lua resolves it as global).
 local drawNormalWindow
 
-local function drawWindowLinkOverlayPhased(app, linkDrawState)
-  if not linkDrawState then
-    return
-  end
-  local wm = app.wm
-  if not (wm and wm.getWindows) then
-    return
-  end
-
-  local function eligibleLinkWindow(w)
-    return w
-      and not w._closed
-      and not w._minimized
-      and w._groupHidden ~= true
-      and not WindowCaps.isCrtLens(w)
-  end
-
-  for _, w in ipairs(wm:getWindows()) do
-    if eligibleLinkWindow(w) then
-      WindowLinkVisualController.drawWindowLinkHandleChromes(app, w, linkDrawState)
-    end
-  end
-  for _, w in ipairs(wm:getWindows()) do
-    if eligibleLinkWindow(w) then
-      WindowLinkVisualController.drawWindowLinkHandleInners(app, w, linkDrawState)
-    end
-  end
-  for _, w in ipairs(wm:getWindows()) do
-    if eligibleLinkWindow(w) then
-      WindowLinkVisualController.drawWindowLinkLines(app, w, linkDrawState)
-    end
-  end
+local function eligibleWindowLinkOverlay(w)
+  return w
+    and not w._closed
+    and not w._minimized
+    and w._groupHidden ~= true
+    and not WindowCaps.isCrtLens(w)
 end
 
 local function drawWindows(app)
@@ -1223,11 +1197,16 @@ local function drawWindows(app)
     end
 
     drawNormalWindow(app, w, wm)
+    if linkDrawState and eligibleWindowLinkOverlay(w) then
+      WindowLinkVisualController.drawWindowLinkOverlay(app, w, linkDrawState)
+    end
 
     ::continue::
   end
 
-  drawWindowLinkOverlayPhased(app, linkDrawState)
+  if linkDrawState then
+    WindowLinkVisualController.drawWindowLinkLinesFrontmostOverlay(app, linkDrawState)
+  end
 end
 
 drawNormalWindow = function(app, w, wm)
