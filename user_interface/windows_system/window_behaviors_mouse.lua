@@ -48,6 +48,17 @@ local function clampDraggedWindowPosition(self, nextX, nextY)
   return clamp(nextX, minX, maxX), clamp(nextY, minY, maxY)
 end
 
+local function refreshLinkRevealOnDrag(win)
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app or nil
+  if app and app.wm then
+    local WindowLinkVisibility = require("controllers.window.window_link_visibility")
+    WindowLinkVisibility.refreshRevealForWindow(app, app.wm, win)
+  elseif win then
+    win._paletteLinkRevealUntil = nowSeconds() + 1.0
+  end
+end
+
 return function(Window)
 function Window:mousepressed(x, y, button)
   -- Start resizing when clicking the external 20x20 handle
@@ -62,6 +73,7 @@ function Window:mousepressed(x, y, button)
       self.dragging = true
       self.dx = x - self.x
       self.dy = y - self.y
+      refreshLinkRevealOnDrag(self)
       return
     end
   end
@@ -71,6 +83,7 @@ function Window:mousepressed(x, y, button)
     self.dragging = true
     self.dx = x - self.x
     self.dy = y - self.y
+    refreshLinkRevealOnDrag(self)
   end
 end
 
@@ -81,7 +94,7 @@ function Window:mousereleased(_, _, button)
   end
 
   if self.dragging then
-    self._paletteLinkRevealUntil = nowSeconds() + 1.0
+    refreshLinkRevealOnDrag(self)
     self.dragging = false
   end
 end
@@ -127,9 +140,9 @@ function Window:mousemoved(mx, my)
     return
   end
 
-  -- Existing right-button drag-to-move behavior (unchanged)
   if self.dragging then
     self.x, self.y = clampDraggedWindowPosition(self, mx - self.dx, my - self.dy)
+    refreshLinkRevealOnDrag(self)
   end
 end
 

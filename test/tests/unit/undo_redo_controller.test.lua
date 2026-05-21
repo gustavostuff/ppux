@@ -697,6 +697,48 @@ describe("UndoRedoController - window minimize", function()
     expect(wm:getFocus()).toBe(winA)
   end)
 
+  it("minimize all except linked keeps ROM palette and pattern table windows", function()
+    local ur = UndoRedoController.new(10)
+    local wm = WM.new()
+
+    local palette = { kind = "rom_palette", _id = "pal1", title = "Palette", _closed = false, _minimized = false }
+    local patternTable = {
+      kind = "pattern_table",
+      _id = "pt1",
+      title = "PT",
+      _closed = false,
+      _minimized = false,
+      layers = { { kind = "tile", patternTable = {} } },
+    }
+    local keepWin = {
+      kind = "static_art",
+      _id = "art1",
+      title = "Art",
+      _closed = false,
+      _minimized = false,
+      layers = {
+        { kind = "tile", paletteData = { winId = "pal1" }, linkedPatternTableWindowId = "pt1" },
+      },
+    }
+    local other = { title = "Other", _closed = false, _minimized = false }
+    wm:add(palette)
+    wm:add(patternTable)
+    wm:add(keepWin)
+    wm:add(other)
+    wm:setFocus(other)
+
+    local prevCtx = rawget(_G, "ctx")
+    _G.ctx = { app = { undoRedo = ur, wm = wm } }
+    expect(wm:minimizeAllExceptLinked(keepWin)).toBe(true)
+    _G.ctx = prevCtx
+
+    expect(other._minimized).toBe(true)
+    expect(keepWin._minimized).toBe(false)
+    expect(palette._minimized).toBe(false)
+    expect(patternTable._minimized).toBe(false)
+    expect(wm:getFocus()).toBe(keepWin)
+  end)
+
   it("minimize all except records one batch event; undo restores all in one step", function()
     local ur = UndoRedoController.new(10)
     local wm = WM.new()

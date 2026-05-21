@@ -75,22 +75,45 @@ describe("core_controller.lua - contextual menu helpers", function()
     }
     local items = app:_buildWindowHeaderContextMenuItems(win)
 
-    expect(#items).toBe(6)
+    expect(#items).toBe(7)
     expect(items[1].text).toBe("Rename")
     expect(items[2].text).toBe("Close")
     expect(items[3].text).toBe("Collapse")
     expect(items[4].text).toBe("Minimize")
     expect(items[5].text).toBe("Minimize others")
-    expect(items[6].text).toBe("Keep always on top")
+    expect(items[6].text).toBe("Minimize other (not linked)")
+    expect(items[7].text).toBe("Keep always on top")
     expect(items[1].enabled).toBe(true)
     expect(items[2].enabled).toBe(true)
     expect(items[3].enabled).toBe(true)
     expect(items[4].enabled).toBe(true)
     expect(items[5].enabled).toBe(false)
-    expect(items[6].enabled).toBe(true)
+    expect(items[6].enabled).toBe(false)
+    expect(items[7].enabled).toBe(true)
 
     items[1].callback()
     expect(renameCalls).toBe(1)
+  end)
+
+  it("enables Minimize other (not linked) when another unlinked window can be minimized", function()
+    local app = setmetatable({
+      hideAppContextMenus = function() end,
+    }, AppCoreController)
+    local winA = { _closed = false, _minimized = false, title = "A", layers = {} }
+    local winB = { _closed = false, _minimized = false, title = "B" }
+    app.wm = {
+      getWindows = function()
+        return { winA, winB }
+      end,
+      collectLinkedMinimizeKeepSet = function(_, anchor)
+        return { [anchor] = true }
+      end,
+    }
+    local items = app:_buildWindowHeaderContextMenuItems(winA)
+    expect(items[5].text).toBe("Minimize others")
+    expect(items[5].enabled).toBe(true)
+    expect(items[6].text).toBe("Minimize other (not linked)")
+    expect(items[6].enabled).toBe(true)
   end)
 
   it("enables Minimize others when another window can be minimized", function()
@@ -109,6 +132,29 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(items[5].enabled).toBe(true)
   end)
 
+  it("disables Minimize other (not linked) when only unlinked windows are minimized", function()
+    local WM = require("controllers.window.window_controller")
+    local wm = WM.new()
+    local palette = { kind = "rom_palette", _id = "pal1", title = "Palette", _closed = false, _minimized = false }
+    local winA = {
+      _closed = false,
+      _minimized = false,
+      title = "A",
+      layers = {
+        { kind = "tile", paletteData = { winId = "pal1" } },
+      },
+    }
+    local winB = { _closed = false, _minimized = true, title = "B" }
+    wm:add(palette)
+    wm:add(winA)
+    wm:add(winB)
+
+    local app = setmetatable({}, AppCoreController)
+    app.wm = wm
+    local items = app:_buildWindowHeaderContextMenuItems(winA)
+    expect(items[6].enabled).toBe(false)
+  end)
+
   it("labels always-on-top menu item when window is already pinned", function()
     local app = setmetatable({}, AppCoreController)
     local win = {
@@ -118,7 +164,7 @@ describe("core_controller.lua - contextual menu helpers", function()
       title = "Pinned",
     }
     local items = app:_buildWindowHeaderContextMenuItems(win)
-    expect(items[6].text).toBe("Don't keep always on top")
+    expect(items[7].text).toBe("Don't keep always on top")
   end)
 
   it("disables Rename in header menu when window title is locked", function()
@@ -152,13 +198,14 @@ describe("core_controller.lua - contextual menu helpers", function()
     local app = setmetatable({}, AppCoreController)
     local win = { kind = "static_art", title = "T", _minimized = true, _closed = false }
     local items = app:_buildWindowHeaderContextMenuItems(win, { forMinimizedTaskbarButton = true })
-    expect(#items).toBe(6)
+    expect(#items).toBe(7)
     expect(items[3].text).toBe("Collapse")
     expect(items[3].enabled).toBe(false)
     expect(items[4].text).toBe("Maximize")
     expect(items[4].enabled).toBe(true)
     expect(items[5].text).toBe("Minimize others")
-    expect(items[6].text).toBe("Keep always on top")
+    expect(items[6].text).toBe("Minimize other (not linked)")
+    expect(items[7].text).toBe("Keep always on top")
   end)
 
   it("builds the empty-space context menu entries in the expected order", function()

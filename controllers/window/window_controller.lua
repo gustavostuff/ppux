@@ -14,6 +14,9 @@ local ToolbarController  = require("controllers.window.toolbar_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local UiScale = require("user_interface.ui_scale")
 local MouseWindowChrome = require("controllers.input.mouse_window_chrome_controller")
+local PaletteLinkController = require("controllers.palette.palette_link_controller")
+local PaletteLinkRenderController = require("controllers.palette.palette_link_render_controller")
+local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
 
 local WM = {}
 WM.__index = WM
@@ -1137,7 +1140,22 @@ function WM:setFocus(win)
   end
 
   local changed = (self.focused ~= win)
+  if changed then
+    local ctx = rawget(_G, "ctx")
+    local app = ctx and ctx.app or nil
+    if app and app.onWorkspaceWindowFocused then
+      app:onWorkspaceWindowFocused(win)
+    end
+  end
   self.focused = win
+  local keepSet = self.collectLinkedMinimizeKeepSet and self:collectLinkedMinimizeKeepSet(win) or nil
+  if keepSet then
+    for partner in pairs(keepSet) do
+      if partner ~= win and isWindowVisibleForInteraction(partner) then
+        self:bringToFront(partner)
+      end
+    end
+  end
   self:bringToFront(win)
   if changed then
     DebugController.log(
@@ -1312,15 +1330,56 @@ function WM:minimizeAll(opts)
   return any
 end
 
---- Minimize every window except `keepWin`. Brings `keepWin` forward when it stays visible.
-function WM:minimizeAllExcept(keepWin)
+local function addWindowToMinimizeKeepSet(keepSet, win)
+  if win and not win._closed then
+    keepSet[win] = true
+  end
+end
+
+--- ROM palettes and pattern tables linked to `anchorWin`, plus consumers when anchor is a link source.
+function WM:collectLinkedMinimizeKeepSet(anchorWin)
+  local keep = {}
+  if not anchorWin then
+    return keep
+  end
+  addWindowToMinimizeKeepSet(keep, anchorWin)
+
+  for key, layer in pairs(anchorWin.layers or {}) do
+    if type(key) == "number" and layer then
+      addWindowToMinimizeKeepSet(keep, PaletteLinkRenderController.getPaletteWindowForLayer(layer, self))
+      local ptId = layer.linkedPatternTableWindowId
+      if type(ptId) == "string" and ptId ~= "" and self.findWindowById then
+        addWindowToMinimizeKeepSet(keep, self:findWindowById(ptId))
+      end
+    end
+  end
+
+  if WindowCaps.isRomPaletteWindow(anchorWin) then
+    for _, entry in ipairs(PaletteLinkController.getLinkedTargetsForPalette(self, anchorWin) or {}) do
+      addWindowToMinimizeKeepSet(keep, entry.win)
+    end
+  end
+
+  if WindowCaps.isPatternTable(anchorWin) then
+    for _, entry in ipairs(PatternTableDisplayController.getLinkedConsumersForPatternTable(self, anchorWin) or {}) do
+      addWindowToMinimizeKeepSet(keep, entry.win)
+    end
+  end
+
+  return keep
+end
+
+local function minimizeAllExceptKeepSet(self, keepWin, keepSet)
   if not keepWin or keepWin._closed then
     return false
   end
+  keepSet = keepSet or { [keepWin] = true }
+  addWindowToMinimizeKeepSet(keepSet, keepWin)
+
   local beforeFocusedWin = self.focused
   local candidates = {}
   for _, w in ipairs(self.windows) do
-    if w ~= keepWin and isWindowVisibleForInteraction(w) then
+    if not keepSet[w] and isWindowVisibleForInteraction(w) then
       candidates[#candidates + 1] = w
     end
   end
@@ -1344,6 +1403,16 @@ function WM:minimizeAllExcept(keepWin)
   end
   recordMinimizeAllExceptUndo(self, keepWin, minimized, beforeFocusedWin)
   return true
+end
+
+--- Minimize every window except `keepWin`. Brings `keepWin` forward when it stays visible.
+function WM:minimizeAllExcept(keepWin)
+  return minimizeAllExceptKeepSet(self, keepWin, { [keepWin] = true })
+end
+
+--- Minimize windows that are not `keepWin` and not linked to it (ROM palette / pattern table).
+function WM:minimizeAllExceptLinked(keepWin)
+  return minimizeAllExceptKeepSet(self, keepWin, self:collectLinkedMinimizeKeepSet(keepWin))
 end
 
 function WM:maximizeAll(opts)

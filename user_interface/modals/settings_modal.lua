@@ -397,6 +397,7 @@ function Dialog.new()
     onSetTooltipsEnabled = nil,
     onSetTheme = nil,
     onSetPaletteLinks = nil,
+    onSetPatternTableLinks = nil,
     onSetSeparateToolbar = nil,
     onSetNeverShowResizeHandle = nil,
     getScale = nil,
@@ -407,6 +408,7 @@ function Dialog.new()
     getTooltipsEnabled = nil,
     getTheme = nil,
     getPaletteLinks = nil,
+    getPatternTableLinks = nil,
     getSeparateToolbar = nil,
     getNeverShowResizeHandle = nil,
     extraRows = nil,
@@ -429,6 +431,8 @@ function Dialog.new()
     _windowShadowStrengthSlider = nil,
     _canvasImageModeDropdown = nil,
     _canvasFilterDropdown = nil,
+    _paletteLinksDropdown = nil,
+    _patternTableLinksDropdown = nil,
     _windowToolbarPlacementDropdown = nil,
   }, Dialog)
 
@@ -639,6 +643,7 @@ function Dialog:show(opts)
   self.onSetTooltipsEnabled = opts.onSetTooltipsEnabled
   self.onSetTheme = opts.onSetTheme
   self.onSetPaletteLinks = opts.onSetPaletteLinks
+  self.onSetPatternTableLinks = opts.onSetPatternTableLinks
   self.onSetSeparateToolbar = opts.onSetSeparateToolbar
   self.onSetNeverShowResizeHandle = opts.onSetNeverShowResizeHandle
   self.getScale = opts.getScale
@@ -649,6 +654,7 @@ function Dialog:show(opts)
   self.getTooltipsEnabled = opts.getTooltipsEnabled
   self.getTheme = opts.getTheme
   self.getPaletteLinks = opts.getPaletteLinks
+  self.getPatternTableLinks = opts.getPatternTableLinks
   self.getSeparateToolbar = opts.getSeparateToolbar
   self.getNeverShowResizeHandle = opts.getNeverShowResizeHandle
   self.extraRows = opts.extraRows
@@ -660,6 +666,8 @@ function Dialog:show(opts)
   self._windowShadowStrengthSlider = opts.windowShadowStrengthSlider
   self._canvasImageModeDropdown = opts.canvasImageModeDropdown
   self._canvasFilterDropdown = opts.canvasFilterDropdown
+  self._paletteLinksDropdown = opts.paletteLinksDropdown
+  self._patternTableLinksDropdown = opts.patternTableLinksDropdown
   self._windowToolbarPlacementDropdown = opts.windowToolbarPlacementDropdown
   self.onActiveTabChange = opts.onActiveTabChange
   self.visible = true
@@ -804,6 +812,22 @@ function Dialog:_appearanceTabRowSpecs()
       id = "window_shadow_strength",
       label = "Window shadow strength",
       component = self._windowShadowStrengthSlider,
+    }
+  end
+
+  if self._paletteLinksDropdown then
+    rows[#rows + 1] = {
+      id = "palette_links",
+      label = "Palette links",
+      dropdown = self._paletteLinksDropdown,
+    }
+  end
+
+  if self._patternTableLinksDropdown then
+    rows[#rows + 1] = {
+      id = "pattern_table_links",
+      label = "Pattern table links",
+      dropdown = self._patternTableLinksDropdown,
     }
   end
 

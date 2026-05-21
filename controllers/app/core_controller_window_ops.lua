@@ -476,6 +476,19 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
     return false
   end
 
+  local function hasAnotherMinimizableUnlinkedWindow()
+    if not (wm and wm.getWindows and win and win._closed ~= true) then
+      return false
+    end
+    local keepSet = (wm.collectLinkedMinimizeKeepSet and wm:collectLinkedMinimizeKeepSet(win)) or { [win] = true }
+    for _, w in ipairs(wm:getWindows()) do
+      if w and not keepSet[w] and w._closed ~= true and w._minimized ~= true and w._groupHidden ~= true then
+        return true
+      end
+    end
+    return false
+  end
+
   local items = {
     {
       text = "Rename",
@@ -556,6 +569,18 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
       self:hideAppContextMenus()
       if wm and wm.minimizeAllExcept then
         wm:minimizeAllExcept(win)
+      end
+    end,
+  }
+
+  items[#items + 1] = {
+    text = "Minimize other (not linked)",
+    menuGroup = "hdr_workspace",
+    enabled = hasAnotherMinimizableUnlinkedWindow(),
+    callback = function()
+      self:hideAppContextMenus()
+      if wm and wm.minimizeAllExceptLinked then
+        wm:minimizeAllExceptLinked(win)
       end
     end,
   }

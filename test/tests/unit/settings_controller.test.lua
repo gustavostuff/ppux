@@ -10,6 +10,7 @@ describe("settings_controller.lua - defaults", function()
       canvasImageMode = "keep_aspect",
       canvasFilter = "sharp",
       paletteLinks = "auto_hide",
+      patternTableLinks = "auto_hide",
       separateToolbar = false,
       windowToolbarPlacement = "auto",
       neverShowResizeHandle = false,

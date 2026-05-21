@@ -2,6 +2,7 @@ local ResolutionController = require("controllers.app.resolution_controller")
 local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 local DebugController = require("controllers.dev.debug_controller")
 local PaletteLinkRenderController = require("controllers.palette.palette_link_render_controller")
+local WindowLinkVisualController = require("controllers.window.window_link_visual_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 local SpriteController = require("controllers.sprite.sprite_controller")
 local BrushController = require("controllers.input_support.brush_controller")
@@ -1168,6 +1169,7 @@ local drawNormalWindow
 
 local function drawWindows(app)
   local wm = app.wm
+  local linkDrawState = WindowLinkVisualController.prepareLinkDrawState(app)
 
   for _, w in ipairs(wm:getWindows()) do
     if w._closed or w._minimized or w._groupHidden == true then
@@ -1187,6 +1189,7 @@ local function drawWindows(app)
     end
 
     drawNormalWindow(app, w, wm)
+    WindowLinkVisualController.drawWindowLinkOverlay(app, w, linkDrawState)
 
     ::continue::
   end

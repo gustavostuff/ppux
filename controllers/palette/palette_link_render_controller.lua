@@ -493,9 +493,8 @@ function M.getHoveredDestinationLinks(app)
 end
 
 function M.normalizeLinksMode(mode)
-  if mode == "on_hover" or mode == "never" then return "on_hover" end
-  if mode == "auto_hide" then return "auto_hide" end
-  return "always"
+  local WindowLinkVisibility = require("controllers.window.window_link_visibility")
+  return WindowLinkVisibility.normalizeLinkMode(mode)
 end
 
 function M.getRevealAlpha(contentWin, paletteWin)

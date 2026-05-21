@@ -378,6 +378,7 @@ function AppCoreController:load()
     self:_applyCanvasFilterSetting("soft", false)
   end
   self:_applyPaletteLinksSetting((settings and settings.paletteLinks) or "auto_hide", false)
+  self:_applyPatternTableLinksSetting((settings and settings.patternTableLinks) or "auto_hide", false)
   self:_applyTooltipsEnabledSetting((settings and settings.tooltipsEnabled) ~= false, false)
   self:_applySeparateToolbarSetting((settings and settings.separateToolbar) == true, false)
   self:_applyWindowToolbarPlacementSetting(
