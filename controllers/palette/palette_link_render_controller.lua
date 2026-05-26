@@ -518,7 +518,7 @@ end
 
 function M.getPersistentVisual(app, contentWin, paletteWin)
   local focusedWin = app and app.wm and app.wm.getFocus and app.wm:getFocus() or nil
-  local mode = M.normalizeLinksMode(app and app.paletteLinksMode)
+  local mode = M.normalizeLinksMode(app and app.windowLinksMode)
   if mode == "always" then
     return (focusedWin == paletteWin or focusedWin == contentWin), 1
   end

@@ -51,25 +51,29 @@ function M.normalizeLinkMode(mode)
   if mode == "on_hover" then
     return "on_hover"
   end
-  if mode == "auto_hide" or mode == "always" then
+  if mode == "always" then
+    return "always"
+  end
+  if mode == "auto_hide" then
     return "auto_hide"
   end
   return "auto_hide"
 end
 
+function M.getWindowLinksMode(app)
+  return M.normalizeLinkMode(app and app.windowLinksMode)
+end
+
 function M.getPaletteLinksMode(app)
-  return M.normalizeLinkMode(app and app.paletteLinksMode)
+  return M.getWindowLinksMode(app)
 end
 
 function M.getPatternTableLinksMode(app)
-  return M.normalizeLinkMode(app and app.patternTableLinksMode)
+  return M.getWindowLinksMode(app)
 end
 
-function M.getModeForKind(app, kind)
-  if kind == "pattern" then
-    return M.getPatternTableLinksMode(app)
-  end
-  return M.getPaletteLinksMode(app)
+function M.getModeForKind(app, _kind)
+  return M.getWindowLinksMode(app)
 end
 
 function M.slotKind(slot)
@@ -113,6 +117,33 @@ local function isLinkWindowVisible(win)
     and win._closed ~= true
     and win._minimized ~= true
     and win._groupHidden ~= true
+end
+
+local function isLinkWindowEligible(win)
+  return win and win._closed ~= true and win._groupHidden ~= true
+end
+
+local function isHoveringTaskbarButton(app, win)
+  if not (app and win) then
+    return false
+  end
+  local tb = app.taskbar or (app.wm and app.wm.taskbar)
+  local btn = tb and tb.minimizedButtonsByWindow and tb.minimizedButtonsByWindow[win]
+  if not (btn and btn.contains) then
+    return false
+  end
+  local mouse = ResolutionController:getScaledMouse(true)
+  local mx = mouse and mouse.x
+  local my = mouse and mouse.y
+  if type(mx) ~= "number" or type(my) ~= "number" then
+    if love and love.mouse and love.mouse.getPosition then
+      mx, my = love.mouse.getPosition()
+    end
+  end
+  if type(mx) ~= "number" or type(my) ~= "number" then
+    return false
+  end
+  return btn:contains(mx, my)
 end
 
 function M.touchReveal(win, field, duration)
@@ -173,6 +204,9 @@ function M.isHoveringEdgeHandles(app, edge, layouts)
   if type(mx) ~= "number" or type(my) ~= "number" then
     return false
   end
+  if isHoveringTaskbarButton(app, edge.fromWin) or isHoveringTaskbarButton(app, edge.toWin) then
+    return true
+  end
   local fromEntry = layouts[edge.fromWin] and layouts[edge.fromWin][edge.fromSlot]
   local toEntry = layouts[edge.toWin] and layouts[edge.toWin][edge.toSlot]
   local fromCx, fromCy = fromEntry and fromEntry.cx, fromEntry and fromEntry.cy
@@ -191,6 +225,9 @@ function M.getLineAlpha(app, edge, layouts)
   end
   if mode == "on_hover" then
     return M.isHoveringEdgeHandles(app, edge, layouts) and 1 or 0
+  end
+  if mode == "always" then
+    return 1
   end
   local alpha = M.getRevealAlphaForEdge(edge)
   if alpha > 0 then
@@ -222,10 +259,10 @@ local function collectPatternTableIdsForFocusedConsumer(win)
 end
 
 local function refreshPaletteRevealForWindow(app, wm, win)
-  if M.getPaletteLinksMode(app) ~= "auto_hide" then
+  if M.getWindowLinksMode(app) ~= "auto_hide" then
     return
   end
-  if not (win and isLinkWindowVisible(win)) then
+  if not (win and isLinkWindowEligible(win)) then
     return
   end
 
@@ -233,7 +270,7 @@ local function refreshPaletteRevealForWindow(app, wm, win)
     M.touchReveal(win, M.PALETTE_REVEAL_FIELD)
     for _, entry in ipairs(PaletteLinkController.getLinkedTargetsForPalette(wm, win) or {}) do
       local target = entry and entry.win
-      if isLinkWindowVisible(target) then
+      if isLinkWindowEligible(target) then
         M.touchReveal(target, M.PALETTE_REVEAL_FIELD)
       end
     end
@@ -241,18 +278,18 @@ local function refreshPaletteRevealForWindow(app, wm, win)
   end
 
   local WindowLinkVisual = require("controllers.window.window_link_visual_controller")
-  local paletteWin = WindowLinkVisual.getConsumerLinkedPaletteWindow(win, wm)
-  if paletteWin and isLinkWindowVisible(paletteWin) then
+  local paletteWin = WindowLinkVisual.getConsumerLinkedPaletteWindowIncludingMinimized(win, wm)
+  if paletteWin and isLinkWindowEligible(paletteWin) then
     M.touchReveal(win, M.PALETTE_REVEAL_FIELD)
     M.touchReveal(paletteWin, M.PALETTE_REVEAL_FIELD)
   end
 end
 
 local function refreshPatternRevealForWindow(app, wm, win)
-  if M.getPatternTableLinksMode(app) ~= "auto_hide" then
+  if M.getWindowLinksMode(app) ~= "auto_hide" then
     return
   end
-  if not (win and isLinkWindowVisible(win)) then
+  if not (win and isLinkWindowEligible(win)) then
     return
   end
 
@@ -260,7 +297,7 @@ local function refreshPatternRevealForWindow(app, wm, win)
     M.touchReveal(win, M.PATTERN_REVEAL_FIELD)
     for _, entry in ipairs(PatternTableDisplayController.getLinkedConsumersForPatternTable(wm, win) or {}) do
       local consumer = entry and entry.win
-      if isLinkWindowVisible(consumer) then
+      if isLinkWindowEligible(consumer) then
         M.touchReveal(consumer, M.PATTERN_REVEAL_FIELD)
       end
     end
@@ -270,7 +307,7 @@ local function refreshPatternRevealForWindow(app, wm, win)
   if WindowCaps.isPpuFrame(win) or WindowCaps.isOamAnimation(win) then
     for id in pairs(collectPatternTableIdsForFocusedConsumer(win)) do
       local ptWin = wm.findWindowById and wm:findWindowById(id)
-      if ptWin and isLinkWindowVisible(ptWin) and WindowCaps.isPatternTable(ptWin) then
+      if ptWin and isLinkWindowEligible(ptWin) and WindowCaps.isPatternTable(ptWin) then
         M.touchReveal(win, M.PATTERN_REVEAL_FIELD)
         M.touchReveal(ptWin, M.PATTERN_REVEAL_FIELD)
       end
@@ -288,17 +325,17 @@ function M.refreshRevealForWindow(app, wm, win)
 end
 
 function M.onWindowFocused(app, wm, win)
-  if not (app and wm and win and isLinkWindowVisible(win)) then
+  if not (app and wm and win and isLinkWindowEligible(win)) then
     return
   end
 
   M.refreshRevealForWindow(app, wm, win)
 
-  if M.getPaletteLinksMode(app) ~= "auto_hide" and M.getPatternTableLinksMode(app) ~= "auto_hide" then
+  if M.getWindowLinksMode(app) ~= "auto_hide" then
     return
   end
 
-  if M.getPaletteLinksMode(app) == "auto_hide" and WindowCaps.isRomPaletteWindow(win) then
+  if WindowCaps.isRomPaletteWindow(win) then
     wm:bringToFront(win)
     for _, entry in ipairs(PaletteLinkController.getLinkedTargetsForPalette(wm, win) or {}) do
       local target = entry and entry.win
@@ -306,7 +343,7 @@ function M.onWindowFocused(app, wm, win)
         wm:bringToFront(target)
       end
     end
-  elseif M.getPaletteLinksMode(app) == "auto_hide" then
+  else
     local WindowLinkVisual = require("controllers.window.window_link_visual_controller")
     local paletteWin = WindowLinkVisual.getConsumerLinkedPaletteWindow(win, wm)
     if paletteWin and isLinkWindowVisible(paletteWin) then
@@ -314,21 +351,19 @@ function M.onWindowFocused(app, wm, win)
     end
   end
 
-  if M.getPatternTableLinksMode(app) == "auto_hide" then
-    if WindowCaps.isPatternTable(win) then
-      wm:bringToFront(win)
-      for _, entry in ipairs(PatternTableDisplayController.getLinkedConsumersForPatternTable(wm, win) or {}) do
-        local consumer = entry and entry.win
-        if isLinkWindowVisible(consumer) then
-          wm:bringToFront(consumer)
-        end
+  if WindowCaps.isPatternTable(win) then
+    wm:bringToFront(win)
+    for _, entry in ipairs(PatternTableDisplayController.getLinkedConsumersForPatternTable(wm, win) or {}) do
+      local consumer = entry and entry.win
+      if isLinkWindowVisible(consumer) then
+        wm:bringToFront(consumer)
       end
-    elseif WindowCaps.isPpuFrame(win) or WindowCaps.isOamAnimation(win) then
-      for id in pairs(collectPatternTableIdsForFocusedConsumer(win)) do
-        local ptWin = wm.findWindowById and wm:findWindowById(id)
-        if ptWin and isLinkWindowVisible(ptWin) and WindowCaps.isPatternTable(ptWin) then
-          wm:bringToFront(ptWin)
-        end
+    end
+  elseif WindowCaps.isPpuFrame(win) or WindowCaps.isOamAnimation(win) then
+    for id in pairs(collectPatternTableIdsForFocusedConsumer(win)) do
+      local ptWin = wm.findWindowById and wm:findWindowById(id)
+      if ptWin and isLinkWindowVisible(ptWin) and WindowCaps.isPatternTable(ptWin) then
+        wm:bringToFront(ptWin)
       end
     end
   end

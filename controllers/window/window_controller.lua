@@ -1280,6 +1280,16 @@ function WM:minimizeWindow(win, opts)
     self.taskbar:addMinimizedWindow(win)
   end
 
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app or nil
+  if app then
+    local WindowLinkVisibility = require("controllers.window.window_link_visibility")
+    WindowLinkVisibility.refreshRevealForWindow(app, self, win)
+    if self:getFocus() then
+      WindowLinkVisibility.refreshRevealForWindow(app, self, self:getFocus())
+    end
+  end
+
   if recordUndo then
     recordWindowMinimizeUndo(self, win, beforeMinimized, true, beforeFocusedWin, self.focused)
   end

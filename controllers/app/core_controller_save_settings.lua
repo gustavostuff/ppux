@@ -652,6 +652,7 @@ end
 local LINK_MODE_DROPDOWN_LABELS = {
   auto_hide = "Auto-hide",
   on_hover = "On hover",
+  always = "Always",
   never = "Never",
 }
 
@@ -660,8 +661,11 @@ local function linkModeDropdownValueForKey(key)
   if key == "on_hover" then
     return 2
   end
-  if key == "never" then
+  if key == "always" then
     return 3
+  end
+  if key == "never" then
+    return 4
   end
   return 1
 end
@@ -671,6 +675,9 @@ local function linkModeKeyForDropdownValue(value)
     return "on_hover"
   end
   if value == 3 then
+    return "always"
+  end
+  if value == 4 then
     return "never"
   end
   return "auto_hide"
@@ -678,7 +685,7 @@ end
 
 local function buildLinkModeDropdownItems(onPickMode)
   local items = {}
-  for _, key in ipairs({ "auto_hide", "on_hover", "never" }) do
+  for _, key in ipairs({ "auto_hide", "on_hover", "always", "never" }) do
     items[#items + 1] = {
       value = linkModeDropdownValueForKey(key),
       text = LINK_MODE_DROPDOWN_LABELS[key],
@@ -690,19 +697,19 @@ local function buildLinkModeDropdownItems(onPickMode)
   return items
 end
 
-function AppCoreController:_getPaletteLinksForSettings()
-  if self.paletteLinksMode then
-    return WindowLinkVisibility.normalizeLinkMode(self.paletteLinksMode)
+function AppCoreController:_getWindowLinksForSettings()
+  if self.windowLinksMode then
+    return WindowLinkVisibility.normalizeLinkMode(self.windowLinksMode)
   end
   local settings = AppSettingsController.load()
-  return WindowLinkVisibility.normalizeLinkMode(settings and settings.paletteLinks)
+  return WindowLinkVisibility.normalizeLinkMode(settings and settings.windowLinks)
 end
 
-function AppCoreController:_applyPaletteLinksSetting(modeKey, saveSetting)
+function AppCoreController:_applyWindowLinksSetting(modeKey, saveSetting)
   local key = WindowLinkVisibility.normalizeLinkMode(modeKey)
-  self.paletteLinksMode = key
+  self.windowLinksMode = key
   if saveSetting ~= false then
-    AppSettingsController.save({ paletteLinks = key })
+    AppSettingsController.save({ windowLinks = key })
   end
   if saveSetting ~= false and self._refreshSettingsModalIfOpen then
     self:_refreshSettingsModalIfOpen()
@@ -710,85 +717,34 @@ function AppCoreController:_applyPaletteLinksSetting(modeKey, saveSetting)
   return key
 end
 
-function AppCoreController:_getPatternTableLinksForSettings()
-  if self.patternTableLinksMode then
-    return WindowLinkVisibility.normalizeLinkMode(self.patternTableLinksMode)
-  end
-  local settings = AppSettingsController.load()
-  return WindowLinkVisibility.normalizeLinkMode(settings and settings.patternTableLinks)
-end
-
-function AppCoreController:_applyPatternTableLinksSetting(modeKey, saveSetting)
-  local key = WindowLinkVisibility.normalizeLinkMode(modeKey)
-  self.patternTableLinksMode = key
-  if saveSetting ~= false then
-    AppSettingsController.save({ patternTableLinks = key })
-  end
-  if saveSetting ~= false and self._refreshSettingsModalIfOpen then
-    self:_refreshSettingsModalIfOpen()
-  end
-  return key
-end
-
-function AppCoreController:_ensureSettingsPaletteLinksDropdown()
-  if self._paletteLinksDropdown then
+function AppCoreController:_ensureSettingsWindowLinksDropdown()
+  if self._windowLinksDropdown then
     return
   end
   local appRef = self
-  self._paletteLinksDropdown = Dropdown.new({
+  self._windowLinksDropdown = Dropdown.new({
     getBounds = function()
       return { w = appRef.canvas:getWidth(), h = appRef.canvas:getHeight() }
     end,
-    default = linkModeDropdownValueForKey(appRef:_getPaletteLinksForSettings()),
-    tooltip = "On-canvas ROM palette link lines and pivot handles.",
+    default = linkModeDropdownValueForKey(appRef:_getWindowLinksForSettings()),
+    tooltip = "On-canvas ROM palette and pattern table link lines and pivot handles.",
     items = buildLinkModeDropdownItems(function(modeKey)
-      appRef:_applyPaletteLinksSetting(modeKey, true)
+      appRef:_applyWindowLinksSetting(modeKey, true)
     end),
   })
 end
 
-function AppCoreController:_syncSettingsPaletteLinksDropdown()
-  local dd = self._paletteLinksDropdown
+function AppCoreController:_syncSettingsWindowLinksDropdown()
+  local dd = self._windowLinksDropdown
   if not dd then
     return
   end
   dd:setGetBounds(function()
     return { w = self.canvas:getWidth(), h = self.canvas:getHeight() }
   end)
-  dd._defaultSpec = linkModeDropdownValueForKey(self:_getPaletteLinksForSettings())
+  dd._defaultSpec = linkModeDropdownValueForKey(self:_getWindowLinksForSettings())
   dd:setItems(buildLinkModeDropdownItems(function(modeKey)
-    self:_applyPaletteLinksSetting(modeKey, true)
-  end))
-end
-
-function AppCoreController:_ensureSettingsPatternTableLinksDropdown()
-  if self._patternTableLinksDropdown then
-    return
-  end
-  local appRef = self
-  self._patternTableLinksDropdown = Dropdown.new({
-    getBounds = function()
-      return { w = appRef.canvas:getWidth(), h = appRef.canvas:getHeight() }
-    end,
-    default = linkModeDropdownValueForKey(appRef:_getPatternTableLinksForSettings()),
-    tooltip = "On-canvas pattern table link lines and pivot handles.",
-    items = buildLinkModeDropdownItems(function(modeKey)
-      appRef:_applyPatternTableLinksSetting(modeKey, true)
-    end),
-  })
-end
-
-function AppCoreController:_syncSettingsPatternTableLinksDropdown()
-  local dd = self._patternTableLinksDropdown
-  if not dd then
-    return
-  end
-  dd:setGetBounds(function()
-    return { w = self.canvas:getWidth(), h = self.canvas:getHeight() }
-  end)
-  dd._defaultSpec = linkModeDropdownValueForKey(self:_getPatternTableLinksForSettings())
-  dd:setItems(buildLinkModeDropdownItems(function(modeKey)
-    self:_applyPatternTableLinksSetting(modeKey, true)
+    self:_applyWindowLinksSetting(modeKey, true)
   end))
 end
 
@@ -1107,8 +1063,7 @@ function AppCoreController:_refreshSettingsModalIfOpen()
   if self.settingsModal and self.settingsModal.isVisible and self.settingsModal:isVisible() then
     self:_syncSettingsCanvasFilterDropdown()
     self:_syncSettingsCanvasImageModeDropdown()
-    self:_syncSettingsPaletteLinksDropdown()
-    self:_syncSettingsPatternTableLinksDropdown()
+    self:_syncSettingsWindowLinksDropdown()
     self:_syncSettingsWindowToolbarPlacementDropdown()
     ModalPanelUtils.refreshTargetMetrics(self.settingsModal)
     if self.settingsModal._rebuildRows then
@@ -1543,8 +1498,7 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
   self:_applyTooltipsEnabledSetting(D.tooltipsEnabled, false)
   self:_applyCanvasImageModeSetting(D.canvasImageMode, false)
   self:_applyCanvasFilterSetting(D.canvasFilter, false)
-  self:_applyPaletteLinksSetting(D.paletteLinks, false)
-  self:_applyPatternTableLinksSetting(D.patternTableLinks, false)
+  self:_applyWindowLinksSetting(D.windowLinks, false)
   self:_applySeparateToolbarSetting(D.separateToolbar, false)
   self:_applyWindowToolbarPlacementSetting(D.windowToolbarPlacement or "auto", false)
   self:_applyNeverShowResizeHandleSetting(D.neverShowResizeHandle == true, false)
@@ -1562,8 +1516,7 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
     tooltipsEnabled = D.tooltipsEnabled,
     canvasImageMode = D.canvasImageMode,
     canvasFilter = D.canvasFilter,
-    paletteLinks = D.paletteLinks,
-    patternTableLinks = D.patternTableLinks,
+    windowLinks = D.windowLinks,
     separateToolbar = D.separateToolbar,
     windowToolbarPlacement = D.windowToolbarPlacement or "auto",
     neverShowResizeHandle = D.neverShowResizeHandle,
@@ -1618,10 +1571,8 @@ function AppCoreController:showSettingsModal()
   self:_ensureSettingsWindowToolbarPlacementDropdown()
   self:_syncSettingsWindowToolbarPlacementDropdown()
 
-  self:_ensureSettingsPaletteLinksDropdown()
-  self:_syncSettingsPaletteLinksDropdown()
-  self:_ensureSettingsPatternTableLinksDropdown()
-  self:_syncSettingsPatternTableLinksDropdown()
+  self:_ensureSettingsWindowLinksDropdown()
+  self:_syncSettingsWindowLinksDropdown()
 
   self.settingsModal:show({
     title = "Settings",
@@ -1640,8 +1591,8 @@ function AppCoreController:showSettingsModal()
     getTheme = function()
       return appRef:_getThemeForSettings()
     end,
-    getPaletteLinks = function()
-      return appRef:_getPaletteLinksForSettings()
+    getWindowLinks = function()
+      return appRef:_getWindowLinksForSettings()
     end,
     getSeparateToolbar = function()
       return appRef:_getSeparateToolbarForSettings()
@@ -1707,11 +1658,8 @@ function AppCoreController:showSettingsModal()
     onSetTheme = function(themeKey)
       appRef:_applyThemeSetting(themeKey, true)
     end,
-    onSetPaletteLinks = function(modeKey)
-      appRef:_applyPaletteLinksSetting(modeKey, true)
-    end,
-    onSetPatternTableLinks = function(modeKey)
-      appRef:_applyPatternTableLinksSetting(modeKey, true)
+    onSetWindowLinks = function(modeKey)
+      appRef:_applyWindowLinksSetting(modeKey, true)
     end,
     onSetSeparateToolbar = function(enabled)
       appRef:_applySeparateToolbarSetting(enabled, true)
@@ -1741,8 +1689,7 @@ function AppCoreController:showSettingsModal()
     windowShadowStrengthSlider = appRef._windowShadowStrengthSlider,
     canvasImageModeDropdown = appRef._canvasImageModeDropdown,
     canvasFilterDropdown = appRef._canvasFilterDropdown,
-    paletteLinksDropdown = appRef._paletteLinksDropdown,
-    patternTableLinksDropdown = appRef._patternTableLinksDropdown,
+    windowLinksDropdown = appRef._windowLinksDropdown,
     windowToolbarPlacementDropdown = appRef._windowToolbarPlacementDropdown,
     initialTabId = appRef._tabbedModalActiveTabIds and appRef._tabbedModalActiveTabIds.settings or nil,
     onActiveTabChange = function(tabId)

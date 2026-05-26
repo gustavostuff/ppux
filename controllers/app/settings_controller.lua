@@ -14,8 +14,7 @@ local DEFAULT_SETTINGS = {
   tooltipsEnabled = true,
   canvasImageMode = "keep_aspect",
   canvasFilter = "sharp",
-  paletteLinks = "auto_hide",
-  patternTableLinks = "auto_hide",
+  windowLinks = "auto_hide",
   separateToolbar = false,
   --- Window-attached toolbar strip: top | left | right | bottom | auto.
   windowToolbarPlacement = "auto",
@@ -129,12 +128,14 @@ local function normalizeWindowShadowStrength(n)
   return math.max(0, math.min(1, v))
 end
 
-local function normalizePaletteLinksKey(key)
-  return WindowLinkVisibility.normalizeLinkMode(key)
-end
-
-local function normalizePatternTableLinksKey(key)
-  return WindowLinkVisibility.normalizeLinkMode(key)
+local function normalizeWindowLinksKey(key, data)
+  if key ~= nil then
+    return WindowLinkVisibility.normalizeLinkMode(key)
+  end
+  if data then
+    return WindowLinkVisibility.normalizeLinkMode(data.paletteLinks or data.patternTableLinks)
+  end
+  return "auto_hide"
 end
 
 local function normalizeWindowToolbarPlacementKey(key)
@@ -294,8 +295,7 @@ local function withDefaults(data)
   out.tooltipsEnabled = not (data and data.tooltipsEnabled == false)
   out.canvasImageMode = normalizeCanvasImageModeKey(data and data.canvasImageMode)
   out.canvasFilter = normalizeCanvasFilterKey(data and data.canvasFilter)
-  out.paletteLinks = normalizePaletteLinksKey(data and data.paletteLinks)
-  out.patternTableLinks = normalizePatternTableLinksKey(data and data.patternTableLinks)
+  out.windowLinks = normalizeWindowLinksKey(data and data.windowLinks, data)
   out.separateToolbar = (data and data.separateToolbar == true)
   out.windowToolbarPlacement = normalizeWindowToolbarPlacementKey(data and data.windowToolbarPlacement)
   out.neverShowResizeHandle = (data and data.neverShowResizeHandle == true)
@@ -371,8 +371,7 @@ function AppSettingsController.save(opts)
   if opts.tooltipsEnabled ~= nil then data.tooltipsEnabled = (opts.tooltipsEnabled ~= false) end
   if opts.canvasImageMode ~= nil then data.canvasImageMode = opts.canvasImageMode end
   if opts.canvasFilter ~= nil then data.canvasFilter = opts.canvasFilter end
-  if opts.paletteLinks ~= nil then data.paletteLinks = normalizePaletteLinksKey(opts.paletteLinks) end
-  if opts.patternTableLinks ~= nil then data.patternTableLinks = normalizePatternTableLinksKey(opts.patternTableLinks) end
+  if opts.windowLinks ~= nil then data.windowLinks = normalizeWindowLinksKey(opts.windowLinks) end
   if opts.separateToolbar ~= nil then data.separateToolbar = (opts.separateToolbar == true) end
   if opts.windowToolbarPlacement ~= nil then
     data.windowToolbarPlacement = normalizeWindowToolbarPlacementKey(opts.windowToolbarPlacement)

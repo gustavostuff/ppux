@@ -9,8 +9,7 @@ describe("settings_controller.lua - defaults", function()
       tooltipsEnabled = true,
       canvasImageMode = "keep_aspect",
       canvasFilter = "sharp",
-      paletteLinks = "auto_hide",
-      patternTableLinks = "auto_hide",
+      windowLinks = "auto_hide",
       separateToolbar = false,
       windowToolbarPlacement = "auto",
       neverShowResizeHandle = false,
@@ -71,7 +70,7 @@ describe("settings_controller.lua - persistence", function()
     local ok = AppSettingsController.save({
       canvasImageMode = "stretch",
       canvasFilter = "soft",
-      paletteLinks = "on_hover",
+      windowLinks = "on_hover",
       skipSplash = true,
       tooltipsEnabled = false,
       groupedPaletteWindows = true,
@@ -92,7 +91,7 @@ describe("settings_controller.lua - persistence", function()
     expect(loaded.tooltipsEnabled).toBe(false)
     expect(loaded.canvasImageMode).toBe("stretch")
     expect(loaded.canvasFilter).toBe("soft")
-    expect(loaded.paletteLinks).toBe("on_hover")
+    expect(loaded.windowLinks).toBe("on_hover")
     expect(loaded.separateToolbar).toBe(false)
     expect(loaded.neverShowResizeHandle).toBe(true)
     expect(loaded.groupedPaletteWindows).toBe(true)

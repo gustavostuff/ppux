@@ -2,7 +2,8 @@
 -- On-canvas link lines and left-edge pivot handles (pattern table + ROM palette).
 
 local colors = require("app_colors")
-local UiPulse = require("utils.ui_pulse")
+local images = require("images")
+local Draw = require("utils.draw_utils")
 local WindowCaps = require("controllers.window.window_capabilities")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local PaletteLinkRenderController = require("controllers.palette.palette_link_render_controller")
@@ -27,6 +28,18 @@ M.HANDLE_INNER_SIZE = HANDLE_INNER_W
 M.HANDLE_ROW_GAP = HANDLE_GROUP_ROW_GAP
 M.LINE_WIDTH = LINE_WIDTH
 
+local LINK_INNER_ANIM = {
+  stepPx = 1,
+  intervalSeconds = 0.1,
+}
+
+local LINK_LINE_ANIM = {
+  stepPx = LINK_INNER_ANIM.stepPx,
+  intervalSeconds = LINK_INNER_ANIM.intervalSeconds,
+  borderPx = 0,
+  useShader = false,
+}
+
 local PATTERN_TABLE_SLOT = "pattern_source"
 local PPU_SLOTS = { "ppu_pattern_bg", "ppu_pattern_sprite", "ppu_palette" }
 local OAM_SLOTS = { "oam_pattern", "layout_palette" }
@@ -47,19 +60,36 @@ local function isLinkWindowMinimized(win)
   return isLinkWindowEligible(win) and win._minimized == true
 end
 
+local function getAppTaskbar(app)
+  if not app then
+    return nil
+  end
+  return app.taskbar or (app.wm and app.wm.taskbar)
+end
+
 --- Bottom-center of the taskbar strip button (line terminates under the icon; taskbar draws on top).
 local function getTaskbarLinkAnchor(app, win)
-  local tb = app and app.taskbar
+  local tb = getAppTaskbar(app)
   if not (tb and win) then
     return nil, nil
   end
+  if tb.getMinimizedWindowLinkAnchor then
+    return tb:getMinimizedWindowLinkAnchor(win)
+  end
   local btn = tb.minimizedButtonsByWindow and tb.minimizedButtonsByWindow[win]
-  if not (btn and type(btn.x) == "number" and type(btn.y) == "number") then
+  if not btn then
     return nil, nil
   end
   local w = tonumber(btn.w) or 0
   local h = tonumber(btn.h) or 0
   if w <= 0 or h <= 0 then
+    h = tonumber(tb.h) or h
+    w = h
+  end
+  if w <= 0 or h <= 0 then
+    return nil, nil
+  end
+  if type(btn.x) ~= "number" or type(btn.y) ~= "number" then
     return nil, nil
   end
   return btn.x + w * 0.5, btn.y + h
@@ -130,19 +160,31 @@ end
 
 local function buildHandleAnchorPositions(win, count)
   count = math.max(1, math.floor(tonumber(count) or 1))
-  local hx, hy, _, hh
+  local hx, hy, hw, hh
   if win and win.getHeaderRect then
-    hx, hy, _, hh = win:getHeaderRect()
+    hx, hy, hw, hh = win:getHeaderRect()
   end
   if not (hy and hh) then
-    local x, y, _, h = getWindowBodyRect(win)
+    local x, y, w, h = getWindowBodyRect(win)
     hx = x or 0
     hy = y or 0
+    hw = w or 0
     hh = h or 16
   end
+  hw = tonumber(hw) or 0
+  hh = tonumber(hh) or 0
   local rowStep = HANDLE_OUTER_H + HANDLE_GROUP_ROW_GAP
-  local anchorX = M.handleCenterXForWindowLeft(hx)
-  local firstCenterY = hy + hh + HANDLE_GROUP_BELOW_HEADER + HANDLE_OUTER_H * 0.5
+  local collapsed = win and win._collapsed == true
+  local anchorX
+  local firstCenterY
+  if collapsed then
+    -- Collapsed: stack under the header strip (centered), not on the left edge.
+    anchorX = roundPixel((tonumber(hx) or 0) + hw * 0.5)
+    firstCenterY = hy + hh + HANDLE_OUTER_H * 0.5
+  else
+    anchorX = M.handleCenterXForWindowLeft(hx)
+    firstCenterY = hy + hh + HANDLE_GROUP_BELOW_HEADER + HANDLE_OUTER_H * 0.5
+  end
   local out = {}
   for i = 0, count - 1 do
     out[#out + 1] = {
@@ -208,6 +250,10 @@ function M.getConsumerLinkedPaletteWindow(consumer, wm)
   return getConsumerLinkedPaletteWindowRaw(consumer, wm, false)
 end
 
+function M.getConsumerLinkedPaletteWindowIncludingMinimized(consumer, wm)
+  return getConsumerLinkedPaletteWindowRaw(consumer, wm, true)
+end
+
 local function consumerPaletteLinkSlot(win)
   if WindowCaps.isPpuFrame(win) then
     return "ppu_palette"
@@ -254,6 +300,40 @@ local function patternTableOutgoingKinds(ptWin, edges)
   return hasRed, hasGreen
 end
 
+local function linkEdgeColorForSlot(win, slot, edges)
+  for _, edge in ipairs(edges or {}) do
+    if edge.fromWin == win and edge.fromSlot == slot then
+      return edge.color
+    end
+    if edge.toWin == win and edge.toSlot == slot then
+      return edge.color
+    end
+  end
+  return nil
+end
+
+local function innerColorAndSplitForHandleSlot(win, slot, wm, edges, hasLine)
+  if not hasLine then
+    return colors.transparent, nil
+  end
+  if WindowCaps.isPatternTable(win) and slot == PATTERN_TABLE_SLOT then
+    local hasRed, hasGreen = patternTableOutgoingKinds(win, edges)
+    if hasRed and hasGreen then
+      return colors.transparent, "red_green"
+    elseif hasRed then
+      return colors.red, "red"
+    elseif hasGreen then
+      return colors.green, "green"
+    end
+    return colors.transparent, nil
+  end
+  return linkEdgeColorForSlot(win, slot, edges) or M.innerColorForSlot(win, slot, wm), nil
+end
+
+local function isInnerColorTransparent(color)
+  return color and (tonumber(color[4]) or 1) <= 0
+end
+
 function M.handleCenterXForWindowLeft(windowLeftX)
   local left = math.floor(tonumber(windowLeftX) or 0) - math.floor(HANDLE_OUTSIDE_TOUCH_GAP)
   return left - HANDLE_OUTER_W * 0.5
@@ -273,8 +353,8 @@ function M.getInnerRectForHandleCenter(cx, cy)
   if not ox then
     return nil
   end
-  local ix = ox + math.floor((HANDLE_OUTER_W - HANDLE_INNER_W) * 0.5)
-  local iy = oy + math.floor((HANDLE_OUTER_H - HANDLE_INNER_H) * 0.5)
+  local ix = ox + math.floor((HANDLE_OUTER_W - HANDLE_INNER_W) * 0.5) + 1
+  local iy = oy + math.floor((HANDLE_OUTER_H - HANDLE_INNER_H) * 0.5) + 1
   return ix, iy, HANDLE_INNER_W, HANDLE_INNER_H
 end
 
@@ -321,16 +401,16 @@ local function buildElbowControlPoints(ax, ay, bx, by)
   return axq, midY, bxq, midY
 end
 
---- One elbow: horizontal to the mini-button x, then straight down to the taskbar anchor.
-local function buildConnectorPointsViaTaskbar(x1, y1, x2, y2)
-  local axq = roundPixel(x1)
-  local ayq = roundPixel(y1)
-  local bxq = roundPixel(x2)
-  local byq = roundPixel(y2)
+--- Elbow from workspace handle to taskbar: horizontal at handle.y toward taskbar.x, then down to taskbar.
+local function buildConnectorPointsHandleToTaskbar(handleX, handleY, taskbarX, taskbarY)
+  local hx = roundPixel(handleX)
+  local hy = roundPixel(handleY)
+  local tx = roundPixel(taskbarX)
+  local ty = roundPixel(taskbarY)
   return {
-    axq, ayq,
-    bxq, ayq,
-    bxq, byq,
+    hx, hy,
+    tx, hy,
+    tx, ty,
   }
 end
 
@@ -338,9 +418,49 @@ local function layoutEntryUsesTaskbarAnchor(entry)
   return entry and entry.taskbarAnchor == true
 end
 
+local function edgeHasTaskbarEndpoint(edge, layouts)
+  if not (edge and layouts) then
+    return false
+  end
+  local fromEntry = layouts[edge.fromWin] and layouts[edge.fromWin][edge.fromSlot]
+  local toEntry = layouts[edge.toWin] and layouts[edge.toWin][edge.toSlot]
+  return layoutEntryUsesTaskbarAnchor(fromEntry) or layoutEntryUsesTaskbarAnchor(toEntry)
+end
+
+local function refreshTaskbarAnchorLayouts(app, layouts)
+  if not layouts then
+    return
+  end
+  for win, slots in pairs(layouts) do
+    if not isLinkWindowMinimized(win) then
+      goto continue_win
+    end
+    local ax, ay = getTaskbarLinkAnchor(app, win)
+    if not (ax and ay) then
+      goto continue_win
+    end
+    local lineX = roundPixel(ax)
+    local lineY = roundPixel(ay)
+    for _, entry in pairs(slots) do
+      if entry and entry.taskbarAnchor then
+        entry.taskbarLineX = lineX
+        entry.taskbarLineY = lineY
+        entry.cx = ax
+        entry.cy = ay
+      end
+    end
+    ::continue_win::
+  end
+end
+
 local function getLinkLineAnchorPoint(entry, cx, cy)
-  if layoutEntryUsesTaskbarAnchor(entry) then
-    return roundPixel(cx), roundPixel(cy)
+  if entry and layoutEntryUsesTaskbarAnchor(entry) then
+    if entry.taskbarLineX and entry.taskbarLineY then
+      return entry.taskbarLineX, entry.taskbarLineY
+    end
+    if entry.cx and entry.cy then
+      return roundPixel(entry.cx), roundPixel(entry.cy)
+    end
   end
   if entry and entry.lineCx and entry.lineCy then
     return entry.lineCx, entry.lineCy
@@ -348,12 +468,48 @@ local function getLinkLineAnchorPoint(entry, cx, cy)
   return computeHandleInnerCenterPixel(cx, cy)
 end
 
-local function getTaskbarTopY(app)
-  local tb = app and app.taskbar
-  if tb and type(tb.y) == "number" then
-    return tb.y
+local function roundPolylinePoints(points)
+  local rounded = {}
+  for i = 1, #points do
+    rounded[i] = roundPixel(points[i])
   end
-  return nil
+  return rounded
+end
+
+local function polylineBounds(points, padding)
+  padding = tonumber(padding) or 0
+  local minX, minY = math.huge, math.huge
+  local maxX, maxY = -math.huge, -math.huge
+  for i = 1, #points, 2 do
+    local x = points[i]
+    local y = points[i + 1]
+    if x < minX then minX = x end
+    if y < minY then minY = y end
+    if x > maxX then maxX = x end
+    if y > maxY then maxY = y end
+  end
+  if minX == math.huge then
+    return 0, 0, 0, 0
+  end
+  minX = minX - padding
+  minY = minY - padding
+  return minX, minY, (maxX - minX) + (padding * 2), (maxY - minY) + (padding * 2)
+end
+
+local function drawLinkPolylineSolid(points, thickness, color, alpha)
+  if not (points and #points >= 4) then
+    return
+  end
+  alpha = math.max(0, math.min(1, tonumber(alpha) or 1))
+  if alpha <= 0 then
+    return
+  end
+  local c = color or colors.blue
+  love.graphics.setColor(c[1], c[2], c[3], (c[4] or 1) * alpha)
+  love.graphics.setLineStyle("rough")
+  love.graphics.setLineJoin("miter")
+  love.graphics.setLineWidth(math.max(1, tonumber(thickness) or 1))
+  love.graphics.line(unpack(roundPolylinePoints(points)))
 end
 
 local function drawLinkPolyline(points, thickness, color, alpha)
@@ -364,16 +520,41 @@ local function drawLinkPolyline(points, thickness, color, alpha)
   if alpha <= 0 then
     return
   end
-  local r, g, b, a = color[1], color[2], color[3], (color[4] or 1) * alpha
-  love.graphics.setColor(r, g, b, a)
-  love.graphics.setLineStyle("rough")
-  love.graphics.setLineJoin("miter")
-  love.graphics.setLineWidth(math.max(1, tonumber(thickness) or 1))
-  local rounded = {}
-  for i = 1, #points do
-    rounded[i] = roundPixel(points[i])
+  if not (images and images.pattern_c) then
+    drawLinkPolylineSolid(points, thickness, color, alpha)
+    return
   end
-  love.graphics.line(unpack(rounded))
+
+  local rounded = roundPolylinePoints(points)
+  local lineWidth = math.max(1, tonumber(thickness) or 1)
+  local pad = math.ceil(lineWidth * 0.5) + 1
+  local bx, by, bw, bh = polylineBounds(rounded, pad)
+  if bw <= 0 or bh <= 0 then
+    return
+  end
+
+  local c = color or colors.blue
+  local ix = math.floor(bx)
+  local iy = math.floor(by)
+  local iw = math.ceil(bw)
+  local ih = math.ceil(bh)
+
+  love.graphics.push("all")
+  love.graphics.stencil(function()
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.rectangle("fill", ix, iy, iw, ih)
+  end, "replace", 0)
+  love.graphics.stencil(function()
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setLineStyle("rough")
+    love.graphics.setLineJoin("miter")
+    love.graphics.setLineWidth(lineWidth)
+    love.graphics.line(unpack(rounded))
+  end, "replace", 1)
+  love.graphics.setStencilTest("equal", 1)
+  love.graphics.setColor(c[1], c[2], c[3], (c[4] or 1) * alpha)
+  Draw.drawRepeatingImageAnimated(images.pattern_c, ix, iy, iw, ih, LINK_LINE_ANIM)
+  love.graphics.pop()
 end
 
 function M.getLeftAnchorPoint(win, slot, layouts)
@@ -388,31 +569,31 @@ end
 function M.innerColorForSlot(win, slot, wm)
   if WindowCaps.isPpuFrame(win) then
     if slot == "ppu_pattern_bg" then
-      return M.ppuPatternBgLinked(win, wm) and colors.red or idleInnerColorForWindow(win, wm)
+      return M.ppuPatternBgLinked(win, wm) and colors.red or colors.transparent
     end
     if slot == "ppu_pattern_sprite" then
-      return M.ppuPatternSpriteLinked(win, wm) and colors.green or idleInnerColorForWindow(win, wm)
+      return M.ppuPatternSpriteLinked(win, wm) and colors.green or colors.transparent
     end
     if slot == "ppu_palette" then
-      local linked = M.getConsumerLinkedPaletteWindow(win, wm)
-      return linked and colors.blue or idleInnerColorForWindow(win, wm)
+      local linked = M.getConsumerLinkedPaletteWindowIncludingMinimized(win, wm)
+      return linked and colors.blue or colors.transparent
     end
   end
 
   if WindowCaps.isRomPaletteWindow(win) and slot == "palette_source" then
-    return M.romPaletteHasConsumers(win, wm) and colors.blue or idleInnerColorForWindow(win, wm)
+    return M.romPaletteHasConsumers(win, wm) and colors.blue or colors.transparent
   end
 
   if slot == "layout_palette" then
-    local linked = M.getConsumerLinkedPaletteWindow(win, wm)
-    return linked and colors.blue or idleInnerColorForWindow(win, wm)
+    local linked = M.getConsumerLinkedPaletteWindowIncludingMinimized(win, wm)
+    return linked and colors.blue or colors.transparent
   end
 
   if slot == "oam_pattern" then
-    return M.oamPatternLinked(win, wm) and colors.green or idleInnerColorForWindow(win, wm)
+    return M.oamPatternLinked(win, wm) and colors.green or colors.transparent
   end
 
-  return idleInnerColorForWindow(win, wm)
+  return colors.transparent
 end
 
 function M.buildAnchorLayouts(app, edges)
@@ -490,27 +671,7 @@ function M.buildAnchorLayouts(app, edges)
       local anchorX = anchor and anchor.cx
       local cy = anchor and anchor.cy
       local hasLine = slotHasLinkEdge(slotLinked, win, slot)
-      local innerSplit = nil
-      local innerColor = idleInnerColorForWindow(win, wm)
-
-      if WindowCaps.isPatternTable(win) and slot == PATTERN_TABLE_SLOT then
-        local hasRed, hasGreen = patternTableOutgoingKinds(win, edges)
-        if hasLine then
-          if hasRed and hasGreen then
-            innerSplit = "red_green"
-          elseif hasRed then
-            innerSplit = "red"
-            innerColor = colors.red
-          elseif hasGreen then
-            innerSplit = "green"
-            innerColor = colors.green
-          end
-        end
-      elseif hasLine then
-        innerColor = M.innerColorForSlot(win, slot, wm)
-      else
-        innerColor = M.innerColorForSlot(win, slot, wm)
-      end
+      local innerColor, innerSplit = innerColorAndSplitForHandleSlot(win, slot, wm, edges, hasLine)
 
       local lineCx, lineCy = computeHandleInnerCenterPixel(anchorX, cy)
       layouts[win][slot] = {
@@ -544,16 +705,19 @@ function M.buildAnchorLayouts(app, edges)
     end
     layouts[win] = layouts[win] or {}
     local cx, cy = getTaskbarLinkAnchor(app, win)
-    if not (cx and cy) then
-      goto next_minimized
-    end
+    local lineX = cx and roundPixel(cx) or nil
+    local lineY = cy and roundPixel(cy) or nil
     for _, slot in ipairs(orderedActiveSlots(win, slots)) do
+      local hasLine = slotHasLinkEdge(slotLinked, win, slot)
+      local innerColor = innerColorAndSplitForHandleSlot(win, slot, wm, edges, hasLine)
       layouts[win][slot] = {
         cx = cx,
         cy = cy,
+        taskbarLineX = lineX,
+        taskbarLineY = lineY,
         taskbarAnchor = true,
-        innerColor = M.innerColorForSlot(win, slot, wm),
-        pulseInner = slotHasLinkEdge(slotLinked, win, slot),
+        innerColor = innerColor,
+        pulseInner = hasLine,
       }
     end
     ::next_minimized::
@@ -571,7 +735,7 @@ function M.ppuPatternBgLinked(ppu, wm)
       local id = layer.linkedPatternTableWindowId
       if type(id) == "string" and id ~= "" and wm.findWindowById then
         local pt = wm:findWindowById(id)
-        if pt and isLinkWindowVisible(pt) and WindowCaps.isPatternTable(pt) then
+        if pt and isLinkWindowEligible(pt) and WindowCaps.isPatternTable(pt) then
           return true
         end
       end
@@ -589,7 +753,7 @@ function M.oamPatternLinked(oam, wm)
       local id = layer.linkedPatternTableWindowId
       if type(id) == "string" and id ~= "" and wm.findWindowById then
         local pt = wm:findWindowById(id)
-        if pt and isLinkWindowVisible(pt) and WindowCaps.isPatternTable(pt) then
+        if pt and isLinkWindowEligible(pt) and WindowCaps.isPatternTable(pt) then
           return true
         end
       end
@@ -621,16 +785,15 @@ function M.romPaletteHasConsumers(paletteWin, wm)
   return #(targets or {}) > 0
 end
 
-function M.pulseLinkColor(semanticColor, t)
-  local c = semanticColor or colors.blue
-  local lum = UiPulse.luminanceBackdrop01(t or UiPulse.nowSeconds())
-  local b = colors.black
-  return {
-    (b[1] or 0) + ((c[1] or 0) - (b[1] or 0)) * lum,
-    (b[2] or 0) + ((c[2] or 0) - (b[2] or 0)) * lum,
-    (b[3] or 0) + ((c[3] or 0) - (b[3] or 0)) * lum,
-    1,
-  }
+local function drawLinkInnerAnimated(ix, iy, iw, ih, color)
+  local c = color or colors.white
+  if not (images and images.pattern_c) then
+    love.graphics.setColor(c[1], c[2], c[3], c[4] or 1)
+    love.graphics.rectangle("fill", ix, iy, iw, ih)
+    return
+  end
+  love.graphics.setColor(c[1], c[2], c[3], c[4] or 1)
+  Draw.drawRepeatingImageAnimated(images.pattern_c, math.floor(ix), math.floor(iy), iw, ih, LINK_INNER_ANIM)
 end
 
 function M.drawPivotHandleChrome(cx, cy, chromeFillColor)
@@ -646,7 +809,7 @@ function M.drawPivotHandleChrome(cx, cy, chromeFillColor)
   love.graphics.rectangle("fill", ox, oy, HANDLE_OUTER_W, HANDLE_OUTER_H, HANDLE_OUTER_RADIUS, HANDLE_OUTER_RADIUS)
 end
 
-function M.drawPivotHandleInner(cx, cy, innerColor, pulseT, pulseInner, chromeInkColor, innerSplit)
+function M.drawPivotHandleInner(cx, cy, innerColor, pulseInner, chromeInkColor, innerSplit)
   if not (cx and cy) then
     return
   end
@@ -658,31 +821,35 @@ function M.drawPivotHandleInner(cx, cy, innerColor, pulseT, pulseInner, chromeIn
   local iy = oy + math.floor((HANDLE_OUTER_H - HANDLE_INNER_H) * 0.5)
   local idle = chromeInkColor or idleInnerColorForWindow(nil, nil)
 
-  if innerSplit == "red_green" and pulseInner then
-    local red = M.pulseLinkColor(colors.red, pulseT)
-    local green = M.pulseLinkColor(colors.green, pulseT)
+  if innerSplit == "red_green" then
     local halfW = math.floor(HANDLE_INNER_W * 0.5)
-    love.graphics.setColor(red[1], red[2], red[3], red[4] or 1)
-    love.graphics.rectangle("fill", ix, iy, halfW, HANDLE_INNER_H)
-    love.graphics.setColor(green[1], green[2], green[3], green[4] or 1)
-    love.graphics.rectangle("fill", ix + halfW, iy, HANDLE_INNER_W - halfW, HANDLE_INNER_H)
-  elseif innerSplit == "red_green" then
-    local halfW = math.floor(HANDLE_INNER_W * 0.5)
-    love.graphics.setColor(colors.red[1], colors.red[2], colors.red[3], 1)
-    love.graphics.rectangle("fill", ix, iy, halfW, HANDLE_INNER_H)
-    love.graphics.setColor(colors.green[1], colors.green[2], colors.green[3], 1)
-    love.graphics.rectangle("fill", ix + halfW, iy, HANDLE_INNER_W - halfW, HANDLE_INNER_H)
+    if pulseInner then
+      drawLinkInnerAnimated(ix, iy, halfW, HANDLE_INNER_H, colors.red)
+      drawLinkInnerAnimated(ix + halfW, iy, HANDLE_INNER_W - halfW, HANDLE_INNER_H, colors.green)
+    else
+      love.graphics.setColor(colors.red[1], colors.red[2], colors.red[3], 1)
+      love.graphics.rectangle("fill", ix, iy, halfW, HANDLE_INNER_H)
+      love.graphics.setColor(colors.green[1], colors.green[2], colors.green[3], 1)
+      love.graphics.rectangle("fill", ix + halfW, iy, HANDLE_INNER_W - halfW, HANDLE_INNER_H)
+    end
   else
     local baseInner = innerColor or idle
-    local inner = pulseInner and M.pulseLinkColor(baseInner, pulseT) or baseInner
-    love.graphics.setColor(inner[1], inner[2], inner[3], inner[4] or 1)
-    love.graphics.rectangle("fill", ix, iy, HANDLE_INNER_W, HANDLE_INNER_H)
+    if isInnerColorTransparent(baseInner) then
+      return
+    end
+    if pulseInner then
+      drawLinkInnerAnimated(ix, iy, HANDLE_INNER_W, HANDLE_INNER_H, baseInner)
+    else
+      love.graphics.setColor(baseInner[1], baseInner[2], baseInner[3], baseInner[4] or 1)
+      love.graphics.rectangle("fill", ix, iy, HANDLE_INNER_W, HANDLE_INNER_H)
+    end
   end
+  love.graphics.setColor(colors.white)
 end
 
-function M.drawPivotHandle(cx, cy, innerColor, pulseT, pulseInner, chromeFillColor, chromeInkColor, innerSplit)
+function M.drawPivotHandle(cx, cy, innerColor, pulseInner, chromeFillColor, chromeInkColor, innerSplit)
   M.drawPivotHandleChrome(cx, cy, chromeFillColor)
-  M.drawPivotHandleInner(cx, cy, innerColor, pulseT, pulseInner, chromeInkColor, innerSplit)
+  M.drawPivotHandleInner(cx, cy, innerColor, pulseInner, chromeInkColor, innerSplit)
 end
 
 local function patternConsumerAnchorSlot(win, layer)
@@ -763,7 +930,7 @@ function M.collectWindowLinkEdges(app)
   return edges
 end
 
-function M.drawLinkEdge(app, edge, layouts, pulseT)
+function M.drawLinkEdge(app, edge, layouts)
   if not edge then
     return
   end
@@ -781,15 +948,19 @@ function M.drawLinkEdge(app, edge, layouts, pulseT)
   local toEntry = layouts[edge.toWin] and layouts[edge.toWin][edge.toSlot]
   local x1, y1 = getLinkLineAnchorPoint(fromEntry, fromCx, fromCy)
   local x2, y2 = getLinkLineAnchorPoint(toEntry, toCx, toCy)
-  local lineColor = M.pulseLinkColor(edge.color, pulseT)
+  local lineColor = edge.color or colors.blue
   local points
 
-  local taskbarTopY = getTaskbarTopY(app)
-  if taskbarTopY and layoutEntryUsesTaskbarAnchor(toEntry) then
-    points = buildConnectorPointsViaTaskbar(x1, y1, x2, y2)
-    pinPolylineEndpoints(points, x1, y1, x2, y2)
-  elseif taskbarTopY and layoutEntryUsesTaskbarAnchor(fromEntry) then
-    points = buildConnectorPointsViaTaskbar(x1, y1, x2, y2)
+  if layoutEntryUsesTaskbarAnchor(toEntry) or layoutEntryUsesTaskbarAnchor(fromEntry) then
+    local handleX, handleY, taskbarX, taskbarY
+    if layoutEntryUsesTaskbarAnchor(toEntry) then
+      handleX, handleY = x1, y1
+      taskbarX, taskbarY = x2, y2
+    else
+      handleX, handleY = x2, y2
+      taskbarX, taskbarY = x1, y1
+    end
+    points = buildConnectorPointsHandleToTaskbar(handleX, handleY, taskbarX, taskbarY)
     pinPolylineEndpoints(points, x1, y1, x2, y2)
   else
     local geometry = PaletteLinkRenderController.buildConnectorGeometry(x1, y1, x2, y2, {
@@ -915,7 +1086,7 @@ function M.prepareLinkDrawState(app)
     return nil
   end
 
-  local tb = app and app.taskbar
+  local tb = getAppTaskbar(app)
   local canvas = app and app.canvas
   if tb and tb.updateLayout and canvas and canvas.getWidth then
     tb:updateLayout(canvas:getWidth(), canvas:getHeight())
@@ -938,7 +1109,6 @@ function M.prepareLinkDrawState(app)
     layouts = layouts,
     handles = handles,
     visibleEdges = visibleEdges,
-    pulseT = UiPulse.nowSeconds(),
   }
 end
 
@@ -957,7 +1127,6 @@ local function drawHandlesForWindow(app, win, state, drawFn)
       handle.cx,
       handle.cy,
       handle.innerColor,
-      state.pulseT,
       handle.pulseInner,
       handle.chromeFillColor,
       handle.chromeInkColor,
@@ -973,20 +1142,20 @@ function M.drawWindowLinkHandleChromes(app, win, state)
     return
   end
   love.graphics.push("all")
-  drawHandlesForWindow(app, win, state, function(cx, cy, _, _, _, chromeFill)
+  drawHandlesForWindow(app, win, state, function(cx, cy, _, _, chromeFill)
     M.drawPivotHandleChrome(cx, cy, chromeFill)
   end)
   love.graphics.pop()
 end
 
---- Pass 2 for `win`: every 4×4 pulsating inner square (no lines).
+--- Pass 2 for `win`: every 3×3 animated-pattern inner square (no lines).
 function M.drawWindowLinkHandleInners(app, win, state)
   if not (app and win and state) then
     return
   end
   love.graphics.push("all")
-  drawHandlesForWindow(app, win, state, function(cx, cy, innerColor, pulseT, pulseInner, _, chromeInk, innerSplit)
-    M.drawPivotHandleInner(cx, cy, innerColor, pulseT, pulseInner, chromeInk, innerSplit)
+  drawHandlesForWindow(app, win, state, function(cx, cy, innerColor, pulseInner, _, chromeInk, innerSplit)
+    M.drawPivotHandleInner(cx, cy, innerColor, pulseInner, chromeInk, innerSplit)
   end)
   love.graphics.pop()
 end
@@ -1002,13 +1171,36 @@ function M.drawWindowLinkLines(app, win, state)
   end
   love.graphics.push("all")
   for _, edge in ipairs(state.visibleEdges or {}) do
+    if edgeHasTaskbarEndpoint(edge, state.layouts) then
+      goto continue_edge
+    end
     if getEdgeDrawOwnerBackmost(wm, edge) ~= win then
       goto continue_edge
     end
     if edgeEndpointsDifferInZOrder(wm, edge) or getEdgeDrawOwnerFrontmost(wm, edge) == win then
-      M.drawLinkEdge(app, edge, state.layouts, state.pulseT)
+      M.drawLinkEdge(app, edge, state.layouts)
     end
     ::continue_edge::
+  end
+  love.graphics.pop()
+end
+
+--- Lines to minimized taskbar buttons (after all windows; taskbar draws on top of the endpoint).
+function M.drawWindowLinkLinesToTaskbar(app, state)
+  if not (app and state) then
+    return
+  end
+  local tb = getAppTaskbar(app)
+  local canvas = app and app.canvas
+  if tb and tb.updateLayout and canvas and canvas.getWidth then
+    tb:updateLayout(canvas:getWidth(), canvas:getHeight())
+  end
+  refreshTaskbarAnchorLayouts(app, state.layouts)
+  love.graphics.push("all")
+  for _, edge in ipairs(state.visibleEdges or {}) do
+    if edgeHasTaskbarEndpoint(edge, state.layouts) then
+      M.drawLinkEdge(app, edge, state.layouts)
+    end
   end
   love.graphics.pop()
 end
@@ -1029,7 +1221,7 @@ function M.drawWindowLinkLinesFrontmostOverlay(app, state)
       goto continue_edge
     end
     if scissorForEdgeEndpoints(edge, 6) then
-      M.drawLinkEdge(app, edge, state.layouts, state.pulseT)
+      M.drawLinkEdge(app, edge, state.layouts)
       love.graphics.setScissor()
     end
     ::continue_edge::
@@ -1061,6 +1253,7 @@ function M.drawLinkLines(app)
     end
   end
   M.drawWindowLinkLinesFrontmostOverlay(app, state)
+  M.drawWindowLinkLinesToTaskbar(app, state)
 end
 
 return M

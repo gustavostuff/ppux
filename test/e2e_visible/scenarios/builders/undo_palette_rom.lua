@@ -610,7 +610,7 @@ local function buildRomPaletteLinkScenario(harness, app, runner)
 
   steps[#steps + 1] = call("Set palette links to auto-hide and focus sprite target", function(_, currentApp)
     local spriteWin = assert(runner.romLinkSpriteWin, "expected runtime sprite link window")
-    currentApp:_applyPaletteLinksSetting("auto_hide", false)
+    currentApp:_applyWindowLinksSetting("auto_hide", false)
     currentApp.wm:setFocus(spriteWin)
   end)
   steps[#steps + 1] = pause("Observe auto-hide with palette unfocused", 0.45)
@@ -645,11 +645,11 @@ local function buildRomPaletteLinkScenario(harness, app, runner)
   end)
 
   steps[#steps + 1] = call("Set palette links to never", function(_, currentApp)
-    currentApp:_applyPaletteLinksSetting("never", false)
+    currentApp:_applyWindowLinksSetting("never", false)
   end)
   steps[#steps + 1] = pause("Observe squares-only palette link mode", 0.6)
   steps[#steps + 1] = call("Restore palette links to on-hover", function(_, currentApp)
-    currentApp:_applyPaletteLinksSetting("on_hover", false)
+    currentApp:_applyWindowLinksSetting("on_hover", false)
   end)
   steps[#steps + 1] = pause("Observe full connector restore", 0.6)
 
@@ -865,8 +865,8 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
   local steps = {
     pause("Start", 0.35),
     call("Create palette link interaction windows", function(_, currentApp, currentRunner)
-      if currentApp and currentApp._applyPaletteLinksSetting then
-        currentApp:_applyPaletteLinksSetting("always", false)
+      if currentApp and currentApp._applyWindowLinksSetting then
+        currentApp:_applyWindowLinksSetting("always", false)
       end
 
       currentRunner.romLinkPaletteAWin = assert(currentApp.wm:createRomPaletteWindow({

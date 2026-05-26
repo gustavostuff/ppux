@@ -131,6 +131,11 @@ function Taskbar:updateLayout(canvasW, canvasH)
 
   self:_buildVisibleToolbarButtons()
 
+  for _, btn in pairs(self.minimizedButtonsByWindow or {}) do
+    btn._linkAnchorX = nil
+    btn._linkAnchorY = nil
+  end
+
   local buttonSize = self.h
   local x = self.x + self.paddingX
   local y = self.y + self.paddingY
@@ -163,6 +168,8 @@ function Taskbar:updateLayout(canvasW, canvasH)
     button:setSize(buttonW, buttonH)
     button:setPosition(x, y)
     if isMinimizedButton then
+      button._linkAnchorX = x + buttonW * 0.5
+      button._linkAnchorY = y + buttonH
       self.visibleMinimizedButtons[#self.visibleMinimizedButtons + 1] = button
       if not self.minimizedStripX then
         self.minimizedStripX = x
@@ -171,6 +178,8 @@ function Taskbar:updateLayout(canvasW, canvasH)
     end
     x = x + buttonW + self.spacing
   end
+
+  self:_assignMinimizedLinkAnchorsOffStrip(buttonSize, y)
 
   for _, btn in pairs(self.minimizedButtonsByWindow) do
     local isVisible = false
@@ -190,6 +199,100 @@ function Taskbar:updateLayout(canvasW, canvasH)
     local panelX, panelY = self:_getMenuAnchor()
     self.menuController:setPosition(panelX, panelY)
   end
+end
+
+--- Icon button width/height using the same rules as `updateLayout`.
+function Taskbar:_toolbarButtonDimensions(button, buttonSize)
+  buttonSize = tonumber(buttonSize) or tonumber(self.h) or 0
+  local buttonW = buttonSize
+  local buttonH = buttonSize
+  if not button then
+    return buttonW, buttonH
+  end
+  local isIconOnly = (button.icon ~= nil) and (button.text == nil)
+  if isIconOnly then
+    if button._explicitW then
+      buttonW = button.w
+    elseif button.icon and button.icon.getWidth then
+      local mappedW = UiScale.mapStandardButtonSize(button.icon:getWidth())
+      buttonW = mappedW or button.icon:getWidth()
+    end
+    if button._explicitH then
+      buttonH = button.h
+    elseif button.icon and button.icon.getHeight then
+      local mappedH = UiScale.mapStandardButtonSize(button.icon:getHeight())
+      buttonH = mappedH or button.icon:getHeight()
+    end
+  elseif button.fitIconWidth and button.icon and button.icon.getWidth then
+    local iconW = UiScale.mapStandardButtonSize(button.icon:getWidth()) or button.icon:getWidth()
+    buttonW = math.max(buttonSize, iconW)
+  end
+  return buttonW, buttonH
+end
+
+function Taskbar:_minimizedStripOriginX(buttonSize)
+  local x = (tonumber(self.x) or 0) + (tonumber(self.paddingX) or 0)
+  if self.menuButton then
+    local mw = self:_toolbarButtonDimensions(self.menuButton, buttonSize)
+    x = x + mw + (tonumber(self.spacing) or 0)
+  end
+  if self.showSortButtons and self.sortAlphaButton then
+    local aw = self:_toolbarButtonDimensions(self.sortAlphaButton, buttonSize)
+    x = x + aw + (tonumber(self.spacing) or 0)
+  end
+  if self.showSortButtons and self.sortKindButton then
+    local kw = self:_toolbarButtonDimensions(self.sortKindButton, buttonSize)
+    x = x + kw + (tonumber(self.spacing) or 0)
+  end
+  if #(self.minimizedWindows or {}) > 0 and self.minimizedScrollLeftButton then
+    local lw = self:_toolbarButtonDimensions(self.minimizedScrollLeftButton, buttonSize)
+    x = x + lw + (tonumber(self.spacing) or 0)
+  end
+  return x
+end
+
+--- Assign stable anchors for scrolled-off strip buttons (visible ones set in the main layout loop).
+function Taskbar:_assignMinimizedLinkAnchorsOffStrip(buttonSize, stripY)
+  local list = self.minimizedWindows or {}
+  if #list == 0 then
+    return
+  end
+  buttonSize = tonumber(buttonSize) or tonumber(self.h) or 0
+  stripY = tonumber(stripY) or 0
+  if buttonSize <= 0 then
+    return
+  end
+
+  local spacing = tonumber(self.spacing) or 0
+  local x = self:_minimizedStripOriginX(buttonSize)
+  for idx = 1, #list do
+    local win = list[idx]
+    local btn = win and self.minimizedButtonsByWindow and self.minimizedButtonsByWindow[win]
+    if not btn then
+      goto continue_idx
+    end
+    local bw, bh = self:_toolbarButtonDimensions(btn, buttonSize)
+    if type(btn._linkAnchorX) == "number" and type(btn._linkAnchorY) == "number" then
+      x = btn._linkAnchorX + bw * 0.5 + spacing
+    else
+      btn._linkAnchorX = x + bw * 0.5
+      btn._linkAnchorY = stripY + bh
+      x = x + bw + spacing
+    end
+    ::continue_idx::
+  end
+end
+
+--- Bottom-center of the taskbar icon for link lines (set during `updateLayout`).
+function Taskbar:getMinimizedWindowLinkAnchor(win)
+  if not win then
+    return nil, nil
+  end
+  local btn = self.minimizedButtonsByWindow and self.minimizedButtonsByWindow[win]
+  if btn and type(btn._linkAnchorX) == "number" and type(btn._linkAnchorY) == "number" then
+    return btn._linkAnchorX, btn._linkAnchorY
+  end
+  return nil, nil
 end
 
 function Taskbar:getTopY()

@@ -1206,6 +1206,7 @@ local function drawWindows(app)
 
   if linkDrawState then
     WindowLinkVisualController.drawWindowLinkLinesFrontmostOverlay(app, linkDrawState)
+    WindowLinkVisualController.drawWindowLinkLinesToTaskbar(app, linkDrawState)
   end
 end
 
