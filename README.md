@@ -50,6 +50,7 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
   - [Build packages](#build-packages)
   - [Unit testing](#unit-testing)
   - [E2E testing](#e2e-testing)
+- [Notes](#notes)
 
 ## Basic Usage
 
@@ -622,3 +623,16 @@ See [E2E Testing](docs/test/E2E_TESTING.md) for scenario details and options.
 :white_check_mark: All 748 unit tests passing.
 
 :white_check_mark: All 24 E2E tests passing.
+
+## Notes
+
+### Display resolution
+
+The entire UI is rendered to a **640×360** canvas (16:9). That base size is deliberate: it scales to common monitor resolutions with **integer pixel multiples** and no fuzzy fractional upscaling:
+
+- **2×** — 720p (1280×720)
+- **3×** — 1080p (1920×1080)
+- **4×** — 1440p (2560×1440)
+- **6×** — 4K (3840×2160)
+
+Every UI pixel stays crisp. Use **`Ctrl + 1/2/3`** to switch between 1×, 2×, and 3× window scale, or resize the window freely. It is a detail I prioritized in the design: the interface stays sharp on real-world displays.
