@@ -5,6 +5,10 @@ local ColorPickerMatrix = require("user_interface.color_picker_matrix")
 
 local M = {}
 
+--[[ Modal chrome feature flags — flip without ripping out call sites.
+     MODAL_BACKDROP_ENABLED: translucent dim layer behind centered modals. ]]
+M.MODAL_BACKDROP_ENABLED = false
+
 M.MODAL_BUTTON_H = UiScale.modalButtonHeight()
 M.MODAL_ICON_BUTTON_SIZE = UiScale.modalButtonHeight()
 
@@ -46,7 +50,7 @@ function M.refreshMetrics()
   local styleColor = copyColor(colors:focusedChromeColor())
   M.DEFAULT_PANEL_STYLE.bgColor = copyColor(styleColor)
   M.DEFAULT_PANEL_STYLE.titleBgColor = copyColor(styleColor)
-  M.DEFAULT_PANEL_STYLE.menuOutline = true
+  M.DEFAULT_PANEL_STYLE.menuOutline = false
 end
 
 function M.centerPanel(panel, canvas)
@@ -59,6 +63,9 @@ function M.centerPanel(panel, canvas)
 end
 
 function M.drawBackdrop(canvas)
+  if M.MODAL_BACKDROP_ENABLED ~= true then
+    return
+  end
   local cw = canvas:getWidth()
   local ch = canvas:getHeight()
   love.graphics.setColor(colors.black[1], colors.black[2], colors.black[3], 0.5)
@@ -98,11 +105,7 @@ function M.syncPanelChrome(panel, modal)
     return
   end
   panel._modalChromeOverBlue = modal._modalChromeOverBlue == true
-  if modal.menuOutline == false then
-    panel.menuOutline = false
-  elseif panel._modalChromeOverBlue then
-    panel.menuOutline = true
-  end
+  panel.menuOutline = modal.menuOutline == true
 end
 
 function M.refreshTargetMetrics(target)

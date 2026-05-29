@@ -28,14 +28,9 @@ M.HANDLE_INNER_SIZE = HANDLE_INNER_W
 M.HANDLE_ROW_GAP = HANDLE_GROUP_ROW_GAP
 M.LINE_WIDTH = LINE_WIDTH
 
-local LINK_INNER_ANIM = {
+local LINK_LINE_ANIM = {
   stepPx = 1,
   intervalSeconds = 0.1,
-}
-
-local LINK_LINE_ANIM = {
-  stepPx = LINK_INNER_ANIM.stepPx,
-  intervalSeconds = LINK_INNER_ANIM.intervalSeconds,
   borderPx = 0,
   useShader = false,
 }
@@ -175,16 +170,21 @@ local function buildHandleAnchorPositions(win, count)
   hh = tonumber(hh) or 0
   local rowStep = HANDLE_OUTER_H + HANDLE_GROUP_ROW_GAP
   local collapsed = win and win._collapsed == true
-  local anchorX
-  local firstCenterY
   if collapsed then
-    -- Collapsed: stack under the header strip (centered), not on the left edge.
-    anchorX = roundPixel((tonumber(hx) or 0) + hw * 0.5)
-    firstCenterY = hy + hh + HANDLE_OUTER_H * 0.5
-  else
-    anchorX = M.handleCenterXForWindowLeft(hx)
-    firstCenterY = hy + hh + HANDLE_GROUP_BELOW_HEADER + HANDLE_OUTER_H * 0.5
+    local colStep = HANDLE_OUTER_W + HANDLE_GROUP_ROW_GAP
+    local firstCenterX = roundPixel((tonumber(hx) or 0) + HANDLE_OUTER_W * 0.5)
+    local centerY = roundPixel(hy + hh + HANDLE_OUTER_H * 0.5 - 1)
+    local out = {}
+    for i = 0, count - 1 do
+      out[#out + 1] = {
+        cx = roundPixel(firstCenterX + i * colStep),
+        cy = centerY,
+      }
+    end
+    return out
   end
+  local anchorX = M.handleCenterXForWindowLeft(hx)
+  local firstCenterY = hy + hh + HANDLE_GROUP_BELOW_HEADER + HANDLE_OUTER_H * 0.5
   local out = {}
   for i = 0, count - 1 do
     out[#out + 1] = {
@@ -785,15 +785,10 @@ function M.romPaletteHasConsumers(paletteWin, wm)
   return #(targets or {}) > 0
 end
 
-local function drawLinkInnerAnimated(ix, iy, iw, ih, color)
+local function drawLinkInnerSolid(ix, iy, iw, ih, color)
   local c = color or colors.white
-  if not (images and images.pattern_c) then
-    love.graphics.setColor(c[1], c[2], c[3], c[4] or 1)
-    love.graphics.rectangle("fill", ix, iy, iw, ih)
-    return
-  end
   love.graphics.setColor(c[1], c[2], c[3], c[4] or 1)
-  Draw.drawRepeatingImageAnimated(images.pattern_c, math.floor(ix), math.floor(iy), iw, ih, LINK_INNER_ANIM)
+  love.graphics.rectangle("fill", ix, iy, iw, ih)
 end
 
 function M.drawPivotHandleChrome(cx, cy, chromeFillColor)
@@ -822,27 +817,18 @@ function M.drawPivotHandleInner(cx, cy, innerColor, pulseInner, chromeInkColor, 
   local idle = chromeInkColor or idleInnerColorForWindow(nil, nil)
 
   if innerSplit == "red_green" then
-    local halfW = math.floor(HANDLE_INNER_W * 0.5)
-    if pulseInner then
-      drawLinkInnerAnimated(ix, iy, halfW, HANDLE_INNER_H, colors.red)
-      drawLinkInnerAnimated(ix + halfW, iy, HANDLE_INNER_W - halfW, HANDLE_INNER_H, colors.green)
-    else
-      love.graphics.setColor(colors.red[1], colors.red[2], colors.red[3], 1)
-      love.graphics.rectangle("fill", ix, iy, halfW, HANDLE_INNER_H)
-      love.graphics.setColor(colors.green[1], colors.green[2], colors.green[3], 1)
-      love.graphics.rectangle("fill", ix + halfW, iy, HANDLE_INNER_W - halfW, HANDLE_INNER_H)
+    for row = 0, HANDLE_INNER_H - 1 do
+      for col = 0, HANDLE_INNER_W - 1 do
+        local cellColor = ((col + row) % 2 == 0) and colors.red or colors.green
+        drawLinkInnerSolid(ix + col, iy + row, 1, 1, cellColor)
+      end
     end
   else
     local baseInner = innerColor or idle
     if isInnerColorTransparent(baseInner) then
       return
     end
-    if pulseInner then
-      drawLinkInnerAnimated(ix, iy, HANDLE_INNER_W, HANDLE_INNER_H, baseInner)
-    else
-      love.graphics.setColor(baseInner[1], baseInner[2], baseInner[3], baseInner[4] or 1)
-      love.graphics.rectangle("fill", ix, iy, HANDLE_INNER_W, HANDLE_INNER_H)
-    end
+    drawLinkInnerSolid(ix, iy, HANDLE_INNER_W, HANDLE_INNER_H, baseInner)
   end
   love.graphics.setColor(colors.white)
 end
@@ -850,6 +836,48 @@ end
 function M.drawPivotHandle(cx, cy, innerColor, pulseInner, chromeFillColor, chromeInkColor, innerSplit)
   M.drawPivotHandleChrome(cx, cy, chromeFillColor)
   M.drawPivotHandleInner(cx, cy, innerColor, pulseInner, chromeInkColor, innerSplit)
+end
+
+local function isLinkHandleShadowEligible(win)
+  return win
+    and not win._closed
+    and not win._minimized
+    and win._groupHidden ~= true
+    and not WindowCaps.isCrtLens(win)
+end
+
+--- Rounded 7×7 silhouettes for the shared window-shadow blur pass (see core_controller_draw.drawAllWindowShadows).
+function M.drawHardShadowMasksForVisibleHandles(app, shadowOx, shadowOy)
+  if not app then
+    return
+  end
+  local state = M.prepareLinkDrawState(app)
+  if not state then
+    return
+  end
+  shadowOx = math.floor(tonumber(shadowOx) or 0)
+  shadowOy = math.floor(tonumber(shadowOy) or 0)
+  for _, handle in ipairs(state.handles or {}) do
+    if not isLinkHandleShadowEligible(handle.win) then
+      goto continue
+    end
+    if not WindowLinkVisibility.shouldShowSlot(app, handle.slot) then
+      goto continue
+    end
+    local ox, oy = M.getPivotHandleRect(handle.cx, handle.cy)
+    if ox then
+      love.graphics.rectangle(
+        "fill",
+        ox + shadowOx,
+        oy + shadowOy,
+        HANDLE_OUTER_W,
+        HANDLE_OUTER_H,
+        HANDLE_OUTER_RADIUS,
+        HANDLE_OUTER_RADIUS
+      )
+    end
+    ::continue::
+  end
 end
 
 local function patternConsumerAnchorSlot(win, layer)

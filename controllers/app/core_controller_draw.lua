@@ -988,6 +988,7 @@ local function drawAllWindowShadows(app)
   end
 
   drawHardShadowMasksForOpenContextMenus(app, shadowOx, shadowOy)
+  WindowLinkVisualController.drawHardShadowMasksForVisibleHandles(app, shadowOx, shadowOy)
 
   love.graphics.setBlendMode("alpha", "alphamultiply")
 
