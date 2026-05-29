@@ -52,6 +52,7 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
   - [E2E testing](#e2e-testing)
 - [Notes](#notes)
   - [Display resolution](#display-resolution)
+  - [Canvas scale and filter](#canvas-scale-and-filter)
   - [Built with LÖVE](#built-with-löve)
   - [Custom `love.run` loop](#custom-loverun-loop)
 
@@ -640,10 +641,26 @@ The entire UI is rendered to a **640×360** canvas (16:9). That base size is del
 
 Every UI pixel stays crisp. Use **`Ctrl + 1/2/3`** to switch between 1×, 2×, and 3× window scale, or resize the window freely. It is a detail I prioritized in the design: the interface stays sharp on real-world displays.
 
+### Canvas scale and filter
+
+Open **Settings** from the taskbar menu (**Appearance** tab) to control how the 640×360 workspace is presented on screen. These options persist across sessions and complement the window-scale shortcuts above.
+
+**Canvas scale** — how the workspace fits the OS window:
+
+- **Keep aspect** — scale uniformly to fill the window while preserving 16:9 (default)
+- **Pixel-perfect** — integer scaling only; may letterbox, but keeps UI pixels sharp
+- **Stretch** — fill the window on both axes; can distort if the window is not 16:9
+
+**Canvas filter** — how scaled pixels are sampled:
+
+- **Sharp** — nearest-neighbor filtering for crisp pixels (default)
+- **Soft** — linear filtering for a smoother upscale
+- **CRT** — barrel distortion and scanlines over the workspace
+
 ### Built with LÖVE
 
 PPUX is built with [LÖVE](https://love2d.org/) 11.5, the open-source 2D framework for Lua. Rendering, input, windowing, and the custom UI all run on top of it.
 
 ### Custom `love.run` loop
 
-Instead of LÖVE's default main loop, PPUX uses a custom `love.run` implementation. It keeps the familiar update/draw flow, but can run with lower latency when that matters—most noticeably during fast drag painting and other interactive editing, where per-frame mouse polling and tighter frame pacing make strokes feel more responsive. When that mode is off, the loop falls back to calmer pacing closer to stock LÖVE behavior.
+PPUX replaces LÖVE's default `love.run`. Each frame still runs update and draw, but the custom loop polls the mouse every frame while you paint, so fast drags do not drop strokes when the OS sends few mouse events. With that mode off, frame timing is closer to stock LÖVE.
