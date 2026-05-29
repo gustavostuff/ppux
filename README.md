@@ -663,4 +663,4 @@ PPUX is built with [LÖVE](https://love2d.org/) 11.5, the open-source 2D framewo
 
 ### Custom `love.run` loop
 
-PPUX uses a custom `love.run` instead of LÖVE's default. The loop is still update then draw each frame, but it can run with less delay during interactive editing—mainly by polling mouse movement every frame, which keeps fast drag painting from missing strokes. When that mode is off, pacing is closer to normal LÖVE.
+Instead of LÖVE's default main loop, PPUX uses a custom `love.run` implementation. It keeps the familiar update/draw flow, but can run with lower latency during interactive frames (e.g., when the user is dragging the brush), where per-frame mouse polling and tighter frame pacing make strokes feel more responsive. When that mode is off, the loop falls back to calmer pacing closer to stock LÖVE behavior.
