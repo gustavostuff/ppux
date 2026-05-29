@@ -51,6 +51,9 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
   - [Unit testing](#unit-testing)
   - [E2E testing](#e2e-testing)
 - [Notes](#notes)
+  - [Display resolution](#display-resolution)
+  - [Built with LÖVE](#built-with-löve)
+  - [Custom `love.run` loop](#custom-loverun-loop)
 
 ## Basic Usage
 
@@ -636,3 +639,11 @@ The entire UI is rendered to a **640×360** canvas (16:9). That base size is del
 - **6×** — 4K (3840×2160)
 
 Every UI pixel stays crisp. Use **`Ctrl + 1/2/3`** to switch between 1×, 2×, and 3× window scale, or resize the window freely. It is a detail I prioritized in the design: the interface stays sharp on real-world displays.
+
+### Built with LÖVE
+
+PPUX is built with [LÖVE](https://love2d.org/) 11.5, the open-source 2D framework for Lua. Rendering, input, windowing, and the custom UI all run on top of it.
+
+### Custom `love.run` loop
+
+Instead of LÖVE's default main loop, PPUX uses a custom `love.run` implementation. It keeps the familiar update/draw flow, but can run with lower latency when that matters—most noticeably during fast drag painting and other interactive editing, where per-frame mouse polling and tighter frame pacing make strokes feel more responsive. When that mode is off, the loop falls back to calmer pacing closer to stock LÖVE behavior.
