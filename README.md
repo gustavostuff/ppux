@@ -655,7 +655,7 @@ Open **Settings** from the taskbar menu (**Appearance** tab) to control how the 
 
 - **Sharp** — nearest-neighbor filtering for crisp pixels (default)
 - **Soft** — linear filtering for a smoother upscale
-- **CRT** — barrel distortion and scanlines over the workspace
+- **CRT** — barrel distortion and scanlines over the workspace (works best at 1080p and higher)
 
 ### Built with LÖVE
 
