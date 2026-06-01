@@ -40,6 +40,7 @@ end
 return function(AppCoreController)
 local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
 local Shared = require("controllers.app.core_controller_shared")
+local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
 local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 local BankViewController = require("controllers.chr.bank_view_controller")
 -- Find the active global palette window (non-ROM) and return its first color,
@@ -898,10 +899,9 @@ local function drawHardShadowMasksForOpenContextMenus(app, ox, oy)
 end
 
 --- Hard mask -> separable blur -> single premultiplied composite (no extra darkening where silhouettes overlap).
---- All base silhouettes are rasterized into shadowMaskCanvas first; menus use the same pass as windows/chrome.
-local function drawAllWindowShadows(app)
+local function runBlurredShadowMaskPass(app, maskDrawerFn)
   if app.windowShadowEnabled == false then
-    return
+    return false
   end
 
   local strength = tonumber(app.windowShadowStrength)
@@ -910,7 +910,7 @@ local function drawAllWindowShadows(app)
   end
   strength = math.max(0, math.min(1, strength))
   if strength <= 0 then
-    return
+    return false
   end
 
   local blurT = normalizedWindowShadowBlurT(app)
@@ -921,22 +921,17 @@ local function drawAllWindowShadows(app)
   if useGaussianBlur then
     blurH, blurV = resolveShadowBlurShaders()
     if not blurH or not blurV then
-      return
+      return false
     end
   else
     maskComposite = resolveWindowShadowMaskCompositeShader()
     if not maskComposite then
-      return
+      return false
     end
   end
 
   if not ensureShadowMaskCanvases(app) then
-    return
-  end
-
-  local wm = app.wm
-  if not wm or not wm.getWindows then
-    return
+    return false
   end
 
   local cw, ch = shadowCanvasW, shadowCanvasH
@@ -962,33 +957,7 @@ local function drawAllWindowShadows(app)
   local shadowOx, shadowOy = windowShadowPixelOffsets(app)
   shadowOx = math.floor(shadowOx + 1e-6)
   shadowOy = math.floor(shadowOy + 1e-6)
-  for _, w in ipairs(wm:getWindows()) do
-    if not w or w._closed or w._minimized or w._groupHidden == true then
-      goto shadow_continue
-    end
-    if WindowCaps.isCrtLens(w) then
-      goto shadow_continue
-    end
-    drawHardShadowRectsForWindow(app, w, wm)
-    ::shadow_continue::
-  end
-
-  -- Base silhouettes (max blend): windows, top/taskbar strips, then open menus - then one blur/composite pass.
-  do
-    local topH = AppTopToolbarController.getContentOffsetY(app)
-    if type(topH) == "number" and topH > 0 then
-      drawHardShadowRoundedFill(shadowOx, shadowOy, cw, topH)
-    end
-    local tbH = (app.taskbar and tonumber(app.taskbar.h)) or UiScale.taskbarHeight()
-    tbH = math.max(0, tbH)
-    local tbY = ch - tbH
-    if tbH > 0 and tbY >= 0 then
-      drawHardShadowRoundedFill(shadowOx, tbY + shadowOy, cw, tbH)
-    end
-  end
-
-  drawHardShadowMasksForOpenContextMenus(app, shadowOx, shadowOy)
-  WindowLinkVisualController.drawHardShadowMasksForVisibleHandles(app, shadowOx, shadowOy)
+  maskDrawerFn(shadowOx, shadowOy, cw, ch)
 
   love.graphics.setBlendMode("alpha", "alphamultiply")
 
@@ -1024,6 +993,69 @@ local function drawAllWindowShadows(app)
   end
 
   love.graphics.pop()
+  return true
+end
+
+--- All base silhouettes are rasterized into shadowMaskCanvas first; menus use the same pass as windows/chrome.
+local function drawAllWindowShadows(app)
+  local wm = app.wm
+  if not wm or not wm.getWindows then
+    return
+  end
+
+  runBlurredShadowMaskPass(app, function(shadowOx, shadowOy, cw, ch)
+    for _, w in ipairs(wm:getWindows()) do
+      if not w or w._closed or w._minimized or w._groupHidden == true then
+        goto shadow_continue
+      end
+      if WindowCaps.isCrtLens(w) then
+        goto shadow_continue
+      end
+      drawHardShadowRectsForWindow(app, w, wm)
+      ::shadow_continue::
+    end
+
+    local topH = AppTopToolbarController.getContentOffsetY(app)
+    if type(topH) == "number" and topH > 0 then
+      drawHardShadowRoundedFill(shadowOx, shadowOy, cw, topH)
+    end
+    local tbH = (app.taskbar and tonumber(app.taskbar.h)) or UiScale.taskbarHeight()
+    tbH = math.max(0, tbH)
+    local tbY = ch - tbH
+    if tbH > 0 and tbY >= 0 then
+      drawHardShadowRoundedFill(shadowOx, tbY + shadowOy, cw, tbH)
+    end
+
+    drawHardShadowMasksForOpenContextMenus(app, shadowOx, shadowOy)
+    WindowLinkVisualController.drawHardShadowMasksForVisibleHandles(app, shadowOx, shadowOy)
+  end)
+end
+
+local function drawHardShadowMasksForVisibleModals(app, canvas, shadowOx, shadowOy)
+  for _, key in ipairs(Shared.APP_MODAL_KEYS_IN_ORDER) do
+    local modal = app[key]
+    local x, y, w, h = ModalPanelUtils.modalPanelShadowRect(modal, canvas)
+    if x then
+      local L, T, W, H = pixelEnvelope(x, y, w, h)
+      if W > 0 and H > 0 then
+        drawHardShadowRoundedFill(L + shadowOx, T + shadowOy, W, H)
+      end
+    end
+  end
+end
+
+--- Blurred drop shadows for centered modals (same settings as window shadows; drawn above workspace content).
+local function drawAllModalShadows(app)
+  if not Shared.anyModalVisible(app) then
+    return
+  end
+  local canvas = app.canvas
+  if not canvas then
+    return
+  end
+  runBlurredShadowMaskPass(app, function(shadowOx, shadowOy)
+    drawHardShadowMasksForVisibleModals(app, canvas, shadowOx, shadowOy)
+  end)
 end
 
 local crtLensDrawShaderCached = nil
@@ -1829,6 +1861,7 @@ local function drawToasts(app)
 end
 
 local function drawOverlays(app)
+  drawAllModalShadows(app)
   if app.newWindowTypeModal then
     app.newWindowTypeModal:draw(app.canvas)
   end
@@ -1971,6 +2004,7 @@ function AppCoreController:draw()
     if self.tooltipController and self.canvas then
       self.tooltipController:draw(self.canvas:getWidth(), self.canvas:getHeight())
     end
+    drawAllModalShadows(self)
     if self.pressEscAgainExitModal then
       self.pressEscAgainExitModal:draw(self.canvas)
     end

@@ -62,6 +62,49 @@ function M.centerPanel(panel, canvas)
   return x, y, panel.w, panel.h
 end
 
+--- Sync an existing modal panel from modal fields without rebuilding (safe for shadow-mask layout).
+function M.syncLivePanelLayoutFromModal(modal)
+  if not modal or not modal.panel then
+    return
+  end
+  M.refreshTargetMetrics(modal)
+  local panel = modal.panel
+  if modal.cellW ~= nil then panel.cellW = modal.cellW end
+  if modal.cellH ~= nil then panel.cellH = modal.cellH end
+  if modal.padding ~= nil then panel.padding = modal.padding end
+  local spacingX = modal.buttonGap or modal.colGap
+  if spacingX ~= nil then panel.spacingX = spacingX end
+  if modal.rowGap ~= nil then panel.spacingY = modal.rowGap end
+  if modal.cellPaddingX ~= nil then panel.cellPaddingX = modal.cellPaddingX end
+  if modal.cellPaddingY ~= nil then panel.cellPaddingY = modal.cellPaddingY end
+  if modal.title ~= nil then panel.title = modal.title end
+  if modal.titleH ~= nil then panel.titleH = modal.titleH end
+  if modal.bgColor ~= nil then panel.bgColor = modal.bgColor end
+  if modal.titleBgColor ~= nil then panel.titleBgColor = modal.titleBgColor end
+  M.syncPanelChrome(panel, modal)
+  if type(panel.updateLayout) == "function" then
+    panel:updateLayout()
+  end
+end
+
+--- Centered panel bounds in canvas space for drop-shadow masks (uses window shadow settings at draw time).
+function M.modalPanelShadowRect(modal, canvas)
+  if not modal or not modal.isVisible or not modal:isVisible() then
+    return nil
+  end
+  local panel = modal.panel
+  if not panel then
+    return nil
+  end
+  M.syncLivePanelLayoutFromModal(modal)
+  M.centerPanel(panel, canvas)
+  local x, y, w, h = panel:chromeEnvelopeRectPx()
+  if (w or 0) <= 0 or (h or 0) <= 0 then
+    return nil
+  end
+  return x, y, w, h
+end
+
 function M.drawBackdrop(canvas)
   if M.MODAL_BACKDROP_ENABLED ~= true then
     return
