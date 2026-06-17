@@ -2,7 +2,7 @@
 
 Open Source NES Art Editor
 
-Beta 0.1.4
+Beta 0.1.5
 
 <img src="img/readme_images/app_example.png" alt="">
 
@@ -172,8 +172,8 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 6. **Toggle origin guides** - **Shift + right-drag** on the canvas moves the sprites origin
 7. **Copy from previous layer**
 8. **Play / Pause** - `P` key
-9. **Pattern table** - link all frames to a **Pattern table** window (**required** for sprite CHR)
-10. **Palette link handle** - rightmost; same source linking behavior as other toolbars’ connect controls.
+9. **Pattern table link** - left-click for a menu to link or unlink a **Pattern table** window for **all frames** at once (**required** for sprite CHR). Turns **green** when every frame shares the same link.
+10. **Palette link handle** - rightmost; same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
 
 #### Global palette toolbar
 
@@ -201,7 +201,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 2. **Next layer** - `Shift` + `Up` key
 3. **Nametable range** - compressed nametable **start/end** ROM addresses
 4. **Add sprite** - creates sprite layer if needed, otherwise adds a sprite
-5. **Pattern table** - link the **tile** and/or **sprite** layer to a **Pattern table** window (edit ranges on that window; PPU layers consume the shared map)
+5. **Pattern table link** - left-click for a menu to link **Pattern table** windows to the **tile** layer, **sprite** layer, or both (**required** for nametable and sprite CHR). Turns **green** when at least one layer is linked. Tile/sprite layers consume the linked map; **ranges** are edited on the **Pattern table** window (see [Pattern table toolbar](#pattern-table-toolbar)), not here.
 6. **Toggle origin guides** - available on sprite layers
 
 ### Palette windows
@@ -363,7 +363,7 @@ Best practice: keep the base ROM, edited ROM, and project files in the same fold
 
 ### PPU frame windows
 
-`ppu_frame` windows are structured screen views: a **tile** layer backed by compressed nametable data in ROM, plus an optional **sprite** overlay that tracks real OAM bytes. Logical CHR mapping lives on a separate **`pattern_table`** window, **linked** from the PPU frame.
+`ppu_frame` windows are structured screen views: a **tile** layer backed by compressed nametable data in ROM, plus an optional **sprite** overlay that tracks real OAM bytes. Link **Pattern table** windows from the toolbar so the tile layer, sprite layer, or both can resolve CHR through shared **`patternTable.ranges`**. The same **Pattern table** window can be linked from multiple PPU frames or OAM animation windows.
 
 Use **New Window > PPU Frame** and the in-app toolbars / context menus to edit nametables and sprites; saving the project persists layer state and nametable diffs.
 
@@ -390,9 +390,7 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
 * For **sprites**, use **Add sprite** on the toolbar to bind OAM entries. Sprite items that share the same `startAddr` **stay in sync** with **OAM Animation** windows (and other PPU Frame sprite layers) so moving or reconfiguring one updates the linked entries.
 * **Nametable range sync:** PPU Frame windows that share the same `nametableStartAddr` and `nametableEndAddr` keep their uncompressed nametable + attribute bytes (and ROM slice) aligned when you edit the tile layer in any one of them - similar to sprite `startAddr` sync.
 * **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. When you are not dragging, **right-click** behaves like elsewhere (in **edit mode** over paintable pixels, **Alt + right-click** opens the menu if you want the menu instead of sampling a color - see [Edit mode](#edit-mode)).
-* **Pattern preview** (toolbar): read-only overlay of the **linked** pattern map; tile/sprite layers are hidden from navigation and `Ctrl + Up/Down` inactive-layer opacity is disabled.
-* **Ranges** are edited on the **Pattern table** window; after changes, use **Pattern preview** on the PPU frame to inspect the combined map.
-* **Pattern hover**: in **Pattern preview**, hovering a logical cell highlights all tiles in the same range with a translucent overlay.
+* **Pattern table ranges** live on the linked **Pattern table** window (**Add tile range** on that toolbar). After editing ranges there, the PPU frame picks up the shared map through its link.
 
 **Project file sketch** (what the UI ultimately saves) - useful when diffing projects or contributing DB entries:
 
@@ -432,7 +430,7 @@ PPUX currently includes one nametable codec implementation aimed at Konami-style
 
 ### OAM animation windows
 
-`oam_animation` windows are ROM-backed sprite animations: **each layer is one hardware frame** of sprites tied to real OAM bytes.
+`oam_animation` windows are ROM-backed sprite animations: **each layer is one hardware frame** of sprites tied to real OAM bytes. Like PPU frames, they **require** a linked **Pattern table** window for sprite CHR; multiple animation or PPU windows can share the same pattern table.
 
 **Creating and editing from the UI**
 
