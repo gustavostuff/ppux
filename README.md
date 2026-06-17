@@ -103,22 +103,22 @@ The App toolbar sits at the top and hosts global quick actions; it also reserves
 
 <img src="img/readme_images/toolbars/app_toolbar.png" alt="App toolbar">
 
-With a ROM (or project workspace) **loaded**, quick buttons appear **left to right** in this order:
+With no ROM loaded, only **Open project** appears on the strip. After a ROM or project workspace is loaded, quick buttons appear **left to right** in this order:
 
 1. **New window** - opens the new window creation flow (`Ctrl + N`)
 2. **Open project** - `Ctrl + O`
 3. **Save options** - `Ctrl + S` (save / export flows)
-4. **Copy** - copies the selected items (Tile mode only)
-5. **Cut** - `Ctrl + X`
-6. **Paste** - `Ctrl + V`
-7. **Zoom out** - steps zoom on the **focused** window (palette windows are skipped); matches **Ctrl + wheel** down behavior
+4. **Copy** - copies the current selection (`Ctrl + C` in **tile mode** only; works on tile or sprite layers where clipboard is allowed; blocked on PPU Frame and OAM Animation sprite layers)
+5. **Cut** - `Ctrl + X` (tile mode only for keyboard shortcuts)
+6. **Paste** - `Ctrl + V` (tile mode only for keyboard shortcuts)
+7. **Zoom out** - steps zoom on the **focused** window (palette windows and CRT lens windows are skipped); matches **Ctrl + wheel** down behavior
 8. **Zoom in** - **Ctrl + wheel** up on the focused window
-9. **Mirror X** - toggles horizontal mirror preview in the **focused** window (where supported). Shortcut: **`M`** (no modifiers). **CHR / ROM bank** and **pattern table** windows also use **`Ctrl + M`** for **8×8 vs 8×16 pair layout** (same cell size as CHR banks); see their toolbars below.
-10. **Always on top** - toggles whether the **focused** window stays above others. Also available from the window’s title-bar menu.
-11. **Add column to the right** - for windows with a resizable tile/sprite **grid**; hold **Shift** to switch the same control to **Remove last column** (tooltip updates)
-12. **Add row below** - **Shift** switches to **Remove last row**
+9. **Mirror X** - toggles horizontal mirror preview in the **focused** window (where supported; disabled for CRT lens windows). Shortcut: **`M`** (no modifiers). **CHR / ROM bank** and **pattern table** windows also use **`Ctrl + M`** for **8×8 vs 8×16 pair layout** (same cell size as CHR banks); see their toolbars below.
+10. **Always on top** - toggles whether the **focused** window stays above others (disabled for CRT lens windows). Also available from the window’s title-bar menu.
+11. **Add column to the right** - on grid-resizable layout windows only; hold **Shift** to switch the same control to **Remove last column** (tooltip updates)
+12. **Add row below** - on grid-resizable layout windows only; **Shift** switches to **Remove last row**
 13. **Clone focused window** - duplicate the current window’s kind and state where supported
-14. **Reference PNG** - add or remove a reference image for supported windows (`Alt + R` toggles visibility while a reference is attached; confirm to remove)
+14. **Reference PNG** - add or remove a reference image on eligible **layout** windows (not CHR/ROM banks or palette windows). **`Alt + R`** toggles visibility while a reference is attached; removing uses the button and a confirm dialog.
 
 #### CHR Banks toolbar
 
@@ -135,22 +135,22 @@ With a ROM (or project workspace) **loaded**, quick buttons appear **left to rig
 
 <img src="img/readme_images/toolbars/rom_banks_toolbar.png" alt="ROM Banks specialized toolbar">
 
-Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface makes that unsafe). Keyboard: **`Ctrl + M`** for **tile layout**; **`M`** for **Mirror X**.
+Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface makes that unsafe). Keyboard: **`Left`/`Right`** for banks, **`Ctrl + M`** for **tile layout**, **`M`** for **Mirror X**, **`D`** for **diff vs loaded CHR**.
 
 #### Pattern table toolbar
 
 <img src="img/readme_images/toolbars/pattern_table_toolbar.png" alt="Pattern table specialized toolbar">
 
-1. **Tile layout (8×8 / 8×16)** - straight `8×8` rows vs paired `8×16` layout - **`Ctrl + M`** (same cell-size convention as CHR / ROM banks).
-2. **Pattern table link (source)** - left-click for a menu: jump to linked **PPU Frame** / **OAM Animation** layers, or remove all links from this pattern table. Turns **green** when at least one consumer layer is linked.
+1. **Tile layout (8×8 / 8×16)** - straight `8×8` rows vs paired `8×16` layout - **`Ctrl + M`** (same cell-size convention as CHR / ROM banks). Disabled when the pattern table has no active tile layer.
+2. **Pattern table link (source)** - left-click for a menu: jump to linked consumer layer(s), or remove all links from this pattern table. Turns **green** when at least one consumer layer is linked.
 
-Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks** windows onto the pattern table canvas (not a toolbar button). Ranges must add up to **256** tiles for a complete map.
+Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks** windows onto the pattern table canvas (not a toolbar button). Ranges must add up to **256** tiles for a complete map. Right-click a mapped cell for **Remove tile range at this tile**. Clipboard cut/paste is not available on pattern table windows.
 
 #### Static Art (tiles and sprites) toolbar
 
 <img src="img/readme_images/toolbars/static_tiles_toolbar.png" alt="Static Art tiles/sprites specialized toolbar">
 
-1. **Palette link handle** - right-click drag onto a **ROM palette** window, or from the ROM palette's handle onto this window. Left click to link via a menu.
+1. **Palette link handle** - right-drag onto a **ROM palette** window, or from the ROM palette's handle onto this window. Left-click to link via a menu. Turns **green** when linked.
 
 #### Animation toolbar (for both sprites and tiles)
 
@@ -158,10 +158,10 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 
 1. **Previous layer** - `Shift` + `Down` key
 2. **Next layer** - `Shift` + `Up` key
-3. **Remove layer** - only when more than one frame exists - `-` key
+3. **Remove layer** - `-` key; refuses when only one frame remains (button stays visible)
 4. **Add layer** - `+` key
 5. **Copy from previous layer**
-6. **Play / Pause** - `P` key (any case)
+6. **Play / Pause** - `P` key (any case); layer switching is blocked while playing
 7. **Palette link handle** - rightmost; same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
 
 
@@ -171,14 +171,16 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 
 1. **Previous layer** - `Shift` + `Down` key
 2. **Next layer** - `Shift` + `Up` key
-3. **Remove layer** - `-` key
+3. **Remove layer** - `-` key; refuses when only one frame remains (button stays visible)
 4. **Add layer** - `+` key
-5. **Add sprite**
-6. **Toggle origin guides** - **Shift + right-drag** on the canvas moves the sprites origin
+5. **Add sprite** - visible when the active layer is a sprite layer
+6. **Toggle origin guides** - toggles dotted reference lines (visible when a sprite layer exists and is active)
 7. **Copy from previous layer**
-8. **Play / Pause** - `P` key
+8. **Play / Pause** - `P` key; layer switching is blocked while playing
 9. **Pattern table link** - left-click for a menu to link or unlink a **Pattern table** window for **all frames** at once (**required** for sprite CHR). Turns **green** when every frame shares the same link.
 10. **Palette link handle** - rightmost; same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
+
+**Shift + right-drag** on the canvas moves sprite `originX` / `originY` (same as PPU Frame sprite layers).
 
 #### Global palette toolbar
 
@@ -187,7 +189,7 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 1. **Previous grouped slot** (when Grouped palettes is enabled)
 2. **Next grouped slot** (when Grouped palettes is enabled)
 3. **Compact / normal view**
-4. **Set as active palette** - for painting where no ROM palette applies
+4. **Set as active palette** - for painting where no ROM palette applies; if already active, clicking again does nothing. Use this before keyboard color editing on **global** palettes.
 
 #### ROM palette toolbar
 
@@ -196,7 +198,7 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 1. **Previous grouped slot** (when Grouped palettes is enabled)
 2. **Next grouped slot** (when Grouped palettes is enabled)
 3. **Compact / normal view**
-4. **Palette link handle (source)** - right click to drag link or left click to set link via menus.
+4. **Palette link handle (source)** - right-drag to link layers onto destinations, or left-click for a menu. Turns **green** when linked layers are attached.
 
 #### PPU Frame toolbar
 
@@ -206,8 +208,8 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 2. **Next layer** - `Shift` + `Up` key
 3. **Nametable range** - compressed nametable **start/end** ROM addresses
 4. **Add sprite** - creates sprite layer if needed, otherwise adds a sprite
-5. **Pattern table link** - left-click for a menu to link **Pattern table** windows to the **tile** layer, **sprite** layer, or both (**required** for nametable and sprite CHR). Turns **green** when at least one layer is linked. Tile/sprite layers consume the linked map; **ranges** are edited on the **Pattern table** window (see [Pattern table toolbar](#pattern-table-toolbar)), not here.
-6. **Toggle origin guides** - available on sprite layers
+5. **Pattern table link** - left-click for a menu with separate **background** and **sprites** submenus to link **Pattern table** windows (**required** for nametable and sprite CHR). Turns **green** when at least one layer is linked. Tile/sprite layers consume the linked map; **ranges** are edited on the **Pattern table** window (see [Pattern table toolbar](#pattern-table-toolbar)), not here.
+6. **Toggle origin guides** - hidden until a sprite layer exists; toggles dotted reference lines on sprite layers
 
 ### Palette windows
 
@@ -223,9 +225,8 @@ In practice:
 * If an item or layer has no ROM palette assigned, it uses a `Global palette`.
 * If you want the colors to reflect actual game palette bytes, use a `ROM palette`.
 * Only `ROM palette` windows are meant to be explicitly linked to other windows.
-* Palette row numbers `1` to `4` (in keyboard) select the row used by layers/items that support palette-number selection.
 * Click a color to select it for editing/painting.
-* In palette windows, arrow keys move the selected cell.
+* In palette windows, arrow keys move the selected cell. For **global** palettes, set the palette as **active** (toolbar) before arrow/wheel color editing; **ROM** palettes do not require that step.
 * `Shift + arrows`, mouse wheel, and `Shift + mouse wheel` adjust colors.
 
 |                | Normal mode | Compact mode |
@@ -235,23 +236,23 @@ In practice:
 
 **Creating a link**
 
-* Drag (right click) from a **ROM palette** window's connect handle and release over a destination window, **or**
+* Drag (right-drag) from a **ROM palette** window's connect handle and release over a destination window, **or**
 * Drag from a **destination** window's connect handle (**Static Art**, **Animation** tiles/sprites, **OAM Animation**, etc.) and release over a **ROM palette** window, **or**
-* Use left click for contextual menus
+* Use left-click for contextual menus (**Link To Palette**, **Remove ROM palette link**, **Jump to linked palette**, etc.)
 
 ### Main controls
 
-- `Ctrl + 1/2/3`: change app scale
+- `Ctrl + 1/2/3`: set **focused window** content zoom to 1×, 2×, or 3× (palette windows and collapsed headers skipped)
 - `Ctrl + Page Up` / `Ctrl + Page Down`: cycle which **global** (**non-ROM**) palette is active - ROM palette windows are not cycled (same effect as “Set as active palette” on a global palette window; does not focus palette windows). When **Grouped palettes** is on, the grouped **global** slot (which palette is shown) stays in sync; needs at least two global palette windows
 - `Ctrl + F`: toggle fullscreen
 - `Ctrl + N`: open `New Window`
 - `Ctrl + S`: open save options
 - `Tab`: toggle `Tile` / `Edit` mode
-- `Space` (hold): **mapping highlight** - when a non-CHR/ROM layout window is focused, highlights tiles or sprites in the active layer that match the tile indices in the **current CHR/ROM bank**; matching cells are also emphasized in CHR/ROM bank windows for the same bank. Release `Space` to turn it off.
+- `Space`: toggle **mapping highlight** - when a non-CHR/ROM layout window is focused, highlights tiles or sprites in the active layer that match the tile indices in the **current CHR/ROM bank**; matching cells are also emphasized in CHR/ROM bank windows for the same bank. On **PPU Frame**, this works on the **sprite** layer only, not the nametable tile layer. Press `Space` again to turn it off.
 - `Ctrl + G`: toggle the focused window grid
 - `Ctrl + R`: toggle shader rendering for the focused layer
-- `Ctrl + Z` / `Ctrl + Y`: undo / redo (see [Undo and redo](#undo-and-redo) for what is recorded)
-- `Ctrl + C` / `Ctrl + X` / `Ctrl + V`: copy / cut / paste selection
+- `Ctrl + Z` / `Ctrl + Y`: undo / redo
+- `Ctrl + C` / `Ctrl + X` / `Ctrl + V`: copy / cut / paste selection (**tile mode** only for keyboard shortcuts)
 - In `ppu_frame` and `oam_animation` windows, clipboard actions are blocked **on sprite** layers
 - `Right click` or `middle click` drag: move windows
 - taskbar: focus, restore, and manage windows
@@ -266,13 +267,13 @@ Tile mode is for selection, drag and drop and tile-level editing in general.
 - `Ctrl + click` or `Shift + drag` for multi-selection
 - `Ctrl + A` to select all
 - `Delete` / `Backspace` to remove selection where supported
-- arrows to move tile selections
+- arrows to move tile selections among **occupied** cells
 - `Shift + Up/Down` to switch layers in **multi-layer** windows (animations, PPU Frame, OAM Animation, etc.): **`Up` = next layer, `Down` = previous**. **Static Art** windows stay single-layer and do not use layer switching shortcuts.
 - `Ctrl + Up/Down` to change inactive-layer opacity
-- `1` to `4` to assign palette numbers where supported
+- `1` to `4` to assign palette numbers to tiles/sprites where supported
 - `H` / `V` to mirror selected sprites
 - Bank windows: `Left/Right` switch banks, **`Ctrl + M`** toggles `8x8` / `8x16` layout, **`M`** toggles **Mirror X**, `D` toggles **diff vs loaded CHR** (`8x16` pairs highlight as one unit when either half differs)
-- With a layout window focused, hold **`Space`** to cross-highlight matching tiles in the **current CHR/ROM bank** (see [Main controls](#main-controls)).
+- With a layout window focused, press **`Space`** to toggle cross-highlighting of matching tiles in the **current CHR/ROM bank** (see [Main controls](#main-controls)).
 
 ### Edit mode
 
@@ -291,11 +292,11 @@ Edit mode is for pixel-level editing.
 - `Ctrl + Alt + mouse wheel` also changes brush size
 - `Ctrl + R` toggles shader rendering for the focused layer
 - `Ctrl + G` toggles the focused window grid
-- `Ctrl + Z` / `Ctrl + Y`: undo / redo (same stack as [Undo and redo](#undo-and-redo))
+- `Ctrl + Z` / `Ctrl + Y`: undo / redo
 
 ### PNG drops
 
-You can drag and drop a PNG directly into PPUX. The drop is always applied to the window **under the mouse**. If the pointer is not over any window, the **focused** window is used as the drop target instead.
+You can drag and drop a PNG directly into PPUX. Requires a loaded ROM (or project workspace with ROM backing). The drop is always applied to the window **under the mouse**. If the pointer is not over any window, the **focused** window is used as the drop target instead.
 
 Sprite PNG import (Static Art, Animation, OAM Animation, or **PPU Frame with the sprite layer active**):
 
@@ -417,7 +418,7 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
       linkedPatternTableWindowId = "pattern_table_02",
       mode = "8x16",
       items = {
-        { startAddr = 0x009F2B, bank = 4, tile = 238 },
+        { startAddr = 0x009F2B },  -- optional legacy: bank, tile
         ...
       }
     },
@@ -427,7 +428,7 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
 
 In tile layers, `nametableStartAddr` and `nametableEndAddr` define the ROM byte range used for the nametable data handled by that window (it's the same bytes read by an emulator when loading a specific nametable). The app reads from that range when loading the screen data, and writes back into the same range when saving changes. CHR **bank/page** indexing for nametable tiles comes from the linked **`pattern_table`** window (**`linkedPatternTableWindowId`**, its **`patternTable.ranges`**); inlined **`patternTable`** on the tile layer remains for legacy saves.
 
-For sprite layers, `startAddr` is the most important field because it links the item to the 4 OAM bytes in ROM. The app uses byte 1 for Y position, byte 3 for attributes/palette/mirroring, and byte 4 for X position directly through the app UI. Byte 2 is the tile byte in ROM; the editor resolves visible CHR using the layer's **`linkedPatternTableWindowId`** (same idea as OAM). **`bank` and `tile` on each sprite item** still identify the source tile in the UI when present.
+For sprite layers, `startAddr` is the most important field because it links the item to the 4 OAM bytes in ROM. The app uses byte 1 for Y position, byte 3 for attributes/palette/mirroring, and byte 4 for X position directly through the app UI. Byte 2 is the tile byte in ROM; the editor resolves visible CHR using the layer's **`linkedPatternTableWindowId`** (same idea as OAM). Optional **`bank` and `tile`** on each sprite item can still appear in saved projects for legacy or display resolution.
 
 ### Current nametable codec coverage
 
@@ -440,8 +441,8 @@ PPUX currently includes one nametable codec implementation aimed at Konami-style
 **Creating and editing from the UI**
 
 1. Open **New Window** and choose **OAM Animation**.
-2. Link a **Pattern table** window from the toolbar (**required** for sprite CHR), then use **Add sprite** and the frame/layer controls to build each frame; ROM addresses and tiles are chosen inside the modals rather than by editing Lua by hand.
-3. Frames can be **played** from the toolbar like other animation windows; layer edits are blocked while playback is running.
+2. Link a **Pattern table** window from the toolbar (**required** for sprite CHR), then use **Add sprite** and the frame/layer controls to build each frame. **OAM start address** is set in the add-sprite modal; CHR comes from the linked pattern table (no per-sprite bank/tile fields in the modal).
+3. Frames can be **played** from the toolbar like other animation windows; layer **switching** (`Shift+Up/Down`, toolbar prev/next) is blocked during playback.
 4. Items that share a `startAddr` **sync** with **PPU Frame** sprite layers (and other OAM windows) so OAM edits stay consistent everywhere that references the same bytes.
 5. **Origin** and **origin guides** behave like PPU Frame sprite layers: **Shift + right-click drag** moves `originX` / `originY`; the dotted-line button toggles guides.
 
@@ -457,7 +458,7 @@ PPUX currently includes one nametable codec implementation aimed at Konami-style
       linkedPatternTableWindowId = "pattern_table_oam_01",
       mode = "8x16",
       items = {
-        { startAddr = 0x0095FA, bank = 1, tile = 256 },
+        { startAddr = 0x0095FA },
         ...
       }
     },
@@ -472,7 +473,7 @@ Important fields are frame timing (`delaysPerLayer`), sprite frames (`layers`), 
 
 `rom_palette` windows are `4x4` palette editors backed directly by ROM addresses.
 
-Use the **connect button** on the ROM palette toolbar to drag links onto layers, and **right-click** it for source-side management (**Jump To Linked Layer**, **Move All Links To**, **Remove all links**). Toggle **compact mode** from the same toolbar when you want a denser view. Destination windows still use their own connect handle plus the contextual **Link to palette** / **Remove ROM palette link** entries documented in [Palette windows](#palette-windows).
+Use the **connect button** on the ROM palette toolbar to right-drag links onto layers, and **left-click** it for source-side management (**Jump to linked layer**, **Remove all links**). Turns **green** when linked. Toggle **compact mode** from the same toolbar when you want a denser view. Destination windows still use their own connect handle plus the contextual **Link To Palette** / **Remove ROM palette link** entries documented in [Palette windows](#palette-windows).
 
 Example:
 
@@ -502,7 +503,7 @@ paletteData = {
 }
 ```
 
-The referenced window must exist elsewhere in the same `windows` array and will be used as the palette source.
+The referenced window should exist elsewhere in the same `windows` array for correct palette resolution; missing IDs may fall back to inline palette data in legacy projects.
 
 ### ROM patches
 
@@ -627,7 +628,7 @@ Run a single scenario:
 
 See [E2E Testing](docs/test/E2E_TESTING.md) for scenario details and options.
 
-:white_check_mark: All 748 unit tests passing.
+:white_check_mark: All 794 unit tests passing.
 
 :white_check_mark: All 24 E2E tests passing.
 
@@ -642,11 +643,11 @@ The entire UI is rendered to a **640×360** canvas (16:9). That base size is del
 - **4×** — 1440p (2560×1440)
 - **6×** — 4K (3840×2160)
 
-Every UI pixel stays crisp. Use **`Ctrl + 1/2/3`** to switch between 1×, 2×, and 3× window scale, or resize the window freely. It is a detail I prioritized in the design: the interface stays sharp on real-world displays.
+Every UI pixel stays crisp when the OS window is sized to those integer multiples. Resize the window freely; use **Settings → Appearance → Canvas scale** to control how the 640×360 workspace fits the monitor (see below). Use **`Ctrl + 1/2/3`** to set **focused window** content zoom (1×, 2×, 3×), not canvas presentation scale.
 
 ### Canvas scale and filter
 
-Open **Settings** from the taskbar menu (**Appearance** tab) to control how the 640×360 workspace is presented on screen. These options persist across sessions and complement the window-scale shortcuts above.
+Open **Settings** from the taskbar menu (**Appearance** tab) to control how the 640×360 workspace is presented on screen. These options persist across sessions.
 
 **Canvas scale** — how the workspace fits the OS window:
 
@@ -659,6 +660,11 @@ Open **Settings** from the taskbar menu (**Appearance** tab) to control how the 
 - **Sharp** — nearest-neighbor filtering for crisp pixels (default)
 - **Soft** — linear filtering for a smoother upscale
 - **CRT** — barrel distortion and scanlines over the workspace (works best at 1080p and higher)
+
+Other **Appearance** options:
+
+- **Window links** — when to show on-canvas ROM palette / pattern-table link lines and left-edge pivot handles (`never`, `on_hover`, `always`, `auto_hide`)
+- **Separate toolbar** — detach specialized toolbars from window headers
 
 ### Built with LÖVE
 
