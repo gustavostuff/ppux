@@ -139,7 +139,12 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 #### Pattern table toolbar
 
-1. **Add tile range** - Add logical ranges from CHR/ROM banks window (to mimic actual pattern tables)
+<img src="img/readme_images/toolbars/pattern_table_toolbar.png" alt="Pattern table specialized toolbar">
+
+1. **Tile layout (8×8 / 8×16)** - straight `8×8` rows vs paired `8×16` layout - **`Ctrl + M`** (same cell-size convention as CHR / ROM banks).
+2. **Pattern table link (source)** - left-click for a menu: jump to linked **PPU Frame** / **OAM Animation** layers, or remove all links from this pattern table. Turns **green** when at least one consumer layer is linked.
+
+Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks** windows onto the pattern table canvas (not a toolbar button). Ranges must add up to **256** tiles for a complete map.
 
 #### Static Art (tiles and sprites) toolbar
 
@@ -390,7 +395,7 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
 * For **sprites**, use **Add sprite** on the toolbar to bind OAM entries. Sprite items that share the same `startAddr` **stay in sync** with **OAM Animation** windows (and other PPU Frame sprite layers) so moving or reconfiguring one updates the linked entries.
 * **Nametable range sync:** PPU Frame windows that share the same `nametableStartAddr` and `nametableEndAddr` keep their uncompressed nametable + attribute bytes (and ROM slice) aligned when you edit the tile layer in any one of them - similar to sprite `startAddr` sync.
 * **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. When you are not dragging, **right-click** behaves like elsewhere (in **edit mode** over paintable pixels, **Alt + right-click** opens the menu if you want the menu instead of sampling a color - see [Edit mode](#edit-mode)).
-* **Pattern table ranges** live on the linked **Pattern table** window (**Add tile range** on that toolbar). After editing ranges there, the PPU frame picks up the shared map through its link.
+* **Pattern table ranges** live on the linked **Pattern table** window (drag tiles from **CHR Banks** / **ROM Banks** onto the pattern table canvas; see [Pattern table toolbar](#pattern-table-toolbar)). After editing ranges there, the PPU frame picks up the shared map through its link.
 
 **Project file sketch** (what the UI ultimately saves) - useful when diffing projects or contributing DB entries:
 
