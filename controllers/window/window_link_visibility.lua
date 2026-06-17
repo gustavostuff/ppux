@@ -3,6 +3,7 @@
 
 local colors = require("app_colors")
 local ResolutionController = require("controllers.app.resolution_controller")
+local MouseWindowChrome = require("controllers.input.mouse_window_chrome_controller")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
@@ -189,6 +190,54 @@ function M.isPointInHandle(cx, cy, x, y, pad)
   return x >= (cx - half) and x <= (cx + half) and y >= (cy - half) and y <= (cy + half)
 end
 
+local function isPointOccludedByForegroundWindowBody(windows, ownerIndex, x, y)
+  for j = ownerIndex + 1, #windows do
+    local frontWin = windows[j]
+    if isLinkWindowVisible(frontWin)
+      and MouseWindowChrome.isPointOnWindowInteractiveSurface(frontWin, x, y)
+    then
+      return true
+    end
+  end
+  return false
+end
+
+--- Frontmost visible pivot handle at (x,y), or nil when occluded by a window body in front.
+function M.getTopLinkHandleAt(app, x, y, layouts)
+  if not (app and layouts and type(x) == "number" and type(y) == "number") then
+    return nil, nil
+  end
+  local wm = app.wm
+  if not (wm and wm.getWindows) then
+    return nil, nil
+  end
+
+  local windows = wm:getWindows()
+  for i = #windows, 1, -1 do
+    local win = windows[i]
+    if not isLinkWindowVisible(win) then
+      goto continue_win
+    end
+    local slots = layouts[win]
+    if not slots then
+      goto continue_win
+    end
+    for slot, entry in pairs(slots) do
+      if M.shouldShowSlot(app, slot)
+        and entry
+        and M.isPointInHandle(entry.cx, entry.cy, x, y, 0)
+      then
+        if isPointOccludedByForegroundWindowBody(windows, i, x, y) then
+          return nil, nil
+        end
+        return win, slot
+      end
+    end
+    ::continue_win::
+  end
+  return nil, nil
+end
+
 function M.isHoveringEdgeHandles(app, edge, layouts)
   if not (edge and layouts) then
     return false
@@ -207,12 +256,12 @@ function M.isHoveringEdgeHandles(app, edge, layouts)
   if isHoveringTaskbarButton(app, edge.fromWin) or isHoveringTaskbarButton(app, edge.toWin) then
     return true
   end
-  local fromEntry = layouts[edge.fromWin] and layouts[edge.fromWin][edge.fromSlot]
-  local toEntry = layouts[edge.toWin] and layouts[edge.toWin][edge.toSlot]
-  local fromCx, fromCy = fromEntry and fromEntry.cx, fromEntry and fromEntry.cy
-  local toCx, toCy = toEntry and toEntry.cx, toEntry and toEntry.cy
-  return M.isPointInHandle(fromCx, fromCy, mx, my, 0)
-    or M.isPointInHandle(toCx, toCy, mx, my, 0)
+  local hoverWin, hoverSlot = M.getTopLinkHandleAt(app, mx, my, layouts)
+  if not hoverWin then
+    return false
+  end
+  return (hoverWin == edge.fromWin and hoverSlot == edge.fromSlot)
+    or (hoverWin == edge.toWin and hoverSlot == edge.toSlot)
 end
 
 function M.getLineAlpha(app, edge, layouts)
