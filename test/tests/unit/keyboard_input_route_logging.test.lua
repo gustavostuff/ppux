@@ -84,7 +84,6 @@ describe("keyboard_input.lua - INPUT_ROUTE logging", function()
       return key == "f11"
     end
     KeyboardWindowShortcutsController.handleModeSwitch = function() return false end
-    KeyboardWindowShortcutsController.handleWindowZoom = function() return false end
     KeyboardWindowShortcutsController.handleGridToggleInWindow = function() return false end
     KeyboardArtActionsController.handlePixelOffset = function() return false end
     KeyboardArtActionsController.handleTileRotation = function() return false end

@@ -242,7 +242,7 @@ In practice:
 
 ### Main controls
 
-- `Ctrl + 1/2/3`: set **focused window** content zoom to 1×, 2×, or 3× (palette windows and collapsed headers skipped)
+- `Ctrl + 1/2/3`: set the **app window** to 1×, 2×, or 3× integer scale of the 640×360 canvas (e.g. 1280×720, 1920×1080)
 - `Ctrl + Page Up` / `Ctrl + Page Down`: cycle which **global** (**non-ROM**) palette is active - ROM palette windows are not cycled (same effect as “Set as active palette” on a global palette window; does not focus palette windows). When **Grouped palettes** is on, the grouped **global** slot (which palette is shown) stays in sync; needs at least two global palette windows
 - `Ctrl + F`: toggle fullscreen
 - `Ctrl + N`: open `New Window`
@@ -643,7 +643,7 @@ The entire UI is rendered to a **640×360** canvas (16:9). That base size is del
 - **4×** — 1440p (2560×1440)
 - **6×** — 4K (3840×2160)
 
-Every UI pixel stays crisp when the OS window is sized to those integer multiples. Resize the window freely; use **Settings → Appearance → Canvas scale** to control how the 640×360 workspace fits the monitor (see below). Use **`Ctrl + 1/2/3`** to set **focused window** content zoom (1×, 2×, 3×), not canvas presentation scale.
+Every UI pixel stays crisp when the OS window is sized to those integer multiples. Use **`Ctrl + 1/2/3`** to snap the app window to 1×, 2×, or 3× scale (640×360, 1280×720, 1920×1080), or resize freely. **Settings → Appearance → Canvas scale** controls how the workspace fits inside the window when it is not an exact multiple (see below).
 
 ### Canvas scale and filter
 

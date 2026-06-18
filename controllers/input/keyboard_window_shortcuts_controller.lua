@@ -1,6 +1,5 @@
 local ResolutionController = require("controllers.app.resolution_controller")
 local GridModeUtils = require("controllers.grid_mode_utils")
-local WindowCaps = require("controllers.window.window_capabilities")
 
 local M = {}
 local EXIT_FULLSCREEN_SCALE = 2
@@ -175,25 +174,6 @@ function M.handleSpaceHighlightToggle(ctx, utils, key)
   end
 
   return true
-end
-
-function M.handleWindowZoom(ctx, utils, key)
-  if utils.ctrlDown() and (key == "1" or key == "2" or key == "3") then
-    local wm = ctx.wm()
-    local focus = wm and wm:getFocus()
-    if WindowCaps.isAnyPaletteWindow(focus) then
-      return false
-    end
-    if focus and focus._collapsed then
-      return false
-    end
-    if focus and focus.setZoomLevel then
-      local zoomLevel = tonumber(key)
-      focus:setZoomLevel(zoomLevel)
-      return true
-    end
-  end
-  return false
 end
 
 function M.handleReferenceBackgroundToggle(ctx, utils, key, focus)

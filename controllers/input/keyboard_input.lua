@@ -30,7 +30,6 @@ local focusHandlers = {
   { name = "reference_background_toggle", fn = function(key, focus) return KeyboardWindowShortcutsController.handleReferenceBackgroundToggle(ctx, utils, key, focus) end },
   { name = "pixel_offset", fn = function(key, focus) return KeyboardArtActionsController.handlePixelOffset(ctx, utils, key, focus) end },
   { name = "inactive_layer_opacity", fn = function(key, focus) return KeyboardNavigationController.handleInactiveLayerOpacity(ctx, utils, key, focus) end },
-  { name = "window_zoom", fn = function(key) return KeyboardWindowShortcutsController.handleWindowZoom(ctx, utils, key) end },
   { name = "grid_toggle", fn = function(key, focus) return KeyboardWindowShortcutsController.handleGridToggleInWindow(ctx, utils, key, focus) end },
   { name = "animation_delay_adjust", fn = function(key, focus) return KeyboardNavigationController.handleAnimationDelayAdjust(ctx, utils, key, focus) end },
   { name = "tile_rotation", fn = function(key, focus) return KeyboardArtActionsController.handleTileRotation(ctx, utils, key, focus) end }, -- before palette keys
