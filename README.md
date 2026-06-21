@@ -111,7 +111,7 @@ With no ROM loaded, only **Open project** appears on the strip. After a ROM or p
 4. **Copy** - copies the current selection (`Ctrl + C` in **tile mode** only; works on tile or sprite layers where clipboard is allowed; blocked on PPU Frame and OAM Animation sprite layers)
 5. **Cut** - `Ctrl + X` (tile mode only for keyboard shortcuts)
 6. **Paste** - `Ctrl + V` (tile mode only for keyboard shortcuts)
-7. **Zoom out** - steps zoom on the **focused** window (palette windows and CRT lens windows are skipped); matches **Ctrl + wheel** down behavior
+7. **Zoom out** - steps zoom on the **focused** window (palette windows are skipped); matches **Ctrl + wheel** down behavior
 8. **Zoom in** - **Ctrl + wheel** up on the focused window
 9. **Mirror X** - toggles horizontal mirror preview in the **focused** window (where supported; disabled for CRT lens windows). Shortcut: **`M`** (no modifiers). **CHR / ROM bank** and **pattern table** windows also use **`Ctrl + M`** for **8×8 vs 8×16 pair layout** (same cell size as CHR banks); see their toolbars below.
 10. **Always on top** - toggles whether the **focused** window stays above others (disabled for CRT lens windows). Also available from the window’s title-bar menu.
