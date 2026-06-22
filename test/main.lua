@@ -173,6 +173,7 @@ loadTestFile("tests/unit/chr_diff_overlay.test")
 loadTestFile("tests/unit/chr_bank_ui_helpers.test")
 loadTestFile("tests/unit/chr_backing_controller.test")
 loadTestFile("tests/unit/chr_backing_integration.test")
+loadTestFile("tests/unit/save_controller.test")
 loadTestFile("tests/e2e/e2e_visible_runner_speed.test")
 loadTestFile("tests/e2e/ppu_frame_png_unscramble_flow.test")
 loadTestFile("tests/e2e/window_toolbar_auto_placement_drag.test")
@@ -363,6 +364,9 @@ local function printSlowestTestsReport(limit)
       tostring(entry.suite or "(unknown suite)"),
       tostring(entry.test or "(unknown test)")
     ))
+    if not entry.passed and entry.error then
+      print("       " .. tostring(entry.error):gsub("\n", "\n       "))
+    end
   end
 end
 
