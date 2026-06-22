@@ -113,8 +113,8 @@ With no ROM loaded, only **Open project** appears on the strip. After a ROM or p
 6. **Paste** - `Ctrl + V` (tile mode only for keyboard shortcuts)
 7. **Zoom out** - steps zoom on the **focused** window (palette windows are skipped); matches **Ctrl + wheel** down behavior
 8. **Zoom in** - **Ctrl + wheel** up on the focused window
-9. **Mirror X** - toggles horizontal mirror preview in the **focused** window (where supported; disabled for CRT lens windows). Shortcut: **`M`** (no modifiers). **CHR / ROM bank** and **pattern table** windows also use **`Ctrl + M`** for **8×8 vs 8×16 pair layout** (same cell size as CHR banks); see their toolbars below.
-10. **Always on top** - toggles whether the **focused** window stays above others (disabled for CRT lens windows). Also available from the window’s title-bar menu.
+9. **Mirror X** - toggles horizontal mirror preview in the **focused** window. Shortcut: **`M`** (no modifiers). **CHR / ROM bank** and **pattern table** windows also use **`Ctrl + M`** for **8×8 vs 8×16 pair layout** (same cell size as CHR banks); see their toolbars below.
+10. **Always on top** - toggles whether the **focused** window stays above others. Also available from the window’s title-bar menu.
 11. **Add column to the right** - on grid-resizable layout windows only; hold **Shift** to switch the same control to **Remove last column** (tooltip updates)
 12. **Add row below** - on grid-resizable layout windows only; **Shift** switches to **Remove last row**
 13. **Clone focused window** - duplicate the current window’s kind and state where supported

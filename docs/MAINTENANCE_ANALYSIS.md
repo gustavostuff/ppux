@@ -1,0 +1,166 @@
+# PPUX Maintenance Analysis
+
+**Date:** June 2025  
+**Scope:** Production Lua (~80k lines across ~215 non-test files), with emphasis on maintainability and performance — not further controller splitting.
+
+This document complements the existing short audit in [`MAINTENANCE_PATTERNS.md`](MAINTENANCE_PATTERNS.md) and the test plan in [`test/CRITICAL_TEST_COVERAGE_EXPANSION_PLAN.md`](test/CRITICAL_TEST_COVERAGE_EXPANSION_PLAN.md).
+
+---
+
+## Executive summary
+
+PPUX is a well-structured LÖVE 11.5 NES art editor. Controller logic is already split thoughtfully (`core_controller.lua` wires ~12 mixins; input is spread across ~15 files). The remaining maintenance wins are **not** more controller files, but:
+
+1. **Performance** — tile-edit invalidation rescans every window on every pixel stroke.
+2. **Test gaps** — the ROM save pipeline has no dedicated unit tests despite corruption risk.
+3. **Megamodules** — a handful of 1.8k–2.1k-line files still mix orchestration, rendering, menu building, and layout.
+4. **Small deduplication** — repeated helpers (`setStatus`, `love.timer.getTime` guards) across many files.
+
+---
+
+## Project snapshot
+
+| Area | Count / size | Notes |
+|------|----------------|-------|
+| Controllers | 99 files | Already granular; further splitting has diminishing returns |
+| UI | 80 files | Windows, modals, toolbars |
+| Unit tests | 102 files | Good input/clipboard/modal coverage |
+| Largest production files | 2,107 / 2,080 / 2,013 lines | `core_controller_window_ops`, `core_controller_draw`, `window_controller` |
+
+Positive patterns already in place: lazy image loading (`images.lua`), per-cell nametable canvas caching (`ppu_frame_window.lua`), window rendering mixins (`window_rendering_*.lua`), adaptive run-loop sleep (`love_run_loop.lua`), and prior palette multi-selection perf fix (noted in `todos.lua`).
+
+---
+
+## High-priority findings
+
+### 1. Full-window scans on every CHR tile edit (performance)
+
+**Where:** `controllers/chr/bank_canvas_support.lua` → `controllers/app/core_controller_invalidation.lua`
+
+Each pixel paint calls `invalidateTile`, which chains four invalidation passes:
+
+```20:35:controllers/chr/bank_canvas_support.lua
+function M.invalidateTile(app, bankIdx, tileIndex)
+  ...
+  resolvedApp:invalidateChrBankTileCanvas(bankIdx, tileIndex)
+  resolvedApp:invalidatePpuFrameNametableTile(bankIdx, tileIndex)
+  resolvedApp:invalidatePpuFrameSpriteTilesForChrTile(bankIdx, tileIndex)
+  resolvedApp:invalidateStaticAnimationTileLayerCanvasForChrTile(bankIdx, tileIndex)
+```
+
+Each of the PPU/sprite/static passes iterates **all windows** and, for nametables, all layers and items:
+
+```79:104:controllers/app/core_controller_invalidation.lua
+  for _, win in ipairs(self.wm:getWindows() or {}) do
+    if win and win.kind == "ppu_frame" and win.layers and win.invalidateNametableLayerCanvas then
+      for li, layer in ipairs(win.layers) do
+        ...
+        for idx, item in pairs(layer.items) do
+```
+
+**Impact:** O(windows × layers × items) per paint stroke. With many open windows this dominates edit-mode cost; the fallback at line 95–98 can invalidate an entire 32×30 nametable layer when item-level matching fails.
+
+**Direction (without new controllers):** Maintain a `(bank, tileIndex) → affected windows/cells` index, rebuilt when windows are created, linked, or pattern-table ranges change. Invalidation then touches only indexed targets. This is the single highest-impact performance improvement available.
+
+---
+
+### 2. ROM save pipeline lacks dedicated tests (correctness risk)
+
+**Where:** `controllers/rom/save_controller.lua` (~174 lines)
+
+Save orchestrates nametable write-back, sprite displacement, palette write-back, and final CHR/ROM assembly. Errors short-circuit with status messages but there is **no** `save_controller*.test.lua`; coverage is only indirect via `chr_backing_integration.test.lua`.
+
+**Impact:** Regressions in ordering, error handling, or partial-failure behavior could corrupt exported ROMs silently or leave inconsistent state.
+
+**Direction:** Unit tests for each branch (nametable failure, sprite error, palette write-back, raw vs edited CHR path) as outlined in `CRITICAL_TEST_COVERAGE_EXPANSION_PLAN.md` §1. Small, high-value win with no architectural change.
+
+---
+
+### 3. `core_controller_draw.lua` — orchestration and rendering still coupled (2,080 lines)
+
+**Mixes:** frame draw loop, per-window tile/layer rendering, palette shaders, shadow blur pipeline, CRT lens chrome, brush shape previews, HUD overlays.
+
+Window chrome/grid/selection were already extracted to `user_interface/windows_system/window_rendering_*.lua`, but the bulk of content drawing (`drawNormalWindow`, `drawTileLayer`, shadow mask canvases, etc.) remains here.
+
+**Impact:** Any visual change to tile layers, shadows, or edit previews requires navigating a single very large file. High merge-conflict and regression risk.
+
+**Direction:** Extract a **rendering helper module** (e.g. `core_controller_window_content_draw.lua` or under `user_interface/windows_system/`) — same mixin pattern as existing window rendering, **not** a new controller. Keep `draw()` as a thin coordinator that calls extracted functions.
+
+---
+
+### 4. `core_controller_window_ops.lua` — menu and ops sprawl (2,107 lines)
+
+**Mixes:** new-window modal wiring, grid resize/clone, mosaic/collapse actions, multiple context-menu builders (window header, empty space, palette link source/dest, PPU tile), coordinate transforms, palette/pattern link focus routing.
+
+**Impact:** Hard to find or safely extend a single menu action; similar menu-building patterns repeat across sections.
+
+**Direction:** Extract **context-menu builder modules** (pure data + callback wiring) into `user_interface/context_menus/` or similar. The app-core mixin stays one file but delegates menu construction. Aligns with the list-driven direction already started in `MAINTENANCE_PATTERNS.md` §1–2.
+
+---
+
+### 5. `window_controller.lua` — factory and layout algorithm in one place (2,013 lines)
+
+**Mixes:** z-order/focus, hit-testing, window-creation factory (all window kinds), mosaic/batch layout, palette stacking, toolbar wiring.
+
+**Impact:** Window creation from the New Window modal and mosaic layout are distinct concerns sharing one file with runtime window management.
+
+**Direction:** Extract **window creation factory** and **mosaic layout** into standalone modules (similar to `controllers/game_art/window_factory_controller.lua` which already exists at 960 lines). `window_controller.lua` keeps focus, z-order, and delegation.
+
+---
+
+### 6. Palette link rendering scans all windows six times per draw path
+
+**Where:** `controllers/palette/palette_link_render_controller.lua` — six separate `wm:getWindows()` loops (lines 192, 209, 272, 414, 428, 479), invoked from the draw path via palette proxy drawing inside `drawNormalWindow`.
+
+**Impact:** Multiplies window-iteration cost during frames that draw palette link overlays.
+
+**Direction:** Single pass per frame (or cached until window set / link topology changes) building lookup tables for source/dest windows. Low-risk refactor within the existing render controller.
+
+---
+
+## Medium-priority findings (brief)
+
+| Finding | Location | Note |
+|---------|----------|------|
+| **`core_controller_save_settings.lua` (1,834 lines)** mixes save/export orchestration with settings `_apply*` side effects | `controllers/app/` | Separating settings application from save flow would improve testability; settings `_apply*` methods are largely untested |
+| **Duplicated `setStatus(ctx, text)` helper** | 10+ input/toolbar files | Same `ctx.app:setStatus` vs `ctx.setStatus` guard copied locally; `AppCoreController:setStatus` exists in `core_controller_status_tooltips.lua` |
+| **Modal routing special cases despite registry** | `core_controller_input.lua` vs `core_controller_shared.lua` | `APP_MODAL_KEYS_IN_ORDER` exists but parallel special-case loops remain (e.g. `quitConfirmModal` exclusion, `TEXTINPUT_ROUTES`); drift risk documented in `MAINTENANCE_PATTERNS.md` |
+| **`undo_redo_controller.lua` (1,860 lines)** | `controllers/input_support/` | Large but cohesive; consider extracting undo *command types* into a table/registry if it keeps growing, not more controllers |
+| **Large monolithic test files** | `keyboard_input.test.lua` (2,325 lines), `mouse_input_tile_drag_copy.test.lua` (1,300 lines) | Valuable coverage but expensive to maintain; shared fixtures would reduce duplication |
+| **E2E gaps** | per `CRITICAL_TEST_COVERAGE_EXPANSION_PLAN.md` | Save-and-reload golden path, Open Project happy/invalid paths, OAM sprite scenarios |
+| **Untested modules** | `bank_canvas_controller`, `window_link_visual_controller`, `window_factory_controller` | Indirect coverage only; medium regression risk |
+| **`ppu_frame_window.lua` (1,655 lines)** | model + canvas cache + codec | Canvas caching is good; model and invalidation logic could be separated if this file keeps growing |
+| **`settings_modal.lua` (1,227 lines)** | tab layout + field defs + apply callbacks | Same pattern as save_settings — UI definition vs runtime apply |
+
+---
+
+## Low-priority findings (brief)
+
+| Finding | Note |
+|---------|------|
+| **`love.timer.getTime` duck-check wrappers** in ~15 production files | `utils/timer_utils.lua` exists but doesn't expose a nil-safe `getTime()`; a tiny `love_compat.lua` would deduplicate without changing behavior |
+| **Dynamic `require()` in draw/paint hot paths** | e.g. `BrushController` required inside `tryDrawGenericEditShapePreview` in `core_controller_draw.lua:1575`; Lua caches modules but hoisting to file top is cleaner where circular deps allow |
+| **Dev-only artifacts** | `scratch/temp_contra_pattern_table_windows.lua`, `text_field_demo_modal.lua`, `icon_bbox_audit/` — not shipped; document or relocate to avoid confusion |
+| **`todos.lua`** | Changelog/TODO notes, not loaded at runtime — fine as informal doc, or merge into release notes |
+| **Mixed module export styles** | Mixin `return function(X)` vs `local M = {}; return M` — both work; document preferred convention |
+| **Manual test registration** | New tests must be added to `test/main.lua` per `UNIT_TESTING.md` — easy to forget |
+| **Conservative nametable fallback** | Full-layer repaint when pattern-table range matching fails item hit test (`core_controller_invalidation.lua:95–98`) — correct but can over-invalidate |
+
+---
+
+## Suggested order of work
+
+1. **Add `save_controller` unit tests** — smallest change, highest correctness payoff.
+2. **Tile invalidation index** — measurable perf improvement during painting.
+3. **Extract window content drawing from `core_controller_draw.lua`** — reduces the largest mixed-responsibility file without more controller splits.
+4. **Centralize `setStatus` + optional `love_compat.getTime()`** — low-risk dedup across 10+ files.
+5. **Extract context-menu builders from `core_controller_window_ops.lua`** — readability win, no architectural churn.
+6. **Single-pass palette link window lookup** — incremental draw-path optimization.
+
+---
+
+## What not to do
+
+- **Avoid splitting app-core or input into more controller files.** The mixin layout in `core_controller.lua` is appropriate for this codebase size.
+- **Avoid splitting `undo_redo_controller` or input handlers further** unless a clearly isolated subsystem emerges (e.g. a self-contained codec).
+- Prefer **helper modules, menu builders, render extractors, and indexes** over new controller layers.
