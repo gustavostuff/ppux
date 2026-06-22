@@ -21,6 +21,14 @@ local PatternTableDisplayController = require("controllers.game_art.pattern_tabl
 local WM = {}
 WM.__index = WM
 
+local function bumpStructureGeneration(self)
+  self._structureGeneration = (self._structureGeneration or 0) + 1
+end
+
+function WM:getStructureGeneration()
+  return self._structureGeneration or 0
+end
+
 ----------------------------------------------------------------
 -- Constructor / basic management
 ----------------------------------------------------------------
@@ -98,6 +106,7 @@ function WM:add(win)
     end
     table.insert(self.windows, insertAt, win)
   end
+  bumpStructureGeneration(self)
   DebugController.log(
     "info", "WM",
     "Window added: %s (kind: %s, total windows: %d)",
@@ -118,6 +127,9 @@ function WM:add(win)
   local app = ctx and ctx.app or nil
   if app and app.onWindowManagerWindowCreated then
     app:onWindowManagerWindowCreated(win)
+  end
+  if app and app.markTileInvalidationIndexDirty then
+    app:markTileInvalidationIndexDirty()
   end
 end
 
@@ -1222,6 +1234,7 @@ function WM:closeWindow(win)
   win._minimized = false
   win.dragging = false
   win.resizing = false
+  bumpStructureGeneration(self)
 
   if self.focused == win then
     self.focused = findTopVisibleWindow(self)

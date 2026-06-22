@@ -11,6 +11,7 @@ local CanvasSpace = require("utils.canvas_space")
 local PatternTableMapping = require("utils.pattern_table_mapping")
 local Shared = require("controllers.app.core_controller_shared")
 local PpuRange = require("controllers.app.ppu_frame_range_helpers")
+local TileInvalidationIndex = require("controllers.app.tile_invalidation_index")
 
 local PPUFrameWindow = {}
 PPUFrameWindow.__index = PPUFrameWindow
@@ -1158,6 +1159,7 @@ function PPUFrameWindow:refreshNametableVisuals(tilesPool, layerIndex)
 
   self:invalidateNametableLayerCanvas(li)
   self:syncNametableLayerMetadata()
+  TileInvalidationIndex.markDirtyFromCtx()
   return true
 end
 

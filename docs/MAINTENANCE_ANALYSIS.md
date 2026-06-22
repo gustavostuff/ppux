@@ -35,9 +35,9 @@ Positive patterns already in place: lazy image loading (`images.lua`), per-cell 
 
 ### 1. Full-window scans on every CHR tile edit (performance)
 
-**Where:** `controllers/chr/bank_canvas_support.lua` → `controllers/app/core_controller_invalidation.lua`
+**Where:** `controllers/chr/bank_canvas_support.lua` → `controllers/app/core_controller_invalidation.lua` → `controllers/app/tile_invalidation_index.lua`
 
-Each pixel paint calls `invalidateTile`, which chains four invalidation passes:
+Each pixel paint calls `invalidateTile`, which chains four invalidation passes. Nametable, static-art/pattern-table tile layers, and sprite refs now use a **lazy-rebuilt `(bank, tile) → consumers` index** (`tile_invalidation_index.lua`) instead of scanning every window on every stroke.
 
 ```20:35:controllers/chr/bank_canvas_support.lua
 function M.invalidateTile(app, bankIdx, tileIndex)
@@ -48,19 +48,14 @@ function M.invalidateTile(app, bankIdx, tileIndex)
   resolvedApp:invalidateStaticAnimationTileLayerCanvasForChrTile(bankIdx, tileIndex)
 ```
 
-Each of the PPU/sprite/static passes iterates **all windows** and, for nametables, all layers and items:
+**Index rebuild triggers:** `WM` structure generation bumps on window add/close; `markTileInvalidationIndexDirty()` on layer-item repopulation (`populateTileLayerItemsFromPatternTable`, `refreshNametableVisuals`, `invalidateConsumersUsingPatternTable`, project close).
 
-```79:104:controllers/app/core_controller_invalidation.lua
-  for _, win in ipairs(self.wm:getWindows() or {}) do
-    if win and win.kind == "ppu_frame" and win.layers and win.invalidateNametableLayerCanvas then
-      for li, layer in ipairs(win.layers) do
-        ...
-        for idx, item in pairs(layer.items) do
-```
+**Correctness safeguards preserved:**
+- Pattern-table **full-layer fallback** when a layer's ranges reference a tile but `layer.items` has no instance for that cell (same rule as before).
+- Scan paths retained in `tile_invalidation_index.lua` for unit-test parity checks.
+- Tests: `test/tests/unit/tile_invalidation_index.test.lua`.
 
-**Impact:** O(windows × layers × items) per paint stroke. With many open windows this dominates edit-mode cost; the fallback at line 95–98 can invalidate an entire 32×30 nametable layer when item-level matching fails.
-
-**Direction (without new controllers):** Maintain a `(bank, tileIndex) → affected windows/cells` index, rebuilt when windows are created, linked, or pattern-table ranges change. Invalidation then touches only indexed targets. This is the single highest-impact performance improvement available.
+**Impact:** Per paint stroke, invalidation is O(indexed consumers) instead of O(windows × layers × items). Rebuild cost is paid once per structural change, not per pixel.
 
 ---
 
@@ -150,8 +145,8 @@ Window chrome/grid/selection were already extracted to `user_interface/windows_s
 
 ## Suggested order of work
 
-1. **Add `save_controller` unit tests** — smallest change, highest correctness payoff.
-2. **Tile invalidation index** — measurable perf improvement during painting.
+1. **Add `save_controller` unit tests** — smallest change, highest correctness payoff. ✅ Done (`save_controller.test.lua`).
+2. **Tile invalidation index** — measurable perf improvement during painting. ✅ Done (`tile_invalidation_index.lua` + tests).
 3. **Extract window content drawing from `core_controller_draw.lua`** — reduces the largest mixed-responsibility file without more controller splits.
 4. **Centralize `setStatus` + optional `love_compat.getTime()`** — low-risk dedup across 10+ files.
 5. **Extract context-menu builders from `core_controller_window_ops.lua`** — readability win, no architectural churn.

@@ -8,6 +8,7 @@ local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 local TableUtils = require("utils.table_utils")
 local WindowCaps = require("controllers.window.window_capabilities")
 local DebugController = require("controllers.dev.debug_controller")
+local TileInvalidationIndex = require("controllers.app.tile_invalidation_index")
 
 local M = {}
 
@@ -131,6 +132,7 @@ function M.populateTileLayerItemsFromPatternTable(win, layerIndex, opts)
   if win.invalidateTileLayerCanvas then
     win:invalidateTileLayerCanvas(layerIndex)
   end
+  TileInvalidationIndex.markDirtyFromCtx()
   return true
 end
 
@@ -443,6 +445,7 @@ function M.invalidateConsumersUsingPatternTable(app, patternTableRef)
 
     ::continue::
   end
+  TileInvalidationIndex.markDirtyFromCtx()
 end
 
 function M.unlinkContentLayerPatternTable(contentWin, layerIndex)

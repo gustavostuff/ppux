@@ -357,6 +357,9 @@ local function closeProjectState(app)
     app:clearChrCanvasOnlyMode()
   end
   resetStateForNewROM(app)
+  if app.markTileInvalidationIndexDirty then
+    app:markTileInvalidationIndexDirty()
+  end
   app.statusText = "Drop an .nes ROM or open a existing project"
   app.lastEventText = app.statusText
   if app.taskbar and app.taskbar._refreshMenuItems then
