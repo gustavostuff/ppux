@@ -50,13 +50,6 @@ local function hasActiveWindowInteraction(app)
   return false
 end
 
-local function modalHandleKey(modal, key)
-  if not modal then return end
-  if modal.handleKey then
-    modal:handleKey(key)
-  end
-end
-
 local function refreshCursor(app)
   if app and CursorsController and CursorsController.applyModeCursor then
     CursorsController.applyModeCursor(app, app.mode)
@@ -136,37 +129,22 @@ local function handleAppContextMenuMouseMoved(app, x, y)
 end
 
 local function dispatchModalMousePressed(app, mouse, b)
-  if Shared.modalVisible(app.quitConfirmModal) then
-    app.quitConfirmModal:mousepressed(mouse.x, mouse.y, b)
-    refreshCursor(app)
-    return true
-  end
   if app.splash and app.splash:isVisible() then
     app.splash:mousepressed(mouse.x, mouse.y, b)
     refreshCursor(app)
     return true
   end
-  for _, modalKey in ipairs(Shared.APP_MODAL_KEYS_IN_ORDER) do
-    if modalKey ~= "quitConfirmModal" then
-      local modal = app[modalKey]
-      if Shared.modalVisible(modal) then
-        modal:mousepressed(mouse.x, mouse.y, b)
-        if Shared.MODAL_MOUSE_REFRESH_CURSOR_KEYS[modalKey] then
-          refreshCursor(app)
-        end
-        return true
-      end
+  local handled, modalKey = Shared.dispatchTopModalMousePressed(app, mouse.x, mouse.y, b)
+  if handled then
+    if Shared.MODAL_MOUSE_REFRESH_CURSOR_KEYS[modalKey] then
+      refreshCursor(app)
     end
+    return true
   end
   return false
 end
 
 local function dispatchModalMouseReleased(app, mouse, b)
-  if Shared.modalVisible(app.quitConfirmModal) then
-    app.quitConfirmModal:mousereleased(mouse.x, mouse.y, b)
-    refreshCursor(app)
-    return true
-  end
   if app.splash and app.splash:isVisible() then
     app.splash:mousereleased(mouse.x, mouse.y, function()
       AppSettingsController.save({ skipSplash = true })
@@ -174,51 +152,15 @@ local function dispatchModalMouseReleased(app, mouse, b)
     refreshCursor(app)
     return true
   end
-  for _, modalKey in ipairs(Shared.APP_MODAL_KEYS_IN_ORDER) do
-    if modalKey ~= "quitConfirmModal" then
-      local modal = app[modalKey]
-      if Shared.modalVisible(modal) then
-        modal:mousereleased(mouse.x, mouse.y, b)
-        if Shared.MODAL_MOUSE_REFRESH_CURSOR_KEYS[modalKey] then
-          refreshCursor(app)
-        end
-        return true
-      end
+  local handled, modalKey = Shared.dispatchTopModalMouseReleased(app, mouse.x, mouse.y, b)
+  if handled then
+    if Shared.MODAL_MOUSE_REFRESH_CURSOR_KEYS[modalKey] then
+      refreshCursor(app)
     end
+    return true
   end
   return false
 end
-
-local function dispatchModalMouseMovedAfterSplash(app, mouse)
-  for _, modalKey in ipairs(Shared.APP_MODAL_KEYS_IN_ORDER) do
-    if modalKey ~= "quitConfirmModal" then
-      local modal = app[modalKey]
-      if Shared.modalVisible(modal) then
-        modal:mousemoved(mouse.x, mouse.y)
-        return true
-      end
-      if modalKey == "settingsModal" then
-        if handleAppContextMenuMouseMoved(app, mouse.x, mouse.y) then
-          return true
-        end
-      end
-    end
-  end
-  return false
-end
-
---- Subset of modals that participate in textinput (same precedence order as before).
-local TEXTINPUT_ROUTES = {
-  { key = "newWindowTypeModal", consumeOnly = true },
-  { key = "newWindowModal", method = "textinput" },
-  { key = "renameWindowModal", method = "textinput" },
-  { key = "romPaletteAddressModal", method = "textinput" },
-  { key = "ppuFrameSpriteLayerModeModal", consumeOnly = true },
-  { key = "ppuFrameAddSpriteModal", method = "textinput" },
-  { key = "ppuFrameRangeModal", method = "textinput" },
-  { key = "ppuFramePatternRangeModal", method = "textinput" },
-  { key = "textFieldDemoModal", method = "textinput" },
-}
 
 local function handleAlwaysAvailableWindowShortcuts(app, key, keyRepeat)
   if keyRepeat then
@@ -274,15 +216,12 @@ function AppCoreController:keypressed(k, scancode, isrepeat)
   end
 
   -- Handle dialog input (first visible modal in stack order)
-  for _, modalKey in ipairs(Shared.APP_MODAL_KEYS_IN_ORDER) do
-    local modal = self[modalKey]
-    if Shared.modalVisible(modal) then
-      modalHandleKey(modal, k)
-      if Shared.MODAL_KEY_REFRESH_CURSOR_KEYS[modalKey] then
-        refreshCursor(self)
-      end
-      return
+  local handled, modalKey = Shared.dispatchTopModalKey(self, k)
+  if handled then
+    if Shared.MODAL_KEY_REFRESH_CURSOR_KEYS[modalKey] then
+      refreshCursor(self)
     end
+    return
   end
   if self.splash and self.splash.isVisible and self.splash:isVisible() then
     if self.splash.keypressed then
@@ -484,7 +423,7 @@ function AppCoreController:mousemoved(x, y, dx, dy)
     return
   end
 
-  if dispatchModalMouseMovedAfterSplash(self, mouse) then
+  if handleAppContextMenuMouseMoved(self, mouse.x, mouse.y) then
     refreshCursor(self)
     return
   end
@@ -521,21 +460,10 @@ function AppCoreController:mousemoved(x, y, dx, dy)
 end
 
 function AppCoreController:wheelmoved(dx, dy)
-  if Shared.modalVisible(self.quitConfirmModal) then
-    return
-  end
   if self.splash and self.splash:isVisible() then
     return
   end
-  if Shared.anyModalVisible(self) then
-    local ref = self.openReferencePngModal
-    if Shared.modalVisible(ref) and ref.wheelmoved then
-      return ref:wheelmoved(dx, dy)
-    end
-    local proj = self.openProjectModal
-    if Shared.modalVisible(proj) and proj.wheelmoved then
-      return proj:wheelmoved(dx, dy)
-    end
+  if Shared.dispatchModalWheel(self, dx, dy) then
     return
   end
   if ChrCanvasOnlyMode.isActive(self) then
@@ -550,19 +478,7 @@ function AppCoreController:wheelmoved(dx, dy)
 end
 
 function AppCoreController:textinput(text)
-  for _, route in ipairs(TEXTINPUT_ROUTES) do
-    local modal = self[route.key]
-    if Shared.modalVisible(modal) then
-      if route.consumeOnly then
-        return
-      end
-      local method = route.method
-      if method and modal[method] then
-        modal[method](modal, text)
-      end
-      return
-    end
-  end
+  Shared.routeModalTextInput(self, text)
 end
 
 function AppCoreController:togglePreviewMirrorX()

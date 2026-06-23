@@ -107,6 +107,25 @@ M.MODAL_MOUSE_REFRESH_CURSOR_KEYS = {
   genericActionsModal = true,
 }
 
+--- Modals that forward wheel events when visible (others still block workspace wheel).
+M.MODAL_WHEEL_HANDLER_KEYS = {
+  openReferencePngModal = true,
+  openProjectModal = true,
+}
+
+--- Text-input routing in APP_MODAL_KEYS_IN_ORDER precedence (subset of modals).
+M.APP_MODAL_TEXTINPUT_ROUTES = {
+  { key = "newWindowTypeModal", consumeOnly = true },
+  { key = "newWindowModal", method = "textinput" },
+  { key = "renameWindowModal", method = "textinput" },
+  { key = "romPaletteAddressModal", method = "textinput" },
+  { key = "ppuFrameSpriteLayerModeModal", consumeOnly = true },
+  { key = "ppuFrameAddSpriteModal", method = "textinput" },
+  { key = "ppuFrameRangeModal", method = "textinput" },
+  { key = "ppuFramePatternRangeModal", method = "textinput" },
+  { key = "textFieldDemoModal", method = "textinput" },
+}
+
 --- Context menus hit-tested from core_controller_input (no E2E overlay).
 M.APP_CONTEXT_MENU_KEYS = {
   "windowHeaderContextMenu",
@@ -202,6 +221,71 @@ function M.anyModalVisible(app)
   for _, key in ipairs(M.APP_MODAL_KEYS_IN_ORDER) do
     local modal = app[key]
     if modal and modal.isVisible and modal:isVisible() then
+      return true
+    end
+  end
+  return false
+end
+
+function M.dispatchTopModalKey(app, key)
+  local modalKey, modal = M.getTopModal(app)
+  if not modal then
+    return false
+  end
+  if modal.handleKey then
+    modal:handleKey(key)
+  end
+  return true, modalKey
+end
+
+function M.dispatchTopModalMousePressed(app, x, y, button)
+  local modalKey, modal = M.getTopModal(app)
+  if not (modal and modal.mousepressed) then
+    return false
+  end
+  modal:mousepressed(x, y, button)
+  return true, modalKey
+end
+
+function M.dispatchTopModalMouseReleased(app, x, y, button)
+  local modalKey, modal = M.getTopModal(app)
+  if not (modal and modal.mousereleased) then
+    return false
+  end
+  modal:mousereleased(x, y, button)
+  return true, modalKey
+end
+
+--- Returns true when workspace wheel should be suppressed (modal consumed or blocked).
+function M.dispatchModalWheel(app, dx, dy)
+  local modalKey, modal = M.getTopModal(app)
+  if not modal then
+    return false
+  end
+  if modalKey == "quitConfirmModal" then
+    return true
+  end
+  if M.MODAL_WHEEL_HANDLER_KEYS[modalKey] and modal.wheelmoved then
+    modal:wheelmoved(dx, dy)
+    return true
+  end
+  return true
+end
+
+function M.routeModalTextInput(app, text)
+  if not app then
+    return false
+  end
+  for _, route in ipairs(M.APP_MODAL_TEXTINPUT_ROUTES) do
+    local modal = app[route.key]
+    if M.modalVisible(modal) then
+      if route.consumeOnly then
+        return true
+      end
+      local method = route.method
+      if method and modal[method] then
+        modal[method](modal, text)
+      end
       return true
     end
   end
