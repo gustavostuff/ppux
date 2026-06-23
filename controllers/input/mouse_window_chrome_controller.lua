@@ -1,17 +1,12 @@
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local UiScale = require("user_interface.ui_scale")
+local LoveCompat = require("utils.love_compat")
 
 local M = {}
 local DOUBLE_CLICK_SECONDS = 0.35
 local DOUBLE_CLICK_MOVE_TOLERANCE = 4
 
 local lastHeaderTitleClick = nil
-local function nowSeconds()
-  if love and love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return os.clock()
-end
 
 local function isInHeaderTitleArea(win, x, y)
   if not (win and win.isInHeader and win:isInHeader(x, y)) then
@@ -334,7 +329,7 @@ function M.handleHeaderClick(button, x, y, win, wm, opts)
 
     local titleAreaClick = isInHeaderTitleArea(win, x, y)
     if titleAreaClick then
-      local t = tonumber(opts.nowSeconds) or nowSeconds()
+      local t = tonumber(opts.nowSeconds) or LoveCompat.getTime()
       local prev = lastHeaderTitleClick
       local dt = prev and (t - (prev.time or 0)) or math.huge
       local dx = prev and math.abs((prev.x or 0) - x) or math.huge

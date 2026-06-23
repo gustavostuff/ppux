@@ -6,6 +6,7 @@ local UiScale = require("user_interface.ui_scale")
 local Selection = require("user_interface.text_field.selection")
 local Editing = require("user_interface.text_field.editing")
 local Rendering = require("user_interface.text_field.rendering")
+local LoveCompat = require("utils.love_compat")
 
 local TextField = {}
 TextField.__index = TextField
@@ -16,25 +17,12 @@ local KEY_REPEAT_EPSILON = 0.000001
 local CURSOR_BLINK_HZ = 4
 local SELECTION_BG_COLOR = colors.blue
 
-local function getNowSeconds()
-  if love and love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return os.clock()
-end
-
 local function isKeyDown(key)
-  return love
-    and love.keyboard
-    and love.keyboard.isDown
-    and love.keyboard.isDown(key)
+  return LoveCompat.isKeyDown(key)
 end
 
 local function getClipboardText()
-  if love and love.system and love.system.getClipboardText then
-    return love.system.getClipboardText()
-  end
-  return nil
+  return LoveCompat.getClipboardText()
 end
 
 local function isHexChar(ch)
@@ -73,7 +61,7 @@ end
 
 local shared = {
   colors = colors,
-  getNowSeconds = getNowSeconds,
+  getNowSeconds = LoveCompat.getTime,
   isKeyDown = isKeyDown,
   getClipboardText = getClipboardText,
   isHexChar = isHexChar,

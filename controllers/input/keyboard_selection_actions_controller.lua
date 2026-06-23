@@ -1,18 +1,9 @@
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local SpriteStateSnapshot = require("controllers.sprite.sprite_state_snapshot")
+local StatusHelpers = require("utils.status_helpers")
 
 local M = {}
-
-local function setStatus(ctx, text)
-  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
-    ctx.app:setStatus(text)
-    return
-  end
-  if ctx and type(ctx.setStatus) == "function" then
-    ctx.setStatus(text)
-  end
-end
 
 local captureSpriteState = SpriteStateSnapshot.captureSpriteState
 local statesEqual = SpriteStateSnapshot.statesEqual
@@ -82,15 +73,15 @@ function M.handleSpriteMirror(ctx, key, focus)
 
   if updated == 1 and singleSprite then
     if key == "h" then
-      setStatus(ctx, singleSprite.mirrorX and "Sprite mirrored horizontally" or "Sprite horizontal mirror removed")
+      StatusHelpers.setStatus(ctx, singleSprite.mirrorX and "Sprite mirrored horizontally" or "Sprite horizontal mirror removed")
     else
-      setStatus(ctx, singleSprite.mirrorY and "Sprite mirrored vertically" or "Sprite vertical mirror removed")
+      StatusHelpers.setStatus(ctx, singleSprite.mirrorY and "Sprite mirrored vertically" or "Sprite vertical mirror removed")
     end
   else
     if key == "h" then
-      setStatus(ctx, string.format("Mirrored %d sprites horizontally", updated))
+      StatusHelpers.setStatus(ctx, string.format("Mirrored %d sprites horizontally", updated))
     else
-      setStatus(ctx, string.format("Mirrored %d sprites vertically", updated))
+      StatusHelpers.setStatus(ctx, string.format("Mirrored %d sprites vertically", updated))
     end
   end
 
@@ -113,7 +104,7 @@ function M.handleDeleteKey(ctx, key, focus)
     if layer and layer.kind == "sprite" then
       local spriteDeleteResult = MultiSelectController.deleteSpriteSelection(w, li, undoRedo)
       if spriteDeleteResult then
-        setStatus(ctx, spriteDeleteResult.status)
+        StatusHelpers.setStatus(ctx, spriteDeleteResult.status)
         return true
       end
     end
@@ -125,13 +116,13 @@ function M.handleDeleteKey(ctx, key, focus)
   if not layer or layer.kind == "sprite" then return false end
 
   if WindowCaps.isPatternTable(w) then
-    setStatus(ctx, "Pattern table: paint pixels or adjust ranges only")
+    StatusHelpers.setStatus(ctx, "Pattern table: paint pixels or adjust ranges only")
     return true
   end
 
   local result = MultiSelectController.deleteTileSelection(w, layerIndex, c, r, app, undoRedo)
   if not result then return false end
-  setStatus(ctx, result.status)
+  StatusHelpers.setStatus(ctx, result.status)
   return true
 end
 
@@ -163,7 +154,7 @@ function M.handleSelectAll(ctx, utils, key, focus)
     if ctx.showBankTileLabelForWindowSelection then
       ctx.showBankTileLabelForWindowSelection(focus)
     end
-    setStatus(ctx, (#indices == 1) and "Selected 1 sprite" or string.format("Selected %d sprites", #indices))
+    StatusHelpers.setStatus(ctx, (#indices == 1) and "Selected 1 sprite" or string.format("Selected %d sprites", #indices))
     return true
   end
 
@@ -212,7 +203,7 @@ function M.handleSelectAll(ctx, utils, key, focus)
     end
 
     if selectedCount > 0 then
-      setStatus(ctx, (selectedCount == 1) and "Selected 1 tile" or string.format("Selected %d tiles", selectedCount))
+      StatusHelpers.setStatus(ctx, (selectedCount == 1) and "Selected 1 tile" or string.format("Selected %d tiles", selectedCount))
     end
     return true
   end

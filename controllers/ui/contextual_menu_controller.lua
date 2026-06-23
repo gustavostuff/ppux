@@ -1,6 +1,7 @@
 local Panel = require("user_interface.panel")
 local UiScale = require("user_interface.ui_scale")
 local colors = require("app_colors")
+local LoveCompat = require("utils.love_compat")
 
 local ContextualMenuController = {}
 ContextualMenuController.__index = ContextualMenuController
@@ -16,14 +17,7 @@ ContextualMenuController.PARENT_GAP_PX = 3
      ENABLE_MENU_GROUP_SEPARATOR_LINES: horizontal rules between rows when `menuGroup` changes.
      ENABLE_MENU_PERIMETER_OUTLINE: rounded border around contextual menus (panel `menuOutline`). ]]
 ContextualMenuController.ENABLE_MENU_GROUP_SEPARATOR_LINES = false
-ContextualMenuController.ENABLE_MENU_PERIMETER_OUTLINE = true
-
-local function nowSeconds()
-  if love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return 0
-end
+ContextualMenuController.ENABLE_MENU_PERIMETER_OUTLINE = false
 
 local function clampPosition(menu, x, y)
   local bounds = menu.getBounds and menu.getBounds() or nil
@@ -554,7 +548,7 @@ function ContextualMenuController:_beginChildHoverGrace(pendingRow)
   end
   self.pendingChildRow = pendingRow
   if self.childHoverGraceUntil == nil then
-    self.childHoverGraceUntil = nowSeconds() + self.childHoverGraceSeconds
+    self.childHoverGraceUntil = LoveCompat.getTime() + self.childHoverGraceSeconds
   end
 end
 
@@ -710,7 +704,7 @@ function ContextualMenuController:update(now)
     self.childMenu:update(now)
   end
 
-  local t = tonumber(now) or nowSeconds()
+  local t = tonumber(now) or LoveCompat.getTime()
   if self.childMenu and self.childHoverGraceUntil and t >= self.childHoverGraceUntil then
     local pendingRow = self.pendingChildRow
     if pendingRow then

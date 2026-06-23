@@ -7,6 +7,7 @@ local MouseWindowChrome = require("controllers.input.mouse_window_chrome_control
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local LoveCompat = require("utils.love_compat")
 
 --- Keep in sync with `HANDLE_OUTER_W` in window_link_visual_controller.lua.
 local HANDLE_OUTER_HIT_HALF = 4
@@ -37,13 +38,6 @@ local PATTERN_SLOTS = {
   ppu_pattern_sprite = true,
   oam_pattern = true,
 }
-
-function M.nowSeconds()
-  if love and love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return os.clock()
-end
 
 function M.normalizeLinkMode(mode)
   if mode == "never" then
@@ -137,9 +131,7 @@ local function isHoveringTaskbarButton(app, win)
   local mx = mouse and mouse.x
   local my = mouse and mouse.y
   if type(mx) ~= "number" or type(my) ~= "number" then
-    if love and love.mouse and love.mouse.getPosition then
-      mx, my = love.mouse.getPosition()
-    end
+    mx, my = LoveCompat.getMousePosition()
   end
   if type(mx) ~= "number" or type(my) ~= "number" then
     return false
@@ -151,7 +143,7 @@ function M.touchReveal(win, field, duration)
   if not (win and field) then
     return
   end
-  win[field] = M.nowSeconds() + (tonumber(duration) or M.REVEAL_VISIBLE_SECONDS)
+  win[field] = LoveCompat.getTime() + (tonumber(duration) or M.REVEAL_VISIBLE_SECONDS)
 end
 
 function M.getRevealAlpha(win, field)
@@ -159,7 +151,7 @@ function M.getRevealAlpha(win, field)
     return 0
   end
   local untilT = tonumber(win[field]) or 0
-  local now = M.nowSeconds()
+  local now = LoveCompat.getTime()
   local remaining = untilT - now
   if remaining <= 0 then
     return 0
@@ -246,9 +238,7 @@ function M.isHoveringEdgeHandles(app, edge, layouts)
   local mx = mouse and mouse.x
   local my = mouse and mouse.y
   if type(mx) ~= "number" or type(my) ~= "number" then
-    if love and love.mouse and love.mouse.getPosition then
-      mx, my = love.mouse.getPosition()
-    end
+    mx, my = LoveCompat.getMousePosition()
   end
   if type(mx) ~= "number" or type(my) ~= "number" then
     return false

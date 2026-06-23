@@ -1,18 +1,9 @@
 local WindowCaps = require("controllers.window.window_capabilities")
 local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
 local BankViewController = require("controllers.chr.bank_view_controller")
+local StatusHelpers = require("utils.status_helpers")
 
 local M = {}
-
-local function setStatus(ctx, text)
-  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
-    ctx.app:setStatus(text)
-    return
-  end
-  if ctx and type(ctx.setStatus) == "function" then
-    ctx.setStatus(text)
-  end
-end
 
 function M.handlePaletteKeys(ctx, utils, key, focus)
   if not (focus and focus.isPalette) then return false end
@@ -31,7 +22,7 @@ function M.handlePaletteKeys(ctx, utils, key, focus)
   end
 
   if focus.kind ~= "rom_palette" and not focus.activePalette then
-    setStatus(ctx, "Activate palette before using it")
+    StatusHelpers.setStatus(ctx, "Activate palette before using it")
     return true
   end
 
@@ -59,7 +50,7 @@ function M.handleLayerNavigation(ctx, utils, key, focus)
   end
 
   if WindowCaps.isAnimationLike(focus) and focus.isPlaying then
-    setStatus(ctx, "Cannot change layers while animation is playing")
+    StatusHelpers.setStatus(ctx, "Cannot change layers while animation is playing")
     return true
   end
 
@@ -161,7 +152,7 @@ function M.handleChrBankKeys(ctx, utils, key, focus)
     end
     local app = ctx and ctx.app
     if app and app.setStatus then
-      app:setStatus(BankViewController.formatBankWindowStatus(focus, app.appEditState, focus.orderMode))
+      StatusHelpers.setStatus(ctx, BankViewController.formatBankWindowStatus(focus, app.appEditState, focus.orderMode))
     end
     if focus.specializedToolbar and focus.specializedToolbar.triggerLayerLabelFlash then
       focus.specializedToolbar:triggerLayerLabelFlash()
@@ -193,7 +184,7 @@ function M.handleChrBankKeys(ctx, utils, key, focus)
     end
     -- shiftBank is a custom shortcut path; it may not call ChrBankWindow:setActiveLayerIndex / Window.setActiveLayerIndex.
     if focus.shiftBank then
-      setStatus(ctx, BankViewController.formatBankWindowStatus(focus, app.appEditState, focus.orderMode))
+      StatusHelpers.setStatus(ctx, BankViewController.formatBankWindowStatus(focus, app.appEditState, focus.orderMode))
     end
     return true
   end
@@ -221,7 +212,7 @@ function M.handlePatternTableLayerModeKeys(ctx, utils, key, focus)
   local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
   local layoutLabel = PatternTableDisplayController.toggleTileLayerChrLayout(focus, li, ctx and ctx.app)
     or ((layer.mode == "8x16") and "8x16 pairs" or "8x8")
-  setStatus(ctx, "Pattern table layout: " .. layoutLabel .. " — Ctrl+M to toggle")
+  StatusHelpers.setStatus(ctx, "Pattern table layout: " .. layoutLabel .. " — Ctrl+M to toggle")
   return true
 end
 
@@ -258,7 +249,7 @@ function M.handleAnimationWindowKeys(ctx, key, focus)
     if success then
       pushAnimationUndoIfChanged(snapBefore)
     else
-      setStatus(ctx, "Cannot remove the last layer")
+      StatusHelpers.setStatus(ctx, "Cannot remove the last layer")
     end
     return true
   end
@@ -306,7 +297,7 @@ function M.handleInactiveLayerOpacity(ctx, utils, key, focus)
   if not focus then return false end
   if WindowCaps.isChrLike(focus) or WindowCaps.isAnyPaletteWindow(focus) then return false end
   if WindowCaps.isPpuFrame(focus) and focus.patternLayerSoloMode == true then
-    setStatus(ctx, "Inactive layer opacity is disabled in pattern layer mode")
+    StatusHelpers.setStatus(ctx, "Inactive layer opacity is disabled in pattern layer mode")
     return true
   end
   if not (focus.layers and focus.getActiveLayerIndex) then return false end

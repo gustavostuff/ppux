@@ -5,18 +5,9 @@ local TileSpriteOffsetController = require("controllers.input_support.tile_sprit
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local SpriteStateSnapshot = require("controllers.sprite.sprite_state_snapshot")
+local StatusHelpers = require("utils.status_helpers")
 
 local M = {}
-
-local function setStatus(ctx, text)
-  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
-    ctx.app:setStatus(text)
-    return
-  end
-  if ctx and type(ctx.setStatus) == "function" then
-    ctx.setStatus(text)
-  end
-end
 
 local function isChr8x16Mode(win)
   return WindowCaps.isChrLike(win) and win.orderMode == "oddEven"
@@ -187,9 +178,9 @@ function M.handleTileRotation(ctx, utils, key, focus)
     local dirText = (direction == 1) and "right" or "left"
     if rotatedUnitsCount > 1 then
       local unitLabel = isChr8x16Mode(focus) and "items" or "tiles"
-      setStatus(ctx, string.format("Rotated tile palette values %s on %d %s", dirText, rotatedUnitsCount, unitLabel))
+      StatusHelpers.setStatus(ctx, string.format("Rotated tile palette values %s on %d %s", dirText, rotatedUnitsCount, unitLabel))
     else
-      setStatus(ctx, string.format("Rotated tile palette values %s", dirText))
+      StatusHelpers.setStatus(ctx, string.format("Rotated tile palette values %s", dirText))
     end
     return true
   end
@@ -317,7 +308,7 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appCoreRef)
       end
       local statusMsg = (updated > 1) and string.format("Sprite palettes set to %d", paletteNum)
         or string.format("Sprite palette set to %d", paletteNum)
-      setStatus(ctx, statusMsg)
+      StatusHelpers.setStatus(ctx, statusMsg)
       return true
     end
     return false
@@ -398,9 +389,9 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appCoreRef)
       })
     end
     if updated > 1 then
-      setStatus(ctx, string.format("Tile palettes set to %d", paletteNum))
+      StatusHelpers.setStatus(ctx, string.format("Tile palettes set to %d", paletteNum))
     else
-      setStatus(ctx, string.format("Tile palette set to %d", paletteNum))
+      StatusHelpers.setStatus(ctx, string.format("Tile palette set to %d", paletteNum))
     end
     return true
   end

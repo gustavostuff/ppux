@@ -1,5 +1,6 @@
 local colors = require("app_colors")
 local Text = require("utils.text_utils")
+local LoveCompat = require("utils.love_compat")
 
 local M = {}
 local ENABLE_LOADING_PRESENT_DELAY = true
@@ -67,10 +68,7 @@ end
 local function drawIndeterminateBar(cx, trackY, bg)
   local trackX = math.floor(cx - BAR_TRACK_W * 0.5)
   trackY = math.floor(trackY)
-  local t = 0
-  if love and love.timer and love.timer.getTime then
-    t = love.timer.getTime()
-  end
+  local t = LoveCompat.getTime()
   local phase = (math.sin(t * BAR_SLIDE_SPEED) + 1) * 0.5
   local maxSlide = BAR_TRACK_W - BAR_SEGMENT_W
   local barX = trackX + phase * maxSlide
@@ -139,8 +137,8 @@ function M.present(message, app)
 
   love.graphics.present()
   love.graphics.pop()
-  if ENABLE_LOADING_PRESENT_DELAY and love and love.timer and love.timer.sleep then
-    love.timer.sleep(LOADING_PRESENT_DELAY_SECONDS)
+  if ENABLE_LOADING_PRESENT_DELAY then
+    LoveCompat.sleep(LOADING_PRESENT_DELAY_SECONDS)
   end
   return true
 end

@@ -2,6 +2,7 @@
 -- Pixel-friendly text: optional shadow and optional 8-direction black outline.
 local Timer = require("utils.timer_utils")
 local colors = require("app_colors")
+local LoveCompat = require("utils.love_compat")
 
 local TU = {}
 
@@ -473,10 +474,7 @@ function TU.drawScrollingText(text, x, y, width, opts)
 
   local scrollMaxPx = tw - width
   local fh = math.max(font:getHeight() or 12, 1)
-  local now = 0
-  if love and love.timer and love.timer.getTime then
-    now = love.timer.getTime()
-  end
+  local now = LoveCompat.getTime()
   local mark = "scroll_" .. tostring(key)
 
   local st = scrollingState[key]

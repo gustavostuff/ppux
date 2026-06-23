@@ -3,6 +3,7 @@ local NametableTilesController = require("controllers.ppu.nametable_tiles_contro
 local SpriteController = require("controllers.sprite.sprite_controller")
 local SpriteStateSnapshot = require("controllers.sprite.sprite_state_snapshot")
 local chr = require("chr")
+local LoveCompat = require("utils.love_compat")
 
 local M = {}
 
@@ -15,13 +16,6 @@ local DRAG_MODE_LINK_CREATE = "link_create"
 local DRAG_MODE_LINK_CREATE_FROM_CONTENT = "link_create_from_content"
 local DRAG_MODE_MOVE_SINGLE = "move_single"
 local DRAG_MODE_MOVE_ALL = "move_all"
-
-local function nowSeconds()
-  if love and love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return os.clock()
-end
 
 local function getApp()
   local gctx = rawget(_G, "ctx")
@@ -860,7 +854,7 @@ local function maybeHandleDoubleClick(toolbar, x, y, win, wm)
     return false
   end
 
-  local t = nowSeconds()
+  local t = LoveCompat.getTime()
   local prev = lastPaletteLinkHandleClick
   local sameClick = prev
     and prev.paletteWin == win
@@ -888,7 +882,7 @@ local function maybeHandleDestinationDoubleClick(link, x, y)
     return false
   end
 
-  local t = nowSeconds()
+  local t = LoveCompat.getTime()
   local prev = lastDestinationLinkClick
   local sameClick = prev
     and prev.contentWin == link.contentWin

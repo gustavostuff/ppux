@@ -6,20 +6,11 @@ local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
 local images = require("images")
 local colors = require("app_colors")
+local StatusHelpers = require("utils.status_helpers")
 
 local PatternTableToolbar = {}
 PatternTableToolbar.__index = PatternTableToolbar
 setmetatable(PatternTableToolbar, { __index = ToolbarBase })
-
-local function setStatus(ctx, text)
-  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
-    ctx.app:setStatus(text)
-    return
-  end
-  if ctx and type(ctx.setStatus) == "function" then
-    ctx.setStatus(text)
-  end
-end
 
 function PatternTableToolbar.new(window, ctx, windowController)
   local self = setmetatable(ToolbarBase.new(window, {}), PatternTableToolbar)
@@ -54,7 +45,7 @@ function PatternTableToolbar:_onPatternTableLinkMenu()
   end
   local app = self.ctx and self.ctx.app
   if not app or not app.showPatternTableLinkSourceContextMenu then
-    setStatus(self.ctx, "Pattern table link is not available")
+    StatusHelpers.setStatus(self.ctx, "Pattern table link is not available")
     return
   end
   local btn = self.linkButton
@@ -127,7 +118,7 @@ function PatternTableToolbar:_onToggleChrLayoutMode()
   end
   local layoutLabel = PatternTableDisplayController.toggleTileLayerChrLayout(w, li, app)
     or ((layer.mode == "8x16") and "8x16 pairs" or "8x8")
-  setStatus(self.ctx, "Pattern table layout: " .. layoutLabel .. " — Ctrl+M to toggle")
+  StatusHelpers.setStatus(self.ctx, "Pattern table layout: " .. layoutLabel .. " — Ctrl+M to toggle")
   self:updateModeIcon()
 end
 

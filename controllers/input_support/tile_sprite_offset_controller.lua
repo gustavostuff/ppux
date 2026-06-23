@@ -3,6 +3,7 @@ local ChrDuplicateSync = require("controllers.chr.duplicate_sync_controller")
 local GameArtController = require("controllers.game_art.game_art_controller")
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local StatusHelpers = require("utils.status_helpers")
 
 local M = {}
 
@@ -10,16 +11,6 @@ local PIXEL_OFFSET_DEFAULTS = {
   wrap = false,  -- Non-wrapping by default; set true to wrap around tile edges.
   fillValue = 0,
 }
-
-local function setStatus(ctx, text)
-  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
-    ctx.app:setStatus(text)
-    return
-  end
-  if ctx and type(ctx.setStatus) == "function" then
-    ctx.setStatus(text)
-  end
-end
 
 local function materializeFocusTile(focus, item, layerIndex)
   if item == nil then
@@ -597,9 +588,9 @@ function M.handleKey(key, focus, ctx, utils)
       end
       if changedUnitsCount > 1 then
         local unitLabel = isChr8x16Mode(focus) and "items" or "tiles"
-        setStatus(ctx, string.format("Offset pixels on %d %s %s", changedUnitsCount, unitLabel, directionLabel))
+        StatusHelpers.setStatus(ctx, string.format("Offset pixels on %d %s %s", changedUnitsCount, unitLabel, directionLabel))
       else
-        setStatus(ctx, string.format("Offset tile pixels %s", directionLabel))
+        StatusHelpers.setStatus(ctx, string.format("Offset tile pixels %s", directionLabel))
       end
       return true
     end
@@ -730,9 +721,9 @@ function M.handleKey(key, focus, ctx, utils)
     end
 
     if selectedSpritesCount > 1 then
-      setStatus(ctx, string.format("Offset pixels on %d sprites %s", selectedSpritesCount, directionLabel))
+      StatusHelpers.setStatus(ctx, string.format("Offset pixels on %d sprites %s", selectedSpritesCount, directionLabel))
     else
-      setStatus(ctx, string.format("Offset sprite pixels %s", directionLabel))
+      StatusHelpers.setStatus(ctx, string.format("Offset sprite pixels %s", directionLabel))
     end
     return true
   end

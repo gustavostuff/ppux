@@ -17,12 +17,7 @@ local perfFrameStartSeconds = nil
 local perfLastFrameMs = 0
 local perfAverageFrameMs = 0
 
-local function nowSeconds()
-  if love and love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return os.clock()
-end
+local LoveCompat = require("utils.love_compat")
 
 local function perfTrackingEnabled()
   return debugEnabled or hudMode == "perf" or hudMode == "perf+debug"
@@ -249,7 +244,7 @@ function DebugController.copyToClipboard()
   local logText = table.concat(debugLog, "\n")
   
   -- Copy to clipboard using Love2D's clipboard API
-  love.system.setClipboardText(logText)
+  LoveCompat.setClipboardText(logText)
   
   local lineCount = #debugLog
   DebugController.log("info", "DEBUG", "Copied %d debug log lines to clipboard", lineCount)
@@ -337,7 +332,7 @@ function DebugController.perfBeginFrame()
   end
   perfFrameNumber = perfFrameNumber + 1
   resetFrameValues()
-  perfFrameStartSeconds = nowSeconds()
+  perfFrameStartSeconds = LoveCompat.getTime()
   return true
 end
 
@@ -349,7 +344,7 @@ function DebugController.perfEndFrame()
     return false
   end
 
-  perfLastFrameMs = math.max(0, (nowSeconds() - perfFrameStartSeconds) * 1000)
+  perfLastFrameMs = math.max(0, (LoveCompat.getTime() - perfFrameStartSeconds) * 1000)
   if perfFrameNumber <= 1 then
     perfAverageFrameMs = perfLastFrameMs
   else
@@ -559,9 +554,7 @@ end
 function DebugController.copyPerfSnapshotToClipboard()
   local lines = DebugController.getPerfSummaryLines()
   local text = table.concat(lines, "\n")
-  if love and love.system and love.system.setClipboardText then
-    love.system.setClipboardText(text)
-  end
+  LoveCompat.setClipboardText(text)
   if debugEnabled then
     for _, line in ipairs(lines) do
       DebugController.log("info", "PERF", "%s", line)
@@ -584,9 +577,7 @@ function DebugController.copyDevSnapshotToClipboard()
   end
 
   local text = table.concat(sections, "\n")
-  if love and love.system and love.system.setClipboardText then
-    love.system.setClipboardText(text)
-  end
+  LoveCompat.setClipboardText(text)
   if debugEnabled and #hudLines > 0 then
     for _, line in ipairs(hudLines) do
       DebugController.log("info", "PERF", "%s", line)

@@ -5,6 +5,8 @@ local MultiSelectController = require("controllers.input_support.multi_select_co
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local MouseWindowChromeController = require("controllers.input.mouse_window_chrome_controller")
+local StatusHelpers = require("utils.status_helpers")
+local LoveCompat = require("utils.love_compat")
 
 local M = {}
 local romPaletteCellDoubleClick = {
@@ -64,16 +66,6 @@ function M._resetOamSpriteEditDoubleClickState()
   clearOamSpriteEditClick()
 end
 
-local function setStatus(ctx, text)
-  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
-    ctx.app:setStatus(text)
-    return
-  end
-  if ctx and type(ctx.setStatus) == "function" then
-    ctx.setStatus(text)
-  end
-end
-
 local function ctxMode(ctx)
   if ctx and type(ctx.getMode) == "function" then
     return ctx.getMode()
@@ -85,10 +77,7 @@ local function nowSeconds(env)
   if env and type(env.nowSeconds) == "function" then
     return env.nowSeconds()
   end
-  if love and love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return os.clock()
+  return LoveCompat.getTime()
 end
 
 local function rememberRomPaletteCellClick(win, col, row, at)
@@ -295,7 +284,7 @@ local function handleSpriteClick(env, button, x, y, win, wm)
     if ntFallback and not select(1, isPatternLayerGatedLocked(win, ntFallback)) then
       return false
     end
-    setStatus(ctx, sprLockReason or "Sprite layer is not ready (pattern table)")
+    StatusHelpers.setStatus(ctx, sprLockReason or "Sprite layer is not ready (pattern table)")
     return true
   end
 
@@ -364,7 +353,7 @@ local function handleSpriteClick(env, button, x, y, win, wm)
         local romRaw = (app.appEditState and app.appEditState.romRaw) or win.romRaw
         local oamLine = formatOamSpriteBytesHex(finalSprite, romRaw)
         if oamLine then
-          app:setStatus(oamLine)
+          StatusHelpers.setStatus(ctx, oamLine)
         end
       end
     end
@@ -768,7 +757,7 @@ local function handlePaletteClick(env, button, x, y, win, wm)
   wm:setFocus(win)
 
   if win.kind ~= "rom_palette" and not win.activePalette then
-    setStatus(ctx, "Activate palette before using it")
+    StatusHelpers.setStatus(ctx, "Activate palette before using it")
     return true
   end
 
@@ -790,7 +779,7 @@ local function handlePaletteClick(env, button, x, y, win, wm)
         if app and app.showRomPaletteAddressModal then
           app:showRomPaletteAddressModal(win, col, row)
         else
-          setStatus(ctx, "ROM address entry is unavailable")
+          StatusHelpers.setStatus(ctx, "ROM address entry is unavailable")
         end
         return true
       end
@@ -843,7 +832,7 @@ local function handleEditModeClick(env, button, x, y, win, wm)
     local layerIdx = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
     local locked, reason = isPatternLayerGatedLocked(win, layerIdx)
     if locked then
-      setStatus(ctx, reason or "patternTable ranges must add up to 256 before tile edits")
+      StatusHelpers.setStatus(ctx, reason or "patternTable ranges must add up to 256 before tile edits")
       ctx.setPainting(false)
       return true
     end
@@ -851,7 +840,7 @@ local function handleEditModeClick(env, button, x, y, win, wm)
       local BrushController = require("controllers.input_support.brush_controller")
       local success = BrushController.floodFillTile(ctx.app, win, col, row, lx, ly)
       if not success then
-        setStatus(ctx, "Flood fill failed")
+        StatusHelpers.setStatus(ctx, "Flood fill failed")
       end
       ctx.setPainting(false)
     elseif utils.shiftDown and utils.shiftDown() then
@@ -909,7 +898,7 @@ local function handleTilePaintMode(env, button, x, y, win, wm)
   if not layer or layer.kind ~= "tile" then return false end
   local locked, reason = isPatternLayerGatedLocked(win, layerIdx)
   if locked then
-    setStatus(ctx, reason or "patternTable ranges must add up to 256 before tile edits")
+    StatusHelpers.setStatus(ctx, reason or "patternTable ranges must add up to 256 before tile edits")
     return true
   end
 
@@ -921,7 +910,7 @@ local function handleTilePaintMode(env, button, x, y, win, wm)
 
   local selectedTile = utils.getSelectedTileFromCHR and utils.getSelectedTileFromCHR()
   if not selectedTile then
-    setStatus(ctx, "No tile selected in CHR window")
+    StatusHelpers.setStatus(ctx, "No tile selected in CHR window")
     return false
   end
 
@@ -1025,7 +1014,7 @@ local function handleTileSelection(env, button, x, y, win, wm)
 
   local locked, reason = isPatternLayerGatedLocked(win, tileLayerIdx)
   if locked then
-    setStatus(ctx, reason or "patternTable ranges must add up to 256 before tile edits")
+    StatusHelpers.setStatus(ctx, reason or "patternTable ranges must add up to 256 before tile edits")
     return true
   end
 

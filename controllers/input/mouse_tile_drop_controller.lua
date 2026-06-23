@@ -5,21 +5,11 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local PatternTableMapping = require("utils.pattern_table_mapping")
 local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 local Shared = require("controllers.app.core_controller_shared")
+local StatusHelpers = require("utils.status_helpers")
 
 local CHR_DROP_PPU_PATTERN_MSG = "CHR tiles must appear in this PPU frame pattern table"
 
 local M = {}
-
-local function setStatusFromEnv(env, text)
-  local ctx = env and env.ctx or nil
-  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
-    ctx.app:setStatus(text)
-    return
-  end
-  if ctx and type(ctx.setStatus) == "function" then
-    ctx.setStatus(text)
-  end
-end
 
 local function copyTilePixels(tile)
   if not (tile and tile.pixels and #tile.pixels == 64) then return nil end
@@ -49,7 +39,7 @@ local function notifyChrDropPatternTableRejected(env)
     app:showToast("warning", CHR_DROP_PPU_PATTERN_MSG)
     return
   end
-  setStatusFromEnv(env, CHR_DROP_PPU_PATTERN_MSG)
+  StatusHelpers.setStatusFromEnv(env, CHR_DROP_PPU_PATTERN_MSG)
 end
 
 local function chrTileMappedToDestinationPpuPatternTable(dst, dstLayerIdx, srcWin, rawItem, srcLayerIdx)
@@ -913,12 +903,12 @@ local function handleChrBankCopyToSpriteLayer(env, dst, x, y, drag, dstLayer)
   end
 
   if (layer.mode or "8x8") == "8x16" and ((drag.srcWin and drag.srcWin.orderMode) ~= "oddEven") then
-    setStatusFromEnv(env, "8x8 tile payload cannot drop into 8x16 sprite layer")
+    StatusHelpers.setStatusFromEnv(env, "8x8 tile payload cannot drop into 8x16 sprite layer")
     return false
   end
 
   if env.isSpriteLayerDropBlocked and env.isSpriteLayerDropBlocked(dst, layer, drag.srcWin) then
-    setStatusFromEnv(env, "Cannot drop CHR tiles onto sprite layers in this window")
+    StatusHelpers.setStatusFromEnv(env, "Cannot drop CHR tiles onto sprite layers in this window")
     return false
   end
 
@@ -945,7 +935,7 @@ local function handleChrBankCopyToSpriteLayer(env, dst, x, y, drag, dstLayer)
   local maxWorldY = rows * ch - spriteH - originY
 
   if pixelX < minWorldX or pixelX > maxWorldX or pixelY < minWorldY or pixelY > maxWorldY then
-    setStatusFromEnv(env, "out of bounds")
+    StatusHelpers.setStatusFromEnv(env, "out of bounds")
     return false
   end
 
@@ -961,7 +951,7 @@ local function handleChrBankCopyToSpriteLayer(env, dst, x, y, drag, dstLayer)
     SpriteController.setSpriteSelection(layer, { itemIndex })
     layer.selectedSpriteIndex = itemIndex
     recordSpriteLayerChrDropUndo(app, dst, dstLayer, { itemIndex })
-    setStatusFromEnv(env, "")
+    StatusHelpers.setStatusFromEnv(env, "")
     return true
   end
 
@@ -1117,7 +1107,7 @@ function M.handleTileDrop(env, x, y, wm)
         local reasonText = chrGroupState and (chrGroupState.planErrText or getTooltipTextForReason(chrGroupState.reason)) or nil
         if reasonText and env.ctx and env.ctx.app then
           if env.ctx.app.setStatus then
-            setStatusFromEnv(env, reasonText)
+            StatusHelpers.setStatusFromEnv(env, reasonText)
           end
         end
       end
@@ -1149,7 +1139,7 @@ function M.handleTileDrop(env, x, y, wm)
       if itemIndices and #itemIndices > 0 then
         recordSpriteLayerChrDropUndo(app, dst, dstLayer, itemIndices)
         wm:setFocus(dst)
-        setStatusFromEnv(env, "")
+        StatusHelpers.setStatusFromEnv(env, "")
         env.clearDragState(true)
         return true
       end
@@ -1193,7 +1183,7 @@ function M.handleTileDrop(env, x, y, wm)
   local layer = dst.layers and dst.layers[dstLayer]
   local isSpriteLayer = layer and layer.kind == "sprite"
   if isSpriteLayer and (WindowCaps.isPpuFrame(dst) or WindowCaps.isOamAnimation(dst)) then
-    setStatusFromEnv(env, "Cannot drop items onto sprite layers in this window")
+    StatusHelpers.setStatusFromEnv(env, "Cannot drop items onto sprite layers in this window")
     env.clearDragState(false)
     return true
   end
@@ -1224,7 +1214,7 @@ function M.handleTileDrop(env, x, y, wm)
     end
 
     if WindowCaps.isPatternTable(dst) then
-      setStatusFromEnv(env, "Pattern table: paint pixels or adjust ranges only")
+      StatusHelpers.setStatusFromEnv(env, "Pattern table: paint pixels or adjust ranges only")
       env.clearDragState(false)
       return true
     end
@@ -1285,7 +1275,7 @@ function M.handleTileDrop(env, x, y, wm)
     if srcIsChr then
       notifyChrDropPatternTableRejected(env)
     else
-      setStatusFromEnv(env, "Pattern table: paint pixels or adjust ranges only")
+      StatusHelpers.setStatusFromEnv(env, "Pattern table: paint pixels or adjust ranges only")
     end
     env.clearDragState(false)
     return true
@@ -1294,7 +1284,7 @@ function M.handleTileDrop(env, x, y, wm)
   if not srcIsChr and WindowCaps.isPatternTable(src) and not drag.copyMode then
     local allowPpuNametablePlace = WindowCaps.isPpuFrame(dst) and ppuNametableTileLayerAt(dst, dstLayer)
     if not allowPpuNametablePlace then
-      setStatusFromEnv(env, "Cannot move tiles out of pattern tables (copy-drag still works)")
+      StatusHelpers.setStatusFromEnv(env, "Cannot move tiles out of pattern tables (copy-drag still works)")
       env.clearDragState(false)
       return true
     end

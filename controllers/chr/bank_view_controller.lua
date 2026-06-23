@@ -3,18 +3,12 @@
 
 local Tile = require("user_interface.windows_system.tile_item")
 local DebugController = require("controllers.dev.debug_controller")
+local LoveCompat = require("utils.love_compat")
 
 local M = {}
 
 local BANK_COLS = 16
 local BANK_TILE_COUNT = 512
-
-local function nowSeconds()
-  if love and love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return os.clock()
-end
 
 local function mapIndexForOrder(orderMode, pos)
   if orderMode == "normal" then return pos end
@@ -47,7 +41,7 @@ function M.ensureBankTiles(appEditState, bankIdx)
   end
 
   DebugController.log("info", "BANK", "Ensuring tiles for bank %d", bankIdx)
-  local startedAt = nowSeconds()
+  local startedAt = LoveCompat.getTime()
 
   for i = 0, BANK_TILE_COUNT - 1 do
     local t = Tile.fromCHR(appEditState.chrBanksBytes[bankIdx], i)
@@ -58,7 +52,7 @@ function M.ensureBankTiles(appEditState, bankIdx)
 
   bank.__ready = true
   DebugController.log("info", "BANK", "Bank %d tiles initialized (%d tiles)", bankIdx, BANK_TILE_COUNT)
-  DebugController.log("info", "LOAD_PERF", "ensureBankTiles bank=%d duration=%.3fs", bankIdx, nowSeconds() - startedAt)
+  DebugController.log("info", "LOAD_PERF", "ensureBankTiles bank=%d duration=%.3fs", bankIdx, LoveCompat.getTime() - startedAt)
 end
 
 function M.getTileRef(appEditState, bankIdx, tileIndex)

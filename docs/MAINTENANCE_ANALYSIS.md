@@ -122,7 +122,7 @@ Window chrome/grid/selection remain in `user_interface/windows_system/window_ren
 | Finding | Location | Note |
 |---------|----------|------|
 | **`core_controller_save_settings.lua` (1,834 lines)** mixes save/export orchestration with settings `_apply*` side effects | `controllers/app/` | Separating settings application from save flow would improve testability; settings `_apply*` methods are largely untested |
-| **Duplicated `setStatus(ctx, text)` helper** | 10+ input/toolbar files | Same `ctx.app:setStatus` vs `ctx.setStatus` guard copied locally; `AppCoreController:setStatus` exists in `core_controller_status_tooltips.lua` |
+| **Duplicated `setStatus(ctx, text)` helper** | 10+ input/toolbar files | ✅ Centralized in `utils/status_helpers.lua` |
 | **Modal routing special cases despite registry** | `core_controller_input.lua` vs `core_controller_shared.lua` | `APP_MODAL_KEYS_IN_ORDER` exists but parallel special-case loops remain (e.g. `quitConfirmModal` exclusion, `TEXTINPUT_ROUTES`); drift risk documented in `MAINTENANCE_PATTERNS.md` |
 | **`undo_redo_controller.lua` (1,860 lines)** | `controllers/input_support/` | Large but cohesive; consider extracting undo *command types* into a table/registry if it keeps growing, not more controllers |
 | **Large monolithic test files** | `keyboard_input.test.lua` (2,325 lines), `mouse_input_tile_drag_copy.test.lua` (1,300 lines) | Valuable coverage but expensive to maintain; shared fixtures would reduce duplication |
@@ -137,7 +137,7 @@ Window chrome/grid/selection remain in `user_interface/windows_system/window_ren
 
 | Finding | Note |
 |---------|------|
-| **`love.timer.getTime` duck-check wrappers** in ~15 production files | `utils/timer_utils.lua` exists but doesn't expose a nil-safe `getTime()`; a tiny `love_compat.lua` would deduplicate without changing behavior |
+| **`love.timer.getTime` duck-check wrappers** in ~15 production files | ✅ `utils/love_compat.lua` — timer, keyboard modifiers, mouse, clipboard, graphics/window size, `getOS`/`openURL`; `katsudo` / special `getTimeOr(0)` cases keep distinct fallbacks |
 | **Dynamic `require()` in draw/paint hot paths** | e.g. `BrushController` required inside `tryDrawGenericEditShapePreview` in `core_controller_draw.lua:1575`; Lua caches modules but hoisting to file top is cleaner where circular deps allow |
 | **Dev-only artifacts** | `scratch/temp_contra_pattern_table_windows.lua`, `text_field_demo_modal.lua`, `icon_bbox_audit/` — not shipped; document or relocate to avoid confusion |
 | **`todos.lua`** | Changelog/TODO notes, not loaded at runtime — fine as informal doc, or merge into release notes |
@@ -152,7 +152,7 @@ Window chrome/grid/selection remain in `user_interface/windows_system/window_ren
 1. **Add `save_controller` unit tests** — smallest change, highest correctness payoff. ✅ Done (`save_controller.test.lua`).
 2. **Tile invalidation index** — measurable perf improvement during painting. ✅ Done (`tile_invalidation_index.lua` + tests).
 3. **Extract window content drawing from `core_controller_draw.lua`** — reduces the largest mixed-responsibility file without more controller splits. ✅ Done (`core_controller_window_content_draw.lua`).
-4. **Centralize `setStatus` + optional `love_compat.getTime()`** — low-risk dedup across 10+ files.
+4. **Centralize `setStatus` + optional `love_compat.getTime()`** — low-risk dedup across 10+ files. ✅ Done (`utils/status_helpers.lua`, `utils/love_compat.lua`; input/toolbar `setStatus` helpers and `nowSeconds` duck-checks migrated; `katsudo.lua` / `ui_pulse.lua` kept for distinct fallback semantics).
 5. **Extract context-menu builders from `core_controller_window_ops.lua`** — readability win, no architectural churn.
 6. **Single-pass palette link window lookup** — incremental draw-path optimization.
 

@@ -1,16 +1,9 @@
 -- test_framework.lua
 -- Simple test framework for LOVE2D
 
+local LoveCompat = require("utils.love_compat")
+
 local TestFramework = {}
-
-local function nowSeconds()
-  if love and love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return os.clock()
-end
-
--- Test state
 local testState = {
   suites = {},
   currentSuite = nil,
@@ -271,7 +264,7 @@ end
 local function runQueuedTest(task)
   local suite = task.suite
   local test = task.test
-  local startedAt = nowSeconds()
+  local startedAt = LoveCompat.getTime()
   testState.currentTask = task
   testState.currentSuite = suite
   testState.currentTest = test
@@ -320,7 +313,7 @@ local function runQueuedTest(task)
   end
 
   test.finished = true
-  test.durationSeconds = math.max(0, nowSeconds() - startedAt)
+  test.durationSeconds = math.max(0, LoveCompat.getTime() - startedAt)
   if #failures == 0 then
     testState.passedTests = testState.passedTests + 1
     test.passed = true

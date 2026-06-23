@@ -1,17 +1,12 @@
 local ResolutionController = require("controllers.app.resolution_controller")
 local Timer = require("utils.timer_utils")
+local LoveCompat = require("utils.love_compat")
 
 local SCROLL_BAR_OPACITY_TIME = 1.5
 local MIN_WINDOW_SIZE = 64
 local DRAG_VISIBLE_MARGIN = 15
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
-local function nowSeconds()
-  if love and love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return os.clock()
-end
 
 local function getMinWindowSize(self)
   local value = tonumber(self and self.minWindowSize)
@@ -55,7 +50,7 @@ local function refreshLinkRevealOnDrag(win)
     local WindowLinkVisibility = require("controllers.window.window_link_visibility")
     WindowLinkVisibility.refreshRevealForWindow(app, app.wm, win)
   elseif win then
-    win._paletteLinkRevealUntil = nowSeconds() + 1.0
+    win._paletteLinkRevealUntil = LoveCompat.getTime() + 1.0
   end
 end
 

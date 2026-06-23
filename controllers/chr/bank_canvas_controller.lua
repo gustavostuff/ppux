@@ -2,6 +2,7 @@ local chr = require("chr")
 local CanvasSpace = require("utils.canvas_space")
 local DebugController = require("controllers.dev.debug_controller")
 local ChrDiffOverlay = require("controllers.chr.chr_diff_overlay")
+local LoveCompat = require("utils.love_compat")
 
 local M = {}
 M.__index = M
@@ -12,13 +13,6 @@ local TILE_SIZE = 8
 local BANK_PIXEL_W = BANK_TILE_COLS * TILE_SIZE
 local BANK_TILE_ROWS = BANK_TILE_COUNT / BANK_TILE_COLS
 local BANK_PIXEL_H = BANK_TILE_ROWS * TILE_SIZE
-
-local function nowSeconds()
-  if love and love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return os.clock()
-end
 
 local function idxToGray(value)
   return (tonumber(value) or 0) / 3
@@ -161,7 +155,7 @@ function M:repaint(state)
   local dirtyTiles = self.dirtyTiles[self.currentBank]
   local fullRepaint = self._fullRepaintNeeded or self.dirtyBanks[self.currentBank] == true
   local dirtyCount = 0
-  local startedAt = nowSeconds()
+  local startedAt = LoveCompat.getTime()
 
   if dirtyTiles ~= nil then
     for _ in pairs(dirtyTiles) do
@@ -193,7 +187,7 @@ function M:repaint(state)
   love.graphics.setCanvas()
   love.graphics.pop()
 
-  local elapsedMs = (nowSeconds() - startedAt) * 1000
+  local elapsedMs = (LoveCompat.getTime() - startedAt) * 1000
   DebugController.perfObserveMs("chr_canvas_repaint_ms", elapsedMs)
   if fullRepaint or dirtyTiles == nil then
     DebugController.perfIncrement("chr_canvas_repaint_full")

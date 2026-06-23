@@ -8,20 +8,11 @@ local DebugController = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
+local StatusHelpers = require("utils.status_helpers")
 
 local AnimationToolbar = {}
 AnimationToolbar.__index = AnimationToolbar
 setmetatable(AnimationToolbar, { __index = ToolbarBase })
-
-local function setStatus(ctx, text)
-  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
-    ctx.app:setStatus(text)
-    return
-  end
-  if ctx and type(ctx.setStatus) == "function" then
-    ctx.setStatus(text)
-  end
-end
 
 local function isAnimationKind(window)
   return WindowCaps.isAnimationLike(window)
@@ -183,7 +174,7 @@ function AnimationToolbar:_onPrevLayer()
   
   -- Check if animation is playing
   if self.window.isPlaying then
-    setStatus(self.ctx, "Cannot change layers while animation is playing")
+    StatusHelpers.setStatus(self.ctx, "Cannot change layers while animation is playing")
     return
   end
   
@@ -200,7 +191,7 @@ function AnimationToolbar:_onNextLayer()
   
   -- Check if animation is playing
   if self.window.isPlaying then
-    setStatus(self.ctx, "Cannot change layers while animation is playing")
+    StatusHelpers.setStatus(self.ctx, "Cannot change layers while animation is playing")
     return
   end
   
@@ -232,7 +223,7 @@ function AnimationToolbar:_onAddSprite()
     return
   end
 
-  setStatus(self.ctx, "Add sprite dialog is unavailable")
+  StatusHelpers.setStatus(self.ctx, "Add sprite dialog is unavailable")
 end
 
 function AnimationToolbar:_onPatternTableLinkMenu()
@@ -241,7 +232,7 @@ function AnimationToolbar:_onPatternTableLinkMenu()
   end
   local app = self.ctx and self.ctx.app
   if not app or not app.showPatternTableLinkDestinationContextMenu then
-    setStatus(self.ctx, "Pattern table link is not available")
+    StatusHelpers.setStatus(self.ctx, "Pattern table link is not available")
     return
   end
   local btn = self.patternTableLinkButton
@@ -293,7 +284,7 @@ function AnimationToolbar:_onRemoveLayer()
       })
     end
   else
-    setStatus(self.ctx, "Cannot remove the last layer")
+    StatusHelpers.setStatus(self.ctx, "Cannot remove the last layer")
   end
   self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
@@ -330,7 +321,7 @@ function AnimationToolbar:_onCopyFromPrevious()
   
   local ok = self.window:copyTilesFromPreviousLayer()
   if not ok then
-    setStatus(self.ctx, "Nothing to copy from previous layer")
+    StatusHelpers.setStatus(self.ctx, "Nothing to copy from previous layer")
   end
 end
 

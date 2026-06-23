@@ -7,6 +7,7 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local Text = require("utils.text_utils")
+local LoveCompat = require("utils.love_compat")
 
 local M = {}
 
@@ -26,11 +27,7 @@ local STATUS_PAD_X = 4
 
 -- Unit tests and some harnesses stub `love` without `keyboard`; treat as no modifiers.
 local function isShiftHeld()
-  local kb = love and love.keyboard
-  if not (kb and type(kb.isDown) == "function") then
-    return false
-  end
-  return kb.isDown("lshift") or kb.isDown("rshift")
+  return LoveCompat.isShiftDown()
 end
 
 local function statusMonoAdvancePx()

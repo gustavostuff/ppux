@@ -3,23 +3,14 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local chr = require("chr")
 local GameArtController = require("controllers.game_art.game_art_controller")
 local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
+local StatusHelpers = require("utils.status_helpers")
 
 local M = {}
 
 local clipboard = nil
 
-local function setStatus(ctx, text)
-  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
-    ctx.app:setStatus(text)
-    return
-  end
-  if ctx and type(ctx.setStatus) == "function" then
-    ctx.setStatus(text)
-  end
-end
-
 local function showWarning(ctx, text)
-  setStatus(ctx, text)
+  StatusHelpers.setStatus(ctx, text)
   if ctx and ctx.app and type(ctx.app.showToast) == "function" then
     ctx.app:showToast("warning", text)
   end
@@ -1131,9 +1122,9 @@ local function doCopy(ctx, focus)
   if layer.kind == "tile" then
     clipboard = captureTileClipboard(focus, layer, layerIndex)
     if clipboard and clipboard.count > 0 then
-      setStatus(ctx, (clipboard.count == 1) and "Copied 1 tile" or string.format("Copied %d tiles", clipboard.count))
+      StatusHelpers.setStatus(ctx, (clipboard.count == 1) and "Copied 1 tile" or string.format("Copied %d tiles", clipboard.count))
     else
-      setStatus(ctx, "No tiles selected to copy")
+      StatusHelpers.setStatus(ctx, "No tiles selected to copy")
     end
     return true
   end
@@ -1141,9 +1132,9 @@ local function doCopy(ctx, focus)
   if layer.kind == "sprite" then
     clipboard = captureSpriteClipboard(focus, layer)
     if clipboard and clipboard.count > 0 then
-      setStatus(ctx, (clipboard.count == 1) and "Copied 1 sprite" or string.format("Copied %d sprites", clipboard.count))
+      StatusHelpers.setStatus(ctx, (clipboard.count == 1) and "Copied 1 sprite" or string.format("Copied %d sprites", clipboard.count))
     else
-      setStatus(ctx, "No sprites selected to copy")
+      StatusHelpers.setStatus(ctx, "No sprites selected to copy")
     end
     return true
   end
@@ -1157,7 +1148,7 @@ local function doPaste(ctx, focus, opts)
     if avail.restricted or avail.noFocus then
       showWarning(ctx, avail.reason)
     else
-      setStatus(ctx, avail.reason)
+      StatusHelpers.setStatus(ctx, avail.reason)
     end
     return true
   end
@@ -1185,9 +1176,9 @@ local function doPaste(ctx, focus, opts)
       if pasteResult.shifted == true then
         message = message .. " (shifted to fit bounds)"
       end
-      setStatus(ctx, message)
+      StatusHelpers.setStatus(ctx, message)
     else
-      setStatus(ctx, pasteResult.reason or "Nothing pasted")
+      StatusHelpers.setStatus(ctx, pasteResult.reason or "Nothing pasted")
     end
     return true
   end
@@ -1207,14 +1198,14 @@ local function doPaste(ctx, focus, opts)
       if pasteResult.shifted == true then
         message = message .. " (shifted to fit bounds)"
       end
-      setStatus(ctx, message)
+      StatusHelpers.setStatus(ctx, message)
     else
-      setStatus(ctx, pasteResult.reason or "Nothing pasted")
+      StatusHelpers.setStatus(ctx, pasteResult.reason or "Nothing pasted")
     end
     return true
   end
 
-  setStatus(ctx, "Clipboard content does not match active layer type")
+  StatusHelpers.setStatus(ctx, "Clipboard content does not match active layer type")
   return true
 end
 
@@ -1224,7 +1215,7 @@ local function doCut(ctx, focus, opts)
     if avail.restricted then
       showWarning(ctx, avail.reason)
     else
-      setStatus(ctx, avail.reason)
+      StatusHelpers.setStatus(ctx, avail.reason)
     end
     return true
   end
@@ -1234,7 +1225,7 @@ local function doCut(ctx, focus, opts)
   if layer.kind == "tile" then
     local copied = captureTileClipboard(focus, layer, layerIndex)
     if not (copied and copied.count and copied.count > 0) then
-      setStatus(ctx, "No tiles selected to cut")
+      StatusHelpers.setStatus(ctx, "No tiles selected to cut")
       return true
     end
     if WindowCaps.isChrLike(focus) then
@@ -1263,9 +1254,9 @@ local function doCut(ctx, focus, opts)
       end
     end
     if result and result.count and result.count > 0 then
-      setStatus(ctx, (result.count == 1) and "Cut 1 tile" or string.format("Cut %d tiles", result.count))
+      StatusHelpers.setStatus(ctx, (result.count == 1) and "Cut 1 tile" or string.format("Cut %d tiles", result.count))
     else
-      setStatus(ctx, "Nothing cut")
+      StatusHelpers.setStatus(ctx, "Nothing cut")
     end
     return true
   end
@@ -1273,7 +1264,7 @@ local function doCut(ctx, focus, opts)
   if layer.kind == "sprite" then
     local copied = captureSpriteClipboard(focus, layer)
     if not (copied and copied.count and copied.count > 0) then
-      setStatus(ctx, "No sprites selected to cut")
+      StatusHelpers.setStatus(ctx, "No sprites selected to cut")
       return true
     end
     clipboard = copied
@@ -1282,11 +1273,11 @@ local function doCut(ctx, focus, opts)
       if ctx and ctx.app and ctx.app.markUnsaved then
         ctx.app:markUnsaved("sprite_move")
       end
-      setStatus(ctx, (result.count == 1) and "Cut 1 sprite" or string.format("Cut %d sprites", result.count))
+      StatusHelpers.setStatus(ctx, (result.count == 1) and "Cut 1 sprite" or string.format("Cut %d sprites", result.count))
     elseif result and result.status then
       showWarning(ctx, result.status)
     else
-      setStatus(ctx, "Nothing cut")
+      StatusHelpers.setStatus(ctx, "Nothing cut")
     end
     return true
   end

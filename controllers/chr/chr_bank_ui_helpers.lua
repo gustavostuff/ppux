@@ -1,6 +1,7 @@
 -- CHR bank UX helpers: hover tooltip text, copy tile bytes as hex.
 
 local WindowCaps = require("controllers.window.window_capabilities")
+local LoveCompat = require("utils.love_compat")
 
 local M = {}
 
@@ -29,11 +30,7 @@ function M.setSystemClipboardText(text)
   if type(text) ~= "string" or text == "" then
     return false
   end
-  if love and love.system and love.system.setClipboardText then
-    love.system.setClipboardText(text)
-    return true
-  end
-  return false
+  return LoveCompat.setClipboardText(text)
 end
 
 --- Copy 16 CHR bytes for `tileIndex` in `chrBanksBytes[bankIdx]` to the OS clipboard.

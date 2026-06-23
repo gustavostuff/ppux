@@ -18,6 +18,7 @@ local UserInput = require("controllers.input")
 local DebugController    = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local TableUtils = require("utils.table_utils")
+local LoveCompat = require("utils.love_compat")
 
 ------------------------------------------------------------
 -- Helpers: sha1 + path + edits merge
@@ -79,15 +80,8 @@ local function joinPath(dir, name)
   return dir .. sep .. name
 end
 
-local function nowSeconds()
-  if love and love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return os.clock()
-end
-
 local function logPerf(label, startedAt, extra)
-  local elapsed = nowSeconds() - (startedAt or nowSeconds())
+  local elapsed = LoveCompat.getTime() - (startedAt or LoveCompat.getTime())
   if extra and extra ~= "" then
     DebugController.log("info", "LOAD_PERF", "%s duration=%.3fs %s", tostring(label), elapsed, tostring(extra))
   else
@@ -567,10 +561,10 @@ end
 
 local function parseROM(app)
   local state = app.appEditState
-  local parseStartedAt = nowSeconds()
+  local parseStartedAt = LoveCompat.getTime()
 
   pulseLoading(app, "Hashing ROM...")
-  local hashStartedAt = nowSeconds()
+  local hashStartedAt = LoveCompat.getTime()
   local sha, err
   if type(state.romRaw) == "string" and #state.romRaw > 0 then
     sha = sha1_hex(state.romRaw)
@@ -585,7 +579,7 @@ local function parseROM(app)
   logPerf("parseROM.hash", hashStartedAt)
 
   pulseLoading(app, "Parsing iNES header...")
-  local inesStartedAt = nowSeconds()
+  local inesStartedAt = LoveCompat.getTime()
   local ok, result = pcall(chr.parseINES, state.romRaw)
   if not ok then
     app:setStatus("Error: " .. tostring(result))
@@ -595,7 +589,7 @@ local function parseROM(app)
 
   state.meta          = result.meta
   pulseLoading(app, "Preparing CHR banks...")
-  local chrBackingStartedAt = nowSeconds()
+  local chrBackingStartedAt = LoveCompat.getTime()
   local banks, backingErr = ChrBackingController.configureFromParsedINES(state, result)
   if not banks then
     app:setStatus("Error: " .. tostring(backingErr or "CHR backing setup failed"))
@@ -718,7 +712,7 @@ M._dbLayoutHasWindows = dbLayoutHasWindows
 
 local function loadFromProject(app, project)
   local state = app.appEditState
-  local loadStartedAt = nowSeconds()
+  local loadStartedAt = LoveCompat.getTime()
   app.paletteGroupState = type(project.paletteGroupState) == "table" and TableUtils.deepcopy(project.paletteGroupState) or nil
   if project.syncDuplicateTiles ~= nil then
     app.syncDuplicateTiles = project.syncDuplicateTiles
@@ -726,7 +720,7 @@ local function loadFromProject(app, project)
   state.romPatches = GameArtController.normalizeRomPatches(project.romPatches)
 
   pulseLoading(app, "Building project windows...")
-  local registerStartedAt = nowSeconds()
+  local registerStartedAt = LoveCompat.getTime()
   registerPlannedBanksForLayout(project, {
     defaultBank = state.currentBank or 1,
     includeEdits = true,
@@ -757,7 +751,7 @@ local function loadFromProject(app, project)
       app:showToast("error", message)
     end
   end
-  local buildStartedAt = nowSeconds()
+  local buildStartedAt = LoveCompat.getTime()
   local built, why = GameArtController.buildWindowsFromLayout(project, {
     wm          = app.wm,
     tilesPool   = state.tilesPool,
@@ -780,7 +774,7 @@ local function loadFromProject(app, project)
     -- Update app state to match CHR window's state
     state.currentBank = app.winBank.currentBank or built.currentBank or project.currentBank or 1
     app.winBank.currentBank = state.currentBank
-    local bankWindowStartedAt = nowSeconds()
+    local bankWindowStartedAt = LoveCompat.getTime()
     rebuildBankWindowLayers(app, app.winBank, state)
     logPerf("project.rebuild_bank_window", bankWindowStartedAt, string.format("bank=%d", state.currentBank or -1))
   end
@@ -788,7 +782,7 @@ local function loadFromProject(app, project)
   -- Load edits (may be in compressed format from saved projects)
   local edits = project.edits or GameArtController.newEdits()
   pulseLoading(app, "Applying project edits...")
-  local editsStartedAt = nowSeconds()
+  local editsStartedAt = LoveCompat.getTime()
   -- Apply edits first (applyEdits handles decompression internally)
   GameArtController.applyEdits(edits, state.tilesPool, state.chrBanksBytes,
     function(bankIdx) ensureBankTilesInner(state, bankIdx) end)
@@ -809,7 +803,7 @@ local function loadFromProject(app, project)
   end
 
   pulseLoading(app, "Indexing duplicate tiles...")
-  local dupesStartedAt = nowSeconds()
+  local dupesStartedAt = LoveCompat.getTime()
   syncDuplicateIndexesForLoad(app, state)
   logPerf("project.sync_duplicate_indexes", dupesStartedAt, string.format("enabled=%s", tostring(app.syncDuplicateTiles == true)))
   
@@ -847,7 +841,7 @@ local function loadFromProject(app, project)
   -- Create toolbars for all windows
   pulseLoading(app, "Creating toolbars...")
   local ToolbarController = require("controllers.window.toolbar_controller")
-  local toolbarsStartedAt = nowSeconds()
+  local toolbarsStartedAt = LoveCompat.getTime()
   ToolbarController.createToolbarsForWindows(app)
   logPerf("project.create_toolbars", toolbarsStartedAt)
   local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
@@ -862,7 +856,7 @@ end
 
 local function loadFromDBLayout(app, sha)
   local state = app.appEditState
-  local loadStartedAt = nowSeconds()
+  local loadStartedAt = LoveCompat.getTime()
 
   local layout = GameArtController.getLayout(sha)
   if not layout then return false end
@@ -876,7 +870,7 @@ local function loadFromDBLayout(app, sha)
   end
 
   pulseLoading(app, "Building default windows...")
-  local registerStartedAt = nowSeconds()
+  local registerStartedAt = LoveCompat.getTime()
   registerPlannedBanksForLayout(layout, {
     defaultBank = state.currentBank or 1,
     includeEdits = false,
@@ -907,7 +901,7 @@ local function loadFromDBLayout(app, sha)
       app:showToast("error", message)
     end
   end
-  local buildStartedAt = nowSeconds()
+  local buildStartedAt = LoveCompat.getTime()
   local built, why = GameArtController.buildWindowsFromLayout(layout, {
     wm          = app.wm,
     tilesPool   = state.tilesPool,
@@ -928,13 +922,13 @@ local function loadFromDBLayout(app, sha)
     pulseLoading(app, "Building bank pages...")
     state.currentBank = app.winBank.currentBank or built.currentBank or 1
     app.winBank.currentBank = state.currentBank
-    local bankWindowStartedAt = nowSeconds()
+    local bankWindowStartedAt = LoveCompat.getTime()
     rebuildBankWindowLayers(app, app.winBank, state)
     logPerf("db_layout.rebuild_bank_window", bankWindowStartedAt, string.format("bank=%d", state.currentBank or -1))
   end
 
   pulseLoading(app, "Indexing duplicate tiles...")
-  local dupesStartedAt = nowSeconds()
+  local dupesStartedAt = LoveCompat.getTime()
   syncDuplicateIndexesForLoad(app, state)
   logPerf("db_layout.sync_duplicate_indexes", dupesStartedAt, string.format("enabled=%s", tostring(app.syncDuplicateTiles == true)))
 
@@ -960,7 +954,7 @@ local function loadFromDBLayout(app, sha)
   -- Create toolbars for all windows
   pulseLoading(app, "Creating toolbars...")
   local ToolbarController = require("controllers.window.toolbar_controller")
-  local toolbarsStartedAt = nowSeconds()
+  local toolbarsStartedAt = LoveCompat.getTime()
   ToolbarController.createToolbarsForWindows(app)
   logPerf("db_layout.create_toolbars", toolbarsStartedAt)
   do
@@ -982,7 +976,7 @@ local function createDefaultWindows(app)
   local state = app.appEditState
   state.currentBank = 1
   app.paletteGroupState = nil
-  local createStartedAt = nowSeconds()
+  local createStartedAt = LoveCompat.getTime()
 
   pulseLoading(app, "Building default windows...")
   local useRomWindow = ChrBackingController.isRomRawMode(state)
@@ -1054,12 +1048,12 @@ local function createDefaultWindows(app)
   winBank.orderMode = "normal"
   state.currentBank = 1
   pulseLoading(app, "Building bank pages...")
-  local bankWindowStartedAt = nowSeconds()
+  local bankWindowStartedAt = LoveCompat.getTime()
   rebuildBankWindowLayers(app, winBank, state)
   logPerf("default_layout.rebuild_bank_window", bankWindowStartedAt, "bank=1")
 
   pulseLoading(app, "Indexing duplicate tiles...")
-  local dupesStartedAt = nowSeconds()
+  local dupesStartedAt = LoveCompat.getTime()
   syncDuplicateIndexesForLoad(app, state)
   logPerf("default_layout.sync_duplicate_indexes", dupesStartedAt, string.format("enabled=%s", tostring(app.syncDuplicateTiles == true)))
 
@@ -1068,7 +1062,7 @@ local function createDefaultWindows(app)
   -- Create toolbars for all windows
   pulseLoading(app, "Creating toolbars...")
   local ToolbarController = require("controllers.window.toolbar_controller")
-  local toolbarsStartedAt = nowSeconds()
+  local toolbarsStartedAt = LoveCompat.getTime()
   ToolbarController.createToolbarsForWindows(app)
   if app.refreshGroupedPaletteWindows then
     app:refreshGroupedPaletteWindows()
@@ -1087,7 +1081,7 @@ function M.loadROM(app, fileOrPath)
   if sourceExt == "lua" or sourceExt == "ppux" then
     return M.loadProjectFile(app, fileOrPath)
   end
-  local loadStartedAt = nowSeconds()
+  local loadStartedAt = LoveCompat.getTime()
   if app and app.beginSimpleLoading then
     app:beginSimpleLoading("Opening workspace...")
   end
@@ -1097,7 +1091,7 @@ function M.loadROM(app, fileOrPath)
       app:endSimpleLoading()
     end
     if ok and app and app.showToast then
-      --app:showToast("info", formatLoadToast(nowSeconds() - loadStartedAt))
+      --app:showToast("info", formatLoadToast(LoveCompat.getTime() - loadStartedAt))
     end
     return ok
   end
@@ -1107,7 +1101,7 @@ function M.loadROM(app, fileOrPath)
   pulseLoading(app, "Reading ROM...")
   
   -- Read ROM file (handles both File objects and file paths)
-  local readStartedAt = nowSeconds()
+  local readStartedAt = LoveCompat.getTime()
   if not readROMFromFile(app, fileOrPath) then
     return finish(false)
   end
@@ -1135,7 +1129,7 @@ function M.loadROM(app, fileOrPath)
     local baseRomPath = resolveRomPathForProject(detectedProjectPath)
     if type(baseRomPath) == "string" and baseRomPath ~= "" and baseRomPath ~= state.romOriginalPath then
       pulseLoading(app, "Switching to base ROM...")
-      local rereadStartedAt = nowSeconds()
+      local rereadStartedAt = LoveCompat.getTime()
       if not readROMFromFile(app, baseRomPath) then
         return finish(false)
       end
@@ -1156,7 +1150,7 @@ function M.loadROM(app, fileOrPath)
   end
   if project then
     pulseLoading(app, "Applying ROM patches...")
-    local patchStartedAt = nowSeconds()
+    local patchStartedAt = LoveCompat.getTime()
     state.romPatches = GameArtController.normalizeRomPatches(project.romPatches)
     if state.romPatches then
       local patched, patchErr, applied = GameArtController.applyRomPatches(state.romRaw, state.romPatches)
@@ -1219,7 +1213,7 @@ function M.loadProjectFile(app, fileOrPath)
     return false
   end
 
-  local loadStartedAt = nowSeconds()
+  local loadStartedAt = LoveCompat.getTime()
   if app and app.beginSimpleLoading then
     app:beginSimpleLoading("Opening workspace...")
   end
@@ -1228,7 +1222,7 @@ function M.loadProjectFile(app, fileOrPath)
       app:endSimpleLoading()
     end
     if ok and app and app.showToast then
-      app:showToast("info", formatLoadToast(nowSeconds() - loadStartedAt))
+      app:showToast("info", formatLoadToast(LoveCompat.getTime() - loadStartedAt))
     end
     return ok
   end

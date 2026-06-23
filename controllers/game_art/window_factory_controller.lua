@@ -19,6 +19,7 @@ local PatternTableMapping = require("utils.pattern_table_mapping")
 local TableUtils = require("utils.table_utils")
 local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
 local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
+local LoveCompat = require("utils.love_compat")
 
 local M = {}
 
@@ -36,15 +37,8 @@ local function spriteOamSlotItemFromLayout(it)
   }
 end
 
-local function nowSeconds()
-  if love and love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return os.clock()
-end
-
 local function logPerf(label, startedAt, extra)
-  local elapsed = nowSeconds() - (startedAt or nowSeconds())
+  local elapsed = LoveCompat.getTime() - (startedAt or LoveCompat.getTime())
   if extra and extra ~= "" then
     DebugController.log("info", "LOAD_PERF", "%s duration=%.3fs %s", tostring(label), elapsed, tostring(extra))
   else
@@ -568,7 +562,7 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
 
   local ntRuntimeLayer = win.layers and win.layers[1]
   if ntRuntimeLayer then
-    local hydrateStartedAt = nowSeconds()
+    local hydrateStartedAt = LoveCompat.getTime()
     if deferNametableHydrate then
       win._ppuxDeferNametableHydrate = {
         layerIndex = 1,
@@ -622,7 +616,7 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
     logPerf("ppu_frame.hydrate_nametable", hydrateStartedAt, string.format("title=%s", tostring(w.title or "")))
   end
 
-  local overlayStartedAt = nowSeconds()
+  local overlayStartedAt = LoveCompat.getTime()
   addPpuSpriteOverlayLayers(win, w, ensureTiles)
   logPerf("ppu_frame.add_sprite_overlays", overlayStartedAt, string.format("title=%s", tostring(w.title or "")))
   if win.removePatternReferenceLayers then
@@ -745,11 +739,11 @@ end
 function M.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool, layoutCurrentBank)
   if not win then return end
 
-  local metadataStartedAt = nowSeconds()
+  local metadataStartedAt = LoveCompat.getTime()
   applyLayerMetadataFromLayout(win, w.layers)
   logPerf("window_finalize.apply_layer_metadata", metadataStartedAt, string.format("title=%s", tostring(w.title or "")))
 
-  local spriteHydrationStartedAt = nowSeconds()
+  local spriteHydrationStartedAt = LoveCompat.getTime()
   SpriteController.hydrateWindowSpriteLayers(win, {
     romRaw = romRaw,
     tilesPool = tilesPool,
@@ -757,7 +751,7 @@ function M.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool, layoutCurr
   })
   logPerf("window_finalize.hydrate_sprite_layers", spriteHydrationStartedAt, string.format("title=%s", tostring(w.title or "")))
 
-  local layoutStartedAt = nowSeconds()
+  local layoutStartedAt = LoveCompat.getTime()
   setScrollAndVisibleArea(win, w)
   win.title = w.title
   if win.updateBankTitle then
@@ -796,7 +790,7 @@ function M.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool, layoutCurr
   end
   logPerf("window_finalize.apply_layout_state", layoutStartedAt, string.format("title=%s", tostring(w.title or "")))
 
-  local registerStartedAt = nowSeconds()
+  local registerStartedAt = LoveCompat.getTime()
   if wm then
     if wm.ensureStableWindowId then
       wm:ensureStableWindowId(win)

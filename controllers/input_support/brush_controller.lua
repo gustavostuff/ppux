@@ -7,15 +7,9 @@ local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
 local GameArtController = require("controllers.game_art.game_art_controller")
 local DebugController = require("controllers.dev.debug_controller")
 local ChrDuplicateSync = require("controllers.chr.duplicate_sync_controller")
+local LoveCompat = require("utils.love_compat")
 
 local M = {}
-
-local function nowSeconds()
-  if love and love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return os.clock()
-end
 
 ----------------------------------------------------------------
 -- Brush patterns
@@ -79,7 +73,7 @@ local function observePerfMs(name, startedAt)
   if not startedAt then
     return
   end
-  DebugController.perfObserveMs(name, math.max(0, (nowSeconds() - startedAt) * 1000))
+  DebugController.perfObserveMs(name, math.max(0, (LoveCompat.getTime() - startedAt) * 1000))
 end
 
 local function resolveTileLayerCellItem(win, layerIndex, col, row)
@@ -346,7 +340,7 @@ local function getBatchSyncTargets(batch, bankIdx, tileIndex, sourceWin)
     return targets
   end
 
-  local startedAt = nowSeconds()
+  local startedAt = LoveCompat.getTime()
   targets = getSyncTargets(batch.app, bankIdx, tileIndex, sourceWin)
   batch.syncTargetsBySource[key] = targets
   observePerfMs("chr_paint_duplicate_sync_ms", startedAt)
@@ -404,7 +398,7 @@ local function commitPixelWriteBatch(batch)
   local touchedTiles = {}
   local applied = false
   local undoMs = 0
-  local applyStartedAt = nowSeconds()
+  local applyStartedAt = LoveCompat.getTime()
 
   for _, write in ipairs(batch.writeList) do
     local bankBytes = state.chrBanksBytes[write.bank]
@@ -412,9 +406,9 @@ local function commitPixelWriteBatch(batch)
       -- Always resolve through getTileRef so sparse pools still get in-memory tiles + GPU updates.
       local tileRef = BankViewController.getTileRef(state, write.bank, write.tileIndex)
       if undoRedo and undoRedo.activeEvent then
-        local undoStartedAt = nowSeconds()
+        local undoStartedAt = LoveCompat.getTime()
         undoRedo:recordPixelChange(write.bank, write.tileIndex, write.tx, write.ty, write.before or 0, write.after)
-        undoMs = undoMs + math.max(0, (nowSeconds() - undoStartedAt) * 1000)
+        undoMs = undoMs + math.max(0, (LoveCompat.getTime() - undoStartedAt) * 1000)
       end
 
       chr.setTilePixel(bankBytes, write.tileIndex, write.tx, write.ty, write.after)
@@ -815,7 +809,7 @@ end
 -- lx, ly: local pixel coordinates within the tile (0-7)
 -- pickOnly: if true, pick color instead of painting
 function M.paintPixel(app, win, col, row, lx, ly, pickOnly)
-  local startedAt = (not pickOnly) and nowSeconds() or nil
+  local startedAt = (not pickOnly) and LoveCompat.getTime() or nil
   pickOnly = pickOnly or false
   local brushSize = app.brushSize or 1
   

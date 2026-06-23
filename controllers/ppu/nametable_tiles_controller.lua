@@ -21,15 +21,9 @@ local DebugController   = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local PatternTableMapping = require("utils.pattern_table_mapping")
 local PpuRange = require("controllers.app.ppu_frame_range_helpers")
+local LoveCompat = require("utils.love_compat")
 
 local M = {}
-
-local function nowSeconds()
-  if love and love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return os.clock()
-end
 
 function M.updateOverflowToastForWindow(win, layer, compressedSize, originalSize)
   if type(win) ~= "table" then
@@ -87,7 +81,7 @@ function M.updateOverflowToastForWindow(win, layer, compressedSize, originalSize
 end
 
 local function logPerf(label, startedAt, extra)
-  local elapsed = nowSeconds() - (startedAt or nowSeconds())
+  local elapsed = LoveCompat.getTime() - (startedAt or LoveCompat.getTime())
   if extra and extra ~= "" then
     DebugController.log("info", "LOAD_PERF", "%s duration=%.3fs %s", tostring(label), elapsed, tostring(extra))
   else
@@ -430,7 +424,7 @@ function M.hydrateWindowNametable(win, layer, opts)
     return nil, "empty_rom"
   end
 
-  local readStartedAt = nowSeconds()
+  local readStartedAt = LoveCompat.getTime()
   local compressed, err = chr.readBytesFromRange(romRaw, startAddr, endAddr)
   if not compressed then
     return nil, "[NametableTilesController] readBytesFromRange failed: " .. tostring(err)
@@ -441,7 +435,7 @@ function M.hydrateWindowNametable(win, layer, opts)
   -- Get codec from opts, layer, or default to "konami"
   local codec = opts.codec or layer.codec or "konami"
   
-  local decodeStartedAt = nowSeconds()
+  local decodeStartedAt = LoveCompat.getTime()
   local ntBytes, attrBytes, decodeMeta = NametableUtils.decode_compressed_nametable(compressed, false, codec)
   if not ntBytes or not attrBytes then
     return nil, "[NametableTilesController] decode_compressed_nametable failed"
@@ -455,7 +449,7 @@ function M.hydrateWindowNametable(win, layer, opts)
   logPerf("ntm.decode_compressed", decodeStartedAt, string.format("title=%s", tostring(win.title or "")))
 
   -- Copy & clamp bytes to 0..255
-  local byteCopyStartedAt = nowSeconds()
+  local byteCopyStartedAt = LoveCompat.getTime()
   win.nametableBytes = {}
   for i = 1, #ntBytes do
     local b = tonumber(ntBytes[i]) or 0
@@ -560,7 +554,7 @@ function M.hydrateWindowNametable(win, layer, opts)
 
   ensurePatternTableBanks(layer.patternTable, ensureTiles)
   if tilesPool then
-    local fillGridStartedAt = nowSeconds()
+    local fillGridStartedAt = LoveCompat.getTime()
     for i = 1, #win.nametableBytes do
       local z   = i - 1
       local col = z % win.cols
@@ -582,7 +576,7 @@ function M.hydrateWindowNametable(win, layer, opts)
 
   -- Apply any pre-existing tileSwaps from layout/project
   if tileSwaps then
-    local swapsStartedAt = nowSeconds()
+    local swapsStartedAt = LoveCompat.getTime()
     local rawTileSwaps = tileSwaps
     if type(tileSwaps) == "string" then
       tileSwaps = decodeTileSwapsRLE(tileSwaps)
@@ -650,7 +644,7 @@ function M.hydrateWindowNametable(win, layer, opts)
   end
 
   -- Extract palette numbers from attribute bytes (either from ROM or user-defined)
-  local paletteExtractStartedAt = nowSeconds()
+  local paletteExtractStartedAt = LoveCompat.getTime()
   M.extractPaletteNumbersFromAttributes(win, layer, win.cols, win.rows)
   if win.invalidateNametableLayerCanvas then
     win:invalidateNametableLayerCanvas(li)

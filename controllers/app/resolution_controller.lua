@@ -36,6 +36,8 @@ local function resolveCompositeScanlinesShader()
   return cachedCompositeScanlinesShader
 end
 
+local LoveCompat = require("utils.love_compat")
+
 local ResolutionController = {
   modes = {
     KEEP_ASPECT = 1,
@@ -163,11 +165,11 @@ function ResolutionController:updateCrtViewportPan(dt)
   if not (self.crtLowResPresentation and self.canvasCrtShaderEnabled) then
     return
   end
-  if not (love and love.mouse and love.mouse.getPosition) then
+  if not LoveCompat.hasApi("mouse", "getPosition") then
     return
   end
 
-  local mx, my = love.mouse.getPosition()
+  local mx, my = LoveCompat.getMousePosition()
   local l, t = self.canvasX, self.canvasY
   local dw = self.displayWidth or SLICE_W
   local dh = self.displayHeight or SLICE_H

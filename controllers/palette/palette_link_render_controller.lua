@@ -4,6 +4,7 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local Shared = require("controllers.app.core_controller_shared")
 local colors = require("app_colors")
 local images = require("images")
+local LoveCompat = require("utils.love_compat")
 
 local M = {}
 local isMouseInsideSquareHoverArea
@@ -502,10 +503,7 @@ function M.getRevealAlpha(contentWin, paletteWin)
     return 1
   end
 
-  local now = os.clock()
-  if love and love.timer and love.timer.getTime then
-    now = love.timer.getTime()
-  end
+  local now = LoveCompat.getTime()
   local revealUntil = math.max(
     tonumber(contentWin and contentWin._paletteLinkRevealUntil) or 0,
     tonumber(paletteWin and paletteWin._paletteLinkRevealUntil) or 0

@@ -6,6 +6,7 @@ local BankViewController = require("controllers.chr.bank_view_controller")
 local OpenRomFolder = require("utils.open_rom_folder")
 local images = require("images")
 local colors = require("app_colors")
+local StatusHelpers = require("utils.status_helpers")
 
 -- Experimental zero-distractions (canvas-only) mode; toolbar entry hidden until stabilized.
 local SHOW_ZERO_DISTRACTIONS_TOGGLE = false
@@ -161,15 +162,11 @@ function ChrToolbar:_onOpenBaseRomFolder()
   local app = self.ctx and self.ctx.app
   local path = self:_romPathForOpenFolder(app)
   if type(path) ~= "string" or path == "" then
-    if app and app.setStatus then
-      app:setStatus("No ROM path - open or save against a ROM on disk first.")
-    end
+    StatusHelpers.setStatus(self.ctx, "No ROM path - open or save against a ROM on disk first.")
     return
   end
   local ok, err = OpenRomFolder.openParentFolderOfRomPath(path)
-  if app and app.setStatus then
-    app:setStatus(ok and "Opened ROM folder." or ("Could not open folder: " .. tostring(err or "unknown")))
-  end
+  StatusHelpers.setStatus(self.ctx, ok and "Opened ROM folder." or ("Could not open folder: " .. tostring(err or "unknown")))
 end
 
 function ChrToolbar:_onBankChange(delta)
@@ -187,13 +184,11 @@ function ChrToolbar:_onBankChange(delta)
   end
   app.appEditState.currentBank = self.window.currentBank or self.window.activeLayer or 1
   self:triggerLayerLabelFlash()
-  if app.setStatus then
-    app:setStatus(BankViewController.formatBankWindowStatus(
-      self.window,
-      app.appEditState,
-      self.window.orderMode
-    ))
-  end
+  StatusHelpers.setStatus(self.ctx, BankViewController.formatBankWindowStatus(
+    self.window,
+    app.appEditState,
+    self.window.orderMode
+  ))
 end
 
 function ChrToolbar:showTileLabel(tileIndex)
@@ -239,8 +234,8 @@ function ChrToolbar:_onToggleDiffMode()
   self.window.showChrDiffMode = not (self.window.showChrDiffMode == true)
   self:updateDiffModeButton()
   local app = self.ctx.app
-  if app.setStatus and BankViewController.formatBankWindowStatus then
-    app:setStatus(BankViewController.formatBankWindowStatus(
+  if BankViewController.formatBankWindowStatus then
+    StatusHelpers.setStatus(self.ctx, BankViewController.formatBankWindowStatus(
       self.window,
       app.appEditState,
       self.window.orderMode

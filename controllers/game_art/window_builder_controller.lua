@@ -1,15 +1,9 @@
 local GameArtWindowFactoryController = require("controllers.game_art.window_factory_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local DebugController = require("controllers.dev.debug_controller")
+local LoveCompat = require("utils.love_compat")
 
 local M = {}
-
-local function nowSeconds()
-  if love and love.timer and love.timer.getTime then
-    return love.timer.getTime()
-  end
-  return os.clock()
-end
 
 local function describeWindowSpec(w)
   if not w then
@@ -128,16 +122,16 @@ function M.buildWindowsFromLayout(layout, opts)
   for _, w in ipairs(layout.windows or {}) do
     local kind = w.kind or "normal"
     local builder = builders[kind]
-    local buildStartedAt = nowSeconds()
+    local buildStartedAt = LoveCompat.getTime()
     local win = builder and builder(w) or nil
-    local buildElapsed = nowSeconds() - buildStartedAt
+    local buildElapsed = LoveCompat.getTime() - buildStartedAt
 
-    local finalizeStartedAt = nowSeconds()
+    local finalizeStartedAt = LoveCompat.getTime()
     GameArtWindowFactoryController.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool, layout.currentBank)
     if win then
       builtOrderedWins[#builtOrderedWins + 1] = win
     end
-    local finalizeElapsed = nowSeconds() - finalizeStartedAt
+    local finalizeElapsed = LoveCompat.getTime() - finalizeStartedAt
 
     DebugController.log(
       "info",
@@ -149,7 +143,7 @@ function M.buildWindowsFromLayout(layout, opts)
     )
   end
 
-  local paletteSyncStartedAt = nowSeconds()
+  local paletteSyncStartedAt = LoveCompat.getTime()
   local activePaletteFound = false
   local allWindows = wm:getWindows()
   for _, win in ipairs(allWindows) do
@@ -171,21 +165,21 @@ function M.buildWindowsFromLayout(layout, opts)
       lastPaletteWindow:syncToGlobalPalette()
     end
   end
-  DebugController.log("info", "LOAD_PERF", "window_builder palette_activation duration=%.3fs", nowSeconds() - paletteSyncStartedAt)
+  DebugController.log("info", "LOAD_PERF", "window_builder palette_activation duration=%.3fs", LoveCompat.getTime() - paletteSyncStartedAt)
 
-  local patternTableStartedAt = nowSeconds()
+  local patternTableStartedAt = LoveCompat.getTime()
   GameArtWindowFactoryController.afterLayoutPatternTablesHydrate(wm, tilesPool, ensureTiles, {
     romRaw = romRaw,
     appEditState = opts.appEditState,
   })
-  DebugController.log("info", "LOAD_PERF", "window_builder pattern_table_hydrate duration=%.3fs", nowSeconds() - patternTableStartedAt)
+  DebugController.log("info", "LOAD_PERF", "window_builder pattern_table_hydrate duration=%.3fs", LoveCompat.getTime() - patternTableStartedAt)
 
   local bankWin = windowsById["bank"]
   if WindowCaps.isChrLike(bankWin) then
     layout.currentBank = bankWin.currentBank or layout.currentBank or 1
   end
 
-  local focusRestoreStartedAt = nowSeconds()
+  local focusRestoreStartedAt = LoveCompat.getTime()
   local focusWin = nil
   if layout.focusedWindowId and wm then
     focusWin = windowsById[layout.focusedWindowId]
@@ -193,7 +187,7 @@ function M.buildWindowsFromLayout(layout, opts)
       wm:setFocus(focusWin)
     end
   end
-  DebugController.log("info", "LOAD_PERF", "window_builder restore_focus duration=%.3fs focused=%s", nowSeconds() - focusRestoreStartedAt, tostring(layout.focusedWindowId))
+  DebugController.log("info", "LOAD_PERF", "window_builder restore_focus duration=%.3fs focused=%s", LoveCompat.getTime() - focusRestoreStartedAt, tostring(layout.focusedWindowId))
 
   local wmStackIds = wmRenderStackIdsForRestore(layout, builtOrderedWins)
   if wm and type(wmStackIds) == "table" and #wmStackIds > 0 and wm.reorderWindowsByStableIds then

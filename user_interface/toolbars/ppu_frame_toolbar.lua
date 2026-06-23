@@ -5,20 +5,11 @@ local ToolbarBase = require("user_interface.toolbars.toolbar_base")
 local images = require("images")
 local colors = require("app_colors")
 local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
+local StatusHelpers = require("utils.status_helpers")
 
 local PPUFrameToolbar = {}
 PPUFrameToolbar.__index = PPUFrameToolbar
 setmetatable(PPUFrameToolbar, { __index = ToolbarBase })
-
-local function setStatus(ctx, text)
-  if ctx and ctx.app and type(ctx.app.setStatus) == "function" then
-    ctx.app:setStatus(text)
-    return
-  end
-  if ctx and type(ctx.setStatus) == "function" then
-    ctx.setStatus(text)
-  end
-end
 
 local function getNametableLayer(window)
   if not (window and window.layers) then return nil end
@@ -173,7 +164,7 @@ function PPUFrameToolbar:_onPatternTableLinkMenu()
   end
   local app = self.ctx and self.ctx.app
   if not app or not app.showPatternTableLinkDestinationContextMenu then
-    setStatus(self.ctx, "Pattern table link is not available")
+    StatusHelpers.setStatus(self.ctx, "Pattern table link is not available")
     return
   end
   local btn = self.patternTableLinkButton
@@ -199,7 +190,7 @@ function PPUFrameToolbar:_onPrevLayer()
     local layerIdx = self.window:getActiveLayerIndex() or self.window.activeLayer or 1
     local locked, reason = self.window:isPatternTableInteractionLocked(layerIdx)
     if locked and reason then
-      setStatus(self.ctx, reason)
+      StatusHelpers.setStatus(self.ctx, reason)
     end
   end
 end
@@ -217,7 +208,7 @@ function PPUFrameToolbar:_onNextLayer()
     local layerIdx = self.window:getActiveLayerIndex() or self.window.activeLayer or 1
     local locked, reason = self.window:isPatternTableInteractionLocked(layerIdx)
     if locked and reason then
-      setStatus(self.ctx, reason)
+      StatusHelpers.setStatus(self.ctx, reason)
     end
   end
 end
@@ -304,7 +295,7 @@ function PPUFrameToolbar:_onAddSprite()
         onConfirm = function(spriteMode, targetWindow)
           local layer = self:_ensureSpriteLayer(spriteMode, true, targetWindow)
           if not layer then
-            setStatus(self.ctx, "Could not create sprite layer")
+            StatusHelpers.setStatus(self.ctx, "Could not create sprite layer")
             return false
           end
           return true
@@ -324,7 +315,7 @@ function PPUFrameToolbar:_onAddSprite()
 
   spriteLayer = self:_ensureSpriteLayer(nil, false)
   if not spriteLayer then
-    setStatus(self.ctx, "Could not resolve a sprite layer")
+    StatusHelpers.setStatus(self.ctx, "Could not resolve a sprite layer")
     return
   end
 
@@ -359,7 +350,7 @@ function PPUFrameToolbar:_onRemoveLayer()
 
   local numLayers = self.window:getLayerCount()
   if numLayers <= 1 then
-    setStatus(self.ctx, "Cannot remove the last layer")
+    StatusHelpers.setStatus(self.ctx, "Cannot remove the last layer")
     return
   end
 
