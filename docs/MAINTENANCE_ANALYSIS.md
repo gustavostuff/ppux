@@ -73,13 +73,17 @@ Save orchestrates nametable write-back, sprite displacement, palette write-back,
 
 ### 3. `core_controller_draw.lua` — orchestration and rendering still coupled (2,080 lines)
 
-**Mixes:** frame draw loop, per-window tile/layer rendering, palette shaders, shadow blur pipeline, CRT lens chrome, brush shape previews, HUD overlays.
+**Status:** Partially addressed — window content drawing, shadows, and `drawWindows`/`drawNormalWindow` extracted to `controllers/app/core_controller_window_content_draw.lua` (~1,400 lines). `core_controller_draw.lua` now coordinates frame draw, edit brush previews, modals/toasts/HUD, and delegates workspace window rendering via mixin methods.
 
-Window chrome/grid/selection were already extracted to `user_interface/windows_system/window_rendering_*.lua`, but the bulk of content drawing (`drawNormalWindow`, `drawTileLayer`, shadow mask canvases, etc.) remains here.
+**Remaining in `core_controller_draw.lua`:** frame `draw()` loop, edit-mode brush/shape previews, palette link drag overlay calls, modal/toast/HUD overlays, status line.
 
-**Impact:** Any visual change to tile layers, shadows, or edit previews requires navigating a single very large file. High merge-conflict and regression risk.
+**Mixes (historical):** frame draw loop, per-window tile/layer rendering, palette shaders, shadow blur pipeline, CRT lens chrome, brush shape previews, HUD overlays.
 
-**Direction:** Extract a **rendering helper module** (e.g. `core_controller_window_content_draw.lua` or under `user_interface/windows_system/`) — same mixin pattern as existing window rendering, **not** a new controller. Keep `draw()` as a thin coordinator that calls extracted functions.
+Window chrome/grid/selection remain in `user_interface/windows_system/window_rendering_*.lua`.
+
+**Impact:** Content vs overlay concerns are separated; further splits (e.g. brush preview helpers) are optional.
+
+**Direction (if needed):** Optional follow-up: extract edit brush preview block to `core_controller_edit_preview_draw.lua`.
 
 ---
 
@@ -147,7 +151,7 @@ Window chrome/grid/selection were already extracted to `user_interface/windows_s
 
 1. **Add `save_controller` unit tests** — smallest change, highest correctness payoff. ✅ Done (`save_controller.test.lua`).
 2. **Tile invalidation index** — measurable perf improvement during painting. ✅ Done (`tile_invalidation_index.lua` + tests).
-3. **Extract window content drawing from `core_controller_draw.lua`** — reduces the largest mixed-responsibility file without more controller splits.
+3. **Extract window content drawing from `core_controller_draw.lua`** — reduces the largest mixed-responsibility file without more controller splits. ✅ Done (`core_controller_window_content_draw.lua`).
 4. **Centralize `setStatus` + optional `love_compat.getTime()`** — low-risk dedup across 10+ files.
 5. **Extract context-menu builders from `core_controller_window_ops.lua`** — readability win, no architectural churn.
 6. **Single-pass palette link window lookup** — incremental draw-path optimization.
