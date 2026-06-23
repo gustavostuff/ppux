@@ -219,6 +219,7 @@ require("controllers.app.core_controller_ppu_frame")(AppCoreController)
 require("controllers.app.core_controller_invalidation")(AppCoreController)
 
 require("controllers.app.core_controller_save_settings")(AppCoreController)
+require("controllers.app.core_controller_settings_apply")(AppCoreController)
 require("controllers.app.core_controller_lifecycle")(AppCoreController)
 require("controllers.app.core_controller_input")(AppCoreController)
 require("controllers.app.core_controller_window_content_draw")(AppCoreController)

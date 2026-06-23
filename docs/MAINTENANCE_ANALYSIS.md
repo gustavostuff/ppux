@@ -121,7 +121,7 @@ Window chrome/grid/selection remain in `user_interface/windows_system/window_ren
 
 | Finding | Location | Note |
 |---------|----------|------|
-| **`core_controller_save_settings.lua` (1,834 lines)** mixes save/export orchestration with settings `_apply*` side effects | `controllers/app/` | Separating settings application from save flow would improve testability; settings `_apply*` methods are largely untested |
+| **`core_controller_save_settings.lua` (1,834 lines)** mixes save/export orchestration with settings `_apply*` side effects | `controllers/app/` | ✅ Split: `core_controller_save_settings.lua` (~544 lines, save/recent/quit/modals) + `core_controller_settings_apply.lua` (~1,293 lines); `core_controller_settings_apply.test.lua` covers key `_apply*` paths |
 | **Duplicated `setStatus(ctx, text)` helper** | 10+ input/toolbar files | ✅ Centralized in `utils/status_helpers.lua` |
 | **Modal routing special cases despite registry** | `core_controller_input.lua` vs `core_controller_shared.lua` | `APP_MODAL_KEYS_IN_ORDER` exists but parallel special-case loops remain (e.g. `quitConfirmModal` exclusion, `TEXTINPUT_ROUTES`); drift risk documented in `MAINTENANCE_PATTERNS.md` |
 | **`undo_redo_controller.lua` (1,860 lines)** | `controllers/input_support/` | Large but cohesive; consider extracting undo *command types* into a table/registry if it keeps growing, not more controllers |
