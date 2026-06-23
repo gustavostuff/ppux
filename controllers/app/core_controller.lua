@@ -211,6 +211,7 @@ function AppCoreController.new()
 end
 
 require("controllers.app.core_controller_window_ops")(AppCoreController)
+require("controllers.app.core_controller_context_menus")(AppCoreController)
 require("controllers.app.core_controller_ppu_chr_menus")(AppCoreController)
 require("controllers.app.core_controller_status_tooltips")(AppCoreController)
 require("controllers.app.core_controller_modals_input")(AppCoreController)
