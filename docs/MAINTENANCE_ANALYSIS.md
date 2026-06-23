@@ -113,7 +113,7 @@ Window chrome/grid/selection remain in `user_interface/windows_system/window_ren
 
 **Impact:** Multiplies window-iteration cost during frames that draw palette link overlays.
 
-**Direction:** Single pass per frame (or cached until window set / link topology changes) building lookup tables for source/dest windows. Low-risk refactor within the existing render controller.
+**Direction:** Single pass per frame (or cached until window set / link topology changes) building lookup tables for source/dest windows. Low-risk refactor within the existing render controller. ✅ Done (`buildPaletteLinkLookup()`; hover/focus link queries use pre-built buckets).
 
 ---
 
@@ -154,7 +154,7 @@ Window chrome/grid/selection remain in `user_interface/windows_system/window_ren
 3. **Extract window content drawing from `core_controller_draw.lua`** — reduces the largest mixed-responsibility file without more controller splits. ✅ Done (`core_controller_window_content_draw.lua`).
 4. **Centralize `setStatus` + optional `love_compat.getTime()`** — low-risk dedup across 10+ files. ✅ Done (`utils/status_helpers.lua`, `utils/love_compat.lua`; input/toolbar `setStatus` helpers and `nowSeconds` duck-checks migrated; `katsudo.lua` / `ui_pulse.lua` kept for distinct fallback semantics).
 5. **Extract context-menu builders from `core_controller_window_ops.lua`** — readability win, no architectural churn. ✅ Done (`core_controller_context_menus.lua`; `window_ops` keeps show/hide orchestration and `_afterPatternTableLinkChange`).
-6. **Single-pass palette link window lookup** — incremental draw-path optimization.
+6. **Single-pass palette link window lookup** — incremental draw-path optimization. ✅ Done (`palette_link_render_controller.buildPaletteLinkLookup`).
 
 ---
 

@@ -169,56 +169,53 @@ local function getActiveLayerLinkedPaletteWindow(win, wm)
   return M.getPaletteWindowForLayer(layer, wm)
 end
 
-local function collectLinkedPaletteWindowsForWindow(win, wm)
-  local paletteWindows = {}
-  if not (win and wm) then
-    return paletteWindows
-  end
-  local paletteWin = getActiveLayerLinkedPaletteWindow(win, wm)
-  if paletteWin then
-    paletteWindows[#paletteWindows + 1] = paletteWin
-  end
-  return paletteWindows
+local function isPaletteLinkContentWindow(win)
+  return win and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win)
 end
 
-local function windowHasPaletteLinkTo(win, paletteWin, wm)
-  return getActiveLayerLinkedPaletteWindow(win, wm) == paletteWin
+local function isPaletteLinkPaletteWindow(win)
+  return win and not win._closed and not win._minimized and WindowCaps.isAnyPaletteWindow(win)
 end
 
-local function paletteHasLinkedTargets(paletteWin, wm)
-  if not (paletteWin and wm and wm.getWindows and WindowCaps.isRomPaletteWindow(paletteWin)) then
-    return false
+--- One `wm:getWindows()` pass: content/palette window lists and active-layer ROM palette links.
+function M.buildPaletteLinkLookup(wm)
+  local lookup = {
+    contentWindows = {},
+    paletteWindows = {},
+    romPaletteWindows = {},
+    activeRomPaletteByContent = {},
+    contentByRomPalette = {},
+  }
+
+  if not (wm and wm.getWindows) then
+    return lookup
   end
 
   for _, win in ipairs(wm:getWindows()) do
-    if win ~= paletteWin and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
-      if windowHasPaletteLinkTo(win, paletteWin, wm) then
-        return true
-      end
-    end
-  end
-
-  return false
-end
-
-local function paletteHasVisibleLinks(app, paletteWin)
-  local wm = app and app.wm
-  if not (paletteWin and wm and wm.getWindows and WindowCaps.isRomPaletteWindow(paletteWin)) then
-    return false
-  end
-
-  for _, win in ipairs(wm:getWindows()) do
-    if win ~= paletteWin and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
-      if windowHasPaletteLinkTo(win, paletteWin, wm) then
-        local showLine = M.getPersistentVisual(app, win, paletteWin)
-        if showLine then
-          return true
+    if isPaletteLinkPaletteWindow(win) then
+      lookup.paletteWindows[#lookup.paletteWindows + 1] = win
+      if WindowCaps.isRomPaletteWindow(win) then
+        lookup.romPaletteWindows[#lookup.romPaletteWindows + 1] = win
+        if lookup.contentByRomPalette[win] == nil then
+          lookup.contentByRomPalette[win] = {}
         end
       end
+    elseif isPaletteLinkContentWindow(win) then
+      lookup.contentWindows[#lookup.contentWindows + 1] = win
+      local paletteWin = getActiveLayerLinkedPaletteWindow(win, wm)
+      if paletteWin and WindowCaps.isRomPaletteWindow(paletteWin) then
+        lookup.activeRomPaletteByContent[win] = paletteWin
+        local bucket = lookup.contentByRomPalette[paletteWin]
+        if not bucket then
+          bucket = {}
+          lookup.contentByRomPalette[paletteWin] = bucket
+        end
+        bucket[#bucket + 1] = win
+      end
     end
   end
 
-  return false
+  return lookup
 end
 
 function M.getPaletteWindowForLayer(layer, wm)
@@ -269,13 +266,15 @@ function M.getFocusedLinks(app)
     return {}
   end
 
+  local lookup = M.buildPaletteLinkLookup(wm)
+  local bucket = lookup.contentByRomPalette[focused]
+  if not bucket then
+    return {}
+  end
+
   local links = {}
-  for _, win in ipairs(wm:getWindows()) do
-    if win ~= focused and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
-      if getActiveLayerLinkedPaletteWindow(win, wm) == focused then
-        links[#links + 1] = { contentWin = win, paletteWin = focused }
-      end
-    end
+  for _, win in ipairs(bucket) do
+    links[#links + 1] = { contentWin = win, paletteWin = focused }
   end
 
   return links
@@ -407,17 +406,16 @@ function M.getHoveredSourceSquareLinks(app)
     return {}
   end
   local wm = app and app.wm
-  if not (wm and wm.getWindows) then
+  if not wm then
     return {}
   end
 
+  local lookup = M.buildPaletteLinkLookup(wm)
   local hoveredPalette = nil
-  for _, win in ipairs(wm:getWindows()) do
-    if win and not win._closed and not win._minimized and WindowCaps.isAnyPaletteWindow(win) then
-      if M.isMouseHoveringPaletteSourceSquare(win) then
-        hoveredPalette = win
-        break
-      end
+  for _, win in ipairs(lookup.paletteWindows) do
+    if M.isMouseHoveringPaletteSourceSquare(win) then
+      hoveredPalette = win
+      break
     end
   end
 
@@ -425,13 +423,14 @@ function M.getHoveredSourceSquareLinks(app)
     return {}
   end
 
+  local bucket = lookup.contentByRomPalette[hoveredPalette]
+  if not bucket then
+    return {}
+  end
+
   local links = {}
-  for _, win in ipairs(wm:getWindows()) do
-    if win ~= hoveredPalette and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
-      if windowHasPaletteLinkTo(win, hoveredPalette, wm) then
-        links[#links + 1] = { contentWin = win, paletteWin = hoveredPalette }
-      end
-    end
+  for _, win in ipairs(bucket) do
+    links[#links + 1] = { contentWin = win, paletteWin = hoveredPalette }
   end
 
   return links
@@ -472,21 +471,16 @@ function M.getHoveredDestinationLinks(app)
     return {}
   end
   local wm = app and app.wm
-  if not (wm and wm.getWindows) then
+  if not wm then
     return {}
   end
 
+  local lookup = M.buildPaletteLinkLookup(wm)
   local links = {}
-  for _, win in ipairs(wm:getWindows()) do
-    if win and not win._closed and not win._minimized and not WindowCaps.isAnyPaletteWindow(win) then
-      local linkedPaletteWindows = collectLinkedPaletteWindowsForWindow(win, wm)
-      for _, paletteWin in ipairs(linkedPaletteWindows) do
-        if not paletteWin._closed and not paletteWin._minimized and WindowCaps.isRomPaletteWindow(paletteWin) then
-          if M.isMouseHoveringDestinationSquare(win, paletteWin) then
-            links[#links + 1] = { contentWin = win, paletteWin = paletteWin }
-          end
-        end
-      end
+  for _, win in ipairs(lookup.contentWindows) do
+    local paletteWin = lookup.activeRomPaletteByContent[win]
+    if paletteWin and M.isMouseHoveringDestinationSquare(win, paletteWin) then
+      links[#links + 1] = { contentWin = win, paletteWin = paletteWin }
     end
   end
 
