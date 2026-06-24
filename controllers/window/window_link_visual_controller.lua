@@ -20,6 +20,7 @@ local HANDLE_OUTER_RADIUS = 2
 local HANDLE_INNER_W = 3
 local HANDLE_INNER_H = 3
 local HANDLE_OUTSIDE_TOUCH_GAP = 0
+local HANDLE_COLLAPSED_LEFT_INSET = 2
 local HANDLE_GROUP_BELOW_HEADER = 3
 local HANDLE_GROUP_ROW_GAP = 3
 
@@ -172,7 +173,7 @@ local function buildHandleAnchorPositions(win, count)
   local collapsed = win and win._collapsed == true
   if collapsed then
     local colStep = HANDLE_OUTER_W + HANDLE_GROUP_ROW_GAP
-    local firstCenterX = roundPixel((tonumber(hx) or 0) + HANDLE_OUTER_W * 0.5)
+    local firstCenterX = roundPixel((tonumber(hx) or 0) + HANDLE_OUTER_W * 0.5 + HANDLE_COLLAPSED_LEFT_INSET)
     local centerY = roundPixel(hy + hh + HANDLE_OUTER_H * 0.5 - 1)
     local out = {}
     for i = 0, count - 1 do
