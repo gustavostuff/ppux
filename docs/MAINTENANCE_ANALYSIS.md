@@ -127,7 +127,7 @@ Window chrome/grid/selection remain in `user_interface/windows_system/window_ren
 | **`undo_redo_controller.lua` (1,860 lines)** | `controllers/input_support/` | ✅ Extracted per-type describe/apply into `undo_redo_command_registry.lua` (~1,190 lines); controller (~630 lines) keeps stack, paint recording, and `_applyPaintEvent`; `undo_redo_command_registry.test.lua` covers registry dispatch |
 | **Large monolithic test files** | `keyboard_input.test.lua` (2,325 lines), `mouse_input_tile_drag_copy.test.lua` (1,300 lines) | Valuable coverage but expensive to maintain; shared fixtures would reduce duplication |
 | **E2E gaps** | per `CRITICAL_TEST_COVERAGE_EXPANSION_PLAN.md` | ✅ Added visual scenarios `open_project_happy_path`, `open_project_invalid_file`, `oam_animation_workflow` (+ headless `open_project_flow.test`, `oam_animation_workflow.test`); save-and-reload already covered by `save_reload_persistence` |
-| **Untested modules** | `bank_canvas_controller`, `window_link_visual_controller`, `window_factory_controller` | Indirect coverage only; medium regression risk |
+| **Untested modules** | `bank_canvas_controller`, `window_link_visual_controller`, `window_factory_controller` | ✅ Direct unit tests: `bank_canvas_controller.test.lua`, `window_link_visual_controller.test.lua`, `window_factory_controller.test.lua` |
 | **`ppu_frame_window.lua` (1,655 lines)** | model + canvas cache + codec | Canvas caching is good; model and invalidation logic could be separated if this file keeps growing |
 | **`settings_modal.lua` (1,227 lines)** | tab layout + field defs + apply callbacks | Same pattern as save_settings — UI definition vs runtime apply |
 
