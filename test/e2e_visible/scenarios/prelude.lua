@@ -28,6 +28,7 @@ return {
   toolbarLinkHandleCenter = C.toolbarLinkHandleCenter,
   windowHeaderCenter = C.windowHeaderCenter,
   saveOptionCenter = C.saveOptionCenter,
+  openProjectFileSlotCenter = C.openProjectFileSlotCenter,
   menuRowCenter = C.menuRowCenter,
   taskbarRootMenu = C.taskbarRootMenu,
   childMenuRowCenter = C.childMenuRowCenter,

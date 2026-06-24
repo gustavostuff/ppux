@@ -33,6 +33,7 @@ M.spriteItemCenter = Points.spriteItemCenter
 M.toolbarLinkHandleCenter = Points.toolbarLinkHandleCenter
 M.windowHeaderCenter = Points.windowHeaderCenter
 M.saveOptionCenter = Points.saveOptionCenter
+M.openProjectFileSlotCenter = Points.openProjectFileSlotCenter
 M.menuRowCenter = Points.menuRowCenter
 M.taskbarRootMenu = Points.taskbarRootMenu
 M.childMenuRowCenter = Points.childMenuRowCenter

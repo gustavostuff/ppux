@@ -33,6 +33,9 @@ SCENARIOS=(
   "ppu_toolbar_ranges_setup"
   "ppu_toolbar_pattern_ranges"
   "ppu_toolbar_sprite_and_mode_controls"
+  "open_project_happy_path"
+  "open_project_invalid_file"
+  "oam_animation_workflow"
 )
 
 pass_count=0

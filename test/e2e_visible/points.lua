@@ -124,6 +124,16 @@ local function saveOptionCenter(optionIndex)
   end
 end
 
+local function openProjectFileSlotCenter(slotIndex)
+  return function(_, currentApp)
+    local modal = assert(currentApp.openProjectModal, "expected openProjectModal")
+    assert(modal:isVisible(), "expected open project modal visible")
+    local button = modal.fileButtons and modal.fileButtons[slotIndex]
+    assert(button and button.enabled, "expected enabled open-project file slot " .. tostring(slotIndex))
+    return button.x + math.floor(button.w * 0.5), button.y + math.floor(button.h * 0.5)
+  end
+end
+
 local function menuRowCenter(menuResolver, row)
   return function(_, currentApp, currentRunner)
     local menu = menuResolver(currentApp, currentRunner)
@@ -214,6 +224,7 @@ M.spriteItemCenter = spriteItemCenter
 M.toolbarLinkHandleCenter = toolbarLinkHandleCenter
 M.windowHeaderCenter = windowHeaderCenter
 M.saveOptionCenter = saveOptionCenter
+M.openProjectFileSlotCenter = openProjectFileSlotCenter
 M.menuRowCenter = menuRowCenter
 M.taskbarRootMenu = taskbarRootMenu
 M.childMenuRowCenter = childMenuRowCenter

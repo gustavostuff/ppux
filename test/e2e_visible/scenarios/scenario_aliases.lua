@@ -26,6 +26,9 @@ local SCENARIO_ALIASES = {
   ppu_toolbar_ranges_setup_demo = "ppu_toolbar_ranges_setup",
   ppu_toolbar_pattern_ranges_demo = "ppu_toolbar_pattern_ranges",
   ppu_toolbar_sprite_and_mode_controls_demo = "ppu_toolbar_sprite_and_mode_controls",
+  open_project_happy_path_demo = "open_project_happy_path",
+  open_project_invalid_file_demo = "open_project_invalid_file",
+  oam_animation_workflow_demo = "oam_animation_workflow",
 }
 
 return SCENARIO_ALIASES
