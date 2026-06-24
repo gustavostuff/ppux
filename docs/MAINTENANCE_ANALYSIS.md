@@ -128,8 +128,8 @@ Window chrome/grid/selection remain in `user_interface/windows_system/window_ren
 | **Large monolithic test files** | `keyboard_input.test.lua` (2,325 lines), `mouse_input_tile_drag_copy.test.lua` (1,300 lines) | Valuable coverage but expensive to maintain; shared fixtures would reduce duplication |
 | **E2E gaps** | per `CRITICAL_TEST_COVERAGE_EXPANSION_PLAN.md` | ✅ Added visual scenarios `open_project_happy_path`, `open_project_invalid_file`, `oam_animation_workflow` (+ headless `open_project_flow.test`, `oam_animation_workflow.test`); save-and-reload already covered by `save_reload_persistence` |
 | **Untested modules** | `bank_canvas_controller`, `window_link_visual_controller`, `window_factory_controller` | ✅ Direct unit tests: `bank_canvas_controller.test.lua`, `window_link_visual_controller.test.lua`, `window_factory_controller.test.lua` |
-| **`ppu_frame_window.lua` (1,655 lines)** | model + canvas cache + codec | Canvas caching is good; model and invalidation logic could be separated if this file keeps growing |
-| **`settings_modal.lua` (1,227 lines)** | tab layout + field defs + apply callbacks | Same pattern as save_settings — UI definition vs runtime apply |
+| **`ppu_frame_window.lua` (1,655 lines)** | model + canvas cache + codec | ✅ Split: `ppu_frame_nametable_helpers.lua` (layer/codec helpers), `ppu_frame_nametable_canvas.lua` (per-cell canvas cache mixin); window keeps orchestration + ROM codec |
+| **`settings_modal.lua` (1,227 lines)** | tab layout + field defs + apply callbacks | ✅ Split: `settings_modal_fields.lua` (General/Appearance row specs + extra General rows); runtime `_apply*` stays in `core_controller_settings_apply.lua` |
 
 ---
 

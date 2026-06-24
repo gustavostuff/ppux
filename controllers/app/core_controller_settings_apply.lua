@@ -3,6 +3,7 @@ local WindowToolbarPlacement = require("controllers.window.window_toolbar_placem
 local ResolutionController = require("controllers.app.resolution_controller")
 local KeyboardWindowShortcutsController = require("controllers.input.keyboard_window_shortcuts_controller")
 local SettingsModal = require("user_interface.modals.settings_modal")
+local SettingsFields = require("user_interface.modals.settings_modal_fields")
 local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
 local Dropdown = require("user_interface.dropdown")
 local WindowCaps = require("controllers.window.window_capabilities")
@@ -1196,50 +1197,24 @@ function AppCoreController:showSettingsModal()
       return love.window.getFullscreen() == true
     end,
     getExtraRows = function()
-      local rows = {
-        {
-          id = "grouped_palette_windows",
-          label = "Grouped palettes",
-          buttonSpec = {
-            id = "grouped_palette_windows_toggle",
-            getText = function()
-              return appRef:_getGroupedPaletteWindowsForSettings() and "On" or "Off"
-            end,
-            action = function()
-              local enabled = not appRef:_getGroupedPaletteWindowsForSettings()
-              appRef:_applyGroupedPaletteWindowsSetting(enabled, true)
-            end,
-          },
-        },
-      }
-      if appRef.crtModeEnabled then
-        if SHOW_CRT_CANVAS_RESOLUTION_SETTING_IN_UI then
-          rows[#rows + 1] = {
-            id = "crt_canvas_resolution",
-            label = "CRT canvas",
-            buttonSpec = {
-              id = "crt_canvas_resolution_toggle",
-              getText = function()
-                local cur = appRef:_getCrtCanvasResolutionForSettings()
-                return (cur == "320x180") and "320x180" or "640x360"
-              end,
-              action = function()
-                local cur = appRef:_getCrtCanvasResolutionForSettings()
-                local nextKey = (cur == "320x180") and "640x360" or "320x180"
-                appRef:_applyCrtCanvasResolutionSetting(nextKey, true)
-              end,
-            },
-          }
-        end
-        if appRef.crtFilterKind ~= "composite" then
-          rows[#rows + 1] = {
-            id = "crt_curve",
-            label = "CRT curve",
-            component = appRef._crtCurveSlider,
-          }
-        end
-      end
-      return rows
+      return SettingsFields.buildExtraGeneralRows({
+        getGroupedPaletteWindows = function()
+          return appRef:_getGroupedPaletteWindowsForSettings()
+        end,
+        applyGroupedPaletteWindows = function(enabled)
+          appRef:_applyGroupedPaletteWindowsSetting(enabled, true)
+        end,
+        crtModeEnabled = appRef.crtModeEnabled,
+        crtFilterKind = appRef.crtFilterKind,
+        crtCurveSlider = appRef._crtCurveSlider,
+        getCrtCanvasResolution = function()
+          return appRef:_getCrtCanvasResolutionForSettings()
+        end,
+        applyCrtCanvasResolution = function(nextKey)
+          appRef:_applyCrtCanvasResolutionSetting(nextKey, true)
+        end,
+        showCrtCanvasResolutionSetting = SHOW_CRT_CANVAS_RESOLUTION_SETTING_IN_UI,
+      })
     end,
     onSetCanvasImageMode = function(modeKey)
       appRef:_applyCanvasImageModeSetting(modeKey, true)

@@ -7,6 +7,7 @@ local Draw = require("utils.draw_utils")
 local images = require("images")
 local colors = require("app_colors")
 local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
+local SettingsFields = require("user_interface.modals.settings_modal_fields")
 
 local Dialog = {}
 Dialog.__index = Dialog
@@ -29,8 +30,7 @@ local function normalizeSettingsModalTabId(id)
 end
 
 local function normalizeThemeKey(key)
-  if key == "light" then return "light" end
-  return "dark"
+  return SettingsFields.normalizeThemeKey(key)
 end
 
 local function makeButtonWidget(text)
@@ -692,132 +692,11 @@ function Dialog:setExtraRows(rows)
 end
 
 function Dialog:_generalTabRowSpecs()
-  local tooltipsEnabled = not (self.getTooltipsEnabled and self.getTooltipsEnabled() == false)
-  local rows = {
-    {
-      id = "fullscreen",
-      label = "Full screen",
-      buttonSpec = {
-        id = "fullscreen_toggle",
-        getText = function()
-          return (self.getFullscreen and self.getFullscreen() == true) and "On" or "Off"
-        end,
-        action = function()
-          if self.onToggleFullscreen then
-            self.onToggleFullscreen()
-          end
-        end,
-      },
-    },
-    {
-      id = "tooltips_enabled",
-      label = "Tooltips",
-      buttonSpec = {
-        id = "tooltips_enabled_toggle",
-        text = tooltipsEnabled and "On" or "Off",
-        action = function()
-          if self.onSetTooltipsEnabled then
-            self.onSetTooltipsEnabled(not tooltipsEnabled)
-          end
-        end,
-      },
-    },
-    {
-      id = "separate_toolbar",
-      label = "Detached Window Toolbar",
-      buttonSpec = {
-        id = "separate_toolbar_toggle",
-        text = (self.getSeparateToolbar and self.getSeparateToolbar() == true) and "On" or "Off",
-        action = function()
-          if self.onSetSeparateToolbar then
-            self.onSetSeparateToolbar(not (self.getSeparateToolbar and self.getSeparateToolbar() == true))
-          end
-        end,
-      },
-    },
-  }
-  if self._windowToolbarPlacementDropdown then
-    rows[#rows + 1] = {
-      id = "window_toolbar_placement",
-      label = "Window toolbar position",
-      dropdown = self._windowToolbarPlacementDropdown,
-    }
-  end
-  rows[#rows + 1] = {
-    id = "never_show_resize_handle",
-    label = "Never show resize handle",
-    buttonSpec = {
-      id = "never_show_resize_handle_toggle",
-      text = (self.getNeverShowResizeHandle and self.getNeverShowResizeHandle() == true) and "On" or "Off",
-      action = function()
-        if self.onSetNeverShowResizeHandle then
-          self.onSetNeverShowResizeHandle(not (self.getNeverShowResizeHandle and self.getNeverShowResizeHandle() == true))
-        end
-      end,
-    },
-  }
-  return rows
+  return SettingsFields.buildGeneralTabRows(self)
 end
 
 function Dialog:_appearanceTabRowSpecs()
-  local theme = normalizeThemeKey(self.getTheme and self.getTheme() or nil)
-
-  local rows = {
-    {
-      id = "theme",
-      label = "Theme",
-      buttonSpec = {
-        id = "theme_toggle",
-        text = (theme == "light") and "Light" or "Dark",
-        action = function()
-          if self.onSetTheme then
-            self.onSetTheme((theme == "light") and "dark" or "light")
-          end
-        end,
-      },
-    },
-  }
-
-  if self._canvasImageModeDropdown then
-    rows[#rows + 1] = {
-      id = "canvas_image_mode",
-      label = "Canvas scale",
-      dropdown = self._canvasImageModeDropdown,
-    }
-  end
-
-  if self._canvasFilterDropdown then
-    rows[#rows + 1] = {
-      id = "canvas_filter",
-      label = "Canvas filter",
-      dropdown = self._canvasFilterDropdown,
-    }
-  end
-
-  if self._windowShadowBlurSlider then
-    rows[#rows + 1] = {
-      id = "window_shadow_blur",
-      label = "Window shadow blur",
-      component = self._windowShadowBlurSlider,
-    }
-  end
-  if self._windowShadowStrengthSlider then
-    rows[#rows + 1] = {
-      id = "window_shadow_strength",
-      label = "Window shadow strength",
-      component = self._windowShadowStrengthSlider,
-    }
-  end
-
-  if self._windowLinksDropdown then
-    rows[#rows + 1] = {
-      id = "window_links",
-      label = "Window links",
-      dropdown = self._windowLinksDropdown,
-    }
-  end
-
-  return rows
+  return SettingsFields.buildAppearanceTabRows(self)
 end
 
 function Dialog:_rebuildRows()

@@ -12,6 +12,15 @@ local PatternTableMapping = require("utils.pattern_table_mapping")
 local Shared = require("controllers.app.core_controller_shared")
 local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 local TileInvalidationIndex = require("controllers.app.tile_invalidation_index")
+local NametableHelpers = require("user_interface.windows_system.ppu_frame_nametable_helpers")
+local installNametableCanvas = require("user_interface.windows_system.ppu_frame_nametable_canvas")
+
+local lin = NametableHelpers.lin
+local isNametableLayer = NametableHelpers.isNametableLayer
+local getNametableLayer = NametableHelpers.getNametableLayer
+local getCurrentRomRaw = NametableHelpers.getCurrentRomRaw
+local decodePaletteNumberFromAttributes = NametableHelpers.decodePaletteNumberFromAttributes
+local getPaletteLayerForRender = NametableHelpers.getPaletteLayerForRender
 
 local PPUFrameWindow = {}
 PPUFrameWindow.__index = PPUFrameWindow
@@ -22,17 +31,6 @@ local function inferDims(n)
   local cols = 32
   local rows = math.max(1, math.floor((n + cols - 1) / cols))
   return cols, rows
-end
-
--- linear index helpers (1-based for internal arrays)
-local function lin(cols, col, row) return row * cols + col + 1 end
-
-local function makeNametableCanvas(self)
-  local w = math.max(1, (self.cols or 32) * (self.cellW or 8))
-  local h = math.max(1, (self.rows or 30) * (self.cellH or 8))
-  local canvas = love.graphics.newCanvas(w, h)
-  canvas:setFilter("nearest", "nearest")
-  return canvas, w, h
 end
 
 local function clampByte(byteVal)
@@ -50,16 +48,6 @@ local function isTransparentNametableByte(layer, byteVal)
   return false
 end
 
-local function getCurrentRomRaw(self)
-  local gctx = rawget(_G, "ctx")
-  local app = gctx and gctx.app or nil
-  local liveRom = app and app.appEditState and app.appEditState.romRaw or nil
-  if type(liveRom) == "string" and liveRom ~= "" then
-    return liveRom
-  end
-  return self.romRaw
-end
-
 local function getCurrentTilesPool()
   local gctx = rawget(_G, "ctx")
   local app = gctx and gctx.app or nil
@@ -68,64 +56,6 @@ local function getCurrentTilesPool()
     return pool
   end
   return nil
-end
-
-local function decodePaletteNumberFromAttributes(win, col, row)
-  local attrBytes = win and win.nametableAttrBytes or nil
-  local cols = win and win.cols or 32
-  if type(attrBytes) ~= "table" or #attrBytes == 0 then
-    return nil
-  end
-
-  local attrCols = math.max(1, math.floor((cols or 32) / 4))
-  local attrCol = math.floor((col or 0) / 4)
-  local attrRow = math.floor((row or 0) / 4)
-  local attrIndex = attrRow * attrCols + attrCol + 1
-  if attrIndex < 1 or attrIndex > #attrBytes then
-    return nil
-  end
-
-  local attrByte = tonumber(attrBytes[attrIndex]) or 0
-  local localCol = (col or 0) % 4
-  local localRow = (row or 0) % 4
-  local palIndex = 0
-  if localRow < 2 then
-    if localCol < 2 then
-      palIndex = attrByte % 4
-    else
-      palIndex = math.floor((attrByte % 16) / 4)
-    end
-  else
-    if localCol < 2 then
-      palIndex = math.floor((attrByte % 64) / 16)
-    else
-      palIndex = math.floor(attrByte / 64)
-    end
-  end
-  return palIndex + 1
-end
-
-local function getPaletteLayerForRender(win, layer)
-  if type(layer) == "table" and layer._runtimePatternTableRefLayer == true then
-    -- Pattern-table reference layers should always preview using the active global palette.
-    return nil
-  end
-  if type(layer) == "table" and type(layer.paletteData) == "table" then
-    return layer
-  end
-  if not (win and type(win.layers) == "table") then
-    return layer
-  end
-  for _, candidate in ipairs(win.layers) do
-    if candidate
-      and candidate.kind == "tile"
-      and candidate._runtimePatternTableRefLayer ~= true
-      and type(candidate.paletteData) == "table"
-    then
-      return candidate
-    end
-  end
-  return layer
 end
 
 local function recordSwap(self, idx)
@@ -143,35 +73,6 @@ local function recordSwap(self, idx)
     self._tileSwaps = self._tileSwaps or {}
     self._tileSwaps[idx] = cur
   end
-end
-
-local function isNametableLayer(layer)
-  if not layer then return false end
-  if layer._runtimePatternTableRefLayer == true then return false end
-  if layer.kind == "tile" then return true end
-  return (layer.nametableStartAddr ~= nil) or (layer.nametableEndAddr ~= nil)
-end
-
--- Find the nametable layer.
--- Prefer active layer when it is a nametable/tile layer; otherwise fall back
--- to the first layer tagged as tile/nametable.
-local function getNametableLayer(self)
-  if not self.layers or #self.layers == 0 then return nil, nil end
-  local idx = tonumber(self.activeLayer) or 1
-  local active = self.layers[idx]
-  if isNametableLayer(active) then
-    return active, idx
-  end
-
-  for i, L in ipairs(self.layers) do
-    if isNametableLayer(L) then
-      return L, i
-    end
-  end
-
-  local first = self.layers[1]
-  if not first then return nil, nil end
-  return first, 1
 end
 
 -- Get the codec name from layer/project (project-level for now, defaults to "konami")
@@ -459,178 +360,6 @@ function PPUFrameWindow:drawVisibleNametableCells(renderCell, layerIndex)
 
   drawPatternRangeHoverOverlay(self, cw, ch, c0, r0, c1, r1, rangeHighlight)
 
-  love.graphics.pop()
-  love.graphics.setScissor()
-  love.graphics.setColor(colors.white)
-  return true
-end
-
-function PPUFrameWindow:_ensureNametableLayerCanvasState(layerIndex)
-  local li = layerIndex or select(2, getNametableLayer(self)) or self.activeLayer or 1
-  self._nametableLayerCanvas = self._nametableLayerCanvas or {}
-  local state = self._nametableLayerCanvas[li]
-  local expectedW = math.max(1, (self.cols or 32) * (self.cellW or 8))
-  local expectedH = math.max(1, (self.rows or 30) * (self.cellH or 8))
-
-  if not state then
-    local canvas, cw, ch = makeNametableCanvas(self)
-    state = {
-      canvas = canvas,
-      width = cw,
-      height = ch,
-      dirtyAll = true,
-      dirtyCells = {},
-    }
-    self._nametableLayerCanvas[li] = state
-    return state, li
-  end
-
-  if not state.canvas or state.width ~= expectedW or state.height ~= expectedH then
-    local canvas, cw, ch = makeNametableCanvas(self)
-    state.canvas = canvas
-    state.width = cw
-    state.height = ch
-    state.dirtyAll = true
-    state.dirtyCells = {}
-  end
-
-  return state, li
-end
-
-function PPUFrameWindow:invalidateNametableLayerCanvas(layerIndex, col, row)
-  local state, li = self:_ensureNametableLayerCanvasState(layerIndex)
-  if not state then
-    return false
-  end
-
-  if col == nil or row == nil then
-    state.dirtyAll = true
-    state.dirtyCells = {}
-    return true
-  end
-
-  local idx = lin(self.cols or 32, col, row)
-  state.dirtyCells = state.dirtyCells or {}
-  state.dirtyCells[idx] = true
-  return true
-end
-
-function PPUFrameWindow:_paintNametableCellToCanvas(layer, idx)
-  if not layer or not idx then
-    return
-  end
-
-  local cols = self.cols or 32
-  local col = (idx - 1) % cols
-  local row = math.floor((idx - 1) / cols)
-  local x = col * (self.cellW or 8)
-  local y = row * (self.cellH or 8)
-  local w = self.cellW or 8
-  local h = self.cellH or 8
-  local item = layer.items and layer.items[idx] or nil
-  local paletteNum = layer.paletteNumbers and layer.paletteNumbers[(row * cols) + col] or nil
-  if paletteNum == nil then
-    paletteNum = decodePaletteNumberFromAttributes(self, col, row)
-  end
-  local paletteLayer = getPaletteLayerForRender(self, layer)
-
-  love.graphics.setBlendMode("replace", "premultiplied")
-  love.graphics.setColor(0, 0, 0, 0)
-  love.graphics.rectangle("fill", x, y, w, h)
-  love.graphics.setBlendMode("alpha", "alphamultiply")
-
-  if item and item.draw then
-    ShaderPaletteController.applyLayerItemPalette(
-      paletteLayer,
-      item,
-      true,
-      getCurrentRomRaw(self),
-      paletteNum,
-      1.0
-    )
-    love.graphics.setColor(colors.white)
-    item:draw(x, y, 1)
-    ShaderPaletteController.releaseShader()
-  end
-end
-
-function PPUFrameWindow:_repaintNametableLayerCanvas(layerIndex)
-  local state, li = self:_ensureNametableLayerCanvasState(layerIndex)
-  local layer = self:getLayer(li)
-  if not (state and layer and layer.kind == "tile" and state.canvas) then
-    return false
-  end
-
-  local dirtyCells = state.dirtyCells or {}
-  local hasDirtyCells = next(dirtyCells) ~= nil
-  -- Only repaint when something is flagged dirty. (Avoid full clears when CRT sampling
-  -- invokes this helper on an already-painted cache; avoids repainting under preview
-  -- mirror transforms unless we reset to canvas space - see origin() below.)
-  if state.dirtyAll ~= true and not hasDirtyCells then
-    return false
-  end
-  local repaintAll = state.dirtyAll == true
-
-  love.graphics.push("all")
-  love.graphics.setCanvas(state.canvas)
-  love.graphics.origin()
-  if repaintAll then
-    love.graphics.clear(0, 0, 0, 0)
-    local max = math.max(0, (self.cols or 32) * (self.rows or 30))
-    for idx = 1, max do
-      self:_paintNametableCellToCanvas(layer, idx)
-    end
-  else
-    for idx in pairs(dirtyCells) do
-      self:_paintNametableCellToCanvas(layer, idx)
-    end
-  end
-  love.graphics.setCanvas()
-  love.graphics.pop()
-  love.graphics.setScissor()
-  love.graphics.setColor(colors.white)
-  ShaderPaletteController.releaseShader()
-
-  state.dirtyAll = false
-  state.dirtyCells = {}
-  return true
-end
-
-function PPUFrameWindow:drawNametableLayerCanvas(layerIndex)
-  local state, li = self:_ensureNametableLayerCanvasState(layerIndex)
-  local layer = self:getLayer(li)
-  if not (state and layer and layer.kind == "tile" and state.canvas) then
-    return false
-  end
-  if layer.attrMode == true then
-    return false
-  end
-
-  if state.dirtyAll or (state.dirtyCells and next(state.dirtyCells) ~= nil) then
-    self:_repaintNametableLayerCanvas(li)
-  end
-
-  local sx, sy, sw, sh = self:getInsetContentScreenRect()
-  local layerOpacity = (layer.opacity ~= nil) and layer.opacity or 1.0
-  local z = self.zoom or 1
-  local cw, ch = self.cellW or 8, self.cellH or 8
-
-  love.graphics.push()
-  local ox, oy = self:getContentScreenOrigin()
-  love.graphics.translate(ox, oy)
-  love.graphics.scale(z, z)
-  CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
-  love.graphics.translate(-(self.scrollCol or 0) * cw, -(self.scrollRow or 0) * ch)
-  love.graphics.setColor(1, 1, 1, layerOpacity)
-  love.graphics.draw(state.canvas, 0, 0)
-  local rangeHighlight = getHoveredPatternRangeHighlight(self, layer)
-  if rangeHighlight then
-    local vC0 = self.scrollCol or 0
-    local vR0 = self.scrollRow or 0
-    local vC1 = math.min((self.cols or 32) - 1, vC0 + (self.visibleCols or 1) - 1)
-    local vR1 = math.min((self.rows or 30) - 1, vR0 + (self.visibleRows or 1) - 1)
-    drawPatternRangeHoverOverlay(self, cw, ch, vC0, vR0, vC1, vR1, rangeHighlight)
-  end
   love.graphics.pop()
   love.graphics.setScissor()
   love.graphics.setColor(colors.white)
@@ -1653,5 +1382,15 @@ function PPUFrameWindow:printTotalCompressedBytesAsHex()
   end
   print(s)
 end
+
+function PPUFrameWindow:getHoveredPatternRangeHighlight(layer)
+  return getHoveredPatternRangeHighlight(self, layer)
+end
+
+function PPUFrameWindow:drawPatternRangeHoverOverlay(cw, ch, c0, r0, c1, r1, rangeHighlight)
+  drawPatternRangeHoverOverlay(self, cw, ch, c0, r0, c1, r1, rangeHighlight)
+end
+
+installNametableCanvas(PPUFrameWindow)
 
 return PPUFrameWindow
