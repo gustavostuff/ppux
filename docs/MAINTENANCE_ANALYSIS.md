@@ -124,7 +124,7 @@ Window chrome/grid/selection remain in `user_interface/windows_system/window_ren
 | **`core_controller_save_settings.lua` (1,834 lines)** mixes save/export orchestration with settings `_apply*` side effects | `controllers/app/` | ✅ Split: `core_controller_save_settings.lua` (~544 lines, save/recent/quit/modals) + `core_controller_settings_apply.lua` (~1,293 lines); `core_controller_settings_apply.test.lua` covers key `_apply*` paths |
 | **Duplicated `setStatus(ctx, text)` helper** | 10+ input/toolbar files | ✅ Centralized in `utils/status_helpers.lua` |
 | **Modal routing special cases despite registry** | `core_controller_input.lua` vs `core_controller_shared.lua` | ✅ Centralized in `core_controller_shared.lua`: `dispatchTopModal*`, `dispatchModalWheel`, `routeModalTextInput`, `APP_MODAL_TEXTINPUT_ROUTES`, `MODAL_WHEEL_HANDLER_KEYS`; input delegates to shared helpers |
-| **`undo_redo_controller.lua` (1,860 lines)** | `controllers/input_support/` | Large but cohesive; consider extracting undo *command types* into a table/registry if it keeps growing, not more controllers |
+| **`undo_redo_controller.lua` (1,860 lines)** | `controllers/input_support/` | ✅ Extracted per-type describe/apply into `undo_redo_command_registry.lua` (~1,190 lines); controller (~630 lines) keeps stack, paint recording, and `_applyPaintEvent`; `undo_redo_command_registry.test.lua` covers registry dispatch |
 | **Large monolithic test files** | `keyboard_input.test.lua` (2,325 lines), `mouse_input_tile_drag_copy.test.lua` (1,300 lines) | Valuable coverage but expensive to maintain; shared fixtures would reduce duplication |
 | **E2E gaps** | per `CRITICAL_TEST_COVERAGE_EXPANSION_PLAN.md` | Save-and-reload golden path, Open Project happy/invalid paths, OAM sprite scenarios |
 | **Untested modules** | `bank_canvas_controller`, `window_link_visual_controller`, `window_factory_controller` | Indirect coverage only; medium regression risk |
@@ -161,5 +161,5 @@ Window chrome/grid/selection remain in `user_interface/windows_system/window_ren
 ## What not to do
 
 - **Avoid splitting app-core or input into more controller files.** The mixin layout in `core_controller.lua` is appropriate for this codebase size.
-- **Avoid splitting `undo_redo_controller` or input handlers further** unless a clearly isolated subsystem emerges (e.g. a self-contained codec).
+- **Avoid splitting `undo_redo_controller` or input handlers into more controllers** unless a clearly isolated subsystem emerges (e.g. a self-contained codec). Per-type undo handlers belong in `undo_redo_command_registry.lua`, not new controller mixins.
 - Prefer **helper modules, menu builders, render extractors, and indexes** over new controller layers.
