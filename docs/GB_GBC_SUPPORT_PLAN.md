@@ -1,3 +1,5 @@
+Note: This document was generated using AI
+
 # Plan: GB / GBC support in PPUX
 
 ## Test trace (one vertical at a time)

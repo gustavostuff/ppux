@@ -1,3 +1,5 @@
+Note: This document was generated using AI
+
 # PPUX Maintenance Analysis
 
 **Date:** June 2025  

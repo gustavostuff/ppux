@@ -1,3 +1,5 @@
+Note: This document was generated using AI
+
 # README audit report
 
 **Date:** 2026-06-17  

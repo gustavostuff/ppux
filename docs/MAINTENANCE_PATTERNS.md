@@ -1,3 +1,5 @@
+Note: This document was generated using AI
+
 # Maintenance patterns & smells (short audit)
 
 **Status:** `APP_MODAL_KEYS_IN_ORDER`, `modalVisible`, `anyModalVisible`, `getTopModal`, `dispatchTopModalKey` / `dispatchTopModalMousePressed` / `dispatchTopModalMouseReleased`, `dispatchModalWheel`, `routeModalTextInput`, and context-menu key lists live in `controllers/app/core_controller_shared.lua`. `core_controller_input.lua` delegates keyboard/mouse/textinput/wheel routing to those helpers; `core_controller_draw.lua` draws overlay context menus via `APP_OVERLAY_CONTEXT_MENU_KEYS`. The unused duplicate `anyModalVisible` in `core_controller_lifecycle.lua` was removed.
