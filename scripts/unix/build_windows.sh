@@ -6,13 +6,14 @@ APP_NAME="${APP_NAME:-PPUX}"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
 source "$ROOT_DIR/scripts/unix/version_utils.sh"
 APP_VERSION="${APP_VERSION:-$(read_app_version "$ROOT_DIR")}"
+BUILD_VERSION_DIR="${BUILD_VERSION_DIR:-$(resolve_build_version_dir "$ROOT_DIR" "$BUILD_DIR" "$APP_VERSION")}"
 VERSION_SUFFIX="${APP_VERSION:+-$APP_VERSION}"
 BASE_RUNTIME_DIR="${BASE_RUNTIME_DIR:-$ROOT_DIR/base-love2d-images}"
 WIN_RUNTIME_ZIP="${WIN_RUNTIME_ZIP:-$BASE_RUNTIME_DIR/love-11.5-win64.zip}"
 WIN_RUNTIME_URL="${WIN_RUNTIME_URL:-https://github.com/love2d/love/releases/download/11.5/love-11.5-win64.zip}"
 WIN_RUNTIME_DIR="${WIN_RUNTIME_DIR:-$ROOT_DIR/base-love2d-images/love-11.5-win64}"
 PACKAGE_STAGE_DIR="${PACKAGE_STAGE_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/ppux-win64.XXXXXX")/${APP_NAME}-win64}"
-OUT_ZIP="${OUT_ZIP:-$BUILD_DIR/${APP_NAME}${VERSION_SUFFIX}-win64.zip}"
+OUT_ZIP="${OUT_ZIP:-$BUILD_VERSION_DIR/${APP_NAME}${VERSION_SUFFIX}-win64.zip}"
 
 download_file() {
   local url="$1"
@@ -70,7 +71,7 @@ LOVE_ARCHIVE="$("$ROOT_DIR/scripts/unix/build_love_archive.sh" 2>/dev/null)"
 
 rm -rf "$PACKAGE_STAGE_DIR"
 mkdir -p "$PACKAGE_STAGE_DIR"
-mkdir -p "$BUILD_DIR"
+mkdir -p "$BUILD_VERSION_DIR"
 
 cat "$WIN_RUNTIME_DIR/love.exe" "$LOVE_ARCHIVE" > "$PACKAGE_STAGE_DIR/${APP_NAME}.exe"
 
@@ -90,3 +91,4 @@ rm -f "$OUT_ZIP"
 rm -rf "$PACKAGE_STAGE_DIR"
 
 echo "Done: $OUT_ZIP"
+echo "Version folder: $BUILD_VERSION_DIR"

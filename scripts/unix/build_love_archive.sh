@@ -4,9 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 APP_NAME="${APP_NAME:-PPUX}"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
-LOVE_ARCHIVE="${LOVE_ARCHIVE:-$BUILD_DIR/${APP_NAME}.love}"
+source "$ROOT_DIR/scripts/unix/version_utils.sh"
+BUILD_VERSION_DIR="${BUILD_VERSION_DIR:-$(resolve_build_version_dir "$ROOT_DIR" "$BUILD_DIR")}"
+LOVE_ARCHIVE="${LOVE_ARCHIVE:-$BUILD_VERSION_DIR/${APP_NAME}.love}"
 
-mkdir -p "$BUILD_DIR"
+mkdir -p "$BUILD_VERSION_DIR"
 
 tmp_file_list="$(mktemp)"
 cleanup() {

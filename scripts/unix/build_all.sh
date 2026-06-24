@@ -6,11 +6,16 @@ APP_NAME="${APP_NAME:-PPUX}"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
 source "$ROOT_DIR/scripts/unix/version_utils.sh"
 APP_VERSION="${APP_VERSION:-$(read_app_version "$ROOT_DIR")}"
+BUILD_VERSION_DIR="${BUILD_VERSION_DIR:-$(resolve_build_version_dir "$ROOT_DIR" "$BUILD_DIR" "$APP_VERSION")}"
 VERSION_SUFFIX="${APP_VERSION:+-$APP_VERSION}"
 
-WINDOWS_OUT_ZIP="${WINDOWS_OUT_ZIP:-$BUILD_DIR/${APP_NAME}${VERSION_SUFFIX}-win64.zip}"
-LINUX_OUT_APPIMAGE="${LINUX_OUT_APPIMAGE:-$BUILD_DIR/${APP_NAME}${VERSION_SUFFIX}-x86_64.AppImage}"
-MACOS_OUT_ZIP="${MACOS_OUT_ZIP:-$BUILD_DIR/${APP_NAME}${VERSION_SUFFIX}-macos.zip}"
+export BUILD_VERSION_DIR
+
+WINDOWS_OUT_ZIP="${WINDOWS_OUT_ZIP:-$BUILD_VERSION_DIR/${APP_NAME}${VERSION_SUFFIX}-win64.zip}"
+LINUX_OUT_APPIMAGE="${LINUX_OUT_APPIMAGE:-$BUILD_VERSION_DIR/${APP_NAME}${VERSION_SUFFIX}-x86_64.AppImage}"
+MACOS_OUT_ZIP="${MACOS_OUT_ZIP:-$BUILD_VERSION_DIR/${APP_NAME}${VERSION_SUFFIX}-macos.zip}"
+
+echo "Building version ${APP_VERSION:-unversioned} into: $BUILD_VERSION_DIR"
 
 echo "building for windows"
 "$ROOT_DIR/scripts/unix/build_windows.sh"
@@ -21,3 +26,4 @@ echo "building for macos"
 
 echo
 echo "all completed"
+echo "Version folder: $BUILD_VERSION_DIR"

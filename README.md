@@ -574,7 +574,7 @@ To build a packaged Windows app from Windows, run:
 scripts\windows\build_windows.bat
 ```
 
-The packaged Windows app will be created only as `build\PPUX-<version>-win64.zip`.
+The packaged Windows app will be created as `build\<version>\PPUX-<version>-win64.zip` (along with `build\<version>\PPUX.love`).
 
 To build a packaged Linux app from Linux, run:
 
@@ -582,9 +582,15 @@ To build a packaged Linux app from Linux, run:
 ./scripts/unix/build_linux_appimage.sh
 ```
 
-The packaged Linux app will be created as `build/PPUX-<version>-x86_64.AppImage`.
+The packaged Linux app will be created as `build/<version>/PPUX-<version>-x86_64.AppImage`.
 
-You can also build for Windows and macOS from Linux using `./scripts/unix/build_all.sh` (macOS build not tested yet).
+You can also build for Windows and macOS from Linux using `./scripts/unix/build_all.sh` (macOS build not tested yet). All platform packages for a version are written under `build/<version>/` (from `version.txt`, or `build/unversioned/` when no version is set).
+
+To move older flat artifacts into version folders, run:
+
+```bash
+./scripts/unix/reorganize_build_versions.sh
+```
 
 ### Unit testing
 

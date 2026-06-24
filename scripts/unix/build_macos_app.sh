@@ -12,6 +12,7 @@ APP_NAME="${APP_NAME:-PPUX}"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
 source "$ROOT_DIR/scripts/unix/version_utils.sh"
 APP_VERSION="${APP_VERSION:-$(read_app_version "$ROOT_DIR")}"
+BUILD_VERSION_DIR="${BUILD_VERSION_DIR:-$(resolve_build_version_dir "$ROOT_DIR" "$BUILD_DIR" "$APP_VERSION")}"
 VERSION_SUFFIX="${APP_VERSION:+-$APP_VERSION}"
 BASE_RUNTIME_DIR="${BASE_RUNTIME_DIR:-$ROOT_DIR/base-love2d-images}"
 BASE_APP_ZIP="${BASE_APP_ZIP:-$BASE_RUNTIME_DIR/love-11.5-macos.zip}"
@@ -19,7 +20,7 @@ BASE_APP_URL="${BASE_APP_URL:-https://github.com/love2d/love/releases/download/1
 BASE_APP="${BASE_APP:-$BASE_RUNTIME_DIR/love.app}"
 MAC_STAGE_DIR="${MAC_STAGE_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/ppux-macos.XXXXXX")}"
 APP_BUNDLE="${APP_BUNDLE:-$MAC_STAGE_DIR/${APP_NAME}.app}"
-OUT_ZIP="${OUT_ZIP:-$BUILD_DIR/${APP_NAME}${VERSION_SUFFIX}-macos.zip}"
+OUT_ZIP="${OUT_ZIP:-$BUILD_VERSION_DIR/${APP_NAME}${VERSION_SUFFIX}-macos.zip}"
 
 sanitize_bundle_id() {
   printf '%s' "$1" \
@@ -103,7 +104,7 @@ RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$MAC_STAGE_DIR"
-mkdir -p "$BUILD_DIR"
+mkdir -p "$BUILD_VERSION_DIR"
 cp -a "$BASE_APP" "$APP_BUNDLE"
 
 if [[ ! -f "$INFO_PLIST" ]]; then
@@ -128,3 +129,4 @@ rm -f "$OUT_ZIP"
 rm -rf "$APP_BUNDLE"
 rm -rf "$MAC_STAGE_DIR"
 echo "Done: $OUT_ZIP"
+echo "Version folder: $BUILD_VERSION_DIR"

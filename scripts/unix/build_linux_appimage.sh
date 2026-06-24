@@ -13,16 +13,17 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 APP_NAME="${APP_NAME:-PPUX}"
+BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
 source "$ROOT_DIR/scripts/unix/version_utils.sh"
 APP_VERSION="${APP_VERSION:-$(read_app_version "$ROOT_DIR")}"
+BUILD_VERSION_DIR="${BUILD_VERSION_DIR:-$(resolve_build_version_dir "$ROOT_DIR" "$BUILD_DIR" "$APP_VERSION")}"
 VERSION_SUFFIX="${APP_VERSION:+-$APP_VERSION}"
 APP_COMMENT="${APP_COMMENT:-Open Source NES Art Editor}"
-BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
 BASE_RUNTIME_DIR="${BASE_RUNTIME_DIR:-$ROOT_DIR/base-love2d-images}"
 BASE_APPIMAGE="${BASE_APPIMAGE:-$BASE_RUNTIME_DIR/love-linux-11.5-x86_64.AppImage}"
 BASE_APPIMAGE_URL="${BASE_APPIMAGE_URL:-https://github.com/love2d/love/releases/download/11.5/love-11.5-x86_64.AppImage}"
 WORK_DIR="${WORK_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/ppux-appimage.XXXXXX")}"
-OUT_APPIMAGE="${OUT_APPIMAGE:-$BUILD_DIR/${APP_NAME}${VERSION_SUFFIX}-x86_64.AppImage}"
+OUT_APPIMAGE="${OUT_APPIMAGE:-$BUILD_VERSION_DIR/${APP_NAME}${VERSION_SUFFIX}-x86_64.AppImage}"
 
 download_file() {
   local url="$1"
@@ -63,7 +64,7 @@ LOVE_ARCHIVE="$("$ROOT_DIR/scripts/unix/build_love_archive.sh" 2>/dev/null)"
 
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
-mkdir -p "$BUILD_DIR"
+mkdir -p "$BUILD_VERSION_DIR"
 
 cp "$BASE_APPIMAGE" "$WORK_DIR/love.AppImage"
 chmod +x "$WORK_DIR/love.AppImage"
@@ -95,3 +96,4 @@ dd if="$WORK_DIR/love.AppImage" of="$RUNTIME_FILE" bs=1 count="$RUNTIME_OFFSET" 
 chmod +x "$OUT_APPIMAGE"
 rm -rf "$WORK_DIR"
 echo "Done: $OUT_APPIMAGE"
+echo "Version folder: $BUILD_VERSION_DIR"

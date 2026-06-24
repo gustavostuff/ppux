@@ -9,19 +9,22 @@ if not defined BUILD_DIR set "BUILD_DIR=%ROOT_DIR%\build"
 if not defined APP_VERSION if exist "%ROOT_DIR%\version.txt" set /p APP_VERSION=<"%ROOT_DIR%\version.txt"
 if defined APP_VERSION (
   set "VERSION_SUFFIX=-%APP_VERSION%"
+  set "BUILD_VERSION_NAME=%APP_VERSION%"
 ) else (
   set "VERSION_SUFFIX="
+  set "BUILD_VERSION_NAME=unversioned"
 )
+if not defined BUILD_VERSION_DIR set "BUILD_VERSION_DIR=%BUILD_DIR%\%BUILD_VERSION_NAME%"
 if not defined BASE_RUNTIME_DIR set "BASE_RUNTIME_DIR=%ROOT_DIR%\base-love2d-images"
 if not defined WIN_RUNTIME_URL set "WIN_RUNTIME_URL=https://github.com/love2d/love/releases/download/11.5/love-11.5-win64.zip"
 if not defined WIN_RUNTIME_ZIP set "WIN_RUNTIME_ZIP=%BASE_RUNTIME_DIR%\love-11.5-win64.zip"
 if not defined WIN_RUNTIME_DIR set "WIN_RUNTIME_DIR=%ROOT_DIR%\base-love2d-images\love-11.5-win64"
 if not defined PACKAGE_STAGE_DIR set "PACKAGE_STAGE_DIR=%TEMP%\ppux-win64-%RANDOM%%RANDOM%\%APP_NAME%-win64"
-if not defined OUT_ZIP set "OUT_ZIP=%BUILD_DIR%\%APP_NAME%%VERSION_SUFFIX%-win64.zip"
+if not defined OUT_ZIP set "OUT_ZIP=%BUILD_VERSION_DIR%\%APP_NAME%%VERSION_SUFFIX%-win64.zip"
 
-set "LOVE_ARCHIVE=%BUILD_DIR%\%APP_NAME%.love"
-set "LOVE_ARCHIVE_ZIP=%BUILD_DIR%\%APP_NAME%.zip"
-set "STAGE_DIR=%BUILD_DIR%\windows-stage\%APP_NAME%"
+set "LOVE_ARCHIVE=%BUILD_VERSION_DIR%\%APP_NAME%.love"
+set "LOVE_ARCHIVE_ZIP=%BUILD_VERSION_DIR%\%APP_NAME%.zip"
+set "STAGE_DIR=%BUILD_VERSION_DIR%\windows-stage\%APP_NAME%"
 
 where powershell >nul 2>nul
 if errorlevel 1 (
@@ -65,7 +68,7 @@ if not exist "%WIN_RUNTIME_DIR%\love.exe" (
   exit /b 1
 )
 
-if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
+if not exist "%BUILD_VERSION_DIR%" mkdir "%BUILD_VERSION_DIR%"
 
 set "ROOT_DIR_PS=%ROOT_DIR%"
 set "STAGE_DIR_PS=%STAGE_DIR%"
@@ -111,7 +114,7 @@ if errorlevel 1 exit /b 1
 
 if exist "%PACKAGE_STAGE_DIR%" rmdir /s /q "%PACKAGE_STAGE_DIR%"
 mkdir "%PACKAGE_STAGE_DIR%"
-if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
+if not exist "%BUILD_VERSION_DIR%" mkdir "%BUILD_VERSION_DIR%"
 
 copy /b "%WIN_RUNTIME_DIR%\love.exe"+"%LOVE_ARCHIVE%" "%PACKAGE_STAGE_DIR%\%APP_NAME%.exe" >nul
 if errorlevel 1 (
@@ -152,5 +155,6 @@ if exist "%PACKAGE_STAGE_DIR%" rmdir /s /q "%PACKAGE_STAGE_DIR%"
 if exist "%STAGE_DIR%" rmdir /s /q "%STAGE_DIR%"
 
 echo Done: %OUT_ZIP%
+echo Version folder: %BUILD_VERSION_DIR%
 
 endlocal
