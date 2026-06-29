@@ -473,7 +473,6 @@ function M.hydrateWindowNametable(win, layer, opts)
   if #attrBytes ~= 64 then
     DebugController.log("info", "NTM", "ROM had %d attribute bytes, normalized to 64 bytes", #attrBytes)
   end
-  win._originalNametableAttrBytes = copyBytes(win.nametableAttrBytes)
   logPerf("ntm.copy_bytes", byteCopyStartedAt, string.format("title=%s", tostring(win.title or "")))
 
   -- Debug: Count unique attribute bytes loaded from ROM
@@ -643,6 +642,9 @@ function M.hydrateWindowNametable(win, layer, opts)
     end
   end
 
+  -- Baseline for save diffing must reflect the final loaded attrs (including userDefinedAttrs).
+  win._originalNametableAttrBytes = copyBytes(win.nametableAttrBytes)
+
   -- Extract palette numbers from attribute bytes (either from ROM or user-defined)
   local paletteExtractStartedAt = LoveCompat.getTime()
   M.extractPaletteNumbersFromAttributes(win, layer, win.cols, win.rows)
@@ -741,6 +743,9 @@ function M.snapshotNametableLayer(win, layer)
   }
   if layer.noOverflowSupported ~= nil then
     out.noOverflowSupported = (layer.noOverflowSupported == true)
+  end
+  if type(layer.codec) == "string" and layer.codec ~= "" then
+    out.codec = layer.codec
   end
 
   if linkedId then

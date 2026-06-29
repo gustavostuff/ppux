@@ -684,6 +684,9 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
                 if L.attrMode ~= nil then
                   snap.attrMode = L.attrMode
                 end
+                if type(L.codec) == "string" and L.codec ~= "" then
+                  snap.codec = L.codec
+                end
                 table.insert(entry.layers, snap)
               end
             else

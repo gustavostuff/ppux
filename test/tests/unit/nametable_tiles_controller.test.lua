@@ -382,6 +382,34 @@ describe("nametable_tiles_controller.lua", function()
       local byte10 = tonumber(byte10Hex, 16)
       expect(byte10).toBe(0x02)
     end)
+
+    it("persists codec in nametable layer snapshots", function()
+      local mockWin = {
+        kind = "ppu_frame",
+        cols = 32,
+        rows = 30,
+        nametableBytes = {},
+        nametableAttrBytes = {},
+        _tileSwaps = {},
+        _originalNametableBytes = {},
+      }
+      for i = 1, 960 do
+        mockWin.nametableBytes[i] = 0xF4
+        mockWin._originalNametableBytes[i] = 0xF4
+      end
+      for i = 1, 64 do
+        mockWin.nametableAttrBytes[i] = 0x00
+      end
+
+      local snapshot = NametableTilesController.snapshotNametableLayer(mockWin, {
+        kind = "tile",
+        nametableStartAddr = 0x10,
+        nametableEndAddr = 0xD7,
+        codec = "zelda2",
+      })
+
+      expect(snapshot.codec).toBe("zelda2")
+    end)
     
     it("loads userDefinedAttrs and overwrites attribute bytes when loading from project", function()
       local mockWin = {
@@ -555,6 +583,59 @@ describe("nametable_tiles_controller.lua", function()
       expect(captured.startAddr).toBe(0x20)
       expect(captured.previousSize).toBe(3)
       expect(captured.bytes).toEqual({ 0xAA, 0xBB, 0xCC })
+    end)
+
+    it("reuses original compressed stream when only userDefinedAttrs differ from ROM decode baseline", function()
+      local fixture = io.open("fixtures/zelda2_game_over_compressed.hex", "r")
+      local hex = fixture:read("*a")
+      fixture:close()
+      local compressed = NametableUtils.hex_to_bytes(hex)
+
+      local rom, romErr = chr.writeBytesToRange(string.rep("\0", 0x200), 0x10, #compressed, compressed)
+      expect(rom).toBeTruthy()
+      expect(romErr).toBeNil()
+
+      local oldEncode = NametableUtils.encode_decompressed_nametable
+      local encodeCalled = false
+      NametableUtils.encode_decompressed_nametable = function()
+        encodeCalled = true
+        return { 0xDE, 0xAD }
+      end
+
+      local win = {
+        kind = "ppu_frame",
+        cols = 32,
+        rows = 30,
+        layers = { { kind = "tile", name = "Nametable" } },
+        invalidateNametableLayerCanvas = function() end,
+      }
+      local layer = win.layers[1]
+      layer.patternTable = {
+        ranges = {
+          { bank = 9, from = 0, to = 255 },
+        },
+      }
+
+      local attrsHex = string.rep("00", 63) .. "55"
+      local ok, err = NametableTilesController.hydrateWindowNametable(win, layer, {
+        romRaw = rom,
+        nametableStartAddr = 0x10,
+        nametableEndAddr = 0xD8,
+        codec = "zelda2",
+        userDefinedAttrs = attrsHex,
+      })
+
+      expect(ok).toBe(true)
+      expect(err).toBeNil()
+      expect(win.nametableAttrBytes[64]).toBe(0x55)
+      expect(win._originalNametableAttrBytes[64]).toBe(0x55)
+
+      local wrote, writeErr = NametableTilesController.writeBackToROM(win, layer, rom)
+      NametableUtils.encode_decompressed_nametable = oldEncode
+
+      expect(wrote).toBeTruthy()
+      expect(writeErr).toBeNil()
+      expect(encodeCalled).toBe(false)
     end)
 
     it("allows save when edited nametable exceeds original byte budget", function()

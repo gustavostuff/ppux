@@ -4,10 +4,13 @@
 -- Format documented in FiendsOfTheElements/z2disassembly (Tables_for_Game_Over_screen_text).
 -- Commands: [addr_hi] [addr_lo] [ctrl] [payload...]
 -- ctrl:
---   bit 6 set: repeat next byte (ctrl & 0x3F) times, PPU address += 32 each write
---   bit 6 clear: copy next (ctrl & 0x3F) bytes, PPU address += 1 each write
+--   bit 7 set: vertical literal — next (ctrl & 0x3F) bytes, PPU addr += 32 each write
+--   bit 6 set (bit 7 clear): horizontal repeat — repeat next byte (ctrl & 0x3F) times, PPU addr += 1
+--   otherwise: horizontal literal — next (ctrl & 0x3F) bytes, PPU addr += 1 each write
 -- Terminator: 0xFF
 -- Optional 0x4C [ptr_hi] [ptr_lo] retargets indirect pointer (ignored for linear ROM blobs).
+--
+-- Before the macro stream runs, the game fills nametable 0 with tile $F4 and attributes with $00.
 
 local DebugController = require("controllers.dev.debug_controller")
 
@@ -19,6 +22,8 @@ local PAGE_BASE = 0x2000
 local NT_BYTES = 960
 local ATTR_BYTES = 64
 local PAGE_BYTES = NT_BYTES + ATTR_BYTES
+local DEFAULT_NT_FILL = 0xF4
+local DEFAULT_ATTR_FILL = 0x00
 
 local function u8(x)
   return math.fmod(x or 0, 256)
@@ -64,9 +69,21 @@ local function ctrl_count(ctrl)
   return math.fmod(ctrl or 0, 64)
 end
 
-local function is_repeat_run(ctrl)
+local function is_vertical_literal(ctrl)
+  local c = math.fmod(ctrl or 0, 256)
+  return c >= 0x80
+end
+
+local function is_horizontal_repeat(ctrl)
   local c = math.fmod(ctrl or 0, 256)
   return c >= 0x40 and c < 0x80
+end
+
+local function default_for_offset(offset)
+  if offset < NT_BYTES then
+    return DEFAULT_NT_FILL
+  end
+  return DEFAULT_ATTR_FILL
 end
 
 local function build_src(nametable, attributes)
@@ -87,8 +104,11 @@ function M.decode_nametable(data, debug)
   data = data or {}
 
   local page = {}
-  for i = 0, PAGE_BYTES - 1 do
-    page[i] = 0
+  for i = 0, NT_BYTES - 1 do
+    page[i] = DEFAULT_NT_FILL
+  end
+  for i = NT_BYTES, PAGE_BYTES - 1 do
+    page[i] = DEFAULT_ATTR_FILL
   end
   local touched = {}
   local totalPageWrites = 0
@@ -133,14 +153,25 @@ function M.decode_nametable(data, debug)
       local pos = i + 3
 
       if count > 0 then
-        if is_repeat_run(ctrl) then
+        if is_vertical_literal(ctrl) then
+          for _ = 1, count do
+            local val = data[pos]
+            if val == nil then
+              count = 0
+              break
+            end
+            write_byte(ppu_addr, val)
+            ppu_addr = next_ppu_vertical(ppu_addr)
+            pos = pos + 1
+          end
+        elseif is_horizontal_repeat(ctrl) then
           local val = data[pos]
           if val == nil then
             break
           end
           for _ = 1, count do
             write_byte(ppu_addr, val)
-            ppu_addr = next_ppu_vertical(ppu_addr)
+            ppu_addr = next_ppu_horizontal(ppu_addr)
           end
           pos = pos + 1
         else
@@ -206,7 +237,22 @@ local function max_horizontal_literal_from(src, start_offset)
   return count
 end
 
-local function max_vertical_repeat_from(src, start_offset)
+local function max_vertical_literal_from(src, start_offset)
+  local max = math.min(63, #src - start_offset)
+  local count = 1
+  while count < max do
+    local cur_ppu = flat_to_ppu(start_offset + count - 1)
+    local next_ppu = next_ppu_vertical(cur_ppu)
+    local expected = flat_to_ppu(start_offset + count)
+    if next_ppu ~= expected then
+      break
+    end
+    count = count + 1
+  end
+  return count
+end
+
+local function max_horizontal_repeat_from(src, start_offset)
   local val = src[start_offset + 1]
   local count = 1
   while count < 63 do
@@ -218,7 +264,7 @@ local function max_vertical_repeat_from(src, start_offset)
       break
     end
     local cur_ppu = flat_to_ppu(start_offset + count - 1)
-    if next_ppu_vertical(cur_ppu) ~= flat_to_ppu(next_offset) then
+    if next_ppu_horizontal(cur_ppu) ~= flat_to_ppu(next_offset) then
       break
     end
     count = count + 1
@@ -242,21 +288,38 @@ function M.encode_nametable(nametable, attributes)
   local offset = 0
 
   while offset < #src do
-    local repeat_count, repeat_val = max_vertical_repeat_from(src, offset)
+    while offset < #src and src[offset + 1] == default_for_offset(offset) do
+      offset = offset + 1
+    end
+    if offset >= #src then
+      break
+    end
+
+    local repeat_count, repeat_val = max_horizontal_repeat_from(src, offset)
     if repeat_count >= 2 then
-      append_command(out, flat_to_ppu(offset), 0x40 + repeat_count, { repeat_val }) -- bit 6 repeat run
+      append_command(out, flat_to_ppu(offset), 0x40 + repeat_count, { repeat_val })
       offset = offset + repeat_count
     else
-      local lit_count = max_horizontal_literal_from(src, offset)
-      if lit_count < 1 then
-        lit_count = 1
+      local vert_count = max_vertical_literal_from(src, offset)
+      if vert_count >= 2 then
+        local payload = {}
+        for j = 0, vert_count - 1 do
+          payload[#payload + 1] = src[offset + j + 1]
+        end
+        append_command(out, flat_to_ppu(offset), 0x80 + vert_count, payload)
+        offset = offset + vert_count
+      else
+        local lit_count = max_horizontal_literal_from(src, offset)
+        if lit_count < 1 then
+          lit_count = 1
+        end
+        local payload = {}
+        for j = 0, lit_count - 1 do
+          payload[#payload + 1] = src[offset + j + 1]
+        end
+        append_command(out, flat_to_ppu(offset), lit_count, payload)
+        offset = offset + lit_count
       end
-      local payload = {}
-      for j = 0, lit_count - 1 do
-        payload[#payload + 1] = src[offset + j + 1]
-      end
-      append_command(out, flat_to_ppu(offset), lit_count, payload)
-      offset = offset + lit_count
     end
   end
 

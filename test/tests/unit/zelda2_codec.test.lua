@@ -21,6 +21,47 @@ describe("zelda2.lua codec", function()
     expect(#at).toBe(64)
     expect(meta.totalPageWrites).toBeGreaterThan(100)
     expect(meta.uniquePageWrites).toBeGreaterThan(100)
+
+    local f4Count, ffCount = 0, 0
+    for i = 1, #nt do
+      if nt[i] == 0xF4 then
+        f4Count = f4Count + 1
+      elseif nt[i] == 0xFF then
+        ffCount = ffCount + 1
+      end
+    end
+    expect(f4Count).toBeGreaterThan(700)
+    expect(ffCount).toBeGreaterThan(100)
+  end)
+
+  it("uses F4 nametable and 00 attribute defaults before applying the macro stream", function()
+    local compressed = { 0xFF }
+    local nt, at = NametableUtils.decode_compressed_nametable(compressed, false, "zelda2")
+    for i = 1, 960 do
+      expect(nt[i]).toBe(0xF4)
+    end
+    for i = 1, 64 do
+      expect(at[i]).toBe(0x00)
+    end
+  end)
+
+  it("decodes horizontal repeat commands (ctrl 0x40-0x7F)", function()
+    -- $2000: repeat tile $AA eight times to the right
+    local compressed = { 0x20, 0x00, 0x48, 0xAA, 0xFF }
+    local nt = NametableUtils.decode_compressed_nametable(compressed, false, "zelda2")
+    for i = 1, 8 do
+      expect(nt[i]).toBe(0xAA)
+    end
+    expect(nt[9]).toBe(0xF4)
+  end)
+
+  it("decodes vertical literal commands (ctrl 0x80+)", function()
+    -- $2000: three bytes written downward
+    local compressed = { 0x20, 0x00, 0x83, 0x11, 0x22, 0x33, 0xFF }
+    local nt = NametableUtils.decode_compressed_nametable(compressed, false, "zelda2")
+    expect(nt[1]).toBe(0x11)
+    expect(nt[33]).toBe(0x22)
+    expect(nt[65]).toBe(0x33)
   end)
 
   it("round-trips synthetic nametable data", function()
