@@ -432,7 +432,7 @@ For sprite layers, `startAddr` is the most important field because it links the 
 
 ### Current nametable codec coverage
 
-PPUX currently includes one nametable codec implementation aimed at Konami-style streams (konami.lua). New codecs for different games/styles will be added as the app development progresses.
+PPUX currently includes nametable codec implementations for Konami-style streams (`konami.lua`) and Zelda II PPU macro streams (`zelda2.lua`). New codecs for different games/styles will be added as the app development progresses.
 
 ### OAM animation windows
 
