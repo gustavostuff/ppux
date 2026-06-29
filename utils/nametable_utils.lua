@@ -50,9 +50,9 @@ local function resolve_codec(codec)
   return konamiCodec
 end
 
-local function encode_decompressed_nametable(nametable, attributes, codec)
+local function encode_decompressed_nametable(nametable, attributes, codec, original_compressed)
   local codecModule = resolve_codec(codec)
-  return codecModule.encode_nametable(nametable, attributes)
+  return codecModule.encode_nametable(nametable, attributes, original_compressed)
 end
 
 -- Decode nametable using the specified codec (defaults to "konami")

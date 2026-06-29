@@ -638,7 +638,51 @@ describe("nametable_tiles_controller.lua", function()
       expect(encodeCalled).toBe(false)
     end)
 
-    it("allows save when edited nametable exceeds original byte budget", function()
+    it("rejects save when noOverflowSupported and edited nametable exceeds budget", function()
+      local oldEncode = NametableUtils.encode_decompressed_nametable
+      local oldWriteRange = chr.writeBytesToRange
+      local oldWriteStart = chr.writeBytesStartingAt
+      local writeCalls = 0
+
+      NametableUtils.encode_decompressed_nametable = function()
+        return { 0x01, 0x02, 0x03, 0x04, 0x05 } -- 5 bytes
+      end
+      chr.writeBytesToRange = function(romRaw)
+        writeCalls = writeCalls + 1
+        return romRaw
+      end
+      chr.writeBytesStartingAt = function(romRaw)
+        writeCalls = writeCalls + 1
+        return romRaw
+      end
+
+      local win = {
+        nametableStart = 0x100,
+        nametableBytes = { 0x09, 0x02, 0x03 },
+        _originalNametableBytes = { 0x01, 0x02, 0x03 },
+        nametableAttrBytes = { 0x00 },
+        _originalNametableAttrBytes = { 0x00 },
+      }
+      local layer = {
+        kind = "tile",
+        nametableStartAddr = 0x100,
+        nametableEndAddr = 0x102,
+        noOverflowSupported = true,
+        codec = "konami",
+      }
+
+      local updated, err = NametableTilesController.writeBackToROM(win, layer, string.rep("\0", 1024))
+
+      NametableUtils.encode_decompressed_nametable = oldEncode
+      chr.writeBytesToRange = oldWriteRange
+      chr.writeBytesStartingAt = oldWriteStart
+
+      expect(updated).toBeNil()
+      expect(err).toBe("nametable_overflow (5 bytes compressed, 3 byte budget)")
+      expect(writeCalls).toBe(0)
+    end)
+
+    it("allows save when edited nametable exceeds budget and noOverflowSupported is false", function()
       local oldEncode = NametableUtils.encode_decompressed_nametable
       local oldWriteRange = chr.writeBytesToRange
       local oldWriteStart = chr.writeBytesStartingAt
@@ -674,7 +718,7 @@ describe("nametable_tiles_controller.lua", function()
         kind = "tile",
         nametableStartAddr = 0x100,
         nametableEndAddr = 0x102, -- budget = 3 bytes
-        noOverflowSupported = true,
+        noOverflowSupported = false,
         codec = "konami",
       }
 

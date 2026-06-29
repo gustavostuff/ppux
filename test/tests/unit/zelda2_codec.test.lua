@@ -99,4 +99,80 @@ describe("zelda2.lua codec", function()
       expect(at2[i]).toBe(at[i])
     end
   end)
+
+  it("re-encodes Game Over compactly (not full-grid expansion)", function()
+    local compressed = read_fixture_hex("zelda2_game_over_compressed.hex")
+    local nt, at = NametableUtils.decode_compressed_nametable(compressed, false, "zelda2")
+    local recompressed = NametableUtils.encode_decompressed_nametable(nt, at, "zelda2", compressed)
+    expect(#recompressed).toBe(201)
+  end)
+
+  it("keeps the original command start address when re-encoding horizontal spans", function()
+    local compressed = read_fixture_hex("zelda2_game_over_compressed.hex")
+    local nt, at = NametableUtils.decode_compressed_nametable(compressed, false, "zelda2")
+
+    local row = 21
+    nt[row * 32 + 8 + 1] = 0x30
+    nt[row * 32 + 14 + 1] = 0xF4
+    nt[row * 32 + 15 + 1] = 0xF4
+
+    local patched = NametableUtils.encode_decompressed_nametable(nt, at, "zelda2", compressed)
+    expect(patched[65]).toBe(0x22)
+    expect(patched[66]).toBe(0xA9)
+
+    local nt2, at2 = NametableUtils.decode_compressed_nametable(patched, false, "zelda2")
+    expect(nt2[row * 32 + 14 + 1]).toBe(0xF4)
+    expect(nt2[row * 32 + 15 + 1]).toBe(0xF4)
+    for i = 1, 960 do
+      expect(nt2[i]).toBe(nt[i])
+    end
+    for i = 1, 64 do
+      expect(at2[i]).toBe(at[i])
+    end
+  end)
+    local compressed = read_fixture_hex("zelda2_game_over_compressed.hex")
+    local nt, at = NametableUtils.decode_compressed_nametable(compressed, false, "zelda2")
+
+    local row = 21
+    nt[row * 32 + 14 + 1] = 0xF4
+    nt[row * 32 + 15 + 1] = 0xF4
+    nt[row * 32 + 19 + 1] = 0x36
+    nt[row * 32 + 20 + 1] = 0x36
+
+    local patched = NametableUtils.encode_decompressed_nametable(nt, at, "zelda2", compressed)
+    local nt2, at2 = NametableUtils.decode_compressed_nametable(patched, false, "zelda2")
+
+    expect(nt2[row * 32 + 14 + 1]).toBe(0xF4)
+    expect(nt2[row * 32 + 15 + 1]).toBe(0xF4)
+    for i = 1, 960 do
+      expect(nt2[i]).toBe(nt[i])
+    end
+    for i = 1, 64 do
+      expect(at2[i]).toBe(at[i])
+    end
+  end)
+
+  it("patches Game Over with a small size increase for a single tile edit", function()
+    local compressed = read_fixture_hex("zelda2_game_over_compressed.hex")
+    local nt, at = NametableUtils.decode_compressed_nametable(compressed, false, "zelda2")
+
+    local row = 21
+    for col = 9, 13 do
+      if nt[row * 32 + col + 1] == 0x30 and nt[row * 32 + col + 2] == 0x31 then
+        nt[row * 32 + col + 2] = 0x30
+        break
+      end
+    end
+
+    local patched = NametableUtils.encode_decompressed_nametable(nt, at, "zelda2", compressed)
+    expect(#patched).toBe(201)
+
+    local nt2, at2 = NametableUtils.decode_compressed_nametable(patched, false, "zelda2")
+    for i = 1, 960 do
+      expect(nt2[i]).toBe(nt[i])
+    end
+    for i = 1, 64 do
+      expect(at2[i]).toBe(at[i])
+    end
+  end)
 end)

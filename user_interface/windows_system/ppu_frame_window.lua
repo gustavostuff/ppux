@@ -928,12 +928,12 @@ function PPUFrameWindow:updateCompressedBytesInROM()
   -- Get codec from layer/project (defaults to "konami")
   local codec = getCodec(layer, self.projectData)
   
-  -- Encode without padding
-  local totalCompressedBytes = NametableUtils.encode_decompressed_nametable(
-    self.nametableBytes,
-    self.nametableAttrBytes,
-    codec
-  )
+  -- Encode without padding (reuse original stream when unchanged; patch when edited)
+  local totalCompressedBytes, encodeErr = NametableTilesController.encodeWindowNametableBytes(self, layer)
+  if not totalCompressedBytes then
+    DebugController.log("warning", "PPU", "encodeWindowNametableBytes failed: %s", tostring(encodeErr))
+    return false, encodeErr or "encode_failed"
+  end
 
   local compressedSize = #totalCompressedBytes
   self._nametableCompressedSize = compressedSize
@@ -1038,6 +1038,17 @@ function PPUFrameWindow:updateCompressedBytesInROM()
   self._nametableOriginalSize = originalSize
   if NametableTilesController and NametableTilesController.updateOverflowToastForWindow then
     NametableTilesController.updateOverflowToastForWindow(self, layer, compressedSize, originalSize)
+  end
+
+  if originalSize and compressedSize > originalSize then
+    DebugController.log(
+      "warning",
+      "NT_VERIFICATION",
+      "Skipping ROM write: compressed size %d exceeds budget %d (would corrupt data after nametable range)",
+      compressedSize,
+      originalSize
+    )
+    return true
   end
 
   -- If compressed size is smaller than original, pad with 0xFF to preserve ROM size
@@ -1366,13 +1377,10 @@ end
 
 function PPUFrameWindow:printTotalCompressedBytesAsHex()
   local layer = getNametableLayer(self)
-  local codec = getCodec(layer, self.projectData)
-  
-  local totalCompressedBytes = NametableUtils.encode_decompressed_nametable(
-    self.nametableBytes,
-    self.nametableAttrBytes,
-    codec
-  )
+  local totalCompressedBytes = NametableTilesController.encodeWindowNametableBytes(self, layer)
+  if not totalCompressedBytes then
+    return
+  end
 
   local s = ""
   for i = 1, #totalCompressedBytes do

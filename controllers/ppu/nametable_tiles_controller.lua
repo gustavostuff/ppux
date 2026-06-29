@@ -192,6 +192,30 @@ local function hasWindowNametableChanges(win)
   return not bytesEqual(at, atOrig)
 end
 
+function M.hasWindowNametableChanges(win)
+  return hasWindowNametableChanges(win)
+end
+
+function M.encodeWindowNametableBytes(win, layer)
+  local nt = win and win.nametableBytes or nil
+  local at = win and win.nametableAttrBytes or nil
+  if type(nt) ~= "table" or #nt == 0 then
+    return nil, "empty_nametableBytes"
+  end
+
+  local codec = (layer and layer.codec) or "konami"
+  local original = nil
+  if type(win._originalCompressedBytes) == "table" and #win._originalCompressedBytes > 0 then
+    original = win._originalCompressedBytes
+  end
+
+  if not hasWindowNametableChanges(win) and original then
+    return copyBytes(original)
+  end
+
+  return NametableUtils.encode_decompressed_nametable(nt, at or {}, codec, original)
+end
+
 -- RLE encode/decode helpers for tileSwaps (row-major, default 32x30 grid).
 local function encodeTileSwapsRLE(swaps, cols, rows)
   if not swaps or #swaps == 0 then return nil end
@@ -834,16 +858,20 @@ function M.writeBackToROM(win, layer, romRaw)
       #bytesToWrite
     )
   else
-  -- Get codec from layer or default to "konami"
-    local codec = (layer and layer.codec) or "konami"
-    local compressed = NametableUtils.encode_decompressed_nametable(
-      nt,
-      at,
-      codec
-    )
+    local compressed, encodeErr = M.encodeWindowNametableBytes(win, layer)
+    if not compressed then
+      return nil, encodeErr or "encode_failed"
+    end
 
     local compressedSize = #compressed
     if noOverflowSupported and budget and compressedSize > budget then
+      return nil, string.format(
+        "nametable_overflow (%d bytes compressed, %d byte budget)",
+        compressedSize,
+        budget
+      )
+    end
+    if budget and compressedSize > budget then
       DebugController.log(
         "warning",
         "NTM",
@@ -862,7 +890,12 @@ function M.writeBackToROM(win, layer, romRaw)
   end
 
   local newRom, err
-  if budget and #bytesToWrite <= budget then
+  if budget and (not noOverflowSupported) and #bytesToWrite > budget then
+    newRom, err = chr.writeBytesStartingAt(romRaw, writeStart, bytesToWrite)
+    if not newRom then
+      return nil, "[NametableTilesController] writeBytesStartingAt failed: " .. tostring(err)
+    end
+  elseif budget then
     newRom, err = chr.writeBytesToRange(romRaw, writeStart, budget, bytesToWrite)
     if not newRom then
       return nil, "[NametableTilesController] writeBytesToRange failed: " .. tostring(err)
