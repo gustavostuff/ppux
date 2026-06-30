@@ -130,6 +130,8 @@ describe("zelda2.lua codec", function()
       expect(at2[i]).toBe(at[i])
     end
   end)
+
+  it("round-trips Game Over after editing tiles past a horizontal repeat span", function()
     local compressed = read_fixture_hex("zelda2_game_over_compressed.hex")
     local nt, at = NametableUtils.decode_compressed_nametable(compressed, false, "zelda2")
 

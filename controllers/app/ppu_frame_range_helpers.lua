@@ -629,4 +629,76 @@ function M.planPatternRangesFromChrTileGroup(srcWin, srcLayer, tileGroup)
   return ranges, total, nil, orderedItemRefs
 end
 
+local function explicitTileGlobalChrIndex(t, idxForErr, defaultBank)
+  local bank, page, byte, terr = explicitTileBankPageByte(t, idxForErr, defaultBank)
+  if terr then
+    return nil, nil, terr
+  end
+  local ti = (page == 2) and (256 + byte) or byte
+  return bank, ti, nil
+end
+
+--- Merge consecutive same-bank CHR indices in one explicit `tiles` row into `{ bank, from, to }` rows.
+local function compactExplicitTilesRangeToFromTo(range)
+  local out = {}
+  local defaultBank = range.bank
+  local runBank, runFrom, runTo = nil, nil, nil
+
+  local function flushRun()
+    if runBank ~= nil and runFrom ~= nil and runTo ~= nil then
+      out[#out + 1] = { bank = runBank, from = runFrom, to = runTo }
+    end
+    runBank, runFrom, runTo = nil, nil, nil
+  end
+
+  for i, t in ipairs(range.tiles) do
+    local bank, ti, terr = explicitTileGlobalChrIndex(t, i, defaultBank)
+    if terr then
+      return nil, terr
+    end
+    if runBank == nil then
+      runBank, runFrom, runTo = bank, ti, ti
+    elseif bank == runBank and ti == runTo + 1 then
+      runTo = ti
+    else
+      flushRun()
+      runBank, runFrom, runTo = bank, ti, ti
+    end
+  end
+  flushRun()
+  return out, nil
+end
+
+--- Project save format: only `{ bank, from, to }` range rows (global CHR 0..511), no per-tile `tiles` lists.
+function M.compactPatternTableForPersistence(patternTable)
+  if type(patternTable) ~= "table" or type(patternTable.ranges) ~= "table" then
+    return { ranges = {} }
+  end
+
+  local outRanges = {}
+  for _, range in ipairs(patternTable.ranges) do
+    if M.patternRangeUsesExplicitTiles(range) then
+      local compacted, cerr = compactExplicitTilesRangeToFromTo(range)
+      if cerr then
+        return TableUtils.deepcopy(patternTable)
+      end
+      for _, cr in ipairs(compacted or {}) do
+        outRanges[#outRanges + 1] = cr
+      end
+    elseif PatternTableMapping.isGlobalChrFromToRange(range) then
+      local fromChr, toChr = PatternTableMapping.globalChrFromToBounds(range)
+      local bank = math.max(1, math.floor(tonumber(range.bank) or 1))
+      outRanges[#outRanges + 1] = {
+        bank = bank,
+        from = fromChr,
+        to = toChr,
+      }
+    else
+      outRanges[#outRanges + 1] = TableUtils.deepcopy(range)
+    end
+  end
+
+  return { ranges = outRanges }
+end
+
 return M

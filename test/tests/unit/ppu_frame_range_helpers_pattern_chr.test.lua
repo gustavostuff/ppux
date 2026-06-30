@@ -112,4 +112,42 @@ describe("ppu_frame_range_helpers — CHR → pattern range plan", function()
     expect(tiles[3].byte).toBe(40)
     expect(tiles[4].byte).toBe(41)
   end)
+
+  it("compactPatternTableForPersistence merges explicit tiles into from/to rows", function()
+    local pt = {
+      ranges = {
+        {
+          tiles = {
+            { bank = 1, tileIndex = 10 },
+            { bank = 1, tileIndex = 20 },
+            { bank = 1, tileIndex = 11 },
+          },
+        },
+        {
+          tiles = {
+            { bank = 2, tileIndex = 5 },
+            { bank = 2, tileIndex = 6 },
+            { bank = 2, tileIndex = 7 },
+          },
+        },
+      },
+    }
+    local out = PpuRange.compactPatternTableForPersistence(pt)
+    expect(#out.ranges).toBe(4)
+    expect(out.ranges[1]).toEqual({ bank = 1, from = 10, to = 10 })
+    expect(out.ranges[2]).toEqual({ bank = 1, from = 20, to = 20 })
+    expect(out.ranges[3]).toEqual({ bank = 1, from = 11, to = 11 })
+    expect(out.ranges[4]).toEqual({ bank = 2, from = 5, to = 7 })
+  end)
+
+  it("compactPatternTableForPersistence normalizes legacy page+from/to rows", function()
+    local pt = {
+      ranges = {
+        { bank = 3, page = 2, from = 0, to = 15 },
+      },
+    }
+    local out = PpuRange.compactPatternTableForPersistence(pt)
+    expect(#out.ranges).toBe(1)
+    expect(out.ranges[1]).toEqual({ bank = 3, from = 256, to = 271 })
+  end)
 end)

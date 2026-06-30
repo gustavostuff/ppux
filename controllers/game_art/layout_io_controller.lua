@@ -7,6 +7,7 @@ local DebugController = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 
 local TableUtils = require("utils.table_utils")
+local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 local GridModeUtils = require("controllers.grid_mode_utils")
 
 local M = {}
@@ -638,7 +639,7 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
           kind = "tile",
           mode = L.mode or "8x8",
           opacity = (L.opacity ~= nil) and L.opacity or 1.0,
-          patternTable = TableUtils.deepcopy(L.patternTable or { ranges = {} }),
+          patternTable = PpuRange.compactPatternTableForPersistence(L.patternTable or { ranges = {} }),
           items = {},
         }
       end

@@ -247,6 +247,32 @@ describe("game_art_layout_io_controller.lua", function()
     expect(restored.layers[1].canvas:getPixel(5, 7)).toBe(3)
   end)
 
+  it("snapshots pattern_table windows with compact from/to ranges, not per-tile items", function()
+    local wm = require("controllers.window.window_controller").new()
+    local win = wm:createPatternTableWindow({ title = "PT" })
+    win._id = "pt_compact_save"
+    local layer = win.layers[1]
+    layer.patternTable = {
+      ranges = {
+        {
+          tiles = {
+            { bank = 1, tileIndex = 0 },
+            { bank = 1, tileIndex = 1 },
+            { bank = 1, tileIndex = 2 },
+          },
+        },
+      },
+    }
+
+    local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1)
+    local entry = snapshot.windows[1]
+    expect(entry.kind).toBe("pattern_table")
+    expect(#entry.layers).toBe(1)
+    expect(entry.layers[1].items).toEqual({})
+    expect(entry.layers[1].patternTable.ranges[1]).toEqual({ bank = 1, from = 0, to = 2 })
+    expect(entry.layers[1].patternTable.ranges[1].tiles).toBeNil()
+  end)
+
   it("reports pattern sketch canvas snapshot restore failures", function()
     local wm = require("controllers.window.window_controller").new()
     local win = wm:createPatternSketchCanvasWindow({ title = "PTB Hash" })
