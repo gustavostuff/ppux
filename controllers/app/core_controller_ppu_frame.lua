@@ -1310,6 +1310,7 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
   layer.codec = layerState.codec
   layer.nametableStartAddr = layerState.nametableStartAddr
   layer.nametableEndAddr = layerState.nametableEndAddr
+  layer.relocateTo = layerState.relocateTo
   layer.noOverflowSupported = layerState.noOverflowSupported
   layer.patternTable = TableUtils.deepcopy(layerState.patternTable)
   layer.attrMode = layerState.attrMode

@@ -408,6 +408,43 @@ local function buildTileSwapsList(win)
 end
 
 ----------------------------------------------------------------------
+-- ROM address helpers (read vs write when relocateTo is set)
+----------------------------------------------------------------------
+
+--- Prefer the live in-memory ROM (app edit state) over a stale snapshot passed by callers.
+function M.resolveWorkingRomRaw(fallbackRomRaw, win)
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app
+  local live = app and app.appEditState and app.appEditState.romRaw
+  if type(live) == "string" and #live > 0 then
+    return live
+  end
+  if win and type(win.romRaw) == "string" and #win.romRaw > 0 then
+    return win.romRaw
+  end
+  return fallbackRomRaw or ""
+end
+
+--- Compressed nametable bytes are written here when layer.relocateTo is set.
+function M.resolveNametableWriteStart(layer, win)
+  if layer and type(layer.relocateTo) == "number" then
+    return layer.relocateTo
+  end
+  return (layer and layer.nametableStartAddr) or (win and win.nametableStart)
+end
+
+function M.propagateRomRaw(romRaw, win)
+  if win then
+    win.romRaw = romRaw
+  end
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app
+  if app and app.appEditState then
+    app.appEditState.romRaw = romRaw
+  end
+end
+
+----------------------------------------------------------------------
 -- Hydration / decode
 ----------------------------------------------------------------------
 
@@ -433,11 +470,12 @@ function M.hydrateWindowNametable(win, layer, opts)
   if not (win and layer and opts) then
     return nil, "missing_args"
   end
-  local romRaw      = opts.romRaw or ""
+  local romRaw      = M.resolveWorkingRomRaw(opts.romRaw or "", win)
   local tilesPool   = opts.tilesPool
   local ensureTiles = opts.ensureTiles
   local startAddr   = opts.nametableStartAddr or layer.nametableStartAddr or win.nametableStart
   local endAddr     = opts.nametableEndAddr   or layer.nametableEndAddr
+  local relocateTo  = opts.relocateTo or layer.relocateTo
   local tileSwaps   = opts.tileSwaps or layer.tileSwaps
   local noOverflowSupported = (opts.noOverflowSupported == true) or (layer.noOverflowSupported == true)
 
@@ -454,6 +492,25 @@ function M.hydrateWindowNametable(win, layer, opts)
     return nil, "[NametableTilesController] readBytesFromRange failed: " .. tostring(err)
   end
   win._originalCompressedBytes = copyBytes(compressed)
+
+  if type(relocateTo) == "number" then
+    layer.relocateTo = relocateTo
+    local relocatedRom, relocErr = chr.writeBytesStartingAt(romRaw, relocateTo, compressed)
+    if not relocatedRom then
+      return nil, "[NametableTilesController] relocateTo failed: " .. tostring(relocErr)
+    end
+    romRaw = relocatedRom
+    M.propagateRomRaw(romRaw, win)
+    DebugController.log(
+      "info",
+      "NTM",
+      "Relocated %d compressed nametable bytes from 0x%06X-0x%06X to 0x%06X",
+      #compressed,
+      startAddr,
+      endAddr,
+      relocateTo
+    )
+  end
   logPerf("ntm.read_compressed", readStartedAt, string.format("title=%s", tostring(win.title or "")))
 
   -- Get codec from opts, layer, or default to "konami"
@@ -748,6 +805,7 @@ end
 --  We intentionally do NOT serialize the full 960-byte nametable;
 --  instead we store:
 --    * nametableStartAddr / nametableEndAddr
+--    * relocateTo (optional ROM write destination)
 --    * tileSwaps (list {col,row,val} for cells that differ from ROM)
 function M.snapshotNametableLayer(win, layer)
   if not (win and layer and layer.kind == "tile" and layer.nametableStartAddr) then
@@ -765,6 +823,9 @@ function M.snapshotNametableLayer(win, layer)
     nametableEndAddr   = layer.nametableEndAddr,
     items              = {},  -- always empty: base tiles come from ROM
   }
+  if type(layer.relocateTo) == "number" then
+    out.relocateTo = layer.relocateTo
+  end
   if layer.noOverflowSupported ~= nil then
     out.noOverflowSupported = (layer.noOverflowSupported == true)
   end
@@ -815,6 +876,7 @@ end
 --
 --  Returns: newRomRaw (string) on success, or nil, errorMessage on failure.
 function M.writeBackToROM(win, layer, romRaw)
+  romRaw = M.resolveWorkingRomRaw(romRaw, win)
   if type(romRaw) ~= "string" then
     return nil, "romRaw must be a string"
   end
@@ -843,8 +905,8 @@ function M.writeBackToROM(win, layer, romRaw)
     budget = #win._originalCompressedBytes
   end
 
-  local writeStart = startAddr
-  if type(endAddr) == "number" and endAddr < startAddr then
+  local writeStart = M.resolveNametableWriteStart(layer, win)
+  if writeStart == startAddr and type(endAddr) == "number" and endAddr < startAddr then
     writeStart = endAddr
   end
 

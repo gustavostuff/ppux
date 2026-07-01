@@ -568,6 +568,7 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
         layerIndex = 1,
         nametableStartAddr = nametableStart,
         nametableEndAddr = nametableEnd,
+        relocateTo = ntLayer and ntLayer.relocateTo,
         codec = (ntLayer and ntLayer.codec) or "konami",
         noOverflowSupported = ntLayer and ntLayer.noOverflowSupported == true,
         tileSwaps = ntLayer and ntLayer.tileSwaps,
@@ -594,6 +595,7 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
         ensureTiles = ensureTiles,
         nametableStartAddr = nametableStart,
         nametableEndAddr = nametableEnd,
+        relocateTo = ntLayer and ntLayer.relocateTo,
         codec = (ntLayer and ntLayer.codec) or "konami",
         noOverflowSupported = ntLayer and ntLayer.noOverflowSupported == true,
         patternTable = patternTable,
@@ -710,6 +712,7 @@ local function applyLayerMetadataFromLayout(win, layoutLayers)
       if Lsrc.codec ~= nil then Ldst.codec = Lsrc.codec end
       if Lsrc.nametableStartAddr ~= nil then Ldst.nametableStartAddr = Lsrc.nametableStartAddr end
       if Lsrc.nametableEndAddr ~= nil then Ldst.nametableEndAddr = Lsrc.nametableEndAddr end
+      if Lsrc.relocateTo ~= nil then Ldst.relocateTo = Lsrc.relocateTo end
       if Lsrc.noOverflowSupported ~= nil then
         Ldst.noOverflowSupported = (Lsrc.noOverflowSupported == true)
       end
@@ -861,6 +864,7 @@ function M.finalizeDeferredPpuNametableHydrates(wm, romRaw, tilesPool, ensureTil
           ensureTiles = ensureTiles,
           nametableStartAddr = pend.nametableStartAddr,
           nametableEndAddr = pend.nametableEndAddr,
+          relocateTo = pend.relocateTo,
           codec = pend.codec or "konami",
           noOverflowSupported = pend.noOverflowSupported == true,
           tileSwaps = pend.tileSwaps,

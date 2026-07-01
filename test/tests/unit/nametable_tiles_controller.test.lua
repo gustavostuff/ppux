@@ -410,6 +410,27 @@ describe("nametable_tiles_controller.lua", function()
 
       expect(snapshot.codec).toBe("zelda2")
     end)
+
+    it("persists relocateTo in nametable layer snapshots", function()
+      local mockWin = {
+        kind = "ppu_frame",
+        cols = 32,
+        rows = 30,
+        nametableBytes = {},
+        nametableAttrBytes = {},
+        _tileSwaps = {},
+        _originalNametableBytes = {},
+      }
+
+      local snapshot = NametableTilesController.snapshotNametableLayer(mockWin, {
+        kind = "tile",
+        nametableStartAddr = 0x10,
+        nametableEndAddr = 0xD7,
+        relocateTo = 0x2C10,
+      })
+
+      expect(snapshot.relocateTo).toBe(0x2C10)
+    end)
     
     it("loads userDefinedAttrs and overwrites attribute bytes when loading from project", function()
       local mockWin = {
@@ -993,5 +1014,94 @@ describe("nametable_tiles_controller.lua", function()
       )
     end)
   end)
-  
+
+  describe("relocateTo", function()
+    it("copies source compressed bytes into relocateTo on hydrate", function()
+      local rom, romErr = chr.writeBytesToRange(string.rep("\0", 0x400), 0x100, 3, { 0xAA, 0xBB, 0xCC })
+      expect(rom).toBeTruthy()
+      expect(romErr).toBeNil()
+
+      local win = { romRaw = rom, cols = 32 }
+      local layer = {
+        kind = "tile",
+        nametableStartAddr = 0x100,
+        nametableEndAddr = 0x102,
+        relocateTo = 0x300,
+        codec = "konami",
+        patternTable = {
+          ranges = {
+            { bank = 1, from = 0, to = 255 },
+          },
+        },
+      }
+
+      local oldDecode = NametableUtils.decode_compressed_nametable
+      NametableUtils.decode_compressed_nametable = function()
+        return { 0x01 }, { 0x02 }, {}
+      end
+
+      local ok, err = NametableTilesController.hydrateWindowNametable(win, layer, {
+        romRaw = rom,
+        codec = "konami",
+      })
+
+      NametableUtils.decode_compressed_nametable = oldDecode
+
+      expect(ok).toBe(true)
+      expect(err).toBeNil()
+      expect(string.byte(win.romRaw, 0x300 + 1)).toBe(0xAA)
+      expect(string.byte(win.romRaw, 0x301 + 1)).toBe(0xBB)
+      expect(string.byte(win.romRaw, 0x302 + 1)).toBe(0xCC)
+      expect(layer.relocateTo).toBe(0x300)
+      expect(layer.nametableStartAddr).toBe(0x100)
+    end)
+
+    it("writes saved nametable bytes to relocateTo instead of source range", function()
+      local oldEncode = NametableUtils.encode_decompressed_nametable
+      local oldWriteRange = chr.writeBytesToRange
+      local captured = nil
+
+      NametableUtils.encode_decompressed_nametable = function()
+        return { 0x10, 0x11, 0x12 }
+      end
+      chr.writeBytesToRange = function(romRaw, startAddr, previousSize, bytes)
+        captured = {
+          startAddr = startAddr,
+          previousSize = previousSize,
+          bytes = {},
+        }
+        for i = 1, #bytes do
+          captured.bytes[i] = bytes[i]
+        end
+        return romRaw
+      end
+
+      local win = {
+        nametableBytes = { 0x01, 0x02, 0x03 },
+        _originalNametableBytes = { 0x01, 0x02, 0x04 },
+        nametableAttrBytes = { 0x04, 0x05 },
+        _originalNametableAttrBytes = { 0x04, 0x05 },
+      }
+      local layer = {
+        kind = "tile",
+        nametableStartAddr = 0x100,
+        nametableEndAddr = 0x102,
+        relocateTo = 0x300,
+        noOverflowSupported = true,
+        codec = "konami",
+      }
+
+      local ok, err = NametableTilesController.writeBackToROM(win, layer, string.rep("\0", 0x400))
+
+      NametableUtils.encode_decompressed_nametable = oldEncode
+      chr.writeBytesToRange = oldWriteRange
+
+      expect(ok).toBeTruthy()
+      expect(err).toBeNil()
+      expect(captured).toBeTruthy()
+      expect(captured.startAddr).toBe(0x300)
+      expect(captured.bytes).toEqual({ 0x10, 0x11, 0x12 })
+    end)
+  end)
+
 end)

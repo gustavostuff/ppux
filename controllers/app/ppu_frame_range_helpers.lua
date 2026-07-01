@@ -313,6 +313,7 @@ function M.snapshotPpuFrameRangeState(win, layerIndex)
       codec = layer.codec,
       nametableStartAddr = layer.nametableStartAddr,
       nametableEndAddr = layer.nametableEndAddr,
+      relocateTo = layer.relocateTo,
       noOverflowSupported = layer.noOverflowSupported,
       patternTable = TableUtils.deepcopy(layer.patternTable),
       attrMode = layer.attrMode,

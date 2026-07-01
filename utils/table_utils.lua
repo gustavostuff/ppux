@@ -2,6 +2,7 @@
 local HEX_NUMBER_KEYS = {
   nametableEndAddr   = true,
   nametableStartAddr = true,
+  relocateTo         = true,
   startAddr          = true,
 }
 

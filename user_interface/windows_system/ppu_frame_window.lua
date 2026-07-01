@@ -905,12 +905,17 @@ function PPUFrameWindow:updateCompressedBytesInROM()
     return false, "no_layer"
   end
 
-  -- Get start address (0-based)
+  -- Source range for budget; write address may differ when relocateTo is set.
   local startAddr = layer.nametableStartAddr or self.nametableStart
-  
+  local writeAddr = NametableTilesController.resolveNametableWriteStart(layer, self)
+
   if not startAddr then
     DebugController.log("warning", "PPU", "nametableStartAddr not available")
     return false, "no_start_addr"
+  end
+  if not writeAddr then
+    DebugController.log("warning", "PPU", "nametable write address not available")
+    return false, "no_write_addr"
   end
 
   -- Store original decompressed bytes for verification
@@ -1061,9 +1066,10 @@ function PPUFrameWindow:updateCompressedBytesInROM()
   end
 
   -- Write using writeBytesStartingAt (writes exactly what we provide, doesn't change ROM size if smaller)
+  local romRaw = NametableTilesController.resolveWorkingRomRaw(self.romRaw, self)
   local newRom, err = chr.writeBytesStartingAt(
-    self.romRaw,
-    startAddr,
+    romRaw,
+    writeAddr,
     bytesToWrite
   )
   
@@ -1083,7 +1089,14 @@ function PPUFrameWindow:updateCompressedBytesInROM()
     end
   end
   
-  DebugController.log("info", "NT_VERIFICATION", "Successfully wrote %d bytes to ROM at address %d", #bytesToWrite, startAddr)
+  DebugController.log(
+    "info",
+    "NT_VERIFICATION",
+    "Successfully wrote %d bytes to ROM at address %d%s",
+    #bytesToWrite,
+    writeAddr,
+    (writeAddr ~= startAddr) and string.format(" (source range 0x%06X-0x%06X)", startAddr, layer.nametableEndAddr or startAddr) or ""
+  )
 
   self:syncNametableLayerMetadata()
 
