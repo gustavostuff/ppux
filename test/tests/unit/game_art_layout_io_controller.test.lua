@@ -81,6 +81,20 @@ describe("game_art_layout_io_controller.lua", function()
     expect(#project.windows).toBe(0)
   end)
 
+  it("returns a syntax error when project file cannot be parsed", function()
+    local path = nextTmpPath("project_syntax")
+    table.insert(createdPaths, path)
+
+    local wrote, writeErr = GameArtLayoutIOController.writeFile(path, "return { windows = ")
+    expect(wrote).toBeTruthy()
+    expect(writeErr).toBeNil()
+
+    local project, err = GameArtLayoutIOController.loadProjectLua(path)
+    expect(project).toBeNil()
+    expect(type(err)).toBe("string")
+    expect(err:match("syntax error") ~= nil).toBe(true)
+  end)
+
   it("round-trips projects through saveProjectLua/loadProjectLua", function()
     local path = nextTmpPath("project_roundtrip")
     table.insert(createdPaths, path)

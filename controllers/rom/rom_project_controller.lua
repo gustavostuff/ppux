@@ -407,8 +407,31 @@ local function invalidProjectMessage(format, rawMessage)
   if msg:match("Invalid project format") then
     return "The file is not a valid " .. label .. "."
   end
+  local syntaxDetail = msg:match("^Project file syntax error %b():%s*(.+)$")
+  if syntaxDetail then
+    return "Project syntax error: " .. syntaxDetail
+  end
+  local runtimeDetail = msg:match("^Project file runtime error %b():%s*(.+)$")
+  if runtimeDetail then
+    return "Project runtime error: " .. runtimeDetail
+  end
   return msg
 end
+
+local function notifyProjectLoadError(app, message)
+  if not app then
+    return
+  end
+  if app.setStatus then
+    app:setStatus(message)
+  end
+  if app.showToast then
+    app:showToast("error", message)
+  end
+end
+
+M._formatProjectLoadError = invalidProjectMessage
+M._notifyProjectLoadError = notifyProjectLoadError
 
 local function loadProjectFromString(projectPath, raw)
   local format = detectProjectFormat(projectPath)
@@ -763,7 +786,7 @@ local function loadFromProject(app, project)
   })
 
   if not built then
-    app:setStatus("Project load error: " .. tostring(why or "unknown"))
+    notifyProjectLoadError(app, "Project load error: " .. tostring(why or "unknown"))
     return false
   end
   logPerf("project.build_windows", buildStartedAt, string.format("windows=%d", #(project.windows or {})))
@@ -1155,7 +1178,7 @@ function M.loadROM(app, fileOrPath)
     if state.romPatches then
       local patched, patchErr, applied = GameArtController.applyRomPatches(state.romRaw, state.romPatches)
       if not patched then
-        app:setStatus("ROM patch apply error: " .. tostring(patchErr or "unknown"))
+        notifyProjectLoadError(app, "ROM patch apply error: " .. tostring(patchErr or "unknown"))
         return finish(false)
       end
       state.romRaw = patched
@@ -1178,10 +1201,10 @@ function M.loadROM(app, fileOrPath)
   else
     -- Log why project loading failed (file doesn't exist, parse error, etc.)
     if loadErr then
-      local errorMsg = string.format("Project file error: %s", tostring(loadErr))
-      DebugController.log("error", "ROM", errorMsg)
+      local message = invalidProjectMessage(loadedProjectFormat, loadErr)
+      DebugController.log("error", "ROM", "Project file error: %s", message)
       -- Show error to user but continue loading (fall back to DB layout or default)
-      app:setStatus(errorMsg)
+      notifyProjectLoadError(app, message)
     else
       DebugController.log("info", "ROM", "Project file not found near ROM: %s", tostring(state.romOriginalPath or "unknown"))
     end
@@ -1209,7 +1232,7 @@ function M.loadProjectFile(app, fileOrPath)
   local projectPath = type(fileOrPath) == "string" and fileOrPath or (fileOrPath.getFilename and fileOrPath:getFilename())
   local projectFormat = detectProjectFormat(projectPath)
   if not projectFormat then
-    app:setStatus("Unsupported project file type")
+    notifyProjectLoadError(app, "Unsupported project file type")
     return false
   end
 
@@ -1230,7 +1253,7 @@ function M.loadProjectFile(app, fileOrPath)
   pulseLoading(app, "Reading project...")
   local rawProject, rawErr = readTextFromFileOrPath(fileOrPath)
   if not rawProject then
-    app:setStatus("Failed to read project file: " .. tostring(rawErr))
+    notifyProjectLoadError(app, "Failed to read project file: " .. tostring(rawErr))
     return finish(false)
   end
 
@@ -1239,17 +1262,14 @@ function M.loadProjectFile(app, fileOrPath)
   project, loadErr, projectFormat = loadProjectFromString(projectPath, rawProject)
   if not project then
     local message = invalidProjectMessage(projectFormat, loadErr or "Project load failed")
-    app:setStatus(message)
-    if app and app.showToast then
-      app:showToast("error", message)
-    end
+    notifyProjectLoadError(app, message)
     return finish(false)
   end
 
   pulseLoading(app, "Resolving base ROM...")
   local romPath, romErr = resolveRomPathForProject(projectPath)
   if not romPath then
-    app:setStatus(romErr or "Could not locate base ROM for project")
+    notifyProjectLoadError(app, romErr or "Could not locate base ROM for project")
     return finish(false)
   end
 
@@ -1277,7 +1297,7 @@ function M.loadProjectFile(app, fileOrPath)
   if state.romPatches then
     local patched, patchErr, applied = GameArtController.applyRomPatches(state.romRaw, state.romPatches)
     if not patched then
-      app:setStatus("ROM patch apply error: " .. tostring(patchErr or "unknown"))
+      notifyProjectLoadError(app, "ROM patch apply error: " .. tostring(patchErr or "unknown"))
       return finish(false)
     end
     state.romRaw = patched

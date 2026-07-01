@@ -213,6 +213,43 @@ describe("rom_project_controller.lua - project file loading", function()
     expect(toastText).toBe(statusText)
   end)
 
+  it("shows an error toast when project file has a syntax error", function()
+    local invalidPath = "/tmp/invalid_project_syntax.lua"
+    touchTempFile(invalidPath, "return { windows = \n")
+
+    local statusText = nil
+    local toastType = nil
+    local toastText = nil
+    local app = {
+      appEditState = {},
+      setStatus = function(_, text)
+        statusText = text
+      end,
+      showToast = function(_, kind, text)
+        toastType = kind
+        toastText = text
+      end,
+      beginSimpleLoading = function() end,
+      endSimpleLoading = function() end,
+    }
+
+    local ok = RomProjectController.loadProjectFile(app, invalidPath)
+    expect(ok).toBe(false)
+    expect(type(statusText)).toBe("string")
+    expect(statusText:match("syntax error") ~= nil).toBe(true)
+    expect(toastType).toBe("error")
+    expect(toastText).toBe(statusText)
+  end)
+
+  it("formats syntax error messages for toast display", function()
+    local formatted = RomProjectController._formatProjectLoadError(
+      "lua",
+      'Project file syntax error (/tmp/test.lua): [string "@project"]:1: unexpected symbol near \'}\''
+    )
+    expect(formatted:match("^Project syntax error:")).toBeTruthy()
+    expect(formatted:match("@project")).toBeTruthy()
+  end)
+
   it("treats DB layouts with no windows as unusable", function()
     expect(RomProjectController._dbLayoutHasWindows(nil)).toBe(false)
     expect(RomProjectController._dbLayoutHasWindows({})).toBe(false)
