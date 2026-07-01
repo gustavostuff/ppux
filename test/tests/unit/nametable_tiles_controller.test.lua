@@ -281,6 +281,34 @@ describe("nametable_tiles_controller.lua", function()
       expect(mockLayer.paletteNumbers[32]).toBe(3)
       expect(mockLayer.paletteNumbers[33]).toBe(3)
     end)
+
+    it("sets palette on the last two rows of a 30-row nametable", function()
+      local mockWin = {
+        kind = "ppu_frame",
+        cols = 32,
+        rows = 30,
+        nametableBytes = {},
+        nametableAttrBytes = {},
+      }
+
+      for i = 1, 960 do
+        mockWin.nametableBytes[i] = 0x00
+      end
+      for i = 1, 64 do
+        mockWin.nametableAttrBytes[i] = 0x00
+      end
+
+      local mockLayer = {
+        kind = "tile",
+        paletteNumbers = {},
+      }
+
+      expect(NametableTilesController.setPaletteNumberForTile(mockWin, mockLayer, 0, 28, 2)).toBe(true)
+      expect(NametableTilesController.setPaletteNumberForTile(mockWin, mockLayer, 0, 29, 3)).toBe(true)
+      expect(mockWin.nametableAttrBytes[57]).toBe(0x02)
+      expect(mockLayer.paletteNumbers[28 * 32]).toBe(3)
+      expect(mockLayer.paletteNumbers[29 * 32]).toBe(3)
+    end)
     
     it("updates multiple attribute bytes for different quadrants", function()
       local mockWin = {

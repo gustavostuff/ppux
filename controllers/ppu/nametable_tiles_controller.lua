@@ -980,6 +980,17 @@ function M.writeBackToROM(win, layer, romRaw)
   return newRom
 end
 
+--- NES attribute grid dimensions. A 32-column nametable always uses an 8x8
+--- attribute table (64 bytes), covering 32x32 tiles — even when the visible
+--- nametable is only 30 rows high (rows 28-29 share the last attribute row).
+local function attributeGridDimensions(cols, rows, attrBytes)
+  local attrCols = math.max(1, math.floor((cols or 32) / 4))
+  local byteCount = (type(attrBytes) == "table" and #attrBytes > 0) and #attrBytes or (attrCols * 8)
+  local attrRowsFromBytes = math.max(1, math.floor(byteCount / attrCols))
+  local attrRowsFromVisible = math.ceil((rows or 30) / 4)
+  return attrCols, math.max(attrRowsFromVisible, attrRowsFromBytes)
+end
+
 -- Given a PPUFrameWindow + its nametable layer, decode the 64 attribute bytes
 -- into per-tile palette numbers (1..4) stored in layer.paletteNumbers[idx].
 -- idx is 0-based: idx = row * cols + col (row/col also 0-based).
@@ -1002,8 +1013,7 @@ function M.extractPaletteNumbersFromAttributes(win, layer, cols, rows)
   -- NES: attributes stored as an 8x8 table (for a 32x30 nametable).
   -- Each attribute byte covers a 4x4 tile area, split into 4 quadrants
   -- (2x2 tiles each), each quadrant picking a palette 0..3.
-  local attrCols = math.floor(cols / 4)  -- typically 8 for 32 cols
-  local attrRows = math.floor(rows / 4)  -- typically 7 or 8 for 30 rows
+  local attrCols, attrRows = attributeGridDimensions(cols, rows, attrBytes)
 
   for attrIndex = 1, #attrBytes do
     local attrByte = attrBytes[attrIndex] or 0
@@ -1126,8 +1136,7 @@ function M._setPaletteNumberForPPUFrame(win, layer, col, row, paletteNum, cols, 
   if not attrBytes or #attrBytes == 0 then return false end
   
   -- Each attribute byte covers a 4x4 tile area
-  local attrCols = math.floor(cols / 4)  -- typically 8 for 32 cols
-  local attrRows = math.floor(rows / 4)  -- typically 7 or 8 for 30 rows
+  local attrCols, attrRows = attributeGridDimensions(cols, rows, attrBytes)
   
   -- Which attribute byte covers this tile?
   local attrCol = math.floor(col / 4)
