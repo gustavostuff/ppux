@@ -100,6 +100,33 @@ local function patternEntryHasByte(entry, byteVal)
   return false
 end
 
+local function resolveEmptyNametableByte(layer)
+  if layer and type(layer.emptyByte) == "number" then
+    return layer.emptyByte
+  end
+  local codec = (layer and layer.codec) or "konami"
+  if codec == "zelda2" then
+    return 0xF4
+  end
+  return 0x00
+end
+
+local function isPngTileTransparent(imageData, tileCol, tileRow)
+  local tileX = tileCol * 8
+  local tileY = tileRow * 8
+
+  for y = 0, 7 do
+    for x = 0, 7 do
+      local _, _, _, a = imageData:getPixel(tileX + x, tileY + y)
+      if a > 0 then
+        return false
+      end
+    end
+  end
+
+  return true
+end
+
 local function resolveTile(tilesPool, layer, byteVal)
   if not layer then
     return nil
@@ -109,6 +136,102 @@ local function resolveTile(tilesPool, layer, byteVal)
     layer,
     byteVal
   )
+end
+
+local function originalTileMatchesPng(originalByte, pngPattern, tilesPool, layer)
+  if type(originalByte) ~= "number" then
+    return false
+  end
+  local tileRef = resolveTile(tilesPool, layer, originalByte)
+  if not (tileRef and tileRef.pixels) then
+    return false
+  end
+  return comparePatterns(pngPattern, tileRef.pixels, 0) == 0
+end
+
+local function pickCatalogByte(catalogEntry, originalByte, pngPattern, tilesPool, layer)
+  if catalogEntry and type(originalByte) == "number" and patternEntryHasByte(catalogEntry, originalByte) then
+    local tileRef = resolveTile(tilesPool, layer, originalByte)
+    if tileRef and tileRef.pixels and comparePatterns(pngPattern, tileRef.pixels, 0) == 0 then
+      return originalByte
+    end
+  end
+  return catalogEntry and catalogEntry.byte or nil
+end
+
+local function preferOriginalAmongCandidates(candidates, originalByte, pngPattern, tilesPool, layer)
+  if type(originalByte) ~= "number" then
+    return candidates[1]
+  end
+  local tileRef = resolveTile(tilesPool, layer, originalByte)
+  if not (tileRef and tileRef.pixels) then
+    return candidates[1]
+  end
+  if comparePatterns(pngPattern, tileRef.pixels, 0) ~= 0 then
+    return candidates[1]
+  end
+  for _, cand in ipairs(candidates) do
+    if cand.byte == originalByte then
+      return cand
+    end
+  end
+  return candidates[1]
+end
+
+local function findBestCatalogMatch(tileCatalog, pngPattern, threshold, originalByte, tilesPool, layer)
+  threshold = threshold or 0
+  local bestMatch = nil
+  local bestDiff = 999
+  local candidates = {}
+
+  for _, catalogEntry in pairs(tileCatalog) do
+    local diff = comparePatterns(pngPattern, catalogEntry.pattern, 999)
+    if diff <= threshold then
+      if diff < bestDiff then
+        bestDiff = diff
+        candidates = { catalogEntry }
+      elseif diff == bestDiff then
+        candidates[#candidates + 1] = catalogEntry
+      end
+    end
+  end
+
+  if #candidates > 0 then
+    bestMatch = candidates[1]
+    if #candidates > 1 then
+      bestMatch = preferOriginalAmongCandidates(candidates, originalByte, pngPattern, tilesPool, layer)
+    end
+  end
+
+  return bestMatch, bestDiff
+end
+
+local function findNearestCatalogMatch(tileCatalog, pngPattern, originalByte, tilesPool, layer)
+  local bestMatch = nil
+  local bestDiff = 999
+
+  for _, catalogEntry in pairs(tileCatalog) do
+    local diff = comparePatterns(pngPattern, catalogEntry.pattern, 999)
+    if diff < bestDiff then
+      bestDiff = diff
+      bestMatch = catalogEntry
+    end
+  end
+
+  if bestMatch then
+    local tied = {}
+    for _, catalogEntry in pairs(tileCatalog) do
+      local diff = comparePatterns(pngPattern, catalogEntry.pattern, 999)
+      if diff == bestDiff then
+        tied[#tied + 1] = catalogEntry
+      end
+    end
+    if #tied > 1 then
+      bestMatch = preferOriginalAmongCandidates(tied, originalByte, pngPattern, tilesPool, layer)
+    end
+  end
+
+  return bestMatch, bestDiff
 end
 
 -- Build a catalog of all unique tile patterns in the current layer.
@@ -297,106 +420,76 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
   
   local ambiguousMatches = 0
   local perfectMatches = 0
-  local originalTileMatches = 0
-  
+  local emptyTileMatches = 0
+  local fallbackMatches = 0
+  local emptyByte = resolveEmptyNametableByte(layer)
+
   for row = 0, math.min(win.rows - 1, expectedTilesH - 1) do
     for col = 0, math.min(win.cols - 1, expectedTilesW - 1) do
       local idx = row * win.cols + col + 1
       local originalByte = win.nametableBytes and win.nametableBytes[idx]
-      
+
       -- Extract pattern from PNG (brightness-based quantization)
       local pngPattern = extractTileFromPNG(imageData, col, row, brightnessMap, brightnessRemap)
       local pngPatternKey = table.concat(pngPattern, ",")
-      
-      -- First, check if the original tile at this position is a perfect match
-      -- Note: PNG pattern is brightness-quantized, tile pixels are palette indices
-      -- They should match directly (0=darkest, 3=lightest) if image was rendered correctly
-      local originalTile = nil
-      if originalByte then
-        local tileRef = resolveTile(tilesPool, layer, originalByte)
-        if tileRef and tileRef.pixels then
-          -- Compare PNG brightness pattern to tile's palette index pattern
-          -- These should match if rendering is correct (both 0-3 range)
-          local diff = comparePatterns(pngPattern, tileRef.pixels, 999)
-          if diff == 0 then
-            -- Perfect match with original tile - keep it!
-            originalTile = {
-              byte = originalByte,
-              tile = tileRef,
-              pattern = tileRef.pixels
-            }
-            originalTileMatches = originalTileMatches + 1
-            perfectMatches = perfectMatches + 1
-          end
+
+      if isPngTileTransparent(imageData, col, row) then
+        newNametableBytes[idx] = emptyByte
+        matchedCount = matchedCount + 1
+        emptyTileMatches = emptyTileMatches + 1
+        goto continue_match
+      end
+
+      local exactEntry = tileCatalog[pngPatternKey]
+      if exactEntry then
+        newNametableBytes[idx] = pickCatalogByte(exactEntry, originalByte, pngPattern, tilesPool, layer)
+        matchedCount = matchedCount + 1
+        perfectMatches = perfectMatches + 1
+        if exactEntry.bytes and #exactEntry.bytes > 1 then
+          ambiguousMatches = ambiguousMatches + 1
+        end
+        goto continue_match
+      end
+
+      local origMatchesPng = originalTileMatchesPng(originalByte, pngPattern, tilesPool, layer)
+
+      local bestMatch, bestDiff = findBestCatalogMatch(tileCatalog, pngPattern, threshold, originalByte, tilesPool, layer)
+      if not bestMatch then
+        bestMatch, bestDiff = findNearestCatalogMatch(tileCatalog, pngPattern, originalByte, tilesPool, layer)
+        if bestMatch and bestDiff > 16 and origMatchesPng then
+          bestMatch = nil
         end
       end
-      
-      -- If original tile is a perfect match, use it
-      if originalTile then
-        newNametableBytes[idx] = originalTile.byte
+
+      if bestMatch then
+        newNametableBytes[idx] = pickCatalogByte(bestMatch, originalByte, pngPattern, tilesPool, layer)
         matchedCount = matchedCount + 1
-      else
-        if threshold == 0 then
-          local exactEntry = tileCatalog[pngPatternKey]
-          if exactEntry then
-            if patternEntryHasByte(exactEntry, originalByte) then
-              newNametableBytes[idx] = originalByte
-            else
-              newNametableBytes[idx] = exactEntry.byte
-            end
-            matchedCount = matchedCount + 1
-            if exactEntry and exactEntry.bytes and #exactEntry.bytes > 1 then
-              ambiguousMatches = ambiguousMatches + 1
-            end
-            perfectMatches = perfectMatches + 1
-          else
-            unmatchedCount = unmatchedCount + 1
+        if bestDiff == 0 then
+          perfectMatches = perfectMatches + 1
+        else
+          fallbackMatches = fallbackMatches + 1
+        end
+        if bestMatch.bytes and #bestMatch.bytes > 1 then
+          ambiguousMatches = ambiguousMatches + 1
+        end
+        goto continue_match
+      end
+
+      if not origMatchesPng then
+        bestMatch, bestDiff = findNearestCatalogMatch(tileCatalog, pngPattern, originalByte, tilesPool, layer)
+        if bestMatch then
+          newNametableBytes[idx] = pickCatalogByte(bestMatch, originalByte, pngPattern, tilesPool, layer)
+          matchedCount = matchedCount + 1
+          fallbackMatches = fallbackMatches + 1
+          if bestMatch.bytes and #bestMatch.bytes > 1 then
+            ambiguousMatches = ambiguousMatches + 1
           end
           goto continue_match
         end
-
-        -- Find best match in catalog
-        local bestMatch = nil
-        local bestDiff = 999
-        local candidates = {}  -- Store all candidates with the same best difference
-        
-        for patternKey, catalogEntry in pairs(tileCatalog) do
-          local diff = comparePatterns(pngPattern, catalogEntry.pattern, 999) -- Don't limit here
-          if diff <= threshold then
-            if diff < bestDiff then
-              bestDiff = diff
-              candidates = {catalogEntry}  -- Start new candidate list
-            elseif diff == bestDiff then
-              table.insert(candidates, catalogEntry)  -- Add to candidates
-            end
-          end
-        end
-        
-        -- If we have candidates, pick the best one
-        if #candidates > 0 then
-          bestMatch = candidates[1]
-          
-          -- If multiple candidates with same score, prefer the one matching original byte
-          if #candidates > 1 then
-            ambiguousMatches = ambiguousMatches + 1
-            for _, cand in ipairs(candidates) do
-              if cand.byte == originalByte then
-                bestMatch = cand
-                break
-              end
-            end
-          end
-          
-          if bestDiff == 0 then
-            perfectMatches = perfectMatches + 1
-          end
-          
-          newNametableBytes[idx] = bestMatch.byte
-          matchedCount = matchedCount + 1
-        else
-          unmatchedCount = unmatchedCount + 1
-        end
       end
+
+      -- Keep the original byte only when it still matches the PNG tile content.
+      unmatchedCount = unmatchedCount + 1
 
       ::continue_match::
     end
@@ -551,10 +644,10 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
     })
   end
   
-  DebugController.log("info", "UNSCR", "Unscrambling complete: %d matched (%d perfect, %d original-tile matches), %d unmatched", matchedCount, perfectMatches, originalTileMatches, unmatchedCount)
+  DebugController.log("info", "UNSCR", "Unscrambling complete: %d matched (%d perfect, %d empty, %d fallback), %d unmatched", matchedCount, perfectMatches, emptyTileMatches, fallbackMatches, unmatchedCount)
   
   local matchRate = ((matchedCount + unmatchedCount) > 0) and (matchedCount / (matchedCount + unmatchedCount) * 100) or 0
-  return true, string.format("Matched %d/%d tiles (%d perfect, %d kept original, %d unmatched, %.1f%% matched)", matchedCount, matchedCount + unmatchedCount, perfectMatches, originalTileMatches, unmatchedCount, matchRate)
+  return true, string.format("Matched %d/%d tiles (%d perfect, %d empty, %d fallback, %d unmatched, %.1f%% matched)", matchedCount, matchedCount + unmatchedCount, perfectMatches, emptyTileMatches, fallbackMatches, unmatchedCount, matchRate)
 end
 
 return M
