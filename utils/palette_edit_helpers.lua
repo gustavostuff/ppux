@@ -50,7 +50,9 @@ end
 local function invalidateLinkedPpuFrames(paletteWin)
   local gctx = rawget(_G, "ctx")
   local app = gctx and gctx.app
-  if app and app.invalidatePpuFrameLayersAffectedByPaletteWin then
+  if app and app.invalidateConsumersOfPaletteWindow then
+    app:invalidateConsumersOfPaletteWindow(paletteWin)
+  elseif app and app.invalidatePpuFrameLayersAffectedByPaletteWin then
     app:invalidatePpuFrameLayersAffectedByPaletteWin(paletteWin)
   end
 end

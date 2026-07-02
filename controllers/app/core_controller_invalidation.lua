@@ -96,8 +96,11 @@ function AppCoreController:invalidateStaticAnimationTileLayerCanvasForChrTile(ba
   return TileInvalidationIndex.invalidateTileLayerFromIndex(index, bank, tile)
 end
 
-local function ppuLayerUsesPaletteWin(layer, paletteWin)
-  if not (layer and layer.kind == "tile" and paletteWin) then
+local function layerUsesPaletteWin(layer, paletteWin)
+  if not (layer and paletteWin) then
+    return false
+  end
+  if layer.kind ~= "tile" and layer.kind ~= "sprite" then
     return false
   end
 
@@ -161,7 +164,7 @@ function AppCoreController:invalidateTileLayerCanvasesAffectedByPaletteWin(palet
       )
     then
       for li, layer in ipairs(win.layers) do
-        if layer and layer.kind == "tile" and ppuLayerUsesPaletteWin(layer, paletteWin) then
+        if layer and layer.kind == "tile" and layerUsesPaletteWin(layer, paletteWin) then
           win:invalidateTileLayerCanvas(li)
           touched = true
         end
@@ -169,6 +172,35 @@ function AppCoreController:invalidateTileLayerCanvasesAffectedByPaletteWin(palet
     end
   end
 
+  return touched
+end
+
+function AppCoreController:invalidateChrBankCanvasesForGlobalPalette(paletteWin)
+  if not (paletteWin and WindowCaps.isGlobalPaletteWindow(paletteWin) and paletteWin.activePalette == true) then
+    return false
+  end
+  if not self.chrBankCanvasController then
+    return false
+  end
+  if self.chrBankCanvasController.invalidateAll then
+    self.chrBankCanvasController:invalidateAll()
+    return true
+  end
+  return false
+end
+
+function AppCoreController:invalidateConsumersOfPaletteWindow(paletteWin)
+  if not paletteWin then
+    return false
+  end
+
+  local touched = false
+  if self.invalidatePpuFrameLayersAffectedByPaletteWin and self:invalidatePpuFrameLayersAffectedByPaletteWin(paletteWin) then
+    touched = true
+  end
+  if self.invalidateChrBankCanvasesForGlobalPalette and self:invalidateChrBankCanvasesForGlobalPalette(paletteWin) then
+    touched = true
+  end
   return touched
 end
 
@@ -181,7 +213,7 @@ function AppCoreController:invalidatePpuFrameLayersAffectedByPaletteWin(paletteW
   for _, win in ipairs(self.wm:getWindows() or {}) do
     if win and win.kind == "ppu_frame" and win.layers and win.invalidateNametableLayerCanvas then
       for li, layer in ipairs(win.layers) do
-        if ppuLayerUsesPaletteWin(layer, paletteWin) then
+        if layer and layer.kind == "tile" and layerUsesPaletteWin(layer, paletteWin) then
           win:invalidateNametableLayerCanvas(li)
           touched = true
         end

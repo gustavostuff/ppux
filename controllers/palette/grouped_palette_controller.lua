@@ -372,11 +372,6 @@ function M:cycleWindow(window, delta)
   group.activeSourceWindowId = target._id
   group.activeIndex = targetIndex
 
-  local wm = self.app and self.app.wm
-  if wm and wm.setFocus then
-    wm:setFocus(target)
-  end
-
   return true
 end
 

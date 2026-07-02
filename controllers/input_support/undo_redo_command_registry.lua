@@ -195,7 +195,9 @@ local function applyPaletteColorEvent(event, direction)
     elseif win.activePalette and win.syncToGlobalPalette then
       win:syncToGlobalPalette()
     end
-    if app and app.invalidatePpuFrameLayersAffectedByPaletteWin then
+    if app and app.invalidateConsumersOfPaletteWindow then
+      app:invalidateConsumersOfPaletteWindow(win)
+    elseif app and app.invalidatePpuFrameLayersAffectedByPaletteWin then
       app:invalidatePpuFrameLayersAffectedByPaletteWin(win)
     end
   end
@@ -239,7 +241,9 @@ local function applyRomPaletteAddressEvent(event, direction)
   elseif win.clearSelected then
     win:clearSelected()
   end
-  if app and app.invalidatePpuFrameLayersAffectedByPaletteWin then
+  if app and app.invalidateConsumersOfPaletteWindow then
+    app:invalidateConsumersOfPaletteWindow(win)
+  elseif app and app.invalidatePpuFrameLayersAffectedByPaletteWin then
     app:invalidatePpuFrameLayersAffectedByPaletteWin(win)
   end
   return true

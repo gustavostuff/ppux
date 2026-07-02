@@ -1932,6 +1932,12 @@ function WM:createPaletteWindow(opts)
     end
   end
 
+  local PaletteActivationController = require("controllers.palette.palette_activation_controller")
+  local activePalette = opts.activePalette
+  if activePalette == nil then
+    activePalette = PaletteActivationController.shouldActivateNewGlobalPalette(self)
+  end
+
   local win = PaletteWindow.new(
     defaults.x,
     defaults.y,
@@ -1941,7 +1947,7 @@ function WM:createPaletteWindow(opts)
     defaults.cols,
     {
       title = defaults.title,
-      activePalette = (opts.activePalette ~= false),
+      activePalette = (activePalette == true),
       initCodes = initCodes,
       compactView = (opts.compactView == true),
     }

@@ -106,39 +106,16 @@ end
 -- Handle toggle active palette
 function PaletteToolbar:_onToggleActive()
   if not self.window then return end
-  
-  local wm = self.windowController
-  if not wm then return end
-  
-  -- Get all windows first (needed in both branches)
-  local allWindows = wm:getWindows()
-  
-  -- Radio behavior: if already active, do nothing; otherwise activate this and deactivate others.
+
   if self.window.activePalette then
     return
   end
 
-  for _, win in ipairs(allWindows) do
-    if win.isPalette then
-      win.activePalette = false
-    end
-  end
-  
-  self.window.activePalette = true
-  
-  if self.window.syncToGlobalPalette then
-    self.window:syncToGlobalPalette()
-  end
-  if self.ctx and self.ctx.app and self.ctx.app.invalidatePpuFrameLayersAffectedByPaletteWin then
-    self.ctx.app:invalidatePpuFrameLayersAffectedByPaletteWin(self.window)
-  end
-  
-  -- Update all palette toolbar icons to reflect new state
-  for _, win in ipairs(allWindows) do
-    if win.isPalette and win.specializedToolbar and win.specializedToolbar.updateActiveIcon then
-      win.specializedToolbar:updateActiveIcon()
-    end
-  end
+  local app = self.ctx and self.ctx.app or nil
+  if not app then return end
+
+  local PaletteActivationController = require("controllers.palette.palette_activation_controller")
+  PaletteActivationController.activateGlobalPalette(self.window, app)
 end
 
 function PaletteToolbar:_onToggleCompact()

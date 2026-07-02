@@ -959,26 +959,8 @@ function AppCoreController:cycleGlobalPaletteFromKeyboard(delta)
     return false
   end
 
-  local allWindows = wm:getWindows() or {}
-  for _, win in ipairs(allWindows) do
-    if win.isPalette then
-      win.activePalette = false
-    end
-  end
-  target.activePalette = true
-
-  if target.syncToGlobalPalette then
-    target:syncToGlobalPalette()
-  end
-  if self.invalidatePpuFrameLayersAffectedByPaletteWin then
-    self:invalidatePpuFrameLayersAffectedByPaletteWin(target)
-  end
-
-  for _, win in ipairs(allWindows) do
-    if win.isPalette and win.specializedToolbar and win.specializedToolbar.updateActiveIcon then
-      win.specializedToolbar:updateActiveIcon()
-    end
-  end
+  local PaletteActivationController = require("controllers.palette.palette_activation_controller")
+  PaletteActivationController.activateGlobalPalette(target, self)
 
   if self.groupedPaletteWindows == true then
     local controller = self:_ensureGroupedPaletteController()

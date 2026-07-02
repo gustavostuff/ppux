@@ -152,7 +152,7 @@ function PaletteWindow:adjustSelectedByArrows(dx,dy)
   
   DebugController.log("info", "PAL", "Palette '%s' color adjusted at (%d,%d): %s -> %s", self.title or "untitled", sc, sr, old, new)
   
-  -- Sync to global palette manager if this palette is active
+  -- Sync to global palette manager if this palette is shader-active.
   if self.activePalette then
     if self.rows==1 and self.cols==4 then
       ShaderPaletteController.setCodeAt(sc+1, new)
@@ -167,8 +167,9 @@ function PaletteWindow:adjustSelectedByArrows(dx,dy)
       end
       ShaderPaletteController.setCodes(flat)
     end
-    invalidateLinkedPpuFrames(self)
   end
+
+  invalidateLinkedPpuFrames(self)
 
   recordPaletteColorUndo({
     {
@@ -279,6 +280,9 @@ function PaletteWindow:getSelectionStripShadowRectsCanvas(wm)
   if wm and wm.getFocus and wm:getFocus() ~= self then
     return nil
   end
+  if not self.activePalette then
+    return nil
+  end
   if self.compactView then
     return nil
   end
@@ -320,6 +324,9 @@ function PaletteWindow:drawSelectionStrips()
   local gctx = rawget(_G, "ctx")
   local wm = gctx and gctx.wm and gctx.wm() or nil
   if wm and wm.getFocus and wm:getFocus() ~= self then
+    return nil
+  end
+  if not self.activePalette then
     return nil
   end
 
