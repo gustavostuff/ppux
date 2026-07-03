@@ -260,6 +260,49 @@ function M.linkContentLayerToPatternTableWindow(contentWin, layerIndex, patternT
   return true
 end
 
+--- Copy an existing sprite-layer pattern-table link onto any OAM frame layers that lack one.
+function M.syncOamAnimationSpriteLayerPatternTables(contentWin)
+  if not WindowCaps.isOamAnimation(contentWin) then
+    return false
+  end
+
+  local PatternTableMapping = require("utils.pattern_table_mapping")
+  local donor = nil
+  for _, layer in ipairs(contentWin.layers or {}) do
+    if layer and layer.kind == "sprite" then
+      if type(layer.linkedPatternTableWindowId) == "string" and layer.linkedPatternTableWindowId ~= "" then
+        donor = layer
+        break
+      end
+      local ok = PatternTableMapping.validate(layer.patternTable)
+      if ok then
+        donor = layer
+        break
+      end
+    end
+  end
+  if not donor then
+    return false
+  end
+
+  local changed = false
+  for _, layer in ipairs(contentWin.layers or {}) do
+    if layer and layer.kind == "sprite" and layer ~= donor then
+      local ok = PatternTableMapping.validate(layer.patternTable)
+      if not ok then
+        if type(donor.linkedPatternTableWindowId) == "string" and donor.linkedPatternTableWindowId ~= "" then
+          layer.linkedPatternTableWindowId = donor.linkedPatternTableWindowId
+        end
+        if type(donor.patternTable) == "table" then
+          layer.patternTable = donor.patternTable
+        end
+        changed = true
+      end
+    end
+  end
+  return changed
+end
+
 --- ROM OAM animations: tie every sprite frame layer to the same pattern-table window CHR map.
 function M.linkAllOamSpriteLayersToPatternTableWindow(contentWin, patternTableWin)
   if not (contentWin and patternTableWin and WindowCaps.isOamAnimation(contentWin)) then

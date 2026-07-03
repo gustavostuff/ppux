@@ -3,6 +3,8 @@
 -- Inherits behavior from AnimationWindow and enforces sprite-only layers.
 
 local AnimationWindow = require("user_interface.windows_system.animation_window")
+local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
+local SpriteController = require("controllers.sprite.sprite_controller")
 
 local OAMAnimationWindow = setmetatable({}, { __index = AnimationWindow })
 OAMAnimationWindow.__index = OAMAnimationWindow
@@ -30,7 +32,7 @@ function OAMAnimationWindow:addLayerAfterActive(opts)
     mode = firstLayer.mode or "8x8"
   end
 
-  return AnimationWindow.addLayerAfterActive(self, {
+  local insertIdx = AnimationWindow.addLayerAfterActive(self, {
     opacity = opts.opacity,
     name = opts.name,
     kind = "sprite",
@@ -38,6 +40,22 @@ function OAMAnimationWindow:addLayerAfterActive(opts)
     originX = opts.originX,
     originY = opts.originY,
   })
+
+  if insertIdx and PatternTableDisplayController.syncOamAnimationSpriteLayerPatternTables(self) then
+    local newLayer = self.layers and self.layers[insertIdx] or nil
+    if newLayer then
+      local ctx = rawget(_G, "ctx")
+      local app = ctx and ctx.app
+      local state = app and app.appEditState or {}
+      SpriteController.hydrateSpriteLayer(newLayer, {
+        romRaw = state.romRaw or "",
+        tilesPool = state.tilesPool,
+        appEditState = state,
+      })
+    end
+  end
+
+  return insertIdx
 end
 
 return OAMAnimationWindow

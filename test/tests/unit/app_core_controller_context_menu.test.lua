@@ -498,6 +498,49 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(items[3].text).toBe("Remove ROM palette link")
   end)
 
+  it("un-minimizes linked ROM palette when jumping from context menu", function()
+    local paletteWin = { kind = "rom_palette", _id = 42, title = "P", _minimized = true, _closed = false }
+    local restored = false
+    local app = setmetatable({
+      groupedPaletteWindows = false,
+      wm = {
+        findWindowById = function(_, id)
+          if id == 42 then
+            return paletteWin
+          end
+          return nil
+        end,
+        restoreMinimizedWindow = function(_, win, opts)
+          restored = true
+          expect(opts and opts.focus).toBe(false)
+          win._minimized = false
+          return true
+        end,
+        setFocus = function() end,
+      },
+    }, AppCoreController)
+
+    local win = {
+      kind = "oam_animation",
+      _id = "w1",
+      layers = {
+        { kind = "sprite", paletteData = { winId = 42 } },
+      },
+    }
+    local items = app:_buildPaletteLinkDestinationContextMenuItems(win)
+    local jumpItem = nil
+    for _, item in ipairs(items) do
+      if item.text == "Jump to linked palette" then
+        jumpItem = item
+        break
+      end
+    end
+    expect(jumpItem).toBeTruthy()
+    jumpItem.callback()
+    expect(restored).toBe(true)
+    expect(paletteWin._minimized).toBe(false)
+  end)
+
   it("adds Paste to PPU/select/CHR context menus only when clipboard paste is allowed", function()
     local oldHasClipboardData = KeyboardClipboardController.hasClipboardData
     local oldGetActionAvailability = KeyboardClipboardController.getActionAvailability

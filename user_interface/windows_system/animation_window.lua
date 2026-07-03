@@ -124,14 +124,11 @@ function AnimationWindow:adjustAllFrameDelays(direction)
     self.frameDelays[i] = nextDelay
   end
 
-  -- Apply new timing immediately while playing, but only if current
-  -- active frame delay actually changed. This avoids "slowing down"
-  -- from repeatedly resetting the timer at clamp boundaries.
   if self.isPlaying and math.abs(nextDelay - currentDelay) > 0.0001 then
     self:scheduleNextFrame()
   end
 
-  return nextDelay
+  return nextDelay, currentDelay
 end
 
 -- Override update to call parent (Timer.update is handled globally)

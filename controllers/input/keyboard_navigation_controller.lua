@@ -273,10 +273,16 @@ function M.handleAnimationDelayAdjust(ctx, utils, key, focus)
   local snapBefore = AnimationWindowUndo.snapshot(focus)
 
   local direction = (key == "right") and 1 or -1
-  local newDelay = focus:adjustAllFrameDelays(direction)
+  local newDelay, previousDelay = focus:adjustAllFrameDelays(direction)
   if not newDelay then
     return false
   end
+
+  local suffix = ""
+  if math.abs(newDelay - previousDelay) < 0.0001 then
+    suffix = (direction < 0) and " (minimum)" or " (maximum)"
+  end
+  StatusHelpers.setStatus(ctx, string.format("Frame delay: %.2fs%s", newDelay, suffix))
 
   local snapAfter = AnimationWindowUndo.snapshot(focus)
   if undoRedo and undoRedo.addAnimationWindowStateEvent and not AnimationWindowUndo.snapshotsEqual(snapBefore, snapAfter) then

@@ -89,6 +89,15 @@ describe("rom_project_controller.lua - project file loading", function()
     expect(foundPath).toBe(romPath)
   end)
 
+  it("resolves recent project tooltip path preferring project sidecar files", function()
+    local romPath = "/tmp/recent_tip_test.nes"
+    local luaPath = "/tmp/recent_tip_test.lua"
+    touchTempFile(romPath, "nes")
+    touchTempFile(luaPath, "return {}")
+
+    expect(RomProjectController.resolveRecentProjectTooltipPath("/tmp/recent_tip_test")).toBe(luaPath)
+  end)
+
   it("resolves project rom path to base rom when both base and edited rom exist", function()
     local projectPath = "/tmp/project_rom_resolution.lua"
     local baseRomPath = "/tmp/project_rom_resolution.nes"

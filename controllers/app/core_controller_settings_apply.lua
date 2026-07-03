@@ -978,6 +978,13 @@ function AppCoreController:focusPaletteWindowWithGrouping(window)
   if not window then
     return false
   end
+  if window._collapsed == true then
+    window._collapsed = false
+  end
+  local wm = self.wm
+  if window._minimized == true and wm and wm.restoreMinimizedWindow then
+    wm:restoreMinimizedWindow(window, { recordUndo = false, focus = false })
+  end
   local focusedViaGroup = false
   if self.groupedPaletteWindows == true then
     local controller = self:_ensureGroupedPaletteController()

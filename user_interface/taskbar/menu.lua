@@ -1,5 +1,6 @@
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
 local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
+local RomProjectController = require("controllers.rom.rom_project_controller")
 local images = require("images")
 local UiScale = require("user_interface.ui_scale")
 
@@ -200,6 +201,7 @@ function M.install(Taskbar, Helpers)
       entries[#entries + 1] = {
         icon = (self._menuIcons and self._menuIcons.recentProjectItem) or nil,
         text = label,
+        tooltip = RomProjectController.resolveRecentProjectTooltipPath(path),
         menuGroup = "tb_recent_" .. tostring(ri),
         callback = function()
           if self.app and self.app.openRecentProject then

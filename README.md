@@ -162,7 +162,8 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 4. **Add layer** - `+` key
 5. **Copy from previous layer**
 6. **Play / Pause** - `P` key (any case); layer switching is blocked while playing
-7. **Palette link handle** - rightmost; same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
+7. **Frame delay** - `Shift` + `Left` / `Shift` + `Right` adjusts delay for all frames (0.10s–1.00s, 0.05s steps); status bar shows the current value
+8. **Palette link handle** - rightmost; same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
 
 
 #### OAM Animation toolbar
@@ -177,6 +178,7 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 6. **Toggle origin guides** - toggles dotted reference lines (visible when a sprite layer exists and is active)
 7. **Copy from previous layer**
 8. **Play / Pause** - `P` key; layer switching is blocked while playing
+9. **Frame delay** - `Shift` + `Left` / `Shift` + `Right` adjusts delay for all frames (0.10s–1.00s, 0.05s steps); status bar shows the current value
 9. **Pattern table link** - left-click for a menu to link or unlink a **Pattern table** window for **all frames** at once (**required** for sprite CHR). Turns **green** when every frame shares the same link.
 10. **Palette link handle** - rightmost; same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
 

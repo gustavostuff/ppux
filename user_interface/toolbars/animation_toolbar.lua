@@ -132,7 +132,7 @@ function AnimationToolbar.new(window, ctx, windowController)
   -- Play/Pause button (toggle between play and pause icons)
   -- Start with play icon if not playing, pause icon if playing
   local initialIcon = (window.isPlaying and images.icons.actions.icon_pause) or images.icons.actions.icon_play
-  local initialTooltip = (window.isPlaying and "Pause") or "Play"
+  local initialTooltip = (window.isPlaying and "Pause") or "Play (Shift+Left/Right adjusts frame delay)"
   self.playButton = self:addButton(initialIcon, function()
     self:_onTogglePlay()
   end, initialTooltip, {
@@ -370,7 +370,7 @@ function AnimationToolbar:updateIcons()
       self.playButton.tooltip = "Pause"
     else
       self.playButton.icon = images.icons.actions.icon_play
-      self.playButton.tooltip = "Play"
+      self.playButton.tooltip = "Play (Shift+Left/Right adjusts frame delay)"
     end
   end
 end

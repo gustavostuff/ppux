@@ -1163,7 +1163,7 @@ function WM:setFocus(win)
   local keepSet = self.collectLinkedMinimizeKeepSet and self:collectLinkedMinimizeKeepSet(win) or nil
   if keepSet then
     for partner in pairs(keepSet) do
-      if partner ~= win and isWindowVisibleForInteraction(partner) then
+      if partner ~= win and isWindowVisibleForInteraction(partner) and not WindowCaps.isPatternTable(partner) then
         self:bringToFront(partner)
       end
     end

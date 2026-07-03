@@ -140,6 +140,28 @@ local function resolveRecentProjectLoadPath(basePath)
   return nil
 end
 
+--- Human-readable project file path for recent-menu tooltips (prefers .lua / .ppux sidecars).
+local function resolveRecentProjectTooltipPath(basePath)
+  local normalized = normalizeRecentProjectBasePath(basePath)
+  if not normalized then
+    return tostring(basePath or "")
+  end
+
+  for _, ext in ipairs({ ".lua", ".ppux" }) do
+    local candidate = normalized .. ext
+    if fileExists(candidate) then
+      return candidate
+    end
+  end
+
+  local loadPath = resolveRecentProjectLoadPath(normalized)
+  if loadPath then
+    return loadPath
+  end
+
+  return normalized .. ".lua"
+end
+
 local function pushUniquePath(list, seen, path)
   if type(path) ~= "string" or path == "" then return end
   if seen[path] then return end
@@ -678,6 +700,7 @@ M._normalizeRecentProjectBasePath = normalizeRecentProjectBasePath
 M._resolveRecentProjectLoadPath = resolveRecentProjectLoadPath
 M._resolveRomPathForProject = resolveRomPathForProject
 M.resolveRecentProjectLoadPath = resolveRecentProjectLoadPath
+M.resolveRecentProjectTooltipPath = resolveRecentProjectTooltipPath
 
 local function collectPlannedBanksFromWindowData(value, banksSet)
   if type(value) ~= "table" then return end

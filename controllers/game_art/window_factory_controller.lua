@@ -473,6 +473,8 @@ function M.createOamAnimationWindow(w, tilesPool, ensureTiles)
     win.activeLayer = math.max(1, math.min(win.activeLayer or 1, numLayers))
   end
 
+  PatternTableDisplayController.syncOamAnimationSpriteLayerPatternTables(win)
+
   applyNonActiveLayerOpacity(win)
   return win
 end

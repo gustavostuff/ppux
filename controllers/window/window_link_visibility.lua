@@ -398,13 +398,6 @@ function M.onWindowFocused(app, wm, win)
         wm:bringToFront(consumer)
       end
     end
-  elseif WindowCaps.isPpuFrame(win) or WindowCaps.isOamAnimation(win) then
-    for id in pairs(collectPatternTableIdsForFocusedConsumer(win)) do
-      local ptWin = wm.findWindowById and wm:findWindowById(id)
-      if ptWin and isLinkWindowVisible(ptWin) and WindowCaps.isPatternTable(ptWin) then
-        wm:bringToFront(ptWin)
-      end
-    end
   end
 end
 

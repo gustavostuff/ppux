@@ -321,6 +321,9 @@ describe("taskbar.lua - minimized windows strip", function()
       "project_b/foo",
       "bar",
     })
+    expect(children[1].tooltip).toBe("/tmp/project_a/foo.lua")
+    expect(children[2].tooltip).toBe("/tmp/project_b/foo.lua")
+    expect(children[3].tooltip).toBe("/tmp/project_c/bar.lua")
 
     local windowsItem = items[2]
     expect(windowsItem.enabled).toBe(true)
