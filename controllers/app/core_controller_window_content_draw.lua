@@ -20,50 +20,14 @@ local Shared = require("controllers.app.core_controller_shared")
 local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
 local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 local BankViewController = require("controllers.chr.bank_view_controller")
+local PaletteActivationController = require("controllers.palette.palette_activation_controller")
 
 local WINDOW_SHADOW_OFFSET_X = 2
 local WINDOW_SHADOW_OFFSET_Y = 2
 
 return function(AppCoreController)
 local function getActiveGlobalPaletteBgColor(wm)
-  local paletteWin = nil
-  local fallback = nil
-
-  for _, win in ipairs(wm:getWindows()) do
-    if WindowCaps.isGlobalPaletteWindow(win) and not win._closed and not win._minimized and win._groupHidden ~= true then
-      if not fallback then
-        fallback = win
-      end
-      if win.activePalette then
-        paletteWin = win
-        break
-      end
-    end
-  end
-
-  paletteWin = paletteWin or fallback
-  if paletteWin and paletteWin.getFirstColor then
-    return paletteWin:getFirstColor()
-  end
-
-  return nil
-end
-
-local function getActiveGlobalPaletteWindow(wm)
-  local fallback = nil
-
-  for _, win in ipairs(wm:getWindows()) do
-    if WindowCaps.isGlobalPaletteWindow(win) and not win._closed and not win._minimized and win._groupHidden ~= true then
-      if not fallback then
-        fallback = win
-      end
-      if win.activePalette then
-        return win
-      end
-    end
-  end
-
-  return fallback
+  return PaletteActivationController.getBackgroundColor(wm)
 end
 
 local function getRomPaletteBgColorForWindow(win, wm)

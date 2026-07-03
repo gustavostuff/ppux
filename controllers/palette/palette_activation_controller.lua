@@ -24,6 +24,20 @@ function M.findActiveGlobalPaletteWindow(wm)
   return nil
 end
 
+--- First palette color from the shader-active global palette, or the first global palette if none is active.
+--- Minimized or group-hidden palettes still count; only closed/runtime-only windows are excluded.
+function M.getBackgroundColor(wm)
+  local paletteWin = M.findActiveGlobalPaletteWindow(wm)
+  if not paletteWin then
+    local all = iterGlobalPaletteWindows(wm)
+    paletteWin = all[1]
+  end
+  if paletteWin and paletteWin.getFirstColor then
+    return paletteWin:getFirstColor()
+  end
+  return nil
+end
+
 function M.shouldActivateNewGlobalPalette(wm)
   return M.findActiveGlobalPaletteWindow(wm) == nil
 end

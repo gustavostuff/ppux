@@ -1,34 +1,13 @@
 -- Grid overlays for CHR canvas-only mode (same visuals as windowed CHR: chess + lines).
 
 local colors = require("app_colors")
-local WindowCaps = require("controllers.window.window_capabilities")
 local CanvasSpace = require("utils.canvas_space")
-local GridOverlayMetrics = require("controllers.window.grid_overlay_metrics")
+local PaletteActivationController = require("controllers.palette.palette_activation_controller")
 
 local M = {}
 
 local function getActiveGlobalPaletteBgColor(wm)
-  if not (wm and wm.getWindows) then
-    return nil
-  end
-  local paletteWin = nil
-  local fallback = nil
-  for _, win in ipairs(wm:getWindows() or {}) do
-    if WindowCaps.isGlobalPaletteWindow(win) and not win._closed and not win._minimized and win._groupHidden ~= true then
-      if not fallback then
-        fallback = win
-      end
-      if win.activePalette then
-        paletteWin = win
-        break
-      end
-    end
-  end
-  paletteWin = paletteWin or fallback
-  if paletteWin and paletteWin.getFirstColor then
-    return paletteWin:getFirstColor()
-  end
-  return nil
+  return PaletteActivationController.getBackgroundColor(wm)
 end
 
 local function getRomPaletteBgColorForWindow(win, wm)
