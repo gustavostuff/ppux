@@ -34,6 +34,29 @@ describe("palette_link_controller.lua", function()
     expect(target).toBe(nil)
   end)
 
+  it("lists minimized ROM palettes for link-by-id menus", function()
+    local wm = WM.new()
+    local visiblePalette = wm:createRomPaletteWindow({ title = "Visible Palette", x = 220, y = 8 })
+    local minimizedPalette = wm:createRomPaletteWindow({ title = "Minimized Palette", x = 220, y = 80 })
+    minimizedPalette._minimized = true
+
+    local listed = PaletteLinkController.getRomPaletteWindows(wm)
+    expect(#listed).toBe(2)
+    expect(listed[1]).toBe(minimizedPalette)
+    expect(listed[2]).toBe(visiblePalette)
+  end)
+
+  it("resolves ROM palette links even when the palette is minimized", function()
+    local wm = WM.new()
+    local contentWin = wm:createTileWindow({ title = "Content", x = 8, y = 8 })
+    local romPalette = wm:createRomPaletteWindow({ title = "ROM Palette", x = 220, y = 8 })
+    romPalette._minimized = true
+    contentWin.layers[1].paletteData = { winId = romPalette._id }
+
+    expect(PaletteLinkController.getLinkedRomPaletteWindowForLayer(contentWin, wm, 1)).toBe(romPalette)
+    expect(PaletteLinkController.getActiveLayerLinkedPaletteWindow(contentWin, wm)).toBe(romPalette)
+  end)
+
   it("removeLinkForLayer uses the target layer's ROM link, not the active layer", function()
     local wm = WM.new()
     local contentWin = wm:createTileWindow({ title = "Two layers", x = 8, y = 8, numLayers = 2 })

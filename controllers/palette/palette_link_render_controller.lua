@@ -226,7 +226,7 @@ function M.getPaletteWindowForLayer(layer, wm)
   local pd = layer.paletteData
   if pd.winId then
     local linked = wm:findWindowById(pd.winId)
-    if linked and not linked._closed and not linked._minimized and WindowCaps.isRomPaletteWindow(linked) then
+    if PaletteLinkController.isRomPaletteAvailableForLink(linked) then
       return linked
     end
   end

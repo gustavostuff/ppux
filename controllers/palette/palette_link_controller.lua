@@ -197,6 +197,11 @@ local function getActiveLayer(win)
   return win and win.layers and win.layers[layerIndex] or nil, layerIndex
 end
 
+--- ROM palette eligible for link-by-id (context menu, resolve stored winId). Minimized/group-hidden still count.
+function M.isRomPaletteAvailableForLink(win)
+  return WindowCaps.isRomPaletteWindow(win) and win._closed ~= true
+end
+
 --- ROM palette window linked from a specific content layer (by index), if any.
 local function getLinkedRomPaletteWindowForLayer(contentWin, wm, layerIndex)
   if not (contentWin and type(layerIndex) == "number") then
@@ -208,7 +213,7 @@ local function getLinkedRomPaletteWindowForLayer(contentWin, wm, layerIndex)
     return nil
   end
   local linked = wm:findWindowById(pd.winId)
-  if linked and not linked._closed and not linked._minimized and WindowCaps.isRomPaletteWindow(linked) then
+  if M.isRomPaletteAvailableForLink(linked) then
     return linked
   end
   return nil
@@ -222,7 +227,7 @@ local function getRomPaletteWindows(wm)
   local out = {}
   local windows = wm and wm.getWindows and wm:getWindows() or {}
   for _, win in ipairs(windows) do
-    if WindowCaps.isRomPaletteWindow(win) and not win._closed and not win._minimized then
+    if M.isRomPaletteAvailableForLink(win) then
       out[#out + 1] = win
     end
   end

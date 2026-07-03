@@ -389,7 +389,7 @@ function AppCoreController:_resolveLinkedPaletteForLayer(win, layerIndex)
     return nil
   end
   local paletteWin = self.wm:findWindowById(winId)
-  if paletteWin and paletteWin._closed ~= true and paletteWin._minimized ~= true and paletteWin.kind == "rom_palette" then
+  if paletteWin and paletteWin._closed ~= true and paletteWin.kind == "rom_palette" then
     return paletteWin
   end
   return nil
