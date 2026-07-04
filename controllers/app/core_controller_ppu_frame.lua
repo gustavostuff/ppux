@@ -219,6 +219,24 @@ local function getTargetSpriteLayerForAddSprite(win)
   return nil, nil
 end
 
+local function getLastOamSpriteStartAddrInWindow(win)
+  if not WindowCaps.isOamAnimation(win) then
+    return nil
+  end
+
+  local lastAddr = nil
+  for _, layer in ipairs(win.layers or {}) do
+    if layer and layer.kind == "sprite" then
+      for _, item in ipairs(layer.items or {}) do
+        if item and item.removed ~= true and type(item.startAddr) == "number" then
+          lastAddr = item.startAddr
+        end
+      end
+    end
+  end
+  return lastAddr
+end
+
 local function getInitialPpuSpriteModalValues(app)
   local state = app and app.appEditState or {}
   local bankWindow = app and app.winBank or nil
@@ -372,6 +390,12 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
     end
   else
     initialBank, initialTile, initialOamStart = getInitialPpuSpriteModalValues(self)
+    if WindowCaps.isOamAnimation(win) then
+      local lastAddr = getLastOamSpriteStartAddrInWindow(win)
+      if type(lastAddr) == "number" then
+        initialOamStart = string.format("0x%06X", lastAddr)
+      end
+    end
   end
 
   local modalTitle = modalOpts.title or (isEdit and "Edit sprite" or "Add sprite")
