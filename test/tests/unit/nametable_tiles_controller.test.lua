@@ -634,22 +634,15 @@ describe("nametable_tiles_controller.lua", function()
       expect(captured.bytes).toEqual({ 0xAA, 0xBB, 0xCC })
     end)
 
-    it("reuses original compressed stream when only userDefinedAttrs differ from ROM decode baseline", function()
+    it("bakes userDefinedAttrs into romRaw on hydrate and reuses that stream on unchanged save", function()
       local fixture = io.open("fixtures/zelda2_game_over_compressed.hex", "r")
       local hex = fixture:read("*a")
       fixture:close()
       local compressed = NametableUtils.hex_to_bytes(hex)
 
-      local rom, romErr = chr.writeBytesToRange(string.rep("\0", 0x200), 0x10, #compressed, compressed)
+      local rom, romErr = chr.writeBytesToRange(string.rep("\0", 0x400), 0x10, #compressed, compressed)
       expect(rom).toBeTruthy()
       expect(romErr).toBeNil()
-
-      local oldEncode = NametableUtils.encode_decompressed_nametable
-      local encodeCalled = false
-      NametableUtils.encode_decompressed_nametable = function()
-        encodeCalled = true
-        return { 0xDE, 0xAD }
-      end
 
       local win = {
         kind = "ppu_frame",
@@ -669,7 +662,7 @@ describe("nametable_tiles_controller.lua", function()
       local ok, err = NametableTilesController.hydrateWindowNametable(win, layer, {
         romRaw = rom,
         nametableStartAddr = 0x10,
-        nametableEndAddr = 0xD8,
+        nametableEndAddr = 0x10 + #compressed - 1,
         codec = "zelda2",
         userDefinedAttrs = attrsHex,
       })
@@ -679,12 +672,103 @@ describe("nametable_tiles_controller.lua", function()
       expect(win.nametableAttrBytes[64]).toBe(0x55)
       expect(win._originalNametableAttrBytes[64]).toBe(0x55)
 
-      local wrote, writeErr = NametableTilesController.writeBackToROM(win, layer, rom)
+      local baked = {}
+      for i = 0, math.max(#compressed, #(win._originalCompressedBytes or {})) - 1 do
+        baked[i + 1] = string.byte(win.romRaw, 0x10 + i + 1)
+      end
+      local _, bakedAttrs = NametableUtils.decode_compressed_nametable(baked, false, "zelda2")
+      expect(bakedAttrs[64]).toBe(0x55)
+
+      local oldEncode = NametableUtils.encode_decompressed_nametable
+      local encodeCalled = false
+      NametableUtils.encode_decompressed_nametable = function(...)
+        encodeCalled = true
+        return oldEncode(...)
+      end
+
+      local wrote, writeErr = NametableTilesController.writeBackToROM(win, layer, win.romRaw)
       NametableUtils.encode_decompressed_nametable = oldEncode
 
       expect(wrote).toBeTruthy()
       expect(writeErr).toBeNil()
       expect(encodeCalled).toBe(false)
+
+      local saved = {}
+      for i = 0, #(win._originalCompressedBytes or {}) - 1 do
+        saved[i + 1] = string.byte(wrote, 0x10 + i + 1)
+      end
+      local _, savedAttrs = NametableUtils.decode_compressed_nametable(saved, false, "zelda2")
+      expect(savedAttrs[64]).toBe(0x55)
+    end)
+
+    it("bakes tileSwaps into romRaw on hydrate and keeps them in project snapshots", function()
+      local fixture = io.open("fixtures/zelda2_game_over_compressed.hex", "r")
+      local hex = fixture:read("*a")
+      fixture:close()
+      local compressed = NametableUtils.hex_to_bytes(hex)
+
+      local rom, romErr = chr.writeBytesToRange(string.rep("\0", 0x4000), 0x10, #compressed, compressed)
+      expect(rom).toBeTruthy()
+      expect(romErr).toBeNil()
+
+      local win = {
+        kind = "ppu_frame",
+        cols = 32,
+        rows = 30,
+        layers = {
+          {
+            kind = "tile",
+            name = "Nametable",
+            relocateTo = 0x2C10,
+            patternTable = {
+              ranges = {
+                { bank = 9, from = 0, to = 255 },
+              },
+            },
+          },
+        },
+        invalidateNametableLayerCanvas = function() end,
+      }
+      local layer = win.layers[1]
+      local tileSwaps = "32x30|9:1;-1:959"
+
+      local ok, err = NametableTilesController.hydrateWindowNametable(win, layer, {
+        romRaw = rom,
+        nametableStartAddr = 0x10,
+        nametableEndAddr = 0x10 + #compressed - 1,
+        relocateTo = 0x2C10,
+        codec = "zelda2",
+        tileSwaps = tileSwaps,
+      })
+
+      expect(ok).toBe(true)
+      expect(err).toBeNil()
+      expect(win.nametableBytes[1]).toBe(9)
+      expect(win._originalNametableBytes[1] ~= 9).toBe(true)
+      expect(win._tileSwaps[1]).toBe(9)
+
+      local baked = {}
+      for i = 0, #(win._originalCompressedBytes or {}) - 1 do
+        baked[i + 1] = string.byte(win.romRaw, 0x2C10 + i + 1)
+      end
+      local bakedNt = NametableUtils.decode_compressed_nametable(baked, false, "zelda2")
+      expect(bakedNt[1]).toBe(9)
+
+      local snapshot = NametableTilesController.snapshotNametableLayer(win, layer)
+      expect(snapshot).toBeTruthy()
+      expect(snapshot.tileSwaps).toBeTruthy()
+      expect(NametableTilesController.countSerializedTileSwaps(snapshot.tileSwaps)).toBe(1)
+
+      local wrote, writeErr = NametableTilesController.writeBackToROM(win, layer, win.romRaw)
+      expect(wrote).toBeTruthy()
+      expect(writeErr).toBeNil()
+
+      local saved = {}
+      for i = 0, #(win._originalCompressedBytes or {}) - 1 do
+        saved[i + 1] = string.byte(wrote, 0x2C10 + i + 1)
+      end
+      local savedNt = NametableUtils.decode_compressed_nametable(saved, false, "zelda2")
+      expect(savedNt[1]).toBe(9)
     end)
 
     it("rejects save when noOverflowSupported and edited nametable exceeds budget", function()

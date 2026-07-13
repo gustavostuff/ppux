@@ -171,7 +171,24 @@ local function bytesEqual(a, b)
   return true
 end
 
+local function tileSwapsMapNonEmpty(win)
+  local m = win and win._tileSwaps
+  if type(m) ~= "table" then
+    return false
+  end
+  for _ in pairs(m) do
+    return true
+  end
+  return false
+end
+
 local function hasWindowNametableChanges(win)
+  -- Project-loaded tileSwaps must always count as edits, even if some other
+  -- path re-baselines nametableBytes against the swapped view.
+  if tileSwapsMapNonEmpty(win) then
+    return true
+  end
+
   local nt = win and win.nametableBytes or nil
   local ntOrig = win and win._originalNametableBytes or nil
   local at = win and win.nametableAttrBytes or nil
@@ -196,7 +213,8 @@ function M.hasWindowNametableChanges(win)
   return hasWindowNametableChanges(win)
 end
 
-function M.encodeWindowNametableBytes(win, layer)
+function M.encodeWindowNametableBytes(win, layer, opts)
+  opts = opts or {}
   local nt = win and win.nametableBytes or nil
   local at = win and win.nametableAttrBytes or nil
   if type(nt) ~= "table" or #nt == 0 then
@@ -209,11 +227,91 @@ function M.encodeWindowNametableBytes(win, layer)
     original = win._originalCompressedBytes
   end
 
-  if not hasWindowNametableChanges(win) and original then
+  if (not opts.force) and (not hasWindowNametableChanges(win)) and original then
     return copyBytes(original)
   end
 
   return NametableUtils.encode_decompressed_nametable(nt, at or {}, codec, original)
+end
+
+--- Force-encode current nametable/attrs and write them to the layer write
+--- address (relocateTo or nametableStartAddr). Used after hydrate applies
+--- project overlays (tileSwaps / userDefinedAttrs) so romRaw reflects the
+--- edited map even before the user saves.
+---
+--- Keeps win._originalNametableBytes as the ROM-decoded baseline so
+--- win._tileSwaps still serializes correctly into the project file.
+--- Updates win._originalCompressedBytes to the baked stream so a later
+--- unchanged save reuses the overlay-aware compressed bytes.
+function M.bakeLoadedNametableOverlaysToRom(win, layer)
+  if not (win and layer) then
+    return nil, "missing_args"
+  end
+
+  local compressed, encodeErr = M.encodeWindowNametableBytes(win, layer, { force = true })
+  if not compressed then
+    return nil, encodeErr or "encode_failed"
+  end
+
+  local romRaw = M.resolveWorkingRomRaw(win.romRaw, win)
+  if type(romRaw) ~= "string" or #romRaw == 0 then
+    return nil, "empty_rom"
+  end
+
+  local startAddr = (layer and layer.nametableStartAddr) or win.nametableStart
+  local endAddr = (layer and layer.nametableEndAddr) or nil
+  local noOverflowSupported = (layer and layer.noOverflowSupported == true)
+  local writeStart = M.resolveNametableWriteStart(layer, win)
+
+  local budget = nil
+  if type(endAddr) == "number" and type(startAddr) == "number" then
+    budget = math.abs(endAddr - startAddr) + 1
+  elseif type(win.originalTotalByteNumber) == "number" and win.originalTotalByteNumber > 0 then
+    budget = win.originalTotalByteNumber
+  elseif type(win._originalCompressedBytes) == "table" and #win._originalCompressedBytes > 0 then
+    budget = #win._originalCompressedBytes
+  end
+
+  if noOverflowSupported and budget and #compressed > budget then
+    return nil, string.format(
+      "nametable_overflow (%d bytes compressed, %d byte budget)",
+      #compressed,
+      budget
+    )
+  end
+
+  local bytesToWrite = compressed
+  if budget and #bytesToWrite < budget then
+    bytesToWrite = copyBytes(compressed)
+    for i = #bytesToWrite + 1, budget do
+      bytesToWrite[i] = 0xFF
+    end
+  end
+
+  local newRom, err
+  if budget and (not noOverflowSupported) and #bytesToWrite > budget then
+    newRom, err = chr.writeBytesStartingAt(romRaw, writeStart, bytesToWrite)
+  elseif budget then
+    newRom, err = chr.writeBytesToRange(romRaw, writeStart, budget, bytesToWrite)
+  else
+    newRom, err = chr.writeBytesStartingAt(romRaw, writeStart, bytesToWrite)
+  end
+  if not newRom then
+    return nil, "[NametableTilesController] bake write failed: " .. tostring(err)
+  end
+
+  win._originalCompressedBytes = copyBytes(compressed)
+  win._nametableCompressedSize = #compressed
+  M.propagateRomRaw(newRom, win)
+
+  DebugController.log(
+    "info",
+    "NTM",
+    "Baked loaded nametable overlays into ROM at 0x%04X (%d compressed bytes)",
+    writeStart or 0,
+    #compressed
+  )
+  return newRom
 end
 
 -- RLE encode/decode helpers for tileSwaps (row-major, default 32x30 grid).
@@ -492,6 +590,11 @@ function M.hydrateWindowNametable(win, layer, opts)
     return nil, "[NametableTilesController] readBytesFromRange failed: " .. tostring(err)
   end
   win._originalCompressedBytes = copyBytes(compressed)
+  -- Keep the window pointed at the live ROM string so overlay baking / later
+  -- writes do not resolve an empty romRaw when relocateTo is absent.
+  if type(win.romRaw) ~= "string" or #win.romRaw == 0 then
+    win.romRaw = romRaw
+  end
 
   if type(relocateTo) == "number" then
     layer.relocateTo = relocateTo
@@ -655,6 +758,7 @@ function M.hydrateWindowNametable(win, layer, opts)
   end
 
   -- Apply any pre-existing tileSwaps from layout/project
+  local appliedTileSwaps = false
   if tileSwaps then
     local swapsStartedAt = LoveCompat.getTime()
     local rawTileSwaps = tileSwaps
@@ -672,6 +776,7 @@ function M.hydrateWindowNametable(win, layer, opts)
     end
     if tileSwaps and #tileSwaps > 0 then
       M.applyTileSwaps(win, layer, tileSwaps, tilesPool)
+      appliedTileSwaps = true
     end
     logPerf("ntm.apply_tile_swaps", swapsStartedAt, string.format("title=%s count=%d", tostring(win.title or ""), tileSwaps and #tileSwaps or 0))
   end
@@ -679,6 +784,7 @@ function M.hydrateWindowNametable(win, layer, opts)
   -- Load user-defined attribute bytes from project if they exist
   -- These override the attribute bytes loaded from ROM
   local userDefinedAttrs = (opts and opts.userDefinedAttrs) or nil
+  local appliedUserDefinedAttrs = false
   if userDefinedAttrs and type(userDefinedAttrs) == "string" and #userDefinedAttrs >= 128 then
     -- Parse hex string: "0AF8B7..." -> array of bytes
     local userAttrBytes = {}
@@ -697,6 +803,7 @@ function M.hydrateWindowNametable(win, layer, opts)
     for i = 1, 64 do
       win.nametableAttrBytes[i] = userAttrBytes[i] or 0x00
     end
+    appliedUserDefinedAttrs = true
     DebugController.log("info", "NTM", "Loaded userDefinedAttrs: %d bytes overwritten (array set to exactly 64 bytes)", 64)
   else
     -- Even if no userDefinedAttrs, ensure array is exactly 64 bytes
@@ -739,6 +846,34 @@ function M.hydrateWindowNametable(win, layer, opts)
   local attrsHex = attrsToHexString(win.nametableAttrBytes)
   if attrsHex then
     layer.userDefinedAttrs = attrsHex
+  end
+
+  -- Project overlays are applied to in-memory nametable/attr bytes above, but the
+  -- compressed stream in romRaw (including relocateTo copies) still holds the
+  -- vanilla decode. Bake overlays now so the edited ROM matches the UI, and so
+  -- an unchanged save reuses overlay-aware compressed bytes.
+  if appliedTileSwaps or appliedUserDefinedAttrs then
+    local bakeStartedAt = LoveCompat.getTime()
+    local baked, bakeErr = M.bakeLoadedNametableOverlaysToRom(win, layer)
+    if not baked then
+      DebugController.log(
+        "warning",
+        "NTM",
+        "Failed to bake loaded nametable overlays into ROM for '%s': %s",
+        tostring(win.title or ""),
+        tostring(bakeErr)
+      )
+    end
+    logPerf(
+      "ntm.bake_overlays",
+      bakeStartedAt,
+      string.format(
+        "title=%s swaps=%s attrs=%s",
+        tostring(win.title or ""),
+        tostring(appliedTileSwaps),
+        tostring(appliedUserDefinedAttrs)
+      )
+    )
   end
 
   return true
@@ -977,6 +1112,7 @@ function M.writeBackToROM(win, layer, romRaw)
     writeStart,
     budget and string.format(" (budget=%d)", budget) or ""
   )
+  M.propagateRomRaw(newRom, win)
   return newRom
 end
 
