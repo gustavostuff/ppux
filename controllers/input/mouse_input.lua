@@ -380,7 +380,15 @@ function M.mousemoved(x, y, dx, dy)
 end
 
 local function clearDragState(commitDrop)
-  if drag and drag.srcTemporarilyCleared and (not commitDrop) then
+  -- Restore temporarily-hidden move sources when canceling. Pattern tables are
+  -- reference catalogs: always restore even on a successful drop commit.
+  local restoreSrc = drag
+    and drag.srcTemporarilyCleared
+    and (
+      (not commitDrop)
+      or WindowCaps.isPatternTable(drag.srcWin)
+    )
+  if restoreSrc then
     local srcLayer = drag.srcLayer or (drag.srcWin and drag.srcWin.getActiveLayerIndex and drag.srcWin:getActiveLayerIndex()) or 1
     if drag.srcWin and drag.srcWin.set and drag.item then
       drag.srcWin:set(drag.srcCol, drag.srcRow, drag.item, srcLayer)

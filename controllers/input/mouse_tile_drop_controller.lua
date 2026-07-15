@@ -1003,10 +1003,15 @@ function M.handleTileDrop(env, x, y, wm)
 
   local src = drag.srcWin
   local srcIsChr = WindowCaps.isChrLike(src)
+  local srcIsPatternTable = WindowCaps.isPatternTable(src)
   local dst = wm:windowAt(x, y)
   local app = env.ctx and env.ctx.app
   local undoRedo = app and app.undoRedo
-  local recorder = makeTileDragRecorder(undoRedo, ((drag.copyMode or srcIsChr) and "copy") or "move")
+  -- Pattern tables are tile catalogs (like CHR): drops out of them are always copies.
+  local recorder = makeTileDragRecorder(
+    undoRedo,
+    ((drag.copyMode or srcIsChr or srcIsPatternTable) and "copy") or "move"
+  )
 
   if src and dst and src ~= dst and (not srcIsChr) then
     if not allowsPatternTableToPpuNametableDrop(src, dst) then
@@ -1225,9 +1230,8 @@ function M.handleTileDrop(env, x, y, wm)
       return true
     end
 
-    local effectiveCopyMode = drag.copyMode == true
-    if WindowCaps.isPatternTable(src) and WindowCaps.isPpuFrame(dst) then
-      effectiveCopyMode = true
+    local effectiveCopyMode = drag.copyMode == true or srcIsPatternTable
+    if srcIsPatternTable and WindowCaps.isPpuFrame(dst) then
       for _, entry in ipairs(drag.tileGroup.entries or {}) do
         if not chrTileMappedToDestinationPpuPatternTable(dst, dstLayer, src, entry.item, drag.srcLayer) then
           notifyChrDropPatternTableRejected(env)
@@ -1239,8 +1243,10 @@ function M.handleTileDrop(env, x, y, wm)
 
     if recorder then
       local srcLayer = drag.srcLayer or 1
-      for _, entry in ipairs(drag.tileGroup.entries or {}) do
-        recorder.stageCell(src, srcLayer, entry.srcCol, entry.srcRow, entry.item)
+      if not effectiveCopyMode then
+        for _, entry in ipairs(drag.tileGroup.entries or {}) do
+          recorder.stageCell(src, srcLayer, entry.srcCol, entry.srcRow, entry.item)
+        end
       end
       for _, entry in ipairs(drag.tileGroup.entries or {}) do
         local dstCol = anchorCol + (entry.offsetCol or 0)

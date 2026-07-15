@@ -179,6 +179,150 @@ describe("mouse_input.lua - tile ctrl+drag copy", function()
     expect(win:get(1, 0, 1)).toBe(tile)
   end)
 
+  it("keeps pattern table source tiles during drag (reference copy, like CHR)", function()
+    local ctrl = false
+    local win = makeTileWindow()
+    win.kind = "pattern_table"
+    local tile = { id = "ptTile", index = 7, _bankIndex = 1 }
+    win:set(0, 0, tile, 1)
+
+    local focused = nil
+    local wm = {
+      setFocus = function(_, w) focused = w end,
+      getFocus = function() return focused end,
+      windowAt = function(_, x, y)
+        if x < 40 then return win end
+        return nil
+      end,
+      getWindows = function() return { win } end,
+    }
+
+    local ctx = {
+      getMode = function() return "tile" end,
+      wm = function() return wm end,
+    }
+
+    MouseInput.setup(ctx, {
+      pending = false,
+      active = false,
+      ghostAlpha = 0.5,
+    }, {}, {
+      ctrlDown = function() return ctrl end,
+      shiftDown = function() return false end,
+      altDown = function() return false end,
+      DRAG_TOL = 4,
+      pickByVisual = function(_, x, y, li)
+        if x < 20 then
+          return true, 0, 0, win:get(0, 0, li)
+        end
+        return false
+      end,
+    })
+
+    MouseInput.mousepressed(10, 10, 1)
+    MouseInput.mousemoved(25, 10, 15, 0)
+
+    expect(win:get(0, 0, 1)).toBe(tile)
+  end)
+
+  it("copy-drops from pattern table onto PPU nametable without removing the source tile", function()
+    local ctrl = false
+    local src = makeTileWindow()
+    src.kind = "pattern_table"
+    local tile = { id = "ptTile", index = 12, _bankIndex = 1 }
+    src:set(0, 0, tile, 1)
+
+    local ntBytes = {}
+    for i = 1, 16 do
+      ntBytes[i] = 0
+    end
+    local dstItems = {}
+    local dst = {
+      kind = "ppu_frame",
+      x = 40,
+      y = 0,
+      zoom = 1,
+      cellW = 8,
+      cellH = 8,
+      cols = 4,
+      rows = 4,
+      scrollCol = 0,
+      scrollRow = 0,
+      nametableBytes = ntBytes,
+      layers = { { kind = "tile" } },
+      getActiveLayerIndex = function() return 1 end,
+      getLayer = function(_, li) return dst.layers[li] end,
+      isInHeader = function() return false end,
+      isInContentArea = function(_, x, y)
+        return x >= 40 and y >= 0 and x < 72 and y < 32
+      end,
+      toGridCoords = function(_, x, y)
+        local lx = x - 40
+        if lx < 0 or y < 0 or lx >= 32 or y >= 32 then
+          return false
+        end
+        return true, math.floor(lx / 8), math.floor(y / 8)
+      end,
+      set = function(_, col, row, item)
+        local idx = row * 4 + col + 1
+        dstItems[idx] = item
+        if item and type(item.index) == "number" then
+          ntBytes[idx] = item.index % 256
+        end
+      end,
+      get = function(_, col, row)
+        return dstItems[row * 4 + col + 1]
+      end,
+      setSelected = function() end,
+      updateCompressedBytesInROM = function() return true end,
+      invalidateNametableLayerCanvas = function() end,
+    }
+
+    local focused = nil
+    local wm = {
+      setFocus = function(_, w) focused = w end,
+      getFocus = function() return focused end,
+      windowAt = function(_, x)
+        if x < 40 then return src end
+        return dst
+      end,
+      getWindows = function() return { src, dst } end,
+    }
+
+    local ctx = {
+      getMode = function() return "tile" end,
+      wm = function() return wm end,
+    }
+
+    MouseInput.setup(ctx, {
+      pending = false,
+      active = false,
+      ghostAlpha = 0.5,
+    }, {}, {
+      ctrlDown = function() return ctrl end,
+      shiftDown = function() return false end,
+      altDown = function() return false end,
+      DRAG_TOL = 4,
+      pickByVisual = function(win, x, y, li)
+        if win == src and x < 20 then
+          return true, 0, 0, src:get(0, 0, li)
+        end
+        return false
+      end,
+    })
+
+    MouseInput.mousepressed(10, 10, 1)
+    MouseInput.mousemoved(25, 10, 15, 0)
+    expect(src:get(0, 0, 1)).toBe(tile)
+
+    MouseInput.mousereleased(48, 4, 1)
+
+    expect(src:get(0, 0, 1)).toBe(tile)
+    expect(ntBytes[2]).toBe(12)
+    expect(dst:get(1, 0)).toBe(tile)
+    expect(focused).toBe(dst)
+  end)
+
   it("restores source tile when normal move drag is canceled", function()
     local ctrl = false
     local win = makeTileWindow()
