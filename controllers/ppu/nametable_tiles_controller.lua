@@ -1525,23 +1525,33 @@ function M.syncPeerPpuFrameNametableWindows(sourceWin, sourceLayer, opts)
             #(peer.nametableBytes or {}),
             tostring(peer.title or "")
           )
-        elseif #srcAt ~= #(peer.nametableAttrBytes or {}) then
-          DebugController.log(
-            "warning",
-            "NTM",
-            "Nametable peer sync: attribute length mismatch (%d vs %d), skip peer '%s'",
-            #srcAt,
-            #(peer.nametableAttrBytes or {}),
-            tostring(peer.title or "")
-          )
         else
           peer.nametableBytes = peer.nametableBytes or {}
           for i = 1, #srcNt do
             peer.nametableBytes[i] = srcNt[i]
           end
-          peer.nametableAttrBytes = peer.nametableAttrBytes or {}
-          for i = 1, #srcAt do
-            peer.nametableAttrBytes[i] = srcAt[i]
+
+          -- Attribute tables should match, but a length mismatch must not block
+          -- nametable byte sync (tile swaps / rearrangements). Copy what we can.
+          local peerAt = peer.nametableAttrBytes or {}
+          if #srcAt ~= #peerAt then
+            DebugController.log(
+              "warning",
+              "NTM",
+              "Nametable peer sync: attribute length mismatch (%d vs %d) on '%s'; syncing nametable bytes and adopting source attrs",
+              #srcAt,
+              #peerAt,
+              tostring(peer.title or "")
+            )
+            peer.nametableAttrBytes = {}
+            for i = 1, #srcAt do
+              peer.nametableAttrBytes[i] = srcAt[i]
+            end
+          else
+            peer.nametableAttrBytes = peer.nametableAttrBytes or {}
+            for i = 1, #srcAt do
+              peer.nametableAttrBytes[i] = srcAt[i]
+            end
           end
 
           peer.romRaw = sourceWin.romRaw

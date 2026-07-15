@@ -1045,6 +1045,8 @@ function PPUFrameWindow:updateCompressedBytesInROM()
     NametableTilesController.updateOverflowToastForWindow(self, layer, compressedSize, originalSize)
   end
 
+  -- Never spill past the declared budget on the live edit path. Still peer-sync
+  -- in-memory nametable/attr bytes so other same-range windows stay aligned.
   if originalSize and compressedSize > originalSize then
     DebugController.log(
       "warning",
@@ -1053,6 +1055,10 @@ function PPUFrameWindow:updateCompressedBytesInROM()
       compressedSize,
       originalSize
     )
+    self:syncNametableLayerMetadata()
+    if NametableTilesController.syncPeerPpuFrameNametableWindows then
+      NametableTilesController.syncPeerPpuFrameNametableWindows(self, layer, {})
+    end
     return true
   end
 
@@ -1075,6 +1081,11 @@ function PPUFrameWindow:updateCompressedBytesInROM()
   
   if not newRom then
     DebugController.log("info", "PPU", "writeBytesStartingAt failed: %s", tostring(err))
+    -- ROM write failed, but peers should still mirror the in-memory edit.
+    self:syncNametableLayerMetadata()
+    if NametableTilesController.syncPeerPpuFrameNametableWindows then
+      NametableTilesController.syncPeerPpuFrameNametableWindows(self, layer, {})
+    end
     return false, err
   end
 
