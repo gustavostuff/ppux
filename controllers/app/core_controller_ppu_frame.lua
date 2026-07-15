@@ -1341,6 +1341,22 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
   layer.tileSwaps = TableUtils.deepcopy(layerState.tileSwaps)
   layer.items = {}
 
+  -- Attribute undo/redo snapshots restore nametableAttrBytes, but hydrate prefers
+  -- layer.userDefinedAttrs when present. Rebuild that hex from the restored bytes
+  -- so undo/redo cannot be overridden by a stale overlay string.
+  do
+    local attrs = win.nametableAttrBytes
+    if type(attrs) == "table" and #attrs >= 64 then
+      local hexParts = {}
+      for i = 1, 64 do
+        local byteVal = tonumber(attrs[i]) or 0x00
+        if byteVal < 0 then byteVal = 0x00 elseif byteVal > 255 then byteVal = 255 end
+        hexParts[i] = string.format("%02x", byteVal)
+      end
+      layer.userDefinedAttrs = table.concat(hexParts, "")
+    end
+  end
+
   local state = self.appEditState or {}
   if state.chrBanksBytes and type(layer.patternTable) == "table" and type(layer.patternTable.ranges) == "table" then
     local ensuredBanks = {}
@@ -1386,6 +1402,16 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
   end
   if win.specializedToolbar and win.specializedToolbar.updateIcons then
     win.specializedToolbar:updateIcons()
+  end
+
+  -- Live palette/tile edits peer-sync via updateCompressedBytesInROM; undo/redo
+  -- restores only the event window and must sync siblings that share the range.
+  if NametableTilesController.syncPeerPpuFrameNametableWindows then
+    local tilesPool = self.appEditState and self.appEditState.tilesPool
+    NametableTilesController.syncPeerPpuFrameNametableWindows(win, layer, {
+      tilesPool = tilesPool,
+      wm = self.wm,
+    })
   end
 
   return true
