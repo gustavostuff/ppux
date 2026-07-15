@@ -143,6 +143,80 @@ local function renderWindowLinesGrid(window)
   love.graphics.pop()
 end
 
+-- Attribute-region grid for PPU frames: gray every 2 tiles (2x2), green every 4 tiles
+-- (attr byte 4x4). Major (green) lines replace minor (gray) — never stacked.
+local attrGridShader = love.graphics.newShader([[
+extern vec2 u_origin;
+extern vec2 u_minorStep;
+extern vec2 u_majorStep;
+extern number u_thickness;
+extern vec4 u_minorColor;
+extern vec4 u_majorColor;
+
+vec4 effect(vec4 color, Image tex, vec2 texCoord, vec2 screenCoord)
+{
+    float minx = max(u_minorStep.x, 1.0);
+    float miny = max(u_minorStep.y, 1.0);
+    float majx = max(u_majorStep.x, 1.0);
+    float majy = max(u_majorStep.y, 1.0);
+    float t = max(u_thickness, 1.0);
+    vec2 rel = screenCoord - u_origin;
+
+    float mx = mod(rel.x, minx);
+    float my = mod(rel.y, miny);
+    bool onMinor = (mx <= t) || (minx - mx <= t) || (my <= t) || (miny - my <= t);
+    if (!onMinor) {
+        return vec4(0.0, 0.0, 0.0, 0.0);
+    }
+
+    float Mx = mod(rel.x, majx);
+    float My = mod(rel.y, majy);
+    bool onMajor = (Mx <= t) || (majx - Mx <= t) || (My <= t) || (majy - My <= t);
+    return onMajor ? u_majorColor : u_minorColor;
+}
+]])
+
+local function renderWindowAttrGrid(window)
+  if not window or window._collapsed then return end
+  local grid = (window.getDisplayGridMetrics and window:getDisplayGridMetrics()) or {
+    baseCellW = window.cellW or 8,
+    baseCellH = window.cellH or 8,
+    cellW = window.cellW or 8,
+    cellH = window.cellH or 8,
+  }
+  local zoom = window.zoom or 1
+  local vertPeriod = GridOverlayMetrics.overlayVerticalPeriodNes(window, grid)
+  local cellStepX = (grid.cellW or 8) * zoom
+  local cellStepY = vertPeriod * zoom
+  local minorStepX = cellStepX * 2
+  local minorStepY = cellStepY * 2
+  local majorStepX = cellStepX * 4
+  local majorStepY = cellStepY * 4
+  if minorStepX <= 0 or minorStepY <= 0 then return end
+
+  local x, y, w, h = window:getScreenRect()
+  local thickness = 1
+  local baseStepY = grid.baseCellH or grid.cellH or 8
+  local scrollOffsetX = ((window.scrollCol or 0) * (grid.baseCellW or grid.cellW) * zoom) % majorStepX
+  local scrollOffsetY = ((window.scrollRow or 0) * baseStepY * zoom) % majorStepY
+
+  local gray = colors.gray50
+  local green = colors.green
+
+  love.graphics.push("all")
+  love.graphics.setShader(attrGridShader)
+  local ox, oy = love.graphics.transformPoint(x - scrollOffsetX, y - scrollOffsetY)
+  attrGridShader:send("u_origin", { ox, oy })
+  attrGridShader:send("u_minorStep", { minorStepX, minorStepY })
+  attrGridShader:send("u_majorStep", { majorStepX, majorStepY })
+  attrGridShader:send("u_thickness", thickness)
+  attrGridShader:send("u_minorColor", { gray[1], gray[2], gray[3], 0.5 })
+  attrGridShader:send("u_majorColor", { green[1], green[2], green[3], 0.65 })
+  love.graphics.setColor(1, 1, 1, 1)
+  love.graphics.rectangle("fill", x, y, w, h)
+  love.graphics.pop()
+end
+
 -- Helper to decode palette number from PPU attribute bytes for a given tile position
 local function getPaletteFromAttrBytes(attrBytes, cols, tileCol, tileRow)
   if not attrBytes or #attrBytes == 0 then return nil end
@@ -1277,6 +1351,8 @@ drawNormalWindow = function(app, w, wm)
 
   if (not isPaletteWindow) and gridMode == "lines" then
     renderWindowLinesGrid(w)
+  elseif (not isPaletteWindow) and gridMode == "attr" and WindowCaps.isPpuFrame(w) then
+    renderWindowAttrGrid(w)
   end
 
   if w.drawSelectionOverlays then

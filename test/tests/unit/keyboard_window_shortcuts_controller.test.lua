@@ -215,6 +215,21 @@ describe("keyboard_window_shortcuts_controller.lua - grid toggle shortcut", func
     expect(KeyboardWindowShortcutsController.handleGridToggleInWindow(ctx, utils, "g", focus)).toBe(true)
     expect(focus.showGrid).toBe("chess")
   end)
+
+  it("cycles attr grid mode only for PPU frame windows", function()
+    local utils = {
+      ctrlDown = function() return true end,
+    }
+    local bank = { kind = "bank", showGrid = "lines" }
+    expect(KeyboardWindowShortcutsController.handleGridToggleInWindow({}, utils, "g", bank)).toBe(true)
+    expect(bank.showGrid).toBe("none")
+
+    local ppu = { kind = "ppu_frame", showGrid = "lines" }
+    expect(KeyboardWindowShortcutsController.handleGridToggleInWindow({}, utils, "g", ppu)).toBe(true)
+    expect(ppu.showGrid).toBe("attr")
+    expect(KeyboardWindowShortcutsController.handleGridToggleInWindow({}, utils, "g", ppu)).toBe(true)
+    expect(ppu.showGrid).toBe("none")
+  end)
 end)
 
 describe("keyboard_edit_toggle_controller.lua - shader toggle shortcut", function()

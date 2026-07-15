@@ -1,0 +1,27 @@
+local GridModeUtils = require("controllers.grid_mode_utils")
+
+describe("grid_mode_utils.lua", function()
+  it("normalizes legacy bool and unknown values", function()
+    expect(GridModeUtils.normalize(true)).toBe("chess")
+    expect(GridModeUtils.normalize(false)).toBe("none")
+    expect(GridModeUtils.normalize(nil)).toBe("none")
+    expect(GridModeUtils.normalize("lines")).toBe("lines")
+    expect(GridModeUtils.normalize("attr")).toBe("attr")
+    expect(GridModeUtils.normalize("nope")).toBe("none")
+  end)
+
+  it("cycles default modes without attr", function()
+    expect(GridModeUtils.next("none")).toBe("chess")
+    expect(GridModeUtils.next("chess")).toBe("lines")
+    expect(GridModeUtils.next("lines")).toBe("none")
+    expect(GridModeUtils.next("attr")).toBe("none")
+  end)
+
+  it("cycles attr after lines for PPU frame windows", function()
+    local opts = { includeAttr = true }
+    expect(GridModeUtils.next("none", opts)).toBe("chess")
+    expect(GridModeUtils.next("chess", opts)).toBe("lines")
+    expect(GridModeUtils.next("lines", opts)).toBe("attr")
+    expect(GridModeUtils.next("attr", opts)).toBe("none")
+  end)
+end)

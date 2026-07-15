@@ -3,25 +3,41 @@
 
 local M = {}
 
-local modes = { "none", "chess", "lines" }
-local modeIndex = {}
-for i, m in ipairs(modes) do
-  modeIndex[m] = i
-end
+local modesDefault = { "none", "chess", "lines" }
+-- PPU frame windows add attribute-region lines after tile lines.
+local modesPpuFrame = { "none", "chess", "lines", "attr" }
+
+local validModes = {
+  none = true,
+  chess = true,
+  lines = true,
+  attr = true,
+}
 
 function M.normalize(value)
   if value == true then return "chess" end
   if value == false or value == nil then return "none" end
   local str = tostring(value)
-  if modeIndex[str] then return str end
+  if validModes[str] then return str end
   return "none"
 end
 
-function M.next(value)
+--- @param value any
+--- @param opts table|nil { includeAttr = bool } — PPU frame windows cycle through "attr"
+function M.next(value, opts)
+  local modes = (opts and opts.includeAttr) and modesPpuFrame or modesDefault
   local cur = M.normalize(value)
-  local idx = modeIndex[cur] or 1
-  local nextIdx = (idx % #modes) + 1
-  return modes[nextIdx]
+  if cur == "attr" and not (opts and opts.includeAttr) then
+    return modes[1]
+  end
+  local idx = 1
+  for i, m in ipairs(modes) do
+    if m == cur then
+      idx = i
+      break
+    end
+  end
+  return modes[(idx % #modes) + 1]
 end
 
 return M
