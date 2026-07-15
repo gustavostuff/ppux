@@ -39,7 +39,6 @@ end
 
 return function(AppCoreController)
 local Shared = require("controllers.app.core_controller_shared")
-local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
 
 local function drawPaletteLinkOverlay(app)
   return PaletteLinkRenderController.drawOverlay(app)
@@ -60,15 +59,14 @@ local BRUSH_PREVIEW_SELECTION_RECT_ANIM = {
   intervalSeconds = 0.1,
 }
 
+--- Marching-ants outline for one brush preview pixel (same style as selection).
+--- Exact pixel bounds (no pad) so each brush-shape pixel keeps its own rectangle.
 local function drawBrushPreviewSelectionRect(x, y, size)
-  local pad = 1
-  local sx = math.floor(x) - pad
-  local sy = math.floor(y) - pad
-  local sw = size + (pad * 2)
-  local sh = size + (pad * 2)
+  local sx = math.floor(x)
+  local sy = math.floor(y)
+  local sw = size
+  local sh = size
   if images and images.pattern_a then
-    local c = colors.white
-    love.graphics.setColor(c[1], c[2], c[3], 0.5)
     Draw.drawRepeatingImageAnimated(
       images.pattern_a,
       sx,
@@ -309,10 +307,6 @@ local function drawEditModeColorIndicator(app)
     return
   end
 
-  if ReferenceBackgroundController.isReferenceTracingViewActive(win) then
-    return
-  end
-
   -- Get window properties for pixel snapping and scaling
   local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
   local cw = win.cellW or 8
@@ -425,51 +419,55 @@ local function drawEditModeColorIndicator(app)
     return
   end
 
-  -- Draw selection-style rectangles behind each brush pixel preview.
+  -- Fills first, then one marching-ants rect per brush pixel (on top; zoom >= 3).
+  local showSelectionOutline = z >= 3
   ShaderPaletteController.releaseShader()
-  -- love.graphics.setColor(colors.white)
-  -- for _, pt in ipairs(brushScreenPoints) do
-  --   drawBrushPreviewSelectionRect(pt.x, pt.y, z)
-  -- end
 
   love.graphics.setColor(colors.white)
   if colorIndex == 0 then
-  local bgPreviewColor = resolveTransparentPreviewColor(app, win, layer, paletteNum, romRaw)
-    ShaderPaletteController.releaseShader()
+    local bgPreviewColor = resolveTransparentPreviewColor(app, win, layer, paletteNum, romRaw)
     love.graphics.setColor(bgPreviewColor[1] or 0, bgPreviewColor[2] or 0, bgPreviewColor[3] or 0, 1)
     for _, pt in ipairs(brushScreenPoints) do
       local zs = pt.size or z
       local xDraw = mirrorBrushOverlayScreenX(win, pt.x, zs)
       love.graphics.rectangle("fill", xDraw, pt.y, zs, zs)
     end
-    love.graphics.setColor(colors.white)
-    return
-  end
-
-  -- Apply palette shader matching hovered item.
-  if layer and hoveredItem then
-    local layerOpacity = (layer.opacity ~= nil) and layer.opacity or 1.0
-    ShaderPaletteController.applyLayerItemPalette(
-      layer,
-      hoveredItem,
-      true,  -- isActiveLayer
-      romRaw,
-      paletteNum,
-      app:isAnimationKind(win) and layerOpacity or nil
-    )
   else
-    ShaderPaletteController.applyShader(true)
+    -- Apply palette shader matching hovered item.
+    if layer and hoveredItem then
+      local layerOpacity = (layer.opacity ~= nil) and layer.opacity or 1.0
+      ShaderPaletteController.applyLayerItemPalette(
+        layer,
+        hoveredItem,
+        true,  -- isActiveLayer
+        romRaw,
+        paletteNum,
+        app:isAnimationKind(win) and layerOpacity or nil
+      )
+    else
+      ShaderPaletteController.applyShader(true)
+    end
+
+    local brushImg = getPixelBrushImage(colorIndex)
+    for _, pt in ipairs(brushScreenPoints) do
+      local zs = pt.size or z
+      local xDraw = mirrorBrushOverlayScreenX(win, pt.x, zs)
+      love.graphics.draw(brushImg, xDraw, pt.y, 0, zs, zs)
+    end
+    ShaderPaletteController.releaseShader()
   end
 
-  -- Draw brush pattern using shader (color index encoded in grayscale)
-  local brushImg = getPixelBrushImage(colorIndex)
-  for _, pt in ipairs(brushScreenPoints) do
-    local zs = pt.size or z
-    local xDraw = mirrorBrushOverlayScreenX(win, pt.x, zs)
-    love.graphics.draw(brushImg, xDraw, pt.y, 0, zs, zs)
+  if showSelectionOutline then
+    -- Match tile/sprite hover outline opacity (window_rendering_selection HOVER_OPACITY).
+    local hoverOpacity = 0.4
+    love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], hoverOpacity)
+    for _, pt in ipairs(brushScreenPoints) do
+      local zs = pt.size or z
+      local xDraw = mirrorBrushOverlayScreenX(win, pt.x, zs)
+      drawBrushPreviewSelectionRect(xDraw, pt.y, zs)
+    end
   end
-  
-  ShaderPaletteController.releaseShader()
+
   love.graphics.setColor(colors.white)
 end
 
