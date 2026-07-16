@@ -609,6 +609,85 @@ describe("mouse_input.lua - tile ctrl+drag copy", function()
 
     expect(flashedLabel).toBe("tile 26 (1A hex)")
   end)
+
+  it("shows pattern table tile index in the status bar on click", function()
+    local status = nil
+    local win = makeTileWindow()
+    win.kind = "pattern_table"
+    local tile = { id = "pt", index = 222 }
+    win:set(0, 0, tile, 1)
+
+    local wm = {
+      setFocus = function() end,
+      getFocus = function() return win end,
+      windowAt = function() return win end,
+      getWindows = function() return { win } end,
+    }
+
+    local ctx = {
+      getMode = function() return "tile" end,
+      wm = function() return wm end,
+      setStatus = function(msg) status = msg end,
+    }
+
+    MouseInput.setup(ctx, {
+      pending = false,
+      active = false,
+      ghostAlpha = 0.5,
+    }, {}, {
+      ctrlDown = function() return false end,
+      shiftDown = function() return false end,
+      altDown = function() return false end,
+      DRAG_TOL = 4,
+      pickByVisual = function(_, _x, _y, li)
+        return true, 0, 0, win:get(0, 0, li)
+      end,
+    })
+
+    MouseInput.mousepressed(10, 10, 1)
+    expect(status).toBe("Tile 222 ($DE)")
+  end)
+
+  it("uses the top tile of an 8x16 pair for pattern table status text", function()
+    local status = nil
+    local win = makeTileWindow()
+    win.kind = "pattern_table"
+    win.layers[1].mode = "8x16"
+    local top = { id = "top", index = 10 }
+    local bot = { id = "bot", index = 11 }
+    win:set(0, 0, top, 1)
+    win:set(0, 1, bot, 1)
+
+    local wm = {
+      setFocus = function() end,
+      getFocus = function() return win end,
+      windowAt = function() return win end,
+      getWindows = function() return { win } end,
+    }
+
+    local ctx = {
+      getMode = function() return "tile" end,
+      wm = function() return wm end,
+      setStatus = function(msg) status = msg end,
+    }
+
+    MouseInput.setup(ctx, {
+      pending = false,
+      active = false,
+      ghostAlpha = 0.5,
+    }, {}, {
+      ctrlDown = function() return false end,
+      shiftDown = function() return false end,
+      altDown = function() return false end,
+      DRAG_TOL = 4,
+      pickByVisual = function(_, _x, _y, li)
+        return true, 0, 1, win:get(0, 1, li)
+      end,
+    })
+
+    MouseInput.mousepressed(10, 18, 1)
+    expect(status).toBe("Tile 10 ($0A)")
+  end)
 end)
 
 local function makeMarqueeWindow(kind)

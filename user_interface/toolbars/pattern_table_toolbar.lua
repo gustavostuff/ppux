@@ -118,7 +118,7 @@ function PatternTableToolbar:_onToggleChrLayoutMode()
   end
   local layoutLabel = PatternTableDisplayController.toggleTileLayerChrLayout(w, li, app)
     or ((layer.mode == "8x16") and "8x16 pairs" or "8x8")
-  StatusHelpers.setStatus(self.ctx, "Pattern table layout: " .. layoutLabel .. " — Ctrl+M to toggle")
+  StatusHelpers.setStatus(self.ctx, "Pattern table layout: " .. layoutLabel .. " - Ctrl+M to toggle")
   self:updateModeIcon()
 end
 

@@ -152,9 +152,35 @@ local function setChrTilePickStatus(_ctx, _win, _col, _row, _item)
   end
 end
 
+local function setPatternTableTilePickStatus(ctx, win, col, row, item)
+  if not (WindowCaps.isPatternTable(win) and item) then
+    return
+  end
+  local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+  local layer = win.layers and win.layers[li]
+  local infoItem = item
+  if layer and (layer.mode == "8x16" or layer.mode == "oddEven") and type(row) == "number" then
+    local topRow = row - (row % 2)
+    if topRow ~= row then
+      if win.getVirtualTileHandle then
+        infoItem = win:getVirtualTileHandle(col, topRow, li) or infoItem
+      elseif win.get then
+        infoItem = win:get(col, topRow, li) or infoItem
+      end
+    end
+  end
+  local tileIndex = infoItem and tonumber(infoItem.index)
+  if type(tileIndex) ~= "number" then
+    return
+  end
+  tileIndex = math.floor(tileIndex)
+  StatusHelpers.setStatus(ctx, string.format("Tile %d ($%02X)", tileIndex, tileIndex % 0x100))
+end
+
 local function setTilePickStatus(ctx, win, col, row, item)
   setPpuTilePickStatus(ctx, win, col, row, item)
   setChrTilePickStatus(ctx, win, col, row, item)
+  setPatternTableTilePickStatus(ctx, win, col, row, item)
 end
 
 local function isTileMultiSelectWindow(env, win, layerIdx)
