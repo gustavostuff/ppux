@@ -679,10 +679,23 @@ function M.hydrateWindowNametable(win, layer, opts)
   DebugController.log("info", "NTM", "Loaded %d attribute bytes from ROM, %d unique values: %s", 
     #win.nametableAttrBytes, uniqueCount, table.concat(hexList, ", "))
 
-  -- Baseline copy for diff tracking
-  win._originalNametableBytes = {}
-  for i = 1, #win.nametableBytes do
-    win._originalNametableBytes[i] = win.nametableBytes[i]
+  -- Baseline for tileSwaps diffs. Rehydrate (range dialog, undo, pattern-table
+  -- refresh) often runs against romRaw that already has overlays baked in.
+  -- Keep a prior same-range baseline so project tileSwaps are not recomputed
+  -- against the already-edited map (which would clear nearly all diffs).
+  local previousOriginal = win._originalNametableBytes
+  local previousStart = win.nametableStart
+  local canPreserveOriginal =
+    type(previousOriginal) == "table"
+    and #previousOriginal == #win.nametableBytes
+    and #previousOriginal > 0
+    and type(previousStart) == "number"
+    and previousStart == startAddr
+  if not canPreserveOriginal then
+    win._originalNametableBytes = {}
+    for i = 1, #win.nametableBytes do
+      win._originalNametableBytes[i] = win.nametableBytes[i]
+    end
   end
   win._tileSwaps = {}
 
@@ -775,7 +788,7 @@ function M.hydrateWindowNametable(win, layer, opts)
       layer.tileSwaps = TableUtils.deepcopy(rawTileSwaps)
     end
     if tileSwaps and #tileSwaps > 0 then
-      M.applyTileSwaps(win, layer, tileSwaps, tilesPool)
+      M.applyTileSwaps(win, layer, tileSwaps, tilesPool, { persistProjectDiffs = true })
       appliedTileSwaps = true
     end
     logPerf("ntm.apply_tile_swaps", swapsStartedAt, string.format("title=%s count=%d", tostring(win.title or ""), tileSwaps and #tileSwaps or 0))
@@ -886,6 +899,12 @@ end
 --- Apply a list of swaps { {col,row,val}, ... } on top of the current
 --  nametableBytes and grid, updating the diff map so that a future
 --  snapshot can serialize only the changes.
+--
+--  opts.persistProjectDiffs:
+--    When true (hydrate from project), always keep each swap in win._tileSwaps
+--    even if the ROM-decoded baseline already equals val. That happens when
+--    romRaw was previously bakeLoadedNametableOverlaysToRom'd; without this,
+--    recordSwap clears the diffs and the next project save drops tileSwaps.
 function M.applyTileSwaps(win, layer, swaps, tilesPool, opts)
   if not (win and layer and swaps) then return end
   opts = opts or {}
@@ -900,6 +919,7 @@ function M.applyTileSwaps(win, layer, swaps, tilesPool, opts)
 
   local li = findLayerIndex(win, layer) or 1
   local cols = win.cols or 32
+  local persistProjectDiffs = opts.persistProjectDiffs == true
   ensureDiffState(win)
 
   for _, s in ipairs(swaps) do
@@ -923,8 +943,12 @@ function M.applyTileSwaps(win, layer, swaps, tilesPool, opts)
         end
       end
 
-      -- Keep diff map consistent with original baseline
-      recordSwap(win, idx)
+      if persistProjectDiffs then
+        win._tileSwaps[idx] = val
+      else
+        -- Keep diff map consistent with original baseline
+        recordSwap(win, idx)
+      end
       if win.invalidateNametableLayerCanvas then
         win:invalidateNametableLayerCanvas(li, col, row)
       end

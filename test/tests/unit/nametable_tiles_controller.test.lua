@@ -771,6 +771,88 @@ describe("nametable_tiles_controller.lua", function()
       expect(savedNt[1]).toBe(9)
     end)
 
+    it("preserves project tileSwaps across rehydrate from already-baked romRaw", function()
+      local fixture = io.open("fixtures/zelda2_game_over_compressed.hex", "r")
+      local hex = fixture:read("*a")
+      fixture:close()
+      local compressed = NametableUtils.hex_to_bytes(hex)
+
+      local rom, romErr = chr.writeBytesToRange(string.rep("\0", 0x4000), 0x10, #compressed, compressed)
+      expect(rom).toBeTruthy()
+      expect(romErr).toBeNil()
+
+      local function makeWin()
+        return {
+          kind = "ppu_frame",
+          cols = 32,
+          rows = 30,
+          layers = {
+            {
+              kind = "tile",
+              name = "Nametable",
+              relocateTo = 0x2C10,
+              patternTable = {
+                ranges = {
+                  { bank = 9, from = 0, to = 255 },
+                },
+              },
+            },
+          },
+          invalidateNametableLayerCanvas = function() end,
+        }
+      end
+
+      local tileSwaps = "32x30|9:1;10:1;11:1;-1:957"
+      local win = makeWin()
+      local layer = win.layers[1]
+
+      local ok, err = NametableTilesController.hydrateWindowNametable(win, layer, {
+        romRaw = rom,
+        nametableStartAddr = 0x10,
+        nametableEndAddr = 0x10 + #compressed - 1,
+        relocateTo = 0x2C10,
+        codec = "zelda2",
+        tileSwaps = tileSwaps,
+      })
+      expect(ok).toBe(true)
+      expect(err).toBeNil()
+      expect(NametableTilesController.countSerializedTileSwaps(
+        NametableTilesController.snapshotNametableLayer(win, layer).tileSwaps
+      )).toBe(3)
+
+      -- Same-session rehydrate (range dialog / undo) against baked romRaw.
+      local okRe, errRe = NametableTilesController.hydrateWindowNametable(win, layer, {
+        romRaw = win.romRaw,
+        nametableStartAddr = 0x10,
+        nametableEndAddr = 0x10 + #compressed - 1,
+        relocateTo = 0x2C10,
+        codec = "zelda2",
+        tileSwaps = tileSwaps,
+      })
+      expect(okRe).toBe(true)
+      expect(errRe).toBeNil()
+      expect(NametableTilesController.countSerializedTileSwaps(
+        NametableTilesController.snapshotNametableLayer(win, layer).tileSwaps
+      )).toBe(3)
+
+      -- Cold load against already-edited ROM (no prior baseline on the window).
+      local win2 = makeWin()
+      local layer2 = win2.layers[1]
+      local okCold, errCold = NametableTilesController.hydrateWindowNametable(win2, layer2, {
+        romRaw = win.romRaw,
+        nametableStartAddr = 0x10,
+        nametableEndAddr = 0x10 + #compressed - 1,
+        relocateTo = 0x2C10,
+        codec = "zelda2",
+        tileSwaps = tileSwaps,
+      })
+      expect(okCold).toBe(true)
+      expect(errCold).toBeNil()
+      expect(NametableTilesController.countSerializedTileSwaps(
+        NametableTilesController.snapshotNametableLayer(win2, layer2).tileSwaps
+      )).toBe(3)
+    end)
+
     it("rejects save when noOverflowSupported and edited nametable exceeds budget", function()
       local oldEncode = NametableUtils.encode_decompressed_nametable
       local oldWriteRange = chr.writeBytesToRange
