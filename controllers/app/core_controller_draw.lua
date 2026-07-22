@@ -543,6 +543,9 @@ local function drawOverlays(app)
   if app.relocationPointerCalculatorModal then
     app.relocationPointerCalculatorModal:draw(app.canvas)
   end
+  if app.nametableBreakpointCalculatorModal then
+    app.nametableBreakpointCalculatorModal:draw(app.canvas)
+  end
   drawToasts(app)
 end
 

@@ -137,6 +137,7 @@ function Panel.new(opts)
     rows = math.max(1, opts.rows or 1),
     cellW = opts.cellW or Panel.DEFAULT_CELL_W,
     cellH = resolvedCellH,
+    cellWidths = opts.cellWidths,
     padding = opts.padding or 2,
     spacingX = opts.spacingX or 1,
     spacingY = opts.spacingY or 1,

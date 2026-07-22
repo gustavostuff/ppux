@@ -20,6 +20,7 @@ local PressEscAgainExitModal = require("user_interface.modals.press_esc_again_ex
 local SettingsModal = require("user_interface.modals.settings_modal")
 local TextFieldDemoModal = require("user_interface.modals.text_field_demo_modal")
 local RelocationPointerCalculatorModal = require("user_interface.modals.relocation_pointer_calculator_modal")
+local NametableBreakpointCalculatorModal = require("user_interface.modals.nametable_breakpoint_calculator_modal")
 local TooltipController = require("controllers.ui.tooltip_controller")
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
 local UiScale = require("user_interface.ui_scale")
@@ -110,6 +111,7 @@ function AppCoreController.new()
   self.settingsModal = SettingsModal.new()
   self.textFieldDemoModal = TextFieldDemoModal.new()
   self.relocationPointerCalculatorModal = RelocationPointerCalculatorModal.new()
+  self.nametableBreakpointCalculatorModal = NametableBreakpointCalculatorModal.new()
   self.taskbar = nil
   self.windowHeaderContextMenu = ContextualMenuController.new({
     getBounds = function()

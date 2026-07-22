@@ -1,8 +1,10 @@
+Note: this doc is AI-generated, and has been manually verified
+
 # Relocation Pointer Calculator — design
 
 Modal tool (not a project window) that turns a ROM **file** offset into the 2-byte little-endian CPU pointer used in `romPatches` when pairing with `relocateTo`.
 
-Opened from the **app top toolbar** (nametable-range icon). Ephemeral — never saved into projects.
+Opened from the **app top toolbar** (**R** calculator). Ephemeral — never saved into projects.
 
 Math:
 
@@ -14,7 +16,7 @@ hi  = (cpu >> 8) & 0xFF
 
 Defaults (Contra-style): header `0x10`, bank `0x4000`, CPU base `$8000`. Mapping knobs are dropdowns on the modal.
 
-Does **not** write ROM, set `relocateTo`, or invent the patch address. Finding the original pointer site stays a separate step (`misc/finding_nametable_pointers.md`).
+Does **not** write ROM, set `relocateTo`, or invent the patch address. Finding the original pointer site stays a separate step — see the full checklist in `misc/nametable_relocation_workflow.md` (and `misc/finding_nametable_pointers.md`).
 
 ---
 

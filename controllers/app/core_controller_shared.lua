@@ -92,6 +92,7 @@ M.APP_MODAL_KEYS_IN_ORDER = {
   "ppuFramePatternRangeModal",
   "textFieldDemoModal",
   "relocationPointerCalculatorModal",
+  "nametableBreakpointCalculatorModal",
 }
 
 --- After dispatching key to this modal, refresh the cursor (matches prior behavior).
@@ -126,6 +127,7 @@ M.APP_MODAL_TEXTINPUT_ROUTES = {
   { key = "ppuFramePatternRangeModal", method = "textinput" },
   { key = "textFieldDemoModal", method = "textinput" },
   { key = "relocationPointerCalculatorModal", method = "textinput" },
+  { key = "nametableBreakpointCalculatorModal", method = "textinput" },
 }
 
 --- Context menus hit-tested from core_controller_input (no E2E overlay).

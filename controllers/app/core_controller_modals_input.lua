@@ -94,4 +94,18 @@ function AppCoreController:showRelocationPointerCalculatorModal()
   return true
 end
 
+function AppCoreController:showNametableBreakpointCalculatorModal()
+  if not self.nametableBreakpointCalculatorModal then
+    return false
+  end
+  self.nametableBreakpointCalculatorModal:show({
+    statusCallback = function(message)
+      if self.setStatus then
+        self:setStatus(message)
+      end
+    end,
+  })
+  return true
+end
+
 end

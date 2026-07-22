@@ -44,6 +44,29 @@ describe("panel.lua", function()
     expect(component.h).toBe(24)
   end)
 
+  it("honors per-column cellWidths from Panel.new", function()
+    local panel = Panel.new({
+      cols = 2,
+      rows = 1,
+      cellW = 50,
+      cellH = 10,
+      padding = 0,
+      spacingX = 0,
+      cellWidths = {
+        [1] = 100,
+        [2] = 250,
+      },
+      visible = true,
+    })
+    expect(panel.w).toBe(350)
+    panel:setCell(1, 1, { text = "L" })
+    panel:setCell(2, 1, { text = "R" })
+    local left = panel:getCell(1, 1)
+    local right = panel:getCell(2, 1)
+    expect(left.w).toBe(100)
+    expect(right.w).toBe(250)
+  end)
+
   it("overwrites intersecting cells when a spanning cell covers them", function()
     local panel = Panel.new({
       cols = 3,

@@ -1,3 +1,5 @@
+Note: this doc is AI-generated, and has been manually verified
+
 # Finding nametable stream pointers (FCEUX)
 
 Goal: locate the **2-byte little-endian pointer in ROM** that tells the game where a compressed nametable stream starts (the bytes you later overwrite in `romPatches`).
@@ -133,4 +135,4 @@ This often beats PPU tile hunting once the stream location is known.
 3. Pick free `relocateTo` (same bank), compute new `lo`/`hi`.
 4. PPUX: layer `relocateTo = …` + `romPatches` at the pointer site with new `lo`, `hi`.
 
-Related: `misc/nametable_relocation.md` (math), `misc/relocation_pointer_calculator.md` (calculator UI).
+Related: `misc/nametable_relocation_workflow.md` (full relocate checklist), `misc/nametable_relocation.md` (math), `misc/relocation_pointer_calculator.md` (new pointer values), `misc/nametable_breakpoint_calculator.md` (PPU break address UI).

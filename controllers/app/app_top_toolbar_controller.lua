@@ -13,6 +13,8 @@ local M = {}
 
 --- CRT layer visualizer entry point; hidden until the feature is stable.
 local SHOW_CRT_LENS_TOOLBAR_BUTTON = false
+--- Breakpoint calculator; not needed for the usual relocate-via-hex-search workflow.
+local SHOW_NAMETABLE_BREAKPOINT_CALC_TOOLBAR_BUTTON = false
 
 local MIN_BAR_H = 15
 local OUTER_MARGIN = 0
@@ -322,7 +324,9 @@ local function ensureQuickButtons(app)
       enabled = false,
     }),
     relocationPointerCalc = Button.new({
-      icon = images.icons.tools.icon_calculator,
+      icon = (images.icons.tools and images.icons.tools.icon_relocation_calculator)
+        or images.icons.chrome.icon_empty
+        or images.icons.chrome.icon_scroll_toolbar_empty,
       tooltip = "Relocation pointer calculator",
       action = function()
         if app.showRelocationPointerCalculatorModal then
@@ -335,6 +339,24 @@ local function ensureQuickButtons(app)
       h = cell,
     }),
   }
+
+  if SHOW_NAMETABLE_BREAKPOINT_CALC_TOOLBAR_BUTTON then
+    app._appTopQuickButtons.nametableBreakpointCalc = Button.new({
+      icon = (images.icons.tools and images.icons.tools.icon_ppu_addr_breakpoint_calculator)
+        or images.icons.chrome.icon_empty
+        or images.icons.chrome.icon_scroll_toolbar_empty,
+      tooltip = "Nametable breakpoint calculator",
+      action = function()
+        if app.showNametableBreakpointCalculatorModal then
+          app:showNametableBreakpointCalculatorModal()
+        end
+      end,
+      x = 0,
+      y = 0,
+      w = cell,
+      h = cell,
+    })
+  end
 
   if SHOW_CRT_LENS_TOOLBAR_BUTTON then
     app._appTopQuickButtons.crtLens = Button.new({
@@ -359,7 +381,7 @@ local function hasOpenProject(app)
 end
 
 local function quickButtonOrder(app)
-  local order = { "open", "relocationPointerCalc" }
+  local order = { "open" }
   if hasOpenProject(app) then
     table.insert(order, 1, "newWindow")
     order[#order + 1] = "save"
@@ -378,6 +400,11 @@ local function quickButtonOrder(app)
   if SHOW_CRT_LENS_TOOLBAR_BUTTON then
     order[#order + 1] = "crtLens"
   end
+  if SHOW_NAMETABLE_BREAKPOINT_CALC_TOOLBAR_BUTTON then
+    order[#order + 1] = "nametableBreakpointCalc"
+  end
+  -- Always last among always-on tools (with or without a loaded ROM).
+  order[#order + 1] = "relocationPointerCalc"
   return order
 end
 
