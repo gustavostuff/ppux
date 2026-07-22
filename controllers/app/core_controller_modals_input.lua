@@ -80,4 +80,18 @@ function AppCoreController:showRomPaletteAddressModal(win, col, row)
   return true
 end
 
+function AppCoreController:showRelocationPointerCalculatorModal()
+  if not self.relocationPointerCalculatorModal then
+    return false
+  end
+  self.relocationPointerCalculatorModal:show({
+    statusCallback = function(message)
+      if self.setStatus then
+        self:setStatus(message)
+      end
+    end,
+  })
+  return true
+end
+
 end

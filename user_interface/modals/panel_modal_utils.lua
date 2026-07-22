@@ -208,6 +208,7 @@ function M.refreshModalChromeFromAppearanceChange(app)
     app.ppuFramePatternRangeModal,
     app.ppuFrameAddSpriteModal,
     app.textFieldDemoModal,
+    app.relocationPointerCalculatorModal,
   }
   for _, modal in ipairs(modals) do
     if modal and modal._uses_modal_default_bgColor == true then

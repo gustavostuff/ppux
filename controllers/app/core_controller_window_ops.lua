@@ -522,10 +522,11 @@ function AppCoreController:_afterPatternTableLinkChange(contentWin, layerIndex)
     and layer.kind == "tile"
     and layer._runtimePatternTableRefLayer ~= true
 
-  -- Linking swaps `layer.patternTable` to the PT window snapshot, but nametable visuals are
-  -- tile refs accumulated in layer.items via the *previous* mapping. Re-sync from nametableBytes.
-  if isPpuNametableTileLayer then
-    if contentWin.refreshNametableVisuals and self.appEditState then
+  -- Linking swaps `layer.patternTable` to the PT window snapshot. If the nametable
+  -- range was set before the pattern table was ready, hydrate now so attrs/tiles load.
+  if isPpuNametableTileLayer and type(self.hydrateNametableLayerIfReady) == "function" then
+    local hydrated = self:hydrateNametableLayerIfReady(contentWin, layer, layerIndex)
+    if not hydrated and contentWin.refreshNametableVisuals and self.appEditState then
       if type(layer.patternTable) == "table" and type(layer.patternTable.ranges) == "table" then
         local ensured = {}
         for _, r in ipairs(layer.patternTable.ranges) do

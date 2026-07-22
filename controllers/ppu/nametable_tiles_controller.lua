@@ -657,6 +657,10 @@ function M.hydrateWindowNametable(win, layer, opts)
   if #attrBytes ~= 64 then
     DebugController.log("info", "NTM", "ROM had %d attribute bytes, normalized to 64 bytes", #attrBytes)
   end
+  -- Keep ROM-decoded attrs (pre-overlay) so we only persist userDefinedAttrs when
+  -- they actually differ. Auto-stashing ROM bytes used to lock bad/zero first loads.
+  local romDecodedAttrBytes = copyBytes(win.nametableAttrBytes)
+  win._romDecodedNametableAttrBytes = romDecodedAttrBytes
   logPerf("ntm.copy_bytes", byteCopyStartedAt, string.format("title=%s", tostring(win.title or "")))
 
   -- Debug: Count unique attribute bytes loaded from ROM
@@ -854,18 +858,23 @@ function M.hydrateWindowNametable(win, layer, opts)
   end
   logPerf("ntm.extract_palette_numbers", paletteExtractStartedAt, string.format("title=%s", tostring(win.title or "")))
 
-  -- Keep runtime layer metadata aligned with current attribute bytes so
-  -- re-hydration preserves user-defined attributes instead of reusing ROM defaults.
+  -- Persist userDefinedAttrs only when they differ from the ROM decode. Always
+  -- writing ROM bytes here made a zero/truncated first load sticky across later
+  -- rehydrates (and project saves), masking real attribute data.
   local attrsHex = attrsToHexString(win.nametableAttrBytes)
-  if attrsHex then
+  local romAttrsHex = attrsToHexString(romDecodedAttrBytes)
+  local attrsDifferFromRom = attrsHex ~= nil and romAttrsHex ~= nil and attrsHex ~= romAttrsHex
+  if attrsDifferFromRom then
     layer.userDefinedAttrs = attrsHex
+  else
+    layer.userDefinedAttrs = nil
   end
 
   -- Project overlays are applied to in-memory nametable/attr bytes above, but the
   -- compressed stream in romRaw (including relocateTo copies) still holds the
   -- vanilla decode. Bake overlays now so the edited ROM matches the UI, and so
   -- an unchanged save reuses overlay-aware compressed bytes.
-  if appliedTileSwaps or appliedUserDefinedAttrs then
+  if appliedTileSwaps or attrsDifferFromRom then
     local bakeStartedAt = LoveCompat.getTime()
     local baked, bakeErr = M.bakeLoadedNametableOverlaysToRom(win, layer)
     if not baked then
@@ -884,7 +893,7 @@ function M.hydrateWindowNametable(win, layer, opts)
         "title=%s swaps=%s attrs=%s",
         tostring(win.title or ""),
         tostring(appliedTileSwaps),
-        tostring(appliedUserDefinedAttrs)
+        tostring(attrsDifferFromRom)
       )
     )
   end
@@ -1007,16 +1016,15 @@ function M.snapshotNametableLayer(win, layer)
     out.tileSwaps = encoded or swaps
   end
 
-  -- User-defined attribute bytes as hex string (64 bytes = 128 hex characters)
-  -- Convert attribute bytes array to hex string
+  -- User-defined attribute bytes as hex string (64 bytes = 128 hex characters).
+  -- Only persist when attrs differ from the ROM decode (same idea as tileSwaps).
   if win.nametableAttrBytes and #win.nametableAttrBytes >= 64 then
-    local hexParts = {}
-    for i = 1, 64 do
-      local byteVal = win.nametableAttrBytes[i] or 0x00
-      hexParts[i] = string.format("%02x", byteVal)
+    local attrsHex = attrsToHexString(win.nametableAttrBytes)
+    local romHex = attrsToHexString(win._romDecodedNametableAttrBytes)
+    if attrsHex and (not romHex or attrsHex ~= romHex) then
+      out.userDefinedAttrs = attrsHex
+      DebugController.log("info", "NTM", "snapshotNametableLayer: saving userDefinedAttrs (%d bytes as hex)", 64)
     end
-    out.userDefinedAttrs = table.concat(hexParts, "")
-    DebugController.log("info", "NTM", "snapshotNametableLayer: saving userDefinedAttrs (%d bytes as hex)", 64)
   end
 
   return out
@@ -1592,8 +1600,11 @@ function M.syncPeerPpuFrameNametableWindows(sourceWin, sourceLayer, opts)
           rebuildTileSwapsFromOriginals(peer)
 
           local attrsHex = attrsToHexString(peer.nametableAttrBytes)
-          if attrsHex then
+          local romHex = attrsToHexString(peer._romDecodedNametableAttrBytes or sourceWin._romDecodedNametableAttrBytes)
+          if attrsHex and (not romHex or attrsHex ~= romHex) then
             peerLayer.userDefinedAttrs = attrsHex
+          else
+            peerLayer.userDefinedAttrs = nil
           end
 
           local peerLi = findLayerIndex(peer, peerLayer) or 1

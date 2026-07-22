@@ -69,13 +69,29 @@ local function hydrateNametableLayerIfReady(app, win, layer, layerIndex)
     and type(win.nametableAttrBytes) == "table"
     and #win.nametableAttrBytes >= 64
   then
+    -- Preserve in-memory attr edits across rehydrate, but do not treat a pure
+    -- ROM decode (including an all-zero truncated first load) as an overlay.
     local hexParts = {}
     for i = 1, 64 do
       local byteVal = tonumber(win.nametableAttrBytes[i]) or 0x00
       if byteVal < 0 then byteVal = 0x00 elseif byteVal > 255 then byteVal = 255 end
       hexParts[i] = string.format("%02x", byteVal)
     end
-    layer.userDefinedAttrs = table.concat(hexParts, "")
+    local currentHex = table.concat(hexParts, "")
+    local romHex = nil
+    local romAttrs = win._romDecodedNametableAttrBytes
+    if type(romAttrs) == "table" and #romAttrs >= 64 then
+      local romParts = {}
+      for i = 1, 64 do
+        local byteVal = tonumber(romAttrs[i]) or 0x00
+        if byteVal < 0 then byteVal = 0x00 elseif byteVal > 255 then byteVal = 255 end
+        romParts[i] = string.format("%02x", byteVal)
+      end
+      romHex = table.concat(romParts, "")
+    end
+    if not romHex or currentHex ~= romHex then
+      layer.userDefinedAttrs = currentHex
+    end
   end
 
   local tilesPool = state.tilesPool
@@ -101,6 +117,10 @@ local function hydrateNametableLayerIfReady(app, win, layer, layerIndex)
     return false, err or "Failed to load PPU frame range"
   end
   return true, nil
+end
+
+function AppCoreController:hydrateNametableLayerIfReady(win, layer, layerIndex)
+  return hydrateNametableLayerIfReady(self, win, layer, layerIndex)
 end
 
 local getPpuPatternTableTargetLayer = function(win)

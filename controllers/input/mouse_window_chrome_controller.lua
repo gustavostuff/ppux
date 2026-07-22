@@ -372,7 +372,13 @@ function M.handleResizeHandle(button, x, y, wm)
 
   for i = #windows, 1, -1 do
     local w = windows[i]
-    if w == focused and not w._closed and not w._minimized and w._groupHidden ~= true and w:hitResizeHandle(x, y) then
+    if w == focused
+      and not w._closed
+      and not w._minimized
+      and w._groupHidden ~= true
+      and w.hitResizeHandle
+      and w:hitResizeHandle(x, y)
+    then
       w:mousepressed(x, y, button)
       return true
     end

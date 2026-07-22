@@ -321,6 +321,19 @@ local function ensureQuickButtons(app)
       h = cell,
       enabled = false,
     }),
+    relocationPointerCalc = Button.new({
+      icon = images.icons.tools.icon_calculator,
+      tooltip = "Relocation pointer calculator",
+      action = function()
+        if app.showRelocationPointerCalculatorModal then
+          app:showRelocationPointerCalculatorModal()
+        end
+      end,
+      x = 0,
+      y = 0,
+      w = cell,
+      h = cell,
+    }),
   }
 
   if SHOW_CRT_LENS_TOOLBAR_BUTTON then
@@ -346,7 +359,7 @@ local function hasOpenProject(app)
 end
 
 local function quickButtonOrder(app)
-  local order = { "open" }
+  local order = { "open", "relocationPointerCalc" }
   if hasOpenProject(app) then
     table.insert(order, 1, "newWindow")
     order[#order + 1] = "save"

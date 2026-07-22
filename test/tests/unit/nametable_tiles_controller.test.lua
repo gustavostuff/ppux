@@ -671,6 +671,7 @@ describe("nametable_tiles_controller.lua", function()
       expect(err).toBeNil()
       expect(win.nametableAttrBytes[64]).toBe(0x55)
       expect(win._originalNametableAttrBytes[64]).toBe(0x55)
+      expect(layer.userDefinedAttrs).toBe(attrsHex)
 
       local baked = {}
       for i = 0, math.max(#compressed, #(win._originalCompressedBytes or {})) - 1 do
@@ -699,6 +700,101 @@ describe("nametable_tiles_controller.lua", function()
       end
       local _, savedAttrs = NametableUtils.decode_compressed_nametable(saved, false, "zelda2")
       expect(savedAttrs[64]).toBe(0x55)
+    end)
+
+    it("does not lock ROM attrs into userDefinedAttrs on a clean hydrate", function()
+      local fixture = io.open("fixtures/zelda2_game_over_compressed.hex", "r")
+      local hex = fixture:read("*a")
+      fixture:close()
+      local compressed = NametableUtils.hex_to_bytes(hex)
+
+      local rom, romErr = chr.writeBytesToRange(string.rep("\0", 0x400), 0x10, #compressed, compressed)
+      expect(rom).toBeTruthy()
+      expect(romErr).toBeNil()
+
+      local win = {
+        kind = "ppu_frame",
+        cols = 32,
+        rows = 30,
+        layers = { { kind = "tile", name = "Nametable" } },
+        invalidateNametableLayerCanvas = function() end,
+      }
+      local layer = win.layers[1]
+      layer.patternTable = {
+        ranges = {
+          { bank = 9, from = 0, to = 255 },
+        },
+      }
+
+      local ok, err = NametableTilesController.hydrateWindowNametable(win, layer, {
+        romRaw = rom,
+        nametableStartAddr = 0x10,
+        nametableEndAddr = 0x10 + #compressed - 1,
+        codec = "zelda2",
+      })
+
+      expect(ok).toBe(true)
+      expect(err).toBeNil()
+      expect(#win.nametableAttrBytes).toBe(64)
+      expect(layer.userDefinedAttrs).toBeNil()
+
+      local snapshot = NametableTilesController.snapshotNametableLayer(win, layer)
+      expect(snapshot.userDefinedAttrs).toBeNil()
+    end)
+
+    it("does not let a zero-attr first hydrate block a later full decode", function()
+      local fixture = io.open("fixtures/zelda2_game_over_compressed.hex", "r")
+      local hex = fixture:read("*a")
+      fixture:close()
+      local compressed = NametableUtils.hex_to_bytes(hex)
+
+      -- Truncated stream: decode completes without writing attribute bytes (all zero).
+      local truncatedLen = math.max(8, math.floor(#compressed / 4))
+      local rom = string.rep("\0", 0x800)
+      rom = select(1, chr.writeBytesToRange(rom, 0x10, truncatedLen, compressed))
+      rom = select(1, chr.writeBytesToRange(rom, 0x200, #compressed, compressed))
+
+      local win = {
+        kind = "ppu_frame",
+        cols = 32,
+        rows = 30,
+        layers = { { kind = "tile", name = "Nametable" } },
+        invalidateNametableLayerCanvas = function() end,
+      }
+      local layer = win.layers[1]
+      layer.patternTable = {
+        ranges = {
+          { bank = 9, from = 0, to = 255 },
+        },
+      }
+
+      local ok1 = NametableTilesController.hydrateWindowNametable(win, layer, {
+        romRaw = rom,
+        nametableStartAddr = 0x10,
+        nametableEndAddr = 0x10 + truncatedLen - 1,
+        codec = "zelda2",
+      })
+      expect(ok1).toBe(true)
+      -- Old bug: this would stash string.rep("00", 64) and override the next hydrate.
+      expect(layer.userDefinedAttrs).toBeNil()
+
+      local ok2 = NametableTilesController.hydrateWindowNametable(win, layer, {
+        romRaw = rom,
+        nametableStartAddr = 0x200,
+        nametableEndAddr = 0x200 + #compressed - 1,
+        codec = "zelda2",
+        userDefinedAttrs = layer.userDefinedAttrs,
+      })
+      expect(ok2).toBe(true)
+      expect(layer.userDefinedAttrs).toBeNil()
+      local restoredNonZero = false
+      for i = 1, #win.nametableAttrBytes do
+        if (win.nametableAttrBytes[i] or 0) ~= 0 then
+          restoredNonZero = true
+          break
+        end
+      end
+      expect(restoredNonZero).toBe(true)
     end)
 
     it("bakes tileSwaps into romRaw on hydrate and keeps them in project snapshots", function()

@@ -358,6 +358,10 @@ function AppCoreController:mousereleased(x, y, b)
   local DebugController = require("controllers.dev.debug_controller")
   DebugController.log("info", "INPUT", "AppCoreController:mousereleased - screen: (%d, %d), canvas: (%.1f, %.1f), button: %d", x, y, mouse.x, mouse.y, b)
 
+  -- Finalize toolbar quick-button press even when a modal opened on mousepressed
+  -- (release would otherwise be eaten by the modal and leave the button stuck).
+  local clearedQuickButton = AppTopToolbarController.mousereleasedQuickButtons(self, mouse.x, mouse.y, b)
+
   if dispatchModalMouseReleased(self, mouse, b) then
     return
   end
@@ -376,7 +380,7 @@ function AppCoreController:mousereleased(x, y, b)
     return
   end
 
-  if AppTopToolbarController.mousereleasedQuickButtons(self, mouse.x, mouse.y, b) then
+  if clearedQuickButton then
     refreshCursor(self)
     return
   end

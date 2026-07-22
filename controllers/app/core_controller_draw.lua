@@ -540,6 +540,9 @@ local function drawOverlays(app)
   if app.textFieldDemoModal then
     app.textFieldDemoModal:draw(app.canvas)
   end
+  if app.relocationPointerCalculatorModal then
+    app.relocationPointerCalculatorModal:draw(app.canvas)
+  end
   drawToasts(app)
 end
 

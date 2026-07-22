@@ -28,9 +28,11 @@ describe("app_top_toolbar_controller.lua", function()
     expect(openButton).toBeTruthy()
     expect(newButton).toBeTruthy()
     expect(app._appTopQuickButtons.crtLens).toBe(nil)
-    -- No ROM: only Open is laid out in the strip.
+    -- No ROM: Open + relocation calculator are laid out in the strip.
     expect(openButton.x).toBe(0)
     expect(saveButton.x).toBe(0)
+    expect(app._appTopQuickButtons.relocationPointerCalc).toBeTruthy()
+    expect(app._appTopQuickButtons.relocationPointerCalc.x > openButton.x).toBe(true)
 
     local clickX = openButton.x + math.floor(openButton.w * 0.5)
     local clickY = openButton.y + math.floor(openButton.h * 0.5)
@@ -73,11 +75,13 @@ describe("app_top_toolbar_controller.lua", function()
     local pasteButton = app._appTopQuickButtons.paste
     local mirrorXButton = app._appTopQuickButtons.mirrorXPreview
     local alwaysOnTopButton = app._appTopQuickButtons.alwaysOnTop
+    local relocationCalcButton = app._appTopQuickButtons.relocationPointerCalc
 
     expect(app._appTopQuickButtons.crtLens).toBe(nil)
     expect(newButton.x).toBe(0)
     expect(openButton.x > newButton.x).toBe(true)
-    expect(saveButton.x > openButton.x).toBe(true)
+    expect(relocationCalcButton.x > openButton.x).toBe(true)
+    expect(saveButton.x > relocationCalcButton.x).toBe(true)
     expect(copyButton.x > saveButton.x).toBe(true)
     expect(cutButton.x > copyButton.x).toBe(true)
     expect(pasteButton.x > cutButton.x).toBe(true)
@@ -91,7 +95,8 @@ describe("app_top_toolbar_controller.lua", function()
 
     local inferredGap = openButton.x - (newButton.x + newButton.w)
     expect(openButton.x).toBe(newButton.x + newButton.w + inferredGap)
-    expect(saveButton.x).toBe(openButton.x + openButton.w + inferredGap)
+    expect(relocationCalcButton.x).toBe(openButton.x + openButton.w + inferredGap)
+    expect(saveButton.x).toBe(relocationCalcButton.x + relocationCalcButton.w + inferredGap)
     expect(copyButton.x).toBe(saveButton.x + saveButton.w + inferredGap)
     expect(cutButton.x).toBe(copyButton.x + copyButton.w + inferredGap)
     expect(pasteButton.x).toBe(cutButton.x + cutButton.w + inferredGap)
