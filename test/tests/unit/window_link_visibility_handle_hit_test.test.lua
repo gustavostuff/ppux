@@ -1,4 +1,5 @@
 local WindowLinkVisibility = require("controllers.window.window_link_visibility")
+local ResolutionController = require("controllers.app.resolution_controller")
 
 describe("window_link_visibility.lua - pivot handle hover hit test", function()
   local function makeWindow(opts)
@@ -88,5 +89,94 @@ describe("window_link_visibility.lua - pivot handle hover hit test", function()
     win, slot = WindowLinkVisibility.getTopLinkHandleAt(app, 190, 20, layouts)
     expect(win).toBe(front)
     expect(slot).toBe("layout_palette")
+  end)
+
+  it("does not treat handles under an open context menu as hovered", function()
+    local originalGetScaledMouse = ResolutionController.getScaledMouse
+    ResolutionController.getScaledMouse = function()
+      return { x = 10, y = 20 }
+    end
+
+    local win = makeWindow({ x = 0, y = 0 })
+    local app = {
+      windowLinksMode = "on_hover",
+      emptySpaceContextMenu = {
+        isVisible = function()
+          return true
+        end,
+        contains = function(_, px, py)
+          return px == 10 and py == 20
+        end,
+      },
+      wm = {
+        getWindows = function()
+          return { win }
+        end,
+      },
+    }
+    local edge = {
+      fromWin = win,
+      fromSlot = "ppu_palette",
+      toWin = win,
+      toSlot = "palette_source",
+    }
+    local layouts = {
+      [win] = {
+        ppu_palette = { cx = 10, cy = 20 },
+        palette_source = { cx = 40, cy = 20 },
+      },
+    }
+
+    expect(WindowLinkVisibility.isHoveringEdgeHandles(app, edge, layouts)).toBe(false)
+
+    app.emptySpaceContextMenu.contains = function()
+      return false
+    end
+    expect(WindowLinkVisibility.isHoveringEdgeHandles(app, edge, layouts)).toBe(true)
+
+    ResolutionController.getScaledMouse = originalGetScaledMouse
+  end)
+
+  it("does not treat handles under the taskbar main menu as hovered", function()
+    local originalGetScaledMouse = ResolutionController.getScaledMouse
+    ResolutionController.getScaledMouse = function()
+      return { x = 10, y = 20 }
+    end
+
+    local win = makeWindow({ x = 0, y = 0 })
+    local app = {
+      windowLinksMode = "on_hover",
+      taskbar = {
+        menuController = {
+          isVisible = function()
+            return true
+          end,
+          contains = function(_, px, py)
+            return px == 10 and py == 20
+          end,
+        },
+      },
+      wm = {
+        getWindows = function()
+          return { win }
+        end,
+      },
+    }
+    local edge = {
+      fromWin = win,
+      fromSlot = "pattern_source",
+      toWin = win,
+      toSlot = "ppu_pattern_bg",
+    }
+    local layouts = {
+      [win] = {
+        pattern_source = { cx = 10, cy = 20 },
+        ppu_pattern_bg = { cx = 40, cy = 20 },
+      },
+    }
+
+    expect(WindowLinkVisibility.isHoveringEdgeHandles(app, edge, layouts)).toBe(false)
+
+    ResolutionController.getScaledMouse = originalGetScaledMouse
   end)
 end)

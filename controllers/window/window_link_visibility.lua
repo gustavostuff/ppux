@@ -8,6 +8,7 @@ local PaletteLinkController = require("controllers.palette.palette_link_controll
 local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local LoveCompat = require("utils.love_compat")
+local Shared = require("controllers.app.core_controller_shared")
 
 --- Keep in sync with `HANDLE_OUTER_W` in window_link_visual_controller.lua.
 local HANDLE_OUTER_HIT_HALF = 4
@@ -241,6 +242,13 @@ function M.isHoveringEdgeHandles(app, edge, layouts)
     mx, my = LoveCompat.getMousePosition()
   end
   if type(mx) ~= "number" or type(my) ~= "number" then
+    return false
+  end
+  -- Menus/modals sit above workspace chrome; do not treat handles under them as hovered.
+  if Shared.modalBlocksWorkspaceInteractions(app) then
+    return false
+  end
+  if Shared.pointerOverOpenContextMenu(app, mx, my) then
     return false
   end
   if isHoveringTaskbarButton(app, edge.fromWin) or isHoveringTaskbarButton(app, edge.toWin) then

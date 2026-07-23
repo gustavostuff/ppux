@@ -321,6 +321,7 @@ local function captureTileClipboard(win, layer, layerIndex)
   return {
     kind = "tile",
     sourceWin = win,
+    sourceMirrorXPreview = win._mirrorXPreview == true,
     sourceSelectionMode = isChr8x16 and "8x16" or "8x8",
     entries = entries,
     width = (maxCol - minCol) + 1,
@@ -372,12 +373,48 @@ local function captureSpriteClipboard(win, layer)
   return {
     kind = "sprite",
     sourceWin = win,
+    sourceMirrorXPreview = win._mirrorXPreview == true,
     sourceSelectionMode = layer.mode or "8x8",
     entries = entries,
+    entryWidthPx = spriteW,
+    entryHeightPx = spriteH,
     widthPx = math.max(1, maxRight - minX),
     heightPx = math.max(1, maxBottom - minY),
     count = #entries,
   }
+end
+
+--- Group layout flip only when the source alone was Mirror-X.
+--- Destination Mirror X is handled by the window transform (and paste anchor), not by reordering.
+--- Does not flip per-item mirrorX/art.
+local function shouldMirrorClipboardGroupLayout(data, focus)
+  local srcMirror = data and data.sourceMirrorXPreview == true
+  local dstMirror = focus and focus._mirrorXPreview == true
+  return srcMirror and not dstMirror
+end
+
+local function mirrorTileClipboardGroupLayout(data)
+  if not (data and data.entries) then
+    return data
+  end
+  local maxOffsetCol = math.max(0, (data.width or 1) - 1)
+  for _, entry in ipairs(data.entries) do
+    entry.offsetCol = maxOffsetCol - (entry.offsetCol or 0)
+  end
+  return data
+end
+
+local function mirrorSpriteClipboardGroupLayout(data)
+  if not (data and data.entries) then
+    return data
+  end
+  local widthPx = math.max(1, data.widthPx or 1)
+  local spriteW = math.max(1, data.entryWidthPx or 8)
+  for _, entry in ipairs(data.entries) do
+    -- Position-only group mirror; leave each sprite's mirrorX flag alone.
+    entry.relX = widthPx - spriteW - (entry.relX or 0)
+  end
+  return data
 end
 
 local function buildSpriteClipboardFromTileClipboard(focus, layer, data)
@@ -489,8 +526,11 @@ local function buildSpriteClipboardFromTileClipboard(focus, layer, data)
   return {
     kind = "sprite",
     sourceWin = data.sourceWin,
+    sourceMirrorXPreview = data.sourceMirrorXPreview == true,
     sourceSelectionMode = srcMode,
     entries = entries,
+    entryWidthPx = cellW,
+    entryHeightPx = spriteHeight,
     widthPx = (maxRelX - minRelX) + cellW,
     heightPx = (maxRelY - minRelY) + spriteHeight,
     count = #entries,
@@ -546,6 +586,7 @@ local function buildTileClipboardFromSpriteClipboard(focus, data)
   return {
     kind = "tile",
     sourceWin = data.sourceWin,
+    sourceMirrorXPreview = data.sourceMirrorXPreview == true,
     sourceSelectionMode = "8x8",
     entries = entries,
     width = (maxCol - minCol) + 1,
@@ -692,6 +733,10 @@ local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
   end
   anchorCol = fittedCol
   anchorRow = fittedRow
+
+  if shouldMirrorClipboardGroupLayout(data, focus) then
+    mirrorTileClipboardGroupLayout(data)
+  end
 
   local selectedSet = {}
   local count = 0
@@ -890,6 +935,10 @@ local function pasteSpriteClipboard(ctx, focus, layer, data, opts)
   end
   anchorX = fittedX
   anchorY = fittedY
+
+  if shouldMirrorClipboardGroupLayout(data, focus) then
+    mirrorSpriteClipboardGroupLayout(data)
+  end
 
   local newIndices = {}
   local undoActions = {}

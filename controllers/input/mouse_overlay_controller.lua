@@ -8,6 +8,41 @@ local images = require("images")
 
 local M = {}
 
+--- Same Mirror X transform as layer draw so drop ghosts match final placement art+layout.
+local function pushDestMirrorGhostTransform(win)
+  if not (win and win._mirrorXPreview == true) then
+    return false
+  end
+  if WindowCaps.isAnyPaletteWindow(win) then
+    return false
+  end
+  local x, y, ww, wh
+  if type(win.getScreenRect) == "function" then
+    x, y, ww, wh = win:getScreenRect()
+  else
+    x, y = win.x, win.y
+    local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
+    ww = (win.cols or 0) * (win.cellW or 8) * z
+    wh = (win.rows or 0) * (win.cellH or 8) * z
+  end
+  if not (type(x) == "number" and type(y) == "number" and type(ww) == "number" and type(wh) == "number" and ww > 0) then
+    return false
+  end
+  love.graphics.push()
+  love.graphics.translate(x + ww, y)
+  love.graphics.scale(-1, 1)
+  love.graphics.translate(-x, -y)
+  return true
+end
+
+local function contentScreenOrigin(win)
+  local qx, qy = win.x, win.y
+  if type(win.getInsetContentScreenRect) == "function" then
+    qx, qy = win:getInsetContentScreenRect()
+  end
+  return qx, qy
+end
+
 local function resolvePreviewItem(win, item, layerIndex)
   if item == nil then
     return nil
@@ -157,6 +192,7 @@ function M.drawOverlay(env)
       ghostH = ghostH * 2
     end
   end
+  local dropTileGroup = MouseTileDropController.resolveDropTileGroup(drag.tileGroup, drag.srcWin, win)
 
   if hasTileGroup and srcIsChr then
     chrGroupDropState = MouseTileDropController.getHoverDropState(env, mouseX, mouseY, wm)
@@ -169,16 +205,18 @@ function M.drawOverlay(env)
     end
   end
 
+  -- Unmirrored screen anchors in layer/data space. When the destination has Mirror X,
+  -- ghosts are drawn under the same window transform as the final tiles (not per-item flips).
+  local anchorScreenX, anchorScreenY
+  local mirroredDest = pushDestMirrorGhostTransform(win)
+
   if isSpriteLayer and srcIsChr and not (env.isSpriteLayerDropBlocked and env.isSpriteLayerDropBlocked(win, layer, drag.srcWin)) then
     local scol = win.scrollCol or 0
     local srow = win.scrollRow or 0
+    local qx, qy = contentScreenOrigin(win)
     if chrGroupDropState and chrGroupDropState.anchorPixelX and chrGroupDropState.anchorPixelY then
-      local qx, qy = win.x, win.y
-      if type(win.getInsetContentScreenRect) == "function" then
-        qx, qy = win:getInsetContentScreenRect()
-      end
-      gx = qx + ((chrGroupDropState.anchorPixelX - scol * cw) * z)
-      gy = qy + ((chrGroupDropState.anchorPixelY - srow * ch) * z)
+      anchorScreenX = qx + ((chrGroupDropState.anchorPixelX - scol * cw) * z)
+      anchorScreenY = qy + ((chrGroupDropState.anchorPixelY - srow * ch) * z)
     else
       local smx, smy = mouseX, mouseY
       if win.remapPreviewMirrorScreenXYIfNeeded then
@@ -188,8 +226,8 @@ function M.drawOverlay(env)
       if win.screenToAbsoluteCanvasXY then
         pixelX, pixelY = win:screenToAbsoluteCanvasXY(smx, smy)
       else
-        local cx = (smx - win.x) / z
-        local cy = (smy - win.y) / z
+        local cx = (smx - qx) / z
+        local cy = (smy - qy) / z
         pixelX = cx + scol * cw
         pixelY = cy + srow * ch
       end
@@ -197,18 +235,19 @@ function M.drawOverlay(env)
       pixelX = math.floor(pixelX + 0.5)
       pixelY = math.floor(pixelY + 0.5)
 
-      local qx, qy = win.x, win.y
-      if type(win.getInsetContentScreenRect) == "function" then
-        qx, qy = win:getInsetContentScreenRect()
-      end
-      gx = qx + ((pixelX - scol * cw) * z)
-      gy = qy + ((pixelY - srow * ch) * z)
+      anchorScreenX = qx + ((pixelX - scol * cw) * z)
+      anchorScreenY = qy + ((pixelY - srow * ch) * z)
     end
+    gx = anchorScreenX
+    gy = anchorScreenY
   else
     local ok, col, row = win:toGridCoords(mouseX, mouseY)
     if not ok or type(col) ~= "number" or type(row) ~= "number" then
       col, row = MultiSelectController.getGridCoordsClamped(win, mouseX, mouseY)
       if type(col) ~= "number" or type(row) ~= "number" then
+        if mirroredDest then
+          love.graphics.pop()
+        end
         return
       end
     end
@@ -216,18 +255,30 @@ function M.drawOverlay(env)
     if hasTileGroup and srcIsChr and chrGroupDropState and chrGroupDropState.anchorCol and chrGroupDropState.anchorRow then
       col, row = chrGroupDropState.anchorCol, chrGroupDropState.anchorRow
     elseif hasTileGroup then
-      local anchorCol, anchorRow = MultiSelectController.clampTileDropAnchor(win, drag.tileGroup, col, row)
+      local anchorCol, anchorRow = MultiSelectController.clampTileDropAnchor(win, dropTileGroup or drag.tileGroup, col, row)
       if type(anchorCol) == "number" and type(anchorRow) == "number" then
         col, row = anchorCol, anchorRow
       else
+        if mirroredDest then
+          love.graphics.pop()
+        end
         return
       end
     end
 
     local scol = win.scrollCol or 0
     local srow = win.scrollRow or 0
-    gx = win.x + (((col - scol) * cw) * z)
-    gy = win.y + (((row - srow) * ch) * z)
+    local qx, qy = contentScreenOrigin(win)
+    anchorScreenX = qx + (((col - scol) * cw) * z)
+    anchorScreenY = qy + (((row - srow) * ch) * z)
+    gx = anchorScreenX
+    gy = anchorScreenY
+  end
+
+  local function finishOverlay()
+    if mirroredDest then
+      love.graphics.pop()
+    end
   end
 
   local function drawGhost(item, x, y, w, h, opts)
@@ -264,13 +315,15 @@ function M.drawOverlay(env)
     if chrGroupDropState.valid and chrGroupDropState.placements then
       local scol = win.scrollCol or 0
       local srow = win.scrollRow or 0
+      local qx, qy = contentScreenOrigin(win)
       for _, placement in ipairs(chrGroupDropState.placements) do
         if type(placement.col) == "number" and type(placement.row) == "number" then
-          local px = win.x + (((placement.col - scol) * cw) * z)
-          local py = win.y + (((placement.row - srow) * ch) * z)
+          local px = qx + (((placement.col - scol) * cw) * z)
+          local py = qy + (((placement.row - srow) * ch) * z)
           drawGhost(placement.item, px, py, cw * z, ch * z)
         end
       end
+      finishOverlay()
       return
     end
   end
@@ -278,9 +331,10 @@ function M.drawOverlay(env)
   if hasTileGroup and isSpriteLayer and srcIsChr and chrGroupDropState and chrGroupDropState.placements then
     local scol = win.scrollCol or 0
     local srow = win.scrollRow or 0
+    local qx, qy = contentScreenOrigin(win)
     for _, placement in ipairs(chrGroupDropState.placements) do
-      local px = win.x + ((placement.pixelX - scol * cw) * z)
-      local py = win.y + ((placement.pixelY - srow * ch) * z)
+      local px = qx + ((placement.pixelX - scol * cw) * z)
+      local py = qy + ((placement.pixelY - srow * ch) * z)
       local bottomPreviewItem = nil
       if (layer.mode or "8x8") == "8x16" then
         bottomPreviewItem = resolveChrBottomPreviewItem(env, placement.item, placement.bottomItem)
@@ -289,15 +343,20 @@ function M.drawOverlay(env)
         bottomItem = bottomPreviewItem,
       })
     end
+    finishOverlay()
     return
   end
 
   if hasTileGroup and not (isSpriteLayer and srcIsChr) then
-    for _, entry in ipairs(drag.tileGroup.entries or {}) do
+    local entries = (dropTileGroup and dropTileGroup.entries) or (drag.tileGroup.entries or {})
+    for _, entry in ipairs(entries) do
       local ox = (entry.offsetCol or 0) * cw * z
       local oy = (entry.offsetRow or 0) * ch * z
-      drawGhost(entry.item, gx + ox, gy + oy, cw * z, ch * z)
+      local px = (anchorScreenX or gx) + ox
+      local py = (anchorScreenY or gy) + oy
+      drawGhost(entry.item, px, py, cw * z, ch * z)
     end
+    finishOverlay()
     return
   end
 
@@ -308,6 +367,7 @@ function M.drawOverlay(env)
   drawGhost(drag.item, gx, gy, ghostW, ghostH, {
     bottomItem = bottomPreviewItem,
   })
+  finishOverlay()
 end
 
 return M

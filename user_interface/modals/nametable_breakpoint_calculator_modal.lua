@@ -49,7 +49,7 @@ rebuildPanel = function(self)
     cellH = self.cellH,
     cellWidths = {
       [1] = 100,
-      [2] = 200,
+      [2] = 360,
     },
     padding = self.padding,
     spacingX = self.buttonGap,

@@ -18,6 +18,7 @@ merge(scenarios, require("test.e2e_visible.scenarios.builders.grid_resize"))
 merge(scenarios, require("test.e2e_visible.scenarios.builders.toolbar_auto_placement_drag"))
 merge(scenarios, require("test.e2e_visible.scenarios.builders.open_project_flow"))
 merge(scenarios, require("test.e2e_visible.scenarios.builders.oam_animation_workflow"))
+merge(scenarios, require("test.e2e_visible.scenarios.builders.mirror_x_chr_drop"))
 
 return {
   scenarios = scenarios,

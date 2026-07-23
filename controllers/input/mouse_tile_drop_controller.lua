@@ -366,6 +366,79 @@ local function getEntriesSpan(entries)
   return (maxOffsetCol - minOffsetCol) + 1, (maxOffsetRow - minOffsetRow) + 1
 end
 
+local function windowHasMirrorXPreview(win)
+  return win ~= nil and win._mirrorXPreview == true and not WindowCaps.isAnyPaletteWindow(win)
+end
+
+--- Group layout flip only when the source alone is Mirror-X.
+--- Destination Mirror X remaps the drop point; the window transform mirrors the group as a whole.
+--- Flipping offsets for a mirrored dest double-applies layout and looks like per-tile mirrors.
+local function shouldMirrorGroupOffsetsForDrop(srcWin, dstWin)
+  return windowHasMirrorXPreview(srcWin) and not windowHasMirrorXPreview(dstWin)
+end
+
+local function copyEntryWithMirroredOffsetCol(entry)
+  local copy = {}
+  for k, v in pairs(entry) do
+    copy[k] = v
+  end
+  copy.offsetCol = -(entry.offsetCol or 0)
+  return copy
+end
+
+local function mirrorEntriesOffsetColsAroundAnchor(entries)
+  if not entries then
+    return nil
+  end
+  local out = {}
+  for i, entry in ipairs(entries) do
+    out[i] = copyEntryWithMirroredOffsetCol(entry)
+  end
+  return out
+end
+
+--- Horizontally mirror a drag group's offsets around the hover anchor (offset 0 stays under the cursor).
+local function mirrorTileGroupOffsetsAroundAnchor(group)
+  if not group then
+    return nil
+  end
+  local mirrored = {}
+  for k, v in pairs(group) do
+    mirrored[k] = v
+  end
+  mirrored.entries = mirrorEntriesOffsetColsAroundAnchor(group.entries)
+  if group.spriteEntries then
+    mirrored.spriteEntries = mirrorEntriesOffsetColsAroundAnchor(group.spriteEntries)
+  end
+  if group.minOffsetCol ~= nil or group.maxOffsetCol ~= nil then
+    local minC = group.minOffsetCol or 0
+    local maxC = group.maxOffsetCol or 0
+    mirrored.minOffsetCol = -maxC
+    mirrored.maxOffsetCol = -minC
+  end
+  if group.spriteMinOffsetCol ~= nil or group.spriteMaxOffsetCol ~= nil then
+    local minC = group.spriteMinOffsetCol or 0
+    local maxC = group.spriteMaxOffsetCol or 0
+    mirrored.spriteMinOffsetCol = -maxC
+    mirrored.spriteMaxOffsetCol = -minC
+  end
+  return mirrored
+end
+
+local function resolveDropTileGroup(group, srcWin, dstWin)
+  if not group then
+    return nil
+  end
+  if shouldMirrorGroupOffsetsForDrop(srcWin, dstWin) then
+    return mirrorTileGroupOffsetsAroundAnchor(group)
+  end
+  return group
+end
+
+function M.resolveDropTileGroup(group, srcWin, dstWin)
+  return resolveDropTileGroup(group, srcWin, dstWin)
+end
+
 local function getGroupSpriteFootprintRows(entries, layer)
   local spanRows = select(2, getEntriesSpan(entries))
   local mode = layer and layer.mode or "8x8"
@@ -408,10 +481,20 @@ local function getHoveredAnchorCell(dst, x, y)
   return nil, nil
 end
 
-local function getHoveredAnchorPixel(dst, x, y)
-  if not dst then return nil, nil end
-  if dst.isInContentArea and not dst:isInContentArea(x, y) then
+--- Layer/canvas pixel under the pointer (honors `_mirrorXPreview` via remap + inset origin).
+local function screenToLayerPixel(dst, x, y)
+  if not dst then
     return nil, nil
+  end
+  local sx, sy = x, y
+  if dst.remapPreviewMirrorScreenXYIfNeeded then
+    sx, sy = dst:remapPreviewMirrorScreenXYIfNeeded(x, y)
+  end
+  if dst.screenToAbsoluteCanvasXY then
+    local px, py = dst:screenToAbsoluteCanvasXY(sx, sy)
+    if type(px) == "number" and type(py) == "number" then
+      return math.floor(px + 0.5), math.floor(py + 0.5)
+    end
   end
 
   local z = (dst.getZoomLevel and dst:getZoomLevel()) or dst.zoom or 1
@@ -419,10 +502,24 @@ local function getHoveredAnchorPixel(dst, x, y)
   local ch = dst.cellH or 8
   local scol = dst.scrollCol or 0
   local srow = dst.scrollRow or 0
-  local cx = (x - dst.x) / z
-  local cy = (y - dst.y) / z
-
+  local originX, originY = dst.x, dst.y
+  if type(dst.getInsetContentScreenRect) == "function" then
+    local ox, oy = dst:getInsetContentScreenRect()
+    if type(ox) == "number" and type(oy) == "number" then
+      originX, originY = ox, oy
+    end
+  end
+  local cx = (sx - originX) / z
+  local cy = (sy - originY) / z
   return math.floor((cx + scol * cw) + 0.5), math.floor((cy + srow * ch) + 0.5)
+end
+
+local function getHoveredAnchorPixel(dst, x, y)
+  if not dst then return nil, nil end
+  if dst.isInContentArea and not dst:isInContentArea(x, y) then
+    return nil, nil
+  end
+  return screenToLayerPixel(dst, x, y)
 end
 
 local function getChrGroupEntriesForDestination(group, layer)
@@ -661,7 +758,10 @@ local function getChrGroupDropState(env, x, y, wm)
     return state
   end
 
-  local placementEntries = getChrGroupEntriesForDestination(drag.tileGroup, layer)
+  local dropTileGroup = resolveDropTileGroup(drag.tileGroup, drag.srcWin, dst)
+  state.dropTileGroup = dropTileGroup
+
+  local placementEntries = getChrGroupEntriesForDestination(dropTileGroup, layer)
   if not placementEntries or #placementEntries == 0 then
     return state
   end
@@ -912,17 +1012,13 @@ local function handleChrBankCopyToSpriteLayer(env, dst, x, y, drag, dstLayer)
     return false
   end
 
-  local z = (dst.getZoomLevel and dst:getZoomLevel()) or dst.zoom or 1
+  local pixelX, pixelY = screenToLayerPixel(dst, x, y)
+  if type(pixelX) ~= "number" or type(pixelY) ~= "number" then
+    return false
+  end
+
   local cw = dst.cellW or 8
   local ch = dst.cellH or 8
-  local scol = dst.scrollCol or 0
-  local srow = dst.scrollRow or 0
-
-  local cx = (x - dst.x) / z
-  local cy = (y - dst.y) / z
-  local pixelX = cx + scol * cw
-  local pixelY = cy + srow * ch
-
   local cols, rows = getSpriteLayerGridSize(dst, layer)
   local spriteRows = ((layer.mode or "8x8") == "8x16") and 2 or 1
   local spriteW = cw
@@ -1158,7 +1254,7 @@ function M.handleTileDrop(env, x, y, wm)
       end
     end
 
-    local applyResult = MultiSelectController.applyTileDragGroup(dst, dstLayer, drag.tileGroup, chrGroupState.anchorCol, chrGroupState.anchorRow, {
+    local applyResult = MultiSelectController.applyTileDragGroup(dst, dstLayer, chrGroupState.dropTileGroup or drag.tileGroup, chrGroupState.anchorCol, chrGroupState.anchorRow, {
       copyMode = true,
       srcWin = src,
       srcLayer = drag.srcLayer,
@@ -1224,7 +1320,8 @@ function M.handleTileDrop(env, x, y, wm)
       return true
     end
 
-    local anchorCol, anchorRow = MultiSelectController.clampTileDropAnchor(dst, drag.tileGroup, col, row)
+    local dropTileGroup = resolveDropTileGroup(drag.tileGroup, src, dst)
+    local anchorCol, anchorRow = MultiSelectController.clampTileDropAnchor(dst, dropTileGroup, col, row)
     if type(anchorCol) ~= "number" or type(anchorRow) ~= "number" then
       env.clearDragState(false)
       return true
@@ -1232,7 +1329,7 @@ function M.handleTileDrop(env, x, y, wm)
 
     local effectiveCopyMode = drag.copyMode == true or srcIsPatternTable
     if srcIsPatternTable and WindowCaps.isPpuFrame(dst) then
-      for _, entry in ipairs(drag.tileGroup.entries or {}) do
+      for _, entry in ipairs(dropTileGroup.entries or {}) do
         if not chrTileMappedToDestinationPpuPatternTable(dst, dstLayer, src, entry.item, drag.srcLayer) then
           notifyChrDropPatternTableRejected(env)
           env.clearDragState(false)
@@ -1244,18 +1341,18 @@ function M.handleTileDrop(env, x, y, wm)
     if recorder then
       local srcLayer = drag.srcLayer or 1
       if not effectiveCopyMode then
-        for _, entry in ipairs(drag.tileGroup.entries or {}) do
+        for _, entry in ipairs(dropTileGroup.entries or {}) do
           recorder.stageCell(src, srcLayer, entry.srcCol, entry.srcRow, entry.item)
         end
       end
-      for _, entry in ipairs(drag.tileGroup.entries or {}) do
+      for _, entry in ipairs(dropTileGroup.entries or {}) do
         local dstCol = anchorCol + (entry.offsetCol or 0)
         local dstRow = anchorRow + (entry.offsetRow or 0)
         recorder.stageCell(dst, dstLayer, dstCol, dstRow)
       end
     end
 
-    local applyResult = MultiSelectController.applyTileDragGroup(dst, dstLayer, drag.tileGroup, anchorCol, anchorRow, {
+    local applyResult = MultiSelectController.applyTileDragGroup(dst, dstLayer, dropTileGroup, anchorCol, anchorRow, {
       copyMode = effectiveCopyMode,
       srcWin = src,
       srcLayer = drag.srcLayer,

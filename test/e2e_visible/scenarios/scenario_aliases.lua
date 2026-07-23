@@ -29,6 +29,7 @@ local SCENARIO_ALIASES = {
   open_project_happy_path_demo = "open_project_happy_path",
   open_project_invalid_file_demo = "open_project_invalid_file",
   oam_animation_workflow_demo = "oam_animation_workflow",
+  mirror_x_chr_group_drop_demo = "mirror_x_chr_group_drop",
 }
 
 return SCENARIO_ALIASES

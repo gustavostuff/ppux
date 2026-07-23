@@ -554,6 +554,220 @@ describe("mouse_tile_drop_controller.lua - CHR grouped drag/drop", function()
     expect(clearedCommit).toBe(true)
   end)
 
+  it("maps sprite drop pixels through horizontal mirror preview", function()
+    local a = { id = "a", index = 4, _bankIndex = 1 }
+    local group = makeGroup({
+      { srcCol = 0, srcRow = 0, offsetCol = 0, offsetRow = 0, item = a },
+    })
+    local contentW, contentH = 64, 64
+    local dst = makeSpriteWindow(8, 8, "8x8")
+    dst._mirrorXPreview = true
+    dst.getZoomLevel = function()
+      return 1
+    end
+    dst.getInsetContentScreenRect = function()
+      return 0, 0, contentW, contentH
+    end
+    -- Real remap path: must flip even when another window (e.g. CHR source) has focus.
+    local Window = require("user_interface.windows_system.window")
+    dst.remapPreviewMirrorScreenXYIfNeeded = Window.remapPreviewMirrorScreenXYIfNeeded
+    dst.screenToAbsoluteCanvasXY = Window.screenToAbsoluteCanvasXY
+
+    local otherWin = { id = "chr" }
+    local previousCtx = rawget(_G, "ctx")
+    _G.ctx = {
+      app = {
+        wm = {
+          getFocus = function()
+            return otherWin
+          end,
+        },
+      },
+    }
+
+    local wm = {
+      windowAt = function()
+        return dst
+      end,
+      setFocus = function() end,
+    }
+
+    local screenX, screenY = 10, 20
+    local state = MouseTileDropController.getHoverDropState({
+      drag = {
+        active = true,
+        item = a,
+        tileGroup = group,
+        srcWin = { kind = "chr" },
+      },
+    }, screenX, screenY, wm)
+
+    expect(state.valid).toBe(true)
+    -- Visual drop at x=10 under mirror maps to layer x = 64 - 10.
+    expect(state.anchorPixelX).toBe(contentW - screenX)
+    expect(state.anchorPixelY).toBe(screenY)
+
+    local handled = MouseTileDropController.handleTileDrop({
+      ctx = {
+        app = {
+          appEditState = {
+            tilesPool = {
+              [1] = {
+                [4] = a,
+              },
+            },
+          },
+        },
+      },
+      drag = {
+        active = true,
+        item = a,
+        tileGroup = group,
+        srcWin = { kind = "chr" },
+        srcLayer = 1,
+      },
+      clearDragState = function() end,
+    }, screenX, screenY, wm)
+
+    expect(handled).toBe(true)
+    expect(dst.layers[1].items[1].worldX).toBe(contentW - screenX)
+    expect(dst.layers[1].items[1].worldY).toBe(screenY)
+
+    _G.ctx = previousCtx
+  end)
+
+  it("leaves multi-select offsets unchanged when only the target has Mirror X", function()
+    local group = makeGroup({
+      { srcCol = 0, srcRow = 0, offsetCol = 0, offsetRow = 0, item = { index = 1 } },
+      { srcCol = 2, srcRow = 0, offsetCol = 2, offsetRow = 0, item = { index = 2 } },
+    })
+    local src = { kind = "chr" }
+    local dst = { kind = "static_art", _mirrorXPreview = true }
+    local resolved = MouseTileDropController.resolveDropTileGroup(group, src, dst)
+    expect(resolved).toBe(group)
+    expect(resolved.entries[1].offsetCol).toBe(0)
+    expect(resolved.entries[2].offsetCol).toBe(2)
+  end)
+
+  it("mirrors multi-select offsets around the anchor when only the source has Mirror X", function()
+    local group = makeGroup({
+      { srcCol = 0, srcRow = 0, offsetCol = 0, offsetRow = 0, item = { index = 1 } },
+      { srcCol = 2, srcRow = 0, offsetCol = 2, offsetRow = 0, item = { index = 2 } },
+    })
+    local src = { kind = "chr", _mirrorXPreview = true }
+    local dst = { kind = "static_art" }
+    local resolved = MouseTileDropController.resolveDropTileGroup(group, src, dst)
+    expect(resolved.entries[1].offsetCol).toBe(0)
+    expect(resolved.entries[2].offsetCol).toBe(-2)
+    expect(resolved.minOffsetCol).toBe(-2)
+    expect(resolved.maxOffsetCol).toBe(0)
+  end)
+
+  it("does not flip group offsets when source and target are both Mirror X", function()
+    local group = makeGroup({
+      { offsetCol = 0, offsetRow = 0, item = { index = 1 } },
+      { offsetCol = 3, offsetRow = 0, item = { index = 2 } },
+    })
+    local src = { kind = "chr", _mirrorXPreview = true }
+    local dst = { kind = "static_art", _mirrorXPreview = true }
+    local resolved = MouseTileDropController.resolveDropTileGroup(group, src, dst)
+    expect(resolved).toBe(group)
+  end)
+
+  it("treats unflipped multi-select footprint as out-of-bounds near the visual edge of a Mirror X target", function()
+    local a = { id = "a", index = 4, _bankIndex = 1 }
+    local b = { id = "b", index = 5, _bankIndex = 1 }
+    local group = makeGroup({
+      { srcCol = 0, srcRow = 0, offsetCol = 0, offsetRow = 0, item = a },
+      { srcCol = 2, srcRow = 0, offsetCol = 2, offsetRow = 0, item = b },
+    })
+    local contentW = 64
+    local dst = makeSpriteWindow(8, 8, "8x8")
+    dst._mirrorXPreview = true
+    dst.getZoomLevel = function()
+      return 1
+    end
+    dst.getInsetContentScreenRect = function()
+      return 0, 0, contentW, 64
+    end
+    local Window = require("user_interface.windows_system.window")
+    dst.remapPreviewMirrorScreenXYIfNeeded = Window.remapPreviewMirrorScreenXYIfNeeded
+    dst.screenToAbsoluteCanvasXY = Window.screenToAbsoluteCanvasXY
+
+    local previousCtx = rawget(_G, "ctx")
+    _G.ctx = { app = { wm = { getFocus = function() return { id = "chr" } end } } }
+
+    local wm = {
+      windowAt = function()
+        return dst
+      end,
+    }
+
+    -- Visual x=10 -> remapped layer x=54. Source-relative offsets place at 54 and 70 (OOB).
+    -- Window Mirror X remaps the drop only; it does not flip group layout.
+    local state = MouseTileDropController.getHoverDropState({
+      drag = {
+        active = true,
+        item = a,
+        tileGroup = group,
+        srcWin = { kind = "chr" },
+      },
+    }, 10, 8, wm)
+
+    expect(state.valid).toBe(false)
+    expect(state.reason).toBe("out_of_bounds")
+    expect(state.anchorPixelX).toBe(54)
+
+    _G.ctx = previousCtx
+  end)
+
+  it("keeps source-relative multi-select footprint in-bounds after Mirror X remap with room to spare", function()
+    local a = { id = "a", index = 4, _bankIndex = 1 }
+    local b = { id = "b", index = 5, _bankIndex = 1 }
+    local group = makeGroup({
+      { srcCol = 0, srcRow = 0, offsetCol = 0, offsetRow = 0, item = a },
+      { srcCol = 2, srcRow = 0, offsetCol = 2, offsetRow = 0, item = b },
+    })
+    local contentW = 64
+    local dst = makeSpriteWindow(8, 8, "8x8")
+    dst._mirrorXPreview = true
+    dst.getZoomLevel = function()
+      return 1
+    end
+    dst.getInsetContentScreenRect = function()
+      return 0, 0, contentW, 64
+    end
+    local Window = require("user_interface.windows_system.window")
+    dst.remapPreviewMirrorScreenXYIfNeeded = Window.remapPreviewMirrorScreenXYIfNeeded
+    dst.screenToAbsoluteCanvasXY = Window.screenToAbsoluteCanvasXY
+
+    local previousCtx = rawget(_G, "ctx")
+    _G.ctx = { app = { wm = { getFocus = function() return { id = "chr" } end } } }
+
+    local wm = {
+      windowAt = function()
+        return dst
+      end,
+    }
+
+    -- Visual x=24 -> remapped layer x=40. Offsets 0 and +16 => 40 and 56 (valid).
+    local state = MouseTileDropController.getHoverDropState({
+      drag = {
+        active = true,
+        item = a,
+        tileGroup = group,
+        srcWin = { kind = "chr" },
+      },
+    }, 24, 8, wm)
+
+    expect(state.valid).toBe(true)
+    expect(state.reason).toBeNil()
+    expect(state.placements[1].pixelX).toBe(40)
+    expect(state.placements[2].pixelX).toBe(56)
+
+    _G.ctx = previousCtx
+  end)
+
   it("drops only the top refs from CHR 8x16 groups into 8x16 sprite layers", function()
     local t4 = { index = 4, _bankIndex = 1 }
     local t5 = { index = 5, _bankIndex = 1 }

@@ -36,6 +36,7 @@ SCENARIOS=(
   "open_project_happy_path"
   "open_project_invalid_file"
   "oam_animation_workflow"
+  "mirror_x_chr_group_drop"
 )
 
 pass_count=0

@@ -243,16 +243,10 @@ function Window:resizeToMinimum()
   end
 end
 
---- Horizontal mirror preview for this window (body flipped around `getInsetContentScreenRect()` when focused).
---- Remap pointer X so editing uses the same coordinate space as unmirrored layer data.
+--- Horizontal mirror preview for this window (body flipped whenever `_mirrorXPreview` is on,
+--- including while unfocused — same as layer draw). Remap pointer X into unmirrored layer space.
 function Window:remapPreviewMirrorScreenXYIfNeeded(px, py)
   if self._mirrorXPreview ~= true then
-    return px, py
-  end
-  local ctx = rawget(_G, "ctx")
-  local app = ctx and ctx.app
-  local wm = (ctx and ctx.wm and ctx.wm()) or (app and app.wm)
-  if not wm or wm:getFocus() ~= self then
     return px, py
   end
   if WindowCaps.isAnyPaletteWindow(self) then

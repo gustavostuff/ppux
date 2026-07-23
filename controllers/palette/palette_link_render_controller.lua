@@ -405,6 +405,10 @@ function M.getHoveredSourceSquareLinks(app)
   if app and Shared.modalBlocksWorkspaceInteractions(app) then
     return {}
   end
+  local mx, my = getScaledMousePosition()
+  if app and Shared.pointerOverOpenContextMenu(app, mx, my) then
+    return {}
+  end
   local wm = app and app.wm
   if not wm then
     return {}
@@ -470,6 +474,10 @@ function M.getHoveredDestinationLinks(app)
   if app and Shared.modalBlocksWorkspaceInteractions(app) then
     return {}
   end
+  local mx, my = getScaledMousePosition()
+  if app and Shared.pointerOverOpenContextMenu(app, mx, my) then
+    return {}
+  end
   local wm = app and app.wm
   if not wm then
     return {}
@@ -516,6 +524,10 @@ function M.getPersistentVisual(app, contentWin, paletteWin)
   end
   if mode == "on_hover" then
     if app and Shared.modalBlocksWorkspaceInteractions(app) then
+      return false, 1
+    end
+    local mx, my = getScaledMousePosition()
+    if app and Shared.pointerOverOpenContextMenu(app, mx, my) then
       return false, 1
     end
     return M.isMouseHoveringPaletteSourceSquare(paletteWin) or M.isMouseHoveringDestinationSquare(contentWin, paletteWin), 1
