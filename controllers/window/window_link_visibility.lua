@@ -10,8 +10,8 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local LoveCompat = require("utils.love_compat")
 local Shared = require("controllers.app.core_controller_shared")
 
---- Keep in sync with `HANDLE_OUTER_W` in window_link_visual_controller.lua.
-local HANDLE_OUTER_HIT_HALF = 4
+--- Keep in sync with `HANDLE_OUTER_W` / `getPivotHandleRect` in window_link_visual_controller.lua.
+local HANDLE_OUTER_SIZE = 7
 
 local M = {}
 
@@ -179,8 +179,66 @@ function M.isPointInHandle(cx, cy, x, y, pad)
     return false
   end
   pad = tonumber(pad) or 0
-  local half = HANDLE_OUTER_HIT_HALF + pad
-  return x >= (cx - half) and x <= (cx + half) and y >= (cy - half) and y <= (cy + half)
+  -- Match drawn 7x7 outer chrome (floor of center - size/2).
+  local ox = math.floor((tonumber(cx) or 0) - HANDLE_OUTER_SIZE * 0.5) - pad
+  local oy = math.floor((tonumber(cy) or 0) - HANDLE_OUTER_SIZE * 0.5) - pad
+  local size = HANDLE_OUTER_SIZE + (pad * 2)
+  return x >= ox and x < (ox + size) and y >= oy and y < (oy + size)
+end
+
+--- Resolve frontmost non-occluded pivot handle at (x,y). Builds layouts when omitted.
+function M.resolveTopLinkHandleAt(app, x, y, layouts)
+  if not (app and type(x) == "number" and type(y) == "number") then
+    return nil, nil, nil
+  end
+  if Shared.modalBlocksWorkspaceInteractions(app) then
+    return nil, nil, nil
+  end
+  if Shared.pointerOverOpenContextMenu(app, x, y) then
+    return nil, nil, nil
+  end
+
+  local state = nil
+  if not layouts then
+    local WindowLinkVisualController = require("controllers.window.window_link_visual_controller")
+    state = WindowLinkVisualController.prepareLinkDrawState(app)
+    layouts = state and state.layouts or nil
+  end
+  if not layouts then
+    return nil, nil, nil
+  end
+
+  local win, slot = M.getTopLinkHandleAt(app, x, y, layouts)
+  if not win then
+    return nil, nil, nil
+  end
+  return win, slot, state
+end
+
+function M.isPointOnLinkPivotHandle(app, x, y)
+  local win = M.resolveTopLinkHandleAt(app, x, y)
+  return win ~= nil
+end
+
+function M.getPivotHandleTooltipCandidateAt(app, x, y)
+  local win, slot, state = M.resolveTopLinkHandleAt(app, x, y)
+  if not (win and slot and state and state.layouts) then
+    return nil
+  end
+  local entry = state.layouts[win] and state.layouts[win][slot]
+  -- Empty chrome handles (no connection) are hoverable but should not advertise focus.
+  if not (entry and entry.pulseInner) then
+    return nil
+  end
+  return {
+    text = "Focus windows linked to this",
+    immediate = false,
+    key = string.format(
+      "window_link_handle:%s:%s",
+      tostring(win._id or win),
+      tostring(slot or "")
+    ),
+  }
 end
 
 local function isPointOccludedByForegroundWindowBody(windows, ownerIndex, x, y)

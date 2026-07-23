@@ -601,7 +601,7 @@ function M.buildAnchorLayouts(app, edges)
   local layouts = {}
   local handles = {}
   local wm = app and app.wm
-  if not wm then
+  if not (wm and wm.getWindows) then
     return layouts, handles
   end
 
@@ -1283,6 +1283,81 @@ function M.drawLinkLines(app)
   end
   M.drawWindowLinkLinesFrontmostOverlay(app, state)
   M.drawWindowLinkLinesToTaskbar(app, state)
+end
+
+function M.collectLinkedWindowsForSlot(edges, win, slot)
+  local partners = {}
+  if not (win and slot) then
+    return partners
+  end
+  local seen = {}
+  for _, edge in ipairs(edges or {}) do
+    local partner = nil
+    if edge.fromWin == win and edge.fromSlot == slot then
+      partner = edge.toWin
+    elseif edge.toWin == win and edge.toSlot == slot then
+      partner = edge.fromWin
+    end
+    if partner and partner ~= win and not seen[partner] and isLinkWindowEligible(partner) then
+      seen[partner] = true
+      partners[#partners + 1] = partner
+    end
+  end
+  return partners
+end
+
+local function activateLinkedWindow(app, win)
+  if not (app and win) or win._closed then
+    return false
+  end
+  local wm = app.wm
+  if not wm then
+    return false
+  end
+  if win._collapsed == true then
+    win._collapsed = false
+  end
+  if win._groupHidden == true and WindowCaps.isAnyPaletteWindow(win) and app.focusPaletteWindowWithGrouping then
+    app:focusPaletteWindowWithGrouping(win)
+  elseif win._groupHidden == true then
+    win._groupHidden = false
+  end
+  if win._minimized == true and wm.restoreMinimizedWindow then
+    wm:restoreMinimizedWindow(win, { recordUndo = false, focus = true })
+  elseif WindowCaps.isAnyPaletteWindow(win) and app.groupedPaletteWindows == true and app.focusPaletteWindowWithGrouping then
+    app:focusPaletteWindowWithGrouping(win)
+  elseif wm.setFocus then
+    wm:setFocus(win)
+  end
+  if wm.bringToFront and win._closed ~= true and win._minimized ~= true and win._groupHidden ~= true then
+    wm:bringToFront(win)
+  end
+  return true
+end
+
+--- Bring linked partner window(s) for this pivot slot to front and focus (unminimize first).
+function M.focusWindowsLinkedToHandle(app, win, slot, edges)
+  local partners = M.collectLinkedWindowsForSlot(edges or M.collectWindowLinkEdges(app), win, slot)
+  if #partners == 0 then
+    return false
+  end
+  for _, partner in ipairs(partners) do
+    activateLinkedWindow(app, partner)
+  end
+  return true
+end
+
+--- Left-click on a pivot handle: consume the hit and focus linked windows.
+function M.tryHandlePivotHandleClick(app, x, y, button)
+  if button ~= 1 then
+    return false
+  end
+  local handleWin, handleSlot = WindowLinkVisibility.resolveTopLinkHandleAt(app, x, y)
+  if not handleWin then
+    return false
+  end
+  M.focusWindowsLinkedToHandle(app, handleWin, handleSlot)
+  return true
 end
 
 return M

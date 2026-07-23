@@ -5,6 +5,7 @@ local MultiSelectController = require("controllers.input_support.multi_select_co
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local MouseWindowChromeController = require("controllers.input.mouse_window_chrome_controller")
+local WindowLinkVisualController = require("controllers.window.window_link_visual_controller")
 local StatusHelpers = require("utils.status_helpers")
 local LoveCompat = require("utils.love_compat")
 
@@ -1095,6 +1096,14 @@ local function handlePaletteDestinationLinkClick(env, button, x, y, wm)
   return false
 end
 
+local function handleWindowLinkPivotHandleClick(env, button, x, y)
+  local app = env.ctx and env.ctx.app or nil
+  if not app then
+    return false
+  end
+  return WindowLinkVisualController.tryHandlePivotHandleClick(app, x, y, button) == true
+end
+
 local function handlePaletteLinkContextClick(env, button, x, y, win, wm)
   if button ~= 1 and button ~= 2 and button ~= 3 then
     return false
@@ -1149,6 +1158,12 @@ function M.handleMousePressed(env, x, y, button)
   local wm = ctx.wm()
   local chrome = env.chrome
   local toolbarWin = chrome.findToolbarWindowAt and chrome.findToolbarWindowAt(x, y, wm) or nil
+
+  -- Pivot handles sit outside window bodies; consume before chrome/content so
+  -- clicks do not spill to windows behind or clear workspace focus.
+  if handleWindowLinkPivotHandleClick(env, button, x, y) then
+    return true
+  end
 
   if handlePaletteLinkContextClick(env, button, x, y, toolbarWin, wm) then
     return true

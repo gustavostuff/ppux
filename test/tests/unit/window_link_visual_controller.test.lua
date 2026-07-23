@@ -81,4 +81,145 @@ describe("window_link_visual_controller.lua", function()
     }
     expect(LinkVisual.prepareLinkDrawState(app)).toBe(nil)
   end)
+
+  it("collects partner windows for a pivot handle slot", function()
+    local a = { _id = "a" }
+    local b = { _id = "b" }
+    local c = { _id = "c" }
+    local edges = {
+      { fromWin = a, fromSlot = "palette_source", toWin = b, toSlot = "layout_palette" },
+      { fromWin = a, fromSlot = "palette_source", toWin = c, toSlot = "ppu_palette" },
+      { fromWin = b, fromSlot = "layout_palette", toWin = a, toSlot = "palette_source" },
+    }
+    local partners = LinkVisual.collectLinkedWindowsForSlot(edges, a, "palette_source")
+    expect(#partners).toBe(2)
+    expect(partners[1] == b or partners[2] == b).toBe(true)
+    expect(partners[1] == c or partners[2] == c).toBe(true)
+  end)
+
+  it("focuses and restores minimized partners when a pivot handle is clicked", function()
+    local restored = {}
+    local focused = {}
+    local brought = {}
+    local source = {
+      _id = "src",
+      _closed = false,
+      _minimized = false,
+      _groupHidden = false,
+      kind = "rom_palette",
+    }
+    local partner = {
+      _id = "dst",
+      _closed = false,
+      _minimized = true,
+      _groupHidden = false,
+      kind = "ppu_frame",
+    }
+    local app = {
+      windowLinksMode = "always",
+      wm = {
+        getWindows = function()
+          return { source, partner }
+        end,
+        restoreMinimizedWindow = function(_, win, opts)
+          restored[#restored + 1] = { win = win, focus = opts and opts.focus }
+          win._minimized = false
+          return true
+        end,
+        setFocus = function(_, win)
+          focused[#focused + 1] = win
+        end,
+        bringToFront = function(_, win)
+          brought[#brought + 1] = win
+        end,
+      },
+    }
+
+    local ok = LinkVisual.focusWindowsLinkedToHandle(app, source, "palette_source", {
+      {
+        fromWin = partner,
+        fromSlot = "ppu_palette",
+        toWin = source,
+        toSlot = "palette_source",
+        color = colors.blue,
+      },
+    })
+    expect(ok).toBe(true)
+    expect(#restored).toBe(1)
+    expect(restored[1].win).toBe(partner)
+    expect(restored[1].focus).toBe(true)
+    expect(#brought).toBe(1)
+    expect(brought[1]).toBe(partner)
+  end)
+
+  it("tryHandlePivotHandleClick consumes handle hits and ignores misses", function()
+    local partnerFocused = 0
+    local source = {
+      _id = "src",
+      _closed = false,
+      _minimized = false,
+      _groupHidden = false,
+      kind = "rom_palette",
+      x = 100,
+      y = 20,
+      w = 80,
+      h = 60,
+      getHeaderRect = function(self)
+        return self.x, self.y, self.w, 16
+      end,
+      getScreenRect = function(self)
+        return self.x, self.y, self.w, self.h
+      end,
+    }
+    local partner = {
+      _id = "dst",
+      _closed = false,
+      _minimized = false,
+      _groupHidden = false,
+      kind = "static_art",
+      x = 300,
+      y = 20,
+      w = 80,
+      h = 60,
+      layers = { { kind = "tile", paletteData = { winId = "src" } } },
+      getHeaderRect = function(self)
+        return self.x, self.y, self.w, 16
+      end,
+      getScreenRect = function(self)
+        return self.x, self.y, self.w, self.h
+      end,
+    }
+    local app = {
+      windowLinksMode = "always",
+      canvas = { getWidth = function() return 640 end, getHeight = function() return 360 end },
+      wm = {
+        getWindows = function()
+          return { source, partner }
+        end,
+        findWindowById = function(_, id)
+          if id == "src" then return source end
+          return nil
+        end,
+        setFocus = function(_, win)
+          if win == partner then
+            partnerFocused = partnerFocused + 1
+          end
+        end,
+        bringToFront = function() end,
+        getFocus = function()
+          return source
+        end,
+      },
+    }
+
+    local state = LinkVisual.prepareLinkDrawState(app)
+    expect(state).toBeTruthy()
+    local entry = state.layouts[source] and state.layouts[source].palette_source
+    expect(entry).toBeTruthy()
+
+    expect(LinkVisual.tryHandlePivotHandleClick(app, entry.cx, entry.cy, 1)).toBe(true)
+    expect(partnerFocused > 0).toBe(true)
+    expect(LinkVisual.tryHandlePivotHandleClick(app, entry.cx, entry.cy, 2)).toBe(false)
+    expect(LinkVisual.tryHandlePivotHandleClick(app, 0, 0, 1)).toBe(false)
+  end)
 end)

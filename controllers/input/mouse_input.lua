@@ -364,6 +364,7 @@ function M.mousepressed(x, y, button)
     beginContextMenuClick = beginContextMenuClick,
   }, x, y, button)
   logRoute("mousepressed", handled and "mouse_click_controller" or "unhandled", x, y, button, getFocusedWindowSafe())
+  return handled == true
 end
 
 function M.mousemoved(x, y, dx, dy)

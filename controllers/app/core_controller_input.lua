@@ -344,8 +344,8 @@ function AppCoreController:mousepressed(x, y, b)
     return
   end
 
-  UserInput.mousepressed(mouse.x, mouse.y, b)
-  if b == 1 and self.wm and self.wm.clearFocusOnWorkspaceMiss then
+  local inputHandled = UserInput.mousepressed(mouse.x, mouse.y, b)
+  if b == 1 and not inputHandled and self.wm and self.wm.clearFocusOnWorkspaceMiss then
     self.wm:clearFocusOnWorkspaceMiss(mouse.x, mouse.y)
   end
   refreshCursor(self)

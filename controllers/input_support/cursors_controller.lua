@@ -386,6 +386,11 @@ local function isHoveringHandTargetAt(app, mx, my)
     return true
   end
 
+  local WindowLinkVisibility = require("controllers.window.window_link_visibility")
+  if WindowLinkVisibility.isPointOnLinkPivotHandle(app, mx, my) then
+    return true
+  end
+
   local function toolbarInteractiveHit(toolbar)
     if not (toolbar and toolbar.contains and toolbar.getButtonAt) then
       return false

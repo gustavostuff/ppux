@@ -146,6 +146,14 @@ function AppCoreController:getTooltipCandidateAt(x, y)
     return topBarCandidate
   end
 
+  do
+    local WindowLinkVisibility = require("controllers.window.window_link_visibility")
+    local handleCandidate = WindowLinkVisibility.getPivotHandleTooltipCandidateAt(self, x, y)
+    if handleCandidate then
+      return handleCandidate
+    end
+  end
+
   if UserInput.getTooltipCandidate then
     local candidate = UserInput.getTooltipCandidate(x, y)
     if candidate then

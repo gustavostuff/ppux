@@ -1199,9 +1199,19 @@ end
 
 --- Clear keyboard/window focus when the click missed every window chrome/content surface (true empty workspace).
 function WM:clearFocusOnWorkspaceMiss(x, y)
-  if self:getTopInteractiveSurfaceWindowAt(x, y) == nil then
-    self:setFocus(nil)
+  if self:getTopInteractiveSurfaceWindowAt(x, y) ~= nil then
+    return
   end
+  -- Pivot handles sit outside window bodies; treat them as interactive so focus is kept.
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app or nil
+  if app then
+    local WindowLinkVisibility = require("controllers.window.window_link_visibility")
+    if WindowLinkVisibility.isPointOnLinkPivotHandle(app, x, y) then
+      return
+    end
+  end
+  self:setFocus(nil)
 end
 
 function WM:windowAt(x, y)
