@@ -2,7 +2,7 @@
 
 Open Source NES Art Editor
 
-Beta 0.1.5
+Beta 0.2.0
 
 <img src="img/readme_images/app_example.png" alt="">
 
@@ -636,9 +636,9 @@ Run a single scenario:
 
 See [E2E Testing](docs/test/E2E_TESTING.md) for scenario details and options.
 
-:white_check_mark: All 794 unit tests passing.
+:white_check_mark: All 1018 unit tests passing.
 
-:white_check_mark: All 24 E2E tests passing.
+:white_check_mark: All 28 E2E tests passing.
 
 ## Notes
 
