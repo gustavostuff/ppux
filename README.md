@@ -66,7 +66,7 @@ Create a folder, place your ROM inside it, then drag the ROM into PPUX. After th
 2. Open a DB layout
 3. Open a *.lua or *.ppux user project (if any)
 
-NOTE: You can also open a project from the app toolbar or with `Ctrl + O`
+NOTE: You can also open a project from the app toolbar or with `Ctrl + O`. After you have opened projects before, the taskbar **Recent projects** menu reopens them quickly.
 
 If a ROM has no DB entry yet, it can still be used normally. DB entries are just curated starting points. That said, any user can "pick" a game and start working on a user project that can be used for a new DB entry Pull Request. [See this section](#db-contribution-tracker).
 
@@ -113,12 +113,13 @@ With no ROM loaded, only **Open project** appears on the strip. After a ROM or p
 6. **Paste** - `Ctrl + V` (tile mode only for keyboard shortcuts)
 7. **Zoom out** - steps zoom on the **focused** window (palette windows are skipped); matches **Ctrl + wheel** down behavior
 8. **Zoom in** - **Ctrl + wheel** up on the focused window
-9. **Mirror X** - toggles horizontal mirror preview in the **focused** window. Shortcut: **`M`** (no modifiers). **CHR / ROM bank** and **pattern table** windows also use **`Ctrl + M`** for **8×8 vs 8×16 pair layout** (same cell size as CHR banks); see their toolbars below.
-10. **Always on top** - toggles whether the **focused** window stays above others. Also available from the window’s title-bar menu.
+9. **Mirror X** - toggles horizontal mirror preview in the **focused** window. Shortcut: **`M`** (no modifiers). **CHR / ROM bank** and **pattern table** windows also use **`Ctrl + M`** for **8x8 vs 8x16 pair layout** (same cell size as CHR banks); see their toolbars below.
+10. **Always on top** - toggles whether the **focused** window stays above others. Also available from the window's title-bar menu.
 11. **Add column to the right** - on grid-resizable layout windows only; hold **Shift** to switch the same control to **Remove last column** (tooltip updates)
 12. **Add row below** - on grid-resizable layout windows only; **Shift** switches to **Remove last row**
-13. **Clone focused window** - duplicate the current window’s kind and state where supported
+13. **Clone focused window** - duplicate the current window's kind and state where supported
 14. **Reference PNG** - add or remove a reference image on eligible **layout** windows (not CHR/ROM banks or palette windows). **`Alt + R`** toggles visibility while a reference is attached; removing uses the button and a confirm dialog.
+15. **Relocation pointer calculator** - helper for nametable **`relocateTo`** workflows: turns a ROM file offset into little-endian pointer bytes for `romPatches` (see [PPU frame windows](#ppu-frame-windows)).
 
 #### CHR Banks toolbar
 
@@ -128,7 +129,7 @@ With no ROM loaded, only **Open project** appears on the strip. After a ROM or p
 2. **Next bank** - `Right` key
 3. **Open base ROM folder** - opens your OS file manager on the folder that contains the loaded base ROM (disabled until PPUX knows a ROM path; tooltip explains *load ROM first* / *path unknown* states)
 4. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - **`Ctrl + M`**. **`M`** alone toggles **Mirror X** (same as the app toolbar).
-5. **Diff vs loaded CHR** - toggles “git-like” overlays on the bank canvas: compares current CHR tile bytes against the ROM’s CHR snapshot from when this session loaded (`D` shortcut with a CHR Banks window focused, no modifiers). When ON: **green** tint on tiles that changed, **dark** tint on unchanged tiles ([design detail](docs/ui/CHR_ROM_DIFF_MODE.md)).
+5. **Diff vs loaded CHR** - toggles "git-like" overlays on the bank canvas: compares current CHR tile bytes against the ROM's CHR snapshot from when this session loaded (`D` shortcut with a CHR Banks window focused, no modifiers). When ON: **green** tint on tiles that changed, **dark** tint on unchanged tiles ([design detail](docs/ui/CHR_ROM_DIFF_MODE.md)).
 6. **Sync duplicate tiles** - on: identical tiles edit together; off: independent cells
 
 #### ROM Banks toolbar
@@ -141,7 +142,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 <img src="img/readme_images/toolbars/pattern_table_toolbar.png" alt="Pattern table specialized toolbar">
 
-1. **Tile layout (8×8 / 8×16)** - straight `8×8` rows vs paired `8×16` layout - **`Ctrl + M`** (same cell-size convention as CHR / ROM banks). Disabled when the pattern table has no active tile layer.
+1. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - **`Ctrl + M`** (same cell-size convention as CHR / ROM banks). Disabled when the pattern table has no active tile layer.
 2. **Pattern table link (source)** - left-click for a menu: jump to linked consumer layer(s), or remove all links from this pattern table. Turns **green** when at least one consumer layer is linked.
 
 Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks** windows onto the pattern table canvas (not a toolbar button). Ranges must add up to **256** tiles for a complete map. Right-click a mapped cell for **Remove tile range at this tile**. Clipboard cut/paste is not available on pattern table windows.
@@ -162,7 +163,7 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 4. **Add layer** - `+` key
 5. **Copy from previous layer**
 6. **Play / Pause** - `P` key (any case); layer switching is blocked while playing
-7. **Frame delay** - `Shift` + `Left` / `Shift` + `Right` adjusts delay for all frames (0.10s–1.00s, 0.05s steps); status bar shows the current value
+7. **Frame delay** - `Shift` + `Left` / `Shift` + `Right` adjusts delay for all frames (0.10s-1.00s, 0.05s steps); status bar shows the current value
 8. **Palette link handle** - rightmost; same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
 
 
@@ -178,9 +179,9 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 6. **Toggle origin guides** - toggles dotted reference lines (visible when a sprite layer exists and is active)
 7. **Copy from previous layer**
 8. **Play / Pause** - `P` key; layer switching is blocked while playing
-9. **Frame delay** - `Shift` + `Left` / `Shift` + `Right` adjusts delay for all frames (0.10s–1.00s, 0.05s steps); status bar shows the current value
-9. **Pattern table link** - left-click for a menu to link or unlink a **Pattern table** window for **all frames** at once (**required** for sprite CHR). Turns **green** when every frame shares the same link.
-10. **Palette link handle** - rightmost; same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
+9. **Frame delay** - `Shift` + `Left` / `Shift` + `Right` adjusts delay for all frames (0.10s-1.00s, 0.05s steps); status bar shows the current value
+10. **Pattern table link** - left-click for a menu to link or unlink a **Pattern table** window for **all frames** at once (**required** for sprite CHR). Turns **green** when every frame shares the same link.
+11. **Palette link handle** - rightmost (bottom-most when collapsed), same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
 
 **Shift + right-drag** on the canvas moves sprite `originX` / `originY` (same as PPU Frame sprite layers).
 
@@ -242,10 +243,14 @@ In practice:
 * Drag from a **destination** window's connect handle (**Static Art**, **Animation** tiles/sprites, **OAM Animation**, etc.) and release over a **ROM palette** window, **or**
 * Use left-click for contextual menus (**Link To Palette**, **Remove ROM palette link**, **Jump to linked palette**, etc.)
 
+**On-canvas connection handles**
+
+Linked ROM palette / pattern-table windows also show small **squares** on the left edge of the window chrome. Hover shows the link lines (depending on **Settings -> Appearance -> Window links**). Click a connected square to **focus and raise** the linked window(s).
+
 ### Main controls
 
-- `Ctrl + 1/2/3`: set the **app window** to 1×, 2×, or 3× integer scale of the 640×360 canvas (e.g. 1280×720, 1920×1080)
-- `Ctrl + Page Up` / `Ctrl + Page Down`: cycle which **global** (**non-ROM**) palette is active - ROM palette windows are not cycled (same effect as “Set as active palette” on a global palette window; does not focus palette windows). When **Grouped palettes** is on, the grouped **global** slot (which palette is shown) stays in sync; needs at least two global palette windows
+- `Ctrl + 1/2/3`: set the **app window** to 1x, 2x, or 3x integer scale of the 640x360 canvas (e.g. 1280x720, 1920x1080)
+- `Ctrl + Page Up` / `Ctrl + Page Down`: cycle which **global** (**non-ROM**) palette is active - ROM palette windows are not cycled. When **Grouped palettes** is on, the grouped **global** slot (which palette is shown) stays in sync; needs at least two global palette windows
 - `Ctrl + F`: toggle fullscreen
 - `Ctrl + N`: open `New Window`
 - `Ctrl + S`: open save options
@@ -375,6 +380,8 @@ Best practice: keep the base ROM, edited ROM, and project files in the same fold
 
 Use **New Window > PPU Frame** and the in-app toolbars / context menus to edit nametables and sprites; saving the project persists layer state and nametable diffs.
 
+When a compressed nametable may grow past its original ROM range, set **`relocateTo`** on the nametable layer so PPUX writes the stream to a new file offset, and patch the game's read pointer with `romPatches`. The app toolbar **Relocation pointer calculator** converts a `relocateTo` file offset into the little-endian `lo`/`hi` bytes for that patch. That said, you need to manually find the ROM location of the original table pointers, so you can patch them to the new values.
+
 ### Byte budget for PPU Frame windows
 
 PPU Frame tile layers support `noOverflowSupported = true`. This means the compressed nametable stream should stay within its original ROM byte budget.
@@ -434,7 +441,7 @@ For sprite layers, `startAddr` is the most important field because it links the 
 
 ### Current nametable codec coverage
 
-PPUX currently includes nametable codec implementations for Konami-style streams (`konami.lua`) and Zelda II PPU macro streams (`zelda2.lua`). New codecs for different games/styles will be added as the app development progresses.
+PPUX currently includes nametable codec implementations for Konami-style streams (`konami.lua`) and Zelda II PPU macro streams (`zelda2.lua`). There is also an early **Zelda II: The Adventure of Link (USA)** DB layout. New codecs and DB entries for different games/styles will be added as the app development progresses.
 
 ### OAM animation windows
 
@@ -644,35 +651,35 @@ See [E2E Testing](docs/test/E2E_TESTING.md) for scenario details and options.
 
 ### Display resolution
 
-The entire UI is rendered to a **640×360** canvas (16:9). That base size is deliberate: it scales to common monitor resolutions with **integer pixel multiples** and no fuzzy fractional upscaling:
+The entire UI is rendered to a **640x360** canvas (16:9). That base size is deliberate: it scales to common monitor resolutions with **integer pixel multiples** and no fuzzy fractional upscaling:
 
-- **2×** — 720p (1280×720)
-- **3×** — 1080p (1920×1080)
-- **4×** — 1440p (2560×1440)
-- **6×** — 4K (3840×2160)
+- **2x** - 720p (1280x720)
+- **3x** - 1080p (1920x1080)
+- **4x** - 1440p (2560x1440)
+- **6x** - 4K (3840x2160)
 
-Every UI pixel stays crisp when the OS window is sized to those integer multiples. Use **`Ctrl + 1/2/3`** to snap the app window to 1×, 2×, or 3× scale (640×360, 1280×720, 1920×1080), or resize freely. **Settings → Appearance → Canvas scale** controls how the workspace fits inside the window when it is not an exact multiple (see below).
+Every UI pixel stays crisp when the OS window is sized to those integer multiples. Use **`Ctrl + 1/2/3`** to snap the app window to 1x, 2x, or 3x scale (640x360, 1280x720, 1920x1080), or resize freely. **Settings -> Appearance -> Canvas scale** controls how the workspace fits inside the window when it is not an exact multiple (see below).
 
 ### Canvas scale and filter
 
-Open **Settings** from the taskbar menu (**Appearance** tab) to control how the 640×360 workspace is presented on screen. These options persist across sessions.
+Open **Settings** from the taskbar menu (**Appearance** tab) to control how the 640x360 workspace is presented on screen. These options persist across **sessions only**.
 
-**Canvas scale** — how the workspace fits the OS window:
+**Canvas scale** - how the workspace fits the OS window:
 
-- **Keep aspect** — scale uniformly to fill the window while preserving 16:9 (default)
-- **Pixel-perfect** — integer scaling only; may letterbox, but keeps UI pixels sharp
-- **Stretch** — fill the window on both axes; can distort if the window is not 16:9
+- **Keep aspect** - scale uniformly to fill the window while preserving 16:9 (default)
+- **Pixel-perfect** - integer scaling only; may letterbox, but keeps UI pixels sharp
+- **Stretch** - fill the window on both axes; can distort if the window is not 16:9
 
-**Canvas filter** — how scaled pixels are sampled:
+**Canvas filter** - how scaled pixels are sampled:
 
-- **Sharp** — nearest-neighbor filtering for crisp pixels (default)
-- **Soft** — linear filtering for a smoother upscale
-- **CRT** — barrel distortion and scanlines over the workspace (works best at 1080p and higher)
+- **Sharp** - nearest-neighbor filtering for crisp pixels (default)
+- **Soft** - linear filtering for a smoother upscale
+- **CRT** - barrel distortion and scanlines over the workspace (works best at 1080p and higher)
 
 Other **Appearance** options:
 
-- **Window links** — when to show on-canvas ROM palette / pattern-table link lines and left-edge pivot handles (`never`, `on_hover`, `always`, `auto_hide`)
-- **Separate toolbar** — detach specialized toolbars from window headers
+- **Window links** - when to show on-canvas ROM palette / pattern-table link lines and left-edge connection handles (`never`, **`on_hover`** default, `always`, `auto_hide`)
+- **Separate toolbar** - detach specialized toolbars from window headers
 
 ### Built with LÖVE
 
