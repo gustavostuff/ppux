@@ -15,7 +15,7 @@ local DEFAULT_SETTINGS = {
   tooltipsEnabled = true,
   canvasImageMode = "keep_aspect",
   canvasFilter = "sharp",
-  windowLinks = "auto_hide",
+  windowLinks = "on_hover",
   separateToolbar = false,
   --- Window-attached toolbar strip: top | left | right | bottom | auto.
   windowToolbarPlacement = "auto",
@@ -151,7 +151,7 @@ local function normalizeWindowLinksKey(key, data)
   if data then
     return WindowLinkVisibility.normalizeLinkMode(data.paletteLinks or data.patternTableLinks)
   end
-  return "auto_hide"
+  return "on_hover"
 end
 
 local function normalizeWindowToolbarPlacementKey(key)

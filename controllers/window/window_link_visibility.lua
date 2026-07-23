@@ -53,7 +53,7 @@ function M.normalizeLinkMode(mode)
   if mode == "auto_hide" then
     return "auto_hide"
   end
-  return "auto_hide"
+  return "on_hover"
 end
 
 function M.getWindowLinksMode(app)

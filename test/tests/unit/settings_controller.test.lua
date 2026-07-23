@@ -9,7 +9,7 @@ describe("settings_controller.lua - defaults", function()
       tooltipsEnabled = true,
       canvasImageMode = "keep_aspect",
       canvasFilter = "sharp",
-      windowLinks = "auto_hide",
+      windowLinks = "on_hover",
       separateToolbar = false,
       windowToolbarPlacement = "auto",
       neverShowResizeHandle = false,

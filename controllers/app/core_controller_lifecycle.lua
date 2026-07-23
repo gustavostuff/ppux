@@ -377,7 +377,7 @@ function AppCoreController:load()
   if initialCrtMode and self.crtFilterKind == "composite" and self._applyCanvasFilterSetting then
     self:_applyCanvasFilterSetting("soft", false)
   end
-  self:_applyWindowLinksSetting((settings and settings.windowLinks) or "auto_hide", false)
+  self:_applyWindowLinksSetting((settings and settings.windowLinks) or "on_hover", false)
   self:_applyTooltipsEnabledSetting((settings and settings.tooltipsEnabled) ~= false, false)
   self:_applySeparateToolbarSetting((settings and settings.separateToolbar) == true, false)
   self:_applyWindowToolbarPlacementSetting(
