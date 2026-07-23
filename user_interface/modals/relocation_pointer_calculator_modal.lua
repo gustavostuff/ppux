@@ -5,6 +5,7 @@ local TextField = require("user_interface.text_field")
 local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
 local RelocationPointerMath = require("utils.relocation_pointer_math")
 local LoveCompat = require("utils.love_compat")
+local colors = require("app_colors")
 
 local Dialog = {}
 Dialog.__index = Dialog
@@ -176,8 +177,12 @@ rebuildPanel = function(self)
     component = self.clearButton,
   })
   self.panel:setCell(1, 8, {
-    text = self.resultLabel or "Pointer bytes  --",
-    colspan = 3,
+    text = "Pointer bytes",
+  })
+  self.panel:setCell(2, 8, {
+    text = self.resultBytesLabel or "--",
+    colspan = 2,
+    textColor = (self.resultLo ~= nil) and colors.green or nil,
   })
   self.panel:setCell(1, 9, {
     component = self.copyLoButton,
@@ -218,7 +223,7 @@ end
 clearResults = function(self)
   self.resultLo = nil
   self.resultHi = nil
-  self.resultLabel = "Pointer bytes  --"
+  self.resultBytesLabel = "--"
   setCopyEnabled(self, false)
 end
 
@@ -247,7 +252,7 @@ function Dialog.new()
     panel = nil,
     resultLo = nil,
     resultHi = nil,
-    resultLabel = "Pointer bytes  --",
+    resultBytesLabel = "--",
     statusCallback = nil,
     _canvasW = nil,
     _canvasH = nil,
@@ -407,7 +412,7 @@ function Dialog:calculate()
   self.resultHi = hi
   local loHex = RelocationPointerMath.formatByte(lo)
   local hiHex = RelocationPointerMath.formatByte(hi)
-  self.resultLabel = string.format("Pointer bytes    %s  %s  (lo, hi)", loHex, hiHex)
+  self.resultBytesLabel = string.format("%s  %s  (lo, hi)", loHex, hiHex)
   setCopyEnabled(self, true)
   rebuildPanel(self)
   self:_setStatus(string.format("Pointer %s %s", loHex, hiHex))

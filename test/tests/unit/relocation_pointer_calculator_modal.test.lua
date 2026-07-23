@@ -17,7 +17,7 @@ describe("relocation_pointer_calculator_modal.lua", function()
     expect(modal.resultHi).toBe(0xB2)
     expect(modal.offsetField:getText()).toBe("0x013300")
     expect(modal.copyLoButton.enabled).toBe(true)
-    expect(modal.resultLabel).toBe("Pointer bytes    F0  B2  (lo, hi)")
+    expect(modal.resultBytesLabel).toBe("F0  B2  (lo, hi)")
     expect(#statuses).toBeGreaterThan(0)
   end)
 
