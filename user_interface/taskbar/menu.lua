@@ -192,7 +192,8 @@ function M.install(Taskbar, Helpers)
     end
 
     for ri, path in ipairs(recent) do
-      local dir, stem = Helpers.splitPath(path)
+      local projectPath = path
+      local dir, stem = Helpers.splitPath(projectPath)
       local label = stem
       if (stemCounts[stem] or 0) > 1 then
         local folder = Helpers.baseName(dir)
@@ -201,11 +202,11 @@ function M.install(Taskbar, Helpers)
       entries[#entries + 1] = {
         icon = (self._menuIcons and self._menuIcons.recentProjectItem) or nil,
         text = label,
-        tooltip = RomProjectController.resolveRecentProjectTooltipPath(path),
+        tooltip = RomProjectController.resolveRecentProjectTooltipPath(projectPath),
         menuGroup = "tb_recent_" .. tostring(ri),
         callback = function()
           if self.app and self.app.openRecentProject then
-            self.app:openRecentProject(path)
+            self.app:openRecentProject(projectPath)
           end
         end,
       }

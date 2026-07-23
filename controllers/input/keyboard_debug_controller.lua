@@ -14,7 +14,7 @@ local function handleUnifiedDebugHotkey(ctx)
 end
 
 function M.handleDebugKeys(ctx, utils, key)
-  if key == "f8" or key == "f9" then
+  if key == "f8" then
     return handleUnifiedDebugHotkey(ctx)
   end
 

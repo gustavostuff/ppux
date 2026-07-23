@@ -58,14 +58,11 @@ describe("keyboard_debug_controller.lua", function()
     expect(statusMessages[#statusMessages]).toBe("Dev HUD disabled")
   end)
 
-  it("keeps f9 as an alias for the unified dev hud", function()
+  it("does not bind f9 to the unified dev hud", function()
     local cycled = 0
     DebugController.cycleHudMode = function()
       cycled = cycled + 1
       return "perf"
-    end
-    DebugController.getHudModeLabel = function(mode)
-      return tostring(mode)
     end
 
     local handled = KeyboardDebugController.handleDebugKeys({
@@ -74,9 +71,9 @@ describe("keyboard_debug_controller.lua", function()
       end,
     }, {}, "f9")
 
-    expect(handled).toBeTruthy()
-    expect(cycled).toBe(1)
-    expect(statusMessages[#statusMessages]).toBe("Dev HUD mode: perf")
+    expect(handled).toBeFalsy()
+    expect(cycled).toBe(0)
+    expect(#statusMessages).toBe(0)
   end)
 
   it("handles f7 and clears only when debug is enabled", function()

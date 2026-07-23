@@ -127,7 +127,7 @@ function Dialog.new()
     padding = nil,
     colGap = nil,
     rowGap = nil,
-    cellW = nil,
+    cellW = 70,
     cellH = nil,
     bgColor = nil,
     cellPaddingX = nil,

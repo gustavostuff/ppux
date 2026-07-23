@@ -159,6 +159,28 @@ function M.buildExtraGeneralRows(ctx)
         end,
       },
     },
+    {
+      id = "clear_recent_projects",
+      label = "Recent projects",
+      buttonSpec = {
+        id = "clear_recent_projects",
+        getText = function()
+          local n = 0
+          if ctx.getRecentProjectsCount then
+            n = tonumber(ctx.getRecentProjectsCount()) or 0
+          end
+          if n > 0 then
+            return string.format("Clear (%d)", n)
+          end
+          return "Clear"
+        end,
+        action = function()
+          if ctx.clearRecentProjects then
+            ctx.clearRecentProjects()
+          end
+        end,
+      },
+    },
   }
   if ctx.crtModeEnabled then
     if ctx.showCrtCanvasResolutionSetting then

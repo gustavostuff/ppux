@@ -31,13 +31,32 @@ describe("settings_modal_fields.lua", function()
     local rows = SettingsFields.buildExtraGeneralRows({
       getGroupedPaletteWindows = function() return false end,
       applyGroupedPaletteWindows = function() end,
+      getRecentProjectsCount = function() return 0 end,
+      clearRecentProjects = function() end,
       crtModeEnabled = true,
       crtFilterKind = "curve",
       crtCurveSlider = slider,
       showCrtCanvasResolutionSetting = false,
     })
-    expect(#rows).toBe(2)
+    expect(#rows).toBe(3)
     expect(rows[1].id).toBe("grouped_palette_windows")
-    expect(rows[2].component).toBe(slider)
+    expect(rows[2].id).toBe("clear_recent_projects")
+    expect(rows[3].component).toBe(slider)
+  end)
+
+  it("shows recent project count on the clear button", function()
+    local cleared = false
+    local rows = SettingsFields.buildExtraGeneralRows({
+      getGroupedPaletteWindows = function() return false end,
+      getRecentProjectsCount = function() return 3 end,
+      clearRecentProjects = function()
+        cleared = true
+      end,
+    })
+    local clearRow = rows[2]
+    expect(clearRow.id).toBe("clear_recent_projects")
+    expect(clearRow.buttonSpec.getText()).toBe("Clear (3)")
+    clearRow.buttonSpec.action()
+    expect(cleared).toBe(true)
   end)
 end)

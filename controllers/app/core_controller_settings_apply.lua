@@ -1193,6 +1193,18 @@ function AppCoreController:showSettingsModal()
         applyGroupedPaletteWindows = function(enabled)
           appRef:_applyGroupedPaletteWindowsSetting(enabled, true)
         end,
+        getRecentProjectsCount = function()
+          local list = appRef.getRecentProjects and appRef:getRecentProjects() or {}
+          return #list
+        end,
+        clearRecentProjects = function()
+          if appRef.clearRecentProjects then
+            appRef:clearRecentProjects()
+          end
+          if appRef._refreshSettingsModalIfOpen then
+            appRef:_refreshSettingsModalIfOpen()
+          end
+        end,
         crtModeEnabled = appRef.crtModeEnabled,
         crtFilterKind = appRef.crtFilterKind,
         crtCurveSlider = appRef._crtCurveSlider,

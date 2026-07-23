@@ -270,10 +270,27 @@ function AppCoreController:setRecentProjects(list, opts)
   return self.recentProjects
 end
 
+function AppCoreController:clearRecentProjects(opts)
+  opts = opts or {}
+  local cleared = self:setRecentProjects({}, opts)
+  if opts.status ~= false and self.setStatus then
+    self:setStatus("Recent projects cleared.")
+  end
+  if opts.toast ~= false and self.showToast then
+    self:showToast("info", "Recent projects cleared.")
+  end
+  return cleared
+end
+
 function AppCoreController:recordRecentProject(path, opts)
   opts = opts or {}
+  local DebugController = require("controllers.dev.debug_controller")
+  DebugController.log("info", "RECENT_PROJECT", "recordRecentProject: input=%q", tostring(path))
   local updated = AppSettingsController.addRecentProject(path, self.recentProjects or {}, 4)
   self.recentProjects = updated
+  for i, stored in ipairs(updated) do
+    DebugController.log("info", "RECENT_PROJECT", "recordRecentProject: stored[%d]=%q", i, tostring(stored))
+  end
   if opts.persist ~= false then
     AppSettingsController.save({ recentProjects = updated })
   end
@@ -281,14 +298,36 @@ function AppCoreController:recordRecentProject(path, opts)
 end
 
 function AppCoreController:openRecentProject(basePath)
-  local targetPath = RomProjectController.resolveRecentProjectLoadPath(basePath)
+  local DebugController = require("controllers.dev.debug_controller")
+  local recent = self.getRecentProjects and self:getRecentProjects() or {}
+  DebugController.log(
+    "info",
+    "RECENT_PROJECT",
+    "openRecentProject: requested=%q recentCount=%d",
+    tostring(basePath),
+    #recent
+  )
+  for i, stored in ipairs(recent) do
+    DebugController.log("info", "RECENT_PROJECT", "openRecentProject: recent[%d]=%q", i, tostring(stored))
+  end
+
+  local targetPath = RomProjectController.resolveRecentProjectLoadPath(basePath, { log = true })
   if not targetPath then
+    DebugController.log(
+      "error",
+      "RECENT_PROJECT",
+      "openRecentProject: NOT FOUND for basePath=%q",
+      tostring(basePath)
+    )
     self:setStatus("Recent project files not found")
     if self.showToast then
       self:showToast("error", self.statusText)
     end
     return false
   end
+  local FilesystemPath = require("utils.filesystem_path")
+  targetPath = FilesystemPath.toAbsolutePath(targetPath) or targetPath
+  DebugController.log("info", "RECENT_PROJECT", "openRecentProject: loading %q", tostring(targetPath))
   return RomProjectController.requestLoad(self, targetPath)
 end
 

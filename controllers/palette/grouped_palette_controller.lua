@@ -319,10 +319,17 @@ function M:refresh()
   if wm and wm.getFocus and wm.setFocus then
     local focused = wm:getFocus()
     if focused and focused._groupHidden == true then
-      for _, win in ipairs(wm:getWindows() or {}) do
-        if win and win._closed ~= true and win._minimized ~= true and win._groupHidden ~= true then
-          wm:setFocus(win)
-          break
+      -- Prefer the active (visible) member of the same palette group when possible.
+      local groupKey = groupKeyFromWindow(focused)
+      local preferred = groupKey and self:_resolveActiveWindow(groupKey, self:_sourceWindowsForGroup(groupKey)) or nil
+      if preferred and preferred._groupHidden ~= true and preferred._closed ~= true and preferred._minimized ~= true then
+        wm:setFocus(preferred)
+      else
+        for _, win in ipairs(wm:getWindows() or {}) do
+          if win and win._closed ~= true and win._minimized ~= true and win._groupHidden ~= true then
+            wm:setFocus(win)
+            break
+          end
         end
       end
     end
@@ -371,6 +378,12 @@ function M:cycleWindow(window, delta)
 
   group.activeSourceWindowId = target._id
   group.activeIndex = targetIndex
+
+  -- Keep focus on the visible group slot so the header/specialized toolbar stays up.
+  local wm = self.app and self.app.wm
+  if wm and wm.setFocus then
+    wm:setFocus(target)
+  end
 
   return true
 end

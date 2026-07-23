@@ -79,6 +79,37 @@ describe("rom_project_controller.lua - project file loading", function()
     expect(RomProjectController._normalizeRecentProjectBasePath("/tmp/foo_edited.nes")).toBe("/tmp/foo")
   end)
 
+  it("preserves dots in ROM titles that are not known extensions", function()
+    local titled = "/tmp/Mario/Super Mario Bros. (World)"
+    expect(RomProjectController._normalizeRecentProjectBasePath(titled .. ".nes")).toBe(titled)
+    expect(RomProjectController._normalizeRecentProjectBasePath(titled .. ".lua")).toBe(titled)
+    -- Re-normalizing an already-stored stem must not strip ". (World)" as an extension.
+    expect(RomProjectController._normalizeRecentProjectBasePath(titled)).toBe(titled)
+  end)
+
+  it("keeps spaces in absolute recent project base paths", function()
+    expect(RomProjectController._normalizeRecentProjectBasePath("/tmp/My Games/kirby.nes")).toBe("/tmp/My Games/kirby")
+    expect(RomProjectController._normalizeRecentProjectBasePath("/tmp/My Games/kirby.lua")).toBe("/tmp/My Games/kirby")
+  end)
+
+  it("absolutizes relative recent project paths using the working directory", function()
+    local previousLove = rawget(_G, "love")
+    _G.love = previousLove or {}
+    _G.love.filesystem = _G.love.filesystem or {}
+    local previousGetWorkingDirectory = _G.love.filesystem.getWorkingDirectory
+    _G.love.filesystem.getWorkingDirectory = function()
+      return "/cwd"
+    end
+    local sep = package.config:sub(1, 1)
+    expect(RomProjectController._normalizeRecentProjectBasePath("My Games/kirby.nes")).toBe(
+      "/cwd" .. sep .. "My Games/kirby"
+    )
+    _G.love.filesystem.getWorkingDirectory = previousGetWorkingDirectory
+    if previousLove == nil then
+      _G.love = nil
+    end
+  end)
+
   it("resolves recent project paths by preferring the base rom", function()
     local romPath = "/tmp/recent_pref_test.nes"
     local luaPath = "/tmp/recent_pref_test.lua"

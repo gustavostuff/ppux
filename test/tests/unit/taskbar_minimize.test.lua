@@ -325,6 +325,19 @@ describe("taskbar.lua - minimized windows strip", function()
     expect(children[2].tooltip).toBe("/tmp/project_b/foo.lua")
     expect(children[3].tooltip).toBe("/tmp/project_c/bar.lua")
 
+    local opened = {}
+    app.openRecentProject = function(_, path)
+      opened[#opened + 1] = path
+    end
+    children[1].callback()
+    children[2].callback()
+    children[3].callback()
+    expect(opened).toEqual({
+      "/tmp/project_a/foo",
+      "/tmp/project_b/foo",
+      "/tmp/project_c/bar",
+    })
+
     local windowsItem = items[2]
     expect(windowsItem.enabled).toBe(true)
     local windowsChildren = windowsItem.children()

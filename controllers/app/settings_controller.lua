@@ -7,6 +7,7 @@ AppSettingsController.__index = AppSettingsController
 local TableUtils = require("utils.table_utils")
 local AppColors = require("app_colors")
 local WindowLinkVisibility = require("controllers.window.window_link_visibility")
+local FilesystemPath = require("utils.filesystem_path")
 local SETTINGS_FILE = "settings.lua"
 local DEFAULT_SETTINGS = {
   skipSplash = false,
@@ -50,8 +51,21 @@ local function splitPath(p)
   return d, b
 end
 
+-- Only strip known project/ROM suffixes. Generic "%.[^%.]+$" would treat names like
+-- "Super Mario Bros. (World)" as having extension " (World)" and corrupt the stem.
+local KNOWN_PROJECT_EXTS = {
+  nes = true,
+  lua = true,
+  ppux = true,
+}
+
 local function stripExt(name)
-  return (tostring(name or ""):gsub("%.[^%.]+$", ""))
+  name = tostring(name or "")
+  local ext = name:match("%.([^%.\\/]+)$")
+  if ext and KNOWN_PROJECT_EXTS[ext:lower()] then
+    return name:sub(1, #name - (#ext + 1))
+  end
+  return name
 end
 
 local function canonicalProjectStem(name)
@@ -72,12 +86,14 @@ local function normalizeRecentProjectBasePath(path)
   if type(path) ~= "string" or path == "" then
     return nil
   end
+  path = FilesystemPath.toAbsolutePath(path) or path
   local dir, base = splitPath(path)
   local stem = canonicalProjectStem(base)
   if stem == "" then
     return nil
   end
-  return joinPath(dir, stem)
+  local joined = joinPath(dir, stem)
+  return FilesystemPath.toAbsolutePath(joined) or joined
 end
 
 local function normalizeRecentProjects(list)

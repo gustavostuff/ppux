@@ -10,7 +10,7 @@ local colors = require("app_colors")
 local Dialog = {}
 Dialog.__index = Dialog
 
-local FOOTER_LINE_2 = "Patch order: lo, then hi. Same PRG bank required."
+local FOOTER_LINE_2 = "Patch order: lo, then hi. Same PRG bank required. (gotta find where those hi/lo bytes are, manually)"
 local INTRO_LINE = "Converts relocateTo offset to lo/hi for romPatches."
 
 local HEADER_ITEMS = {

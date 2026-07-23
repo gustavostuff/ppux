@@ -24,6 +24,9 @@ local function chromeInkForModalButton(b)
 end
 
 --- 1px outline around modal buttons / dropdown triggers (preview of control bounds).
+--- Keep ink focus/hover swaps; soft alpha so the stroke is not fully opaque chrome ink.
+local MODAL_CONTROL_OUTLINE_ALPHA = 0.30
+
 local function drawModalControlOutline(b)
   if not b then
     return
@@ -36,7 +39,8 @@ local function drawModalControlOutline(b)
     return
   end
   local ink = chromeInkForModalButton(b)
-  love.graphics.setColor(ink[1], ink[2], ink[3], ink[4] or 1)
+  local baseA = ink[4] or 1
+  love.graphics.setColor(ink[1], ink[2], ink[3], baseA * MODAL_CONTROL_OUTLINE_ALPHA)
   love.graphics.setLineWidth(1)
   local rw = math.max(1, w - 1)
   local rh = math.max(1, h - 1)

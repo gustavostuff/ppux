@@ -19,6 +19,7 @@ local DebugController    = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local TableUtils = require("utils.table_utils")
 local LoveCompat = require("utils.love_compat")
+local FilesystemPath = require("utils.filesystem_path")
 
 ------------------------------------------------------------
 -- Helpers: sha1 + path + edits merge
@@ -43,8 +44,21 @@ local function splitPath(p)
   return d, b
 end
 
+-- Only strip known project/ROM suffixes. Generic "%.[^%.]+$" would treat names like
+-- "Super Mario Bros. (World)" as having extension " (World)" and corrupt the stem.
+local KNOWN_PROJECT_EXTS = {
+  nes = true,
+  lua = true,
+  ppux = true,
+}
+
 local function stripExt(name)
-  return (name:gsub("%.[^%.]+$", ""))
+  name = tostring(name or "")
+  local ext = name:match("%.([^%.\\/]+)$")
+  if ext and KNOWN_PROJECT_EXTS[ext:lower()] then
+    return name:sub(1, #name - (#ext + 1))
+  end
+  return name
 end
 
 local function canonicalProjectStem(name)
@@ -71,6 +85,18 @@ local function fileExists(path)
   if not f then return false end
   f:close()
   return true
+end
+
+local function fileExistsWithErr(path)
+  if type(path) ~= "string" or path == "" then
+    return false, "empty path"
+  end
+  local f, err = io.open(path, "rb")
+  if not f then
+    return false, err or "open failed"
+  end
+  f:close()
+  return true, nil
 end
 
 local function joinPath(dir, name)
@@ -110,17 +136,24 @@ local function normalizeRecentProjectBasePath(path)
   if type(path) ~= "string" or path == "" then
     return nil
   end
+  path = FilesystemPath.toAbsolutePath(path) or path
   local dir, base = splitPath(path)
   local stem = canonicalProjectStem(base or "")
   if stem == "" then
     return nil
   end
-  return joinPath(dir, stem)
+  local joined = joinPath(dir, stem)
+  return FilesystemPath.toAbsolutePath(joined) or joined
 end
 
-local function resolveRecentProjectLoadPath(basePath)
+local function resolveRecentProjectLoadPath(basePath, opts)
+  opts = opts or {}
+  local log = opts.log == true
   local normalized = normalizeRecentProjectBasePath(basePath)
   if not normalized then
+    if log then
+      DebugController.log("info", "RECENT_PROJECT", "resolve: normalize returned nil for %q", tostring(basePath))
+    end
     return nil
   end
 
@@ -131,9 +164,33 @@ local function resolveRecentProjectLoadPath(basePath)
     normalized .. "_edited.nes",
   }
 
-  for _, candidate in ipairs(candidates) do
-    if fileExists(candidate) then
-      return candidate
+  if log then
+    DebugController.log(
+      "info",
+      "RECENT_PROJECT",
+      "resolve: basePath=%q normalized=%q cwd=%q",
+      tostring(basePath),
+      tostring(normalized),
+      tostring(FilesystemPath.getWorkingDirectory())
+    )
+  end
+
+  for i, candidate in ipairs(candidates) do
+    local absoluteCandidate = FilesystemPath.toAbsolutePath(candidate) or candidate
+    local exists, err = fileExistsWithErr(absoluteCandidate)
+    if log then
+      DebugController.log(
+        "info",
+        "RECENT_PROJECT",
+        "resolve: candidate[%d]=%q exists=%s err=%s",
+        i,
+        tostring(absoluteCandidate),
+        tostring(exists),
+        tostring(err)
+      )
+    end
+    if exists then
+      return absoluteCandidate
     end
   end
 
@@ -148,7 +205,7 @@ local function resolveRecentProjectTooltipPath(basePath)
   end
 
   for _, ext in ipairs({ ".lua", ".ppux" }) do
-    local candidate = normalized .. ext
+    local candidate = FilesystemPath.toAbsolutePath(normalized .. ext) or (normalized .. ext)
     if fileExists(candidate) then
       return candidate
     end
