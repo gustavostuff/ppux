@@ -381,6 +381,21 @@ function UndoRedoController:addWindowCollapseAllEvent(event)
   return self:_pushEvent(event)
 end
 
+--- Pivot-handle click: restore linked windows (minimize flags + z-order + focus).
+--- Transient UI only — does not mark the project dirty.
+function UndoRedoController:addWindowLinkHandleActivateEvent(event)
+  if not event or event.type ~= "window_link_handle_activate" then
+    return false
+  end
+  if type(event.beforeOrder) ~= "table" or type(event.afterOrder) ~= "table" then
+    return false
+  end
+  if type(event.beforeWindowState) ~= "table" or type(event.afterWindowState) ~= "table" then
+    return false
+  end
+  return self:_pushEvent(event)
+end
+
 function UndoRedoController:addPaletteLinkEvent(event)
   if not event or event.type ~= "palette_link" then return false end
   if type(event.actions) ~= "table" or #event.actions == 0 then return false end

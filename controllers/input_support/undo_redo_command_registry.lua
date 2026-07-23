@@ -940,6 +940,61 @@ local function applyWindowCollapseAllEvent(event, direction, app)
   return true
 end
 
+local function applyWindowLinkHandleActivateEvent(event, direction, app)
+  if not (event and event.type == "window_link_handle_activate") then
+    return false
+  end
+  local wm = event.wm or (app and app.wm)
+  if not (wm and wm._restoreWindowsArrayOrder) then
+    return false
+  end
+
+  local useBefore = (direction == "undo")
+  local order = useBefore and event.beforeOrder or event.afterOrder
+  local stateMap = useBefore and event.beforeWindowState or event.afterWindowState
+  local focusWin = useBefore and event.beforeFocusedWin or event.afterFocusedWin
+  if type(order) ~= "table" or type(stateMap) ~= "table" then
+    return false
+  end
+
+  -- Apply minimize/collapse/group flags before focus/z-order restore.
+  for win, snap in pairs(stateMap) do
+    if win and type(snap) == "table" and not win._closed then
+      local wantMinimized = snap.minimized == true
+      if wantMinimized then
+        if not win._minimized and wm.minimizeWindow then
+          wm:minimizeWindow(win, { recordUndo = false })
+        end
+      else
+        if win._minimized and wm.restoreMinimizedWindow then
+          wm:restoreMinimizedWindow(win, { recordUndo = false, focus = false })
+        end
+      end
+      if snap.collapsed ~= nil and wm._setCollapsedWithToolbarIcon then
+        wm:_setCollapsedWithToolbarIcon(win, snap.collapsed == true)
+      elseif snap.collapsed ~= nil then
+        win._collapsed = snap.collapsed == true
+      end
+      if snap.groupHidden ~= nil then
+        win._groupHidden = snap.groupHidden == true
+      end
+    end
+  end
+
+  if wm.setFocus then
+    if focusWin and not focusWin._closed and not focusWin._minimized and focusWin._groupHidden ~= true then
+      wm:setFocus(focusWin)
+    elseif focusWin == nil then
+      wm:setFocus(nil)
+    end
+  end
+
+  -- setFocus bringToFront; restore the snapshotted stack last.
+  wm:_restoreWindowsArrayOrder(order)
+
+  return true
+end
+
 local function applyWindowMinimizeEvent(event, direction, app)
   if not (event and event.type == "window_minimize" and event.win) then
     return false
@@ -1149,6 +1204,10 @@ M.COMMANDS = {
   window_minimize_all = { describe = describeStatic("Minimize all"), apply = applyWindowMinimizeAllEvent },
   window_restore_minimized_all = { describe = describeStatic("Maximize all"), apply = applyWindowRestoreMinimizedAllEvent },
   window_collapse_all = { describe = describeStatic("Collapse all"), apply = applyWindowCollapseAllEvent },
+  window_link_handle_activate = {
+    describe = describeStatic("Focus linked windows"),
+    apply = applyWindowLinkHandleActivateEvent,
+  },
   window_expand_all = { describe = describeStatic("Expand all"), apply = applyWindowExpandAllEvent },
   window_minimize = { describe = describeStatic("Minimize window"), apply = applyWindowMinimizeEvent },
   window_close = { describe = describeStatic("Close window"), apply = applyWindowCloseEvent },

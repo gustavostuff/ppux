@@ -118,8 +118,12 @@ describe("window_link_visual_controller.lua", function()
     local app = {
       windowLinksMode = "always",
       wm = {
-        getWindows = function()
-          return { source, partner }
+        windows = { source, partner },
+        getWindows = function(self)
+          return self.windows
+        end,
+        getFocus = function()
+          return source
         end,
         restoreMinimizedWindow = function(_, win, opts)
           restored[#restored + 1] = { win = win, focus = opts and opts.focus }
@@ -129,8 +133,15 @@ describe("window_link_visual_controller.lua", function()
         setFocus = function(_, win)
           focused[#focused + 1] = win
         end,
-        bringToFront = function(_, win)
+        bringToFront = function(self, win)
           brought[#brought + 1] = win
+          for i, w in ipairs(self.windows) do
+            if w == win then
+              table.remove(self.windows, i)
+              break
+            end
+          end
+          self.windows[#self.windows + 1] = win
         end,
       },
     }
@@ -150,6 +161,112 @@ describe("window_link_visual_controller.lua", function()
     expect(restored[1].focus).toBe(true)
     expect(#brought).toBe(1)
     expect(brought[1]).toBe(partner)
+  end)
+
+  it("records one undo event that restores minimize and z-order for link-handle activate", function()
+    local UndoRedoController = require("controllers.input_support.undo_redo_controller")
+    local UndoRedoCommandRegistry = require("controllers.input_support.undo_redo_command_registry")
+    local ur = UndoRedoController.new(10)
+    local source = {
+      _id = "src",
+      _closed = false,
+      _minimized = false,
+      _groupHidden = false,
+      _collapsed = false,
+      kind = "rom_palette",
+    }
+    local partner = {
+      _id = "dst",
+      _closed = false,
+      _minimized = true,
+      _groupHidden = false,
+      _collapsed = false,
+      kind = "ppu_frame",
+    }
+    local other = {
+      _id = "other",
+      _closed = false,
+      _minimized = false,
+      _groupHidden = false,
+      _collapsed = false,
+      kind = "chr",
+    }
+    local focused = source
+    local wm = {
+      windows = { source, partner, other },
+      getWindows = function(self)
+        return self.windows
+      end,
+      getFocus = function()
+        return focused
+      end,
+      setFocus = function(_, win)
+        focused = win
+      end,
+      restoreMinimizedWindow = function(_, win, opts)
+        win._minimized = false
+        if opts and opts.focus ~= false then
+          focused = win
+        end
+        return true
+      end,
+      minimizeWindow = function(_, win)
+        win._minimized = true
+        if focused == win then
+          focused = nil
+        end
+        return true
+      end,
+      bringToFront = function(self, win)
+        for i, w in ipairs(self.windows) do
+          if w == win then
+            table.remove(self.windows, i)
+            break
+          end
+        end
+        self.windows[#self.windows + 1] = win
+      end,
+      _restoreWindowsArrayOrder = function(self, order)
+        self.windows = {}
+        for i = 1, #order do
+          self.windows[i] = order[i]
+        end
+      end,
+      _setCollapsedWithToolbarIcon = function(_, win, collapsed)
+        win._collapsed = collapsed == true
+      end,
+    }
+    local app = {
+      windowLinksMode = "always",
+      undoRedo = ur,
+      wm = wm,
+    }
+
+    expect(LinkVisual.focusWindowsLinkedToHandle(app, source, "palette_source", {
+      {
+        fromWin = partner,
+        fromSlot = "ppu_palette",
+        toWin = source,
+        toSlot = "palette_source",
+        color = colors.blue,
+      },
+    })).toBe(true)
+
+    expect(#ur.stack).toBe(1)
+    expect(ur.stack[1].type).toBe("window_link_handle_activate")
+    expect(partner._minimized).toBe(false)
+    expect(wm.windows[#wm.windows]).toBe(partner)
+
+    expect(UndoRedoCommandRegistry.applyEvent(ur.stack[1], "undo", app)).toBe(true)
+    expect(partner._minimized).toBe(true)
+    expect(wm.windows[1]).toBe(source)
+    expect(wm.windows[2]).toBe(partner)
+    expect(wm.windows[3]).toBe(other)
+    expect(focused).toBe(source)
+
+    expect(UndoRedoCommandRegistry.applyEvent(ur.stack[1], "redo", app)).toBe(true)
+    expect(partner._minimized).toBe(false)
+    expect(wm.windows[#wm.windows]).toBe(partner)
   end)
 
   it("tryHandlePivotHandleClick consumes handle hits and ignores misses", function()

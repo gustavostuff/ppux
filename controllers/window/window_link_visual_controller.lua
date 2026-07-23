@@ -1306,6 +1306,100 @@ function M.collectLinkedWindowsForSlot(edges, win, slot)
   return partners
 end
 
+local function shallowCopyWindowsArray(windows)
+  local out = {}
+  if type(windows) ~= "table" then
+    return out
+  end
+  for i = 1, #windows do
+    out[i] = windows[i]
+  end
+  return out
+end
+
+local function snapshotWindowUiState(windows)
+  local out = {}
+  if type(windows) ~= "table" then
+    return out
+  end
+  for i = 1, #windows do
+    local win = windows[i]
+    if win then
+      out[win] = {
+        minimized = win._minimized == true,
+        collapsed = win._collapsed == true,
+        groupHidden = win._groupHidden == true,
+      }
+    end
+  end
+  return out
+end
+
+local function windowsOrderEqual(a, b)
+  if type(a) ~= "table" or type(b) ~= "table" or #a ~= #b then
+    return false
+  end
+  for i = 1, #a do
+    if a[i] ~= b[i] then
+      return false
+    end
+  end
+  return true
+end
+
+local function windowUiStateEqual(a, b)
+  if a == b then
+    return true
+  end
+  if type(a) ~= "table" or type(b) ~= "table" then
+    return false
+  end
+  for win, before in pairs(a) do
+    local after = b[win]
+    if type(before) ~= "table" or type(after) ~= "table" then
+      return false
+    end
+    if before.minimized ~= after.minimized
+      or before.collapsed ~= after.collapsed
+      or before.groupHidden ~= after.groupHidden
+    then
+      return false
+    end
+  end
+  for win, _ in pairs(b) do
+    if a[win] == nil then
+      return false
+    end
+  end
+  return true
+end
+
+local function recordLinkHandleActivateUndo(app, wm, before)
+  local undoRedo = app and app.undoRedo
+  if not (undoRedo and undoRedo.addWindowLinkHandleActivateEvent and wm and before) then
+    return false
+  end
+  local afterOrder = shallowCopyWindowsArray(wm.windows)
+  local afterState = snapshotWindowUiState(wm.windows)
+  local afterFocused = wm.getFocus and wm:getFocus() or wm.focused
+  if windowsOrderEqual(before.order, afterOrder)
+    and windowUiStateEqual(before.windowState, afterState)
+    and before.focusedWin == afterFocused
+  then
+    return false
+  end
+  return undoRedo:addWindowLinkHandleActivateEvent({
+    type = "window_link_handle_activate",
+    wm = wm,
+    beforeOrder = before.order,
+    afterOrder = afterOrder,
+    beforeFocusedWin = before.focusedWin,
+    afterFocusedWin = afterFocused,
+    beforeWindowState = before.windowState,
+    afterWindowState = afterState,
+  }) == true
+end
+
 local function activateLinkedWindow(app, win)
   if not (app and win) or win._closed then
     return false
@@ -1336,13 +1430,26 @@ local function activateLinkedWindow(app, win)
 end
 
 --- Bring linked partner window(s) for this pivot slot to front and focus (unminimize first).
+--- Records one undo event for minimize + z-order + focus changes from this click only.
 function M.focusWindowsLinkedToHandle(app, win, slot, edges)
   local partners = M.collectLinkedWindowsForSlot(edges or M.collectWindowLinkEdges(app), win, slot)
   if #partners == 0 then
     return false
   end
+  local wm = app and app.wm
+  local before = nil
+  if wm and type(wm.windows) == "table" then
+    before = {
+      order = shallowCopyWindowsArray(wm.windows),
+      windowState = snapshotWindowUiState(wm.windows),
+      focusedWin = wm.getFocus and wm:getFocus() or wm.focused,
+    }
+  end
   for _, partner in ipairs(partners) do
     activateLinkedWindow(app, partner)
+  end
+  if before then
+    recordLinkHandleActivateUndo(app, wm, before)
   end
   return true
 end

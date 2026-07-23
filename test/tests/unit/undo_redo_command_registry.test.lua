@@ -68,6 +68,7 @@ describe("undo_redo_command_registry.lua", function()
       "window_minimize_all",
       "window_restore_minimized_all",
       "window_collapse_all",
+      "window_link_handle_activate",
       "window_expand_all",
       "window_minimize",
       "window_close",
