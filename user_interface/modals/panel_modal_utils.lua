@@ -138,6 +138,7 @@ function M.applyPanelDefaults(target)
   setTrackedDefault(target, "titleBgColor", copyColor(M.DEFAULT_PANEL_STYLE.titleBgColor))
   if target._uses_modal_default_bgColor == true then
     target._modalChromeOverBlue = true
+    target._modalControlOutline = true
   end
   setTrackedDefault(target, "menuOutline", M.DEFAULT_PANEL_STYLE.menuOutline)
 end
@@ -148,6 +149,7 @@ function M.syncPanelChrome(panel, modal)
     return
   end
   panel._modalChromeOverBlue = modal._modalChromeOverBlue == true
+  panel._modalControlOutline = modal._modalControlOutline == true
   panel.menuOutline = modal.menuOutline == true
 end
 

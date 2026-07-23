@@ -63,6 +63,7 @@ function Button.new(opts)
     transparent = opts.transparent == true,
     textAlign = opts.textAlign or "center",
     contentPaddingX = opts.contentPaddingX or 4,
+    contentPaddingRight = opts.contentPaddingRight or 0,
     iconTextGap = opts.iconTextGap or 4,
     alignTextToContentPadding = opts.alignTextToContentPadding == true,
     bgColor = opts.bgColor,
@@ -79,6 +80,8 @@ function Button.new(opts)
     skipHoverFocusUnderlay = opts.skipHoverFocusUnderlay == true,
     -- When true, modal panel chrome does not replace contentColor with chrome ink (file rows, etc.).
     preserveModalContentColor = opts.preserveModalContentColor == true,
+    -- When true, skip the modal 1px control outline (file list rows, etc.).
+    skipModalControlOutline = opts.skipModalControlOutline == true,
     -- Additional properties can be stored here
     isCloseButton = opts.isCloseButton,
   }, Button)
@@ -161,11 +164,13 @@ function Button:draw()
     local font = love.graphics.getFont()
     local textW = font:getWidth(self.text)
     local textH = font:getHeight()
+    local padL = self.contentPaddingX or 0
+    local padR = self.contentPaddingRight or 0
     local textX
     if self.textAlign == "left" then
-      textX = self.x + self.contentPaddingX
+      textX = self.x + padL
     else
-      textX = self.x + (self.w - textW) / 2
+      textX = self.x + padL + (self.w - padL - padR - textW) / 2
     end
     local textY = self.y + (self.h - textH) / 2
     local a = contentAlpha()

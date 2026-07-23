@@ -223,6 +223,7 @@ local function rebuildPanel(menu)
       visible = menu.visible,
       bgColor = panelBg,
       _modalChromeOverBlue = modalChrome,
+      _modalControlOutline = false,
       menuRowSeparators = menu.menuRowSeparators == true,
       menuOutline = perimeterOn,
     })
@@ -245,6 +246,7 @@ local function rebuildPanel(menu)
       visible = menu.visible,
       bgColor = panelBg,
       _modalChromeOverBlue = modalChrome,
+      _modalControlOutline = false,
       menuRowSeparators = menu.menuRowSeparators == true,
       menuOutline = perimeterOn,
     })

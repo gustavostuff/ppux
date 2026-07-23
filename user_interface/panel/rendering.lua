@@ -23,6 +23,28 @@ local function chromeInkForModalButton(b)
   return colors:chromeTextIconsColorNonFocused()
 end
 
+--- 1px outline around modal buttons / dropdown triggers (preview of control bounds).
+local function drawModalControlOutline(b)
+  if not b then
+    return
+  end
+  local x = math.floor(tonumber(b.x) or 0)
+  local y = math.floor(tonumber(b.y) or 0)
+  local w = math.floor(tonumber(b.w) or 0)
+  local h = math.floor(tonumber(b.h) or 0)
+  if w <= 0 or h <= 0 then
+    return
+  end
+  local ink = chromeInkForModalButton(b)
+  love.graphics.setColor(ink[1], ink[2], ink[3], ink[4] or 1)
+  love.graphics.setLineWidth(1)
+  local rw = math.max(1, w - 1)
+  local rh = math.max(1, h - 1)
+  local radius = clampRoundedRectCornerRadius(2, rw, rh)
+  love.graphics.rectangle("line", x + 0.5, y + 0.5, rw, rh, radius, radius)
+  love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
+end
+
 local function drawPanelTitle(panel, utils)
   if not (panel and panel.title and panel.title ~= "") then
     return
@@ -332,6 +354,7 @@ local function install(Panel, utils)
     end
 
     local chromeWhite = self._modalChromeOverBlue == true
+    local outlineControls = self._modalControlOutline == true
     for _, cell in ipairs(self:_iterCells()) do
       if cell.button then
         if chromeWhite then
@@ -349,6 +372,11 @@ local function install(Panel, utils)
         else
           cell.button:draw()
         end
+        if outlineControls then
+          if not cell.button.skipModalControlOutline then
+            drawModalControlOutline(cell.button)
+          end
+        end
       elseif cell.component and type(cell.component.draw) == "function" then
         local c = cell.component
         local isButton = utils.Button and getmetatable(c) == utils.Button
@@ -365,6 +393,12 @@ local function install(Panel, utils)
           b.contentColor, b.iconRespectTheme, b.literalContentColor = oc, oir, olit
         else
           c:draw()
+        end
+        if outlineControls and (isButton or dropdownTrigger) then
+          local outlineTarget = dropdownTrigger and c.trigger or c
+          if not outlineTarget.skipModalControlOutline then
+            drawModalControlOutline(outlineTarget)
+          end
         end
       elseif cell.kind == "label" then
         local textColor = cell.textColor

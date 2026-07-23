@@ -14,9 +14,32 @@
 local Button = require("user_interface.button")
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
 local UiScale = require("user_interface.ui_scale")
+local images = require("images")
+local colors = require("app_colors")
+local Draw = require("utils.draw_utils")
 
 local Dropdown = {}
 Dropdown.__index = Dropdown
+
+local function iconSize(icon)
+  if not icon then
+    return 0, 0
+  end
+  if type(icon.getWidth) == "function" and type(icon.getHeight) == "function" then
+    return icon:getWidth(), icon:getHeight()
+  end
+  return tonumber(icon.w) or 0, tonumber(icon.h) or 0
+end
+
+local function arrowReserveWidth()
+  local down = images.icons and images.icons.chrome and images.icons.chrome.icon_down
+  local iw = select(1, iconSize(down))
+  if iw <= 0 then
+    return 0
+  end
+  -- Icon flush to the right edge; small left gap so label does not collide.
+  return iw + 4
+end
 
 local function assertItemShape(it, index)
   if type(it) ~= "table" then
@@ -81,6 +104,7 @@ function Dropdown.new(opts)
     transparent = true,
     textAlign = "left",
     contentPaddingX = 4,
+    contentPaddingRight = arrowReserveWidth(),
     tooltip = opts.tooltip or "",
   })
 
@@ -269,7 +293,32 @@ function Dropdown:setFocused(focused)
 end
 
 function Dropdown:draw()
+  local reserve = arrowReserveWidth()
+  if self.trigger.contentPaddingRight ~= reserve then
+    self.trigger.contentPaddingRight = reserve
+  end
   self.trigger:draw()
+
+  local chrome = images.icons and images.icons.chrome
+  local icon = nil
+  if chrome then
+    icon = self:isMenuVisible() and chrome.icon_up or chrome.icon_down
+  end
+  if not icon then
+    return
+  end
+
+  local iw, ih = iconSize(icon)
+  if iw <= 0 or ih <= 0 then
+    return
+  end
+  local ix = math.floor(self.trigger.x + self.trigger.w - iw)
+  local iy = math.floor(self.trigger.y + (self.trigger.h - ih) * 0.5)
+  local ink = self.trigger.contentColor or colors.white
+  local alpha = (self.enabled == false) and 0.5 or 1
+  love.graphics.setColor(ink[1] or 1, ink[2] or 1, ink[3] or 1, alpha)
+  Draw.drawIcon(icon, ix, iy, { respectTheme = false })
+  love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
 end
 
 function Dropdown:drawMenu()

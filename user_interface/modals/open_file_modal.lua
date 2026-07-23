@@ -248,6 +248,7 @@ local function makeClippedFileButton(slotAction)
     action = slotAction,
     iconTintColor = colors.white,
     iconRespectTheme = false,
+    skipModalControlOutline = true,
   })
 
   function button:draw()

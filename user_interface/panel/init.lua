@@ -160,6 +160,13 @@ function Panel.new(opts)
     pressedComponent = nil,
     focusedComponent = nil,
     _modalChromeOverBlue = opts._modalChromeOverBlue == true,
+    -- Buttons/dropdowns in titled modal dialogs only (not contextual / app menus).
+    _modalControlOutline = opts._modalControlOutline == true
+      or (
+        opts._modalChromeOverBlue == true
+        and type(opts.title) == "string"
+        and opts.title ~= ""
+      ),
     menuRowSeparators = opts.menuRowSeparators == true,
     -- Menus pass `menuOutline` explicitly; modals leave it off unless opted in.
     menuOutline = opts.menuOutline == true,
