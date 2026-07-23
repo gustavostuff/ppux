@@ -433,38 +433,9 @@ function M.onWindowFocused(app, wm, win)
   if not (app and wm and win and isLinkWindowEligible(win)) then
     return
   end
-
+  -- Auto-hide line timers only; linked partners are no longer raised on focus
+  -- (use the connection-handle click to focus/raise linked windows).
   M.refreshRevealForWindow(app, wm, win)
-
-  if M.getWindowLinksMode(app) ~= "auto_hide" then
-    return
-  end
-
-  if WindowCaps.isRomPaletteWindow(win) then
-    wm:bringToFront(win)
-    for _, entry in ipairs(PaletteLinkController.getLinkedTargetsForPalette(wm, win) or {}) do
-      local target = entry and entry.win
-      if isLinkWindowVisible(target) then
-        wm:bringToFront(target)
-      end
-    end
-  else
-    local WindowLinkVisual = require("controllers.window.window_link_visual_controller")
-    local paletteWin = WindowLinkVisual.getConsumerLinkedPaletteWindow(win, wm)
-    if paletteWin and isLinkWindowVisible(paletteWin) then
-      wm:bringToFront(paletteWin)
-    end
-  end
-
-  if WindowCaps.isPatternTable(win) then
-    wm:bringToFront(win)
-    for _, entry in ipairs(PatternTableDisplayController.getLinkedConsumersForPatternTable(wm, win) or {}) do
-      local consumer = entry and entry.win
-      if isLinkWindowVisible(consumer) then
-        wm:bringToFront(consumer)
-      end
-    end
-  end
 end
 
 return M

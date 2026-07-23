@@ -23,7 +23,7 @@ describe("window_link_visibility.lua - focus behavior", function()
     }
   end
 
-  it("does not bring linked pattern table forward when focusing an OAM animation window", function()
+  it("does not raise linked windows on focus (OAM / pattern table)", function()
     local brought = {}
     local wm = makeWm(brought)
     local oamWin = {
@@ -42,7 +42,7 @@ describe("window_link_visibility.lua - focus behavior", function()
     expect(#brought).toBe(0)
   end)
 
-  it("does not bring linked pattern table forward when focusing a PPU frame window", function()
+  it("does not raise linked windows on focus (PPU / pattern table)", function()
     local brought = {}
     local wm = makeWm(brought)
     local ppuWin = {
@@ -62,7 +62,37 @@ describe("window_link_visibility.lua - focus behavior", function()
     expect(#brought).toBe(0)
   end)
 
-  it("setFocus does not bring linked pattern table to the front", function()
+  it("does not raise linked palette consumers when focusing a ROM palette", function()
+    local brought = {}
+    local PaletteLinkController = require("controllers.palette.palette_link_controller")
+    local original = PaletteLinkController.getLinkedTargetsForPalette
+    PaletteLinkController.getLinkedTargetsForPalette = function()
+      return {
+        {
+          win = {
+            kind = "ppu_frame",
+            _closed = false,
+            _minimized = false,
+            _groupHidden = false,
+          },
+        },
+      }
+    end
+
+    local wm = makeWm(brought)
+    local paletteWin = {
+      kind = "rom_palette",
+      _closed = false,
+      _minimized = false,
+      _groupHidden = false,
+    }
+    WindowLinkVisibility.onWindowFocused({ windowLinksMode = "auto_hide" }, wm, paletteWin)
+    expect(#brought).toBe(0)
+
+    PaletteLinkController.getLinkedTargetsForPalette = original
+  end)
+
+  it("setFocus raises only the focused window, not linked partners", function()
     local previousCtx = rawget(_G, "ctx")
     _G.ctx = nil
 
@@ -81,11 +111,24 @@ describe("window_link_visibility.lua - focus behavior", function()
         { kind = "sprite", linkedPatternTableWindowId = "pt1" },
       },
     }
-    wm.windows = { ptWin, oamWin }
+    local paletteWin = {
+      kind = "rom_palette",
+      _closed = false,
+      _minimized = false,
+      _id = "pal1",
+    }
+    oamWin.layers[1].paletteData = { winId = "pal1" }
+    wm.windows = { ptWin, paletteWin, oamWin }
+    wm.findWindowById = function(_, id)
+      if id == "pt1" then return ptWin end
+      if id == "pal1" then return paletteWin end
+      return nil
+    end
     wm:setFocus(oamWin)
 
     expect(wm.windows[#wm.windows]).toBe(oamWin)
-    expect(wm.windows[1]).toBe(ptWin)
+    expect(wm.windows[1] == ptWin or wm.windows[1] == paletteWin).toBe(true)
+    expect(wm.windows[2] == ptWin or wm.windows[2] == paletteWin).toBe(true)
 
     _G.ctx = previousCtx
   end)
