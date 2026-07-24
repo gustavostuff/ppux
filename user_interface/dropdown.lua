@@ -121,7 +121,7 @@ function Dropdown.new(opts)
     cellH = menuCellH,
     padding = (opts.menuPadding ~= nil) and opts.menuPadding or 0,
     colGap = opts.colGap or 0,
-    rowGap = opts.rowGap or 1,
+    rowGap = opts.rowGap,
     splitIconCell = false,
     bgColor = opts.menuBgColor,
   })
@@ -292,13 +292,15 @@ function Dropdown:setFocused(focused)
   self.trigger.focused = focused == true
 end
 
-function Dropdown:draw()
+function Dropdown:drawTriggerChrome()
   local reserve = arrowReserveWidth()
   if self.trigger.contentPaddingRight ~= reserve then
     self.trigger.contentPaddingRight = reserve
   end
   self.trigger:draw()
+end
 
+function Dropdown:drawArrow()
   local chrome = images.icons and images.icons.chrome
   local icon = nil
   if chrome then
@@ -321,6 +323,11 @@ function Dropdown:draw()
   love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
 end
 
+function Dropdown:draw()
+  self:drawTriggerChrome()
+  self:drawArrow()
+end
+
 function Dropdown:drawMenu()
   if not self:isMenuVisible() then
     return
@@ -334,6 +341,8 @@ end
 function Dropdown:mousemoved(x, y)
   if self:isMenuVisible() then
     self.menu:mousemoved(x, y)
+    -- List paints above siblings; only the trigger itself should stay hot.
+    self.trigger.hovered = self.trigger:contains(x, y)
     return
   end
   self.trigger.hovered = self.trigger:contains(x, y)

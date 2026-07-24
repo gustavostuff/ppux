@@ -10,7 +10,7 @@ local colors = require("app_colors")
 local Dialog = {}
 Dialog.__index = Dialog
 
-local FOOTER_LINE_2 = "Patch order: lo, then hi. Same PRG bank required. (gotta find where those hi/lo bytes are, manually)"
+local FOOTER_LINE_2 = "Patch order: lo, then hi. Same PRG bank required."
 local INTRO_LINE = "Converts relocateTo offset to lo/hi for romPatches."
 
 local HEADER_ITEMS = {
@@ -570,6 +570,18 @@ end
 function Dialog:mousemoved(x, y)
   if not self.visible then
     return false
+  end
+  -- Open list paints above other dropdown triggers; only it should receive hover.
+  for _, dd in ipairs(configDropdowns(self)) do
+    if dd and dd:isMenuVisible() and dd.menu and dd.menu:contains(x, y) then
+      for _, other in ipairs(configDropdowns(self)) do
+        if other and other.trigger then
+          other.trigger.hovered = false
+        end
+      end
+      dd:mousemoved(x, y)
+      return true
+    end
   end
   for _, dd in ipairs(configDropdowns(self)) do
     if dd then

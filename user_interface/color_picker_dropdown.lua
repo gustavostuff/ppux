@@ -198,6 +198,14 @@ function ColorPickerDropdown:draw()
   return forward(self, "draw")
 end
 
+function ColorPickerDropdown:drawTriggerChrome()
+  return forward(self, "drawTriggerChrome")
+end
+
+function ColorPickerDropdown:drawArrow()
+  return forward(self, "drawArrow")
+end
+
 function ColorPickerDropdown:drawMenu()
   return forward(self, "drawMenu")
 end

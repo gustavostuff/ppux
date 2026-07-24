@@ -7,7 +7,7 @@ local M = {}
 
 --[[ Modal chrome feature flags — flip without ripping out call sites.
      MODAL_BACKDROP_ENABLED: translucent dim layer behind centered modals. ]]
-M.MODAL_BACKDROP_ENABLED = false
+M.MODAL_BACKDROP_ENABLED = true
 
 M.MODAL_BUTTON_H = UiScale.modalButtonHeight()
 M.MODAL_ICON_BUTTON_SIZE = UiScale.modalButtonHeight()

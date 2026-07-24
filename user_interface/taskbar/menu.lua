@@ -21,7 +21,6 @@ function M.install(Taskbar, Helpers)
       cellH = menuCell,
       padding = 0,
       colGap = 0,
-      rowGap = 1,
       splitIconCell = true,
     })
 

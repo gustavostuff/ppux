@@ -184,8 +184,6 @@ local function drawTabbedModalNormalSurface(panel)
   love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
 end
 
---- One hover/focus underlay spanning all cells in a row that share `menuItem` (split icon + text).
---- Matches Button's hover fill: semi-transparent black, 2px corner radius.
 --- Horizontal separators between stacked menu rows (default chrome/menu text ink).
 local function drawMenuRowSeparators(panel)
   if panel.menuRowSeparators ~= true or panel.rows < 1 then
@@ -280,6 +278,8 @@ local function drawMenuOutline(panel)
   love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
 end
 
+--- One hover/focus underlay spanning all cells in a row that share `menuItem` (split icon + text).
+--- Matches Button's hover fill: semi-transparent black, 2px corner radius.
 local function drawUnifiedSplitMenuRowHovers(panel)
   local byRow = {}
   for _, cell in ipairs(panel:_iterCells()) do
@@ -312,6 +312,97 @@ local function drawUnifiedSplitMenuRowHovers(panel)
     end
   end
   love.graphics.setColor(1, 1, 1, 1)
+end
+
+--- Same stroke as modal controls; one rect around split icon+text rows while hovered.
+local function drawUnifiedSplitMenuRowHoverOutlines(panel)
+  if panel._modalControlOutlineOnHover ~= true then
+    return
+  end
+  local byRow = {}
+  for _, cell in ipairs(panel:_iterCells()) do
+    local b = cell.button
+    if b and b.skipHoverFocusUnderlay and cell.menuItem then
+      local row = cell.row
+      byRow[row] = byRow[row] or {}
+      byRow[row][#byRow[row] + 1] = cell
+    end
+  end
+  for _, cells in pairs(byRow) do
+    if #cells >= 2 then
+      local hot = false
+      local l, t, r, b = math.huge, math.huge, -math.huge, -math.huge
+      for _, cell in ipairs(cells) do
+        local bb = cell.button
+        if bb.enabled ~= false and (bb.hovered or bb.pressed or bb.focused) then
+          hot = true
+        end
+        l = math.min(l, cell.x)
+        t = math.min(t, cell.y)
+        r = math.max(r, cell.x + cell.w)
+        b = math.max(b, cell.y + cell.h)
+      end
+      local w, h = r - l, b - t
+      if hot and w > 0 and h > 0 then
+        drawModalControlOutline({
+          x = l,
+          y = t,
+          w = w,
+          h = h,
+          hovered = true,
+          enabled = true,
+        })
+      end
+    end
+  end
+end
+
+local function buttonHasDrawableIcon(b)
+  return b and b.icon ~= nil and b.skipIconDraw ~= true and type(b.drawIconContent) == "function"
+end
+
+local function drawButtonThenOutline(b, shouldOutline, chromeWhite)
+  if not b then
+    return
+  end
+  local outlineAfter = shouldOutline and not b.skipModalControlOutline
+  local deferIcon = outlineAfter and buttonHasDrawableIcon(b)
+
+  if chromeWhite then
+    local oc, oir = b.contentColor, b.iconRespectTheme
+    local prevLit = b.literalContentColor
+    if not b.preserveModalContentColor then
+      b.contentColor = chromeInkForModalButton(b)
+    end
+    b.iconRespectTheme = false
+    b.literalContentColor = true
+    if deferIcon then
+      b:draw({ skipIcon = true })
+    else
+      b:draw()
+    end
+    if outlineAfter then
+      drawModalControlOutline(b)
+    end
+    if deferIcon then
+      b:drawIconContent()
+    end
+    b.contentColor, b.iconRespectTheme = oc, oir
+    b.literalContentColor = prevLit
+    return
+  end
+
+  if deferIcon then
+    b:draw({ skipIcon = true })
+  else
+    b:draw()
+  end
+  if outlineAfter then
+    drawModalControlOutline(b)
+  end
+  if deferIcon then
+    b:drawIconContent()
+  end
 end
 
 local function install(Panel, utils)
@@ -359,50 +450,53 @@ local function install(Panel, utils)
 
     local chromeWhite = self._modalChromeOverBlue == true
     local outlineControls = self._modalControlOutline == true
+    local outlineOnHover = self._modalControlOutlineOnHover == true
     for _, cell in ipairs(self:_iterCells()) do
       if cell.button then
-        if chromeWhite then
-          local b = cell.button
-          local oc, oir = b.contentColor, b.iconRespectTheme
-          local prevLit = b.literalContentColor
-          if not b.preserveModalContentColor then
-            b.contentColor = chromeInkForModalButton(b)
-          end
-          b.iconRespectTheme = false
-          b.literalContentColor = true
-          b:draw()
-          b.contentColor, b.iconRespectTheme = oc, oir
-          b.literalContentColor = prevLit
-        else
-          cell.button:draw()
-        end
-        if outlineControls then
-          if not cell.button.skipModalControlOutline then
-            drawModalControlOutline(cell.button)
-          end
-        end
+        local outlineThis = outlineControls
+          or (
+            outlineOnHover
+            -- Split icon+text rows use one shared outline in drawUnifiedSplitMenuRowHoverOutlines.
+            and not cell.button.skipHoverFocusUnderlay
+            and cell.button.enabled ~= false
+            and (cell.button.hovered or cell.button.pressed)
+          )
+        drawButtonThenOutline(cell.button, outlineThis, chromeWhite)
       elseif cell.component and type(cell.component.draw) == "function" then
         local c = cell.component
         local isButton = utils.Button and getmetatable(c) == utils.Button
         local dropdownTrigger = (not isButton) and c.trigger and type(c.trigger.draw) == "function"
-        if chromeWhite and (isButton or dropdownTrigger) then
-          local b = dropdownTrigger and c.trigger or c
+        if isButton then
+          local outlineThis = outlineControls
+          drawButtonThenOutline(c, outlineThis, chromeWhite)
+        elseif dropdownTrigger then
+          local b = c.trigger
+          local outlineThis = outlineControls and not b.skipModalControlOutline
           local oc, oir, olit = b.contentColor, b.iconRespectTheme, b.literalContentColor
-          if not b.preserveModalContentColor then
-            b.contentColor = chromeInkForModalButton(b)
+          if chromeWhite then
+            if not b.preserveModalContentColor then
+              b.contentColor = chromeInkForModalButton(b)
+            end
+            b.iconRespectTheme = false
+            b.literalContentColor = true
           end
-          b.iconRespectTheme = false
-          b.literalContentColor = true
-          c:draw()
-          b.contentColor, b.iconRespectTheme, b.literalContentColor = oc, oir, olit
+          if type(c.drawTriggerChrome) == "function" and type(c.drawArrow) == "function" then
+            c:drawTriggerChrome()
+            if outlineThis then
+              drawModalControlOutline(b)
+            end
+            c:drawArrow()
+          else
+            c:draw()
+            if outlineThis then
+              drawModalControlOutline(b)
+            end
+          end
+          if chromeWhite then
+            b.contentColor, b.iconRespectTheme, b.literalContentColor = oc, oir, olit
+          end
         else
           c:draw()
-        end
-        if outlineControls and (isButton or dropdownTrigger) then
-          local outlineTarget = dropdownTrigger and c.trigger or c
-          if not outlineTarget.skipModalControlOutline then
-            drawModalControlOutline(outlineTarget)
-          end
         end
       elseif cell.kind == "label" then
         local textColor = cell.textColor
@@ -426,6 +520,31 @@ local function install(Panel, utils)
           color = textColor,
           literalColor = chromeWhite,
         })
+      end
+    end
+
+    drawUnifiedSplitMenuRowHoverOutlines(self)
+
+    -- Split-row shared outlines paint after buttons; redraw icons above those strokes.
+    if outlineOnHover then
+      for _, cell in ipairs(self:_iterCells()) do
+        local b = cell.button
+        if b and b.skipHoverFocusUnderlay and buttonHasDrawableIcon(b) then
+          if chromeWhite then
+            local oc, oir = b.contentColor, b.iconRespectTheme
+            local prevLit = b.literalContentColor
+            if not b.preserveModalContentColor then
+              b.contentColor = chromeInkForModalButton(b)
+            end
+            b.iconRespectTheme = false
+            b.literalContentColor = true
+            b:drawIconContent()
+            b.contentColor, b.iconRespectTheme = oc, oir
+            b.literalContentColor = prevLit
+          else
+            b:drawIconContent()
+          end
+        end
       end
     end
 

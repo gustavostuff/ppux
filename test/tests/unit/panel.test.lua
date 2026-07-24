@@ -139,4 +139,55 @@ describe("panel.lua", function()
     expect(events[3][1]).toBe("text")
     expect(events[4][1]).toBe("mousereleased")
   end)
+
+  it("does not hover covered dropdown triggers while an open menu is under the cursor", function()
+    local Dropdown = require("user_interface.dropdown")
+    local items = {
+      { value = 1, text = "One" },
+      { value = 2, text = "Two" },
+      { value = 3, text = "Three" },
+    }
+    local top = Dropdown.new({
+      getBounds = function()
+        return { w = 400, h = 400 }
+      end,
+      items = items,
+    })
+    local bottom = Dropdown.new({
+      getBounds = function()
+        return { w = 400, h = 400 }
+      end,
+      items = items,
+    })
+
+    local panel = Panel.new({
+      x = 0,
+      y = 0,
+      cols = 1,
+      rows = 2,
+      cellW = 120,
+      cellH = 20,
+      padding = 0,
+      spacingY = 0,
+      visible = true,
+    })
+    panel:setCell(1, 1, { component = top })
+    panel:setCell(1, 2, { component = bottom })
+
+    expect(top:openMenu()).toBe(true)
+    expect(top:isMenuVisible()).toBe(true)
+
+    -- Menu hangs below the top trigger and covers the bottom trigger cell.
+    local overBottom = {
+      x = bottom.trigger.x + 4,
+      y = bottom.trigger.y + 4,
+    }
+    expect(top.menu:contains(overBottom.x, overBottom.y)).toBe(true)
+    expect(bottom.trigger:contains(overBottom.x, overBottom.y)).toBe(true)
+
+    panel:mousemoved(overBottom.x, overBottom.y)
+
+    expect(bottom.trigger.hovered).toBe(false)
+    expect(bottom.hovered == true).toBe(false)
+  end)
 end)

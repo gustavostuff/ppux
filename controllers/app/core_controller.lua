@@ -124,7 +124,6 @@ function AppCoreController.new()
     cellH = UiScale.menuCellSize(),
     padding = 0,
     colGap = 0,
-    rowGap = 1,
     splitIconCell = false,
   })
   self.emptySpaceContextMenu = ContextualMenuController.new({
@@ -138,7 +137,6 @@ function AppCoreController.new()
     cellH = UiScale.menuCellSize(),
     padding = 0,
     colGap = 0,
-    rowGap = 1,
     splitIconCell = true,
   })
   self.ppuTileContextMenu = ContextualMenuController.new({
@@ -152,7 +150,6 @@ function AppCoreController.new()
     cellH = UiScale.menuCellSize(),
     padding = 0,
     colGap = 0,
-    rowGap = 1,
     splitIconCell = false,
   })
   self.paletteLinkContextMenu = ContextualMenuController.new({
@@ -166,7 +163,6 @@ function AppCoreController.new()
     cellH = UiScale.menuCellSize(),
     padding = 0,
     colGap = 0,
-    rowGap = 1,
     -- Enables left icon column only for item lists that attach `icon` (e.g. pattern table pickers).
     -- Palettes/other entries stay single-column because `menuUsesSplitIconCell` requires an icon somewhere.
     splitIconCell = true,

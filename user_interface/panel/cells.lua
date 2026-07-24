@@ -1,4 +1,31 @@
 local function install(Panel, utils)
+  --- Inclusive hit test for a laid-out cell. When `_hitTestIncludeRowGaps`, vertical
+  --- range claims half the spacingY gutter above/below so menu row gaps are not dead zones.
+  local function pointInCellHit(panel, cell, px, py)
+    if px < cell.x or px > (cell.x + cell.w) then
+      return false
+    end
+    local top = cell.y
+    local bottom = cell.y + cell.h
+    if panel._hitTestIncludeRowGaps == true then
+      local spacingY = tonumber(panel.spacingY) or 0
+      if spacingY > 0 then
+        local halfUp = math.floor(spacingY * 0.5)
+        local halfDown = spacingY - halfUp
+        local row = cell.row or 1
+        local rowspan = cell.rowspan or 1
+        local rows = panel.rows or 1
+        if row > 1 then
+          top = cell.y - halfUp
+        end
+        if (row + rowspan - 1) < rows then
+          bottom = cell.y + cell.h + halfDown
+        end
+      end
+    end
+    return py >= top and py <= bottom
+  end
+
   function Panel:_iterCells()
     local list = {}
     for row, rowCells in pairs(self.cells) do
@@ -130,7 +157,7 @@ local function install(Panel, utils)
     local list = self:_iterCells()
     for idx = #list, 1, -1 do
       local cell = list[idx]
-      if px >= cell.x and px <= (cell.x + cell.w) and py >= cell.y and py <= (cell.y + cell.h) then
+      if pointInCellHit(self, cell, px, py) then
         return cell
       end
     end
@@ -139,8 +166,10 @@ local function install(Panel, utils)
 
   function Panel:getButtonAt(px, py)
     local cell = self:getCellAt(px, py)
-    if cell and cell.button and cell.button.enabled ~= false and cell.button:contains(px, py) then
-      return cell.button
+    if cell and cell.button and cell.button.enabled ~= false then
+      if cell.button:contains(px, py) or self._hitTestIncludeRowGaps == true then
+        return cell.button
+      end
     end
     if cell and cell.component and cell.component.enabled ~= false and cell.component.action then
       if type(cell.component.contains) ~= "function" or cell.component:contains(px, py) then
@@ -156,10 +185,12 @@ local function install(Panel, utils)
       return false
     end
     for _, cell in ipairs(self:_iterCells()) do
-      if px >= cell.x and px <= (cell.x + cell.w) and py >= cell.y and py <= (cell.y + cell.h) then
+      if pointInCellHit(self, cell, px, py) then
         local b = cell.button
-        if b and b.enabled == false and b:contains(px, py) then
-          return true
+        if b and b.enabled == false then
+          if b:contains(px, py) or self._hitTestIncludeRowGaps == true then
+            return true
+          end
         end
         local c = cell.component
         if c and utils.Button and getmetatable(c) == utils.Button and c.enabled == false then

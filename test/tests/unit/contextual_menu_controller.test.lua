@@ -153,4 +153,70 @@ describe("contextual_menu_controller.lua", function()
     expect(menu.childMenu).toBeTruthy()
     expect(menu.activeChildItem.text).toBe("Parent B")
   end)
+
+  it("treats the rowGap gutter between items as part of the nearest item hit box", function()
+    local menu = ContextualMenuController.new({
+      getBounds = function()
+        return { w = 320, h = 240 }
+      end,
+      cellH = 15,
+      rowGap = 2,
+    })
+    local picked = {}
+    expect(menu:showAt(10, 10, {
+      {
+        text = "Top",
+        action = function()
+          picked[#picked + 1] = "Top"
+        end,
+      },
+      {
+        text = "Bottom",
+        action = function()
+          picked[#picked + 1] = "Bottom"
+        end,
+      },
+    })).toBe(true)
+
+    local top = assert(menu.panel:getCell(1, 1), "top")
+    local bottom = assert(menu.panel:getCell(1, 2), "bottom")
+    expect(menu.panel._hitTestIncludeRowGaps).toBe(true)
+    expect(menu.panel.spacingY).toBe(2)
+
+    -- Mid-gutter between the two rows (1px belongs to each side with rowGap=2).
+    local gapYTopShare = top.y + top.h
+    local gapYBottomShare = bottom.y - 1
+    local midX = top.x + math.floor(top.w * 0.5)
+
+    expect(menu.panel:getCellAt(midX, gapYTopShare)).toBe(top)
+    expect(menu.panel:getButtonAt(midX, gapYTopShare)).toBe(top.button)
+    expect(menu.panel:getCellAt(midX, gapYBottomShare)).toBe(bottom)
+    expect(menu.panel:getButtonAt(midX, gapYBottomShare)).toBe(bottom.button)
+
+    menu:mousepressed(midX, gapYTopShare, 1)
+    menu:mousereleased(midX, gapYTopShare, 1)
+    expect(picked[1]).toBe("Top")
+
+    menu:showAt(10, 10, {
+      {
+        text = "Top",
+        action = function()
+          picked[#picked + 1] = "Top"
+        end,
+      },
+      {
+        text = "Bottom",
+        action = function()
+          picked[#picked + 1] = "Bottom"
+        end,
+      },
+    })
+    top = assert(menu.panel:getCell(1, 1), "top")
+    bottom = assert(menu.panel:getCell(1, 2), "bottom")
+    midX = bottom.x + math.floor(bottom.w * 0.5)
+    gapYBottomShare = bottom.y - 1
+    menu:mousepressed(midX, gapYBottomShare, 1)
+    menu:mousereleased(midX, gapYBottomShare, 1)
+    expect(picked[#picked]).toBe("Bottom")
+  end)
 end)

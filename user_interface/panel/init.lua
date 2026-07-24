@@ -167,6 +167,10 @@ function Panel.new(opts)
         and type(opts.title) == "string"
         and opts.title ~= ""
       ),
+    -- Menu item rows: same stroke as modal controls, but only while hovered/pressed.
+    _modalControlOutlineOnHover = opts._modalControlOutlineOnHover == true,
+    -- Contextual menus: row gaps count as part of the nearest item hit box.
+    _hitTestIncludeRowGaps = opts._hitTestIncludeRowGaps == true,
     menuRowSeparators = opts.menuRowSeparators == true,
     -- Menus pass `menuOutline` explicitly; modals leave it off unless opted in.
     menuOutline = opts.menuOutline == true,

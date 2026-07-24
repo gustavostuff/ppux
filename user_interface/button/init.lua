@@ -95,9 +95,82 @@ function Button:contains(px, py)
          py >= self.y and py <= self.y + self.h
 end
 
+local function contentAlphaFor(button)
+  if button.enabled == false then
+    return 0.5
+  end
+  if button.normalContentAlpha ~= nil then
+    return (button.hovered or button.pressed or button.focused) and 1.0 or button.normalContentAlpha
+  end
+  return 1.0
+end
+
+local function iconInkRgbaFor(button, alpha)
+  local tint = button.iconTintColor
+  if type(tint) == "table" then
+    return tint[1] or 1, tint[2] or 1, tint[3] or 1, alpha
+  end
+  if button.skipIconContrastAdapt == true then
+    return colors.white[1], colors.white[2], colors.white[3], alpha
+  end
+  if button.literalContentColor == true and button.contentColor then
+    return button.contentColor[1], button.contentColor[2], button.contentColor[3], alpha
+  end
+  if button.iconRespectTheme == false then
+    return colors.white[1], colors.white[2], colors.white[3], alpha
+  end
+  local ic = colors.iconPrimary or colors.white
+  return ic[1], ic[2], ic[3], alpha
+end
+
+--- Icon top-left for the current layout, or nil when there is nothing to draw.
+function Button:getIconDrawPosition()
+  if not self.icon or self.skipIconDraw then
+    return nil
+  end
+  local iconW, iconH = iconSize(self.icon)
+  if iconW <= 0 or iconH <= 0 then
+    return nil
+  end
+  local iconY = self.y + (self.h - iconH) / 2
+  if self.text then
+    local font = love.graphics.getFont()
+    local textW = font and font:getWidth(self.text) or 0
+    local contentW = iconW + self.iconTextGap + textW
+    local contentX
+    if self.textAlign == "left" then
+      contentX = self.x + self.contentPaddingX
+    else
+      contentX = self.x + (self.w - contentW) / 2
+    end
+    local iconX = contentX
+    if self.textAlign == "left" and self.alignTextToContentPadding == true then
+      iconX = self.x
+    end
+    return iconX, iconY
+  end
+  return self.x + (self.w - iconW) / 2, iconY
+end
+
+--- Draw only the icon (used after control outlines so strokes do not cover glyphs).
+function Button:drawIconContent()
+  local iconX, iconY = self:getIconDrawPosition()
+  if iconX == nil then
+    return
+  end
+  local iconAlpha = contentAlphaFor(self)
+  local ir, ig, ib, ia = iconInkRgbaFor(self, iconAlpha)
+  love.graphics.setColor(ir, ig, ib, ia)
+  drawIcon(self.icon, iconX, iconY, { respectTheme = false })
+  love.graphics.setColor(colors.white)
+end
+
 -- Draw the button (transparent background with icon)
--- Override this method in subclasses for different button styles
-function Button:draw()
+-- opts.skipIcon: draw fill/text only; call drawIconContent() after an outline.
+function Button:draw(opts)
+  opts = opts or {}
+  local skipIcon = opts.skipIcon == true
+
   local function drawBaseFill()
     if not self.bgColor then return end
     local c = self.bgColor
@@ -106,38 +179,9 @@ function Button:draw()
     love.graphics.rectangle("fill", self.x, self.y, self.w, self.h)
   end
 
-  local function contentAlpha()
-    if self.enabled == false then
-      return 0.5
-    end
-    if self.normalContentAlpha ~= nil then
-      return (self.hovered or self.pressed or self.focused) and 1.0 or self.normalContentAlpha
-    end
-    return 1.0
-  end
-
   local function contentColorWithAlpha(alpha)
     local c = self.contentColor or colors.white
     return c[1], c[2], c[3], alpha
-  end
-
-  --- Icons are bitmap white-fill; tint via multiply. With literal + contentColor, use contentColor (Appearance).
-  local function iconInkRgba(alpha)
-    local tint = self.iconTintColor
-    if type(tint) == "table" then
-      return tint[1] or 1, tint[2] or 1, tint[3] or 1, alpha
-    end
-    if self.skipIconContrastAdapt == true then
-      return colors.white[1], colors.white[2], colors.white[3], alpha
-    end
-    if self.literalContentColor == true and self.contentColor then
-      return self.contentColor[1], self.contentColor[2], self.contentColor[3], alpha
-    end
-    if self.iconRespectTheme == false then
-      return colors.white[1], colors.white[2], colors.white[3], alpha
-    end
-    local ic = colors.iconPrimary or colors.white
-    return ic[1], ic[2], ic[3], alpha
   end
 
   local function drawHoverFocusUnderlay()
@@ -173,7 +217,7 @@ function Button:draw()
       textX = self.x + padL + (self.w - padL - padR - textW) / 2
     end
     local textY = self.y + (self.h - textH) / 2
-    local a = contentAlpha()
+    local a = contentAlphaFor(self)
     local r, g, b, aa = contentColorWithAlpha(a)
     Text.print(self.text, math.floor(textX), math.floor(textY), {
       color = { r, g, b, aa },
@@ -199,7 +243,6 @@ function Button:draw()
       contentX = self.x + (self.w - contentW) / 2
     end
     local iconX = contentX
-    local iconY = self.y + (self.h - iconH) / 2
     local textX = iconX + iconW + self.iconTextGap
     if self.textAlign == "left" and self.alignTextToContentPadding == true then
       textX = self.x + self.contentPaddingX
@@ -207,14 +250,14 @@ function Button:draw()
     end
     local textY = self.y + (self.h - textH) / 2
 
-    local iconAlpha = contentAlpha()
-    local r, g, b, a = contentColorWithAlpha(iconAlpha)
-    local ir, ig, ib, ia = iconInkRgba(iconAlpha)
-    love.graphics.setColor(ir, ig, ib, ia)
-    drawIcon(self.icon, iconX, iconY, { respectTheme = false })
+    if not skipIcon then
+      self:drawIconContent()
+    end
 
+    local a = contentAlphaFor(self)
+    local r, g, b, aa = contentColorWithAlpha(a)
     Text.print(self.text, math.floor(textX), math.floor(textY), {
-      color = { r, g, b, a },
+      color = { r, g, b, aa },
       literalColor = self.literalContentColor == true,
     })
     love.graphics.setColor(colors.white)
@@ -225,15 +268,8 @@ function Button:draw()
   drawBaseFill()
   drawHoverFocusUnderlay()
 
-  if not self.skipIconDraw then
-    local iconAlpha = contentAlpha()
-    local ir, ig, ib, ia = iconInkRgba(iconAlpha)
-    love.graphics.setColor(ir, ig, ib, ia)
-
-    local iconW, iconH = iconSize(self.icon)
-    local iconX = self.x + (self.w - iconW) / 2  -- Center horizontally
-    local iconY = self.y + (self.h - iconH) / 2  -- Center vertically
-    drawIcon(self.icon, iconX, iconY, { respectTheme = false })
+  if not skipIcon then
+    self:drawIconContent()
   end
   love.graphics.setColor(colors.white)
 end

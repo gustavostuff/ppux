@@ -62,8 +62,49 @@ local function install(Panel, utils)
     return consumed
   end
 
+  local function clearCellHover(cell)
+    if cell.button then
+      cell.button.hovered = false
+    end
+    local c = cell.component
+    if not c then
+      return
+    end
+    c.hovered = false
+    if c.trigger then
+      c.trigger.hovered = false
+    end
+  end
+
+  --- Dropdown / color-picker list drawn above the panel; suppress hover on
+  --- triggers and other controls sitting under the open menu.
+  local function openMenuComponentAt(panel, x, y)
+    for _, cell in ipairs(panel:_iterCells()) do
+      local c = cell.component
+      if c and c.enabled ~= false
+        and type(c.isMenuVisible) == "function" and c:isMenuVisible()
+        and c.menu and type(c.menu.contains) == "function" and c.menu:contains(x, y)
+      then
+        return c
+      end
+    end
+    return nil
+  end
+
   function Panel:mousemoved(x, y)
     if not self.visible then return end
+
+    local openMenuComp = openMenuComponentAt(self, x, y)
+    if openMenuComp then
+      for _, cell in ipairs(self:_iterCells()) do
+        clearCellHover(cell)
+      end
+      if type(openMenuComp.mousemoved) == "function" then
+        openMenuComp:mousemoved(x, y)
+      end
+      return
+    end
+
     local hovered = self:getButtonAt(x, y) or self:getComponentAt(x, y)
     for _, cell in ipairs(self:_iterCells()) do
       if cell.button then

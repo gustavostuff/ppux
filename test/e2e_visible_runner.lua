@@ -100,7 +100,6 @@ function VisibleE2ERunner.new(opts)
       cellH = 15,
       padding = 0,
       colGap = 0,
-      rowGap = 1,
       splitIconCell = true,
     })
     app.e2eOverlayMenu = self.demoMenu
