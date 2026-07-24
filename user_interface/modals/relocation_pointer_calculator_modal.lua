@@ -10,8 +10,9 @@ local colors = require("app_colors")
 local Dialog = {}
 Dialog.__index = Dialog
 
-local FOOTER_LINE_2 = "Patch order: lo, then hi. Same PRG bank required."
 local INTRO_LINE = "Converts relocateTo offset to lo/hi for romPatches."
+local FOOTER_LINE_2 = "Patch order: lo, then hi. Same PRG bank required."
+local FOOTER_LINE_3 = "(You must find the pointer bytes in ROM, manually)"
 
 local HEADER_ITEMS = {
   { value = 0x10, text = "0x10" },
@@ -113,7 +114,7 @@ rebuildPanel = function(self)
   local focused = self.panel and self.panel.focusedComponent or nil
   self.panel = Panel.new({
     cols = 3,
-    rows = 11,
+    rows = 12,
     cellW = self.cellW,
     cellH = self.cellH,
     cellWidths = {
@@ -199,6 +200,10 @@ rebuildPanel = function(self)
   })
   self.panel:setCell(1, 11, {
     text = FOOTER_LINE_2,
+    colspan = 3,
+  })
+  self.panel:setCell(1, 12, {
+    text = FOOTER_LINE_3,
     colspan = 3,
   })
 
