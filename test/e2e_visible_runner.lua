@@ -13,9 +13,12 @@ local resolvePoint = E2EVisibleSteps.resolvePoint
 local SCENARIOS = E2EVisibleScenarios.scenarios
 local SCENARIO_ALIASES = E2EVisibleScenarios.aliases
 
+local FilesystemPath = require("utils.filesystem_path")
+
 local VisibleE2ERunner = {}
 VisibleE2ERunner.__index = VisibleE2ERunner
-VisibleE2ERunner.ABORT_ALL_FLAG_PATH = "/tmp/ppux_e2e_abort_all.flag"
+VisibleE2ERunner.ABORT_ALL_FLAG_PATH =
+  FilesystemPath.join(FilesystemPath.getTempDir(), "ppux_e2e_abort_all.flag")
 
 local cachedOverlayFont = nil
 

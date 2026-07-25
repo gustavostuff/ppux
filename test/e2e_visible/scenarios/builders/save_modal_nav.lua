@@ -19,8 +19,12 @@ local BubbleExample, PaletteLinkController, ContextualMenuController, images,
 
 
 local function buildSaveReloadPersistenceScenario(harness, app, runner)
+  local FilesystemPath = require("utils.filesystem_path")
   local tempSuffix = tostring(os.time()) .. "_" .. tostring(math.random(1000, 9999))
-  local tempRomPath = "/tmp/ppux_e2e_visible_persist_" .. tempSuffix .. ".nes"
+  local tempRomPath = FilesystemPath.join(
+    FilesystemPath.getTempDir(),
+    "ppux_e2e_visible_persist_" .. tempSuffix .. ".nes"
+  )
   local tempProjectPath = tempRomPath:gsub("%.nes$", ".lua")
   local tempEncodedPath = tempRomPath:gsub("%.nes$", ".ppux")
   local tempEditedPath = tempRomPath:gsub("%.nes$", "_edited.nes")

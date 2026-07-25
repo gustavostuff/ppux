@@ -1,8 +1,24 @@
 -- Shared temp-file helpers for visible E2E scenarios.
 
 local BubbleExample = require("test.e2e_bubble_example")
+local FilesystemPath = require("utils.filesystem_path")
 
 local M = {}
+
+local IS_WINDOWS = package.config:sub(1, 1) == "\\"
+
+--- Create a directory (and its parents) using the native shell for the current OS.
+function M.makeDirectories(path)
+  if type(path) ~= "string" or path == "" then
+    return
+  end
+  if IS_WINDOWS then
+    -- cmd's mkdir creates intermediate directories automatically.
+    os.execute('mkdir "' .. path:gsub("/", "\\") .. '" >NUL 2>NUL')
+  else
+    os.execute('mkdir -p "' .. path .. '"')
+  end
+end
 
 function M.copyFile(srcPath, dstPath)
   local src = assert(io.open(srcPath, "rb"))
@@ -30,16 +46,16 @@ end
 ---   <dir>/nested/test_rom.{lua,nes}
 function M.setupOpenProjectFixture(runner)
   local suffix = tostring(os.time()) .. "_" .. tostring(math.random(1000, 9999))
-  local dir = "/tmp/ppux_e2e_open_project_" .. suffix
-  local nested = dir .. "/nested"
-  os.execute('mkdir -p "' .. nested .. '"')
+  local dir = FilesystemPath.join(FilesystemPath.getTempDir(), "ppux_e2e_open_project_" .. suffix)
+  local nested = FilesystemPath.join(dir, "nested")
+  M.makeDirectories(nested)
 
   local romSrc = assert(BubbleExample.getRomPath(), "expected test_rom.nes fixture")
   local projSrc = assert(BubbleExample.getProjectPath(), "expected test_rom.lua fixture")
 
-  local romDst = nested .. "/test_rom.nes"
-  local projDst = nested .. "/test_rom.lua"
-  local invalidDst = dir .. "/invalid_project.lua"
+  local romDst = FilesystemPath.join(nested, "test_rom.nes")
+  local projDst = FilesystemPath.join(nested, "test_rom.lua")
+  local invalidDst = FilesystemPath.join(dir, "invalid_project.lua")
 
   M.copyFile(romSrc, romDst)
   M.copyFile(projSrc, projDst)

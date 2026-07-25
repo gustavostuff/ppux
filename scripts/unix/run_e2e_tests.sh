@@ -5,7 +5,9 @@ set -uo pipefail
 # Runs interactive visible E2E scenarios: love . --e2e <scenario> (VisibleE2ERunner).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ABORT_ALL_FLAG="/tmp/ppux_e2e_abort_all.flag"
+TMP_BASE="${TMPDIR:-/tmp}"
+TMP_BASE="${TMP_BASE%/}"
+ABORT_ALL_FLAG="${TMP_BASE}/ppux_e2e_abort_all.flag"
 rm -f "$ABORT_ALL_FLAG"
 
 SCENARIOS=(

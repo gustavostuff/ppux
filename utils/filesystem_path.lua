@@ -6,6 +6,46 @@ local function trim(text)
   return tostring(text or ""):match("^%s*(.-)%s*$")
 end
 
+local IS_WINDOWS = package.config:sub(1, 1) == "\\"
+
+--- Native path separator for the current OS ("\\" on Windows, "/" elsewhere).
+function M.separator()
+  return IS_WINDOWS and "\\" or "/"
+end
+
+--- OS temporary directory (no trailing separator). Falls back sensibly per platform.
+function M.getTempDir()
+  if IS_WINDOWS then
+    local candidate = os.getenv("TEMP") or os.getenv("TMP")
+    if type(candidate) == "string" and candidate ~= "" then
+      return (candidate:gsub("[/\\]+$", ""))
+    end
+    return "."
+  end
+  local candidate = os.getenv("TMPDIR")
+  if type(candidate) == "string" and candidate ~= "" then
+    return (candidate:gsub("/+$", ""))
+  end
+  return "/tmp"
+end
+
+--- Join path segments using the native separator. Nil/empty segments are skipped.
+function M.join(...)
+  local sep = M.separator()
+  local result = nil
+  for _, segment in ipairs({ ... }) do
+    segment = tostring(segment or "")
+    if segment ~= "" then
+      if result == nil then
+        result = (segment:gsub("[/\\]+$", ""))
+      else
+        result = result .. sep .. (segment:gsub("^[/\\]+", ""):gsub("[/\\]+$", ""))
+      end
+    end
+  end
+  return result or ""
+end
+
 function M.isAbsolutePath(path)
   if type(path) ~= "string" or path == "" then
     return false
