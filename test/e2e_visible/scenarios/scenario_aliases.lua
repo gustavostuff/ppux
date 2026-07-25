@@ -14,6 +14,7 @@ local SCENARIO_ALIASES = {
   palette_edit_roundtrip_demo = "palette_edit_roundtrip",
   rom_palette_links_demo = "rom_palette_links",
   rom_palette_link_interactions_demo = "rom_palette_link_interactions",
+  pattern_table_link_interactions_demo = "pattern_table_link_interactions",
   save_reload_persistence_demo = "save_reload_persistence",
   submenu_positions_demo = "submenu_positions",
   context_menus_and_submenus_demo = "context_menus_and_submenus",

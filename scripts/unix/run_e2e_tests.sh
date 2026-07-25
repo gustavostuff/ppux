@@ -24,6 +24,7 @@ SCENARIOS=(
   "undo_redo_events"
   "palette_edit_roundtrip"
   "rom_palette_link_interactions"
+  "pattern_table_link_interactions"
   "save_reload_persistence"
   "submenu_positions"
   "context_menus_and_submenus"
