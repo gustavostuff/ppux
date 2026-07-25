@@ -23,8 +23,23 @@ local function trim(text)
 end
 
 local function detectWorkingDirectory()
-  local command = isWindows() and "cd" or "pwd"
-  local handle = io.popen(command)
+  -- Prefer LÖVE / Win32 APIs so Windows never shells out (io.popen flashes a console).
+  local FilesystemPath = require("utils.filesystem_path")
+  local dir = FilesystemPath.getWorkingDirectory()
+  if type(dir) == "string" and trim(dir) ~= "" then
+    return dir
+  end
+  if isWindows() then
+    local okWin, WinFs = pcall(require, "utils.win_fs")
+    if okWin and WinFs and WinFs.getCurrentDirectory then
+      dir = WinFs.getCurrentDirectory()
+      if type(dir) == "string" and trim(dir) ~= "" then
+        return dir
+      end
+    end
+    return "."
+  end
+  local handle = io.popen("pwd")
   if not handle then
     return "."
   end
@@ -33,20 +48,6 @@ local function detectWorkingDirectory()
   line = trim((line or ""):gsub("\r", ""))
   if line == "" then
     return "."
-  end
-  return line
-end
-
-local function readFirstLine(command)
-  local handle = io.popen(command)
-  if not handle then
-    return nil
-  end
-  local line = handle:read("*l")
-  handle:close()
-  line = trim((line or ""):gsub("\r", ""))
-  if line == "" then
-    return nil
   end
   return line
 end
@@ -62,14 +63,14 @@ local function detectHomeDirectory()
     if homeDrive ~= "" and homePath ~= "" then
       return homeDrive .. homePath
     end
-    return readFirstLine("echo %USERPROFILE%")
+    return nil
   end
 
   local home = trim(os.getenv("HOME") or "")
   if home ~= "" then
     return home
   end
-  return readFirstLine("echo $HOME")
+  return nil
 end
 
 local function normalizePath(path)
@@ -202,7 +203,8 @@ local function listEntriesPosix(dir, showHidden, allowedExt)
   return sortedEntries(entries)
 end
 
-local function listEntriesWindows(dir, showHidden, allowedExt)
+local function listEntriesWindowsViaCmd(dir, showHidden, allowedExt)
+  -- Fallback only: io.popen briefly flashes a console on Windows.
   local quoted = shellQuoteWindows(dir)
   local dirLines = readCommandLines(string.format("cmd /d /c dir /b /ad %s 2>nul", quoted))
   local fileLines = readCommandLines(string.format("cmd /d /c dir /b /a-d %s 2>nul", quoted))
@@ -225,6 +227,32 @@ local function listEntriesWindows(dir, showHidden, allowedExt)
         path = pathJoin(dir, name),
         isDir = false,
       }
+    end
+  end
+  return sortedEntries(entries)
+end
+
+local function listEntriesWindows(dir, showHidden, allowedExt)
+  local okWin, WinFs = pcall(require, "utils.win_fs")
+  local listed = okWin and WinFs and WinFs.listDirectory and WinFs.listDirectory(dir) or nil
+  if type(listed) ~= "table" then
+    return listEntriesWindowsViaCmd(dir, showHidden, allowedExt)
+  end
+
+  local entries = {}
+  for _, item in ipairs(listed) do
+    local name = item and item.name
+    if type(name) == "string" and name ~= "" and name ~= "." and name ~= ".." then
+      local isDir = item.isDir == true
+      if showHidden or (not isHiddenName(name)) then
+        if isDir or fileAllowedByExt(name, allowedExt) then
+          entries[#entries + 1] = {
+            name = name,
+            path = pathJoin(dir, name),
+            isDir = isDir,
+          }
+        end
+      end
     end
   end
   return sortedEntries(entries)

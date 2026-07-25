@@ -28,7 +28,18 @@ function M.getWorkingDirectory()
     end
   end
   local isWindows = package.config:sub(1, 1) == "\\"
-  local handle = io.popen(isWindows and "cd" or "pwd")
+  if isWindows then
+    local okWin, WinFs = pcall(require, "utils.win_fs")
+    if okWin and WinFs and WinFs.getCurrentDirectory then
+      local dir = WinFs.getCurrentDirectory()
+      if type(dir) == "string" and dir ~= "" then
+        return dir
+      end
+    end
+    return nil
+  end
+  -- POSIX: pwd via popen does not flash a terminal window.
+  local handle = io.popen("pwd")
   if not handle then
     return nil
   end
