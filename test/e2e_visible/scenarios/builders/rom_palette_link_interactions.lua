@@ -1,7 +1,8 @@
 -- ROM palette link interactions via real toolbar handles (right-drag, menus, double-click).
 local P = require("test.e2e_visible.scenarios.prelude")
 local H = require("test.e2e_visible.scenarios.builders.link_helpers")
-local BubbleExample, pause, call, appendClick = P.BubbleExample, P.pause, P.call, P.appendClick
+local BubbleExample, pause, call, appendClick, keyPress
+  = P.BubbleExample, P.pause, P.call, P.appendClick, P.keyPress
 
 local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
   harness:loadROM(BubbleExample.getLoadPath())
@@ -102,6 +103,15 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
   steps[#steps + 1] = call("Assert pivot click un-minimized target 3", H.assertWindowMinimized("linkTarget3", false))
   steps[#steps + 1] = call("Assert pivot click focused target 3", H.assertFocusedWindow("linkTarget3"))
   steps[#steps + 1] = call("Assert pivot click brought target 3 frontmost", H.assertWindowFrontmost("linkTarget3"))
+
+  steps[#steps + 1] = keyPress("Undo palette pivot activate", "z", { "lctrl" })
+  steps[#steps + 1] = pause("Observe pivot activate undo", 0.22)
+  steps[#steps + 1] = call("Assert undo re-minimized target 3", H.assertWindowMinimized("linkTarget3", true))
+  steps[#steps + 1] = keyPress("Redo palette pivot activate", "y", { "lctrl" })
+  steps[#steps + 1] = pause("Observe pivot activate redo", 0.22)
+  steps[#steps + 1] = call("Assert redo un-minimized target 3", H.assertWindowMinimized("linkTarget3", false))
+  steps[#steps + 1] = call("Assert redo focused target 3", H.assertFocusedWindow("linkTarget3"))
+  steps[#steps + 1] = call("Assert redo brought target 3 frontmost", H.assertWindowFrontmost("linkTarget3"))
 
   steps[#steps + 1] = call("Minimize palette B before destination pivot click", H.minimizeWindowByKey("romLinkPaletteBWin"))
   steps[#steps + 1] = call("Cover stack with palette A before restoring via target 3 pivot", H.bringWindowToFrontByKey("romLinkPaletteAWin"))

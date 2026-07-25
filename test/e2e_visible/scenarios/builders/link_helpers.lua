@@ -343,4 +343,107 @@ function M.assertWindowFrontmost(key)
   end
 end
 
+function M.assertWindowsMinimized(expectedByKey)
+  return function(_, _, currentRunner)
+    for key, expectedMinimized in pairs(expectedByKey) do
+      local win = M.requireRunnerWindow(currentRunner, key)
+      local actual = win._minimized == true
+      assert(
+        actual == (expectedMinimized == true),
+        string.format(
+          "expected %s minimized=%s, got %s",
+          tostring(key),
+          tostring(expectedMinimized == true),
+          tostring(actual)
+        )
+      )
+    end
+  end
+end
+
+function M.windowHeaderMenu(currentApp)
+  local menu = currentApp and currentApp.windowHeaderContextMenu or nil
+  assert(menu and menu:isVisible(), "expected visible window header context menu")
+  return menu
+end
+
+function M.windowHeaderMenuRowByText(itemText)
+  return rootMenuItemCenter(function(currentApp)
+    return M.windowHeaderMenu(currentApp)
+  end, itemText)
+end
+
+--- Open header context menu at the window title (API show; menu item clicks stay mouse-driven).
+function M.appendOpenWindowHeaderMenu(steps, label, winKey)
+  steps[#steps + 1] = call(label, function(_, currentApp, currentRunner)
+    local win = M.requireRunnerWindow(currentRunner, winKey)
+    assert(win.getHeaderRect, "expected header rect")
+    local hx, hy, hw, hh = win:getHeaderRect()
+    local cx = hx + math.floor((tonumber(hw) or 0) * 0.5)
+    local cy = hy + math.floor((tonumber(hh) or 0) * 0.5)
+    assert(currentApp.showWindowHeaderContextMenu, "expected showWindowHeaderContextMenu")
+    assert(
+      currentApp:showWindowHeaderContextMenu(win, cx, cy) == true,
+      "expected window header context menu to open for " .. tostring(winKey)
+    )
+  end)
+  steps[#steps + 1] = pause("Observe header menu: " .. tostring(winKey), 0.14)
+end
+
+function M.headerMinimizeButtonCenterByKey(winKey)
+  return function(_, currentApp, currentRunner)
+    local win = M.requireRunnerWindow(currentRunner, winKey)
+    local toolbar = assert(win.headerToolbar, "expected header toolbar for " .. tostring(winKey))
+    if toolbar.updatePosition then
+      toolbar:updatePosition()
+    end
+    local target = nil
+    for _, button in ipairs(toolbar.buttons or {}) do
+      local tip = button and tostring(button.tooltip or "") or ""
+      if tip:find("Minimize", 1, true) then
+        target = button
+        break
+      end
+    end
+    assert(target, "expected header minimize button on " .. tostring(winKey))
+    assert(type(target.x) == "number" and type(target.y) == "number", "expected minimize button position")
+    return target.x + math.floor((tonumber(target.w) or 0) * 0.5),
+      target.y + math.floor((tonumber(target.h) or 0) * 0.5)
+  end
+end
+
+function M.appendClickHeaderMinimize(steps, label, winKey, opts)
+  M.appendFocusWindow(steps, "Focus " .. tostring(winKey) .. " before header minimize", winKey)
+  appendClick(steps, label, M.headerMinimizeButtonCenterByKey(winKey), opts or {
+    moveDuration = 0.08,
+    prePressPause = 0.06,
+    holdDuration = 0.05,
+    postPause = 0.22,
+  })
+end
+
+function M.taskbarWindowButtonCenterByKey(winKey)
+  return function(_, currentApp, currentRunner)
+    local win = M.requireRunnerWindow(currentRunner, winKey)
+    local taskbar = assert(currentApp.taskbar or (currentApp.wm and currentApp.wm.taskbar), "expected taskbar")
+    if taskbar.updateLayout and currentApp.canvas and currentApp.canvas.getWidth then
+      taskbar:updateLayout(currentApp.canvas:getWidth(), currentApp.canvas:getHeight())
+    end
+    local button = taskbar.minimizedButtonsByWindow and taskbar.minimizedButtonsByWindow[win]
+    assert(button, "expected taskbar button for " .. tostring(winKey))
+    assert(type(button.x) == "number" and type(button.y) == "number", "expected taskbar button position")
+    assert((tonumber(button.w) or 0) > 0 and (tonumber(button.h) or 0) > 0, "expected laid-out taskbar button")
+    return button.x + math.floor(button.w * 0.5), button.y + math.floor(button.h * 0.5)
+  end
+end
+
+function M.appendClickTaskbarWindowButton(steps, label, winKey, opts)
+  appendClick(steps, label, M.taskbarWindowButtonCenterByKey(winKey), opts or {
+    moveDuration = 0.08,
+    prePressPause = 0.06,
+    holdDuration = 0.05,
+    postPause = 0.24,
+  })
+end
+
 return M

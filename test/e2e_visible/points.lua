@@ -145,9 +145,9 @@ local function menuRowCenter(menuResolver, row)
   end
 end
 
-local function taskbarRootMenu(_, currentRunner)
-  local currentApp = currentRunner and currentRunner.app or app
-  local taskbar = currentApp and currentApp.taskbar or nil
+local function taskbarRootMenu(currentApp, currentRunner)
+  local app = currentApp or (currentRunner and currentRunner.app) or nil
+  local taskbar = app and app.taskbar or nil
   return taskbar and taskbar.menuController or nil
 end
 

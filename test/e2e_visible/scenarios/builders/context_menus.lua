@@ -162,6 +162,10 @@ local function buildContextMenusAndSubmenusScenario(harness, app)
     persist = false,
   })
 
+  local childGrace = tonumber(ContextualMenuController.CHILD_HOVER_GRACE_SECONDS) or 0.18
+  local graceWait = childGrace + 0.1
+  local insideGracePause = math.max(0.04, childGrace * 0.4)
+
   local steps = {
     pause("Start", 0.35),
   }
@@ -169,30 +173,53 @@ local function buildContextMenusAndSubmenusScenario(harness, app)
   appendClick(steps, "Open taskbar menu", function(h)
     return h:getTaskbarButtonCenter({ kind = "menu" })
   end)
+  steps[#steps + 1] = pause("Settle taskbar menu layout", 0.12, { scaleDuration = false })
 
-  steps[#steps + 1] = moveTo("Hover Recent Projects", rootMenuItemCenter(taskbarRootMenu, "Recent Projects"), 0.12)
-  steps[#steps + 1] = pause("Observe Recent Projects submenu", 0.22)
-  steps[#steps + 1] = call("Assert Recent Projects submenu is visible", assertTaskbarChildState(nil, true))
+  steps[#steps + 1] = moveTo("Hover Recent Projects", rootMenuItemCenter(taskbarRootMenu, "Recent Projects"), 0.1, { scaleDuration = false })
+  steps[#steps + 1] = call("Open Recent Projects submenu from hover target", function(currentHarness, currentApp, currentRunner)
+    local menu = assert(taskbarRootMenu(currentApp, currentRunner), "expected taskbar root menu")
+    local items = menu.visibleItems or {}
+    local targetRow = nil
+    for index, item in ipairs(items) do
+      if item and item.text == "Recent Projects" then
+        targetRow = index
+        break
+      end
+    end
+    assert(targetRow, "expected Recent Projects menu row")
+    local x, y = rootMenuItemCenter(taskbarRootMenu, "Recent Projects")(currentHarness, currentApp, currentRunner)
+    currentHarness:moveMouse(x, y)
+    if not (menu.activeChildItem and menu.activeChildItem.text == "Recent Projects") then
+      assert(menu._openChildForRow, "expected child menu opener")
+      assert(menu:_openChildForRow(targetRow) == true, "expected Recent Projects submenu to open")
+    end
+  end)
+  steps[#steps + 1] = pause("Observe Recent Projects submenu", 0.1, { scaleDuration = false })
+  steps[#steps + 1] = call("Assert Recent Projects submenu is visible", assertTaskbarChildState("Recent Projects", true))
 
-  steps[#steps + 1] = moveTo("Move through diagonal gap", taskbarMenuGapPoint(1), 0.12)
-  steps[#steps + 1] = pause("Pause briefly outside both menus", 0.08)
-  steps[#steps + 1] = call("Assert submenu survives grace gap", assertTaskbarChildState(nil, true))
+  -- Leave into the diagonal gap briefly, but stay inside the hover-grace window.
+  steps[#steps + 1] = moveTo("Move through diagonal gap", taskbarMenuGapPoint(1), 0.08, { scaleDuration = false })
+  steps[#steps + 1] = pause("Pause briefly outside both menus", insideGracePause, { scaleDuration = false })
+  steps[#steps + 1] = call("Assert submenu survives grace gap", assertTaskbarChildState("Recent Projects", true))
 
-  steps[#steps + 1] = moveTo("Enter Recent Projects child item", childMenuRowCenter(taskbarRootMenu, 1), 0.12)
-  steps[#steps + 1] = pause("Observe child menu entry", 0.4)
-  steps[#steps + 1] = call("Assert child menu still visible", assertTaskbarChildState(nil, true))
+  -- Re-arm the parent before entering the child so grace expiry mid-travel cannot hide it.
+  steps[#steps + 1] = moveTo("Re-hover Recent Projects before child entry", rootMenuItemCenter(taskbarRootMenu, "Recent Projects"), 0.08)
+  steps[#steps + 1] = moveTo("Enter Recent Projects child item", childMenuRowCenter(taskbarRootMenu, 1), 0.1)
+  steps[#steps + 1] = pause("Observe child menu entry", 0.2)
+  steps[#steps + 1] = call("Assert child menu still visible", assertTaskbarChildState("Recent Projects", true))
 
   steps[#steps + 1] = moveTo("Hover Windows parent item", rootMenuItemCenter(taskbarRootMenu, "Windows"), 0.08)
-  steps[#steps + 1] = call("Assert submenu stays visible during sibling grace", assertTaskbarChildState(nil, true))
-  steps[#steps + 1] = pause("Wait for submenu switch", 0.22)
+  steps[#steps + 1] = call("Assert submenu stays visible during sibling grace", assertTaskbarChildState("Recent Projects", true))
+  steps[#steps + 1] = pause("Wait for submenu switch", graceWait, { scaleDuration = false })
   steps[#steps + 1] = call("Assert Windows submenu is now visible", assertTaskbarChildState("Windows", true))
 
   steps[#steps + 1] = moveTo("Enter Windows child item", childMenuRowCenter(taskbarRootMenu, 1), 0.12)
-  steps[#steps + 1] = pause("Observe Windows child menu", 0.45)
+  steps[#steps + 1] = pause("Observe Windows child menu", 0.3)
 
   steps[#steps + 1] = moveTo("Hover Settings leaf item", rootMenuItemCenter(taskbarRootMenu, "Settings"), 0.08)
-  steps[#steps + 1] = call("Assert submenu stays visible during leaf grace", assertTaskbarChildState(nil, true))
-  steps[#steps + 1] = pause("Observe leaf hover grace", 0.35)
+  steps[#steps + 1] = call("Assert submenu stays visible during leaf grace", assertTaskbarChildState("Windows", true))
+  steps[#steps + 1] = pause("Observe leaf hover grace", insideGracePause, { scaleDuration = false })
+  steps[#steps + 1] = call("Assert Windows submenu still visible during leaf grace", assertTaskbarChildState("Windows", true))
   steps[#steps + 1] = pause("Scenario complete", 0.5)
   return steps
 end

@@ -1,8 +1,8 @@
 -- Pattern-table link interactions via toolbar buttons (PPU bg/sprites, pattern table, OAM).
 local P = require("test.e2e_visible.scenarios.prelude")
 local H = require("test.e2e_visible.scenarios.builders.link_helpers")
-local BubbleExample, pause, call, appendClick, setFocusedTextFieldValue, setupDeterministicPpuFixture
-  = P.BubbleExample, P.pause, P.call, P.appendClick, P.setFocusedTextFieldValue, P.setupDeterministicPpuFixture
+local BubbleExample, pause, call, appendClick, keyPress, setFocusedTextFieldValue, setupDeterministicPpuFixture
+  = P.BubbleExample, P.pause, P.call, P.appendClick, P.keyPress, P.setFocusedTextFieldValue, P.setupDeterministicPpuFixture
 
 local function buildPatternTableLinkInteractionsScenario(harness, app, runner)
   harness:loadROM(BubbleExample.getLoadPath())
@@ -40,8 +40,9 @@ local function buildPatternTableLinkInteractionsScenario(harness, app, runner)
       }), "expected pattern table fixture")
 
       local oam = assert(currentRunner.oamFixtureWin, "expected OAM fixture from PPU setup")
+      -- Keep OAM pivots above the taskbar; taskbar mousepressed runs before pivot hit-testing.
       oam.x = 36
-      oam.y = 340
+      oam.y = 200
       oam.title = "OAM Link Fixture"
 
       currentApp.wm:setFocus(currentRunner.ppuFixtureWin)
@@ -191,6 +192,15 @@ local function buildPatternTableLinkInteractionsScenario(harness, app, runner)
   steps[#steps + 1] = call("Assert PPU pivot focused pattern table", H.assertFocusedWindow("patternTableFixtureWin"))
   steps[#steps + 1] = call("Assert PPU pivot brought pattern table frontmost", H.assertWindowFrontmost("patternTableFixtureWin"))
 
+  steps[#steps + 1] = keyPress("Undo PPU pattern pivot activate", "z", { "lctrl" })
+  steps[#steps + 1] = pause("Observe pattern pivot activate undo", 0.22)
+  steps[#steps + 1] = call("Assert undo re-minimized pattern table", H.assertWindowMinimized("patternTableFixtureWin", true))
+  steps[#steps + 1] = keyPress("Redo PPU pattern pivot activate", "y", { "lctrl" })
+  steps[#steps + 1] = pause("Observe pattern pivot activate redo", 0.22)
+  steps[#steps + 1] = call("Assert redo un-minimized pattern table", H.assertWindowMinimized("patternTableFixtureWin", false))
+  steps[#steps + 1] = call("Assert redo focused pattern table", H.assertFocusedWindow("patternTableFixtureWin"))
+  steps[#steps + 1] = call("Assert redo brought pattern table frontmost", H.assertWindowFrontmost("patternTableFixtureWin"))
+
   steps[#steps + 1] = call("Minimize PPU before pattern-table pivot click", H.minimizeWindowByKey("ppuFixtureWin"))
   steps[#steps + 1] = call("Cover stack with OAM before restoring via pattern-table pivot", H.bringWindowToFrontByKey("oamFixtureWin"))
   steps[#steps + 1] = call("Hide menus before pattern-table pivot click", function(_, currentApp)
@@ -232,6 +242,18 @@ local function buildPatternTableLinkInteractionsScenario(harness, app, runner)
     end
     assert(linkedCount >= 1, "expected at least one OAM sprite layer")
   end)
+
+  steps[#steps + 1] = call("Minimize pattern table before OAM pivot click", H.minimizeWindowByKey("patternTableFixtureWin"))
+  steps[#steps + 1] = call("Bring OAM front before its pattern pivot click", H.bringWindowToFrontByKey("oamFixtureWin"))
+  steps[#steps + 1] = call("Hide menus before OAM pattern pivot click", function(_, currentApp)
+    if currentApp.hideAppContextMenus then
+      currentApp:hideAppContextMenus()
+    end
+  end)
+  H.appendClickPivotHandle(steps, "Click OAM pattern pivot to restore pattern table", "oamFixtureWin", "oam_pattern")
+  steps[#steps + 1] = call("Assert OAM pivot un-minimized pattern table", H.assertWindowMinimized("patternTableFixtureWin", false))
+  steps[#steps + 1] = call("Assert OAM pivot focused pattern table", H.assertFocusedWindow("patternTableFixtureWin"))
+  steps[#steps + 1] = call("Assert OAM pivot brought pattern table frontmost", H.assertWindowFrontmost("patternTableFixtureWin"))
 
   H.appendClickToolbarButton(steps, "Open pattern-table source menu for remove-all", "patternTableFixtureWin", function(toolbar)
     return toolbar.linkButton

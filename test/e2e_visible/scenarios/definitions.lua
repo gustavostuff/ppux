@@ -12,6 +12,7 @@ merge(scenarios, require("test.e2e_visible.scenarios.builders.brush_palette_stat
 merge(scenarios, require("test.e2e_visible.scenarios.builders.undo_palette_rom"))
 merge(scenarios, require("test.e2e_visible.scenarios.builders.rom_palette_link_interactions"))
 merge(scenarios, require("test.e2e_visible.scenarios.builders.pattern_table_link_interactions"))
+merge(scenarios, require("test.e2e_visible.scenarios.builders.workspace_minimize"))
 merge(scenarios, require("test.e2e_visible.scenarios.builders.save_modal_nav"))
 merge(scenarios, require("test.e2e_visible.scenarios.builders.clipboard_matrix"))
 merge(scenarios, require("test.e2e_visible.scenarios.builders.ppu_toolbar"))

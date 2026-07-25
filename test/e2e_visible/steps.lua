@@ -22,7 +22,10 @@ local function applySpeedMultiplierToSteps(steps, speedMultiplier)
     end
 
     if (nextStep.kind == "pause" or nextStep.kind == "move") and type(nextStep.duration) == "number" then
-      nextStep.duration = nextStep.duration / multiplier
+      -- Wall-clock grace waits (e.g. submenu hover) must not shrink below real timers.
+      if nextStep.scaleDuration ~= false then
+        nextStep.duration = nextStep.duration / multiplier
+      end
     end
 
     if nextStep.kind == "assert_delay" then
@@ -40,20 +43,24 @@ local function applySpeedMultiplierToSteps(steps, speedMultiplier)
   return scaled
 end
 
-local function pause(label, duration)
+local function pause(label, duration, opts)
+  opts = opts or {}
   return {
     kind = "pause",
     label = label,
     duration = duration or 0.1,
+    scaleDuration = opts.scaleDuration,
   }
 end
 
-local function moveTo(label, pointResolver, duration)
+local function moveTo(label, pointResolver, duration, opts)
+  opts = opts or {}
   return {
     kind = "move",
     label = label,
     duration = duration or 0.1,
     pointResolver = pointResolver,
+    scaleDuration = opts.scaleDuration,
   }
 end
 
