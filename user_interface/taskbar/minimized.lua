@@ -201,6 +201,7 @@ function M.install(Taskbar, Helpers)
       palette = windowIcons.icon_palette_window or nil,
       rom_palette = windowIcons.icon_rom_palette_window or nil,
       pattern_table = windowIcons.icon_pattern_table_window or windowIcons.icon_generic_window or nil,
+      sketch_canvas = windowIcons.icon_sketch_canvas_window or windowIcons.icon_generic_window or nil,
       generic = windowIcons.icon_generic_window or nil,
     }
     self.taskbarAnimatedIconByKind = {}

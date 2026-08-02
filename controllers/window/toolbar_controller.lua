@@ -5,7 +5,7 @@ local HeaderToolbar = require("user_interface.toolbars.header_toolbar")
 local ChrHeaderToolbar = require("user_interface.toolbars.chr_header_toolbar")
 local AnimationToolbar = require("user_interface.toolbars.animation_toolbar")
 local StaticArtToolbar = require("user_interface.toolbars.static_art_toolbar")
-local PixelSketchCanvasToolbar = require("user_interface.toolbars.pixel_sketch_canvas_toolbar")
+local SketchCanvasToolbar = require("user_interface.toolbars.sketch_canvas_toolbar")
 local PatternTableToolbar = require("user_interface.toolbars.pattern_table_toolbar")
 local PPUFrameToolbar = require("user_interface.toolbars.ppu_frame_toolbar")
 local PaletteToolbar = require("user_interface.toolbars.palette_toolbar")
@@ -37,8 +37,8 @@ function ToolbarController.createSpecializedToolbar(window, ctx, windowControlle
 
   if WindowCaps.isAnimationLike(window) then
     return AnimationToolbar.new(window, ctx, windowController)
-  elseif WindowCaps.isPatternSketchCanvas(window) then
-    return PixelSketchCanvasToolbar.new(window, ctx, windowController)
+  elseif WindowCaps.isSketchCanvas(window) then
+    return SketchCanvasToolbar.new(window, ctx, windowController)
   elseif WindowCaps.isPatternTable(window) then
     return PatternTableToolbar.new(window, ctx, windowController)
   elseif window.kind == "static_art" then

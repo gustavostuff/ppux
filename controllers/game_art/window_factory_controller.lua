@@ -6,7 +6,7 @@ local RomWindow = require("user_interface.windows_system.rom_window")
 local PaletteWindow = require("user_interface.windows_system.palette_window")
 local RomPaletteWindow = require("user_interface.windows_system.rom_palette_window")
 local PPUFrameWindow = require("user_interface.windows_system.ppu_frame_window")
-local PixelSketchCanvasWindow = require("user_interface.windows_system.pixel_sketch_canvas_window")
+local SketchCanvasWindow = require("user_interface.windows_system.sketch_canvas_window")
 local PatternTableWindow = require("user_interface.windows_system.pattern_table_window")
 
 local SpriteController = require("controllers.sprite.sprite_controller")
@@ -630,8 +630,8 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
   return win
 end
 
-function M.createPatternSketchCanvasWindow(w, decodePatternCanvasSnapshot, onPatternCanvasRestoreError)
-  local win = PixelSketchCanvasWindow.new(
+function M.createSketchCanvasWindow(w, decodePatternCanvasSnapshot, onPatternCanvasRestoreError)
+  local win = SketchCanvasWindow.new(
     w.x, w.y, w.cellW, w.cellH, w.cols, w.rows, w.zoom, {
       title = w.title,
       visibleRows = w.visibleRows or w.rows,

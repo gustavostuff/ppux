@@ -59,6 +59,7 @@ local NEW_WINDOW_ICON_SHEETS_BY_KEY = {
   oam_animated = "icon_oam_animated_window",
   ppu_frame = "icon_ppu_frame_window",
   pattern_table = "icon_pattern_table_window",
+  sketch_canvas = "icon_sketch_canvas_window",
   palette = "icon_palette_window",
   rom_palette = "icon_rom_palette_window",
   generic = "icon_generic_window",
@@ -219,6 +220,20 @@ function AppCoreController:_buildNewWindowOptions()
           title = windowTitle or "Pattern table",
           cols = cols or 16,
           rows = rows or 16,
+        })
+        Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
+      end
+    },
+    {
+      text = "Sketch canvas window",
+      icon = getNewWindowOptionIcon("sketch_canvas"),
+      buttonText = "Sketch canvas",
+      skipSettingsModal = true,
+      suggestedWindowName = "Sketch canvas",
+      callback = function(_, _, _, windowTitle)
+        local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
+        local win = self.wm:createSketchCanvasWindow({
+          title = windowTitle or "Sketch canvas",
         })
         Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
       end

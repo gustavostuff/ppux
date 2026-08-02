@@ -1,7 +1,7 @@
 -- window_controller.lua - z-order, focus, hit-test, borders
 local DebugController    = require("controllers.dev.debug_controller")
 local StaticArtWindow    = require("user_interface.windows_system.static_art_window")
-local PixelSketchCanvasWindow = require("user_interface.windows_system.pixel_sketch_canvas_window")
+local SketchCanvasWindow = require("user_interface.windows_system.sketch_canvas_window")
 local PatternTableWindow = require("user_interface.windows_system.pattern_table_window")
 local PPUFrameWindow   = require("user_interface.windows_system.ppu_frame_window")
 local AnimationWindow    = require("user_interface.windows_system.animation_window")
@@ -1810,10 +1810,10 @@ function WM:createSpriteWindow(opts)
   return self:finalizeNewWindow(win)
 end
 
-function WM:createPatternSketchCanvasWindow(opts)
+function WM:createSketchCanvasWindow(opts)
   opts = opts or {}
   local defaults = extractWindowOptions(opts)
-  defaults.title = opts.title or "Pixel sketch"
+  defaults.title = opts.title or "Sketch canvas"
   defaults.x = opts.x or 80
   defaults.y = opts.y or 80
   defaults.cols = opts.cols or 32
@@ -1822,7 +1822,7 @@ function WM:createPatternSketchCanvasWindow(opts)
   defaults.cellH = opts.cellH or 8
   defaults.zoom = opts.zoom or 2
 
-  local win = PixelSketchCanvasWindow.new(
+  local win = SketchCanvasWindow.new(
     defaults.x, defaults.y,
     defaults.cellW, defaults.cellH,
     defaults.cols, defaults.rows,

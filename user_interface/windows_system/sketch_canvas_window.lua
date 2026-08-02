@@ -1,12 +1,12 @@
--- pixel_sketch_canvas_window.lua
--- Free-form pixel canvas (NES-style indexed pixels) for authoring artwork later used to
--- build non-ROM pattern tables. Painting only; packing / pattern_table kind is separate.
+-- sketch_canvas_window.lua
+-- Free-form pixel canvas (NES-style indexed pixels) for authoring background /
+-- nametable artwork. Painting only for now; pack / pattern-table link comes later.
 
 local Window = require("user_interface.windows_system.window")
 local PixelCanvas = require("user_interface.windows_system.pixel_canvas")
 
-local PixelSketchCanvasWindow = setmetatable({}, { __index = Window })
-PixelSketchCanvasWindow.__index = PixelSketchCanvasWindow
+local SketchCanvasWindow = setmetatable({}, { __index = Window })
+SketchCanvasWindow.__index = SketchCanvasWindow
 
 local CANVAS_W = 256
 local CANVAS_H = 240
@@ -24,7 +24,7 @@ local function addCanvasLayer(self, name, width, height, fillValue)
   return idx
 end
 
-function PixelSketchCanvasWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
+function SketchCanvasWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
   data = data or {}
   cols = cols or math.floor(CANVAS_W / CELL)
   rows = rows or math.floor(CANVAS_H / CELL)
@@ -37,14 +37,14 @@ function PixelSketchCanvasWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
       allowExternalDrag = true,
       allowExternalDrop = false,
     },
-    title = data.title or "Pixel sketch",
+    title = data.title or "Sketch canvas",
     visibleRows = data.visibleRows or rows,
     visibleCols = data.visibleCols or cols,
     resizable = false,
   })
-  setmetatable(self, PixelSketchCanvasWindow)
+  setmetatable(self, SketchCanvasWindow)
 
-  self.kind = "pattern_sketch_canvas"
+  self.kind = "sketch_canvas"
   self.layers = {}
 
   addCanvasLayer(self, "Sketch", CANVAS_W, CANVAS_H, 0)
@@ -53,7 +53,7 @@ function PixelSketchCanvasWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
   return self
 end
 
-function PixelSketchCanvasWindow:getActiveCanvasLayer()
+function SketchCanvasWindow:getActiveCanvasLayer()
   local li = self:getActiveLayerIndex() or 1
   local layer = self.layers and self.layers[li] or nil
   if layer and layer.kind == "canvas" and layer.canvas then
@@ -62,12 +62,12 @@ function PixelSketchCanvasWindow:getActiveCanvasLayer()
   return nil, li
 end
 
-function PixelSketchCanvasWindow:getActiveCanvas()
+function SketchCanvasWindow:getActiveCanvas()
   local layer = self:getActiveCanvasLayer()
   return layer and layer.canvas or nil
 end
 
-function PixelSketchCanvasWindow:getVisibleSize()
+function SketchCanvasWindow:getVisibleSize()
   local canvas = self:getActiveCanvas()
   if canvas then
     return canvas.width, canvas.height
@@ -75,7 +75,7 @@ function PixelSketchCanvasWindow:getVisibleSize()
   return Window.getVisibleSize(self)
 end
 
-function PixelSketchCanvasWindow:getRealContentSize()
+function SketchCanvasWindow:getRealContentSize()
   local canvas = self:getActiveCanvas()
   if canvas then
     return canvas.width, canvas.height
@@ -83,7 +83,7 @@ function PixelSketchCanvasWindow:getRealContentSize()
   return Window.getRealContentSize(self)
 end
 
-function PixelSketchCanvasWindow:getContentSize()
+function SketchCanvasWindow:getContentSize()
   local canvas = self:getActiveCanvas()
   if canvas then
     return canvas.width, canvas.height
@@ -91,7 +91,7 @@ function PixelSketchCanvasWindow:getContentSize()
   return Window.getContentSize(self)
 end
 
-function PixelSketchCanvasWindow:toGridCoords(px, py)
+function SketchCanvasWindow:toGridCoords(px, py)
   local ok, cx, cy = self:toContentCoords(px, py)
   if not ok then return false end
 
@@ -111,4 +111,4 @@ function PixelSketchCanvasWindow:toGridCoords(px, py)
   return true, col, row, lx, ly
 end
 
-return PixelSketchCanvasWindow
+return SketchCanvasWindow

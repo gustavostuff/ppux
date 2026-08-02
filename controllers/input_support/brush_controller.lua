@@ -11,6 +11,24 @@ local LoveCompat = require("utils.love_compat")
 
 local M = {}
 
+--- Screen-space top-left of the brush preview for a free pixel canvas layer.
+--- Uses content pixels (not tile-cell packing); returns nil when the pointer is outside.
+function M.canvasBrushPreviewScreenPos(win, mouseX, mouseY)
+  if not (win and type(win.toContentCoords) == "function") then
+    return nil
+  end
+  local ok, cx, cy = win:toContentCoords(mouseX, mouseY)
+  if not ok then
+    return nil
+  end
+  local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
+  local ox, oy = win.x, win.y
+  if type(win.getContentScreenOrigin) == "function" then
+    ox, oy = win:getContentScreenOrigin()
+  end
+  return ox + cx * z, oy + cy * z, cx, cy
+end
+
 ----------------------------------------------------------------
 -- Brush patterns
 ----------------------------------------------------------------

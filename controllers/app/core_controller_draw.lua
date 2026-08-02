@@ -356,26 +356,35 @@ local function drawEditModeColorIndicator(app)
     end
   elseif layer.kind == "canvas" and layer.canvas then
     hoveredItem = layer.canvas
-    cw = 1
-    ch = 1
-    scol = 0
-    srow = 0
   else
     return
   end
-  
-  -- Snap brush preview to logical grid cells (window pointer remap in `toGridCoords`; overlay X flip in `mirrorBrushOverlayScreenX`).
-  local okGfx, gfxCol, gfxRow, glx, gly = win:toGridCoords(mouse.x, mouse.y)
-  if not okGfx then
-    return
+
+  local pixelX, pixelY, screenX, screenY
+  if layer.kind == "canvas" then
+    -- Canvas brushes are 1:1 content pixels. Do not reuse tile-cell cw=1 with 8x8
+    -- toGridCoords (that crushed the preview into the top-left and made it jitter).
+    local BrushController = require("controllers.input_support.brush_controller")
+    local sx, sy = BrushController.canvasBrushPreviewScreenPos(win, mouse.x, mouse.y)
+    if sx == nil then
+      return
+    end
+    screenX, screenY = sx, sy
+  else
+    -- Snap brush preview to logical grid cells (window pointer remap in `toGridCoords`;
+    -- overlay X flip in `mirrorBrushOverlayScreenX`).
+    local okGfx, gfxCol, gfxRow, glx, gly = win:toGridCoords(mouse.x, mouse.y)
+    if not okGfx then
+      return
+    end
+
+    pixelX = gfxCol * cw + math.floor(glx or 0)
+    pixelY = gfxRow * ch + math.floor(gly or 0)
+
+    -- Convert back to screen coordinates for drawing
+    screenX = win.x + ((pixelX - scol * cw) * z)
+    screenY = win.y + ((pixelY - srow * ch) * z)
   end
-
-  local pixelX = gfxCol * cw + math.floor(glx or 0)
-  local pixelY = gfxRow * ch + math.floor(gly or 0)
-
-  -- Convert back to screen coordinates for drawing
-  local screenX = win.x + ((pixelX - scol * cw) * z)
-  local screenY = win.y + ((pixelY - srow * ch) * z)
   
   local romRaw = app.appEditState and app.appEditState.romRaw
   local colorIndex = app.currentColor or 0

@@ -1,156 +1,224 @@
-# Sketch Canvas Window
+# Sketch Canvas Window — plan
 
-Rename the unused pixel sketch window to Sketch canvas, then implement sketch-owned pattern packing (≤256 `{x,y}` refs into the canvas), link to a pattern table via `linkedPatternTableWindowId`, tolerance-based dedupe, and a reflect-pattern-table view — leaving export/gallery ROM for later.
+Based on `/home/g/Documents/sketch_canvas_window.txt`. Build and test in small steps; each phase ends with a manual check before the next.
 
-## Implementation checklist
+Rename the unused pixel sketch window to **Sketch canvas**, then implement sketch-owned pattern packing into a linked pattern table (always one range of length 256), tolerance-based grouping, reflect view, CHR lock on that PT, and pixel-level copy into CHR/ROM. Export / gallery ROM stay out of scope for v1.
 
-- [ ] Rename `pixel_sketch_*` → `sketch_canvas_*` (files, kind, APIs, icons, tests)
-- [ ] Add `tilesPool` (`{x,y}` only), `nametableBytes`, tolerance, reflect, `linkedPatternTableWindowId` + layout IO
-- [ ] Implement on-demand pack/generate with tolerance and PT apply
-- [ ] Sketch-sourced single PT range; draw via canvas quads; block CHR drops on linked PT
-- [ ] Reflect toggle: compose NT view from canvas quads at pool `{x,y}` without destroying paint buffer
-- [ ] New Window entry + sketch toolbar (link, tolerance, generate, reflect)
-- [ ] On copy from sketch PT, sample 8×8 from canvas at pool `{x,y}` into frozen clipboard pixels
-- [ ] Unit tests for pack, link lock, reflect, persistence
+**Scope:** backgrounds / nametables only. Pack and display as **8x8** tiles on a 32x30 map (256x240). No 8x16 / sprite-pair mode for this window.
 
+## Goals (user-facing)
 
+- Free 256x240 paint canvas (painting already works) for background art.
+- Link to a **pattern table**; on demand (and when tolerance changes), generate PT items from the paint.
+- **Tolerance** (default 0): group similar 8x8 cells by pixel difference so fewer unique patterns fill the PT.
+- **Reflect pattern table**: toggle that shows the screen composed from the linked PT / packed nametable (compression artifacts), instead of free paint.
+- Linked PT may **only** hold patterns from that sketch (no CHR/ROM drops onto it).
+- PT range is always **256 slots**. Unused slots after packing pad by repeating a configurable pool index (`paddingTileIndex` on the sketch window; default 0 = first unique).
+- Copy from that PT into CHR/ROM is **pixel paint** (frozen 8x8), not ROM tile references.
+- Linked PT still uses a **cached tile-layer canvas** for draw performance.
 
-## Current state
+## Non-goals (later)
 
-`[pixel_sketch_canvas_window.lua](../user_interface/windows_system/pixel_sketch_canvas_window.lua)` is a 256×240 paint canvas (`kind = "pattern_sketch_canvas"`). Painting and layout snapshot already work. Pattern tables only understand ROM CHR ranges. There is no generate/link/reflect path, and sketch is missing from the New Window menu.
+- CHR / nametable binary export
+- Gallery ROM (N sketch windows -> N nametables, controller L/R, one CHR bank per view)
+- Auto-generate on every paint stroke (tolerance change + explicit Generate only)
+
+## Current code (baseline)
+
+- Window: `user_interface/windows_system/sketch_canvas_window.lua` — `kind = "sketch_canvas"`, 256x240 `PixelCanvas`, paint + layout `canvas_snapshot` work.
+- Toolbar: `user_interface/toolbars/sketch_canvas_toolbar.lua` — Phase 1 shell (Link / Tolerance / Generate / Reflect placeholders).
+- In New Window as **Sketch canvas** (`core_controller_window_ops.lua`).
+- Pattern tables today: ROM CHR ranges only (`pattern_table_display_controller.lua` + `window_tile_layer_canvas.lua` cache).
+- `linkedPatternTableWindowId` today: PPU/OAM -> PT. Sketch will be a new link initiator -> PT.
+- Tolerance model to reuse: `comparePatterns`-style pixel diff in `nametable_unscramble_controller.lua`; canvas helper `PixelCanvas:extractTilePixels`.
+- PT -> CHR clipboard today is reference-oriented / paste-restricted; sketch path needs freeze-to-pixels.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
   subgraph sketchWin [SketchCanvasWindow]
-    Canvas["PixelCanvas 256x240\npixels + compressed snapshot"]
-    Pool["tilesPool max 256\n{x,y} only"]
+    Canvas["PixelCanvas 256x240 paint buffer"]
+    Pool["tilesPool max 256 unique {x,y}"]
     NT["nametableBytes 32x30"]
-    Tol["tolerance default 0"]
+    Tol["tolerance"]
+    Pad["paddingTileIndex"]
     Reflect["reflectPatternTable"]
   end
-  PT["pattern_table window\nsingle sketch range\ndraw via quads"]
+  PT["pattern_table\none range length 256\nslots 0..unique-1 from pool\nrest pad to paddingTileIndex"]
   sketchWin -->|"linkedPatternTableWindowId"| PT
-  Canvas -->|"Generate on demand"| Pool
-  Canvas -->|"Generate"| NT
-  Pool -->|"quads into canvas at x,y"| PT
-  Reflect -->|"compose from NT + quads"| Canvas
+  Canvas -->|"Generate / tolerance change"| Pool
+  Canvas -->|"Generate / tolerance change"| NT
+  Pool -->|"sample canvas at x,y into PT cache"| PT
+  Reflect -->|"compose NT + pool quads"| Canvas
 ```
 
+**Pixel source of truth:** paint buffer (+ existing compressed canvas snapshot on save). Pool entries are `{x,y}` only — no stored pixel blobs.
 
+**Generate / tolerance regen:**
 
-**Source of truth for pixels:** only the free pixel canvas (and its existing encoded/compressed snapshot on save). No duplicated pixel payloads in the pool or pattern-table ranges.
+1. Slice canvas into 32x30 cells of 8x8.
+2. Group cells with pixel-diff count <= `tolerance` (compare by reading canvas; do not persist those reads).
+3. If unique groups > 256 -> fail with clear status; do not mutate PT.
+4. Else write `tilesPool` (canonical `{x,y}` per group) and `nametableBytes` (index into pool).
+5. Push into linked PT as **one** sketch-sourced range of length **256**:
+   - slots `0 .. #tilesPool-1` -> pool entries
+   - slots `#tilesPool .. 255` -> same as `tilesPool[paddingTileIndex + 1]` (1-based Lua) / index `paddingTileIndex` (0-based); clamp/validate against `#tilesPool`
+6. Rebuild PT tile-layer canvas cache from those samples.
 
-**On Generate:** slice the canvas into 8×8 cells (32×30), group similar cells by pixel-diff ≤ `tolerance` (compare by reading from the canvas; do not store those reads). Write up to 256 `{x,y}` entries into `sketch.tilesPool` (canonical cell origin per group) and a full nametable index map. Push that catalog into the linked pattern table as **one** range. Fail with a clear status if unique count exceeds 256 even after tolerance grouping.
+**Reflect:** compose view from `nametableBytes` + pool `{x,y}` samples. Prefer overlay/compose without destroying paint buffer; Generate always reads paint buffer. Painting while reflect is on: disable paint or turn reflect off.
 
-**tilesPool entry shape** (lives on the sketch window object, not global `appEditState.tilesPool`):
+**Link:** sketch stores `linkedPatternTableWindowId`. Reverse lookup marks PT as sketch-sourced -> reject CHR/ROM appends.
 
-```lua
-{
-  x = number,  -- pixel x of representative 8x8 origin on the canvas
-  y = number,  -- pixel y
-}
-```
+---
 
-Display and reflect **sample** the canvas at those origins (Love2D quads / equivalent blit from the canvas image). Clipboard / paste into CHR extracts an 8×8 pixel snapshot **on demand** from the canvas at `{x,y}` — never persisted on the pool entry.
+## Toolbar ownership
 
-The 32×30 index map (`nametableBytes` on the sketch) picks which pool slot (hence which `{x,y}`) each screen cell uses.
+| Control | Window | Notes |
+| --- | --- | --- |
+| Link / unlink pattern table | Sketch | Pick existing PT or create+link |
+| Tolerance (- / + / field) | Sketch | Changing value re-runs pack if linked + paint exists |
+| Generate | Sketch | Explicit pack (also useful after paint without changing tolerance) |
+| Reflect toggle | Sketch | View-only compose |
+| Padding tile index | Sketch or project field only | At least project-persisted; UI can be v1.1 if cramped |
+| Pattern table grid chrome (zoom, mirror, etc.) | Pattern table | Keep existing PT toolbar where it still applies |
+| CHR drop | Pattern table | Blocked when sketch-linked |
 
-**Link model:** sketch stores `linkedPatternTableWindowId` (same field name as PPU/OAM consumers). Reverse lookup finds which PT is sketch-sourced. That PT:
+---
 
-- Gets a single range derived from the sketch pool (not ROM bank/from/to).
-- Rejects CHR/ROM tile drops and other non-sketch appends.
-- Still allows copy-drag / clipboard out: copy path samples canvas pixels at the pool `{x,y}` into a frozen clipboard payload so paste into CHR/ROM works.
+## Incremental build (test after each phase)
 
-**Reflect mode:** toggle on the sketch. When on, compose the view from `nametableBytes` + pool `{x,y}` quads into the canvas (shows compression artifacts from tolerance). Painting in reflect mode is disabled (or immediately turns reflect off); default mode remains free paint → generate.
-
-## Phase 0 — Rename (no legacy keep)
+### Phase 0 — Rename (manual: create/restore still works via code path)
 
 Break cleanly; no migration for old `pattern_sketch_canvas` layouts.
 
+| From | To |
+| --- | --- |
+| `pixel_sketch_canvas_window.lua` | `sketch_canvas_window.lua` |
+| `pixel_sketch_canvas_toolbar.lua` | `sketch_canvas_toolbar.lua` |
+| `PixelSketchCanvasWindow` | `SketchCanvasWindow` |
+| kind `pattern_sketch_canvas` | `sketch_canvas` |
+| `createPatternSketchCanvasWindow` | `createSketchCanvasWindow` |
+| `isPatternSketchCanvas` | `isSketchCanvas` |
+| titles / icons / tests | "Sketch canvas", matching filenames |
 
-| From                              | To                                  |
-| --------------------------------- | ----------------------------------- |
-| `pixel_sketch_canvas_window.lua`  | `sketch_canvas_window.lua`          |
-| `pixel_sketch_canvas_toolbar.lua` | `sketch_canvas_toolbar.lua`         |
-| `PixelSketchCanvasWindow`         | `SketchCanvasWindow`                |
-| kind `pattern_sketch_canvas`      | `sketch_canvas`                     |
-| `createPatternSketchCanvasWindow` | `createSketchCanvasWindow`          |
-| `isPatternSketchCanvas`           | `isSketchCanvas`                    |
-| titles / icons / tests            | “Sketch canvas”, matching filenames |
+Touch: `window_controller.lua`, `window_factory_controller.lua`, `window_builder_controller.lua`, `window_capabilities.lua`, `toolbar_controller.lua`, layout IO tests, unit tests. Wire icon into taskbar map.
 
+**Manual test:** restore/create sketch via temporary call or layout; paint still works; kind string is `sketch_canvas`.
 
-Touch points already found: `[window_controller.lua](../controllers/window/window_controller.lua)`, `[window_factory_controller.lua](../controllers/game_art/window_factory_controller.lua)`, `[window_builder_controller.lua](../controllers/game_art/window_builder_controller.lua)`, `[window_capabilities.lua](../controllers/window/window_capabilities.lua)`, `[toolbar_controller.lua](../controllers/window/toolbar_controller.lua)`, layout IO + unit tests.
+### Phase 1 — New Window + empty toolbar shell
 
-## Phase 1 — Data model + persistence
+- Add **Sketch canvas** to `_buildNewWindowOptions` + icon key.
+- Toolbar shell with disabled/placeholder Link, Tolerance, Generate, Reflect (no-ops OK).
+
+**Manual test:** New Window -> Sketch canvas opens 256x240; can paint; toolbar visible.
+
+### Phase 2 — Data model + persistence
 
 On `SketchCanvasWindow`:
 
-- `tilesPool = {}` — max 256 entries of `{x,y}` only
-- `nametableBytes` (960 entries after generate; nil/empty until then)
+- `tilesPool = {}` — max 256 `{x,y}`
+- `nametableBytes` — 960 entries after generate; nil/empty before
 - `tolerance = 0`
 - `reflectPatternTable = false`
 - `linkedPatternTableWindowId`
+- `paddingTileIndex = 0` — which unique slot pads the unused PT indices (0..255)
 
-Extend `[layout_io_controller](../controllers/game_art/layout_io_controller.lua)` snapshot/restore for these fields (pool `{x,y}` list + nametable + link id + tolerance + reflect flag). **Pixel data continues to use only the existing canvas snapshot encode/decode** — do not add per-tile pixel blobs to layout.
+Layout IO: snapshot/restore these fields. Pixels stay on existing canvas snapshot only.
 
-## Phase 2 — Pack / generate controller
+**Manual test:** set fields in a unit/layout round-trip; reopen project; values stick; pixels still decode.
 
-New controller e.g. `[controllers/game_art/sketch_canvas_pack_controller.lua](../controllers/game_art/sketch_canvas_pack_controller.lua)`:
+### Phase 3 — Pack controller (no PT apply yet)
 
-- Transiently extract 8×8 via `[PixelCanvas:extractTilePixels](../user_interface/windows_system/pixel_canvas.lua)` for comparison only
-- Similarity: pixel-diff count ≤ tolerance (same idea as `[nametable_unscramble_controller.comparePatterns](../controllers/ppu/nametable_unscramble_controller.lua)`)
-- Build `tilesPool` as `{x,y}` refs + `nametableBytes`
-- Apply to linked PT: set `layers[1].patternTable` to a single sketch-sourced range, then refresh PT display
+New `controllers/game_art/sketch_canvas_pack_controller.lua`:
 
-Wire an on-demand **Generate** action from the sketch toolbar (not continuous while painting).
+- Extract 8x8 via `PixelCanvas:extractTilePixels` for compare only
+- Similarity: differing-pixel count <= tolerance
+- Build `tilesPool` + `nametableBytes`
+- Enforce unique <= 256
+- Unit tests: tolerance 0 vs >0, 256 cap error, padding index ignored until PT apply
 
-## Phase 3 — Pattern table sketch range + CHR lock
+Wire **Generate** to run pack and show status (`N unique patterns` or error).
 
-Extend pattern-table populate so a sketch-sourced range draws each slot by **quad (or blit) from the linked sketch’s canvas** at `tilesPool[i].x/y`, instead of resolving ROM `chrBanksBytes`.
+**Manual test:** paint two identical 8x8 regions; Generate at tolerance 0 -> 2+ uniques as expected; raise tolerance until they merge; status counts make sense. No PT required yet.
 
-In `[mouse_tile_drop_controller](../controllers/input/mouse_tile_drop_controller.lua)` / `applyChrTileGroupToPatternTableWindow`: if the destination PT is the target of any sketch’s `linkedPatternTableWindowId`, reject CHR appends with a clear toast.
+### Phase 4 — Link + apply to pattern table (256 range + pad)
 
-Link/unlink UX: reuse pattern-table link menus where practical; add sketch as a link initiator (toolbar link button → pick/create PT). Persist link like other consumers. Undo event for link + generate.
+- Sketch Link: pick/create PT, set `linkedPatternTableWindowId`
+- After successful pack, apply single sketch range length 256; pad with `paddingTileIndex`
+- PT populate samples canvas at pool `{x,y}` into tile items / imgData so **existing tile-layer canvas cache** still works
+- Undo for link + generate where practical
 
-## Phase 4 — Reflect view
+**Manual test:** Link PT; Generate; PT shows 256 slots; trailing slots match padding pattern; change paint + Generate updates PT; cache still feels snappy when panning/zooming PT.
 
-Toolbar toggle `reflectPatternTable`:
+### Phase 5 — Tolerance live regen + CHR lock
 
-- On: compose display from nametable indices + pool `{x,y}` quads into the sketch canvas image (requires a prior generate). Does not invent a second pixel store.
-- Off: return to free-paint canvas contents.
+- Changing tolerance (with link + prior/current paint) re-runs pack + PT apply (debounce if needed)
+- Reject CHR/ROM drops onto sketch-linked PT (toast)
+- Block other non-sketch appends
 
-Concrete approach: keep `layer.canvas` as the paint buffer always; when reflecting, either (a) temporarily swap to a display canvas built by copying 8×8 regions from paint buffer at each pool `{x,y}` per NT cell, or (b) overlay-draw quads without mutating paint pixels. Prefer (b) if drawing paths allow; else (a) with paint buffer retained on the window so Generate always reads the paint buffer, not the reflect view.
+**Manual test:** drag CHR tile onto linked PT -> blocked. Move tolerance slider -> PT grid updates without pressing Generate. Unlink -> CHR drop works again on that PT.
 
-## Phase 5 — UI surface
+### Phase 6 — Reflect view
 
-- Add **Sketch canvas** to `[_buildNewWindowOptions](../controllers/app/core_controller_window_ops.lua)` (icon already exists under windows_icons; rename asset to match).
-- Fill `[sketch_canvas_toolbar.lua](../user_interface/toolbars/sketch_canvas_toolbar.lua)`: Link, Tolerance (−/+/field), Generate, Reflect toggle.
-- Taskbar / window-icon map entry for `sketch_canvas`.
+- Reflect toggle composes from `nametableBytes` + pool samples
+- Paint buffer preserved; Generate reads paint buffer
+- Reflect off restores free-paint view
 
+**Manual test:** Generate with tolerance > 0; Reflect on -> see merged tiles on screen; Reflect off -> original paint returns; Generate after more paint still uses paint buffer.
 
+### Phase 7 — Pixel copy PT -> CHR/ROM
 
-## Phase 6 — Copy into CHR/ROM
+- Copy/drag from sketch-linked PT freezes 8x8 pixels sampled from sketch canvas at that slot's `{x,y}` (padding slots sample the padding entry's `{x,y}`)
+- Paste/drop into CHR/ROM paints those pixels (extend clipboard/drop path as needed; today PT->CHR paste is restricted)
 
-When copying from a sketch-linked pattern table slot, **sample** 8×8 from the sketch canvas at that entry’s `{x,y}` into the existing frozen-pixel clipboard payload, then paste into CHR/ROM as today. Do not require pool entries to hold `.pixels`.
+**Manual test:** copy a unique (and a padded) slot into a CHR bank; pixels match the sketch cell; editing sketch afterward does not change already-pasted CHR tiles.
 
-## Out of scope (later)
+### Phase 8 — Polish + tests
 
-- CHR / nametable binary export
-- Gallery ROM generation
-- Auto-generate on every paint stroke
-- 8×16 sketch packing (stick to 8×8 for v1)
+- Toolbar enable/disable rules (Generate needs paint; Reflect needs successful pack; Link states)
+- Status strings
+- Unit tests listed below
+- README short note under windows / New Window if needed
 
+**Manual test:** full happy path from New Window through copy into CHR on a real project save/reload.
 
+---
+
+## Persistence sketch (project fields on sketch window)
+
+```lua
+{
+  kind = "sketch_canvas",
+  linkedPatternTableWindowId = "pt_01", -- optional
+  tolerance = 0,
+  reflectPatternTable = false,
+  paddingTileIndex = 0,
+  tilesPool = { { x = 0, y = 0 }, ... }, -- after generate
+  nametableBytes = { ... }, -- 960 entries after generate
+  -- pixels: existing layer canvas_snapshot encode only
+}
+```
 
 ## Tests (core)
 
-- Rename / kind / create / layout round-trip for sketch fields (pool has only x/y; canvas snapshot still holds pixels)
-- Pack with tolerance 0 vs >0 (grouping reduces pool size; nametable indices remap)
-- Cap at 256 uniques → error
-- Link blocks CHR drop onto that PT
-- Reflect compose matches expected regions from canvas at pool coords
-- Generate updates linked PT grid item count
-- Copy from sketch PT yields pixels matching canvas at `{x,y}`
+- Rename / kind / create / New Window / layout round-trip (pool is `{x,y}` only)
+- Pack tolerance 0 vs >0; nametable indices remap
+- Cap at 256 uniques -> error; PT unchanged
+- Applied PT range length always 256; padding uses `paddingTileIndex`
+- Link blocks CHR drop
+- Tolerance change refreshes linked PT
+- Reflect compose matches pool coords
+- Copy from sketch PT yields pixels matching canvas at `{x,y}` (including padded slots)
 
+## Implementation checklist
+
+- [x] Phase 0 — Rename
+- [x] Phase 1 — New Window + toolbar shell
+- [ ] Phase 2 — Data model + persistence
+- [ ] Phase 3 — Pack controller + Generate status
+- [ ] Phase 4 — Link + PT apply (256 + pad) + cache
+- [ ] Phase 5 — Tolerance live regen + CHR lock
+- [ ] Phase 6 — Reflect view
+- [ ] Phase 7 — Pixel copy to CHR/ROM
+- [ ] Phase 8 — Polish + tests

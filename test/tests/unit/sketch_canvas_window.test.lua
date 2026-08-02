@@ -19,12 +19,12 @@ local function makeApp()
   }
 end
 
-describe("pixel_sketch_canvas_window.lua", function()
+describe("sketch_canvas_window.lua", function()
   it("creates a single sketch canvas layer at NES framebuffer resolution", function()
     local wm = WM.new()
-    local win = wm:createPatternSketchCanvasWindow()
+    local win = wm:createSketchCanvasWindow()
 
-    expect(win.kind).toBe("pattern_sketch_canvas")
+    expect(win.kind).toBe("sketch_canvas")
     expect(#win.layers).toBe(1)
     expect(win.layers[1].name).toBe("Sketch")
     expect(win.layers[1].kind).toBe("canvas")
@@ -37,7 +37,7 @@ describe("pixel_sketch_canvas_window.lua", function()
 
   it("supports canvas paint and undo redo on the sketch canvas", function()
     local wm = WM.new()
-    local win = wm:createPatternSketchCanvasWindow()
+    local win = wm:createSketchCanvasWindow()
     local app = makeApp()
 
     app.undoRedo:startPaintEvent()
@@ -55,7 +55,7 @@ describe("pixel_sketch_canvas_window.lua", function()
 
   it("supports canvas flood fill with undo redo", function()
     local wm = WM.new()
-    local win = wm:createPatternSketchCanvasWindow()
+    local win = wm:createSketchCanvasWindow()
     local app = makeApp()
     local canvas = win.layers[1].canvas
 
@@ -78,7 +78,7 @@ describe("pixel_sketch_canvas_window.lua", function()
 
   it("draws undoable canvas lines", function()
     local wm = WM.new()
-    local win = wm:createPatternSketchCanvasWindow()
+    local win = wm:createSketchCanvasWindow()
     local app = makeApp()
     local canvas = win.layers[1].canvas
 
@@ -97,7 +97,7 @@ describe("pixel_sketch_canvas_window.lua", function()
 
   it("fills undoable rectangles on the canvas", function()
     local wm = WM.new()
-    local win = wm:createPatternSketchCanvasWindow()
+    local win = wm:createSketchCanvasWindow()
     local app = makeApp()
     local canvas = win.layers[1].canvas
 
@@ -115,7 +115,7 @@ describe("pixel_sketch_canvas_window.lua", function()
 
   it("uses G-click color pick on the sketch canvas through the shared edit workflow", function()
     local wm = WM.new()
-    local win = wm:createPatternSketchCanvasWindow()
+    local win = wm:createSketchCanvasWindow()
     local app = makeApp()
     local canvas = win.layers[1].canvas
     canvas:edit(4, 5, 2)
@@ -165,7 +165,7 @@ describe("pixel_sketch_canvas_window.lua", function()
 
   it("uses F-click flood fill on the sketch canvas through the shared edit workflow", function()
     local wm = WM.new()
-    local win = wm:createPatternSketchCanvasWindow()
+    local win = wm:createSketchCanvasWindow()
     local app = makeApp()
     local canvas = win.layers[1].canvas
     canvas:edit(0, 0, 1)
@@ -219,7 +219,7 @@ describe("pixel_sketch_canvas_window.lua", function()
 
   it("starts shared shift shape drag on the sketch canvas", function()
     local wm = WM.new()
-    local win = wm:createPatternSketchCanvasWindow()
+    local win = wm:createSketchCanvasWindow()
     local app = makeApp()
     local wmStub
     local focused = win
@@ -310,5 +310,31 @@ describe("pixel_sketch_canvas_window.lua", function()
     fill = true
     CursorsController.applyModeCursor(app, "edit")
     expect(setTo).toBe("fill")
+  end)
+
+  it("places canvas brush preview at content pixels, not crushed 8x8 tile cells", function()
+    local BrushController = require("controllers.input_support.brush_controller")
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow({ x = 40, y = 60, zoom = 2 })
+    expect(win.zoom or win:getZoomLevel()).toBeTruthy()
+
+    -- Content pixel (100, 80) -> screen origin + pixel * zoom.
+    local ox, oy = win:getContentScreenOrigin()
+    local mouseX = ox + 100 * 2 + 1
+    local mouseY = oy + 80 * 2 + 1
+    local sx, sy, cx, cy = BrushController.canvasBrushPreviewScreenPos(win, mouseX, mouseY)
+    expect(cx).toBe(100)
+    expect(cy).toBe(80)
+    expect(sx).toBe(ox + 100 * 2)
+    expect(sy).toBe(oy + 80 * 2)
+
+    -- Old bug: treating toGridCoords with cw=1 mapped this near the top-left (~16,16).
+    local ok, col, row, lx, ly = win:toGridCoords(mouseX, mouseY)
+    expect(ok).toBe(true)
+    local brokenX = col * 1 + math.floor(lx or 0)
+    local brokenY = row * 1 + math.floor(ly or 0)
+    expect(brokenX < 40).toBe(true)
+    expect(brokenY < 40).toBe(true)
+    expect(sx > ox + 40 * 2).toBe(true)
   end)
 end)
