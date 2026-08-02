@@ -83,9 +83,9 @@ describe("sketch canvas phase 1 - New Window + toolbar shell", function()
     expect(toolbar.reflectButton).toBeTruthy()
 
     expect(toolbar.linkButton.enabled).toBe(false)
-    expect(toolbar.toleranceDownButton.enabled).toBe(false)
-    expect(toolbar.toleranceUpButton.enabled).toBe(false)
-    expect(toolbar.generateButton.enabled).toBe(false)
+    expect(toolbar.toleranceDownButton.enabled).toBe(false) -- tolerance starts at 0
+    expect(toolbar.toleranceUpButton.enabled).toBe(true)
+    expect(toolbar.generateButton.enabled).toBe(true)
     expect(toolbar.reflectButton.enabled).toBe(false)
 
     expect(toolbar.linkButton.tooltip:find("Link", 1, true)).toBeTruthy()

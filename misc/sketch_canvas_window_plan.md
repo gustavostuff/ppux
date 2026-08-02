@@ -1,3 +1,5 @@
+Note: this doc is AI-generated, and has been manually verified
+
 # Sketch Canvas Window — plan
 
 Based on `/home/g/Documents/sketch_canvas_window.txt`. Build and test in small steps; each phase ends with a manual check before the next.
@@ -26,7 +28,7 @@ Rename the unused pixel sketch window to **Sketch canvas**, then implement sketc
 ## Current code (baseline)
 
 - Window: `user_interface/windows_system/sketch_canvas_window.lua` — `kind = "sketch_canvas"`, 256x240 `PixelCanvas`, paint + layout `canvas_snapshot` work.
-- Toolbar: `user_interface/toolbars/sketch_canvas_toolbar.lua` — Phase 1 shell (Link / Tolerance / Generate / Reflect placeholders).
+- Toolbar: `user_interface/toolbars/sketch_canvas_toolbar.lua` — Generate + tolerance adjust (Phase 3); Link / Reflect placeholders remain.
 - In New Window as **Sketch canvas** (`core_controller_window_ops.lua`).
 - Pattern tables today: ROM CHR ranges only (`pattern_table_display_controller.lua` + `window_tile_layer_canvas.lua` cache).
 - `linkedPatternTableWindowId` today: PPU/OAM -> PT. Sketch will be a new link initiator -> PT.
@@ -216,7 +218,7 @@ Wire **Generate** to run pack and show status (`N unique patterns` or error).
 - [x] Phase 0 — Rename
 - [x] Phase 1 — New Window + toolbar shell
 - [x] Phase 2 — Data model + persistence
-- [ ] Phase 3 — Pack controller + Generate status
+- [x] Phase 3 — Pack controller + Generate status
 - [ ] Phase 4 — Link + PT apply (256 + pad) + cache
 - [ ] Phase 5 — Tolerance live regen + CHR lock
 - [ ] Phase 6 — Reflect view
