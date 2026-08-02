@@ -47,6 +47,50 @@ function SketchCanvasWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
   self.kind = "sketch_canvas"
   self.layers = {}
 
+  -- Pack / link state (Phase 2+). Pixels stay on the canvas layer snapshot only.
+  self.tilesPool = {}
+  if type(data.tilesPool) == "table" then
+    for i = 1, math.min(256, #data.tilesPool) do
+      local entry = data.tilesPool[i]
+      if type(entry) == "table" then
+        local x = tonumber(entry.x)
+        local y = tonumber(entry.y)
+        if x and y then
+          self.tilesPool[#self.tilesPool + 1] = {
+            x = math.floor(x),
+            y = math.floor(y),
+          }
+        end
+      end
+    end
+  end
+
+  self.nametableBytes = nil
+  if type(data.nametableBytes) == "table" and #data.nametableBytes > 0 then
+    local nt = {}
+    for i = 1, #data.nametableBytes do
+      nt[i] = math.floor(tonumber(data.nametableBytes[i]) or 0)
+    end
+    self.nametableBytes = nt
+  end
+
+  self.tolerance = math.floor(tonumber(data.tolerance) or 0)
+  if self.tolerance < 0 then
+    self.tolerance = 0
+  end
+  self.reflectPatternTable = data.reflectPatternTable == true
+  if type(data.linkedPatternTableWindowId) == "string" and data.linkedPatternTableWindowId ~= "" then
+    self.linkedPatternTableWindowId = data.linkedPatternTableWindowId
+  else
+    self.linkedPatternTableWindowId = nil
+  end
+  self.paddingTileIndex = math.floor(tonumber(data.paddingTileIndex) or 0)
+  if self.paddingTileIndex < 0 then
+    self.paddingTileIndex = 0
+  elseif self.paddingTileIndex > 255 then
+    self.paddingTileIndex = 255
+  end
+
   addCanvasLayer(self, "Sketch", CANVAS_W, CANVAS_H, 0)
   self.activeLayer = 1
 

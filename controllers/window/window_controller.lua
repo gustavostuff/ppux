@@ -1831,6 +1831,12 @@ function WM:createSketchCanvasWindow(opts)
       title = defaults.title,
       visibleCols = opts.visibleCols or defaults.cols,
       visibleRows = opts.visibleRows or defaults.rows,
+      tilesPool = opts.tilesPool,
+      nametableBytes = opts.nametableBytes,
+      tolerance = opts.tolerance,
+      reflectPatternTable = opts.reflectPatternTable,
+      linkedPatternTableWindowId = opts.linkedPatternTableWindowId,
+      paddingTileIndex = opts.paddingTileIndex,
     }
   )
 

@@ -215,7 +215,7 @@ Wire **Generate** to run pack and show status (`N unique patterns` or error).
 
 - [x] Phase 0 — Rename
 - [x] Phase 1 — New Window + toolbar shell
-- [ ] Phase 2 — Data model + persistence
+- [x] Phase 2 — Data model + persistence
 - [ ] Phase 3 — Pack controller + Generate status
 - [ ] Phase 4 — Link + PT apply (256 + pad) + cache
 - [ ] Phase 5 — Tolerance live regen + CHR lock

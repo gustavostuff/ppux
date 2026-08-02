@@ -544,6 +544,41 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
       entry.multiRowToolbar = (w.multiRowToolbar == true)
       entry.showSpriteOriginGuides = (w.showSpriteOriginGuides == true)
     end
+    if WindowCaps.isSketchCanvas(w) then
+      local pool = {}
+      if type(w.tilesPool) == "table" then
+        for i = 1, math.min(256, #w.tilesPool) do
+          local pe = w.tilesPool[i]
+          if type(pe) == "table" then
+            local x = tonumber(pe.x)
+            local y = tonumber(pe.y)
+            if x and y then
+              pool[#pool + 1] = { x = math.floor(x), y = math.floor(y) }
+            end
+          end
+        end
+      end
+      entry.tilesPool = pool
+      if type(w.nametableBytes) == "table" and #w.nametableBytes > 0 then
+        local nt = {}
+        for i = 1, #w.nametableBytes do
+          nt[i] = math.floor(tonumber(w.nametableBytes[i]) or 0)
+        end
+        entry.nametableBytes = nt
+      end
+      entry.tolerance = math.floor(tonumber(w.tolerance) or 0)
+      entry.reflectPatternTable = (w.reflectPatternTable == true)
+      if type(w.linkedPatternTableWindowId) == "string" and w.linkedPatternTableWindowId ~= "" then
+        entry.linkedPatternTableWindowId = w.linkedPatternTableWindowId
+      end
+      local pad = math.floor(tonumber(w.paddingTileIndex) or 0)
+      if pad < 0 then
+        pad = 0
+      elseif pad > 255 then
+        pad = 255
+      end
+      entry.paddingTileIndex = pad
+    end
 
     if not isPalette then
       entry.cellW = w.cellW
