@@ -1,12 +1,17 @@
 ![](img/readme_images/logo_v2.png)
 
-Open Source NES Art Editor
-
-[![Version](https://img.shields.io/badge/version-0.2.0-6366F1?style=for-the-badge)](version.txt)
-[![Unit tests](https://img.shields.io/badge/unit_tests-1018_passing-22C55E?style=for-the-badge)](#unit-testing)
-[![E2E tests](https://img.shields.io/badge/e2e_tests-28_passing-14B8A6?style=for-the-badge)](#e2e-testing)
+### NES Graphics Studio
+Mod Classic ROMs & Build New Homebrew Assets
 
 <img src="img/readme_images/app_example.png" alt="">
+
+[![Version](https://img.shields.io/badge/version-0.2.0-6366F1?style=for-the-badge)](version.txt)
+
+[![Unit tests](https://img.shields.io/badge/unit_tests-1018_passing-22C55E?style=for-the-badge)](#unit-testing)
+
+[![E2E tests](https://img.shields.io/badge/e2e_tests-28_passing-14B8A6?style=for-the-badge)](#e2e-testing)
+
+[![Donate](https://img.shields.io/badge/Donate-ff69b4?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://tavuntu.itch.io/ppux)
 
 Edit NES graphics as the player sees them. No tile puzzle solving.
 
