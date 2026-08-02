@@ -47,6 +47,8 @@ local function collectNumericLayerKeys(layers)
 end
 
 --- Layers in layout/PPU/OAM windows that link to this pattern_table window id.
+--- Sketch canvas windows link at window level (`linkedPatternTableWindowId`); they are
+--- included with `layerIndex = nil` / `kind = "sketch_canvas"`.
 function M.getLinkedConsumersForPatternTable(wm, patternTableWin)
   local out = {}
   local ptId = patternTableWin and patternTableWin._id
@@ -55,15 +57,24 @@ function M.getLinkedConsumersForPatternTable(wm, patternTableWin)
   end
   for _, win in ipairs(wm:getWindows()) do
     if win ~= patternTableWin and not win._closed and not WindowCaps.isPatternTable(win) then
-      for _, layerIndex in ipairs(collectNumericLayerKeys(win.layers)) do
-        local layer = win.layers[layerIndex]
-        if layer and layer.linkedPatternTableWindowId == ptId then
-          out[#out + 1] = { win = win, layerIndex = layerIndex }
+      if WindowCaps.isSketchCanvas(win) and win.linkedPatternTableWindowId == ptId then
+        out[#out + 1] = { win = win, layerIndex = nil, kind = "sketch_canvas" }
+      else
+        for _, layerIndex in ipairs(collectNumericLayerKeys(win.layers)) do
+          local layer = win.layers[layerIndex]
+          if layer and layer.linkedPatternTableWindowId == ptId then
+            out[#out + 1] = { win = win, layerIndex = layerIndex }
+          end
         end
       end
     end
   end
   return out
+end
+
+local function isSketchOwnedPatternTableWindow(win, wm)
+  local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+  return SketchCanvasPackController.isSketchOwnedPatternTable(win, wm)
 end
 
 --- Fill layer.items for a 16x16-style grid from layer.patternTable + tilesPool.
@@ -75,6 +86,11 @@ function M.populateTileLayerItemsFromPatternTable(win, layerIndex, opts)
   local layer = win.layers and win.layers[layerIndex]
   if not (layer and layer.kind == "tile" and type(layer.patternTable) == "table") then
     return false
+  end
+  local wm = opts and opts.wm or nil
+  if isSketchOwnedPatternTableWindow(win, wm) then
+    -- Sketch-owned pattern tables hold scratch tiles; CHR populate must not wipe them.
+    return false, "sketch_owned"
   end
   local tilesPool = opts and opts.tilesPool or nil
   if not tilesPool then
@@ -147,13 +163,35 @@ function M.toggleTileLayerChrLayout(win, layerIndex, app)
 
   local m = layer.mode or "8x8"
   local was16 = (m == "8x16" or m == "oddEven")
+  local fromMode = was16 and "8x16" or "8x8"
   layer.mode = was16 and "8x8" or "8x16"
+  local toMode = layer.mode
+
+  local wm = app and app.wm or nil
+  if isSketchOwnedPatternTableWindow(win, wm) then
+    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+    local sketch = nil
+    if type(win.linkedSketchCanvasWindowId) == "string" and win.linkedSketchCanvasWindowId ~= "" then
+      sketch = wm and wm.findWindowById and wm:findWindowById(win.linkedSketchCanvasWindowId) or nil
+    end
+    if sketch
+      and type(sketch.tilesPool) == "table"
+      and #sketch.tilesPool > 0
+    then
+      -- Re-place catalog using the new layout mode (logical indices unchanged).
+      SketchCanvasPackController.applyPackToLinkedPatternTable(sketch, wm)
+    else
+      SketchCanvasPackController.relayoutSketchOwnedPatternTableItems(win, fromMode, toMode)
+    end
+    return ((layer.mode or "8x8") == "8x16") and "8x16 pairs" or "8x8"
+  end
 
   local pool = app and app.appEditState and app.appEditState.tilesPool
   if pool then
     M.populateTileLayerItemsFromPatternTable(win, layerIndex, {
       tilesPool = pool,
       appEditState = app and app.appEditState,
+      wm = wm,
       ensureTiles = function(bankIdx)
         local st = app and app.appEditState
         if st and st.chrBanksBytes and st.chrBanksBytes[bankIdx] then
@@ -226,19 +264,33 @@ function M.refreshAllPatternTableWindows(wm, opts)
   if not wm then
     return
   end
+  opts = type(opts) == "table" and opts or {}
+  if opts.wm == nil then
+    opts.wm = wm
+  end
   local list = M.collectPatternTableWindows(wm)
   DebugController.log("info", "PATTERN_TABLE", "refreshAllPatternTableWindows: pattern_table count=%d", #list)
   for _, w in ipairs(list) do
-    local ok, err = M.populateTileLayerItemsFromPatternTable(w, 1, opts)
-    DebugController.log(
-      "info",
-      "PATTERN_TABLE",
-      "refresh populate id=%s title=%q ok=%s err=%s",
-      tostring(w._id or "?"),
-      tostring(w.title or ""),
-      tostring(ok),
-      err and tostring(err) or ""
-    )
+    if isSketchOwnedPatternTableWindow(w, wm) then
+      DebugController.log(
+        "info",
+        "PATTERN_TABLE",
+        "refresh skip sketch-owned id=%s title=%q",
+        tostring(w._id or "?"),
+        tostring(w.title or "")
+      )
+    else
+      local ok, err = M.populateTileLayerItemsFromPatternTable(w, 1, opts)
+      DebugController.log(
+        "info",
+        "PATTERN_TABLE",
+        "refresh populate id=%s title=%q ok=%s err=%s",
+        tostring(w._id or "?"),
+        tostring(w.title or ""),
+        tostring(ok),
+        err and tostring(err) or ""
+      )
+    end
   end
 end
 

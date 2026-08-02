@@ -1,5 +1,5 @@
 -- sketch_canvas_toolbar.lua
--- Sketch canvas toolbar. Phase 3: Generate + tolerance adjust. Link/reflect later.
+-- Sketch canvas toolbar. Phase 4: Link + Generate(+PT apply) + tolerance adjust.
 
 local ToolbarBase = require("user_interface.toolbars.toolbar_base")
 local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
@@ -16,6 +16,10 @@ local function stubAction(self, label)
   end
 end
 
+local function getApp(self)
+  return self.ctx and self.ctx.app or nil
+end
+
 function SketchCanvasToolbar.new(window, ctx, windowController)
   local self = setmetatable(ToolbarBase.new(window, {}), SketchCanvasToolbar)
   self.ctx = ctx
@@ -28,10 +32,11 @@ function SketchCanvasToolbar.new(window, ctx, windowController)
 
   self.linkButton = self:addButton(
     actions.icon_pattern_table or actions.icon_connect or chrome.icon_circle,
-    stubAction(self, "Pattern table link"),
-    "Link pattern table (not implemented yet)"
+    function()
+      self:_onLinkMenu()
+    end,
+    "Link pattern table"
   )
-  self.linkButton.enabled = false
 
   self.toleranceDownButton = self:addButton(
     chrome.icon_minus or chrome.icon_circle,
@@ -73,6 +78,19 @@ function SketchCanvasToolbar:_tolerance()
   return math.floor(tonumber(self.window and self.window.tolerance) or 0)
 end
 
+function SketchCanvasToolbar:_onLinkMenu()
+  local app = getApp(self)
+  if not (app and app.showPatternTableLinkDestinationContextMenu and self.window) then
+    StatusHelpers.setStatus(self.ctx, "Pattern table link is unavailable")
+    return
+  end
+  local btn = self.linkButton
+  local x = (btn and btn.x or 0) + ((btn and btn.w) or 0) * 0.5
+  local y = (btn and btn.y or 0) + ((btn and btn.h) or 0) * 0.5
+  app:showPatternTableLinkDestinationContextMenu(self.window, x, y)
+  self:updateIcons()
+end
+
 function SketchCanvasToolbar:_onToleranceDelta(delta)
   if not self.window then
     return
@@ -92,17 +110,50 @@ function SketchCanvasToolbar:_onGenerate()
   if not self.window then
     return
   end
-  local ok, packOrErr = SketchCanvasPackController.generate(self.window)
+  local app = getApp(self)
+  local wm = (app and app.wm) or self.windowController
+  local beforePack = SketchCanvasPackController.snapshotPackFields(self.window)
+  local ptWin = SketchCanvasPackController.resolveLinkedPatternTable(self.window, wm)
+  local beforeItems = ptWin and SketchCanvasPackController.snapshotPatternTableItemPixels(ptWin) or nil
+
+  local ok, packOrErr = SketchCanvasPackController.generateAndApply(self.window, wm)
   StatusHelpers.setStatus(
     self.ctx,
     SketchCanvasPackController.formatGenerateStatus(ok, packOrErr)
   )
+
+  if ok and app and app.undoRedo and app.undoRedo.addSketchCanvasGenerateEvent then
+    local afterPack = SketchCanvasPackController.snapshotPackFields(self.window)
+    local afterItems = ptWin and SketchCanvasPackController.snapshotPatternTableItemPixels(ptWin) or nil
+    -- If link was applied during generate, resolve again for after snapshot.
+    if not ptWin then
+      ptWin = SketchCanvasPackController.resolveLinkedPatternTable(self.window, wm)
+      afterItems = ptWin and SketchCanvasPackController.snapshotPatternTableItemPixels(ptWin) or nil
+    end
+    app.undoRedo:addSketchCanvasGenerateEvent({
+      type = "sketch_canvas_generate",
+      sketchWin = self.window,
+      patternTableWin = ptWin,
+      beforePack = beforePack,
+      afterPack = afterPack,
+      beforeItemsPixels = beforeItems,
+      afterItemsPixels = afterItems,
+    })
+  end
+
   self:updateIcons()
 end
 
 function SketchCanvasToolbar:updateIcons()
   ToolbarBase.updateIcons(self)
   local tol = self:_tolerance()
+  local linked = type(self.window and self.window.linkedPatternTableWindowId) == "string"
+    and self.window.linkedPatternTableWindowId ~= ""
+
+  if self.linkButton then
+    self.linkButton.enabled = true
+    self.linkButton.tooltip = linked and "Manage linked pattern table" or "Link pattern table"
+  end
   if self.toleranceDownButton then
     self.toleranceDownButton.enabled = tol > 0
     self.toleranceDownButton.tooltip = string.format("Decrease pack tolerance (now %d)", tol)
@@ -113,10 +164,9 @@ function SketchCanvasToolbar:updateIcons()
   end
   if self.generateButton then
     self.generateButton.enabled = true
-    self.generateButton.tooltip = string.format(
-      "Generate pattern catalog from sketch (tolerance %d)",
-      tol
-    )
+    self.generateButton.tooltip = linked
+      and string.format("Generate and apply to linked pattern table (tolerance %d)", tol)
+      or string.format("Generate pattern catalog from sketch (tolerance %d)", tol)
   end
 end
 

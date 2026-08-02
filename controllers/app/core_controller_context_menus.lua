@@ -712,6 +712,54 @@ local function patternTableRootMenuIcons()
   }
 end
 
+local function pushSketchCanvasPatternTableLinkUndo(self, sketchWin, beforeLinkedId, afterLinkedId, stolenMeta)
+  if not (self and self.undoRedo and self.undoRedo.addSketchCanvasPatternTableLinkEvent and sketchWin) then
+    return
+  end
+  beforeLinkedId = (type(beforeLinkedId) == "string" and beforeLinkedId ~= "") and beforeLinkedId or nil
+  afterLinkedId = (type(afterLinkedId) == "string" and afterLinkedId ~= "") and afterLinkedId or nil
+  if beforeLinkedId == afterLinkedId then
+    return
+  end
+  self.undoRedo:addSketchCanvasPatternTableLinkEvent({
+    type = "sketch_canvas_pattern_table_link",
+    sketchWin = sketchWin,
+    beforeLinkedId = beforeLinkedId,
+    afterLinkedId = afterLinkedId,
+    beforeStolenSketchWin = stolenMeta and stolenMeta.sketchWin or nil,
+    beforeStolenLinkedId = stolenMeta and stolenMeta.linkedId or nil,
+  })
+end
+
+local function linkSketchCanvasToPatternTableWithUndo(self, sketchWin, ptWin)
+  local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+  local beforeLinkedId = sketchWin.linkedPatternTableWindowId
+  local stolenMeta = nil
+  if type(ptWin.linkedSketchCanvasWindowId) == "string"
+    and ptWin.linkedSketchCanvasWindowId ~= ""
+    and ptWin.linkedSketchCanvasWindowId ~= sketchWin._id
+  then
+    local other = self.wm and self.wm.findWindowById and self.wm:findWindowById(ptWin.linkedSketchCanvasWindowId)
+    if WindowCaps.isSketchCanvas(other) then
+      stolenMeta = {
+        sketchWin = other,
+        linkedId = ptWin._id,
+      }
+    end
+  end
+  local ok = SketchCanvasPackController.linkSketchToPatternTable(sketchWin, ptWin, self.wm)
+  if ok then
+    pushSketchCanvasPatternTableLinkUndo(
+      self,
+      sketchWin,
+      beforeLinkedId,
+      sketchWin.linkedPatternTableWindowId,
+      stolenMeta
+    )
+  end
+  return ok
+end
+
 function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(contentWin)
   local items = {}
   local ptWindows = PatternTableDisplayController.collectPatternTableWindows(self.wm)
@@ -719,6 +767,81 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
     if self.hideAppContextMenus then
       self:hideAppContextMenus()
     end
+  end
+
+  if WindowCaps.isSketchCanvas(contentWin) then
+    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+    local Shared = require("controllers.app.core_controller_shared")
+    local iconsRoot = patternTableRootMenuIcons()
+    local linkedId = contentWin.linkedPatternTableWindowId
+    if type(linkedId) ~= "string" or linkedId == "" then
+      linkedId = nil
+    end
+
+    items[#items + 1] = {
+      text = "Link pattern table",
+      icon = iconsRoot.link,
+      menuGroup = "pt_sketch_link",
+      children = function()
+        local childItems = {}
+        for _, pt in ipairs(ptWindows) do
+          if pt ~= contentWin then
+            childItems[#childItems + 1] = {
+              text = tostring(pt.title or pt._id or "Pattern table"),
+              icon = patternTablePickMenuIcon(pt, linkedId),
+              callback = function()
+                linkSketchCanvasToPatternTableWithUndo(self, contentWin, pt)
+                hideMenus()
+              end,
+            }
+          end
+        end
+        childItems[#childItems + 1] = {
+          text = "Create new pattern table",
+          icon = iconsRoot.link,
+          callback = function()
+            local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
+            local pt = self.wm:createPatternTableWindow({
+              title = "Sketch pattern table",
+              cols = 16,
+              rows = 16,
+            })
+            Shared.recordWindowCreateUndo(self, pt, prevFocusedWin)
+            linkSketchCanvasToPatternTableWithUndo(self, contentWin, pt)
+            hideMenus()
+          end,
+        }
+        return childItems
+      end,
+    }
+
+    if linkedId then
+      local linkedWin = findWindowByLinkedPatternTableId(self.wm, linkedId)
+      if linkedWin then
+        items[#items + 1] = {
+          text = "Jump to pattern table",
+          icon = iconsRoot.jump,
+          menuGroup = "pt_sketch_follow",
+          callback = function()
+            activateWindowForJump(self.wm, linkedWin)
+            hideMenus()
+          end,
+        }
+      end
+      items[#items + 1] = {
+        text = "Unlink pattern table",
+        icon = iconsRoot.unlink,
+        menuGroup = "pt_sketch_follow",
+        callback = function()
+          local beforeLinkedId = contentWin.linkedPatternTableWindowId
+          SketchCanvasPackController.unlinkSketchPatternTable(contentWin, self.wm)
+          pushSketchCanvasPatternTableLinkUndo(self, contentWin, beforeLinkedId, nil, nil)
+          hideMenus()
+        end,
+      }
+    end
+
+    return items
   end
 
   if WindowCaps.isOamAnimation(contentWin) then

@@ -896,6 +896,9 @@ function M.afterLayoutPatternTablesHydrate(wm, tilesPool, ensureTiles, opts)
   opts = type(opts) == "table" and opts or {}
   PatternTableDisplayController.resolveLinkedPatternTableLayers(wm)
 
+  local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+  SketchCanvasPackController.resolveSketchOwnedPatternTables(wm)
+
   -- Copy linked pattern tables onto consuming layers (`patternTable`), then rebuild sprite CHR refs.
   -- OAM tile bytes are logical indices into the linked pattern-table window ordering (same 0–255 path
   -- as populateTileLayerItemsFromPatternTable: row-major 16-wide grid).
@@ -914,7 +917,9 @@ function M.afterLayoutPatternTablesHydrate(wm, tilesPool, ensureTiles, opts)
     tilesPool = tilesPool,
     ensureTiles = ensureTiles,
     appEditState = opts.appEditState,
+    wm = wm,
   })
+  SketchCanvasPackController.reapplyAllSketchLinkedPatternTables(wm)
   M.finalizeDeferredPpuNametableHydrates(wm, opts.romRaw, tilesPool, ensureTiles)
 
   -- hydrateWindowNametable / early layout can populate nametable visuals before tilesPool CHR keys

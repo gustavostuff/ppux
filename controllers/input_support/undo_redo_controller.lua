@@ -420,6 +420,53 @@ function UndoRedoController:addPatternTableLinkEvent(event)
   return pushed
 end
 
+function UndoRedoController:addSketchCanvasPatternTableLinkEvent(event)
+  if not event or event.type ~= "sketch_canvas_pattern_table_link" or not event.sketchWin then
+    return false
+  end
+  local beforeId = event.beforeLinkedId
+  local afterId = event.afterLinkedId
+  beforeId = (type(beforeId) == "string" and beforeId ~= "") and beforeId or nil
+  afterId = (type(afterId) == "string" and afterId ~= "") and afterId or nil
+  if beforeId == afterId then
+    return false
+  end
+  local pushed = self:_pushEvent({
+    type = "sketch_canvas_pattern_table_link",
+    sketchWin = event.sketchWin,
+    beforeLinkedId = beforeId,
+    afterLinkedId = afterId,
+    beforeStolenSketchWin = event.beforeStolenSketchWin,
+    beforeStolenLinkedId = event.beforeStolenLinkedId,
+  })
+  if pushed then
+    self:_notifyUnsaved("sketch_canvas_pattern_table_link")
+  end
+  return pushed
+end
+
+function UndoRedoController:addSketchCanvasGenerateEvent(event)
+  if not event or event.type ~= "sketch_canvas_generate" or not event.sketchWin then
+    return false
+  end
+  if type(event.beforePack) ~= "table" or type(event.afterPack) ~= "table" then
+    return false
+  end
+  local pushed = self:_pushEvent({
+    type = "sketch_canvas_generate",
+    sketchWin = event.sketchWin,
+    patternTableWin = event.patternTableWin,
+    beforePack = event.beforePack,
+    afterPack = event.afterPack,
+    beforeItemsPixels = event.beforeItemsPixels,
+    afterItemsPixels = event.afterItemsPixels,
+  })
+  if pushed then
+    self:_notifyUnsaved("sketch_canvas_generate")
+  end
+  return pushed
+end
+
 function UndoRedoController:addPaletteColorEvent(event)
   if not event or event.type ~= "palette_color" then return false end
   if type(event.actions) ~= "table" or #event.actions == 0 then return false end

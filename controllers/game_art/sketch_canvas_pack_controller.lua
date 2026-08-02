@@ -1,11 +1,15 @@
 -- sketch_canvas_pack_controller.lua
--- Pack a sketch canvas into tilesPool ({x,y} refs) + nametableBytes with tolerance grouping.
+-- Pack a sketch canvas into tilesPool ({x,y} refs) + nametableBytes, and apply to a linked PT.
 
+local Tile = require("user_interface.windows_system.tile_item")
+local BankViewController = require("controllers.chr.bank_view_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local TileInvalidationIndex = require("controllers.app.tile_invalidation_index")
 
 local M = {}
 
 M.MAX_UNIQUE = 256
+M.PT_SLOT_COUNT = 256
 M.GRID_COLS = 32
 M.GRID_ROWS = 30
 M.CELL = 8
@@ -51,6 +55,134 @@ local function clampTolerance(tolerance)
     return M.MAX_TOLERANCE
   end
   return t
+end
+
+local function copyPixels(pixels)
+  local out = {}
+  for i = 1, 64 do
+    out[i] = math.floor(tonumber(pixels and pixels[i]) or 0)
+  end
+  return out
+end
+
+local function findWindowById(wm, id)
+  if not (wm and type(id) == "string" and id ~= "") then
+    return nil
+  end
+  if wm.findWindowById then
+    return wm:findWindowById(id)
+  end
+  if wm.getWindows then
+    for _, w in ipairs(wm:getWindows()) do
+      if w and w._id == id then
+        return w
+      end
+    end
+  end
+  return nil
+end
+
+local function clearPatternTableScratchItems(ptWin)
+  local layer = ptWin and ptWin.layers and ptWin.layers[1]
+  if not layer then
+    return
+  end
+  layer.items = {}
+  if type(layer.patternTable) ~= "table" then
+    layer.patternTable = { ranges = {} }
+  else
+    layer.patternTable.ranges = {}
+  end
+  if ptWin.invalidateTileLayerCanvas then
+    ptWin:invalidateTileLayerCanvas(1)
+  end
+  TileInvalidationIndex.markDirtyFromCtx()
+end
+
+function M.makeScratchTileFromPixels(pixels)
+  local tile = Tile.blank(0)
+  for i = 1, 64 do
+    tile.pixels[i] = math.floor(tonumber(pixels and pixels[i]) or 0)
+  end
+  tile._imageDirty = true
+  return tile
+end
+
+--- Place 0-based logical tile refs into the PT grid using the layer's 8x8 / 8x16 ordering.
+local function placeLogicalTilesOnPatternTable(ptWin, logicalTiles)
+  local layer = ptWin and ptWin.layers and ptWin.layers[1]
+  if not layer then
+    return false
+  end
+  local layoutMode = layer.mode or "8x8"
+  layer.patternTable = { ranges = {} }
+  layer.items = {}
+  for pos = 0, M.PT_SLOT_COUNT - 1 do
+    local logicalIndex = BankViewController.chrOrderingIndexForGridPos(layoutMode, pos)
+    layer.items[pos + 1] = logicalTiles[logicalIndex]
+  end
+  if ptWin.invalidateTileLayerCanvas then
+    ptWin:invalidateTileLayerCanvas(1)
+  end
+  TileInvalidationIndex.markDirtyFromCtx()
+  return true
+end
+
+--- Remap existing sketch PT items from one CHR layout mode to another (same logical tiles).
+function M.relayoutSketchOwnedPatternTableItems(ptWin, fromMode, toMode)
+  local layer = ptWin and ptWin.layers and ptWin.layers[1]
+  if not layer then
+    return false
+  end
+  fromMode = fromMode or "8x8"
+  toMode = toMode or layer.mode or "8x8"
+  local byLogical = {}
+  for pos = 0, M.PT_SLOT_COUNT - 1 do
+    local logicalIndex = BankViewController.chrOrderingIndexForGridPos(fromMode, pos)
+    byLogical[logicalIndex] = layer.items and layer.items[pos + 1]
+  end
+  layer.mode = toMode
+  return placeLogicalTilesOnPatternTable(ptWin, byLogical)
+end
+
+--- Snapshot scratch tile pixels keyed by logical index (0-based + 1 for Lua array).
+function M.snapshotPatternTableItemPixels(ptWin)
+  local layer = ptWin and ptWin.layers and ptWin.layers[1]
+  if not layer then
+    return nil
+  end
+  local mode = layer.mode or "8x8"
+  local out = {}
+  for pos = 0, M.PT_SLOT_COUNT - 1 do
+    local logicalIndex = BankViewController.chrOrderingIndexForGridPos(mode, pos)
+    local item = layer.items and layer.items[pos + 1]
+    if item and type(item.pixels) == "table" then
+      out[logicalIndex + 1] = copyPixels(item.pixels)
+    else
+      out[logicalIndex + 1] = nil
+    end
+  end
+  return out
+end
+
+function M.restorePatternTableItemPixels(ptWin, pixelsByLogical)
+  if not (ptWin and type(pixelsByLogical) == "table") then
+    return false
+  end
+  local layer = ptWin.layers and ptWin.layers[1]
+  if not layer then
+    return false
+  end
+  local logicalTiles = {}
+  for logical = 0, M.PT_SLOT_COUNT - 1 do
+    local pixels = pixelsByLogical[logical + 1]
+    if type(pixels) == "table" then
+      logicalTiles[logical] = M.makeScratchTileFromPixels(pixels)
+    else
+      logicalTiles[logical] = nil
+    end
+  end
+  return placeLogicalTilesOnPatternTable(ptWin, logicalTiles)
 end
 
 --- Pack a PixelCanvas into unique pool refs + 32x30 nametable indices.
@@ -114,8 +246,220 @@ function M.applyPackToWindow(win, pack)
   return true
 end
 
+function M.resolveLinkedPatternTable(sketchWin, wm)
+  if not WindowCaps.isSketchCanvas(sketchWin) then
+    return nil
+  end
+  local id = sketchWin.linkedPatternTableWindowId
+  if type(id) ~= "string" or id == "" then
+    return nil
+  end
+  local pt = findWindowById(wm, id)
+  if pt and WindowCaps.isPatternTable(pt) and not pt._closed then
+    return pt
+  end
+  return nil
+end
+
+function M.isSketchOwnedPatternTable(ptWin, wm)
+  if not WindowCaps.isPatternTable(ptWin) then
+    return false
+  end
+  if type(ptWin.linkedSketchCanvasWindowId) == "string" and ptWin.linkedSketchCanvasWindowId ~= "" then
+    return true
+  end
+  if not (wm and wm.getWindows) then
+    return false
+  end
+  local ptId = ptWin._id
+  if type(ptId) ~= "string" or ptId == "" then
+    return false
+  end
+  for _, w in ipairs(wm:getWindows()) do
+    if WindowCaps.isSketchCanvas(w)
+      and not w._closed
+      and w.linkedPatternTableWindowId == ptId
+    then
+      return true
+    end
+  end
+  return false
+end
+
+--- Rebuild reverse marks on pattern tables from sketch window links.
+function M.resolveSketchOwnedPatternTables(wm)
+  if not (wm and wm.getWindows) then
+    return
+  end
+  for _, w in ipairs(wm:getWindows()) do
+    if WindowCaps.isPatternTable(w) then
+      w.linkedSketchCanvasWindowId = nil
+    end
+  end
+  for _, w in ipairs(wm:getWindows()) do
+    if WindowCaps.isSketchCanvas(w) and not w._closed then
+      local pt = M.resolveLinkedPatternTable(w, wm)
+      if pt then
+        pt.linkedSketchCanvasWindowId = w._id
+      end
+    end
+  end
+end
+
+local function clearReverseLinkIfOwned(ptWin, sketchWin)
+  if ptWin
+    and type(ptWin.linkedSketchCanvasWindowId) == "string"
+    and ptWin.linkedSketchCanvasWindowId ~= ""
+    and (not sketchWin or ptWin.linkedSketchCanvasWindowId == sketchWin._id)
+  then
+    ptWin.linkedSketchCanvasWindowId = nil
+  end
+end
+
+--- Link sketch -> pattern table (window-level). Marks PT as sketch-owned.
+function M.linkSketchToPatternTable(sketchWin, ptWin, wm)
+  if not WindowCaps.isSketchCanvas(sketchWin) then
+    return false, "not_sketch_canvas"
+  end
+  if not WindowCaps.isPatternTable(ptWin) then
+    return false, "not_pattern_table"
+  end
+  if type(ptWin._id) ~= "string" or ptWin._id == "" then
+    return false, "pattern_table_missing_id"
+  end
+
+  -- Detach previous link on this sketch.
+  local prevPt = M.resolveLinkedPatternTable(sketchWin, wm)
+  if prevPt and prevPt ~= ptWin then
+    clearReverseLinkIfOwned(prevPt, sketchWin)
+  end
+
+  -- If another sketch owns this PT, detach that sketch.
+  if type(ptWin.linkedSketchCanvasWindowId) == "string"
+    and ptWin.linkedSketchCanvasWindowId ~= ""
+    and ptWin.linkedSketchCanvasWindowId ~= sketchWin._id
+  then
+    local other = findWindowById(wm, ptWin.linkedSketchCanvasWindowId)
+    if WindowCaps.isSketchCanvas(other) then
+      other.linkedPatternTableWindowId = nil
+    end
+  end
+
+  sketchWin.linkedPatternTableWindowId = ptWin._id
+  ptWin.linkedSketchCanvasWindowId = sketchWin._id
+
+  local layer = ptWin.layers and ptWin.layers[1]
+  if layer then
+    layer.patternTable = { ranges = {} }
+  end
+
+  if type(sketchWin.tilesPool) == "table" and #sketchWin.tilesPool > 0 then
+    return M.applyPackToLinkedPatternTable(sketchWin, wm)
+  end
+
+  clearPatternTableScratchItems(ptWin)
+  return true
+end
+
+function M.unlinkSketchPatternTable(sketchWin, wm)
+  if not WindowCaps.isSketchCanvas(sketchWin) then
+    return false, "not_sketch_canvas"
+  end
+  local pt = M.resolveLinkedPatternTable(sketchWin, wm)
+  sketchWin.linkedPatternTableWindowId = nil
+  if pt then
+    clearReverseLinkIfOwned(pt, sketchWin)
+  end
+  return true
+end
+
+local function clampPaddingIndex(sketchWin, uniqueCount)
+  local pad = math.floor(tonumber(sketchWin and sketchWin.paddingTileIndex) or 0)
+  if uniqueCount <= 0 then
+    return 0
+  end
+  if pad < 0 then
+    pad = 0
+  elseif pad >= uniqueCount then
+    pad = uniqueCount - 1
+  end
+  return pad
+end
+
+--- Fill linked PT with 256 scratch tiles sampled from the sketch canvas at pool coords.
+function M.applyPackToLinkedPatternTable(sketchWin, wm)
+  if not WindowCaps.isSketchCanvas(sketchWin) then
+    return false, "not_sketch_canvas"
+  end
+  local ptWin = M.resolveLinkedPatternTable(sketchWin, wm)
+  if not ptWin then
+    return false, "no_linked_pattern_table"
+  end
+  local canvas = resolveCanvas(sketchWin)
+  if not canvas then
+    return false, "no_canvas"
+  end
+  local pool = sketchWin.tilesPool
+  if type(pool) ~= "table" or #pool == 0 then
+    return false, "empty_tiles_pool"
+  end
+
+  local uniqueCount = #pool
+  local padIndex = clampPaddingIndex(sketchWin, uniqueCount)
+  local padEntry = pool[padIndex + 1]
+  local padPixels = canvas:extractTilePixels(padEntry.x, padEntry.y, M.CELL)
+
+  -- Build unique scratch tiles once; padding slots share the pad tile ref.
+  local uniqueTiles = {}
+  for i = 1, uniqueCount do
+    local entry = pool[i]
+    local pixels = canvas:extractTilePixels(entry.x, entry.y, M.CELL)
+    uniqueTiles[i] = M.makeScratchTileFromPixels(pixels)
+  end
+  local padTile = uniqueTiles[padIndex + 1] or M.makeScratchTileFromPixels(padPixels)
+
+  local layer = ptWin.layers and ptWin.layers[1]
+  if not layer then
+    return false, "pattern_table_missing_layer"
+  end
+
+  -- Logical 0..255 catalog; grid placement follows layer.mode (8x8 / 8x16 pairs).
+  local logicalTiles = {}
+  for slot = 0, M.PT_SLOT_COUNT - 1 do
+    if slot < uniqueCount then
+      logicalTiles[slot] = uniqueTiles[slot + 1]
+    else
+      logicalTiles[slot] = padTile
+    end
+  end
+  placeLogicalTilesOnPatternTable(ptWin, logicalTiles)
+
+  ptWin.linkedSketchCanvasWindowId = sketchWin._id
+  return true, {
+    uniqueCount = uniqueCount,
+    paddingTileIndex = padIndex,
+    patternTableWindowId = ptWin._id,
+  }
+end
+
+function M.reapplyAllSketchLinkedPatternTables(wm)
+  if not (wm and wm.getWindows) then
+    return
+  end
+  for _, w in ipairs(wm:getWindows()) do
+    if WindowCaps.isSketchCanvas(w)
+      and not w._closed
+      and type(w.tilesPool) == "table"
+      and #w.tilesPool > 0
+      and type(w.linkedPatternTableWindowId) == "string"
+      and w.linkedPatternTableWindowId ~= ""
+    then
+      M.applyPackToLinkedPatternTable(w, wm)
+    end
+  end
+end
+
 --- Pack the sketch window paint buffer into tilesPool + nametableBytes.
---- Does not touch any linked pattern table (Phase 4).
 --- @return ok, packOrErr
 function M.generate(win)
   if not WindowCaps.isSketchCanvas(win) then
@@ -133,16 +477,37 @@ function M.generate(win)
   return true, pack
 end
 
+--- Pack, then apply to linked pattern table when linked.
+function M.generateAndApply(win, wm)
+  local ok, packOrErr = M.generate(win)
+  if not ok then
+    return false, packOrErr
+  end
+  if type(win.linkedPatternTableWindowId) == "string" and win.linkedPatternTableWindowId ~= "" then
+    local applyOk, applyInfoOrErr = M.applyPackToLinkedPatternTable(win, wm)
+    if not applyOk then
+      return false, applyInfoOrErr or "apply_failed"
+    end
+    packOrErr.appliedToPatternTable = true
+    packOrErr.paddingTileIndex = applyInfoOrErr and applyInfoOrErr.paddingTileIndex
+  end
+  return true, packOrErr
+end
+
 function M.formatGenerateStatus(ok, packOrErr)
   if ok and type(packOrErr) == "table" then
     local n = tonumber(packOrErr.uniqueCount) or 0
     local tol = tonumber(packOrErr.tolerance) or 0
-    return string.format(
+    local base = string.format(
       "Sketch generate: %d unique pattern%s (tolerance %d)",
       n,
       n == 1 and "" or "s",
       tol
     )
+    if packOrErr.appliedToPatternTable then
+      return base .. " -> pattern table"
+    end
+    return base
   end
   local err = tostring(packOrErr or "pack_failed")
   if err == "too_many_unique" then
@@ -154,7 +519,53 @@ function M.formatGenerateStatus(ok, packOrErr)
   if err == "canvas_too_small" then
     return "Sketch generate failed: canvas too small"
   end
+  if err == "no_linked_pattern_table" then
+    return "Sketch generate failed: linked pattern table missing"
+  end
   return "Sketch generate failed: " .. err
+end
+
+function M.snapshotPackFields(win)
+  local pool = {}
+  for i, entry in ipairs((win and win.tilesPool) or {}) do
+    pool[i] = {
+      x = math.floor(tonumber(entry.x) or 0),
+      y = math.floor(tonumber(entry.y) or 0),
+    }
+  end
+  local nt = nil
+  if type(win and win.nametableBytes) == "table" then
+    nt = {}
+    for i, b in ipairs(win.nametableBytes) do
+      nt[i] = math.floor(tonumber(b) or 0)
+    end
+  end
+  return {
+    tilesPool = pool,
+    nametableBytes = nt,
+  }
+end
+
+function M.restorePackFields(win, snap)
+  if not (win and snap) then
+    return false
+  end
+  win.tilesPool = {}
+  for i, entry in ipairs(snap.tilesPool or {}) do
+    win.tilesPool[i] = {
+      x = math.floor(tonumber(entry.x) or 0),
+      y = math.floor(tonumber(entry.y) or 0),
+    }
+  end
+  if type(snap.nametableBytes) == "table" then
+    win.nametableBytes = {}
+    for i, b in ipairs(snap.nametableBytes) do
+      win.nametableBytes[i] = math.floor(tonumber(b) or 0)
+    end
+  else
+    win.nametableBytes = nil
+  end
+  return true
 end
 
 return M

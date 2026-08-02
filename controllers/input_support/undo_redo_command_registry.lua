@@ -98,6 +98,58 @@ local function applyPatternTableLinkEvent(event, direction, app)
   return applied > 0
 end
 
+local function applySketchCanvasPatternTableLinkEvent(event, direction, app)
+  if not (event and event.type == "sketch_canvas_pattern_table_link" and event.sketchWin and app) then
+    return false
+  end
+  local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+  local sketchWin = event.sketchWin
+  local linkedId
+  if direction == "undo" then
+    linkedId = event.beforeLinkedId
+  else
+    linkedId = event.afterLinkedId
+  end
+  linkedId = (type(linkedId) == "string" and linkedId ~= "") and linkedId or nil
+
+  if direction == "undo" and event.beforeStolenSketchWin then
+    local stolen = event.beforeStolenSketchWin
+    local stolenId = event.beforeStolenLinkedId
+    if type(stolenId) == "string" and stolenId ~= "" then
+      local stolenPt = undoRedoFindWindowById(app.wm, stolenId)
+      if stolenPt then
+        SketchCanvasPackController.linkSketchToPatternTable(stolen, stolenPt, app.wm)
+      end
+    end
+  end
+
+  if linkedId then
+    local ptWin = undoRedoFindWindowById(app.wm, linkedId)
+    if not ptWin then
+      return false
+    end
+    return SketchCanvasPackController.linkSketchToPatternTable(sketchWin, ptWin, app.wm)
+  end
+
+  return SketchCanvasPackController.unlinkSketchPatternTable(sketchWin, app.wm)
+end
+
+local function applySketchCanvasGenerateEvent(event, direction, app)
+  if not (event and event.type == "sketch_canvas_generate" and event.sketchWin) then
+    return false
+  end
+  local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+  local packSnap = (direction == "undo") and event.beforePack or event.afterPack
+  local itemsSnap = (direction == "undo") and event.beforeItemsPixels or event.afterItemsPixels
+  SketchCanvasPackController.restorePackFields(event.sketchWin, packSnap)
+  if event.patternTableWin and type(itemsSnap) == "table" then
+    SketchCanvasPackController.restorePatternTableItemPixels(event.patternTableWin, itemsSnap)
+  elseif event.patternTableWin and (type(event.sketchWin.tilesPool) == "table" and #event.sketchWin.tilesPool > 0) then
+    SketchCanvasPackController.applyPackToLinkedPatternTable(event.sketchWin, app and app.wm)
+  end
+  return true
+end
+
 local function applyPaletteLinkEvent(event, direction)
   if not (event and event.type == "palette_link" and event.actions) then
     return false
@@ -1176,6 +1228,14 @@ M.COMMANDS = {
   rom_palette_address = { describe = describeStatic("ROM palette address"), apply = applyRomPaletteAddressEvent },
   palette_link = { describe = describeStatic("Palette link"), apply = applyPaletteLinkEvent },
   pattern_table_link = { describe = describeStatic("Pattern table link"), apply = applyPatternTableLinkEvent },
+  sketch_canvas_pattern_table_link = {
+    describe = describeStatic("Sketch pattern table link"),
+    apply = applySketchCanvasPatternTableLinkEvent,
+  },
+  sketch_canvas_generate = {
+    describe = describeStatic("Sketch generate"),
+    apply = applySketchCanvasGenerateEvent,
+  },
   window_create = { describe = describeStatic("New window"), apply = applyWindowCreateEvent },
   ppu_frame_range = { describe = describeStatic("PPU pattern table"), apply = applyPpuFrameRangeEvent },
   pattern_table_append = { describe = describeStatic("Pattern table drop"), apply = applyPatternTableAppendEvent },
