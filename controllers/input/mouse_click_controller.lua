@@ -8,6 +8,7 @@ local MouseWindowChromeController = require("controllers.input.mouse_window_chro
 local WindowLinkVisualController = require("controllers.window.window_link_visual_controller")
 local StatusHelpers = require("utils.status_helpers")
 local LoveCompat = require("utils.love_compat")
+local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
 
 local M = {}
 local romPaletteCellDoubleClick = {
@@ -228,9 +229,14 @@ local function startTileDrag(env, win, col, row, layerIdx, item, wm, x, y, copyM
   drag.copyMode = (copyMode == true)
   drag.tileGroup = tileGroup
   drag.srcTemporarilyCleared = false
+  drag.chrPixelPaint = nil
 
   local stack = win:getStack(col, row, layerIdx)
   drag.srcStackIndex = (stack and #stack) or 1
+
+  if WindowCaps.isPatternTable(win) then
+    SketchCanvasPackController.freezeSketchOwnedPatternTableDrag(win, drag, wm)
+  end
 end
 
 local function isPatternLayerGatedLocked(win, layerIdx)

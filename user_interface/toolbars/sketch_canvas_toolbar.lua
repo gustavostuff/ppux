@@ -7,12 +7,68 @@ local images = require("images")
 local colors = require("app_colors")
 local StatusHelpers = require("utils.status_helpers")
 local Timer = require("utils.timer_utils")
+local Text = require("utils.text_utils")
 
 local SketchCanvasToolbar = {}
 SketchCanvasToolbar.__index = SketchCanvasToolbar
 setmetatable(SketchCanvasToolbar, { __index = ToolbarBase })
 
 local TOLERANCE_REGEN_DELAY = 0.12
+
+local function maxDigitWidth()
+  local maxW = 0
+  for d = 0, 9 do
+    local w = Text.getFontWidth(tostring(d))
+    if w > maxW then
+      maxW = w
+    end
+  end
+  return math.max(1, maxW)
+end
+
+--- Draw 1–2 digits in equal-width slots so proportional fonts don't shift between values.
+local function drawFixedDigitLabel(button)
+  if not button then
+    return
+  end
+  local font = love.graphics.getFont()
+  local text = tostring(button.text or "")
+  local slotW = tonumber(button._digitSlotW) or maxDigitWidth()
+  local textH = font and font:getHeight() or Text.getFontHeight()
+  local textY = button.y + (button.h - textH) / 2
+  local a = 1
+  if button.enabled == false then
+    a = 0.5
+  end
+  local c = button.contentColor or colors.white
+  local color = { c[1] or 1, c[2] or 1, c[3] or 1, a }
+
+  if #text <= 1 then
+    local ch = text
+    if ch == "" then
+      ch = "0"
+    end
+    local charW = Text.getFontWidth(ch)
+    local textX = button.x + (button.w - charW) / 2
+    Text.print(ch, math.floor(textX), math.floor(textY), {
+      color = color,
+      literalColor = button.literalContentColor == true,
+    })
+    return
+  end
+
+  -- Two digits: each centered in a fixed slot (stable across 10–32).
+  local digits = { text:sub(1, 1), text:sub(2, 2) }
+  for i, ch in ipairs(digits) do
+    local charW = Text.getFontWidth(ch)
+    local slotX = button.x + (i - 1) * slotW
+    local textX = slotX + (slotW - charW) / 2
+    Text.print(ch, math.floor(textX), math.floor(textY), {
+      color = color,
+      literalColor = button.literalContentColor == true,
+    })
+  end
+end
 
 local function getApp(self)
   return self.ctx and self.ctx.app or nil
@@ -44,6 +100,27 @@ function SketchCanvasToolbar.new(window, ctx, windowController)
     end,
     "Decrease pack tolerance"
   )
+
+  local digitSlotW = maxDigitWidth()
+  self.toleranceValueButton = self:addTextButton(
+    "0",
+    nil,
+    "Pack tolerance",
+    {
+      w = digitSlotW * 2,
+      transparent = true,
+      contentPaddingX = 0,
+      contentPaddingRight = 0,
+      textAlign = "center",
+    }
+  )
+  -- Display-only: keep enabled so Aseprite font ink stays full opacity.
+  self.toleranceValueButton.enabled = true
+  self.toleranceValueButton.skipHoverFocusUnderlay = true
+  self.toleranceValueButton._digitSlotW = digitSlotW
+  self.toleranceValueButton.draw = function(btn)
+    drawFixedDigitLabel(btn)
+  end
 
   self.toleranceUpButton = self:addButton(
     chrome.icon_plus or chrome.icon_circle,
@@ -221,6 +298,10 @@ function SketchCanvasToolbar:updateIcons()
     self.toleranceDownButton.tooltip = linked
       and string.format("Decrease pack tolerance (now %d; live update)", tol)
       or string.format("Decrease pack tolerance (now %d)", tol)
+  end
+  if self.toleranceValueButton then
+    self.toleranceValueButton.text = tostring(tol)
+    self.toleranceValueButton.tooltip = string.format("Pack tolerance: %d", tol)
   end
   if self.toleranceUpButton then
     self.toleranceUpButton.enabled = tol < SketchCanvasPackController.MAX_TOLERANCE

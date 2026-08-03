@@ -398,6 +398,9 @@ function ToolbarBase:addTextButton(text, action, tooltip, opts)
     bgColor = opts.bgColor,
     bgAlpha = opts.bgAlpha,
     transparent = opts.transparent,
+    textAlign = opts.textAlign,
+    contentPaddingX = opts.contentPaddingX,
+    contentPaddingRight = opts.contentPaddingRight,
   })
   button.toolbarRow = tonumber(opts.row) or nil
 

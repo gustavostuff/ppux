@@ -4,6 +4,7 @@ local chr = require("chr")
 local GameArtController = require("controllers.game_art.game_art_controller")
 local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
 local StatusHelpers = require("utils.status_helpers")
+local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
 
 local M = {}
 
@@ -601,6 +602,10 @@ local function getPasteCompatibilityError(focus, layer, data)
   end
 
   if WindowCaps.isChrLike(focus) and data.sourceWin ~= focus then
+    -- Sketch-owned pattern table copy freezes pixels for CHR/ROM paint paste.
+    if data.chrPixelPaint == true then
+      return nil
+    end
     return "Pasting into CHR/ROM windows is only allowed from the same window"
   end
 
@@ -885,6 +890,9 @@ local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
     count = count,
     shifted = (shiftedX == true or shiftedY == true),
     source = anchorSource,
+    firstCol = firstCol,
+    firstRow = firstRow,
+    reason = nil,
   }
 end
 
@@ -1171,6 +1179,12 @@ local function doCopy(ctx, focus)
   if layer.kind == "tile" then
     clipboard = captureTileClipboard(focus, layer, layerIndex)
     if clipboard and clipboard.count > 0 then
+      local wm = ctx and ctx.app and ctx.app.wm
+      if WindowCaps.isPatternTable(focus)
+        and SketchCanvasPackController.isSketchOwnedPatternTable(focus, wm)
+      then
+        SketchCanvasPackController.freezeSketchOwnedPatternTableClipboard(focus, clipboard, wm)
+      end
       StatusHelpers.setStatus(ctx, (clipboard.count == 1) and "Copied 1 tile" or string.format("Copied %d tiles", clipboard.count))
     else
       StatusHelpers.setStatus(ctx, "No tiles selected to copy")
@@ -1332,6 +1346,18 @@ local function doCut(ctx, focus, opts)
   end
 
   return true
+end
+
+--- Apply a frozen pixel-paint tile payload onto a CHR/ROM window (used by sketch PT drag-drop).
+function M.applyFrozenPixelPaintToChr(ctx, focus, layerIndex, data, opts)
+  if not (WindowCaps.isChrLike(focus) and data and data.chrPixelPaint == true) then
+    return { count = 0, shifted = false, source = "none" }
+  end
+  local layer = focus.layers and focus.layers[layerIndex]
+  if not (layer and layer.kind == "tile") then
+    return { count = 0, shifted = false, source = "none" }
+  end
+  return pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
 end
 
 function M.performClipboardAction(ctx, focus, action, opts)

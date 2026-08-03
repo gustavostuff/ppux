@@ -646,8 +646,10 @@ end
 function UndoRedoController:_applyPaintEvent(event, direction, app)
   if not (event and event.pixels) then return false end
   local chr = require("chr")
+  local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
   local applied = 0
   local useAfter = direction == "redo"
+  local directItems = {}
 
   for _, pixelData in pairs(event.pixels) do
     local px = pixelData.px
@@ -656,6 +658,7 @@ function UndoRedoController:_applyPaintEvent(event, direction, app)
 
     if pixelData.item and pixelData.item.edit then
       pixelData.item:edit(px, py, value)
+      directItems[#directItems + 1] = pixelData.item
       applied = applied + 1
     else
       local bank = pixelData.bank
@@ -708,6 +711,10 @@ function UndoRedoController:_applyPaintEvent(event, direction, app)
     for _, info in pairs(affectedTiles) do
       BankCanvasSupport.invalidateTile(app, info.bank, info.tileIndex)
     end
+  end
+
+  if #directItems > 0 then
+    SketchCanvasPackController.refreshViewsForScratchTileItems(app, directItems)
   end
 
   return applied > 0

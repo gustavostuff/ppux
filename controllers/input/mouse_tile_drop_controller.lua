@@ -7,6 +7,7 @@ local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 local Shared = require("controllers.app.core_controller_shared")
 local StatusHelpers = require("utils.status_helpers")
 local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+local KeyboardClipboardController = require("controllers.input.keyboard_clipboard_controller")
 
 local CHR_DROP_PPU_PATTERN_MSG = "CHR tiles must appear in this PPU frame pattern table"
 local CHR_DROP_SKETCH_OWNED_MSG = SketchCanvasPackController.SKETCH_OWNED_PATTERN_TABLE_MSG
@@ -337,6 +338,100 @@ end
 local function canDropOnWindow(dst)
   if not dst then return false end
   if WindowCaps.isChrLike(dst) then return false end
+  return true
+end
+
+local function buildChrPixelPaintPayloadFromDrag(drag)
+  if not (drag and drag.chrPixelPaint == true) then
+    return nil
+  end
+
+  local entries = {}
+  local width, height = 1, 1
+  local group = drag.tileGroup
+  if group and group.entries and #group.entries > 0 then
+    for _, entry in ipairs(group.entries) do
+      entries[#entries + 1] = {
+        offsetCol = entry.offsetCol or 0,
+        offsetRow = entry.offsetRow or 0,
+        item = entry.item,
+      }
+    end
+    width = math.max(1, math.floor(tonumber(group.spanCols) or 1))
+    height = math.max(1, math.floor(tonumber(group.spanRows) or 1))
+  else
+    entries[1] = {
+      offsetCol = 0,
+      offsetRow = 0,
+      item = drag.item,
+    }
+  end
+
+  if #entries == 0 then
+    return nil
+  end
+
+  return {
+    kind = "tile",
+    chrPixelPaint = true,
+    sourceWin = drag.srcWin,
+    sourceSelectionMode = (group and group.sourceSelectionMode) or "8x8",
+    entries = entries,
+    width = width,
+    height = height,
+    count = #entries,
+  }
+end
+
+local function handleSketchChrPixelPaintDrop(env, x, y, wm, dst)
+  local drag = env and env.drag
+  local payload = buildChrPixelPaintPayloadFromDrag(drag)
+  if not payload then
+    env.clearDragState(false)
+    return true
+  end
+
+  local dstLayer = dst:getActiveLayerIndex() or drag.srcLayer or 1
+  local layer = dst.layers and dst.layers[dstLayer]
+  if not (layer and layer.kind == "tile") then
+    env.clearDragState(false)
+    return true
+  end
+
+  local ok, col, row = dst:toGridCoords(x, y)
+  if not ok or type(col) ~= "number" or type(row) ~= "number" then
+    col, row = MultiSelectController.getGridCoordsClamped(dst, x, y)
+  end
+  if type(col) ~= "number" or type(row) ~= "number" then
+    env.clearDragState(false)
+    return true
+  end
+
+  local result = KeyboardClipboardController.applyFrozenPixelPaintToChr(
+    env.ctx,
+    dst,
+    dstLayer,
+    payload,
+    { anchorCol = col, anchorRow = row }
+  )
+  local count = tonumber(result and result.count) or 0
+  if count > 0 then
+    if env.markUnsaved then
+      env.markUnsaved("tile_move")
+    end
+    if dst.setSelected and result.firstCol then
+      wm:setFocus(dst)
+      dst:setSelected(result.firstCol, result.firstRow, dstLayer)
+    end
+    StatusHelpers.setStatusFromEnv(
+      env,
+      (count == 1) and "Painted 1 CHR tile from sketch" or string.format("Painted %d CHR tiles from sketch", count)
+    )
+    env.clearDragState(true)
+  else
+    StatusHelpers.setStatusFromEnv(env, (result and result.reason) or "Nothing painted")
+    env.clearDragState(false)
+  end
   return true
 end
 
@@ -1129,11 +1224,17 @@ function M.handleTileDrop(env, x, y, wm)
     ((drag.copyMode or srcIsChr or srcIsPatternTable) and "copy") or "move"
   )
 
-  if src and dst and src ~= dst and (not srcIsChr) then
+  local sketchChrPaintDrop = drag.chrPixelPaint == true and dst and WindowCaps.isChrLike(dst)
+
+  if src and dst and src ~= dst and (not srcIsChr) and not sketchChrPaintDrop then
     if not allowsPatternTableToPpuNametableDrop(src, dst) then
       env.clearDragState(false)
       return true
     end
+  end
+
+  if sketchChrPaintDrop then
+    return handleSketchChrPixelPaintDrop(env, x, y, wm, dst)
   end
 
   if src and dst and src == dst and WindowCaps.isChrLike(dst) and dst.swapCells then

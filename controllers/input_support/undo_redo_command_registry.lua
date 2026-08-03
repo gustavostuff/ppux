@@ -143,7 +143,11 @@ local function applySketchCanvasGenerateEvent(event, direction, app)
   local itemsSnap = (direction == "undo") and event.beforeItemsPixels or event.afterItemsPixels
   SketchCanvasPackController.restorePackFields(event.sketchWin, packSnap)
   if event.patternTableWin and type(itemsSnap) == "table" then
-    SketchCanvasPackController.restorePatternTableItemPixels(event.patternTableWin, itemsSnap)
+    SketchCanvasPackController.restorePatternTableItemPixels(
+      event.patternTableWin,
+      itemsSnap,
+      app and app.wm
+    )
   elseif event.patternTableWin and (type(event.sketchWin.tilesPool) == "table" and #event.sketchWin.tilesPool > 0) then
     SketchCanvasPackController.applyPackToLinkedPatternTable(event.sketchWin, app and app.wm)
   end

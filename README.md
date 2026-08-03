@@ -7,10 +7,6 @@ Mod Classic ROMs & Build New Homebrew Assets
 
 [![Version](https://img.shields.io/badge/version-0.2.0-6366F1?style=for-the-badge)](version.txt)
 
-[![Unit tests](https://img.shields.io/badge/unit_tests-1018_passing-22C55E?style=for-the-badge)](#unit-testing)
-
-[![E2E tests](https://img.shields.io/badge/e2e_tests-28_passing-14B8A6?style=for-the-badge)](#e2e-testing)
-
 [![Donate](https://img.shields.io/badge/Donate-ff69b4?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://ko-fi.com/tavuntu)
 
 Edit NES graphics as the player sees them. No tile puzzle solving.
@@ -21,16 +17,6 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
   - [Getting started](#getting-started)
   - [Windows system](#windows-system)
   - [Toolbars](#toolbars)
-    - [App toolbar](#app-toolbar)
-    - [CHR Banks toolbar](#chr-banks-toolbar)
-    - [ROM Banks toolbar](#rom-banks-toolbar)
-    - [Pattern table toolbar](#pattern-table-toolbar)
-    - [Static Art (tiles and sprites) toolbar](#static-art-tiles-and-sprites-toolbar)
-    - [Animation toolbar (for both sprites and tiles)](#animation-toolbar-for-both-sprites-and-tiles)
-    - [OAM Animation toolbar](#oam-animation-toolbar)
-    - [Global palette toolbar](#global-palette-toolbar)
-    - [ROM palette toolbar](#rom-palette-toolbar)
-    - [PPU Frame toolbar](#ppu-frame-toolbar)
   - [Palette windows](#palette-windows)
   - [Main controls](#main-controls)
   - [Tile mode](#tile-mode)
@@ -48,9 +34,6 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
   - [ROM palette windows](#rom-palette-windows)
   - [Window references between entries](#window-references-between-entries)
   - [ROM patches](#rom-patches)
-    - [1. Single byte (`address` + `value`)](#1-single-byte-address--value)
-    - [2. Contiguous range (`addresses.from` / optional `addresses.to` + `values`)](#2-contiguous-range-addressesfrom--optional-addressesto--values)
-    - [3. Address list (useful for non-contiguous values)](#3-address-list-useful-for-non-contiguous-values)
 - [Development](#development)
   - [Build packages](#build-packages)
   - [Unit testing](#unit-testing)

@@ -111,6 +111,45 @@ function M.makeScratchTileFromPixels(pixels)
   return tile
 end
 
+--- Remember which sketch paint cell this scratch tile samples (for undo/redo sync).
+function M.stampScratchTileSketchSource(tile, sketchWin, poolX, poolY)
+  if not tile then
+    return
+  end
+  tile._sketchCanvasWindowId = sketchWin and sketchWin._id or nil
+  tile._sketchPoolX = math.floor(tonumber(poolX) or 0)
+  tile._sketchPoolY = math.floor(tonumber(poolY) or 0)
+end
+
+--- Re-attach pool {x,y} stamps on all scratch tiles of a sketch-owned PT.
+function M.restampPatternTableScratchSources(ptWin, wm)
+  local sketch = M.resolveSketchForOwnedPatternTable(ptWin, wm)
+  if not sketch or not M.hasPackData(sketch) then
+    return false
+  end
+  local layer = ptWin.layers and ptWin.layers[1]
+  if not layer or type(layer.items) ~= "table" then
+    return false
+  end
+  local mode = layer.mode or "8x8"
+  local cols = math.max(1, math.floor(tonumber(ptWin.cols) or 16))
+  local stamped = {}
+  for pos = 0, M.PT_SLOT_COUNT - 1 do
+    local item = layer.items[pos + 1]
+    if item and not stamped[item] then
+      local row = math.floor(pos / cols)
+      local col = pos - row * cols
+      local logical = BankViewController.chrOrderingIndexForGridPos(mode, pos)
+      local entry = M.poolEntryForLogicalSlot(sketch, logical)
+      if entry then
+        M.stampScratchTileSketchSource(item, sketch, entry.x, entry.y)
+        stamped[item] = true
+      end
+    end
+  end
+  return true
+end
+
 --- Place 0-based logical tile refs into the PT grid using the layer's 8x8 / 8x16 ordering.
 local function placeLogicalTilesOnPatternTable(ptWin, logicalTiles)
   local layer = ptWin and ptWin.layers and ptWin.layers[1]
@@ -168,7 +207,7 @@ function M.snapshotPatternTableItemPixels(ptWin)
   return out
 end
 
-function M.restorePatternTableItemPixels(ptWin, pixelsByLogical)
+function M.restorePatternTableItemPixels(ptWin, pixelsByLogical, wm)
   if not (ptWin and type(pixelsByLogical) == "table") then
     return false
   end
@@ -185,7 +224,11 @@ function M.restorePatternTableItemPixels(ptWin, pixelsByLogical)
       logicalTiles[logical] = nil
     end
   end
-  return placeLogicalTilesOnPatternTable(ptWin, logicalTiles)
+  local ok = placeLogicalTilesOnPatternTable(ptWin, logicalTiles)
+  if ok then
+    M.restampPatternTableScratchSources(ptWin, wm)
+  end
+  return ok
 end
 
 --- Pack a PixelCanvas into unique pool refs + 32x30 nametable indices.
@@ -372,6 +415,169 @@ function M.isSketchOwnedPatternTable(ptWin, wm)
   return false
 end
 
+--- Resolve the sketch canvas that owns a sketch-linked pattern table.
+function M.resolveSketchForOwnedPatternTable(ptWin, wm)
+  if not WindowCaps.isPatternTable(ptWin) then
+    return nil
+  end
+  local id = ptWin.linkedSketchCanvasWindowId
+  if type(id) == "string" and id ~= "" then
+    local sketch = findWindowById(wm, id)
+    if WindowCaps.isSketchCanvas(sketch) and not sketch._closed then
+      return sketch
+    end
+  end
+  if not (wm and wm.getWindows) then
+    return nil
+  end
+  local ptId = ptWin._id
+  if type(ptId) ~= "string" or ptId == "" then
+    return nil
+  end
+  for _, w in ipairs(wm:getWindows()) do
+    if WindowCaps.isSketchCanvas(w)
+      and not w._closed
+      and w.linkedPatternTableWindowId == ptId
+    then
+      return w
+    end
+  end
+  return nil
+end
+
+function M.logicalIndexForPatternTableCell(ptWin, col, row)
+  if not (ptWin and type(col) == "number" and type(row) == "number") then
+    return nil
+  end
+  local cols = math.max(1, math.floor(tonumber(ptWin.cols) or 16))
+  local gridPos = math.floor(row) * cols + math.floor(col)
+  local layer = ptWin.layers and ptWin.layers[1]
+  local mode = (layer and layer.mode) or "8x8"
+  return BankViewController.chrOrderingIndexForGridPos(mode, gridPos)
+end
+
+--- Pool entry for a logical PT slot (0..255), using paddingTileIndex past uniqueCount.
+function M.poolEntryForLogicalSlot(sketchWin, logicalIndex)
+  if not (M.hasPackData(sketchWin) and type(logicalIndex) == "number") then
+    return nil, nil
+  end
+  local pool = sketchWin.tilesPool
+  local uniqueCount = #pool
+  local slot = math.floor(logicalIndex)
+  if slot < 0 or slot >= M.PT_SLOT_COUNT then
+    return nil, nil
+  end
+  local poolIndex
+  if slot < uniqueCount then
+    poolIndex = slot
+  else
+    -- Mirror clampPaddingIndex (defined later) so this can live near other helpers.
+    local pad = math.floor(tonumber(sketchWin.paddingTileIndex) or 0)
+    if pad < 0 then
+      pad = 0
+    elseif pad >= uniqueCount then
+      pad = uniqueCount - 1
+    end
+    poolIndex = pad
+  end
+  return pool[poolIndex + 1], poolIndex
+end
+
+--- Freeze 8x8 pixels from the sketch paint canvas for a PT grid cell.
+function M.extractFrozenPixelsForPatternTableCell(ptWin, col, row, wm)
+  local sketch = M.resolveSketchForOwnedPatternTable(ptWin, wm)
+  if not sketch then
+    return nil
+  end
+  local canvas = resolveCanvas(sketch)
+  if not canvas then
+    return nil
+  end
+  local logical = M.logicalIndexForPatternTableCell(ptWin, col, row)
+  if logical == nil then
+    return nil
+  end
+  local entry = M.poolEntryForLogicalSlot(sketch, logical)
+  if not entry then
+    return nil
+  end
+  return copyPixels(canvas:extractTilePixels(entry.x, entry.y, M.CELL))
+end
+
+local function entryGridCoords(entry)
+  if not entry then
+    return nil, nil
+  end
+  local col = entry.col
+  local row = entry.row
+  if type(col) ~= "number" then
+    col = entry.srcCol
+  end
+  if type(row) ~= "number" then
+    row = entry.srcRow
+  end
+  if type(col) ~= "number" or type(row) ~= "number" then
+    return nil, nil
+  end
+  return col, row
+end
+
+--- Replace entry.item with frozen { pixels } sampled from the sketch paint buffer.
+function M.freezeSketchOwnedPatternTableEntries(ptWin, entries, wm)
+  if not (ptWin and entries and M.isSketchOwnedPatternTable(ptWin, wm)) then
+    return false
+  end
+  local any = false
+  for _, entry in ipairs(entries) do
+    local col, row = entryGridCoords(entry)
+    local pixels = col and M.extractFrozenPixelsForPatternTableCell(ptWin, col, row, wm) or nil
+    if pixels then
+      entry.item = { pixels = pixels }
+      any = true
+    end
+  end
+  return any
+end
+
+function M.freezeSketchOwnedPatternTableClipboard(ptWin, clipboard, wm)
+  if not (clipboard and clipboard.entries) then
+    return false
+  end
+  local ok = M.freezeSketchOwnedPatternTableEntries(ptWin, clipboard.entries, wm)
+  if ok then
+    clipboard.chrPixelPaint = true
+  end
+  return ok
+end
+
+--- Freeze an in-progress tile drag from a sketch-owned pattern table.
+function M.freezeSketchOwnedPatternTableDrag(ptWin, drag, wm)
+  if not (drag and M.isSketchOwnedPatternTable(ptWin, wm)) then
+    return false
+  end
+
+  local groupEntries = drag.tileGroup and drag.tileGroup.entries
+  if groupEntries and #groupEntries > 0 then
+    local ok = M.freezeSketchOwnedPatternTableEntries(ptWin, groupEntries, wm)
+    if not ok then
+      return false
+    end
+    drag.chrPixelPaint = true
+    drag.tileGroup.chrPixelPaint = true
+  end
+
+  if type(drag.srcCol) == "number" and type(drag.srcRow) == "number" then
+    local pixels = M.extractFrozenPixelsForPatternTableCell(ptWin, drag.srcCol, drag.srcRow, wm)
+    if pixels then
+      drag.item = { pixels = pixels }
+      drag.chrPixelPaint = true
+      return true
+    end
+  end
+
+  return drag.chrPixelPaint == true
+end
+
 --- Rebuild reverse marks on pattern tables from sketch window links.
 function M.resolveSketchOwnedPatternTables(wm)
   if not (wm and wm.getWindows) then
@@ -414,10 +620,11 @@ function M.linkSketchToPatternTable(sketchWin, ptWin, wm)
     return false, "pattern_table_missing_id"
   end
 
-  -- Detach previous link on this sketch.
+  -- Detach previous link on this sketch (drop orphan scratch tiles; CHR/sketch cannot mix).
   local prevPt = M.resolveLinkedPatternTable(sketchWin, wm)
   if prevPt and prevPt ~= ptWin then
     clearReverseLinkIfOwned(prevPt, sketchWin)
+    clearPatternTableScratchItems(prevPt)
   end
 
   -- If another sketch owns this PT, detach that sketch.
@@ -455,6 +662,8 @@ function M.unlinkSketchPatternTable(sketchWin, wm)
   sketchWin.linkedPatternTableWindowId = nil
   if pt then
     clearReverseLinkIfOwned(pt, sketchWin)
+    -- Empty the PT: scratch catalog cannot coexist with CHR ranges after unlink.
+    clearPatternTableScratchItems(pt)
   end
   return true
 end
@@ -500,9 +709,15 @@ function M.applyPackToLinkedPatternTable(sketchWin, wm)
   for i = 1, uniqueCount do
     local entry = pool[i]
     local pixels = canvas:extractTilePixels(entry.x, entry.y, M.CELL)
-    uniqueTiles[i] = M.makeScratchTileFromPixels(pixels)
+    local tile = M.makeScratchTileFromPixels(pixels)
+    M.stampScratchTileSketchSource(tile, sketchWin, entry.x, entry.y)
+    uniqueTiles[i] = tile
   end
-  local padTile = uniqueTiles[padIndex + 1] or M.makeScratchTileFromPixels(padPixels)
+  local padTile = uniqueTiles[padIndex + 1]
+  if not padTile then
+    padTile = M.makeScratchTileFromPixels(padPixels)
+    M.stampScratchTileSketchSource(padTile, sketchWin, padEntry.x, padEntry.y)
+  end
 
   local layer = ptWin.layers and ptWin.layers[1]
   if not layer then
@@ -656,6 +871,159 @@ function M.restorePackFields(win, snap)
     win.reflectPatternTable = false
   end
   return true
+end
+
+--- After painting a scratch tile on a sketch-owned PT: refresh the PT tile canvas and
+--- write the cell's pixels back into the sketch paint buffer at the pool {x,y}.
+function M.syncPatternTableCellPixelsToSketch(ptWin, col, row, wm)
+  if not (type(col) == "number" and type(row) == "number") then
+    return false
+  end
+  local sketch = M.resolveSketchForOwnedPatternTable(ptWin, wm)
+  if not sketch or not M.hasPackData(sketch) then
+    return false
+  end
+  local canvas = resolveCanvas(sketch)
+  if not (canvas and type(canvas.edit) == "function") then
+    return false
+  end
+  local logical = M.logicalIndexForPatternTableCell(ptWin, col, row)
+  if logical == nil then
+    return false
+  end
+  local entry = M.poolEntryForLogicalSlot(sketch, logical)
+  if not entry then
+    return false
+  end
+
+  local layerIndex = 1
+  if ptWin.getActiveLayerIndex then
+    layerIndex = ptWin:getActiveLayerIndex() or 1
+  end
+  local item = ptWin.get and ptWin:get(col, row, layerIndex) or nil
+  if not (item and (item.getPixel or item.pixels)) then
+    return false
+  end
+
+  local ox = math.floor(tonumber(entry.x) or 0)
+  local oy = math.floor(tonumber(entry.y) or 0)
+  for ty = 0, 7 do
+    for tx = 0, 7 do
+      local v
+      if item.getPixel then
+        v = item:getPixel(tx, ty)
+      else
+        v = item.pixels[ty * 8 + tx + 1]
+      end
+      canvas:edit(ox + tx, oy + ty, math.floor(tonumber(v) or 0))
+    end
+  end
+  M.invalidateReflectDisplay(sketch)
+  return true
+end
+
+--- Invalidate PT tile-layer canvas after scratch-tile paint; sync sketch when owned.
+function M.afterScratchPatternTablePaint(app, ptWin, col, row)
+  if not WindowCaps.isPatternTable(ptWin) then
+    return false
+  end
+  local layerIndex = 1
+  if ptWin.getActiveLayerIndex then
+    layerIndex = ptWin:getActiveLayerIndex() or 1
+  end
+  local wm = app and app.wm
+  local sketchOwned = M.isSketchOwnedPatternTable(ptWin, wm)
+
+  if ptWin.invalidateTileLayerCanvas then
+    -- Padding slots share tile refs with the pad unique; dirty the whole layer.
+    if sketchOwned then
+      ptWin:invalidateTileLayerCanvas(layerIndex)
+    else
+      ptWin:invalidateTileLayerCanvas(layerIndex, col, row)
+    end
+  end
+
+  if sketchOwned then
+    return M.syncPatternTableCellPixelsToSketch(ptWin, col, row, wm)
+  end
+  return true
+end
+
+--- Write a stamped scratch tile's pixels back into its sketch paint cell.
+function M.syncScratchTileItemToSketch(item, wm)
+  if not item then
+    return false
+  end
+  local sketchId = item._sketchCanvasWindowId
+  if type(sketchId) ~= "string" or sketchId == "" then
+    return false
+  end
+  local sketch = findWindowById(wm, sketchId)
+  if not WindowCaps.isSketchCanvas(sketch) or sketch._closed then
+    return false
+  end
+  local canvas = resolveCanvas(sketch)
+  if not (canvas and type(canvas.edit) == "function") then
+    return false
+  end
+  local ox = math.floor(tonumber(item._sketchPoolX) or 0)
+  local oy = math.floor(tonumber(item._sketchPoolY) or 0)
+  for ty = 0, 7 do
+    for tx = 0, 7 do
+      local v
+      if item.getPixel then
+        v = item:getPixel(tx, ty)
+      else
+        v = item.pixels and item.pixels[ty * 8 + tx + 1]
+      end
+      canvas:edit(ox + tx, oy + ty, math.floor(tonumber(v) or 0))
+    end
+  end
+  M.invalidateReflectDisplay(sketch)
+  return true
+end
+
+--- After undo/redo restores scratch tile pixels: refresh tile canvases + sketch Reflect/paint.
+function M.refreshViewsForScratchTileItems(app, items)
+  if type(items) ~= "table" then
+    return false
+  end
+  local wm = app and app.wm
+  local seen = {}
+  local any = false
+  for _, item in pairs(items) do
+    if item and not seen[item] then
+      seen[item] = true
+      if M.syncScratchTileItemToSketch(item, wm) then
+        any = true
+      end
+    end
+  end
+
+  if not (wm and wm.getWindows) then
+    return any
+  end
+  for _, win in ipairs(wm:getWindows()) do
+    if win and not win._closed and win.invalidateTileLayerCanvas and win.layers then
+      for li, layer in ipairs(win.layers) do
+        if layer and layer.kind == "tile" and type(layer.items) == "table" then
+          local hit = false
+          for i = 1, #layer.items do
+            if seen[layer.items[i]] then
+              hit = true
+              break
+            end
+          end
+          if hit then
+            -- Full layer: padding slots may share the same scratch tile ref.
+            win:invalidateTileLayerCanvas(li)
+            any = true
+          end
+        end
+      end
+    end
+  end
+  return any
 end
 
 return M

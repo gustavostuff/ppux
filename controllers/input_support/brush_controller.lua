@@ -9,6 +9,7 @@ local DebugController = require("controllers.dev.debug_controller")
 local ChrDuplicateSync = require("controllers.chr.duplicate_sync_controller")
 local LoveCompat = require("utils.love_compat")
 local WindowCaps = require("controllers.window.window_capabilities")
+local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
 
 local M = {}
 
@@ -632,6 +633,11 @@ local function paintTileLayerCellPixel(app, win, layer, col, row, tx, ty, pickOn
       app.undoRedo:recordDirectPixelChange(item, tx, ty, beforeValue, color)
     end
     item:edit(tx, ty, color)
+    if WindowCaps.isPatternTable(win) then
+      SketchCanvasPackController.afterScratchPatternTablePaint(app, win, col, row)
+    elseif win.invalidateTileLayerCanvas then
+      win:invalidateTileLayerCanvas(layerIndex, col, row)
+    end
     return true
   end
   
@@ -1296,7 +1302,13 @@ function M.floodFillTile(app, win, col, row, lx, ly, targetColor, fillColor)
   local ty = math.floor(ly)
   
   -- Perform flood fill on this tile item using the helper function
-  return finalize(floodFillTileItem(app, item, tx, ty, targetColor, fillColor, win))
+  local filled = floodFillTileItem(app, item, tx, ty, targetColor, fillColor, win)
+  if filled and WindowCaps.isPatternTable(win) then
+    SketchCanvasPackController.afterScratchPatternTablePaint(app, win, col, row)
+  elseif filled and win.invalidateTileLayerCanvas then
+    win:invalidateTileLayerCanvas(layerIndex, col, row)
+  end
+  return finalize(filled)
 end
 
 function M.drawLine(app, win, x0, y0, x1, y1, pickOnly)

@@ -160,6 +160,22 @@ describe("sketch canvas phase 4 - link + pattern table apply", function()
     expect(pt.linkedSketchCanvasWindowId).toBe(sketch._id)
   end)
 
+  it("unlink clears pattern table scratch items and ranges", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow()
+    local pt = wm:createPatternTableWindow()
+    paintTile(sketch.layers[1].canvas, 0, 0, 2)
+    assert(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm))
+    assert(SketchCanvasPackController.generateAndApply(sketch, wm))
+    expect(#pt.layers[1].items).toBe(256)
+
+    assert(SketchCanvasPackController.unlinkSketchPatternTable(sketch, wm))
+    expect(sketch.linkedPatternTableWindowId).toBeNil()
+    expect(pt.linkedSketchCanvasWindowId).toBeNil()
+    expect(#(pt.layers[1].items or {})).toBe(0)
+    expect(#(pt.layers[1].patternTable.ranges or {})).toBe(0)
+  end)
+
   it("toolbar Generate applies to linked PT and records undo", function()
     local wm = WM.new()
     local sketch = wm:createSketchCanvasWindow()
@@ -188,5 +204,28 @@ describe("sketch canvas phase 4 - link + pattern table apply", function()
 
     undo:undo(app)
     expect(#(sketch.tilesPool or {})).toBe(0)
+  end)
+
+  it("pattern table source Jump menu lists sketch consumers without crashing on nil layerIndex", function()
+    local AppCoreController = require("controllers.app.core_controller")
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow()
+    sketch.title = "My sketch"
+    local pt = wm:createPatternTableWindow()
+    assert(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm))
+
+    local app = setmetatable({ wm = wm }, AppCoreController)
+    local items = app:_buildPatternTableLinkSourceContextMenuItems(pt)
+    local jump = nil
+    for _, item in ipairs(items) do
+      if item.text == "Jump to linked layer" then
+        jump = item
+        break
+      end
+    end
+    expect(jump).toBeTruthy()
+    local children = jump.children()
+    expect(#children).toBe(1)
+    expect(children[1].text).toBe("My sketch")
   end)
 end)

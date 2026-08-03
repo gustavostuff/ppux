@@ -1195,6 +1195,14 @@ function AppCoreController:_buildPatternTableLinkSourceContextMenuItems(patternT
   local targets = PatternTableDisplayController.getLinkedConsumersForPatternTable(self.wm, patternTableWin)
   local items = {}
 
+  local function linkedConsumerLabel(target)
+    local title = tostring((target.win and target.win.title) or "window")
+    if target.kind == "sketch_canvas" or type(target.layerIndex) ~= "number" then
+      return title
+    end
+    return string.format("%s / layer %d", title, target.layerIndex)
+  end
+
   items[#items + 1] = {
     text = "Jump to linked layer",
     menuGroup = "pt_src_navigate",
@@ -1210,7 +1218,7 @@ function AppCoreController:_buildPatternTableLinkSourceContextMenuItems(patternT
       local childItems = {}
       for _, target in ipairs(targets) do
         childItems[#childItems + 1] = {
-          text = string.format("%s / layer %d", tostring(target.win.title or "window"), target.layerIndex),
+          text = linkedConsumerLabel(target),
           callback = function()
             self:_focusLinkedLayerTarget(target.win, target.layerIndex)
           end,
@@ -1228,19 +1236,32 @@ function AppCoreController:_buildPatternTableLinkSourceContextMenuItems(patternT
         return
       end
       self:hideAppContextMenus()
+      local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
       local batchBefore = {}
+      local sketchUnlinks = {}
       for _, entry in ipairs(targets) do
-        batchBefore[#batchBefore + 1] = {
-          win = entry.win,
-          layerIndex = entry.layerIndex,
-          beforeSnap = snapshotPatternTableLayerBeforeMutation(entry.win, entry.layerIndex),
-        }
+        if entry.kind == "sketch_canvas" or type(entry.layerIndex) ~= "number" then
+          sketchUnlinks[#sketchUnlinks + 1] = {
+            sketchWin = entry.win,
+            beforeLinkedId = entry.win and entry.win.linkedPatternTableWindowId,
+          }
+        else
+          batchBefore[#batchBefore + 1] = {
+            win = entry.win,
+            layerIndex = entry.layerIndex,
+            beforeSnap = snapshotPatternTableLayerBeforeMutation(entry.win, entry.layerIndex),
+          }
+        end
       end
-      for _, entry in ipairs(targets) do
+      for _, entry in ipairs(batchBefore) do
         PatternTableDisplayController.unlinkContentLayerPatternTable(entry.win, entry.layerIndex)
       end
+      for _, entry in ipairs(sketchUnlinks) do
+        SketchCanvasPackController.unlinkSketchPatternTable(entry.sketchWin, self.wm)
+        pushSketchCanvasPatternTableLinkUndo(self, entry.sketchWin, entry.beforeLinkedId, nil, nil)
+      end
       pushPatternTableLinkUndoBatchAfterMutations(self, batchBefore)
-      for _, entry in ipairs(targets) do
+      for _, entry in ipairs(batchBefore) do
         self:_afterPatternTableLinkChange(entry.win, entry.layerIndex)
       end
       if self.setStatus then
