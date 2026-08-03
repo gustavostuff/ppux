@@ -1,9 +1,5 @@
 local Text = require("utils.text_utils")
 
-local function themeIsLight(utils)
-  return utils.colors and utils.colors.getTheme and utils.colors:getTheme() == "light"
-end
-
 local function install(TextField, utils)
   function TextField:_getVisualCursorPos()
     return self.cursorPos
@@ -74,10 +70,9 @@ local function install(TextField, utils)
 
     self:update()
 
-    local light = themeIsLight(utils)
-    local bgColor = light and utils.colors.white
-      or (self.focused and utils.colors.gray10 or utils.colors.gray20)
-    local fgColor = light and utils.colors.black or utils.colors.white
+    -- Fixed field chrome in both themes: white background, dark text.
+    local bgColor = utils.colors.white
+    local fgColor = utils.colors.black
     love.graphics.setColor(bgColor)
     love.graphics.rectangle("fill", self.x, self.y, self.w, self.h)
 
@@ -109,7 +104,7 @@ local function install(TextField, utils)
         love.graphics.rectangle("fill", textX + startPixel, textY, math.max(1, endPixel - startPixel), font:getHeight())
       end
       love.graphics.setColor(fgColor)
-      Text.print(textStr, textX, textY, { color = fgColor })
+      Text.print(textStr, textX, textY, { color = fgColor, literalColor = true })
     end
 
     if self.focused then
@@ -135,7 +130,7 @@ local function install(TextField, utils)
           local symbolW = math.max(4, font:getWidth(symbol))
           love.graphics.setColor(fgColor)
           love.graphics.rectangle("fill", cursorX, textY, symbolW, font:getHeight())
-          Text.print(symbol, cursorX, textY, { color = bgColor })
+          Text.print(symbol, cursorX, textY, { color = bgColor, literalColor = true })
         else
           love.graphics.setColor(fgColor)
           love.graphics.rectangle("fill", cursorX, textY, 1, font:getHeight())

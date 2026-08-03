@@ -14,7 +14,7 @@ M.PT_SLOT_COUNT = 256
 M.GRID_COLS = 32
 M.GRID_ROWS = 30
 M.CELL = 8
-M.MAX_TOLERANCE = 64
+M.MAX_TOLERANCE = 32
 M.SKETCH_OWNED_PATTERN_TABLE_MSG =
   "Pattern table is linked to a sketch canvas (CHR drops blocked)"
 
