@@ -1170,9 +1170,12 @@ function WM:setFocus(win)
     )
   end
 
+  -- Only refresh the status strip when focus actually changes. Toolbar clicks
+  -- call setFocus on the already-focused window; rewriting status there would
+  -- clobber action feedback (e.g. sketch tolerance / generate).
   local ctx = rawget(_G, "ctx")
   local app = ctx and ctx.app or nil
-  if app and self.focused == win then
+  if changed and app and self.focused == win then
     if WindowCaps.isAnyPaletteWindow(win) then
       setAppStatusForPaletteFocusWindow(app, win)
     else

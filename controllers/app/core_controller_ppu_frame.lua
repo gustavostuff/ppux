@@ -1096,6 +1096,16 @@ function AppCoreController:showPpuFramePatternRangeModal(win)
     return false
   end
 
+  if win.kind == "pattern_table" then
+    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+    if SketchCanvasPackController.isSketchOwnedPatternTable(win, self.wm) then
+      local message = SketchCanvasPackController.SKETCH_OWNED_PATTERN_TABLE_MSG
+      self:setStatus(message)
+      self:showToast("warning", message)
+      return false
+    end
+  end
+
   local targetLayer
   if win.kind == "pattern_table" then
     targetLayer = win.layers and win.layers[1]
@@ -1492,6 +1502,14 @@ end
 --- Append CHR/ROM grouped selection as pattern-table ranges (drag-drop). Validates like the Add tile range modal.
 function AppCoreController:applyChrTileGroupToPatternTableWindow(dstWin, drag)
   if not (WindowCaps.isPatternTable(dstWin) and drag and drag.tileGroup and drag.srcWin) then
+    return false
+  end
+
+  local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+  if SketchCanvasPackController.isSketchOwnedPatternTable(dstWin, self.wm) then
+    local message = SketchCanvasPackController.SKETCH_OWNED_PATTERN_TABLE_MSG
+    self:setStatus(message)
+    self:showToast("warning", message)
     return false
   end
 

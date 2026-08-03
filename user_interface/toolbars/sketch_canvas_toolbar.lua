@@ -1,14 +1,17 @@
 -- sketch_canvas_toolbar.lua
--- Sketch canvas toolbar. Phase 4: Link + Generate(+PT apply) + tolerance adjust.
+-- Sketch canvas toolbar. Phase 5: Link + Generate + live tolerance regen when linked.
 
 local ToolbarBase = require("user_interface.toolbars.toolbar_base")
 local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
 local images = require("images")
 local StatusHelpers = require("utils.status_helpers")
+local Timer = require("utils.timer_utils")
 
 local SketchCanvasToolbar = {}
 SketchCanvasToolbar.__index = SketchCanvasToolbar
 setmetatable(SketchCanvasToolbar, { __index = ToolbarBase })
+
+local TOLERANCE_REGEN_DELAY = 0.12
 
 local function stubAction(self, label)
   return function()
@@ -24,6 +27,7 @@ function SketchCanvasToolbar.new(window, ctx, windowController)
   local self = setmetatable(ToolbarBase.new(window, {}), SketchCanvasToolbar)
   self.ctx = ctx
   self.windowController = windowController
+  self._toleranceRegenTimerId = nil
   local _, _, _, hh = window:getHeaderRect()
   self.h = hh or 22
 
@@ -78,6 +82,18 @@ function SketchCanvasToolbar:_tolerance()
   return math.floor(tonumber(self.window and self.window.tolerance) or 0)
 end
 
+function SketchCanvasToolbar:_isLinked()
+  return type(self.window and self.window.linkedPatternTableWindowId) == "string"
+    and self.window.linkedPatternTableWindowId ~= ""
+end
+
+function SketchCanvasToolbar:_cancelToleranceRegen()
+  if self._toleranceRegenTimerId then
+    Timer.cancel(self._toleranceRegenTimerId)
+    self._toleranceRegenTimerId = nil
+  end
+end
+
 function SketchCanvasToolbar:_onLinkMenu()
   local app = getApp(self)
   if not (app and app.showPatternTableLinkDestinationContextMenu and self.window) then
@@ -91,25 +107,12 @@ function SketchCanvasToolbar:_onLinkMenu()
   self:updateIcons()
 end
 
-function SketchCanvasToolbar:_onToleranceDelta(delta)
+function SketchCanvasToolbar:_runGenerate()
   if not self.window then
-    return
+    return false
   end
-  local nextTol = self:_tolerance() + (tonumber(delta) or 0)
-  if nextTol < 0 then
-    nextTol = 0
-  elseif nextTol > SketchCanvasPackController.MAX_TOLERANCE then
-    nextTol = SketchCanvasPackController.MAX_TOLERANCE
-  end
-  self.window.tolerance = nextTol
-  StatusHelpers.setStatus(self.ctx, string.format("Sketch tolerance: %d", nextTol))
-  self:updateIcons()
-end
+  self:_cancelToleranceRegen()
 
-function SketchCanvasToolbar:_onGenerate()
-  if not self.window then
-    return
-  end
   local app = getApp(self)
   local wm = (app and app.wm) or self.windowController
   local beforePack = SketchCanvasPackController.snapshotPackFields(self.window)
@@ -125,7 +128,6 @@ function SketchCanvasToolbar:_onGenerate()
   if ok and app and app.undoRedo and app.undoRedo.addSketchCanvasGenerateEvent then
     local afterPack = SketchCanvasPackController.snapshotPackFields(self.window)
     local afterItems = ptWin and SketchCanvasPackController.snapshotPatternTableItemPixels(ptWin) or nil
-    -- If link was applied during generate, resolve again for after snapshot.
     if not ptWin then
       ptWin = SketchCanvasPackController.resolveLinkedPatternTable(self.window, wm)
       afterItems = ptWin and SketchCanvasPackController.snapshotPatternTableItemPixels(ptWin) or nil
@@ -142,13 +144,51 @@ function SketchCanvasToolbar:_onGenerate()
   end
 
   self:updateIcons()
+  return ok == true
+end
+
+function SketchCanvasToolbar:_scheduleToleranceRegen()
+  self:_cancelToleranceRegen()
+  self._toleranceRegenTimerId = Timer.after(TOLERANCE_REGEN_DELAY, function()
+    self._toleranceRegenTimerId = nil
+    if self.window and self:_isLinked() then
+      self:_runGenerate()
+    end
+  end)
+end
+
+function SketchCanvasToolbar:_onToleranceDelta(delta)
+  if not self.window then
+    return
+  end
+  local nextTol = self:_tolerance() + (tonumber(delta) or 0)
+  if nextTol < 0 then
+    nextTol = 0
+  elseif nextTol > SketchCanvasPackController.MAX_TOLERANCE then
+    nextTol = SketchCanvasPackController.MAX_TOLERANCE
+  end
+  if nextTol == self:_tolerance() then
+    return
+  end
+  self.window.tolerance = nextTol
+  self:updateIcons()
+
+  if self:_isLinked() then
+    -- Live regen sets the final status (avoid a flash of "updating…" then generate).
+    self:_scheduleToleranceRegen()
+  else
+    StatusHelpers.setStatus(self.ctx, string.format("Sketch tolerance: %d", nextTol))
+  end
+end
+
+function SketchCanvasToolbar:_onGenerate()
+  self:_runGenerate()
 end
 
 function SketchCanvasToolbar:updateIcons()
   ToolbarBase.updateIcons(self)
   local tol = self:_tolerance()
-  local linked = type(self.window and self.window.linkedPatternTableWindowId) == "string"
-    and self.window.linkedPatternTableWindowId ~= ""
+  local linked = self:_isLinked()
 
   if self.linkButton then
     self.linkButton.enabled = true
@@ -156,11 +196,15 @@ function SketchCanvasToolbar:updateIcons()
   end
   if self.toleranceDownButton then
     self.toleranceDownButton.enabled = tol > 0
-    self.toleranceDownButton.tooltip = string.format("Decrease pack tolerance (now %d)", tol)
+    self.toleranceDownButton.tooltip = linked
+      and string.format("Decrease pack tolerance (now %d; live update)", tol)
+      or string.format("Decrease pack tolerance (now %d)", tol)
   end
   if self.toleranceUpButton then
     self.toleranceUpButton.enabled = tol < SketchCanvasPackController.MAX_TOLERANCE
-    self.toleranceUpButton.tooltip = string.format("Increase pack tolerance (now %d)", tol)
+    self.toleranceUpButton.tooltip = linked
+      and string.format("Increase pack tolerance (now %d; live update)", tol)
+      or string.format("Increase pack tolerance (now %d)", tol)
   end
   if self.generateButton then
     self.generateButton.enabled = true

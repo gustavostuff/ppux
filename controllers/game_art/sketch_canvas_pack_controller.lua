@@ -14,6 +14,8 @@ M.GRID_COLS = 32
 M.GRID_ROWS = 30
 M.CELL = 8
 M.MAX_TOLERANCE = 64
+M.SKETCH_OWNED_PATTERN_TABLE_MSG =
+  "Pattern table is linked to a sketch canvas (CHR drops blocked)"
 
 local function pixelDiffCount(pattern1, pattern2, threshold)
   threshold = threshold or 0

@@ -6,8 +6,10 @@ local PatternTableMapping = require("utils.pattern_table_mapping")
 local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 local Shared = require("controllers.app.core_controller_shared")
 local StatusHelpers = require("utils.status_helpers")
+local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
 
 local CHR_DROP_PPU_PATTERN_MSG = "CHR tiles must appear in this PPU frame pattern table"
+local CHR_DROP_SKETCH_OWNED_MSG = SketchCanvasPackController.SKETCH_OWNED_PATTERN_TABLE_MSG
 
 local M = {}
 
@@ -33,13 +35,21 @@ local function resolveChrTileItem(win, item, layerIndex)
   return item
 end
 
-local function notifyChrDropPatternTableRejected(env)
+local function notifyChrDropRejected(env, message)
+  message = message or CHR_DROP_PPU_PATTERN_MSG
   local app = env and env.ctx and env.ctx.app
   if app and type(app.showToast) == "function" then
-    app:showToast("warning", CHR_DROP_PPU_PATTERN_MSG)
-    return
+    app:showToast("warning", message)
   end
-  StatusHelpers.setStatusFromEnv(env, CHR_DROP_PPU_PATTERN_MSG)
+  StatusHelpers.setStatusFromEnv(env, message)
+end
+
+local function notifyChrDropPatternTableRejected(env)
+  notifyChrDropRejected(env, CHR_DROP_PPU_PATTERN_MSG)
+end
+
+local function notifyChrDropSketchOwnedRejected(env)
+  notifyChrDropRejected(env, CHR_DROP_SKETCH_OWNED_MSG)
 end
 
 local function chrTileMappedToDestinationPpuPatternTable(dst, dstLayerIdx, srcWin, rawItem, srcLayerIdx)
@@ -459,6 +469,9 @@ local function getTooltipTextForReason(reason)
   if reason == "tile_not_in_pattern_table" then
     return CHR_DROP_PPU_PATTERN_MSG
   end
+  if reason == "sketch_owned_pattern_table" then
+    return CHR_DROP_SKETCH_OWNED_MSG
+  end
   if reason == "pattern_table_overflow" then
     return "Would exceed pattern table CHR capacity (256 tiles, or 128× 8×16 pairs)"
   end
@@ -570,7 +583,7 @@ local function buildChrGroupPlacements(dst, entries, anchorCol, anchorRow, ancho
   return placements
 end
 
-local function getChrPatternTableGroupDropState(env, dst, x, y, drag)
+local function getChrPatternTableGroupDropState(env, dst, x, y, drag, wm)
   if not (WindowCaps.isPatternTable(dst) and drag and drag.tileGroup) then
     return nil
   end
@@ -595,6 +608,13 @@ local function getChrPatternTableGroupDropState(env, dst, x, y, drag)
   local layer = state.layer
   if not (layer and layer.kind == "tile") then
     state.reason = "pattern_table_bad_ranges"
+    return state
+  end
+
+  wm = wm or (env and env.wm) or (env and env.ctx and env.ctx.app and env.ctx.app.wm) or nil
+  if SketchCanvasPackController.isSketchOwnedPatternTable(dst, wm) then
+    state.reason = "sketch_owned_pattern_table"
+    state.planErrText = CHR_DROP_SKETCH_OWNED_MSG
     return state
   end
 
@@ -701,7 +721,7 @@ local function getChrGroupDropState(env, x, y, wm)
     return nil
   end
   if WindowCaps.isPatternTable(dst) then
-    return getChrPatternTableGroupDropState(env, dst, x, y, drag)
+    return getChrPatternTableGroupDropState(env, dst, x, y, drag, wm)
   end
   if not (WindowCaps.isStaticOrAnimationArt(dst) or WindowCaps.isPpuFrame(dst)) then
     return nil
@@ -1204,6 +1224,8 @@ function M.handleTileDrop(env, x, y, wm)
     if not (chrGroupState and chrGroupState.valid) then
       if chrGroupState and chrGroupState.reason == "tile_not_in_pattern_table" then
         notifyChrDropPatternTableRejected(env)
+      elseif chrGroupState and chrGroupState.reason == "sketch_owned_pattern_table" then
+        notifyChrDropSketchOwnedRejected(env)
       else
         local reasonText = chrGroupState and (chrGroupState.planErrText or getTooltipTextForReason(chrGroupState.reason)) or nil
         if reasonText and env.ctx and env.ctx.app then
