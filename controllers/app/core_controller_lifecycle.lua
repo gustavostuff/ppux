@@ -29,8 +29,29 @@ function AppCoreController:_buildCtx()
     app          = selfRef,
     getMode      = function() return selfRef.mode end,
     setMode      = function(m)
-      selfRef.mode = (m == "edit") and "edit" or "tile"
+      local prev = selfRef.mode
+      local nextMode = (m == "edit") and "edit" or "tile"
+      if prev == "tile" and nextMode == "edit" then
+        local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+        SketchCanvasPackController.bakeAllReflectIntoPaint(selfRef.wm)
+      elseif nextMode == "tile" then
+        local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+        local windows = selfRef.wm and selfRef.wm.getWindows and selfRef.wm:getWindows() or {}
+        for _, win in ipairs(windows) do
+          if WindowCaps.isSketchCanvas(win) and not win._closed then
+            SketchCanvasPackController.invalidateReflectDisplay(win)
+          end
+        end
+      end
+      selfRef.mode = nextMode
       CursorsController.applyModeCursor(selfRef, selfRef.mode)
+      if selfRef.wm and selfRef.wm.getWindows then
+        for _, win in ipairs(selfRef.wm:getWindows()) do
+          if WindowCaps.isSketchCanvas(win) and win.specializedToolbar and win.specializedToolbar.updateIcons then
+            win.specializedToolbar:updateIcons()
+          end
+        end
+      end
     end,
 
     getPainting  = function() return selfRef.isPainting end,

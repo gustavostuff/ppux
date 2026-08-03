@@ -99,6 +99,10 @@ describe("sketch canvas - pack controller", function()
     local pack, err = SketchCanvasPackController.packFromCanvas(fake, 0)
     expect(pack).toBeNil()
     expect(err).toBe("too_many_unique")
+
+    local kind, text = SketchCanvasPackController.formatGenerateToast(false, "too_many_unique")
+    expect(kind).toBe("error")
+    expect(text:find("256", 1, true)).toBeTruthy()
   end)
 
   it("generate writes pool/nt on the window and leaves paddingTileIndex unused", function()
@@ -117,20 +121,19 @@ describe("sketch canvas - pack controller", function()
     expect(win.linkedPatternTableWindowId).toBeNil()
   end)
 
-  it("toolbar Generate packs and reports unique count; tolerance buttons adjust window.tolerance", function()
+  it("toolbar Generate packs and reports unique count via toast; tolerance buttons adjust window.tolerance", function()
     local wm = WM.new()
     local win = wm:createSketchCanvasWindow()
     local pt = wm:createPatternTableWindow()
     paintTile(win.layers[1].canvas, 0, 0, 2)
     assert(SketchCanvasPackController.linkSketchToPatternTable(win, pt, wm))
 
-    local statuses = {}
+    local toasts = {}
     local ctx = {
-      app = {
-        setStatus = function(_app, text)
-          statuses[#statuses + 1] = text
-        end,
-      },
+      showToast = function(kind, text)
+        toasts[#toasts + 1] = { kind = kind, text = text }
+      end,
+      app = {},
     }
     local toolbar = ToolbarController.createSpecializedToolbar(win, ctx, wm)
     expect(toolbar.generateButton.enabled).toBe(true)
@@ -145,14 +148,16 @@ describe("sketch canvas - pack controller", function()
 
     toolbar.toleranceUpButton.action()
     expect(win.tolerance).toBe(1)
-    -- Live regen (not the unlinked "Sketch tolerance: N" status).
-    expect(statuses[#statuses]:find("unique pattern", 1, true)).toBeTruthy()
+    -- Live regen reports via toast (not status bar).
+    expect(toasts[#toasts].kind).toBe("info")
+    expect(toasts[#toasts].text:find("unique pattern", 1, true)).toBeTruthy()
     expect(#win.nametableBytes).toBe(960)
 
-    statuses = {}
+    toasts = {}
     toolbar.generateButton.action()
     expect(#win.nametableBytes).toBe(960)
-    expect(statuses[#statuses]:find("unique pattern", 1, true)).toBeTruthy()
+    expect(toasts[#toasts].kind).toBe("info")
+    expect(toasts[#toasts].text:find("unique pattern", 1, true)).toBeTruthy()
 
     Timer.after = origAfter
   end)

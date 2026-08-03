@@ -69,7 +69,7 @@ describe("sketch canvas - New Window + toolbar shell", function()
     expect(h).toBe(240)
   end)
 
-  it("builds a sketch toolbar shell with Link, Tolerance, Generate, Reflect controls", function()
+  it("builds a sketch toolbar shell with Link, Tolerance, Generate controls (no Reflect button)", function()
     local wm = WM.new()
     local win = wm:createSketchCanvasWindow()
     local ctx = { app = { setStatus = function() end } }
@@ -81,18 +81,16 @@ describe("sketch canvas - New Window + toolbar shell", function()
     expect(toolbar.toleranceDownButton).toBeTruthy()
     expect(toolbar.toleranceUpButton).toBeTruthy()
     expect(toolbar.generateButton).toBeTruthy()
-    expect(toolbar.reflectButton).toBeTruthy()
+    expect(toolbar.reflectButton).toBeNil()
 
     expect(toolbar.linkButton.enabled).toBe(true)
     expect(toolbar.linkButton.bgColor).toBe(colors.gray20)
     expect(toolbar.toleranceDownButton.enabled).toBe(false) -- tolerance starts at 0
     expect(toolbar.toleranceUpButton.enabled).toBe(true)
     expect(toolbar.generateButton.enabled).toBe(false) -- needs linked pattern table
-    expect(toolbar.reflectButton.enabled).toBe(false) -- needs Generate/pack first
 
     expect(toolbar.linkButton.tooltip:find("Link", 1, true)).toBeTruthy()
     expect(toolbar.generateButton.tooltip:find("linked pattern table", 1, true)).toBeTruthy()
-    expect(toolbar.reflectButton.tooltip:find("Reflect", 1, true)).toBeTruthy()
 
     local pt = wm:createPatternTableWindow()
     local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")

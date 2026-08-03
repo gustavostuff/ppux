@@ -289,6 +289,7 @@ function M.applyPackToWindow(win, pack)
   end
   win.tilesPool = pack.tilesPool or {}
   win.nametableBytes = pack.nametableBytes
+  M.clearReflectLayoutDirty(win)
   M.invalidateReflectDisplay(win)
   return true
 end
@@ -306,6 +307,39 @@ function M.invalidateReflectDisplay(win)
     return
   end
   win._reflectDisplayDirty = true
+end
+
+--- Nametable tile edits (swap/drag/remove) while in tile mode; bake into paint on leave.
+function M.markReflectLayoutDirty(win)
+  if WindowCaps.isSketchCanvas(win) then
+    win._reflectLayoutDirty = true
+  end
+end
+
+function M.clearReflectLayoutDirty(win)
+  if win then
+    win._reflectLayoutDirty = false
+  end
+end
+
+function M.isReflectLayoutDirty(win)
+  return WindowCaps.isSketchCanvas(win) and win._reflectLayoutDirty == true
+end
+
+function M.markGenerateDirty(win)
+  if WindowCaps.isSketchCanvas(win) then
+    win._generateDirty = true
+  end
+end
+
+function M.clearGenerateDirty(win)
+  if win then
+    win._generateDirty = false
+  end
+end
+
+function M.isGenerateDirty(win)
+  return WindowCaps.isSketchCanvas(win) and win._generateDirty == true
 end
 
 --- Build/update a display-only canvas composed from nametableBytes + pool samples of the paint buffer.
@@ -351,7 +385,84 @@ function M.getReflectDisplayCanvas(sketchWin)
   return display
 end
 
+--- Stamp the packed nametable composition into the paint buffer and remap pool
+--- sample points to first NT occurrences so edit mode matches tile-mode view.
+--- Only runs when nametable layout was edited (see markReflectLayoutDirty); otherwise
+--- leaving tile mode must not wipe freehand paint that is ahead of the pack.
+function M.bakeReflectIntoPaint(sketchWin)
+  if not WindowCaps.isSketchCanvas(sketchWin) then
+    return false
+  end
+  if not M.hasPackData(sketchWin) then
+    return false
+  end
+  if not M.isReflectLayoutDirty(sketchWin) then
+    return false
+  end
+  local paint = resolveCanvas(sketchWin)
+  if not paint then
+    return false
+  end
+  sketchWin._reflectDisplayDirty = true
+  local display = M.getReflectDisplayCanvas(sketchWin)
+  if not display then
+    return false
+  end
+
+  local w = math.min(paint.width or 0, display.width or 0)
+  local h = math.min(paint.height or 0, display.height or 0)
+  for y = 0, h - 1 do
+    for x = 0, w - 1 do
+      paint:edit(x, y, display:getPixel(x, y) or 0)
+    end
+  end
+
+  local pool = sketchWin.tilesPool
+  local nt = sketchWin.nametableBytes
+  local seen = {}
+  for row = 0, M.GRID_ROWS - 1 do
+    for col = 0, M.GRID_COLS - 1 do
+      local ntIndex = row * M.GRID_COLS + col + 1
+      local poolIndex = math.floor(tonumber(nt[ntIndex]) or 0)
+      if not seen[poolIndex] then
+        seen[poolIndex] = true
+        local entry = pool[poolIndex + 1]
+        if entry then
+          entry.x = col * M.CELL
+          entry.y = row * M.CELL
+        end
+      end
+    end
+  end
+
+  M.invalidateReflectDisplay(sketchWin)
+  M.clearReflectLayoutDirty(sketchWin)
+  return true
+end
+
+--- Bake packed sketches whose nametable layout changed while in tile mode.
+function M.bakeAllReflectIntoPaint(wm)
+  if not wm then
+    return 0
+  end
+  local windows = wm.getWindows and wm:getWindows() or wm.windows or wm._windows or {}
+  local count = 0
+  for _, win in ipairs(windows) do
+    if WindowCaps.isSketchCanvas(win)
+      and not win._closed
+      and M.hasPackData(win)
+      and M.isReflectLayoutDirty(win)
+    then
+      if M.bakeReflectIntoPaint(win) then
+        count = count + 1
+      end
+    end
+  end
+  return count
+end
+
 function M.setReflectPatternTable(sketchWin, enabled)
+  -- Legacy API: mirror view is now driven by global tile/edit mode.
   if not WindowCaps.isSketchCanvas(sketchWin) then
     return false
   end
@@ -775,6 +886,7 @@ function M.generate(win)
     return false, err or "pack_failed"
   end
   M.applyPackToWindow(win, pack)
+  M.clearGenerateDirty(win)
   return true, pack
 end
 
@@ -824,6 +936,15 @@ function M.formatGenerateStatus(ok, packOrErr)
     return "Sketch generate failed: linked pattern table missing"
   end
   return "Sketch generate failed: " .. err
+end
+
+--- @return kind ("info"|"error"), message
+function M.formatGenerateToast(ok, packOrErr)
+  local text = M.formatGenerateStatus(ok, packOrErr)
+  if ok then
+    return "info", text
+  end
+  return "error", text
 end
 
 function M.snapshotPackFields(win)

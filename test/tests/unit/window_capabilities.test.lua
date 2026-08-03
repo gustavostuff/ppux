@@ -15,8 +15,22 @@ describe("window_capabilities.lua", function()
     expect(WindowCaps.isStaticOrAnimationArt({ kind = "pattern_table" })).toBeTruthy()
     expect(WindowCaps.isSketchCanvas({ kind = "sketch_canvas" })).toBeTruthy()
     expect(WindowCaps.isPatternTable({ kind = "pattern_table" })).toBeTruthy()
-    expect(WindowCaps.isSketchReflectNametable({ kind = "sketch_canvas", reflectPatternTable = true })).toBeTruthy()
-    expect(WindowCaps.isSketchReflectNametable({ kind = "sketch_canvas", reflectPatternTable = false })).toBeFalsy()
+    do
+      local prev = rawget(_G, "ctx")
+      rawset(_G, "ctx", { getMode = function() return "tile" end })
+      local packed = {
+        kind = "sketch_canvas",
+        tilesPool = { { x = 0, y = 0 } },
+        nametableBytes = {},
+      }
+      for i = 1, 960 do
+        packed.nametableBytes[i] = 0
+      end
+      expect(WindowCaps.isSketchReflectNametable(packed)).toBeTruthy()
+      rawset(_G, "ctx", { getMode = function() return "edit" end })
+      expect(WindowCaps.isSketchReflectNametable(packed)).toBeFalsy()
+      rawset(_G, "ctx", prev)
+    end
     expect(WindowCaps.isSketchModePalette({ kind = "rom_palette", paletteRole = "sketch" })).toBeTruthy()
     expect(WindowCaps.isSketchModePalette({ kind = "rom_palette", paletteRole = "rom" })).toBeFalsy()
     expect(WindowCaps.isStaticOrAnimationArt({ kind = "chr" })).toBeFalsy()

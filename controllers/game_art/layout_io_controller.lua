@@ -750,6 +750,10 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
               if kind == "canvas" and L.canvas then
                 Lout.edits = encodePatternCanvasSnapshot(L.canvas)
                 Lout.items = nil
+                if L.paletteData ~= nil then
+                  Lout.paletteData = TableUtils.deepcopy(L.paletteData)
+                  normalizeInvalidBlacksInTable(Lout.paletteData)
+                end
                 table.insert(entry.layers, Lout)
                 goto continue_layer
               end

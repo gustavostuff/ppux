@@ -561,8 +561,8 @@ local function drawCanvasLayer(app, w, layerIndex, isFocused)
     return false
   end
 
-  -- Sketch Reflect: compose from packed nametable + pool samples; keep paint canvas intact.
-  if WindowCaps.isSketchCanvas(w) and w.reflectPatternTable == true then
+  -- Sketch tile mode: compose from packed nametable + pool samples; keep paint canvas intact.
+  if WindowCaps.isSketchReflectNametable(w) then
     local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
     local reflectCanvas = SketchCanvasPackController.getReflectDisplayCanvas(w)
     if reflectCanvas then

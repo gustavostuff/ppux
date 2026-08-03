@@ -652,16 +652,21 @@ function M.createSketchCanvasWindow(w, decodePatternCanvasSnapshot, onPatternCan
 
   for li, Lsrc in ipairs(w.layers or {}) do
     local Ldst = win.layers and win.layers[li] or nil
-    if Ldst and Lsrc.edits and Ldst.canvas and decodePatternCanvasSnapshot then
-      local ok, reason = decodePatternCanvasSnapshot(Ldst.canvas, Lsrc.edits)
-      if not ok and onPatternCanvasRestoreError then
-        onPatternCanvasRestoreError({
-          window = win,
-          windowSpec = w,
-          layerIndex = li,
-          reason = reason,
-          edits = Lsrc.edits,
-        })
+    if Ldst then
+      if Lsrc.edits and Ldst.canvas and decodePatternCanvasSnapshot then
+        local ok, reason = decodePatternCanvasSnapshot(Ldst.canvas, Lsrc.edits)
+        if not ok and onPatternCanvasRestoreError then
+          onPatternCanvasRestoreError({
+            window = win,
+            windowSpec = w,
+            layerIndex = li,
+            reason = reason,
+            edits = Lsrc.edits,
+          })
+        end
+      end
+      if Lsrc.paletteData ~= nil then
+        Ldst.paletteData = TableUtils.deepcopy(Lsrc.paletteData)
       end
     end
   end

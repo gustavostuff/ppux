@@ -1,5 +1,6 @@
 -- sketch_canvas_toolbar.lua
--- Sketch canvas toolbar: Link, tolerance, Generate, Reflect, Export CHR/NT.
+-- Sketch canvas toolbar: Link, tolerance, Generate, Export CHR/NT.
+-- Tile/edit global mode drives packed mirror view (no dedicated Reflect button).
 
 local ToolbarBase = require("user_interface.toolbars.toolbar_base")
 local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
@@ -7,6 +8,7 @@ local SketchCanvasExportController = require("controllers.game_art.sketch_canvas
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local images = require("images")
 local colors = require("app_colors")
+local Palettes = require("palettes")
 local StatusHelpers = require("utils.status_helpers")
 local Timer = require("utils.timer_utils")
 local Text = require("utils.text_utils")
@@ -16,6 +18,10 @@ SketchCanvasToolbar.__index = SketchCanvasToolbar
 setmetatable(SketchCanvasToolbar, { __index = ToolbarBase })
 
 local TOLERANCE_REGEN_DELAY = 0.12
+
+-- Dirty Generate fill: NES $07 is too dark on chrome; use bright $27 (same orange column).
+local NES_DIRTY_ORANGE = (Palettes.smooth_fbx and Palettes.smooth_fbx["27"])
+  or { 212 / 255, 157 / 255, 41 / 255 }
 
 local function maxDigitWidth()
   local maxW = 0
@@ -74,6 +80,17 @@ end
 
 local function getApp(self)
   return self.ctx and self.ctx.app or nil
+end
+
+local function showToast(self, kind, text)
+  if self.ctx and type(self.ctx.showToast) == "function" then
+    self.ctx.showToast(kind, text)
+    return
+  end
+  local app = getApp(self)
+  if app and type(app.showToast) == "function" then
+    app:showToast(kind, text)
+  end
 end
 
 function SketchCanvasToolbar.new(window, ctx, windowController)
@@ -150,14 +167,6 @@ function SketchCanvasToolbar.new(window, ctx, windowController)
       self:_onGenerate()
     end,
     "Generate pattern table catalog from sketch"
-  )
-
-  self.reflectButton = self:addButton(
-    actions.icon_mirror_x or actions.icon_diff_mode or chrome.icon_circle,
-    function()
-      self:_onReflectToggle()
-    end,
-    "Reflect packed pattern table view"
   )
 
   self.exportChrButton = self:addButton(
@@ -259,10 +268,10 @@ function SketchCanvasToolbar:_runGenerate()
   local beforeItems = ptWin and SketchCanvasPackController.snapshotPatternTableItemPixels(ptWin) or nil
 
   local ok, packOrErr = SketchCanvasPackController.generateAndApply(self.window, wm)
-  StatusHelpers.setStatus(
-    self.ctx,
-    SketchCanvasPackController.formatGenerateStatus(ok, packOrErr)
-  )
+  do
+    local kind, text = SketchCanvasPackController.formatGenerateToast(ok, packOrErr)
+    showToast(self, kind, text)
+  end
 
   if ok and app and app.undoRedo and app.undoRedo.addSketchCanvasGenerateEvent then
     local afterPack = SketchCanvasPackController.snapshotPackFields(self.window)
@@ -332,26 +341,6 @@ function SketchCanvasToolbar:_onGenerate()
   self:_runGenerate()
 end
 
-function SketchCanvasToolbar:_onReflectToggle()
-  if not self.window then
-    return
-  end
-  if not self:_hasPack() then
-    StatusHelpers.setStatus(self.ctx, "Sketch Reflect needs a successful Generate first")
-    return
-  end
-  local ok, onOrErr = SketchCanvasPackController.toggleReflectPatternTable(self.window)
-  if not ok then
-    StatusHelpers.setStatus(self.ctx, "Sketch Reflect failed: " .. tostring(onOrErr or "error"))
-    return
-  end
-  StatusHelpers.setStatus(
-    self.ctx,
-    onOrErr and "Sketch Reflect on (paint disabled)" or "Sketch Reflect off"
-  )
-  self:updateIcons()
-end
-
 function SketchCanvasToolbar:_onExportChr()
   if not self.window then
     return
@@ -395,7 +384,7 @@ function SketchCanvasToolbar:updateIcons()
   local linked = self:_isLinked()
   local hasPack = self:_hasPack()
   local hasCanvas = self:_hasCanvas()
-  local reflecting = self.window and self.window.reflectPatternTable == true
+  local generateDirty = SketchCanvasPackController.isGenerateDirty(self.window)
   local linkedPalette = PaletteLinkController.getActiveLayerLinkedPaletteWindow(
     self.window,
     self.windowController
@@ -439,26 +428,29 @@ function SketchCanvasToolbar:updateIcons()
   end
   if self.generateButton then
     self.generateButton.enabled = hasCanvas and linked
+    if generateDirty and hasCanvas and linked then
+      self.generateButton.bgColor = NES_DIRTY_ORANGE
+      self.generateButton.bgAlpha = 1
+      self.generateButton.skipChromeTextTint = true
+    else
+      self.generateButton.bgColor = colors.gray20
+      self.generateButton.bgAlpha = nil
+      self.generateButton.skipChromeTextTint = nil
+    end
     if not linked then
       self.generateButton.tooltip = "Generate needs a linked pattern table"
     elseif not hasCanvas then
       self.generateButton.tooltip = "Generate needs a paint canvas"
+    elseif generateDirty then
+      self.generateButton.tooltip = string.format(
+        "Pixels changed since last Generate (tolerance %d) - click to refresh pattern table",
+        tol
+      )
     else
       self.generateButton.tooltip = string.format(
         "Generate and apply to linked pattern table (tolerance %d)",
         tol
       )
-    end
-  end
-  if self.reflectButton then
-    self.reflectButton.enabled = hasPack
-    self.reflectButton.bgColor = reflecting and colors.green or colors.gray20
-    if hasPack then
-      self.reflectButton.tooltip = reflecting
-        and "Reflect on: nametable tile edit + attrs 1-4 (paint disabled)"
-        or "Reflect off: show packed pattern-table view"
-    else
-      self.reflectButton.tooltip = "Reflect needs a successful Generate first"
     end
   end
   if self.exportChrButton then

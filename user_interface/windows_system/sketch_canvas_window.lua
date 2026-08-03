@@ -172,9 +172,10 @@ local function ntIndex(self, col, row)
   return row * cols + col + 1
 end
 
---- Virtual tile handle for Reflect nametable editing (pool index as item.id).
+--- Virtual tile handle for tile-mode nametable editing (pool index as item.id).
 function SketchCanvasWindow:get(col, row, layerIndex)
-  if self.reflectPatternTable == true and type(self.nametableBytes) == "table" then
+  local WindowCaps = require("controllers.window.window_capabilities")
+  if WindowCaps.isSketchReflectNametable(self) and type(self.nametableBytes) == "table" then
     local idx = ntIndex(self, col, row)
     local byte = self.nametableBytes[idx]
     if byte == nil then
@@ -205,6 +206,7 @@ function SketchCanvasWindow:setNametableByteAt(col, row, byteVal, _tilesPool, _l
   end
   self.nametableBytes[idx] = v
   local Pack = require("controllers.game_art.sketch_canvas_pack_controller")
+  Pack.markReflectLayoutDirty(self)
   Pack.invalidateReflectDisplay(self)
   return true
 end
@@ -222,6 +224,7 @@ function SketchCanvasWindow:swapNametableBytesAt(col1, row1, col2, row2)
   self.nametableBytes[i1] = self.nametableBytes[i2]
   self.nametableBytes[i2] = a
   local Pack = require("controllers.game_art.sketch_canvas_pack_controller")
+  Pack.markReflectLayoutDirty(self)
   Pack.invalidateReflectDisplay(self)
   return true
 end

@@ -174,6 +174,14 @@ local function paintCanvasPixelAt(app, win, canvas, px, py, pickOnly)
 
   recordDirectPaint(app, canvas, px, py, beforeValue, color)
   canvas:edit(px, py, color)
+  if WindowCaps.isSketchCanvas(win) then
+    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+    SketchCanvasPackController.invalidateReflectDisplay(win)
+    SketchCanvasPackController.markGenerateDirty(win)
+    if win.specializedToolbar and win.specializedToolbar.updateIcons then
+      win.specializedToolbar:updateIcons()
+    end
+  end
   return true
 end
 
@@ -837,10 +845,9 @@ function M.paintPixel(app, win, col, row, lx, ly, pickOnly)
   local startedAt = (not pickOnly) and LoveCompat.getTime() or nil
   pickOnly = pickOnly or false
 
-  -- Reflect view is display-only; keep the paint buffer unchanged until Reflect is turned off.
+  -- Tile mode shows packed nametable mirror; paint stays on the buffer in edit mode.
   if (not pickOnly)
-    and WindowCaps.isSketchCanvas(win)
-    and win.reflectPatternTable == true
+    and WindowCaps.isSketchReflectNametable(win)
   then
     return false
   end
@@ -1062,10 +1069,17 @@ local function floodFillCanvas(app, win, canvas, px, py, targetColor, fillColor)
     ::continue::
   end
 
+  if painted > 0 and WindowCaps.isSketchCanvas(win) then
+    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+    SketchCanvasPackController.invalidateReflectDisplay(win)
+    SketchCanvasPackController.markGenerateDirty(win)
+    if win.specializedToolbar and win.specializedToolbar.updateIcons then
+      win.specializedToolbar:updateIcons()
+    end
+  end
+
   return painted > 0
 end
-
--- Flood fill helper for sprite layers (bankIdx and tileIndex passed separately)
 local function floodFillTileItemForSprite(app, item, bankIdx, tileIndex, tx, ty, targetColor, fillColor, sourceWin)
   if not item then return false end
   
@@ -1159,7 +1173,7 @@ function M.floodFillTile(app, win, col, row, lx, ly, targetColor, fillColor)
     return success
   end
 
-  if WindowCaps.isSketchCanvas(win) and win.reflectPatternTable == true then
+  if WindowCaps.isSketchReflectNametable(win) then
     return finalize(false)
   end
 

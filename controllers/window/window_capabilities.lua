@@ -19,9 +19,20 @@ function M.isSketchCanvas(win)
   return win and win.kind == "sketch_canvas"
 end
 
---- Sketch Reflect mode exposes nametable-style tile/attr editing.
+--- Sketch tile mode (global mode == "tile") with a pack: nametable-style editing + mirror view.
 function M.isSketchReflectNametable(win)
-  return M.isSketchCanvas(win) and win.reflectPatternTable == true
+  if not M.isSketchCanvas(win) then
+    return false
+  end
+  if type(win.tilesPool) ~= "table" or #win.tilesPool < 1 then
+    return false
+  end
+  if type(win.nametableBytes) ~= "table" or #win.nametableBytes ~= 960 then
+    return false
+  end
+  local ctx = rawget(_G, "ctx")
+  local mode = ctx and ctx.getMode and ctx.getMode() or nil
+  return mode == "tile"
 end
 
 function M.isSketchModePalette(win)

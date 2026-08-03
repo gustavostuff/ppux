@@ -149,11 +149,13 @@ describe("sketch_canvas_export_controller.lua - scaffold", function()
     expect(withAttrs:sub(1, 960)).toBe(tilesOnly)
     expect(withAttrs:sub(961)).toBe(string.rep("\0", 64))
 
-    -- Real attrs: set quadrant palette 2 (UI key 3 → index 2) at tile 0,0
-    win.reflectPatternTable = true
+    -- Real attrs: set quadrant palette 2 (UI key 3 -> index 2) at tile 0,0
+    local prev = rawget(_G, "ctx")
+    rawset(_G, "ctx", { getMode = function() return "tile" end })
     local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
     local layer = win.layers[1]
     expect(NametableTilesController.setPaletteNumberForTile(win, layer, 0, 0, 3)).toBe(true)
+    rawset(_G, "ctx", prev)
     local withRealAttrs = SketchCanvasExportController.encodeNametableFromSketch(win, {
       includeAttributes = true,
     })

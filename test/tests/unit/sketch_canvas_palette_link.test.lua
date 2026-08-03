@@ -95,7 +95,7 @@ describe("sketch_canvas_palette_link (B5)", function()
     expect(type(err) == "string" and err:find("sketch canvases", 1, true) ~= nil).toBe(true)
   end)
 
-  it("Reflect mode keys 1-4 write attribute quadrants", function()
+  it("tile mode keys 1-4 write attribute quadrants", function()
     local wm = WM.new()
     local sketch = wm:createSketchCanvasWindow({ title = "Reflect" })
     local canvas = sketch:getActiveCanvas()
@@ -105,8 +105,10 @@ describe("sketch_canvas_palette_link (B5)", function()
       end
     end
     expect(SketchCanvasPackController.generate(sketch)).toBe(true)
-    sketch.reflectPatternTable = true
     SketchPalette.ensureAttrBytes(sketch)
+
+    local prev = rawget(_G, "ctx")
+    rawset(_G, "ctx", { getMode = function() return "tile" end })
 
     local layer = sketch.layers[1]
     sketch:setSelected(0, 0, 1)
@@ -121,9 +123,9 @@ describe("sketch_canvas_palette_link (B5)", function()
       app = { undoRedo = nil },
       setStatus = function() end,
     }
-    -- Keyboard path uses selection
     expect(KeyboardArtActions.handlePaletteNumberAssignment(ctx, "4", sketch, {})).toBe(true)
     expect(sketch.nametableAttrBytes[1]).toBe(0x03)
+    rawset(_G, "ctx", prev)
   end)
 
   it("gallery writeSlideAssets writes main.pal per slide", function()

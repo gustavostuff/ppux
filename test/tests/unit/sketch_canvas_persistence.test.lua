@@ -115,4 +115,35 @@ describe("sketch canvas - data model + persistence", function()
     expect(entry.reflectPatternTable).toBe(false)
     expect(entry.paddingTileIndex).toBe(0)
   end)
+
+  it("persists sketch canvas paletteData.winId links through layout snapshot/restore", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow({ title = "Sketch Linked" })
+    sketch._id = "sketch_pal_link"
+    local pal = wm:createRomPaletteWindow({
+      title = "Sketch palette",
+      paletteRole = "sketch",
+    })
+    pal._id = "pal_sketch_01"
+    sketch.layers[1].paletteData = { winId = pal._id }
+
+    local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1)
+    local entry = nil
+    for _, w in ipairs(snapshot.windows) do
+      if w.id == "sketch_pal_link" then
+        entry = w
+        break
+      end
+    end
+    expect(entry).toBeTruthy()
+    expect(entry.layers).toBeTruthy()
+    expect(entry.layers[1]).toBeTruthy()
+    expect(entry.layers[1].paletteData).toBeTruthy()
+    expect(entry.layers[1].paletteData.winId).toBe("pal_sketch_01")
+
+    local Factory = require("controllers.game_art.window_factory_controller")
+    local restored = Factory.createSketchCanvasWindow(entry, function() return true end)
+    expect(restored.layers[1].paletteData).toBeTruthy()
+    expect(restored.layers[1].paletteData.winId).toBe("pal_sketch_01")
+  end)
 end)
