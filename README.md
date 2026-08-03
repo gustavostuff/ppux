@@ -1,7 +1,6 @@
 ![](img/readme_images/logo_v2.png)
 
-### NES Graphics Studio
-Mod Classic ROMs & Build New Homebrew Assets
+An NES/Famicom Graphics Studio. Mod Classic ROMs & Build New Homebrew Assets.
 
 <img src="img/readme_images/app_example.png" alt="">
 
