@@ -593,8 +593,6 @@ To build a packaged Linux app from Linux, run:
 
 The packaged Linux app will be created as `build/<version>/PPUX-<version>-x86_64.AppImage`.
 
-You can also build for Windows and macOS from Linux using `./scripts/unix/build_all.sh` (macOS build not tested yet).
-
 ### Unit testing
 
 PPUX includes a unit test suite, but right now it can only be executed from Linux:
