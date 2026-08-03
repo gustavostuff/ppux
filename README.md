@@ -4,11 +4,12 @@ An NES/Famicom Graphics Studio. Mod classic games or build new Homebrew assets.
 
 <img src="img/readme_images/app_example.png" alt="">
 
-[![Version](https://img.shields.io/badge/version-0.2.0-6366F1?style=for-the-badge)](version.txt)
-
+![Version](https://img.shields.io/badge/version-0.2.0-6366F1?style=for-the-badge)
+![Unit](https://img.shields.io/badge/1054_(unit)_passing-22C55E?style=for-the-badge)
+![E2E](https://img.shields.io/badge/33_(E2E)_passing-22C55E?style=for-the-badge)
 [![Donate](https://img.shields.io/badge/Donate-ff69b4?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://ko-fi.com/tavuntu)
 
-Edit NES graphics as the player sees them. No tile puzzle solving.
+Edit NES graphics in game-context (as the player sees them). No tile puzzle solving.
 
 PPUX uses an in-app [database](#database) plus project files to understand banks, palettes, sprite layouts, animations, and other ROM-specific structures.
 
