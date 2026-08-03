@@ -113,6 +113,41 @@ function chr.decodeTile(chrBank, tileIndex)
   return pixels
 end
 
+--- Encode a single 8x8 tile from indexed pixel data (values 0-3).
+--  pixels: array of 64 values in row-major order (pixels[y*8 + x + 1])
+--  Returns: array of 16 bytes (NES 2bpp CHR layout), or nil, err
+function chr.encodeTile(pixels)
+  if type(pixels) ~= "table" or #pixels ~= 64 then
+    return nil, "encodeTile: pixels array must have exactly 64 elements"
+  end
+
+  local bytes = {}
+  for i = 1, 16 do
+    bytes[i] = 0
+  end
+
+  for row = 0, 7 do
+    local p0 = 0
+    local p1 = 0
+    for col = 0, 7 do
+      local color = tonumber(pixels[row * 8 + col + 1]) or 0
+      local lo = color % 2
+      local hi = math.floor(color / 2) % 2
+      local bitPos = 7 - col
+      if lo == 1 then
+        p0 = p0 + (2 ^ bitPos)
+      end
+      if hi == 1 then
+        p1 = p1 + (2 ^ bitPos)
+      end
+    end
+    bytes[row + 1] = p0
+    bytes[row + 8 + 1] = p1
+  end
+
+  return bytes
+end
+
 function chr.setTilePixel(bankBytes, tileIndex, x, y, color)
   local base = tileIndex * 16
   local idx0 = base + 1 + y

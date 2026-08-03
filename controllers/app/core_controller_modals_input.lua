@@ -108,4 +108,48 @@ function AppCoreController:showNametableBreakpointCalculatorModal()
   return true
 end
 
+function AppCoreController:showGalleryRomResultModal(ok, message)
+  if not self.galleryRomResultModal then
+    return false
+  end
+  self.galleryRomResultModal:show({
+    ok = ok == true,
+    message = tostring(message or (ok and "Done." or "Failed.")),
+  })
+  return true
+end
+
+--- App-toolbar entry: confirm packed sketches, then build gallery ROM.
+function AppCoreController:showGalleryRomConfirmModal()
+  local SketchCanvasGalleryRomController = require("controllers.game_art.sketch_canvas_gallery_rom_controller")
+  local sketches = SketchCanvasGalleryRomController.collectPackedSketches(self.wm)
+  if #sketches < 1 then
+    return self:showGalleryRomResultModal(
+      false,
+      "No packed sketch canvases. Open a Sketch canvas, paint, and press Generate first."
+    )
+  end
+  if not self.galleryRomConfirmModal then
+    return false
+  end
+  self.galleryRomConfirmModal:show({
+    sketches = sketches,
+    onConfirm = function(selected)
+      local ok, pathOrErr = SketchCanvasGalleryRomController.buildGalleryRom(self, selected)
+      if ok then
+        self:showGalleryRomResultModal(true, "Wrote gallery ROM:\n" .. tostring(pathOrErr))
+        if self.setStatus then
+          self:setStatus("Gallery ROM: " .. tostring(pathOrErr))
+        end
+      else
+        self:showGalleryRomResultModal(false, tostring(pathOrErr or "Gallery ROM build failed"))
+        if self.setStatus then
+          self:setStatus("Gallery ROM failed: " .. tostring(pathOrErr or "error"))
+        end
+      end
+    end,
+  })
+  return true
+end
+
 end

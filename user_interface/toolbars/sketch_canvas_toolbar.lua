@@ -1,8 +1,9 @@
 -- sketch_canvas_toolbar.lua
--- Sketch canvas toolbar: Link, tolerance, Generate, Reflect.
+-- Sketch canvas toolbar: Link, tolerance, Generate, Reflect, Export CHR/NT.
 
 local ToolbarBase = require("user_interface.toolbars.toolbar_base")
 local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+local SketchCanvasExportController = require("controllers.game_art.sketch_canvas_export_controller")
 local images = require("images")
 local colors = require("app_colors")
 local StatusHelpers = require("utils.status_helpers")
@@ -146,6 +147,22 @@ function SketchCanvasToolbar.new(window, ctx, windowController)
     "Reflect packed pattern table view"
   )
 
+  self.exportChrButton = self:addButton(
+    actions.save or actions.icon_img or chrome.icon_circle,
+    function()
+      self:_onExportChr()
+    end,
+    "Export CHR bank (4KB)"
+  )
+
+  self.exportNametableButton = self:addButton(
+    actions.icon_nametable_range or actions.icon_folder or chrome.icon_circle,
+    function()
+      self:_onExportNametable()
+    end,
+    "Export nametable binary"
+  )
+
   self:updateIcons()
   self:updatePosition()
   return self
@@ -270,6 +287,10 @@ function SketchCanvasToolbar:_onToleranceDelta(delta)
 end
 
 function SketchCanvasToolbar:_onGenerate()
+  if not self:_isLinked() then
+    StatusHelpers.setStatus(self.ctx, "Sketch Generate needs a linked pattern table")
+    return
+  end
   if not self:_hasCanvas() then
     StatusHelpers.setStatus(self.ctx, "Sketch Generate needs a paint canvas")
     return
@@ -295,6 +316,43 @@ function SketchCanvasToolbar:_onReflectToggle()
     onOrErr and "Sketch Reflect on (paint disabled)" or "Sketch Reflect off"
   )
   self:updateIcons()
+end
+
+function SketchCanvasToolbar:_onExportChr()
+  if not self.window then
+    return
+  end
+  if not self:_hasPack() then
+    StatusHelpers.setStatus(self.ctx, "Export CHR needs a successful Generate first")
+    return
+  end
+  local ok, pathOrErr = SketchCanvasExportController.exportChrBankToFile(getApp(self), self.window)
+  if not ok then
+    StatusHelpers.setStatus(self.ctx, "Export CHR failed: " .. tostring(pathOrErr or "error"))
+    return
+  end
+  StatusHelpers.setStatus(self.ctx, "Exported CHR (4KB): " .. tostring(pathOrErr))
+end
+
+function SketchCanvasToolbar:_onExportNametable()
+  if not self.window then
+    return
+  end
+  if not self:_hasPack() then
+    StatusHelpers.setStatus(self.ctx, "Export nametable needs a successful Generate first")
+    return
+  end
+  local ok, pathOrErr = SketchCanvasExportController.exportNametableToFile(
+    getApp(self),
+    self.window,
+    nil,
+    { includeAttributes = true }
+  )
+  if not ok then
+    StatusHelpers.setStatus(self.ctx, "Export nametable failed: " .. tostring(pathOrErr or "error"))
+    return
+  end
+  StatusHelpers.setStatus(self.ctx, "Exported nametable: " .. tostring(pathOrErr))
 end
 
 function SketchCanvasToolbar:updateIcons()
@@ -329,17 +387,14 @@ function SketchCanvasToolbar:updateIcons()
       or string.format("Increase pack tolerance (now %d)", tol)
   end
   if self.generateButton then
-    self.generateButton.enabled = hasCanvas
-    if not hasCanvas then
+    self.generateButton.enabled = hasCanvas and linked
+    if not linked then
+      self.generateButton.tooltip = "Generate needs a linked pattern table"
+    elseif not hasCanvas then
       self.generateButton.tooltip = "Generate needs a paint canvas"
-    elseif linked then
-      self.generateButton.tooltip = string.format(
-        "Generate and apply to linked pattern table (tolerance %d)",
-        tol
-      )
     else
       self.generateButton.tooltip = string.format(
-        "Generate pattern catalog from sketch (tolerance %d)",
+        "Generate and apply to linked pattern table (tolerance %d)",
         tol
       )
     end
@@ -354,6 +409,18 @@ function SketchCanvasToolbar:updateIcons()
     else
       self.reflectButton.tooltip = "Reflect needs a successful Generate first"
     end
+  end
+  if self.exportChrButton then
+    self.exportChrButton.enabled = hasPack
+    self.exportChrButton.tooltip = hasPack
+      and "Export packed CHR bank (4KB / 256 tiles)"
+      or "Export CHR needs a successful Generate first"
+  end
+  if self.exportNametableButton then
+    self.exportNametableButton.enabled = hasPack
+    self.exportNametableButton.tooltip = hasPack
+      and "Export nametable binary (960 tiles + 64 attrs)"
+      or "Export nametable needs a successful Generate first"
   end
 end
 

@@ -555,6 +555,12 @@ local function drawOverlays(app)
   if app.nametableBreakpointCalculatorModal then
     app.nametableBreakpointCalculatorModal:draw(app.canvas)
   end
+  if app.galleryRomConfirmModal then
+    app.galleryRomConfirmModal:draw(app.canvas)
+  end
+  if app.galleryRomResultModal then
+    app.galleryRomResultModal:draw(app.canvas)
+  end
   drawToasts(app)
 end
 

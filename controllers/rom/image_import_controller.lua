@@ -154,45 +154,10 @@ end
 --  pixels: array of 64 values (0-3) in row-major order (pixels[y*8 + x + 1])
 --  Returns: array of 16 bytes representing the tile in CHR format
 local function encodeTile(pixels)
-  if not pixels or #pixels ~= 64 then
-    error("encodeTile: pixels array must have exactly 64 elements")
+  local bytes, err = chr.encodeTile(pixels)
+  if not bytes then
+    error(err or "encodeTile failed")
   end
-  
-  local bytes = {}
-  -- Initialize 16 bytes to 0
-  for i = 1, 16 do
-    bytes[i] = 0
-  end
-  
-  -- Encode each row (8 rows total)
-  for row = 0, 7 do
-    local p0 = 0  -- low bit plane (bit 0)
-    local p1 = 0  -- high bit plane (bit 1)
-    
-    -- Encode each column in this row
-    for col = 0, 7 do
-      local pixelIndex = row * 8 + col + 1
-      local color = pixels[pixelIndex] or 0
-      
-      -- Extract bit 0 and bit 1
-      local lo = color % 2
-      local hi = math.floor(color / 2) % 2
-      
-      -- Set bits in the bit planes (MSB first, left to right)
-      local bitPos = 7 - col
-      if lo == 1 then
-        p0 = p0 + (2 ^ bitPos)
-      end
-      if hi == 1 then
-        p1 = p1 + (2 ^ bitPos)
-      end
-    end
-    
-    -- Store the two bytes for this row
-    bytes[row + 1] = p0      -- bytes 0-7: low bit plane
-    bytes[row + 8 + 1] = p1  -- bytes 8-15: high bit plane
-  end
-  
   return bytes
 end
 

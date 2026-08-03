@@ -120,7 +120,9 @@ describe("sketch canvas - pack controller", function()
   it("toolbar Generate packs and reports unique count; tolerance buttons adjust window.tolerance", function()
     local wm = WM.new()
     local win = wm:createSketchCanvasWindow()
+    local pt = wm:createPatternTableWindow()
     paintTile(win.layers[1].canvas, 0, 0, 2)
+    assert(SketchCanvasPackController.linkSketchToPatternTable(win, pt, wm))
 
     local statuses = {}
     local ctx = {
@@ -133,12 +135,25 @@ describe("sketch canvas - pack controller", function()
     local toolbar = ToolbarController.createSpecializedToolbar(win, ctx, wm)
     expect(toolbar.generateButton.enabled).toBe(true)
 
+    -- Linked sketches debounce tolerance via Timer; run the callback immediately.
+    local Timer = require("utils.timer_utils")
+    local origAfter = Timer.after
+    Timer.after = function(_delay, fn)
+      fn()
+      return 1
+    end
+
     toolbar.toleranceUpButton.action()
     expect(win.tolerance).toBe(1)
-    expect(statuses[#statuses]:find("tolerance: 1", 1, true)).toBeTruthy()
+    -- Live regen (not the unlinked "Sketch tolerance: N" status).
+    expect(statuses[#statuses]:find("unique pattern", 1, true)).toBeTruthy()
+    expect(#win.nametableBytes).toBe(960)
 
+    statuses = {}
     toolbar.generateButton.action()
     expect(#win.nametableBytes).toBe(960)
     expect(statuses[#statuses]:find("unique pattern", 1, true)).toBeTruthy()
+
+    Timer.after = origAfter
   end)
 end)

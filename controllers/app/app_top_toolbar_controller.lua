@@ -323,6 +323,22 @@ local function ensureQuickButtons(app)
       h = cell,
       enabled = false,
     }),
+    galleryRom = Button.new({
+      icon = images.icons.actions.nes_generate_gallery_rom
+        or images.icons.chrome.icon_empty
+        or images.icons.chrome.icon_scroll_toolbar_empty,
+      tooltip = "Generate gallery ROM from packed sketch canvases",
+      action = function()
+        if app.showGalleryRomConfirmModal then
+          app:showGalleryRomConfirmModal()
+        end
+      end,
+      x = 0,
+      y = 0,
+      w = cell,
+      h = cell,
+      enabled = false,
+    }),
     relocationPointerCalc = Button.new({
       icon = (images.icons.tools and images.icons.tools.icon_relocation_calculator)
         or images.icons.chrome.icon_empty
@@ -403,6 +419,8 @@ local function quickButtonOrder(app)
   if SHOW_NAMETABLE_BREAKPOINT_CALC_TOOLBAR_BUTTON then
     order[#order + 1] = "nametableBreakpointCalc"
   end
+  -- Gallery ROM immediately before Relocation pointer calculator.
+  order[#order + 1] = "galleryRom"
   -- Always last among always-on tools (with or without a loaded ROM).
   order[#order + 1] = "relocationPointerCalc"
   return order
@@ -626,6 +644,12 @@ function M.syncLayout(app)
   updateZoomButtonStates(app)
   updateGridResizeButtons(app)
   updateReferenceBackgroundButton(app)
+  do
+    local galleryBtn = app._appTopQuickButtons and app._appTopQuickButtons.galleryRom
+    if galleryBtn then
+      galleryBtn.enabled = hasOpenProject(app)
+    end
+  end
 
   local quickRightX = x
   local dockLeftX = quickRightX + SECTION_GAP

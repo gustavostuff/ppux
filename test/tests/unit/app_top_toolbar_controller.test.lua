@@ -109,8 +109,11 @@ describe("app_top_toolbar_controller.lua", function()
     expect(addGridRowButton.x).toBe(addGridColumnButton.x + addGridColumnButton.w + inferredGap)
     expect(cloneButton.x).toBe(addGridRowButton.x + addGridRowButton.w + inferredGap)
     local referenceButton = app._appTopQuickButtons.referenceBackground
+    local galleryRomButton = app._appTopQuickButtons.galleryRom
     expect(referenceButton.x).toBe(cloneButton.x + cloneButton.w + inferredGap)
-    expect(relocationCalcButton.x).toBe(referenceButton.x + referenceButton.w + inferredGap)
+    expect(galleryRomButton).toBeTruthy()
+    expect(galleryRomButton.x).toBe(referenceButton.x + referenceButton.w + inferredGap)
+    expect(relocationCalcButton.x).toBe(galleryRomButton.x + galleryRomButton.w + inferredGap)
   end)
 
   it("routes copy/cut/paste buttons through shared app clipboard actions", function()

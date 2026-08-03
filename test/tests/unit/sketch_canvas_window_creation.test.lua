@@ -87,11 +87,11 @@ describe("sketch canvas - New Window + toolbar shell", function()
     expect(toolbar.linkButton.bgColor).toBe(colors.gray20)
     expect(toolbar.toleranceDownButton.enabled).toBe(false) -- tolerance starts at 0
     expect(toolbar.toleranceUpButton.enabled).toBe(true)
-    expect(toolbar.generateButton.enabled).toBe(true)
+    expect(toolbar.generateButton.enabled).toBe(false) -- needs linked pattern table
     expect(toolbar.reflectButton.enabled).toBe(false) -- needs Generate/pack first
 
     expect(toolbar.linkButton.tooltip:find("Link", 1, true)).toBeTruthy()
-    expect(toolbar.generateButton.tooltip:find("Generate", 1, true)).toBeTruthy()
+    expect(toolbar.generateButton.tooltip:find("linked pattern table", 1, true)).toBeTruthy()
     expect(toolbar.reflectButton.tooltip:find("Reflect", 1, true)).toBeTruthy()
 
     local pt = wm:createPatternTableWindow()
@@ -100,6 +100,7 @@ describe("sketch canvas - New Window + toolbar shell", function()
     toolbar:updateIcons()
     expect(toolbar.linkButton.bgColor).toBe(colors.green)
     expect(toolbar.linkButton.tooltip:find("Manage", 1, true)).toBeTruthy()
+    expect(toolbar.generateButton.enabled).toBe(true)
   end)
 
   it("maps sketch_canvas windows to the sketch taskbar icon key", function()
