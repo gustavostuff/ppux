@@ -561,6 +561,9 @@ local function drawOverlays(app)
   if app.galleryRomResultModal then
     app.galleryRomResultModal:draw(app.canvas)
   end
+  if app.romPaletteRoleModal then
+    app.romPaletteRoleModal:draw(app.canvas)
+  end
   drawToasts(app)
 end
 

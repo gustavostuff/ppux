@@ -328,9 +328,10 @@ describe("core_controller.lua - combined save flow", function()
     expect(status).toBe("Open a ROM before saving.")
   end)
 
-  it("does not open new window modal from Ctrl+N when no ROM is loaded", function()
+  it("opens new window modal from Ctrl+N when no ROM is loaded (sketch/PT/sketch palette)", function()
     local status
     local showCount = 0
+    local shownOptions = nil
     local oldIsDown = love.keyboard.isDown
 
     love.keyboard.isDown = function(key)
@@ -344,12 +345,20 @@ describe("core_controller.lua - combined save flow", function()
       saveOptionsModal = { isVisible = function() return false end, handleKey = function() return false end },
       genericActionsModal = { isVisible = function() return false end, handleKey = function() return false end },
       settingsModal = { isVisible = function() return false end, handleKey = function() return false end },
+      newWindowTypeModal = {
+        isVisible = function() return false end,
+        handleKey = function() return false end,
+        show = function(_, _title, options)
+          showCount = showCount + 1
+          shownOptions = options
+        end,
+      },
       newWindowModal = {
         isVisible = function() return false end,
         handleKey = function() return false end,
-        show = function() showCount = showCount + 1 end,
       },
       splash = { isVisible = function() return false end, keypressed = function() return false end },
+      hasLoadedROM = function() return false end,
       setStatus = function(self, text)
         status = text
         self.statusText = text
@@ -360,8 +369,12 @@ describe("core_controller.lua - combined save flow", function()
 
     love.keyboard.isDown = oldIsDown
 
-    expect(showCount).toBe(0)
-    expect(status).toBe("Open a ROM before creating windows.")
+    expect(showCount).toBe(1)
+    expect(status).toBe(nil)
+    expect(#shownOptions).toBe(3)
+    expect(shownOptions[1].text).toBe("ROM Palette window")
+    expect(shownOptions[2].text).toBe("Sketch canvas window")
+    expect(shownOptions[3].text).toBe("Pattern table window")
   end)
 
   it("opens open project modal from Ctrl+O", function()

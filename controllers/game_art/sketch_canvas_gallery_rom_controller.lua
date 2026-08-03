@@ -4,8 +4,9 @@
 -- Pipeline:
 --   1. encodeChrBankFromSketch → pad to 8KB → data/chr/slideNN.chr
 --   2. encodeNametableFromSketch({ includeAttributes = true }) → data/nam/slideNN.nam
---   3. Write s/slide_meta.s (slide_count)
---   4. make -C asm/gallery → gallery.nes (copy beside ROM)
+--   3. encodePaletteFromSketch → data/pal/slideNN/main.pal
+--   4. Write s/slide_meta.s (slide_count)
+--   5. make -C asm/gallery → gallery.nes
 
 local WindowCaps = require("controllers.window.window_capabilities")
 local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
@@ -123,7 +124,7 @@ local function ensureDir(path)
   os.execute("mkdir -p " .. shellQuote(path))
 end
 
-function M.writeSlideAssets(asmDir, sketches)
+function M.writeSlideAssets(asmDir, sketches, wm)
   if type(asmDir) ~= "string" or asmDir == "" then
     return false, "missing asm dir"
   end
@@ -136,8 +137,10 @@ function M.writeSlideAssets(asmDir, sketches)
 
   local chrDir = joinPath(asmDir, "data/chr")
   local namDir = joinPath(asmDir, "data/nam")
+  local palRoot = joinPath(asmDir, "data/pal")
   ensureDir(chrDir)
   ensureDir(namDir)
+  ensureDir(palRoot)
 
   for i, win in ipairs(sketches) do
     local chr4k, chrErr = SketchCanvasExportController.encodeChrBankFromSketch(win)
@@ -154,8 +157,14 @@ function M.writeSlideAssets(asmDir, sketches)
     if not nam then
       return false, string.format("slide %d nametable: %s", i - 1, tostring(namErr))
     end
+    local palBlob = SketchCanvasExportController.encodePaletteFromSketch(win, wm)
+    if type(palBlob) ~= "string" or #palBlob ~= 32 then
+      return false, string.format("slide %d palette: expected 32 bytes", i - 1)
+    end
 
     local stem = string.format("slide%02d", i - 1)
+    local palDir = joinPath(palRoot, stem)
+    ensureDir(palDir)
     local okChr, errChr = SketchCanvasExportController.writeBinaryFile(
       joinPath(chrDir, stem .. ".chr"),
       chr8k
@@ -170,11 +179,19 @@ function M.writeSlideAssets(asmDir, sketches)
     if not okNam then
       return false, errNam
     end
+    local okPal, errPal = SketchCanvasExportController.writeBinaryFile(
+      joinPath(palDir, "main.pal"),
+      palBlob
+    )
+    if not okPal then
+      return false, errPal
+    end
   end
 
-  -- Keep unused slots as zeros so CHR segments stay valid.
+  -- Keep unused slots as zeros so CHR/NT/PAL segments stay valid.
   local emptyChr = string.rep("\0", SketchCanvasExportController.CHR_BANK_8K)
   local emptyNam = string.rep("\0", SketchCanvasExportController.NAMETABLE_FULL)
+  local emptyPal = SketchCanvasExportController.encodePaletteFromSketch(nil)
   for i = #sketches, M.MAX_SLIDES - 1 do
     local stem = string.format("slide%02d", i)
     local okChr, errChr = SketchCanvasExportController.writeBinaryFile(
@@ -190,6 +207,15 @@ function M.writeSlideAssets(asmDir, sketches)
     )
     if not okNam then
       return false, errNam
+    end
+    local palDir = joinPath(palRoot, stem)
+    ensureDir(palDir)
+    local okPal, errPal = SketchCanvasExportController.writeBinaryFile(
+      joinPath(palDir, "main.pal"),
+      emptyPal
+    )
+    if not okPal then
+      return false, errPal
     end
   end
 
@@ -242,7 +268,7 @@ function M.buildGalleryRom(app, sketchWindows, opts)
 
   local sketches = M.collectPackedSketches(wm, sketchWindows)
   if #sketches < 1 then
-    return false, "no packed sketch canvases"
+    return false, "no packed sketch canvases to export"
   end
   if #sketches > M.MAX_SLIDES then
     return false, string.format("at most %d sketch canvases (got %d)", M.MAX_SLIDES, #sketches)
@@ -256,7 +282,7 @@ function M.buildGalleryRom(app, sketchWindows, opts)
     return false, asmErr or "asm/gallery not found"
   end
 
-  local okAssets, countOrErr = M.writeSlideAssets(asmDir, sketches)
+  local okAssets, countOrErr = M.writeSlideAssets(asmDir, sketches, wm)
   if not okAssets then
     return false, countOrErr
   end

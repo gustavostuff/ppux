@@ -74,6 +74,18 @@ function SketchCanvasWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
     self.nametableBytes = nt
   end
 
+  self.nametableAttrBytes = nil
+  if type(data.nametableAttrBytes) == "table" and #data.nametableAttrBytes > 0 then
+    local attrs = {}
+    for i = 1, math.min(64, #data.nametableAttrBytes) do
+      attrs[i] = math.floor(tonumber(data.nametableAttrBytes[i]) or 0) % 256
+    end
+    while #attrs < 64 do
+      attrs[#attrs + 1] = 0
+    end
+    self.nametableAttrBytes = attrs
+  end
+
   self.tolerance = math.floor(tonumber(data.tolerance) or 0)
   if self.tolerance < 0 then
     self.tolerance = 0
@@ -153,6 +165,65 @@ function SketchCanvasWindow:toGridCoords(px, py)
   local lx = cx - (col * self.cellW)
   local ly = cy - (row * self.cellH)
   return true, col, row, lx, ly
+end
+
+local function ntIndex(self, col, row)
+  local cols = self.cols or 32
+  return row * cols + col + 1
+end
+
+--- Virtual tile handle for Reflect nametable editing (pool index as item.id).
+function SketchCanvasWindow:get(col, row, layerIndex)
+  if self.reflectPatternTable == true and type(self.nametableBytes) == "table" then
+    local idx = ntIndex(self, col, row)
+    local byte = self.nametableBytes[idx]
+    if byte == nil then
+      return nil
+    end
+    return {
+      kind = "sketch_nt",
+      id = math.floor(tonumber(byte) or 0),
+      poolIndex = math.floor(tonumber(byte) or 0),
+    }
+  end
+  return Window.get(self, col, row, layerIndex)
+end
+
+function SketchCanvasWindow:setNametableByteAt(col, row, byteVal, _tilesPool, _layerIndex)
+  if type(self.nametableBytes) ~= "table" then
+    return false
+  end
+  local idx = ntIndex(self, col, row)
+  if idx < 1 or idx > #self.nametableBytes then
+    return false
+  end
+  local v = math.floor(tonumber(byteVal) or 0)
+  if v < 0 then
+    v = 0
+  elseif v > 255 then
+    v = 255
+  end
+  self.nametableBytes[idx] = v
+  local Pack = require("controllers.game_art.sketch_canvas_pack_controller")
+  Pack.invalidateReflectDisplay(self)
+  return true
+end
+
+function SketchCanvasWindow:swapNametableBytesAt(col1, row1, col2, row2)
+  if type(self.nametableBytes) ~= "table" then
+    return false
+  end
+  local i1 = ntIndex(self, col1, row1)
+  local i2 = ntIndex(self, col2, row2)
+  if i1 < 1 or i1 > #self.nametableBytes or i2 < 1 or i2 > #self.nametableBytes then
+    return false
+  end
+  local a = self.nametableBytes[i1]
+  self.nametableBytes[i1] = self.nametableBytes[i2]
+  self.nametableBytes[i2] = a
+  local Pack = require("controllers.game_art.sketch_canvas_pack_controller")
+  Pack.invalidateReflectDisplay(self)
+  return true
 end
 
 return SketchCanvasWindow

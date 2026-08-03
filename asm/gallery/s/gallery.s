@@ -25,7 +25,7 @@ copy_nametable_1024:
   sta $2006
 
   ldy #0
-  ldx #4          ; 4 × 256 = 1024
+  ldx #4          ; 4 x 256 = 1024
 @page:
   lda (ptr_lo), y
   sta $2007
@@ -36,10 +36,10 @@ copy_nametable_1024:
   bne @page
   rts
 
-; Full slide swap: PPU off → palette (vblank) → CHR bank → NT → scroll → PPU on.
+; Full slide swap: PPU off -> palette (vblank) -> CHR bank -> NT -> scroll -> PPU on.
 ;
 ; Palette must be written while still in vblank. With rendering off, if PPUADDR
-; sits in $3Fxx the backdrop tracks that entry — a mid-frame palette upload
+; sits in $3Fxx the backdrop tracks that entry - a mid-frame palette upload
 ; shows up as a colored horizontal band (~scanline 120 after a 1KB NT copy).
 rebuild_slide:
   lda #0

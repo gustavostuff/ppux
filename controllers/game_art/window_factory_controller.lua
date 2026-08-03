@@ -156,6 +156,7 @@ function M.createRomPaletteWindow(w, romRaw, decodeUserDefinedCodes)
       romRaw = romRaw,
       activePalette = false,
       compactView = (w.compactView == true),
+      paletteRole = (w.paletteRole == "sketch") and "sketch" or "rom",
     }
   )
 
@@ -638,6 +639,7 @@ function M.createSketchCanvasWindow(w, decodePatternCanvasSnapshot, onPatternCan
       visibleCols = w.visibleCols or w.cols,
       tilesPool = w.tilesPool,
       nametableBytes = w.nametableBytes,
+      nametableAttrBytes = w.nametableAttrBytes,
       tolerance = w.tolerance,
       reflectPatternTable = w.reflectPatternTable,
       linkedPatternTableWindowId = w.linkedPatternTableWindowId,

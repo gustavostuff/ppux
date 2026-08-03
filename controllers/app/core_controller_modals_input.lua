@@ -108,13 +108,14 @@ function AppCoreController:showNametableBreakpointCalculatorModal()
   return true
 end
 
-function AppCoreController:showGalleryRomResultModal(ok, message)
+function AppCoreController:showGalleryRomResultModal(ok, message, detail)
   if not self.galleryRomResultModal then
     return false
   end
   self.galleryRomResultModal:show({
     ok = ok == true,
     message = tostring(message or (ok and "Done." or "Failed.")),
+    detail = detail,
   })
   return true
 end
@@ -126,7 +127,7 @@ function AppCoreController:showGalleryRomConfirmModal()
   if #sketches < 1 then
     return self:showGalleryRomResultModal(
       false,
-      "No packed sketch canvases. Open a Sketch canvas, paint, and press Generate first."
+      "No packed sketch canvases to export."
     )
   end
   if not self.galleryRomConfirmModal then
@@ -137,7 +138,7 @@ function AppCoreController:showGalleryRomConfirmModal()
     onConfirm = function(selected)
       local ok, pathOrErr = SketchCanvasGalleryRomController.buildGalleryRom(self, selected)
       if ok then
-        self:showGalleryRomResultModal(true, "Wrote gallery ROM:\n" .. tostring(pathOrErr))
+        self:showGalleryRomResultModal(true, "Wrote gallery ROM:", tostring(pathOrErr))
         if self.setStatus then
           self:setStatus("Gallery ROM: " .. tostring(pathOrErr))
         end
@@ -147,6 +148,41 @@ function AppCoreController:showGalleryRomConfirmModal()
           self:setStatus("Gallery ROM failed: " .. tostring(pathOrErr or "error"))
         end
       end
+    end,
+  })
+  return true
+end
+
+--- After New Window → ROM Palette: choose ROM-backed vs sketch free colors.
+function AppCoreController:showRomPaletteRoleModal(opts)
+  opts = opts or {}
+  if not self.romPaletteRoleModal then
+    return false
+  end
+  local allowRom = opts.allowRomRole ~= false and self:hasLoadedROM()
+  local windowTitle = opts.windowTitle
+  local prevFocusedWin = opts.prevFocusedWin
+  self.romPaletteRoleModal:show({
+    allowRomRole = allowRom,
+    onChoose = function(role)
+      if not (self.wm and self.wm.createRomPaletteWindow) then
+        return
+      end
+      local title = windowTitle
+      if role == "sketch" then
+        title = title or "Sketch palette"
+      else
+        title = title or "ROM Palette"
+      end
+      local win = self.wm:createRomPaletteWindow({
+        title = title,
+        paletteRole = role,
+      })
+      local Shared = require("controllers.app.core_controller_shared")
+      Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
+    end,
+    onCancel = function()
+      -- Cancel = no window (user backed out of type choice).
     end,
   })
   return true

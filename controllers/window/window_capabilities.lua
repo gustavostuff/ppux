@@ -19,6 +19,26 @@ function M.isSketchCanvas(win)
   return win and win.kind == "sketch_canvas"
 end
 
+--- Sketch Reflect mode exposes nametable-style tile/attr editing.
+function M.isSketchReflectNametable(win)
+  return M.isSketchCanvas(win) and win.reflectPatternTable == true
+end
+
+function M.isSketchModePalette(win)
+  return M.isRomPaletteWindow(win) and win.paletteRole == "sketch"
+end
+
+--- Tile selection / NT edits: real tile layers, or sketch canvas while Reflect is on.
+function M.isNametableTileEditableLayer(win, layer)
+  if not layer then
+    return false
+  end
+  if layer.kind == "tile" then
+    return true
+  end
+  return M.isSketchReflectNametable(win) and layer.kind == "canvas"
+end
+
 function M.isPatternTable(win)
   return win and win.kind == "pattern_table"
 end

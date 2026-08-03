@@ -1,5 +1,5 @@
-; Controller 1 read — standard shift into pad_state:
-; bit0=A … bit6=Left, bit7=Right
+; Controller 1 read - standard shift into pad_state:
+; bit0=A ... bit6=Left, bit7=Right
 .importzp pad_state, pad_prev, tmp0
 
 .export read_pad1
@@ -21,7 +21,7 @@ read_pad1:
 @read:
   lda $4016
   lsr a              ; button -> C
-  ror pad_state      ; C -> bit7, eventually bit0=A … bit7=Right
+  ror pad_state      ; C -> bit7, eventually bit0=A ... bit7=Right
   dex
   bne @read
   rts

@@ -44,13 +44,53 @@ local function hexCodeToByte(hexCode)
   return tonumber(hexCode, 16) or 0
 end
 
+function RomPaletteWindow:isSketchPalette()
+  return self.paletteRole == "sketch"
+end
+
 function RomPaletteWindow:isCellEditable(col, row)
+  if self:isSketchPalette() then
+    return true
+  end
   if not self.paletteData or not self.paletteData.romColors then return false end
   local rowIndex = (row or 0) + 1
   local colIndex = (col or 0) + 1
   local rowColors = self.paletteData.romColors[rowIndex]
   if not rowColors then return false end
   return type(rowColors[colIndex]) == "number"
+end
+
+--- Apply sketch-mode defaults: free colors, gallery-like BG rows 07/17/27/36.
+function RomPaletteWindow:applyPaletteRole(role)
+  role = (role == "sketch") and "sketch" or "rom"
+  self.paletteRole = role
+  if role ~= "sketch" then
+    return
+  end
+  local defaults = {
+    { "07", "17", "27", "36" },
+    { "07", "17", "27", "36" },
+    { "07", "17", "27", "36" },
+    { "07", "17", "27", "36" },
+  }
+  self.paletteData = self.paletteData or {}
+  self.paletteData.romColors = {}
+  self.codes2D = self.codes2D or {}
+  for row = 0, 3 do
+    self.paletteData.romColors[row + 1] = {}
+    self.codes2D[row] = self.codes2D[row] or {}
+    for col = 0, 3 do
+      self.paletteData.romColors[row + 1][col + 1] = "sketch"
+      local code = defaults[row + 1][col + 1]
+      self.codes2D[row][col] = code
+      if self.set then
+        self:set(col, row, code)
+      end
+    end
+  end
+  if type(self.title) == "string" and (self.title == "" or self.title == "ROM Palette") then
+    self.title = "Sketch palette"
+  end
 end
 
 -- ROM byte address backing an editable cell, or nil if locked / missing.
@@ -142,10 +182,31 @@ function RomPaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
 
   -- Store paletteData structure (contains romColors addresses and userDefinedCode)
   self.paletteData = data.paletteData or {}
-  
+  self.paletteRole = (data.paletteRole == "sketch") and "sketch" or "rom"
+
   -- Initialize codes2D from ROM or userDefinedCode
   -- This must run after PaletteWindow.new() to rebuild codes2D with ROM data
   self:initializeFromROMOrUserCodes()
+
+  if self:isSketchPalette() then
+    local savedCodes = {}
+    if type(self.paletteData.userDefinedCode) == "table" then
+      for _, item in ipairs(self.paletteData.userDefinedCode) do
+        if type(item.row) == "number" and type(item.col) == "number" and item.code then
+          savedCodes[#savedCodes + 1] = item
+        end
+      end
+    end
+    self:applyPaletteRole("sketch")
+    for _, item in ipairs(savedCodes) do
+      local code = tostring(item.code):upper()
+      self.codes2D[item.row] = self.codes2D[item.row] or {}
+      self.codes2D[item.row][item.col] = code
+      if self.set then
+        self:set(item.col, item.row, code)
+      end
+    end
+  end
   
   -- Ensure codes2D is fully initialized (should be 4x4)
   if not self.codes2D or not self.codes2D[0] or not self.codes2D[0][0] then
@@ -159,6 +220,18 @@ end
 
 -- Initialize codes2D from ROM bytes (if available) or userDefinedCode
 function RomPaletteWindow:initializeFromROMOrUserCodes()
+  -- Sketch-mode palettes are free colors; applyPaletteRole fills codes after this.
+  if self:isSketchPalette() then
+    self.codes2D = {}
+    for row = 0, 3 do
+      self.codes2D[row] = {}
+      for col = 0, 3 do
+        self.codes2D[row][col] = "0F"
+      end
+    end
+    return
+  end
+
   -- If no paletteData, keep the codes2D that PaletteWindow.new() created
   if not self.paletteData then 
     DebugController.log("warning", "ROM_PAL", "No paletteData provided, using default codes from PaletteWindow")
@@ -182,7 +255,10 @@ function RomPaletteWindow:initializeFromROMOrUserCodes()
   -- Debug: Log ROM addresses for first row to verify they're correct
   if romColors[1] then
     DebugController.log("info", "ROM_PAL", "Row 0 ROM addresses: [1]=0x%X, [2]=0x%X, [3]=0x%X, [4]=0x%X", 
-      romColors[1][1] or 0, romColors[1][2] or 0, romColors[1][3] or 0, romColors[1][4] or 0)
+      (type(romColors[1][1]) == "number" and romColors[1][1]) or 0,
+      (type(romColors[1][2]) == "number" and romColors[1][2]) or 0,
+      (type(romColors[1][3]) == "number" and romColors[1][3]) or 0,
+      (type(romColors[1][4]) == "number" and romColors[1][4]) or 0)
   end
   
   DebugController.log("info", "ROM_PAL", "Initializing ROM palette: romColors rows=%d, userCodes count=%d", 
@@ -217,7 +293,7 @@ function RomPaletteWindow:initializeFromROMOrUserCodes()
         if rowUserCodes[colIndex] then
           self.codes2D[rowIndex][colIndex] = rowUserCodes[colIndex]
           DebugController.log("debug", "ROM_PAL", "Row %d, Col %d: Using user code %s", rowIndex, colIndex, rowUserCodes[colIndex])
-        elseif type(self.romRaw) == "string" and #self.romRaw > 0 then
+        elseif type(romAddr) == "number" and type(self.romRaw) == "string" and #self.romRaw > 0 then
           local byte, err = chr.readByteFromAddress(self.romRaw, romAddr)
           if byte then
             local hexCode = hex2(byte)
@@ -324,6 +400,37 @@ function RomPaletteWindow:adjustSelectedByArrows(dx, dy)
 
   local gctx = rawget(_G, "ctx")
   local app = gctx and gctx.app
+
+  -- Sketch-mode: free colors, no shared ROM address sync.
+  if self:isSketchPalette() then
+    local beforePaletteData = TableUtils.deepcopy(self.paletteData or {})
+    self.codes2D[sr][sc] = new
+    self:set(sc, sr, new)
+    self:writeColorToROM(sr, sc, new)
+    self:saveUserDefinedCode(sr, sc, new)
+    recordPaletteColorUndo(
+      {
+        {
+          win = self,
+          row = sr,
+          col = sc,
+          beforeCode = old,
+          afterCode = new,
+        },
+      },
+      {
+        {
+          win = self,
+          beforePaletteData = beforePaletteData,
+          afterPaletteData = TableUtils.deepcopy(self.paletteData or {}),
+        },
+      }
+    )
+    invalidateLinkedPpuFrames(self)
+    markPaletteUnsaved()
+    return
+  end
+
   local romAddr = self:getRomByteAddress(sc, sr)
   local cells = collectEditableCellsForRomAddress(self, app, romAddr)
   if #cells == 0 then
@@ -387,6 +494,10 @@ function RomPaletteWindow:writeColorToROM(row, col, hexCode)
   if not self.paletteData or not self.paletteData.romColors then return end
   if not self:isCellEditable(col, row) then
     return false
+  end
+  -- Sketch-mode palettes are free colors (no ROM addresses).
+  if self:isSketchPalette() then
+    return true
   end
   if type(self.romRaw) ~= "string" or #self.romRaw == 0 then
     DebugController.log("warning", "ROM_PAL", "romRaw not available for writing")

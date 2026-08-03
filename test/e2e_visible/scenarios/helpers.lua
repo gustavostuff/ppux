@@ -9,6 +9,8 @@ end
 
 function M.appQuickButtonCenter(key)
   return function(_, currentApp)
+    local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
+    AppTopToolbarController.syncLayout(currentApp)
     local buttons = currentApp._appTopQuickButtons or {}
     local button = assert(buttons[key], "expected app top quick button: " .. tostring(key))
     return M.buttonCenter(button)

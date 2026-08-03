@@ -4,6 +4,7 @@
 local ToolbarBase = require("user_interface.toolbars.toolbar_base")
 local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
 local SketchCanvasExportController = require("controllers.game_art.sketch_canvas_export_controller")
+local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local images = require("images")
 local colors = require("app_colors")
 local StatusHelpers = require("utils.status_helpers")
@@ -85,6 +86,18 @@ function SketchCanvasToolbar.new(window, ctx, windowController)
 
   local actions = images.icons and images.icons.actions or {}
   local chrome = images.icons and images.icons.chrome or {}
+
+  -- Palette link destination handle (ROM palette → sketch), separate from PT link.
+  self.paletteLinkButton = self:addButton(
+    actions.icon_connect or chrome.icon_circle,
+    function()
+      self:_onPaletteLinkMenu()
+    end,
+    "Palette link handle; right-drag to a sketch palette to link; left-click for menu",
+    {
+      paletteLinkHandle = true,
+    }
+  )
 
   self.linkButton = self:addButton(
     actions.icon_pattern_table or actions.icon_connect or chrome.icon_circle,
@@ -209,6 +222,27 @@ function SketchCanvasToolbar:_onLinkMenu()
   local x = (btn and btn.x or 0) + ((btn and btn.w) or 0) * 0.5
   local y = (btn and btn.y or 0) + ((btn and btn.h) or 0) * 0.5
   app:showPatternTableLinkDestinationContextMenu(self.window, x, y)
+  self:updateIcons()
+end
+
+function SketchCanvasToolbar:getLinkHandleRect()
+  if not self.paletteLinkButton or self.paletteLinkButton.hidden == true then
+    return nil
+  end
+  self:updatePosition()
+  return self.paletteLinkButton.x, self.paletteLinkButton.y, self.paletteLinkButton.w, self.paletteLinkButton.h
+end
+
+function SketchCanvasToolbar:_onPaletteLinkMenu()
+  local app = getApp(self)
+  if not (app and app.showPaletteLinkDestinationContextMenu and self.window) then
+    StatusHelpers.setStatus(self.ctx, "Palette link is unavailable")
+    return
+  end
+  local btn = self.paletteLinkButton
+  local x = (btn and btn.x or 0) + ((btn and btn.w) or 0) * 0.5
+  local y = (btn and btn.y or 0) + ((btn and btn.h) or 0) * 0.5
+  app:showPaletteLinkDestinationContextMenu(self.window, x, y)
   self:updateIcons()
 end
 
@@ -362,7 +396,24 @@ function SketchCanvasToolbar:updateIcons()
   local hasPack = self:_hasPack()
   local hasCanvas = self:_hasCanvas()
   local reflecting = self.window and self.window.reflectPatternTable == true
+  local linkedPalette = PaletteLinkController.getActiveLayerLinkedPaletteWindow(
+    self.window,
+    self.windowController
+  )
 
+  if self.paletteLinkButton then
+    self.paletteLinkButton.enabled = true
+    self.paletteLinkButton.bgColor = linkedPalette and colors.green or colors.gray20
+    if linkedPalette then
+      self.paletteLinkButton.tooltip = string.format(
+        "Linked to %s; right-drag to a sketch palette to change link; left-click for menu",
+        tostring(linkedPalette.title or "palette")
+      )
+    else
+      self.paletteLinkButton.tooltip =
+        "No palette linked; right-drag to a sketch palette to link; left-click for menu"
+    end
+  end
   if self.linkButton then
     self.linkButton.enabled = true
     self.linkButton.bgColor = linked and colors.green or colors.gray20
@@ -404,7 +455,7 @@ function SketchCanvasToolbar:updateIcons()
     self.reflectButton.bgColor = reflecting and colors.green or colors.gray20
     if hasPack then
       self.reflectButton.tooltip = reflecting
-        and "Reflect on: showing packed tiles (paint disabled; click to restore paint view)"
+        and "Reflect on: nametable tile edit + attrs 1-4 (paint disabled)"
         or "Reflect off: show packed pattern-table view"
     else
       self.reflectButton.tooltip = "Reflect needs a successful Generate first"

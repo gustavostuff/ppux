@@ -23,6 +23,7 @@ local RelocationPointerCalculatorModal = require("user_interface.modals.relocati
 local NametableBreakpointCalculatorModal = require("user_interface.modals.nametable_breakpoint_calculator_modal")
 local GalleryRomConfirmModal = require("user_interface.modals.gallery_rom_confirm_modal")
 local GalleryRomResultModal = require("user_interface.modals.gallery_rom_result_modal")
+local RomPaletteRoleModal = require("user_interface.modals.rom_palette_role_modal")
 local TooltipController = require("controllers.ui.tooltip_controller")
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
 local UiScale = require("user_interface.ui_scale")
@@ -116,6 +117,7 @@ function AppCoreController.new()
   self.nametableBreakpointCalculatorModal = NametableBreakpointCalculatorModal.new()
   self.galleryRomConfirmModal = GalleryRomConfirmModal.new()
   self.galleryRomResultModal = GalleryRomResultModal.new()
+  self.romPaletteRoleModal = RomPaletteRoleModal.new()
   self.taskbar = nil
   self.windowHeaderContextMenu = ContextualMenuController.new({
     getBounds = function()

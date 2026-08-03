@@ -38,26 +38,36 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(type(typeOptions[1].callback)).toBe("function")
   end)
 
-  it("refuses to show the new window modal when no ROM is loaded", function()
+  it("shows sketch/pattern-table/ROM-palette new-window options when no ROM is loaded", function()
     local status = nil
-    local shown = 0
+    local shownTitle = nil
+    local shownOptions = nil
     local app = setmetatable({
       hasLoadedROM = function() return false end,
       setStatus = function(_, text)
         status = text
       end,
+      newWindowTypeModal = {
+        show = function(_, title, options)
+          shownTitle = title
+          shownOptions = options
+        end,
+      },
       newWindowModal = {
         show = function()
-          shown = shown + 1
         end,
       },
     }, AppCoreController)
 
     local ok = app:showNewWindowModal()
 
-    expect(ok).toBe(false)
-    expect(status).toBe("Open a ROM before creating windows.")
-    expect(shown).toBe(0)
+    expect(ok).toBe(true)
+    expect(status).toBe(nil)
+    expect(shownTitle).toBe("New Window (no ROM)")
+    expect(#shownOptions).toBe(3)
+    expect(shownOptions[1].text).toBe("ROM Palette window")
+    expect(shownOptions[2].text).toBe("Sketch canvas window")
+    expect(shownOptions[3].text).toBe("Pattern table window")
   end)
 
   it("builds the window header context menu entries in the expected order", function()

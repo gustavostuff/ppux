@@ -314,7 +314,7 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appCoreRef)
     return false
   end
 
-  if layer.kind ~= "tile" then
+  if layer.kind ~= "tile" and not WindowCaps.isNametableTileEditableLayer(w, layer) then
     return false
   end
 
@@ -326,12 +326,19 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appCoreRef)
 
   local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
   local beforeState
+  local beforeAttrs = nil
   if WindowCaps.isPpuFrame(w) and appCoreRef.snapshotPpuFrameUndoState then
     beforeState = appCoreRef:snapshotPpuFrameUndoState(w, li)
+  elseif WindowCaps.isSketchReflectNametable(w) then
+    beforeAttrs = {}
+    local attrs = w.nametableAttrBytes or {}
+    for i = 1, #attrs do
+      beforeAttrs[i] = attrs[i]
+    end
   end
 
   local cols = w.cols or 32
-  local paletteChanges = (not WindowCaps.isPpuFrame(w)) and {} or nil
+  local paletteChanges = (not WindowCaps.isPpuFrame(w) and not WindowCaps.isSketchReflectNametable(w)) and {} or nil
   local undoRedo = ctx and ctx.app and ctx.app.undoRedo
 
   local usePpuPaletteBatch = WindowCaps.isPpuFrame(w)
@@ -381,6 +388,18 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appCoreRef)
     if beforeState and appCoreRef.pushPpuFrameNametableUndoIfChanged and appCoreRef.snapshotPpuFrameUndoState then
       local afterState = appCoreRef:snapshotPpuFrameUndoState(w, li)
       appCoreRef:pushPpuFrameNametableUndoIfChanged(w, li, beforeState, afterState)
+    elseif beforeAttrs and undoRedo and undoRedo.addDragEvent then
+      local afterAttrs = {}
+      local attrs = w.nametableAttrBytes or {}
+      for i = 1, #attrs do
+        afterAttrs[i] = attrs[i]
+      end
+      undoRedo:addDragEvent({
+        type = "sketch_nametable_attrs",
+        win = w,
+        beforeNametableAttrBytes = beforeAttrs,
+        afterNametableAttrBytes = afterAttrs,
+      })
     elseif paletteChanges and #paletteChanges > 0 and undoRedo and undoRedo.addDragEvent then
       undoRedo:addDragEvent({
         type = "tile_drag",

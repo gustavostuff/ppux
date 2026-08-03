@@ -1042,7 +1042,7 @@ local function applyChrGroupToSpriteLayer(state, tilesPool)
 end
 
 local function getPpuNametableByte(win, col, row)
-  if not (WindowCaps.isPpuFrame(win) and win.nametableBytes) then
+  if not ((WindowCaps.isPpuFrame(win) or WindowCaps.isSketchReflectNametable(win)) and win.nametableBytes) then
     return nil, false
   end
 
@@ -1069,7 +1069,7 @@ local function getPpuNametableByte(win, col, row)
 end
 
 local function setPpuNametableByte(win, col, row, byteVal, app, layerIdx)
-  if not (WindowCaps.isPpuFrame(win) and win.setNametableByteAt) then
+  if not ((WindowCaps.isPpuFrame(win) or WindowCaps.isSketchReflectNametable(win)) and win.setNametableByteAt) then
     return false
   end
 
@@ -1516,18 +1516,24 @@ function M.handleTileDrop(env, x, y, wm)
     end
   end
 
-  if WindowCaps.isPpuFrame(src) and WindowCaps.isPpuFrame(dst) then
+  if (WindowCaps.isPpuFrame(src) and WindowCaps.isPpuFrame(dst))
+    or (WindowCaps.isSketchReflectNametable(src) and WindowCaps.isSketchReflectNametable(dst))
+  then
     local srcLayer = drag.srcLayer or (src.getActiveLayerIndex and src:getActiveLayerIndex()) or 1
 
-    -- Same-window PPU tile move should use the native swap path so we only
+    -- Same-window PPU/sketch tile move should use the native swap path so we only
     -- recompress/write once (avoids transient intermediate budget states).
-    if not drag.copyMode and src == dst and src.swapCells then
+    if not drag.copyMode and src == dst and (src.swapCells or src.swapNametableBytesAt) then
       if recorder then
         recorder.stageCell(src, srcLayer, drag.srcCol, drag.srcRow)
         recorder.stageCell(dst, dstLayer, col, row)
       end
 
-      src:swapCells(drag.srcCol, drag.srcRow, col, row)
+      if src.swapCells then
+        src:swapCells(drag.srcCol, drag.srcRow, col, row)
+      else
+        src:swapNametableBytesAt(drag.srcCol, drag.srcRow, col, row)
+      end
       if env.markUnsaved then env.markUnsaved("tile_move") end
 
       if dst.setSelected then

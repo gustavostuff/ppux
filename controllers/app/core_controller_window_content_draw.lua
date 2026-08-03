@@ -580,16 +580,49 @@ local function drawCanvasLayer(app, w, layerIndex, isFocused)
   love.graphics.scale(z, z)
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
 
-  ShaderPaletteController.applyLayerItemPalette(
-    layer,
-    canvas,
-    true,
-    app.appEditState and app.appEditState.romRaw,
-    nil,
-    layerOpacity
-  )
-  canvas:draw(0, 0, 1)
-  ShaderPaletteController.releaseShader()
+  local romRaw = app.appEditState and app.appEditState.romRaw
+  local useAttrPalette = false
+  if WindowCaps.isSketchCanvas(w) and layer and layer.paletteData and layer.paletteData.winId then
+    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+    if SketchPalette.getLinkedSketchPalette(w, app.wm) then
+      useAttrPalette = true
+    end
+  end
+
+  if useAttrPalette and canvas.drawRegion then
+    local cell = w.cellW or 8
+    local cols = w.cols or 32
+    local rows = w.rows or 30
+    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+    for row = 0, rows - 1 do
+      for col = 0, cols - 1 do
+        local palNum = SketchPalette.getTilePaletteNumber(w, col, row) or 1
+        ShaderPaletteController.applyLayerItemPalette(
+          layer,
+          canvas,
+          true,
+          romRaw,
+          palNum,
+          layerOpacity
+        )
+        local px = col * cell
+        local py = row * cell
+        canvas:drawRegion(px, py, px, py, cell, cell, 1)
+      end
+    end
+    ShaderPaletteController.releaseShader()
+  else
+    ShaderPaletteController.applyLayerItemPalette(
+      layer,
+      canvas,
+      true,
+      romRaw,
+      nil,
+      layerOpacity
+    )
+    canvas:draw(0, 0, 1)
+    ShaderPaletteController.releaseShader()
+  end
 
   love.graphics.pop()
   love.graphics.setScissor()

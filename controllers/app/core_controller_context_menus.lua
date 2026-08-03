@@ -168,7 +168,7 @@ function AppCoreController:_buildEmptySpaceContextMenuItems()
       icon = images.icons.chrome.icon_new_window,
       text = "New Window",
       menuGroup = "empty_wm_new_window",
-      enabled = hasRom,
+      enabled = true,
       callback = function()
         self:hideAppContextMenus()
         self:showNewWindowModal()
@@ -329,6 +329,7 @@ function AppCoreController:_buildPaletteLinkDestinationContextMenuItems(contentW
   local linkedPalette = PaletteLinkController.getActiveLayerLinkedPaletteWindow(contentWin, self.wm)
   local paletteWindows = PaletteLinkController.getRomPaletteWindows(self.wm)
   local items = {}
+  local sketchDest = WindowCaps.isSketchCanvas(contentWin)
 
   items[#items + 1] = {
       text = "Link To Palette",
@@ -336,16 +337,24 @@ function AppCoreController:_buildPaletteLinkDestinationContextMenuItems(contentW
       children = function()
         local childItems = {}
         for _, paletteWin in ipairs(paletteWindows) do
-          childItems[#childItems + 1] = {
-            text = tostring(paletteWin.title or "Palette"),
-            callback = function()
-              PaletteLinkController.linkLayerToPalette(contentWin, layerIndex, paletteWin)
-            end,
-          }
+          local roleOk = true
+          if sketchDest then
+            roleOk = paletteWin.paletteRole == "sketch"
+          else
+            roleOk = paletteWin.paletteRole ~= "sketch"
+          end
+          if roleOk then
+            childItems[#childItems + 1] = {
+              text = tostring(paletteWin.title or "Palette"),
+              callback = function()
+                PaletteLinkController.linkLayerToPalette(contentWin, layerIndex, paletteWin)
+              end,
+            }
+          end
         end
         if #childItems == 0 then
           childItems[1] = {
-            text = "No ROM palettes available",
+            text = sketchDest and "No sketch palettes available" or "No ROM palettes available",
             callback = function() end,
           }
         end

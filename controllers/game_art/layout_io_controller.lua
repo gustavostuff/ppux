@@ -566,6 +566,16 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
         end
         entry.nametableBytes = nt
       end
+      if type(w.nametableAttrBytes) == "table" and #w.nametableAttrBytes > 0 then
+        local attrs = {}
+        for i = 1, math.min(64, #w.nametableAttrBytes) do
+          attrs[i] = math.floor(tonumber(w.nametableAttrBytes[i]) or 0) % 256
+        end
+        while #attrs < 64 do
+          attrs[#attrs + 1] = 0
+        end
+        entry.nametableAttrBytes = attrs
+      end
       entry.tolerance = math.floor(tonumber(w.tolerance) or 0)
       entry.reflectPatternTable = (w.reflectPatternTable == true)
       if type(w.linkedPatternTableWindowId) == "string" and w.linkedPatternTableWindowId ~= "" then
@@ -609,6 +619,7 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
       entry.paletteName = w.paletteName
       entry.activePalette = false
       entry.compactView = (w.compactView == true)
+      entry.paletteRole = (w.paletteRole == "sketch") and "sketch" or "rom"
 
       if w.paletteData then
         entry.paletteData = {

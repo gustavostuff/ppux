@@ -115,6 +115,34 @@ function PixelCanvas:draw(x, y, scale)
   love.graphics.draw(self.image, math.floor(x or 0), math.floor(y or 0), 0, scale or 1, scale or 1)
 end
 
+--- Draw a single tile-sized region (pixel coords) with the current shader/color.
+--- Reuses one Quad on the canvas to avoid per-tile allocations.
+function PixelCanvas:drawRegion(destX, destY, srcX, srcY, srcW, srcH, scale)
+  self:ensureImage()
+  if self._imageDirty then
+    self:refreshImage()
+  end
+  scale = scale or 1
+  srcX = math.floor(tonumber(srcX) or 0)
+  srcY = math.floor(tonumber(srcY) or 0)
+  srcW = math.floor(tonumber(srcW) or 8)
+  srcH = math.floor(tonumber(srcH) or 8)
+  if not self._drawQuad then
+    self._drawQuad = love.graphics.newQuad(srcX, srcY, srcW, srcH, self.width, self.height)
+  else
+    self._drawQuad:setViewport(srcX, srcY, srcW, srcH, self.width, self.height)
+  end
+  love.graphics.draw(
+    self.image,
+    self._drawQuad,
+    math.floor(destX or 0),
+    math.floor(destY or 0),
+    0,
+    scale,
+    scale
+  )
+end
+
 function PixelCanvas:extractTilePixels(tileX, tileY, tileH)
   local out = {}
   tileX = math.floor(tonumber(tileX) or 0)

@@ -188,6 +188,9 @@ end
 local function isTileMultiSelectWindow(env, win, layerIdx)
   local ctx = env.ctx
   if ctxMode(ctx) ~= "tile" then return false end
+  if WindowCaps.isSketchReflectNametable(win) then
+    return true
+  end
   if not (WindowCaps.isStaticOrAnimationArt(win) or WindowCaps.isChrLike(win) or WindowCaps.isPpuFrame(win)) then return false end
   local layer = win.layers and win.layers[layerIdx]
   return layer and layer.kind == "tile"

@@ -169,6 +169,14 @@ local function applyPaletteLinkEvent(event, direction)
     if layer then
       local state = (direction == "undo") and act.beforePaletteData or act.afterPaletteData
       layer.paletteData = deepCopy(state)
+      local attrsState = (direction == "undo") and act.beforeNametableAttrBytes or act.afterNametableAttrBytes
+      if type(attrsState) == "table" and win then
+        local attrs = {}
+        for i = 1, #attrsState do
+          attrs[i] = attrsState[i]
+        end
+        win.nametableAttrBytes = attrs
+      end
       if layer.kind == "sprite" then
         local editState = app and app.appEditState
         if SpriteController and SpriteController.hydrateSpriteLayer then
@@ -1239,6 +1247,24 @@ M.COMMANDS = {
   sketch_canvas_generate = {
     describe = describeStatic("Sketch generate"),
     apply = applySketchCanvasGenerateEvent,
+  },
+  sketch_nametable_attrs = {
+    describe = describeStatic("Sketch tile palette"),
+    apply = function(event, direction)
+      if not (event and event.win) then
+        return false
+      end
+      local state = (direction == "undo") and event.beforeNametableAttrBytes or event.afterNametableAttrBytes
+      if type(state) ~= "table" then
+        return false
+      end
+      local attrs = {}
+      for i = 1, #state do
+        attrs[i] = state[i]
+      end
+      event.win.nametableAttrBytes = attrs
+      return true
+    end,
   },
   window_create = { describe = describeStatic("New window"), apply = applyWindowCreateEvent },
   ppu_frame_range = { describe = describeStatic("PPU pattern table"), apply = applyPpuFrameRangeEvent },

@@ -25,15 +25,23 @@ describe("app_top_toolbar_controller.lua", function()
     local newButton = app._appTopQuickButtons.newWindow
     local openButton = app._appTopQuickButtons.open
     local saveButton = app._appTopQuickButtons.save
+    local galleryButton = app._appTopQuickButtons.galleryRom
     expect(openButton).toBeTruthy()
     expect(newButton).toBeTruthy()
+    expect(saveButton).toBeTruthy()
     expect(app._appTopQuickButtons.crtLens).toBe(nil)
-    -- No ROM: Open + relocation calc are laid out in the strip (breakpoint calc toolbar entry is off).
-    expect(openButton.x).toBe(0)
-    expect(saveButton.x).toBe(0)
     expect(app._appTopQuickButtons.nametableBreakpointCalc).toBe(nil)
+
+    -- Full strip is visible without a ROM; project-only actions are disabled.
+    expect(newButton.x).toBe(0)
+    expect(openButton.x > newButton.x).toBe(true)
+    expect(saveButton.x > openButton.x).toBe(true)
+    expect(newButton.enabled).toBe(true)
+    expect(openButton.enabled ~= false).toBe(true)
+    expect(saveButton.enabled).toBe(false)
+    expect(galleryButton.enabled).toBe(true)
     expect(app._appTopQuickButtons.relocationPointerCalc).toBeTruthy()
-    expect(app._appTopQuickButtons.relocationPointerCalc.x > openButton.x).toBe(true)
+    expect(app._appTopQuickButtons.relocationPointerCalc.x > galleryButton.x).toBe(true)
 
     local clickX = openButton.x + math.floor(openButton.w * 0.5)
     local clickY = openButton.y + math.floor(openButton.h * 0.5)

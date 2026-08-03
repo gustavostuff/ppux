@@ -43,6 +43,7 @@ do
     images.icons = images.icons or {}
     images.icons.chrome = images.icons.chrome or {}
     images.icons.actions = images.icons.actions or {}
+    images.windows_icons = images.windows_icons or {}
     if not images.icons.chrome.icon_circle then
       images.icons.chrome.icon_circle = {
         getWidth = function() return 15 end,
@@ -72,6 +73,9 @@ do
       if not images.icons.chrome[name] then
         images.icons.chrome[name] = stubIcon
       end
+    end
+    if not images.windows_icons.icon_nes_rom then
+      images.windows_icons.icon_nes_rom = stubIcon
     end
   end
 end
@@ -255,6 +259,7 @@ loadTestFile("tests/unit/sketch_canvas_tolerance_chr_lock.test")
 loadTestFile("tests/unit/sketch_canvas_reflect_view.test")
 loadTestFile("tests/unit/sketch_canvas_pt_chr_pixel_copy.test")
 loadTestFile("tests/unit/sketch_canvas_export_controller.test")
+loadTestFile("tests/unit/sketch_canvas_palette_link.test")
 loadTestFile("tests/unit/palette_activation_controller.test")
 loadTestFile("tests/unit/palette_window.test")
 loadTestFile("tests/unit/rom_palette_window.test")

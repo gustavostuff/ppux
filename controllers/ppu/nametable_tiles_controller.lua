@@ -1272,6 +1272,13 @@ function M.setPaletteNumberForTile(win, layer, col, row, paletteNum)
   if WindowCaps.isPpuFrame(win) and win.nametableAttrBytes then
     return M._setPaletteNumberForPPUFrame(win, layer, col, row, paletteNum, cols, rows)
   end
+
+  -- Sketch Reflect: same NES attribute byte rules on nametableAttrBytes.
+  if WindowCaps.isSketchReflectNametable(win) then
+    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+    SketchPalette.ensureAttrBytes(win)
+    return M._setPaletteNumberForPPUFrame(win, layer, col, row, paletteNum, cols, rows)
+  end
   
   -- For regular tile layers, just update paletteNumbers array
   layer.paletteNumbers = layer.paletteNumbers or {}

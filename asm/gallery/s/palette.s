@@ -1,40 +1,28 @@
-; Per-slide palette sets (32 bytes each). Hardcoded v1 — all slides identical.
-; BG0-3: 07 17 27 36 × 4
-; SPR0-3: 07 0F 0F 0F × 4
-; Sprite color-0 slots ($3F10/$14/$18/$1C) mirror BG color 0 ($3F00/…);
-; writing $0F there after BG would stomp the backdrop to black.
+; Per-slide palette sets (32 bytes each) via .incbin from data/pal/slideNN/main.pal.
+; Folder layout reserves room for future fade_in.pal / fade_out.pal.
+; Sprite color-0 slots ($3F10/$14/$18/$1C) mirror BG color 0 ($3F00);
+; exporters copy BG0 into those slots so a full 32-byte upload keeps the backdrop.
 .export palette_ptrs
 .export copy_palette_32
 .importzp slide_index, ptr_lo, ptr_hi
 
 .segment "RODATA"
-.macro gallery_pal
-  .byte $07,$17,$27,$36
-  .byte $07,$17,$27,$36
-  .byte $07,$17,$27,$36
-  .byte $07,$17,$27,$36
-  .byte $07,$0F,$0F,$0F
-  .byte $07,$0F,$0F,$0F
-  .byte $07,$0F,$0F,$0F
-  .byte $07,$0F,$0F,$0F
-.endmacro
-
-palette_slide00: gallery_pal
-palette_slide01: gallery_pal
-palette_slide02: gallery_pal
-palette_slide03: gallery_pal
-palette_slide04: gallery_pal
-palette_slide05: gallery_pal
-palette_slide06: gallery_pal
-palette_slide07: gallery_pal
-palette_slide08: gallery_pal
-palette_slide09: gallery_pal
-palette_slide10: gallery_pal
-palette_slide11: gallery_pal
-palette_slide12: gallery_pal
-palette_slide13: gallery_pal
-palette_slide14: gallery_pal
-palette_slide15: gallery_pal
+palette_slide00: .incbin "../data/pal/slide00/main.pal"
+palette_slide01: .incbin "../data/pal/slide01/main.pal"
+palette_slide02: .incbin "../data/pal/slide02/main.pal"
+palette_slide03: .incbin "../data/pal/slide03/main.pal"
+palette_slide04: .incbin "../data/pal/slide04/main.pal"
+palette_slide05: .incbin "../data/pal/slide05/main.pal"
+palette_slide06: .incbin "../data/pal/slide06/main.pal"
+palette_slide07: .incbin "../data/pal/slide07/main.pal"
+palette_slide08: .incbin "../data/pal/slide08/main.pal"
+palette_slide09: .incbin "../data/pal/slide09/main.pal"
+palette_slide10: .incbin "../data/pal/slide10/main.pal"
+palette_slide11: .incbin "../data/pal/slide11/main.pal"
+palette_slide12: .incbin "../data/pal/slide12/main.pal"
+palette_slide13: .incbin "../data/pal/slide13/main.pal"
+palette_slide14: .incbin "../data/pal/slide14/main.pal"
+palette_slide15: .incbin "../data/pal/slide15/main.pal"
 
 palette_ptrs:
   .addr palette_slide00, palette_slide01, palette_slide02, palette_slide03

@@ -149,6 +149,17 @@ describe("sketch_canvas_export_controller.lua - scaffold", function()
     expect(withAttrs:sub(1, 960)).toBe(tilesOnly)
     expect(withAttrs:sub(961)).toBe(string.rep("\0", 64))
 
+    -- Real attrs: set quadrant palette 2 (UI key 3 → index 2) at tile 0,0
+    win.reflectPatternTable = true
+    local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
+    local layer = win.layers[1]
+    expect(NametableTilesController.setPaletteNumberForTile(win, layer, 0, 0, 3)).toBe(true)
+    local withRealAttrs = SketchCanvasExportController.encodeNametableFromSketch(win, {
+      includeAttributes = true,
+    })
+    expect(#withRealAttrs).toBe(1024)
+    expect(string.byte(withRealAttrs, 961)).toBe(0x02)
+
     local path = os.tmpname() .. ".nam"
     local okWrite = SketchCanvasExportController.exportNametableToFile({}, win, path, {
       includeAttributes = true,
@@ -158,7 +169,31 @@ describe("sketch_canvas_export_controller.lua - scaffold", function()
     local written = fh:read("*a")
     fh:close()
     os.remove(path)
-    expect(written).toBe(withAttrs)
+    expect(written).toBe(withRealAttrs)
+  end)
+
+  it("encodes a 32-byte palette blob (fallback and linked sketch palette)", function()
+    local fallback = SketchCanvasExportController.encodePaletteFromSketch(nil)
+    expect(#fallback).toBe(32)
+    expect(string.byte(fallback, 1)).toBe(0x07)
+    expect(string.byte(fallback, 2)).toBe(0x17)
+    expect(string.byte(fallback, 17)).toBe(0x07)
+    expect(string.byte(fallback, 18)).toBe(0x0F)
+
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow({ title = "PalSketch" })
+    local pal = wm:createRomPaletteWindow({ title = "Sketch palette", paletteRole = "sketch" })
+    pal.codes2D[0][0] = "0A"
+    local PaletteLinkController = require("controllers.palette.palette_link_controller")
+    expect(PaletteLinkController.linkLayerToPalette(sketch, 1, pal)).toBe(true)
+    local blob = SketchCanvasExportController.encodePaletteFromSketch(sketch, wm)
+    expect(#blob).toBe(32)
+    expect(string.byte(blob, 1)).toBe(0x0A)
+    -- $3F10 mirrors $3F00: sprite color 0 must match BG0
+    expect(string.byte(blob, 17)).toBe(0x0A)
+    expect(string.byte(blob, 18)).toBe(0x0F)
+    expect(#(sketch.nametableAttrBytes or {})).toBe(64)
+    expect(sketch.nametableAttrBytes[1]).toBe(0)
   end)
 end)
 
@@ -211,6 +246,11 @@ describe("sketch_canvas_gallery_rom_controller.lua", function()
     local namData = namFh:read("*a")
     namFh:close()
     expect(#namData).toBe(1024)
+
+    local palFh = assert(io.open(asmDir .. "/data/pal/slide00/main.pal", "rb"))
+    local palData = palFh:read("*a")
+    palFh:close()
+    expect(#palData).toBe(32)
 
     local okMeta = SketchCanvasGalleryRomController.writeSlideMeta(metaPath, 1)
     expect(okMeta).toBe(true)

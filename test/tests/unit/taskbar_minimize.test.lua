@@ -462,6 +462,7 @@ describe("taskbar.lua - minimized windows strip", function()
     local panel = mainMenuPanel(taskbar)
     expect(panel).toBeTruthy()
     expect(panelMenuTexts(panel)).toEqual({
+      "Windows >",
       "Quit",
       "Settings",
     })

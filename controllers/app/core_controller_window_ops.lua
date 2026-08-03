@@ -93,12 +93,15 @@ local function getNewWindowOptionIcon(iconKey)
   return icon
 end
 
-function AppCoreController:_buildNewWindowOptions()
-  return {
+function AppCoreController:_buildNewWindowOptions(opts)
+  opts = opts or {}
+  local noRomOnly = opts.noRomOnly == true
+  local all = {
     {
       text = "Static Art window (tiles)",
       icon = getNewWindowOptionIcon("static_tile"),
       buttonText = "Static Tiles window",
+      requiresRom = true,
       callback = function(cols, rows, _, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createTileWindow({
@@ -115,6 +118,7 @@ function AppCoreController:_buildNewWindowOptions()
       icon = getNewWindowOptionIcon("static_sprite"),
       buttonText = "Static Sprites window",
       requiresSpriteMode = true,
+      requiresRom = true,
       callback = function(cols, rows, spriteMode, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createSpriteWindow({
@@ -131,6 +135,7 @@ function AppCoreController:_buildNewWindowOptions()
       text = "Animation window  (tiles)",
       icon = getNewWindowOptionIcon("animated_tile"),
       buttonText = "Animation Tiles window",
+      requiresRom = true,
       callback = function(cols, rows, _, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createTileWindow({
@@ -148,6 +153,7 @@ function AppCoreController:_buildNewWindowOptions()
       icon = getNewWindowOptionIcon("animated_sprite"),
       buttonText = "Animation Sprites window",
       requiresSpriteMode = true,
+      requiresRom = true,
       callback = function(cols, rows, spriteMode, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createSpriteWindow({
@@ -166,6 +172,7 @@ function AppCoreController:_buildNewWindowOptions()
       icon = getNewWindowOptionIcon("palette"),
       buttonText = "Palette window",
       skipSettingsModal = true,
+      requiresRom = true,
       callback = function(_, _, _, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createPaletteWindow({
@@ -179,12 +186,31 @@ function AppCoreController:_buildNewWindowOptions()
       icon = getNewWindowOptionIcon("rom_palette"),
       buttonText = "ROM Palette window",
       skipSettingsModal = true,
+      -- Available without ROM (sketch-mode palette); role modal chooses ROM vs sketch.
+      requiresRom = false,
       callback = function(_, _, _, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
-        local win = self.wm:createRomPaletteWindow({
-          title = windowTitle or "ROM Palette",
-        })
-        Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
+        local hasRom = self:hasLoadedROM()
+        if not hasRom then
+          local win = self.wm:createRomPaletteWindow({
+            title = windowTitle or "Sketch palette",
+            paletteRole = "sketch",
+          })
+          Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
+          return
+        end
+        if self.showRomPaletteRoleModal then
+          self:showRomPaletteRoleModal({
+            windowTitle = windowTitle,
+            prevFocusedWin = prevFocusedWin,
+            allowRomRole = true,
+          })
+        else
+          local win = self.wm:createRomPaletteWindow({
+            title = windowTitle or "ROM Palette",
+          })
+          Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
+        end
       end
     },
     {
@@ -192,6 +218,7 @@ function AppCoreController:_buildNewWindowOptions()
       icon = getNewWindowOptionIcon("ppu_frame"),
       buttonText = "PPU Frame window",
       skipSettingsModal = true,
+      requiresRom = true,
       callback = function(_, _, _, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local currentBank = self.appEditState and self.appEditState.currentBank or 1
@@ -210,6 +237,7 @@ function AppCoreController:_buildNewWindowOptions()
       icon = getNewWindowOptionIcon("oam_animated"),
       buttonText = "OAM animation",
       requiresSpriteMode = true,
+      requiresRom = true,
       callback = function(cols, rows, spriteMode, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createSpriteWindow({
@@ -230,6 +258,7 @@ function AppCoreController:_buildNewWindowOptions()
       buttonText = "Sketch canvas",
       skipSettingsModal = true,
       suggestedWindowName = "Sketch canvas",
+      requiresRom = false,
       callback = function(_, _, _, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createSketchCanvasWindow({
@@ -247,6 +276,7 @@ function AppCoreController:_buildNewWindowOptions()
       fixedRows = 16,
       fixedSpriteMode = "8x8",
       suggestedWindowName = "Pattern table",
+      requiresRom = false,
       callback = function(cols, rows, _, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
         local win = self.wm:createPatternTableWindow({
@@ -258,17 +288,30 @@ function AppCoreController:_buildNewWindowOptions()
       end
     },
   }
+
+  if not noRomOnly then
+    return all
+  end
+
+  local filtered = {}
+  for _, option in ipairs(all) do
+    if option.requiresRom ~= true then
+      filtered[#filtered + 1] = option
+    end
+  end
+  return filtered
 end
 
 function AppCoreController:showNewWindowModal()
-  if not self:hasLoadedROM() then
+  local hasRom = self:hasLoadedROM()
+  local options = self:_buildNewWindowOptions({ noRomOnly = not hasRom })
+  if #options < 1 then
     self:setStatus("Open a ROM before creating windows.")
     return false
   end
 
-  local options = self:_buildNewWindowOptions()
-  local configTitle = "Window Settings"
-  self.newWindowTypeModal:show("New Window", (function()
+  local configTitle = hasRom and "Window Settings" or "Window Settings (no ROM)"
+  self.newWindowTypeModal:show(hasRom and "New Window" or "New Window (no ROM)", (function()
     local mapped = {}
     for _, option in ipairs(options) do
       mapped[#mapped + 1] = {

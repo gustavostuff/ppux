@@ -91,6 +91,7 @@ M.APP_MODAL_KEYS_IN_ORDER = {
   "ppuFrameRangeModal",
   "ppuFramePatternRangeModal",
   "textFieldDemoModal",
+  "romPaletteRoleModal",
   "galleryRomResultModal",
   "galleryRomConfirmModal",
   "relocationPointerCalculatorModal",

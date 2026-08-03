@@ -61,6 +61,13 @@ function M.defaultExportDir(app)
       return dir
     end
   end
+  -- No ROM: prefer the user home directory so exports are easy to find.
+  if love and love.filesystem and type(love.filesystem.getUserDirectory) == "function" then
+    local home = love.filesystem.getUserDirectory()
+    if type(home) == "string" and home ~= "" then
+      return (home:gsub("[/\\]+$", ""))
+    end
+  end
   return "."
 end
 
@@ -162,8 +169,8 @@ function M.encodeChrBankFromSketch(win)
   return chr.bytesToString(out)
 end
 
---- Encode nametable indices (+ optional 64 attribute bytes of 0x00).
---  opts.includeAttributes: if true, append 64 zero bytes (1024 total for gallery).
+--- Encode nametable indices (+ optional 64 attribute bytes).
+--  opts.includeAttributes: if true, append 64 attr bytes (real attrs when present, else 0).
 function M.encodeNametableFromSketch(win, opts)
   local ok, err = requirePackedSketch(win)
   if not ok then
@@ -188,8 +195,14 @@ function M.encodeNametableFromSketch(win, opts)
   end
 
   if opts.includeAttributes then
-    for _ = 1, M.NAMETABLE_ATTRS do
-      out[#out + 1] = 0
+    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+    local attrs = win.nametableAttrBytes
+    if type(attrs) ~= "table" or #attrs < M.NAMETABLE_ATTRS then
+      SketchPalette.ensureAttrBytes(win)
+      attrs = win.nametableAttrBytes
+    end
+    for i = 1, M.NAMETABLE_ATTRS do
+      out[#out + 1] = math.floor(tonumber(attrs[i]) or 0) % 256
     end
   end
 
@@ -198,6 +211,13 @@ function M.encodeNametableFromSketch(win, opts)
     return nil, string.format("internal nametable size %d, expected %d", #out, expected)
   end
   return chr.bytesToString(out)
+end
+
+--- Encode 32-byte NES palette from linked sketch-mode palette (or hardcoded fallback).
+function M.encodePaletteFromSketch(win, wm)
+  local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+  local pal = SketchPalette.getLinkedSketchPalette(win, wm)
+  return SketchPalette.encodePaletteBlob32String(pal)
 end
 
 function M.exportChrBankToFile(app, win, path)

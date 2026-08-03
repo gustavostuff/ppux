@@ -122,14 +122,9 @@ local function ensureQuickButtons(app)
       icon = images.icons.chrome.icon_new_window,
       tooltip = "New window",
       action = function()
-        if not app.hasLoadedROM or not app:hasLoadedROM() then
-          app:setStatus("Open a ROM before creating windows.")
-          if app.showToast then
-            app:showToast("warning", app.statusText or "Open a ROM first.")
-          end
-          return
+        if app.showNewWindowModal then
+          app:showNewWindowModal()
         end
-        app:showNewWindowModal()
       end,
       x = 0,
       y = 0,
@@ -397,22 +392,23 @@ local function hasOpenProject(app)
 end
 
 local function quickButtonOrder(app)
-  local order = { "open" }
-  if hasOpenProject(app) then
-    table.insert(order, 1, "newWindow")
-    order[#order + 1] = "save"
-    order[#order + 1] = "copy"
-    order[#order + 1] = "cut"
-    order[#order + 1] = "paste"
-    order[#order + 1] = "zoomOut"
-    order[#order + 1] = "zoomIn"
-    order[#order + 1] = "mirrorXPreview"
-    order[#order + 1] = "alwaysOnTop"
-    order[#order + 1] = "addGridColumn"
-    order[#order + 1] = "addGridRow"
-    order[#order + 1] = "cloneWindow"
-    order[#order + 1] = "referenceBackground"
-  end
+  -- Always show the full strip; ROM-gated actions are disabled when no project is open.
+  local order = {
+    "newWindow",
+    "open",
+    "save",
+    "copy",
+    "cut",
+    "paste",
+    "zoomOut",
+    "zoomIn",
+    "mirrorXPreview",
+    "alwaysOnTop",
+    "addGridColumn",
+    "addGridRow",
+    "cloneWindow",
+    "referenceBackground",
+  }
   if SHOW_CRT_LENS_TOOLBAR_BUTTON then
     order[#order + 1] = "crtLens"
   end
@@ -421,7 +417,6 @@ local function quickButtonOrder(app)
   end
   -- Gallery ROM immediately before Relocation pointer calculator.
   order[#order + 1] = "galleryRom"
-  -- Always last among always-on tools (with or without a loaded ROM).
   order[#order + 1] = "relocationPointerCalc"
   return order
 end
@@ -644,10 +639,50 @@ function M.syncLayout(app)
   updateZoomButtonStates(app)
   updateGridResizeButtons(app)
   updateReferenceBackgroundButton(app)
-  do
-    local galleryBtn = app._appTopQuickButtons and app._appTopQuickButtons.galleryRom
-    if galleryBtn then
-      galleryBtn.enabled = hasOpenProject(app)
+
+  -- Without a loaded ROM: keep the full strip visible, but disable project-only actions.
+  -- New Window + Gallery ROM stay available for sketch/pattern-table export workflows.
+  local galleryBtn = app._appTopQuickButtons and app._appTopQuickButtons.galleryRom
+  local newWinBtn = app._appTopQuickButtons and app._appTopQuickButtons.newWindow
+  if newWinBtn then
+    newWinBtn.enabled = true
+    newWinBtn.tooltip = hasOpenProject(app)
+      and "New window"
+      or "New window (Sketch canvas / Pattern table without a ROM)"
+  end
+  if galleryBtn then
+    galleryBtn.enabled = true
+  end
+  if not hasOpenProject(app) then
+    local romOnlyKeys = {
+      "save",
+      "copy",
+      "cut",
+      "paste",
+      "zoomOut",
+      "zoomIn",
+      "mirrorXPreview",
+      "alwaysOnTop",
+      "addGridColumn",
+      "addGridRow",
+      "cloneWindow",
+      "referenceBackground",
+    }
+    for _, key in ipairs(romOnlyKeys) do
+      local b = app._appTopQuickButtons[key]
+      if b then
+        b.enabled = false
+      end
+    end
+  else
+    -- Buttons without a dedicated updater must be re-enabled after a no-ROM session.
+    local saveBtn = app._appTopQuickButtons.save
+    if saveBtn then
+      saveBtn.enabled = true
+    end
+    local cloneBtn = app._appTopQuickButtons.cloneWindow
+    if cloneBtn then
+      cloneBtn.enabled = true
     end
   end
 

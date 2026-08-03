@@ -442,7 +442,7 @@ end
 function M.isTileCellSelected(win, layerIdx, col, row)
   if not (win and layerIdx and col and row) then return false end
   local layer = win.layers and win.layers[layerIdx]
-  if not (layer and layer.kind == "tile") then return false end
+  if not WindowCaps.isNametableTileEditableLayer(win, layer) then return false end
   local cols = win.cols or 0
   if cols <= 0 then return false end
   local idx = (row * cols + col) + 1
@@ -526,7 +526,7 @@ end
 function M.toggleTileCellToSelection(win, layerIdx, col, row, includeCurrentSingle)
   if not (win and layerIdx and col and row) then return false end
   local layer = win.layers and win.layers[layerIdx]
-  if not (layer and layer.kind == "tile") then return false end
+  if not WindowCaps.isNametableTileEditableLayer(win, layer) then return false end
 
   if M.isTileCellSelected(win, layerIdx, col, row) then
     if removeTileCellFromSelection(win, layerIdx, col, row) then
@@ -544,7 +544,7 @@ end
 function M.addTileCellToSelection(win, layerIdx, col, row, includeCurrentSingle)
   if not (win and layerIdx and col and row) then return false end
   local layer = win.layers and win.layers[layerIdx]
-  if not (layer and layer.kind == "tile") then return false end
+  if not WindowCaps.isNametableTileEditableLayer(win, layer) then return false end
 
   local cols = win.cols or 0
   local rows = win.rows or 0
@@ -588,7 +588,7 @@ end
 function M.getSelectedTileCells(win, layerIdx, fallbackCol, fallbackRow)
   if not (win and layerIdx) then return {} end
   local layer = win.layers and win.layers[layerIdx]
-  if not (layer and layer.kind == "tile") then return {} end
+  if not WindowCaps.isNametableTileEditableLayer(win, layer) then return {} end
 
   local cols = win.cols or 0
   local cells = {}
@@ -677,7 +677,7 @@ end
 function M.deleteTileSelection(win, layerIdx, fallbackCol, fallbackRow, app, undoRedo)
   if not (win and layerIdx) then return nil end
   local layer = win.layers and win.layers[layerIdx]
-  if not (layer and layer.kind == "tile") then return nil end
+  if not WindowCaps.isNametableTileEditableLayer(win, layer) then return nil end
 
   if WindowCaps.isPatternTable(win) then
     return nil
@@ -686,7 +686,7 @@ function M.deleteTileSelection(win, layerIdx, fallbackCol, fallbackRow, app, und
   local cells = M.getSelectedTileCells(win, layerIdx, fallbackCol, fallbackRow)
   if #cells == 0 then return nil end
 
-  if WindowCaps.isPpuFrame(win) then
+  if WindowCaps.isPpuFrame(win) or WindowCaps.isSketchReflectNametable(win) then
     local clearByte = 0x00
     local actions = {}
 
@@ -720,7 +720,9 @@ function M.deleteTileSelection(win, layerIdx, fallbackCol, fallbackRow, app, und
       win:beginNametableRomBatch()
     end
     for _, act in ipairs(actions) do
-      win:setNametableByteAt(act.col, act.row, clearByte, tilesPool, layerIdx)
+      if win.setNametableByteAt then
+        win:setNametableByteAt(act.col, act.row, clearByte, tilesPool, layerIdx)
+      end
     end
     if type(win.endNametableRomBatch) == "function" then
       win:endNametableRomBatch()
@@ -1197,7 +1199,7 @@ end
 
 local function applyTileMarqueeSelection(win, layerIdx, startCol, startRow, endCol, endRow)
   local layer = win and win.layers and win.layers[layerIdx]
-  if not (layer and layer.kind == "tile") then return false end
+  if not WindowCaps.isNametableTileEditableLayer(win, layer) then return false end
 
   local minCol = math.min(startCol, endCol)
   local maxCol = math.max(startCol, endCol)

@@ -1,20 +1,17 @@
--- gallery_rom_result_modal.lua
--- Success / failure result after gallery ROM generation.
--- Long paths use utils.text_utils.drawScrollingText (same marquee as open-file path).
+-- rom_palette_role_modal.lua
+-- After creating a ROM Palette window: choose ROM-backed vs sketch free colors.
 
 local Button = require("user_interface.button")
 local Panel = require("user_interface.panel")
 local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
-local Text = require("utils.text_utils")
-local colors = require("app_colors")
 
 local Dialog = {}
 Dialog.__index = Dialog
 
 local function rebuildPanel(self)
-  local hasDetail = type(self.detail) == "string" and self.detail ~= ""
-  local rows = hasDetail and 3 or 2
-
+  local rows = 5 -- intro + 2 option blocks (label+button each condensed) + cancel
+  -- Layout: intro, rom btn, rom hint, sketch btn, sketch hint, cancel
+  rows = 6
   self.panel = Panel.new({
     cols = 1,
     rows = rows,
@@ -35,33 +32,41 @@ local function rebuildPanel(self)
 
   self.panel:setCell(1, 1, {
     kind = "label",
-    text = self.message,
+    text = self.introText,
     colspan = 1,
   })
-
-  local buttonRow = 2
-  if hasDetail then
-    self.panel:setCell(1, 2, {
-      component = self.detailLabelComponent,
-    })
-    buttonRow = 3
-  end
-
-  self.panel:setCell(1, buttonRow, {
-    component = self.okButton,
+  self.panel:setCell(1, 2, {
+    component = self.romButton,
+  })
+  self.panel:setCell(1, 3, {
+    kind = "label",
+    text = self.romHint,
+    colspan = 1,
+  })
+  self.panel:setCell(1, 4, {
+    component = self.sketchButton,
+  })
+  self.panel:setCell(1, 5, {
+    kind = "label",
+    text = self.sketchHint,
+    colspan = 1,
+  })
+  self.panel:setCell(1, 6, {
+    component = self.cancelButton,
   })
 end
 
 function Dialog.new()
   local self = setmetatable({
     visible = false,
-    title = "Gallery ROM",
-    message = "",
-    detail = nil,
+    title = "ROM Palette type",
+    introText = "How will this palette be used?",
+    romHint = "Cells map to ROM addresses; link to PPU / OAM / static art.",
+    sketchHint = "Free 4x4 colors for Sketch canvas art and gallery ROM export.",
     padding = nil,
     rowGap = nil,
     buttonGap = nil,
-    buttonW = 56,
+    buttonW = 200,
     buttonH = ModalPanelUtils.MODAL_BUTTON_H,
     cellW = nil,
     cellH = nil,
@@ -69,42 +74,39 @@ function Dialog.new()
     cellPaddingX = nil,
     cellPaddingY = nil,
     pressedButton = nil,
-    onClose = nil,
+    onChoose = nil,
+    onCancel = nil,
+    allowRomRole = true,
     panel = nil,
   }, Dialog)
 
-  self.okButton = Button.new({
-    text = "OK",
+  self.romButton = Button.new({
+    text = "Existing ROM graphics",
     w = self.buttonW,
     h = self.buttonH,
     transparent = true,
     action = function()
-      self:_close()
+      self:_choose("rom")
     end,
   })
-
-  self.detailLabelComponent = {
-    draw = function(component)
-      local detail = self.detail
-      if type(detail) ~= "string" or detail == "" then
-        return
-      end
-      local font = love.graphics.getFont()
-      local fh = font and font:getHeight() or 0
-      local padX = math.floor(component.h / 2)
-      local textY = component.y + math.floor((component.h - fh) / 2)
-      local chromeWhite = self.panel and self.panel._modalChromeOverBlue == true
-      local c = chromeWhite and colors:chromeTextIconsColorNonFocused() or (colors.textPrimary or colors.white)
-      love.graphics.setColor(c[1], c[2], c[3], c[4] or 1)
-      Text.drawScrollingText(
-        detail,
-        math.floor(component.x + padX),
-        math.floor(textY),
-        math.max(0, component.w - padX * 2),
-        { key = self }
-      )
+  self.sketchButton = Button.new({
+    text = "Sketch canvas",
+    w = self.buttonW,
+    h = self.buttonH,
+    transparent = true,
+    action = function()
+      self:_choose("sketch")
     end,
-  }
+  })
+  self.cancelButton = Button.new({
+    text = "Cancel",
+    w = 72,
+    h = self.buttonH,
+    transparent = true,
+    action = function()
+      self:_cancel()
+    end,
+  })
 
   ModalPanelUtils.applyPanelDefaults(self)
   if (self.cellW or 0) < 320 then
@@ -119,47 +121,30 @@ function Dialog:isVisible()
   return self.visible
 end
 
---- opts.ok, opts.message, opts.detail (optional long path), opts.title, opts.onClose
+--- opts.allowRomRole (default true), opts.onChoose(role), opts.onCancel()
 function Dialog:show(opts)
   opts = opts or {}
-  local ok = opts.ok == true
-  self.title = opts.title or (ok and "Gallery ROM built" or "Gallery ROM failed")
-
-  local message = opts.message
-  local detail = opts.detail
-  -- Allow legacy "summary\\npath" messages.
-  if detail == nil and type(message) == "string" then
-    local summary, rest = message:match("^([^\n]*)\n(.*)$")
-    if summary then
-      message = summary
-      detail = rest
-    end
-  end
-
-  self.message = tostring(message or (ok and "Done." or "Failed."))
-  if type(detail) == "string" and detail ~= "" then
-    self.detail = detail
-  else
-    self.detail = nil
-  end
-
-  self.onClose = opts.onClose
+  self.allowRomRole = opts.allowRomRole ~= false
+  self.onChoose = opts.onChoose
+  self.onCancel = opts.onCancel
+  self.title = opts.title or "ROM Palette type"
   self.visible = true
   self.pressedButton = nil
-  self.okButton.pressed = false
-  self.okButton.hovered = false
-  self.okButton.focused = true
+  self.romButton.enabled = self.allowRomRole
+  self.romButton.pressed = false
+  self.sketchButton.pressed = false
+  self.cancelButton.pressed = false
+  self.romButton.hovered = false
+  self.sketchButton.hovered = false
+  self.cancelButton.hovered = false
   rebuildPanel(self)
 end
 
 function Dialog:hide()
   self.visible = false
   self.pressedButton = nil
-  self.okButton.pressed = false
-  self.okButton.hovered = false
-  self.okButton.focused = false
-  self.onClose = nil
-  self.detail = nil
+  self.onChoose = nil
+  self.onCancel = nil
   if self.panel then
     self.panel:setVisible(false)
   end
@@ -180,8 +165,16 @@ function Dialog:getTooltipAt(x, y)
   return self.panel:getTooltipAt(x, y)
 end
 
-function Dialog:_close()
-  local callback = self.onClose
+function Dialog:_choose(role)
+  local callback = self.onChoose
+  self:hide()
+  if callback then
+    callback(role)
+  end
+end
+
+function Dialog:_cancel()
+  local callback = self.onCancel
   self:hide()
   if callback then
     callback()
@@ -192,8 +185,16 @@ function Dialog:handleKey(key)
   if not self.visible then
     return false
   end
-  if key == "escape" or key == "return" or key == "kpenter" or key == "space" then
-    self:_close()
+  if key == "escape" then
+    self:_cancel()
+    return true
+  end
+  if key == "1" and self.allowRomRole then
+    self:_choose("rom")
+    return true
+  end
+  if key == "2" or (key == "1" and not self.allowRomRole) then
+    self:_choose("sketch")
     return true
   end
   return false
@@ -207,13 +208,16 @@ function Dialog:mousepressed(x, y, button)
     return true
   end
   if not self:_containsBox(x, y) then
-    self:_close()
+    self:_cancel()
     return true
   end
   self.pressedButton = nil
-  if self.okButton:contains(x, y) then
-    self.okButton.pressed = true
-    self.pressedButton = self.okButton
+  for _, b in ipairs({ self.romButton, self.sketchButton, self.cancelButton }) do
+    if b.enabled ~= false and b:contains(x, y) then
+      b.pressed = true
+      self.pressedButton = b
+      break
+    end
   end
   return true
 end
@@ -227,7 +231,9 @@ function Dialog:mousereleased(x, y, button)
   end
   local pressedButton = self.pressedButton
   self.pressedButton = nil
-  self.okButton.pressed = false
+  self.romButton.pressed = false
+  self.sketchButton.pressed = false
+  self.cancelButton.pressed = false
   if pressedButton and pressedButton:contains(x, y) and pressedButton.action then
     pressedButton.action()
   end
@@ -238,7 +244,9 @@ function Dialog:mousemoved(x, y)
   if not self.visible then
     return false
   end
-  self.okButton.hovered = self.okButton:contains(x, y)
+  self.romButton.hovered = self.romButton:contains(x, y)
+  self.sketchButton.hovered = self.sketchButton:contains(x, y)
+  self.cancelButton.hovered = self.cancelButton:contains(x, y)
   return true
 end
 

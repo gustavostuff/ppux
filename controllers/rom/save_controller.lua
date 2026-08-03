@@ -73,7 +73,10 @@ local function applyPaletteEditsToROM(app, romAfterSpr)
   -- Apply palette edits from all ROM palette windows
   -- Write all current colors from codes2D (which reflects current state including modifications)
   for _, win in ipairs(romPaletteWindows) do
-    if win.paletteData and win.paletteData.romColors and win.codes2D then
+    -- Sketch-mode palettes are free colors with no ROM addresses.
+    if win.paletteRole ~= "sketch"
+      and win.paletteData and win.paletteData.romColors and win.codes2D
+    then
       local romColors = win.paletteData.romColors
       local codes2D = win.codes2D
       local editCount = 0
@@ -84,9 +87,9 @@ local function applyPaletteEditsToROM(app, romAfterSpr)
         if codes2D[row] and romColors[rowIndex] then
           for col = 0, 3 do  -- 0-indexed cols
             local colIndex = col + 1  -- 1-indexed for romColors
-            if codes2D[row][col] and romColors[rowIndex][colIndex] then
-              local hexCode = codes2D[row][col]
-              local romAddr = romColors[rowIndex][colIndex]
+            local romAddr = romColors[rowIndex][colIndex]
+            local hexCode = codes2D[row][col]
+            if type(romAddr) == "number" and type(hexCode) == "string" then
               local byteValue = tonumber(hexCode, 16) or 0
               
               local newRom, err = chr.writeByteToAddress(romWithPalettes, romAddr, byteValue)

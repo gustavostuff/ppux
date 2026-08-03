@@ -1977,11 +1977,16 @@ function WM:createRomPaletteWindow(opts)
   defaults.rows = 4
   defaults.zoom = opts.zoom or 1
 
+  local paletteRole = (opts.paletteRole == "sketch") and "sketch" or "rom"
+  if paletteRole == "sketch" and (not opts.title or opts.title == "ROM Palette") then
+    defaults.title = "Sketch palette"
+  end
+
   local romColors = {}
   for row = 1, defaults.rows do
     romColors[row] = {}
     for col = 1, defaults.cols do
-      romColors[row][col] = false
+      romColors[row][col] = (paletteRole == "sketch") and "sketch" or false
     end
   end
 
@@ -2008,8 +2013,13 @@ function WM:createRomPaletteWindow(opts)
       romRaw = romRaw,
       activePalette = false,
       compactView = (opts.compactView == true),
+      paletteRole = paletteRole,
     }
   )
+
+  if paletteRole == "sketch" then
+    win:applyPaletteRole("sketch")
+  end
 
   if app and app.appEditState then
     win._updateRomRawCallback = function(newRom)

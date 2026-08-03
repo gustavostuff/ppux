@@ -222,7 +222,7 @@ function M.install(Taskbar, Helpers)
         icon = self._menuIcons and self._menuIcons.newWindow or nil,
         text = "New Window",
         menuGroup = "tb_wm_new_window",
-        enabled = hasRom,
+        enabled = true,
         callback = self._menuActions and self._menuActions.newWindow or nil,
       },
       {
@@ -292,10 +292,10 @@ function M.install(Taskbar, Helpers)
         icon = self._menuIcons and self._menuIcons.windows or nil,
         text = "Windows",
         menuGroup = "tb_root_windows",
-        enabled = hasRom,
-        children = hasRom and function()
+        enabled = true,
+        children = function()
           return windowsItems
-        end or nil,
+        end,
       },
       {
         icon = self._menuIcons and self._menuIcons.quit or nil,

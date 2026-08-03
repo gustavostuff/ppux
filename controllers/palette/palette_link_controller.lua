@@ -1397,6 +1397,14 @@ function M.linkLayerToPalette(contentWin, layerIndex, paletteWin)
   if not (paletteWin and paletteWin._id and WindowCaps.isRomPaletteWindow(paletteWin)) then
     return false, "Target palette is invalid"
   end
+  -- Sketch destinations require sketch-mode palettes; ROM destinations prefer ROM-role.
+  if WindowCaps.isSketchCanvas(contentWin) then
+    if paletteWin.paletteRole ~= "sketch" then
+      return false, "Sketch canvases need a sketch-mode ROM palette"
+    end
+  elseif paletteWin.paletteRole == "sketch" then
+    return false, "Sketch-mode palettes link only to sketch canvases"
+  end
   local ok, result = M.canApplyToTarget(contentWin, paletteWin)
   if not ok then
     return false, result
@@ -1416,13 +1424,39 @@ function M.linkLayerToPalette(contentWin, layerIndex, paletteWin)
     return true
   end
 
+  local beforeAttrs = nil
+  if WindowCaps.isSketchCanvas(contentWin) then
+    beforeAttrs = {}
+    local existing = contentWin.nametableAttrBytes
+    if type(existing) == "table" then
+      for i = 1, #existing do
+        beforeAttrs[i] = existing[i]
+      end
+    end
+  end
+
   layer.paletteData = { winId = paletteWin._id }
+  if WindowCaps.isSketchCanvas(contentWin) then
+    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+    SketchPalette.onLinkedToPalette(contentWin, paletteWin)
+  end
   local actions = {
     {
       win = contentWin,
       layerIndex = layerIndex,
       beforePaletteData = beforePaletteData,
       afterPaletteData = clonePaletteData(layer.paletteData or nil),
+      beforeNametableAttrBytes = beforeAttrs,
+      afterNametableAttrBytes = WindowCaps.isSketchCanvas(contentWin)
+        and (function()
+          local a = {}
+          local attrs = contentWin.nametableAttrBytes or {}
+          for i = 1, #attrs do
+            a[i] = attrs[i]
+          end
+          return a
+        end)()
+        or nil,
     },
   }
   pushPaletteLinkUndo(actions)

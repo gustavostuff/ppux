@@ -497,8 +497,9 @@ function Dialog:_refreshFileButtons()
       else
         local ext = fileExt(entry.name)
         local types = images.icons.image_types
+        local windowIcons = images.windows_icons or images.animated_icons or {}
         if ext == "nes" then
-          button.icon = images.windows_icons.icon_nes_rom
+          button.icon = windowIcons.icon_nes_rom or (images.icons.actions and images.icons.actions.icon_project)
         elseif ext == "png" then
           button.icon = types and types.icon_png or nil
         elseif ext == "jpg" or ext == "jpeg" then
