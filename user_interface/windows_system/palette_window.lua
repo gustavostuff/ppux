@@ -280,9 +280,6 @@ function PaletteWindow:getSelectionStripShadowRectsCanvas(wm)
   if wm and wm.getFocus and wm:getFocus() ~= self then
     return nil
   end
-  if not self.activePalette then
-    return nil
-  end
   if self.compactView then
     return nil
   end
@@ -324,9 +321,6 @@ function PaletteWindow:drawSelectionStrips()
   local gctx = rawget(_G, "ctx")
   local wm = gctx and gctx.wm and gctx.wm() or nil
   if wm and wm.getFocus and wm:getFocus() ~= self then
-    return nil
-  end
-  if not self.activePalette then
     return nil
   end
 

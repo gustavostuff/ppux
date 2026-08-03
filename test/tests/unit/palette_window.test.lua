@@ -76,6 +76,30 @@ describe("palette_window.lua - compact mode", function()
     expect(win:getStripMetrics()).toBe(nil)
   end)
 
+  it("shows selection strips for focused palettes even when not shader-active", function()
+    local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 1, 4, {
+      title = "Inactive Global",
+      activePalette = false,
+      initCodes = { "0C", "14", "24", "34" },
+    })
+    win:setSelected(0, 0)
+
+    local wm = {
+      getFocus = function()
+        return win
+      end,
+    }
+    local rects = win:getSelectionStripShadowRectsCanvas(wm)
+    expect(rects).toBeTruthy()
+    expect(#rects).toBe(2)
+
+    win.activePalette = true
+    expect(win:getSelectionStripShadowRectsCanvas(wm)).toBeTruthy()
+
+    win:setCompactMode(true)
+    expect(win:getSelectionStripShadowRectsCanvas(wm)).toBe(nil)
+  end)
+
   it("bypasses the shared minimum window size constraint", function()
     local win = PaletteWindow.new(0, 0, 2, "smooth_fbx", 1, 4, {
       title = "Global Palette Small Compact",
