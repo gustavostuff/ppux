@@ -789,11 +789,6 @@ local function handlePaletteClick(env, button, x, y, win, wm)
 
   wm:setFocus(win)
 
-  if win.kind ~= "rom_palette" and not win.activePalette then
-    StatusHelpers.setStatus(ctx, "Activate palette before using it")
-    return true
-  end
-
   local ok, col, row = win:toGridCoords(x, y)
   if ok and col >= 0 and col < win.cols and row >= 0 and row < win.rows then
     if not WindowCaps.isRomPaletteWindow(win) then

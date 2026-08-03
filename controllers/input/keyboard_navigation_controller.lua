@@ -21,11 +21,6 @@ function M.handlePaletteKeys(ctx, utils, key, focus)
     return false
   end
 
-  if focus.kind ~= "rom_palette" and not focus.activePalette then
-    StatusHelpers.setStatus(ctx, "Activate palette before using it")
-    return true
-  end
-
   if utils.shiftDown() then
     if focus.adjustSelectedByArrows then
       focus:adjustSelectedByArrows(dx, dy)

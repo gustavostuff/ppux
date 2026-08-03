@@ -93,11 +93,37 @@ describe("palette_window.lua - compact mode", function()
     expect(rects).toBeTruthy()
     expect(#rects).toBe(2)
 
+    -- Hex labels and cell selection highlight are drawn for inactive globals too
+    -- (drawGrid no longer gates on activePalette). Selection and codes remain usable.
+    expect(win.selected).toBeTruthy()
+    expect(win.selected.col).toBe(0)
+    expect(win.codes2D[0][0]).toBe("0C")
+
     win.activePalette = true
     expect(win:getSelectionStripShadowRectsCanvas(wm)).toBeTruthy()
 
     win:setCompactMode(true)
     expect(win:getSelectionStripShadowRectsCanvas(wm)).toBe(nil)
+  end)
+
+  it("adjusts colors on inactive global palettes without syncing the shader", function()
+    local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
+    local before = { ShaderPaletteController.getCodes()[1], ShaderPaletteController.getCodes()[2], ShaderPaletteController.getCodes()[3], ShaderPaletteController.getCodes()[4] }
+
+    local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 1, 4, {
+      title = "Inactive Editable",
+      activePalette = false,
+      initCodes = { "0C", "14", "24", "34" },
+    })
+    win:setSelected(0, 0)
+    win:adjustSelectedByArrows(1, 0)
+
+    expect(win.codes2D[0][0]).toNotBe("0C")
+    local after = ShaderPaletteController.getCodes()
+    expect(after[1]).toBe(before[1])
+    expect(after[2]).toBe(before[2])
+    expect(after[3]).toBe(before[3])
+    expect(after[4]).toBe(before[4])
   end)
 
   it("bypasses the shared minimum window size constraint", function()

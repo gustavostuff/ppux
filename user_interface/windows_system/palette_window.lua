@@ -407,13 +407,11 @@ function PaletteWindow:drawGrid()
       love.graphics.setColor(rgb[1], rgb[2], rgb[3], 1)
       love.graphics.rectangle("fill", x, y, cw, ch)
 
-      if self.activePalette then
-        Text.print(code, x + 3, y, {
-          color = getLabelTextColor(rgb),
-          shadowColor = colors.transparent,
-          literalColor = true,
-        })
-      end
+      Text.print(code, x + 3, y, {
+        color = getLabelTextColor(rgb),
+        shadowColor = colors.transparent,
+        literalColor = true,
+      })
 
       love.graphics.setColor(colors.white)
     end
@@ -421,9 +419,7 @@ function PaletteWindow:drawGrid()
 
   love.graphics.setScissor()
   self:drawSelectionStrips()
-  if self.activePalette then
-    self:highlightSelected(cw, ch)
-  end
+  self:highlightSelected(cw, ch)
   love.graphics.pop()
   love.graphics.setColor(colors.white)
 end

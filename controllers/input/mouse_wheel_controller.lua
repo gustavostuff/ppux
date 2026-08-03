@@ -41,9 +41,7 @@ local function handleHorizontalScroll(env, win, dx, dy)
   if not (utils.shiftDown and utils.shiftDown()) then return false end
 
   if WindowCaps.isAnyPaletteWindow(win) then
-    if WindowCaps.isRomPaletteWindow(win) or win.activePalette then
-      win:adjustSelectedByArrows(-dy, 0)
-    end
+    win:adjustSelectedByArrows(-dy, 0)
     return true
   end
 
@@ -62,9 +60,7 @@ local function handleVerticalScroll(env, win, dy)
   end
 
   if WindowCaps.isAnyPaletteWindow(win) then
-    if WindowCaps.isRomPaletteWindow(win) or win.activePalette then
-      win:adjustSelectedByArrows(0, -dy)
-    end
+    win:adjustSelectedByArrows(0, -dy)
     return true
   end
 

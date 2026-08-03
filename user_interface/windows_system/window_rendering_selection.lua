@@ -472,7 +472,9 @@ function Window:drawTileSelectionOverlays(isFocused)
       and SpaceHighlightController.hasMatchedKeys(selectionHighlightModel)
     )
 
-  -- Selected cell
+  -- Selected cell. Tile/CHR/etc hide selection in edit mode (paint focus);
+  -- palettes keep it so the active color stays obvious while painting.
+  local showSelectedHighlight = (mode ~= "edit") or WindowCaps.isAnyPaletteWindow(self)
   if not suppressSelectedHighlights then
     if mode ~= "edit" and L.multiTileSelection then
       local drawnKeys = {}
@@ -492,7 +494,7 @@ function Window:drawTileSelectionOverlays(isFocused)
       end
     else
       local sel = self:getLayerSelection(self.activeLayer or 1)
-      if mode ~= "edit" and sel and type(sel.col) == "number" and type(sel.row) == "number" then
+      if showSelectedHighlight and sel and type(sel.col) == "number" and type(sel.row) == "number" then
         local rx, ry, rw, rh, topRow = getTileSelectionRect(self, sel.col, sel.row, overlayCtx, L)
         setOverlayColor(colors.white)
         -- love.graphics.rectangle("line", math.floor(rx), math.floor(ry), rw + 1, rh + 1)
