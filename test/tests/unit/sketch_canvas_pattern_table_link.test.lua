@@ -29,7 +29,7 @@ local function uniquePattern(id)
   return p
 end
 
-describe("sketch canvas phase 4 - link + pattern table apply", function()
+describe("sketch canvas - link + pattern table apply", function()
   it("links sketch to pattern table both ways and clears CHR ranges", function()
     local wm = WM.new()
     local sketch = wm:createSketchCanvasWindow()
@@ -218,7 +218,7 @@ describe("sketch canvas phase 4 - link + pattern table apply", function()
     local items = app:_buildPatternTableLinkSourceContextMenuItems(pt)
     local jump = nil
     for _, item in ipairs(items) do
-      if item.text == "Jump to linked layer" then
+      if item.text == "Jump to sketch canvas" then
         jump = item
         break
       end
@@ -227,5 +227,14 @@ describe("sketch canvas phase 4 - link + pattern table apply", function()
     local children = jump.children()
     expect(#children).toBe(1)
     expect(children[1].text).toBe("My sketch")
+
+    local unlink = nil
+    for _, item in ipairs(items) do
+      if item.text == "Unlink sketch canvas" then
+        unlink = item
+        break
+      end
+    end
+    expect(unlink).toBeTruthy()
   end)
 end)

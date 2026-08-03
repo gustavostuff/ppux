@@ -4,7 +4,7 @@ local ToolbarController = require("controllers.window.toolbar_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local TaskbarHelpers = require("user_interface.taskbar.helpers")
 
-describe("sketch canvas phase 1 - New Window + toolbar shell", function()
+describe("sketch canvas - New Window + toolbar shell", function()
   it("includes Sketch canvas in New Window options and creates a sketch_canvas window", function()
     local created = nil
     local prevFocused = { title = "prev" }
@@ -74,6 +74,7 @@ describe("sketch canvas phase 1 - New Window + toolbar shell", function()
     local win = wm:createSketchCanvasWindow()
     local ctx = { app = { setStatus = function() end } }
     local toolbar = ToolbarController.createSpecializedToolbar(win, ctx, wm)
+    local colors = require("app_colors")
 
     expect(toolbar).toBeTruthy()
     expect(toolbar.linkButton).toBeTruthy()
@@ -83,6 +84,7 @@ describe("sketch canvas phase 1 - New Window + toolbar shell", function()
     expect(toolbar.reflectButton).toBeTruthy()
 
     expect(toolbar.linkButton.enabled).toBe(true)
+    expect(toolbar.linkButton.bgColor).toBe(colors.gray20)
     expect(toolbar.toleranceDownButton.enabled).toBe(false) -- tolerance starts at 0
     expect(toolbar.toleranceUpButton.enabled).toBe(true)
     expect(toolbar.generateButton.enabled).toBe(true)
@@ -91,6 +93,13 @@ describe("sketch canvas phase 1 - New Window + toolbar shell", function()
     expect(toolbar.linkButton.tooltip:find("Link", 1, true)).toBeTruthy()
     expect(toolbar.generateButton.tooltip:find("Generate", 1, true)).toBeTruthy()
     expect(toolbar.reflectButton.tooltip:find("Reflect", 1, true)).toBeTruthy()
+
+    local pt = wm:createPatternTableWindow()
+    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+    assert(SketchCanvasPackController.linkSketchToPatternTable(win, pt, wm))
+    toolbar:updateIcons()
+    expect(toolbar.linkButton.bgColor).toBe(colors.green)
+    expect(toolbar.linkButton.tooltip:find("Manage", 1, true)).toBeTruthy()
   end)
 
   it("maps sketch_canvas windows to the sketch taskbar icon key", function()

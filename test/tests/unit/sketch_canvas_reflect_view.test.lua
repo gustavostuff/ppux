@@ -29,7 +29,7 @@ local function paintTileDiffPixels(canvas, tileCol, tileRow, baseValue, flipCoun
   end
 end
 
-describe("sketch canvas phase 6 - Reflect view", function()
+describe("sketch canvas - Reflect view", function()
   it("composes Reflect from nametableBytes + pool without mutating paint canvas", function()
     local wm = WM.new()
     local sketch = wm:createSketchCanvasWindow()

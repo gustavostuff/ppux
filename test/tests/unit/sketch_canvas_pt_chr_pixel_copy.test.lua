@@ -49,7 +49,7 @@ local function makeChrWindow(targetTile)
   }
 end
 
-describe("sketch canvas phase 7 - pixel copy PT -> CHR/ROM", function()
+describe("sketch canvas - pixel copy PT -> CHR/ROM", function()
   beforeEach(function()
     KeyboardClipboardController.reset()
   end)

@@ -69,7 +69,7 @@ local function makeTileGroup()
   }
 end
 
-describe("sketch canvas phase 5 - live tolerance + CHR lock", function()
+describe("sketch canvas - live tolerance + CHR lock", function()
   it("setFocus does not clobber status when the window is already focused", function()
     local wm = WM.new()
     local sketch = wm:createSketchCanvasWindow({ title = "sketch test" })

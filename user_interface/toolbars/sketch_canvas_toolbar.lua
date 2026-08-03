@@ -1,5 +1,5 @@
 -- sketch_canvas_toolbar.lua
--- Sketch canvas toolbar. Phase 6: Link + Generate + live tolerance + Reflect.
+-- Sketch canvas toolbar: Link, tolerance, Generate, Reflect.
 
 local ToolbarBase = require("user_interface.toolbars.toolbar_base")
 local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
@@ -164,6 +164,17 @@ function SketchCanvasToolbar:_hasPack()
   return SketchCanvasPackController.hasPackData(self.window)
 end
 
+function SketchCanvasToolbar:_hasCanvas()
+  if not self.window then
+    return false
+  end
+  if type(self.window.getActiveCanvas) == "function" then
+    return self.window:getActiveCanvas() ~= nil
+  end
+  local layer = self.window.layers and self.window.layers[self.window.activeLayer or 1]
+  return layer and layer.kind == "canvas" and layer.canvas ~= nil
+end
+
 function SketchCanvasToolbar:_cancelToleranceRegen()
   if self._toleranceRegenTimerId then
     Timer.cancel(self._toleranceRegenTimerId)
@@ -259,6 +270,10 @@ function SketchCanvasToolbar:_onToleranceDelta(delta)
 end
 
 function SketchCanvasToolbar:_onGenerate()
+  if not self:_hasCanvas() then
+    StatusHelpers.setStatus(self.ctx, "Sketch Generate needs a paint canvas")
+    return
+  end
   self:_runGenerate()
 end
 
@@ -287,40 +302,54 @@ function SketchCanvasToolbar:updateIcons()
   local tol = self:_tolerance()
   local linked = self:_isLinked()
   local hasPack = self:_hasPack()
+  local hasCanvas = self:_hasCanvas()
   local reflecting = self.window and self.window.reflectPatternTable == true
 
   if self.linkButton then
     self.linkButton.enabled = true
+    self.linkButton.bgColor = linked and colors.green or colors.gray20
     self.linkButton.tooltip = linked and "Manage linked pattern table" or "Link pattern table"
   end
   if self.toleranceDownButton then
     self.toleranceDownButton.enabled = tol > 0
     self.toleranceDownButton.tooltip = linked
-      and string.format("Decrease pack tolerance (now %d; live update)", tol)
+      and string.format("Decrease pack tolerance (now %d; live update when linked)", tol)
       or string.format("Decrease pack tolerance (now %d)", tol)
   end
   if self.toleranceValueButton then
     self.toleranceValueButton.text = tostring(tol)
-    self.toleranceValueButton.tooltip = string.format("Pack tolerance: %d", tol)
+    self.toleranceValueButton.tooltip = linked
+      and string.format("Pack tolerance: %d (live update when linked)", tol)
+      or string.format("Pack tolerance: %d", tol)
   end
   if self.toleranceUpButton then
     self.toleranceUpButton.enabled = tol < SketchCanvasPackController.MAX_TOLERANCE
     self.toleranceUpButton.tooltip = linked
-      and string.format("Increase pack tolerance (now %d; live update)", tol)
+      and string.format("Increase pack tolerance (now %d; live update when linked)", tol)
       or string.format("Increase pack tolerance (now %d)", tol)
   end
   if self.generateButton then
-    self.generateButton.enabled = true
-    self.generateButton.tooltip = linked
-      and string.format("Generate and apply to linked pattern table (tolerance %d)", tol)
-      or string.format("Generate pattern catalog from sketch (tolerance %d)", tol)
+    self.generateButton.enabled = hasCanvas
+    if not hasCanvas then
+      self.generateButton.tooltip = "Generate needs a paint canvas"
+    elseif linked then
+      self.generateButton.tooltip = string.format(
+        "Generate and apply to linked pattern table (tolerance %d)",
+        tol
+      )
+    else
+      self.generateButton.tooltip = string.format(
+        "Generate pattern catalog from sketch (tolerance %d)",
+        tol
+      )
+    end
   end
   if self.reflectButton then
     self.reflectButton.enabled = hasPack
     self.reflectButton.bgColor = reflecting and colors.green or colors.gray20
     if hasPack then
       self.reflectButton.tooltip = reflecting
-        and "Reflect on: showing packed tiles (click to restore paint view)"
+        and "Reflect on: showing packed tiles (paint disabled; click to restore paint view)"
         or "Reflect off: show packed pattern-table view"
     else
       self.reflectButton.tooltip = "Reflect needs a successful Generate first"

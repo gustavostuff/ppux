@@ -1195,6 +1195,14 @@ function AppCoreController:_buildPatternTableLinkSourceContextMenuItems(patternT
   local targets = PatternTableDisplayController.getLinkedConsumersForPatternTable(self.wm, patternTableWin)
   local items = {}
 
+  local sketchOnly = #targets > 0
+  for _, target in ipairs(targets) do
+    if not (target.kind == "sketch_canvas" or type(target.layerIndex) ~= "number") then
+      sketchOnly = false
+      break
+    end
+  end
+
   local function linkedConsumerLabel(target)
     local title = tostring((target.win and target.win.title) or "window")
     if target.kind == "sketch_canvas" or type(target.layerIndex) ~= "number" then
@@ -1204,13 +1212,13 @@ function AppCoreController:_buildPatternTableLinkSourceContextMenuItems(patternT
   end
 
   items[#items + 1] = {
-    text = "Jump to linked layer",
+    text = sketchOnly and "Jump to sketch canvas" or "Jump to linked layer",
     menuGroup = "pt_src_navigate",
     children = function()
       if #targets == 0 then
         return {
           {
-            text = "No linked layers",
+            text = sketchOnly and "No linked sketch" or "No linked layers",
             callback = function() end,
           },
         }
@@ -1229,7 +1237,7 @@ function AppCoreController:_buildPatternTableLinkSourceContextMenuItems(patternT
   }
 
   items[#items + 1] = {
-    text = "Remove all links",
+    text = sketchOnly and "Unlink sketch canvas" or "Remove all links",
     menuGroup = "pt_src_remove",
     callback = function()
       if #targets == 0 then
@@ -1265,11 +1273,18 @@ function AppCoreController:_buildPatternTableLinkSourceContextMenuItems(patternT
         self:_afterPatternTableLinkChange(entry.win, entry.layerIndex)
       end
       if self.setStatus then
-        self:setStatus(string.format(
-          "Unlinked %d layer(s) from %s",
-          #targets,
-          tostring(patternTableWin.title or "pattern table")
-        ))
+        if sketchOnly then
+          self:setStatus(string.format(
+            "Unlinked sketch from %s",
+            tostring(patternTableWin.title or "pattern table")
+          ))
+        else
+          self:setStatus(string.format(
+            "Unlinked %d layer(s) from %s",
+            #targets,
+            tostring(patternTableWin.title or "pattern table")
+          ))
+        end
       end
     end,
   }

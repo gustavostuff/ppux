@@ -2,7 +2,7 @@ local WM = require("controllers.window.window_controller")
 local GameArtLayoutIOController = require("controllers.game_art.layout_io_controller")
 local GameArtWindowBuilderController = require("controllers.game_art.window_builder_controller")
 
-describe("sketch canvas phase 2 - data model + persistence", function()
+describe("sketch canvas - data model + persistence", function()
   it("defaults pack/link fields on a new sketch canvas window", function()
     local wm = WM.new()
     local win = wm:createSketchCanvasWindow()

@@ -44,7 +44,7 @@ local function uniquePattern(id)
   return p
 end
 
-describe("sketch canvas phase 3 - pack controller", function()
+describe("sketch canvas - pack controller", function()
   it("packs a blank canvas to one unique pattern and 960 nametable bytes", function()
     local canvas = PixelCanvas.new(256, 240, 0)
     local pack, err = SketchCanvasPackController.packFromCanvas(canvas, 0)

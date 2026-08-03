@@ -72,6 +72,7 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 | Static Art (sprites)   | <img src="img/readme_images/windows_system_table/icon_static_sprite_window.png" alt="Static Art sprites taskbar icon">   | Single-layer sprite composition window with pixel-level placement                                        |
 | Animation (sprites)    | <img src="img/readme_images/windows_system_table/icon_animated_sprite_window.gif" alt="Animation sprites taskbar icon">                      | Sprite animation window for frame-by-frame sprite layouts                                                |
 | OAM Animation          | <img src="img/readme_images/windows_system_table/icon_oam_animated_window.gif" alt="OAM Animation taskbar icon">                          | ROM-backed sprite animation; **requires a linked Pattern table** window for sprite CHR                                                    |
+| Sketch canvas          | <img src="img/readme_images/windows_system_table/sketch_canvas_window.png" alt="Sketch canvas taskbar icon">             | Free 256x240 paint canvas for background art; packs into a linked **Pattern table** (tolerance + Reflect) |
 | Global palette         | <img src="img/readme_images/windows_system_table/icon_palette_window.png" alt="Global palette taskbar icon">             | Global palette window for items without an assigned ROM palette                                          |
 | ROM palette            | <img src="img/readme_images/windows_system_table/icon_rom_palette_window.png" alt="ROM palette taskbar icon">            | ROM palette editor tied to ROM addresses                                                                 |
 | PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view; It **also** requires pattern table links for rendering |
@@ -131,9 +132,21 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 <img src="img/readme_images/toolbars/pattern_table_toolbar.png" alt="Pattern table specialized toolbar">
 
 1. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - **`Ctrl + M`** (same cell-size convention as CHR / ROM banks). Disabled when the pattern table has no active tile layer.
-2. **Pattern table link (source)** - left-click for a menu: jump to linked consumer layer(s), or remove all links from this pattern table. Turns **green** when at least one consumer layer is linked.
+2. **Pattern table link (source)** - left-click for a menu: jump to linked consumer layer(s), or remove all links from this pattern table. When only a **Sketch canvas** is linked, the menu says **Jump to sketch canvas** / **Unlink sketch canvas** instead. Turns **green** when at least one consumer is linked.
 
 Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks** windows onto the pattern table canvas (not a toolbar button). Ranges must add up to **256** tiles for a complete map. Right-click a mapped cell for **Remove tile range at this tile**. Clipboard cut/paste is not available on pattern table windows.
+
+When a **Sketch canvas** owns the pattern table, CHR/ROM drops are blocked and the catalog is filled from the sketch (Generate / tolerance). Unlinking clears the scratch catalog so the window can take CHR ranges again. Copy/drag from that pattern table into CHR/ROM paints frozen pixels (not ROM references).
+
+#### Sketch canvas toolbar
+
+<img src="img/readme_images/toolbars/sketch_canvas_toolbar.png" alt="Sketch canvas specialized toolbar">
+
+1. **Pattern table link** - left-click to link, jump to, or unlink a **Pattern table**. Turns **green** when linked. The linked table is sketch-owned (no CHR drops).
+2. **Tolerance (− / value / +)** - pixel-diff grouping for Generate (0–32). When linked, changing tolerance live-regenerates the pattern table.
+3. Number label to indicate pixel tolerance.
+4. **Generate** - packs the paint canvas into up to 256 unique patterns and applies them to the linked pattern table.
+5. **Reflect** - toggles a view composed from the packed nametable (compression preview). Paint is disabled while Reflect is on; turns **green** when active.
 
 #### Static Art (tiles and sprites) toolbar
 
