@@ -603,45 +603,31 @@ To move older flat artifacts into version folders, run:
 
 ### Unit testing
 
-PPUX includes a unit test suite.
-
-From repo root:
+PPUX includes a unit test suite, but right now it can only be executed from Linux:
 
 ```bash
 ./scripts/unix/run_unit_tests.sh
 ```
 
-On Windows:
-
-```bat
-scripts\windows\run_unit_tests.bat
-```
-
-See [Unit Testing](docs/test/UNIT_TESTING.md) for details and alternatives.
-
 ### E2E testing
 
-PPUX also includes visible end-to-end test scenarios that boot the real app.
-
-Run full suite:
+PPUX also includes visible end-to-end test scenarios that boot the real app, this one should run ok in both Linux and Windows.
 
 ```bash
 ./scripts/unix/run_e2e_tests.sh
 ```
 
-On Windows:
+Or, on Windows:
 
 ```bat
 scripts\windows\run_e2e_tests.bat
 ```
 
-Run a single scenario:
+Single scenario example:
 
 ```bash
 ./scripts/unix/run_e2e_demo.sh modals
 ```
-
-See [E2E Testing](docs/test/E2E_TESTING.md) for scenario details and options.
 
 ## Notes
 
