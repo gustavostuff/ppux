@@ -255,7 +255,7 @@ Linked ROM palette / pattern-table windows also show small **squares** on the le
 ### Main controls
 
 - `Ctrl + 1/2/3`: set the **app window** to 1x, 2x, or 3x integer scale of the 640x360 canvas (e.g. 1280x720, 1920x1080)
-- `Ctrl + Page Up` / `Ctrl + Page Down`: cycle which **global** (**non-ROM**) palette is active - ROM palette windows are not cycled. When **Grouped palettes** is on, the grouped **global** slot (which palette is shown) stays in sync; needs at least two global palette windows
+- `Page Up` / `Page Down`: cycle which **global** (**non-ROM**) palette is active - ROM palette windows are not cycled. When **Grouped palettes** is on, the grouped **global** slot (which palette is shown) stays in sync; needs at least two global palette windows
 - `Ctrl + F`: toggle fullscreen
 - `Ctrl + N`: open `New Window`
 - `Ctrl + S`: open save options

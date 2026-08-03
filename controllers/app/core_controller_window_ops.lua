@@ -206,20 +206,20 @@ function AppCoreController:_buildNewWindowOptions()
       end
     },
     {
-      text = "Pattern table window",
-      icon = getNewWindowOptionIcon("pattern_table"),
-      buttonText = "Pattern table",
-      fixedGrid = true,
-      fixedCols = 16,
-      fixedRows = 16,
-      fixedSpriteMode = "8x8",
-      suggestedWindowName = "Pattern table",
-      callback = function(cols, rows, _, windowTitle)
+      text = "OAM animation",
+      icon = getNewWindowOptionIcon("oam_animated"),
+      buttonText = "OAM animation",
+      requiresSpriteMode = true,
+      callback = function(cols, rows, spriteMode, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
-        local win = self.wm:createPatternTableWindow({
-          title = windowTitle or "Pattern table",
-          cols = cols or 16,
-          rows = rows or 16,
+        local win = self.wm:createSpriteWindow({
+          animated = true,
+          oamBacked = true,
+          numFrames = 1,
+          title = windowTitle or "OAM Animation",
+          spriteMode = spriteMode,
+          cols = cols,
+          rows = rows,
         })
         Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
       end
@@ -239,20 +239,20 @@ function AppCoreController:_buildNewWindowOptions()
       end
     },
     {
-      text = "OAM animation",
-      icon = getNewWindowOptionIcon("oam_animated"),
-      buttonText = "OAM animation",
-      requiresSpriteMode = true,
-      callback = function(cols, rows, spriteMode, windowTitle)
+      text = "Pattern table window",
+      icon = getNewWindowOptionIcon("pattern_table"),
+      buttonText = "Pattern table",
+      fixedGrid = true,
+      fixedCols = 16,
+      fixedRows = 16,
+      fixedSpriteMode = "8x8",
+      suggestedWindowName = "Pattern table",
+      callback = function(cols, rows, _, windowTitle)
         local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
-        local win = self.wm:createSpriteWindow({
-          animated = true,
-          oamBacked = true,
-          numFrames = 1,
-          title = windowTitle or "OAM Animation",
-          spriteMode = spriteMode,
-          cols = cols,
-          rows = rows,
+        local win = self.wm:createPatternTableWindow({
+          title = windowTitle or "Pattern table",
+          cols = cols or 16,
+          rows = rows or 16,
         })
         Shared.recordWindowCreateUndo(self, win, prevFocusedWin)
       end

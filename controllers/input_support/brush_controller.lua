@@ -8,6 +8,7 @@ local GameArtController = require("controllers.game_art.game_art_controller")
 local DebugController = require("controllers.dev.debug_controller")
 local ChrDuplicateSync = require("controllers.chr.duplicate_sync_controller")
 local LoveCompat = require("utils.love_compat")
+local WindowCaps = require("controllers.window.window_capabilities")
 
 local M = {}
 
@@ -829,6 +830,15 @@ end
 function M.paintPixel(app, win, col, row, lx, ly, pickOnly)
   local startedAt = (not pickOnly) and LoveCompat.getTime() or nil
   pickOnly = pickOnly or false
+
+  -- Reflect view is display-only; keep the paint buffer unchanged until Reflect is turned off.
+  if (not pickOnly)
+    and WindowCaps.isSketchCanvas(win)
+    and win.reflectPatternTable == true
+  then
+    return false
+  end
+
   local brushSize = app.brushSize or 1
   
   -- Color picking should always sample the center pixel, regardless of brush size.
@@ -1141,6 +1151,10 @@ function M.floodFillTile(app, win, col, row, lx, ly, targetColor, fillColor)
       end
     end
     return success
+  end
+
+  if WindowCaps.isSketchCanvas(win) and win.reflectPatternTable == true then
+    return finalize(false)
   end
 
   if undo and not undo.activeEvent then

@@ -561,6 +561,15 @@ local function drawCanvasLayer(app, w, layerIndex, isFocused)
     return false
   end
 
+  -- Sketch Reflect: compose from packed nametable + pool samples; keep paint canvas intact.
+  if WindowCaps.isSketchCanvas(w) and w.reflectPatternTable == true then
+    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+    local reflectCanvas = SketchCanvasPackController.getReflectDisplayCanvas(w)
+    if reflectCanvas then
+      canvas = reflectCanvas
+    end
+  end
+
   local layerOpacity = (layer and layer.opacity ~= nil) and layer.opacity or 1.0
   local sx, sy, sw, sh = w:getInsetContentScreenRect()
 

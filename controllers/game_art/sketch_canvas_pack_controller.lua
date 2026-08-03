@@ -2,6 +2,7 @@
 -- Pack a sketch canvas into tilesPool ({x,y} refs) + nametableBytes, and apply to a linked PT.
 
 local Tile = require("user_interface.windows_system.tile_item")
+local PixelCanvas = require("user_interface.windows_system.pixel_canvas")
 local BankViewController = require("controllers.chr.bank_view_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local TileInvalidationIndex = require("controllers.app.tile_invalidation_index")
@@ -245,7 +246,90 @@ function M.applyPackToWindow(win, pack)
   end
   win.tilesPool = pack.tilesPool or {}
   win.nametableBytes = pack.nametableBytes
+  M.invalidateReflectDisplay(win)
   return true
+end
+
+function M.hasPackData(win)
+  return type(win) == "table"
+    and type(win.tilesPool) == "table"
+    and #win.tilesPool > 0
+    and type(win.nametableBytes) == "table"
+    and #win.nametableBytes == (M.GRID_COLS * M.GRID_ROWS)
+end
+
+function M.invalidateReflectDisplay(win)
+  if not win then
+    return
+  end
+  win._reflectDisplayDirty = true
+end
+
+--- Build/update a display-only canvas composed from nametableBytes + pool samples of the paint buffer.
+--- Does not mutate the paint PixelCanvas.
+function M.getReflectDisplayCanvas(sketchWin)
+  if not WindowCaps.isSketchCanvas(sketchWin) then
+    return nil
+  end
+  if not M.hasPackData(sketchWin) then
+    return nil
+  end
+  local paint = resolveCanvas(sketchWin)
+  if not paint then
+    return nil
+  end
+
+  local display = sketchWin._reflectDisplayCanvas
+  if not display then
+    display = PixelCanvas.new(M.GRID_COLS * M.CELL, M.GRID_ROWS * M.CELL, paint.fillValue or 0)
+    sketchWin._reflectDisplayCanvas = display
+    sketchWin._reflectDisplayDirty = true
+  end
+
+  if sketchWin._reflectDisplayDirty ~= true then
+    return display
+  end
+
+  local pool = sketchWin.tilesPool
+  local nt = sketchWin.nametableBytes
+  local fallback = pool[1]
+  for row = 0, M.GRID_ROWS - 1 do
+    for col = 0, M.GRID_COLS - 1 do
+      local ntIndex = row * M.GRID_COLS + col + 1
+      local poolIndex = math.floor(tonumber(nt[ntIndex]) or 0)
+      local entry = pool[poolIndex + 1] or fallback
+      local ox = entry and math.floor(tonumber(entry.x) or 0) or 0
+      local oy = entry and math.floor(tonumber(entry.y) or 0) or 0
+      local pixels = paint:extractTilePixels(ox, oy, M.CELL)
+      display:loadTilePixels(col * M.CELL, row * M.CELL, pixels, M.CELL)
+    end
+  end
+  sketchWin._reflectDisplayDirty = false
+  return display
+end
+
+function M.setReflectPatternTable(sketchWin, enabled)
+  if not WindowCaps.isSketchCanvas(sketchWin) then
+    return false
+  end
+  enabled = enabled == true
+  if enabled and not M.hasPackData(sketchWin) then
+    return false, "no_pack"
+  end
+  sketchWin.reflectPatternTable = enabled
+  if enabled then
+    M.invalidateReflectDisplay(sketchWin)
+  end
+  return true
+end
+
+function M.toggleReflectPatternTable(sketchWin)
+  local nextOn = not (sketchWin and sketchWin.reflectPatternTable == true)
+  local ok, err = M.setReflectPatternTable(sketchWin, nextOn)
+  if not ok then
+    return false, err
+  end
+  return true, nextOn
 end
 
 function M.resolveLinkedPatternTable(sketchWin, wm)
@@ -566,6 +650,10 @@ function M.restorePackFields(win, snap)
     end
   else
     win.nametableBytes = nil
+  end
+  M.invalidateReflectDisplay(win)
+  if win.reflectPatternTable and not M.hasPackData(win) then
+    win.reflectPatternTable = false
   end
   return true
 end

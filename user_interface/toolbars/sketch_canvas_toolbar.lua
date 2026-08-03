@@ -1,9 +1,10 @@
 -- sketch_canvas_toolbar.lua
--- Sketch canvas toolbar. Phase 5: Link + Generate + live tolerance regen when linked.
+-- Sketch canvas toolbar. Phase 6: Link + Generate + live tolerance + Reflect.
 
 local ToolbarBase = require("user_interface.toolbars.toolbar_base")
 local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
 local images = require("images")
+local colors = require("app_colors")
 local StatusHelpers = require("utils.status_helpers")
 local Timer = require("utils.timer_utils")
 
@@ -12,12 +13,6 @@ SketchCanvasToolbar.__index = SketchCanvasToolbar
 setmetatable(SketchCanvasToolbar, { __index = ToolbarBase })
 
 local TOLERANCE_REGEN_DELAY = 0.12
-
-local function stubAction(self, label)
-  return function()
-    StatusHelpers.setStatus(self.ctx, label .. " is not implemented yet")
-  end
-end
 
 local function getApp(self)
   return self.ctx and self.ctx.app or nil
@@ -68,10 +63,11 @@ function SketchCanvasToolbar.new(window, ctx, windowController)
 
   self.reflectButton = self:addButton(
     actions.icon_mirror_x or actions.icon_diff_mode or chrome.icon_circle,
-    stubAction(self, "Reflect"),
-    "Reflect pattern table view (not implemented yet)"
+    function()
+      self:_onReflectToggle()
+    end,
+    "Reflect packed pattern table view"
   )
-  self.reflectButton.enabled = false
 
   self:updateIcons()
   self:updatePosition()
@@ -85,6 +81,10 @@ end
 function SketchCanvasToolbar:_isLinked()
   return type(self.window and self.window.linkedPatternTableWindowId) == "string"
     and self.window.linkedPatternTableWindowId ~= ""
+end
+
+function SketchCanvasToolbar:_hasPack()
+  return SketchCanvasPackController.hasPackData(self.window)
 end
 
 function SketchCanvasToolbar:_cancelToleranceRegen()
@@ -185,10 +185,32 @@ function SketchCanvasToolbar:_onGenerate()
   self:_runGenerate()
 end
 
+function SketchCanvasToolbar:_onReflectToggle()
+  if not self.window then
+    return
+  end
+  if not self:_hasPack() then
+    StatusHelpers.setStatus(self.ctx, "Sketch Reflect needs a successful Generate first")
+    return
+  end
+  local ok, onOrErr = SketchCanvasPackController.toggleReflectPatternTable(self.window)
+  if not ok then
+    StatusHelpers.setStatus(self.ctx, "Sketch Reflect failed: " .. tostring(onOrErr or "error"))
+    return
+  end
+  StatusHelpers.setStatus(
+    self.ctx,
+    onOrErr and "Sketch Reflect on (paint disabled)" or "Sketch Reflect off"
+  )
+  self:updateIcons()
+end
+
 function SketchCanvasToolbar:updateIcons()
   ToolbarBase.updateIcons(self)
   local tol = self:_tolerance()
   local linked = self:_isLinked()
+  local hasPack = self:_hasPack()
+  local reflecting = self.window and self.window.reflectPatternTable == true
 
   if self.linkButton then
     self.linkButton.enabled = true
@@ -211,6 +233,17 @@ function SketchCanvasToolbar:updateIcons()
     self.generateButton.tooltip = linked
       and string.format("Generate and apply to linked pattern table (tolerance %d)", tol)
       or string.format("Generate pattern catalog from sketch (tolerance %d)", tol)
+  end
+  if self.reflectButton then
+    self.reflectButton.enabled = hasPack
+    self.reflectButton.bgColor = reflecting and colors.green or colors.gray20
+    if hasPack then
+      self.reflectButton.tooltip = reflecting
+        and "Reflect on: showing packed tiles (click to restore paint view)"
+        or "Reflect off: show packed pattern-table view"
+    else
+      self.reflectButton.tooltip = "Reflect needs a successful Generate first"
+    end
   end
 end
 
