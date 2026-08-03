@@ -429,4 +429,53 @@ describe("keyboard_art_actions_controller.lua", function()
     expect(calls[2].paletteNum).toBe(2)
     expect(statusMessages[#statusMessages]).toBe("Tile palettes set to 2")
   end)
+
+  it("records sketch nametable attr undo when assigning tile palettes with 1-4", function()
+    local UndoRedoController = require("controllers.input_support.undo_redo_controller")
+    local WM = require("controllers.window.window_controller")
+    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow({ title = "AttrUndo" })
+    local canvas = win:getActiveCanvas()
+    for y = 0, 7 do
+      for x = 0, 7 do
+        canvas:edit(x, y, 2)
+      end
+    end
+    expect(SketchCanvasPackController.generate(win)).toBe(true)
+    SketchPalette.ensureAttrBytes(win)
+    expect(#win.nametableAttrBytes).toBe(64)
+
+    local beforeByte = win.nametableAttrBytes[1]
+    local ur = UndoRedoController.new(10)
+    local ctx = {
+      getMode = function() return "tile" end,
+      setStatus = function(text)
+        statusMessages[#statusMessages + 1] = text
+      end,
+      app = {
+        undoRedo = ur,
+        wm = wm,
+      },
+      wm = function()
+        return wm
+      end,
+    }
+    _G.ctx = ctx
+
+    win:setSelected(0, 0)
+    local handled = KeyboardArtActionsController.handlePaletteNumberAssignment(ctx, "3", win, {})
+    expect(handled).toBe(true)
+    expect(win.nametableAttrBytes[1]).toBe(2) -- palette 3 → NES index 2 in TL quadrant
+    expect(ur:canUndo()).toBe(true)
+
+    expect(ur:undo()).toBe(true)
+    expect(win.nametableAttrBytes[1]).toBe(beforeByte)
+    expect(ur:redo()).toBe(true)
+    expect(win.nametableAttrBytes[1]).toBe(2)
+
+    _G.ctx = nil
+  end)
 end)

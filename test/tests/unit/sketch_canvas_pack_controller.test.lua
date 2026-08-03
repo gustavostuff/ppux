@@ -85,6 +85,62 @@ describe("sketch canvas - pack controller", function()
     expect(pack3.nametableBytes[1]).toBe(pack3.nametableBytes[2])
   end)
 
+  it("collapses near-empty tiles into one flat shade under high tolerance", function()
+    local canvas = PixelCanvas.new(256, 240, 0)
+    -- Five near-empty tiles with disjoint 5-pixel marks (pairwise diffs up to 10).
+    local marks = {
+      { 0, 0 }, { 1, 0 }, { 2, 0 }, { 3, 0 }, { 4, 0 },
+    }
+    for i, pos in ipairs(marks) do
+      local ox = pos[1] * 8
+      local oy = pos[2] * 8
+      for p = 0, 4 do
+        canvas:edit(ox + p, oy, 1)
+      end
+      -- Shift marks so they don't overlap across tiles... actually each tile is separate.
+      -- Use different pixel positions within each tile:
+      for y = 0, 7 do
+        for x = 0, 7 do
+          canvas:edit(ox + x, oy + y, 0)
+        end
+      end
+      for p = 0, 4 do
+        local idx = (i - 1) * 5 + p
+        local px = idx % 8
+        local py = math.floor(idx / 8) % 8
+        canvas:edit(ox + px, oy + py, 1)
+      end
+    end
+    paintTile(canvas, 5, 0, 0) -- exact flat shade 0
+    paintTile(canvas, 6, 0, 2) -- flat shade 2
+
+    local packGreedyWouldSplit = assert(SketchCanvasPackController.packFromCanvas(canvas, 8))
+    -- Near-empties + solid 0 → one shade-0 flat; plus solid 2; blank rest is shade 0.
+    expect(packGreedyWouldSplit.uniqueCount).toBe(2)
+    local solid0Slots = 0
+    local solid2Slots = 0
+    for _, entry in ipairs(packGreedyWouldSplit.tilesPool) do
+      if entry.solidShade == 0 then
+        solid0Slots = solid0Slots + 1
+      elseif entry.solidShade == 2 then
+        solid2Slots = solid2Slots + 1
+      end
+    end
+    expect(solid0Slots).toBe(1)
+    expect(solid2Slots).toBe(1)
+
+    -- CHR/PT sample for shade 0 must be a true flat, not the first near-empty.
+    local pixels = SketchCanvasPackController.pixelsForPoolEntry(canvas, packGreedyWouldSplit.tilesPool[1])
+    local allSame = true
+    for i = 1, 64 do
+      if pixels[i] ~= pixels[1] then
+        allSame = false
+        break
+      end
+    end
+    expect(allSame).toBe(true)
+  end)
+
   it("errors when unique patterns would exceed 256", function()
     local fake = {
       width = 256,
@@ -129,9 +185,13 @@ describe("sketch canvas - pack controller", function()
     assert(SketchCanvasPackController.linkSketchToPatternTable(win, pt, wm))
 
     local toasts = {}
+    local statusText = nil
     local ctx = {
       showToast = function(kind, text)
         toasts[#toasts + 1] = { kind = kind, text = text }
+      end,
+      setStatus = function(text)
+        statusText = text
       end,
       app = {},
     }
@@ -148,12 +208,13 @@ describe("sketch canvas - pack controller", function()
 
     toolbar.toleranceUpButton.action()
     expect(win.tolerance).toBe(1)
-    -- Live regen reports via toast (not status bar).
-    expect(toasts[#toasts].kind).toBe("info")
-    expect(toasts[#toasts].text:find("unique pattern", 1, true)).toBeTruthy()
+    -- Live regen from tolerance buttons reports via status bar (not toast).
+    expect(#toasts).toBe(0)
+    expect(statusText:find("unique pattern", 1, true)).toBeTruthy()
     expect(#win.nametableBytes).toBe(960)
 
     toasts = {}
+    statusText = nil
     toolbar.generateButton.action()
     expect(#win.nametableBytes).toBe(960)
     expect(toasts[#toasts].kind).toBe("info")

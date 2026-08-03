@@ -60,6 +60,7 @@ function M.snapshotProject(wm, bankWindow, currentBank, edits, app)
   if app then
     layout.currentColor = app.currentColor or 1
     layout.syncDuplicateTiles = app.syncDuplicateTiles
+    layout.skipOverwriteConfirm = app.skipOverwriteConfirm == true
     layout.romPatches = M.normalizeRomPatches(app.appEditState and app.appEditState.romPatches)
   end
 

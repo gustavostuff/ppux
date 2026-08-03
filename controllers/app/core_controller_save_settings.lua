@@ -72,9 +72,40 @@ local function combineAllSaveMessages(luaOk, luaStatus, ppuxOk, ppuxStatus, romO
   return false, table.concat(parts, "; ")
 end
 
+local function combineProjectOnlySaveMessages(luaOk, luaStatus, ppuxOk, ppuxStatus)
+  if luaOk and ppuxOk then
+    return true, "Saved Lua project and compressed PPUX project"
+  end
+  local parts = {}
+  if not luaOk then
+    parts[#parts + 1] = luaStatus or "Lua project save failed"
+  end
+  if not ppuxOk then
+    parts[#parts + 1] = ppuxStatus or "Compressed PPUX save failed"
+  end
+  if #parts == 0 then
+    return false, "Save failed"
+  end
+  return false, table.concat(parts, "; ")
+end
+
+local function appHasOpenWindows(app)
+  local wm = app and app.wm
+  if not (wm and wm.getWindows) then
+    return false
+  end
+  for _, w in ipairs(wm:getWindows() or {}) do
+    if w and w._closed ~= true then
+      return true
+    end
+  end
+  return false
+end
+
 local OPEN_FILE_MODAL_RUNTIME_DIR_KEY = {
   project = "project",
   png = "png",
+  saveProject = "saveProject",
 }
 
 local function resolveOpenProjectInitialDir(app)
@@ -107,6 +138,112 @@ local function resolveOpenReferencePngInitialDir(app)
   return resolveOpenProjectInitialDir(app)
 end
 
+local function resolveSaveProjectFolderInitialDir(app)
+  if not app then
+    return "."
+  end
+  -- Prefer the folder of the currently loaded / last-saved project.
+  for _, path in ipairs({ app.projectPath, app.encodedProjectPath }) do
+    if type(path) == "string" and path ~= "" then
+      local parent = path:match("^(.*)[/\\][^/\\]+$")
+      if type(parent) == "string" and parent ~= "" then
+        return parent
+      end
+    end
+  end
+  local dirs = app._openFileModalLastDirs
+  local remembered = dirs and dirs[OPEN_FILE_MODAL_RUNTIME_DIR_KEY.saveProject]
+  if type(remembered) == "string" and remembered ~= "" then
+    return remembered
+  end
+  return resolveOpenProjectInitialDir(app)
+end
+
+local function projectStemFromPath(path)
+  if type(path) ~= "string" or path == "" then
+    return "untitled"
+  end
+  local base = path:match("([^/\\]+)$") or path
+  base = base:gsub("%.lua$", ""):gsub("%.ppux$", ""):gsub("%.nes$", "")
+  base = base:gsub("_edited$", ""):gsub("_project$", "")
+  if base == "" then
+    return "untitled"
+  end
+  return base
+end
+
+local function sanitizeProjectStem(stemOverride, app)
+  local stem = nil
+  if type(stemOverride) == "string" and stemOverride ~= "" then
+    stem = stemOverride:gsub("[/\\]", "")
+    stem = stem:gsub("%.lua$", ""):gsub("%.ppux$", ""):gsub("%.nes$", "")
+    stem = stem:match("^%s*(.-)%s*$")
+  end
+  if not stem or stem == "" then
+    stem = projectStemFromPath(app and app.projectPath)
+    if stem == "untitled" and type(app and app.encodedProjectPath) == "string" then
+      local encodedStem = projectStemFromPath(app.encodedProjectPath)
+      if encodedStem ~= "untitled" then
+        stem = encodedStem
+      end
+    end
+  end
+  if not stem or stem == "" then
+    stem = "untitled"
+  end
+  return stem
+end
+
+local function buildNoRomProjectPaths(dir, stem)
+  local FilesystemPath = require("utils.filesystem_path")
+  return FilesystemPath.join(dir, stem .. ".lua"), FilesystemPath.join(dir, stem .. ".ppux")
+end
+
+local function fileExistsOnDisk(path)
+  if type(path) ~= "string" or path == "" then
+    return false
+  end
+  local f = io.open(path, "rb")
+  if not f then
+    return false
+  end
+  f:close()
+  return true
+end
+
+--- @param formats "lua"|"ppux"|"both"
+local function existingNoRomSaveTargets(luaPath, ppuxPath, formats)
+  local targets = {}
+  if formats == "lua" or formats == "both" then
+    if fileExistsOnDisk(luaPath) then
+      targets[#targets + 1] = luaPath
+    end
+  end
+  if formats == "ppux" or formats == "both" then
+    if fileExistsOnDisk(ppuxPath) then
+      targets[#targets + 1] = ppuxPath
+    end
+  end
+  return targets
+end
+
+--- Point no-ROM project save targets at `dir` with optional explicit `stem`.
+local function applyNoRomProjectSaveFolder(app, dir, stemOverride)
+  if type(dir) ~= "string" or dir == "" then
+    return false
+  end
+  local stem = sanitizeProjectStem(stemOverride, app)
+  local luaPath, ppuxPath = buildNoRomProjectPaths(dir, stem)
+  app.projectPath = luaPath
+  app.encodedProjectPath = ppuxPath
+  _G.projectPath = app.projectPath
+  return true, stem, luaPath, ppuxPath
+end
+
+function AppCoreController:canSaveProjectWorkspace()
+  return self:hasLoadedROM() or appHasOpenWindows(self)
+end
+
 function AppCoreController:saveEdited(opts)
   opts = opts or {}
   if not self:hasLoadedROM() then
@@ -129,8 +266,8 @@ end
 
 function AppCoreController:saveProject(opts)
   opts = opts or {}
-  if not self:hasLoadedROM() then
-    self:setStatus("Open a ROM before saving.")
+  if not self:canSaveProjectWorkspace() then
+    self:setStatus("Nothing to save (create a window or open a ROM first).")
     if opts.toast ~= false then
       self:showToast("error", self.statusText)
     end
@@ -149,8 +286,8 @@ end
 
 function AppCoreController:saveEncodedProject(opts)
   opts = opts or {}
-  if not self:hasLoadedROM() then
-    self:setStatus("Open a ROM before saving.")
+  if not self:canSaveProjectWorkspace() then
+    self:setStatus("Nothing to save (create a window or open a ROM first).")
     if opts.toast ~= false then
       self:showToast("error", self.statusText)
     end
@@ -169,8 +306,8 @@ end
 
 function AppCoreController:saveProjectAndRom(opts)
   opts = opts or {}
-  if not self:hasLoadedROM() then
-    self:setStatus("Open a ROM before saving.")
+  if not self:canSaveProjectWorkspace() then
+    self:setStatus("Nothing to save (create a window or open a ROM first).")
     if opts.toast ~= false then
       self:showToast("error", self.statusText)
     end
@@ -183,7 +320,7 @@ function AppCoreController:saveProjectAndRom(opts)
   })
   local projectStatus = self.statusText
 
-  local romRequested = not not (self.appEditState and self.appEditState.romSha1)
+  local romRequested = self:hasLoadedROM()
   local romOk = true
   local romStatus = nil
   if romRequested then
@@ -207,19 +344,24 @@ end
 
 function AppCoreController:saveAllArtifacts(opts)
   opts = opts or {}
-  if not self:hasLoadedROM() then
-    self:setStatus("Open a ROM before saving.")
+  if not self:canSaveProjectWorkspace() then
+    self:setStatus("Nothing to save (create a window or open a ROM first).")
     if opts.toast ~= false then
       self:showToast("error", self.statusText)
     end
     return false
   end
 
-  local romOk = self:saveEdited({
-    toast = false,
-    clearUnsaved = false,
-  })
-  local romStatus = self.statusText
+  local hasRom = self:hasLoadedROM()
+  local romOk = true
+  local romStatus = nil
+  if hasRom then
+    romOk = self:saveEdited({
+      toast = false,
+      clearUnsaved = false,
+    })
+    romStatus = self.statusText
+  end
 
   local luaOk = self:saveProject({
     toast = false,
@@ -233,7 +375,12 @@ function AppCoreController:saveAllArtifacts(opts)
   })
   local ppuxStatus = self.statusText
 
-  local ok, message = combineAllSaveMessages(luaOk, luaStatus, ppuxOk, ppuxStatus, romOk, romStatus)
+  local ok, message
+  if hasRom then
+    ok, message = combineAllSaveMessages(luaOk, luaStatus, ppuxOk, ppuxStatus, romOk, romStatus)
+  else
+    ok, message = combineProjectOnlySaveMessages(luaOk, luaStatus, ppuxOk, ppuxStatus)
+  end
   self:setStatus(message)
   if ok and opts.clearUnsaved ~= false then
     self:clearUnsavedChanges()
@@ -336,7 +483,7 @@ function AppCoreController:closeProject()
 end
 
 function AppCoreController:requestCloseProject()
-  if not self:hasLoadedROM() then
+  if not self:hasLoadedROM() and not appHasOpenWindows(self) then
     return self:closeProject()
   end
 
@@ -388,13 +535,17 @@ function AppCoreController:saveBeforeQuit()
   local attempted = false
   local hasProject = not not self.projectPath
   local hasRom = self:hasLoadedROM()
+  local hasWindows = appHasOpenWindows(self)
 
-  if hasProject and hasRom then
+  if hasRom and (hasProject or hasWindows) then
     attempted = true
     ok = self:saveProjectAndRom({ toast = false }) and ok
   elseif hasRom then
     attempted = true
     ok = self:saveEdited({ toast = false }) and ok
+  elseif hasProject or hasWindows then
+    attempted = true
+    ok = self:saveAllArtifacts({ toast = false }) and ok
   end
   if not attempted then
     ok = true
@@ -453,39 +604,180 @@ function AppCoreController:showSaveOptionsModal()
     self.saveOptionsModal = SaveOptionsModal.new()
   end
 
-  if not self:hasLoadedROM() then
-    self:setStatus("Open a ROM before saving.")
+  if not self:canSaveProjectWorkspace() then
+    self:setStatus("Nothing to save (create a window or open a ROM first).")
+    if self.showToast then
+      self:showToast("warning", self.statusText)
+    end
     return false
   end
 
-  local options = {
-    {
-      text = "Save edited ROM",
-      callback = function()
-        self:saveEdited()
-      end
-    },
-    {
-      text = "Save Lua project",
-      callback = function()
-        self:saveProject()
-      end
-    },
-    {
-      text = "Save *.ppux project",
-      callback = function()
-        self:saveEncodedProject()
-      end
-    },
-    {
-      text = "All of the above",
-      callback = function()
-        self:saveAllArtifacts()
-      end
+  local options
+  if self:hasLoadedROM() then
+    options = {
+      {
+        text = "Save edited ROM",
+        callback = function()
+          self:saveEdited()
+        end
+      },
+      {
+        text = "Save Lua project",
+        callback = function()
+          self:saveProject()
+        end
+      },
+      {
+        text = "Save *.ppux project",
+        callback = function()
+          self:saveEncodedProject()
+        end
+      },
+      {
+        text = "All of the above",
+        callback = function()
+          self:saveAllArtifacts()
+        end
+      }
     }
-  }
+  else
+    options = {
+      {
+        text = "Save Lua project",
+        callback = function()
+          self:showSaveProjectFolderModal({
+            title = "Save Lua Project Folder",
+            formats = "lua",
+            onConfirm = function()
+              self:saveProject()
+            end,
+          })
+        end
+      },
+      {
+        text = "Save *.ppux project",
+        callback = function()
+          self:showSaveProjectFolderModal({
+            title = "Save PPUX Project Folder",
+            formats = "ppux",
+            onConfirm = function()
+              self:saveEncodedProject()
+            end,
+          })
+        end
+      },
+      {
+        text = "Save both project formats",
+        callback = function()
+          self:showSaveProjectFolderModal({
+            title = "Save Project Folder",
+            formats = "both",
+            onConfirm = function()
+              self:saveAllArtifacts()
+            end,
+          })
+        end
+      }
+    }
+  end
 
-  self.saveOptionsModal:show("Save Options", options)
+  self.saveOptionsModal:show(
+    self:hasLoadedROM() and "Save Options" or "Save Options (no ROM)",
+    options
+  )
+  return true
+end
+
+function AppCoreController:showSaveProjectFolderModal(opts)
+  opts = opts or {}
+  if not self.saveProjectFolderModal then
+    local SaveProjectFolderModal = require("user_interface.modals.save_project_folder_modal")
+    self.saveProjectFolderModal = SaveProjectFolderModal.new()
+  end
+
+  local formats = opts.formats or "both"
+  if formats ~= "lua" and formats ~= "ppux" and formats ~= "both" then
+    formats = "both"
+  end
+
+  local initialName = opts.initialProjectName
+  if type(initialName) ~= "string" or initialName == "" then
+    initialName = projectStemFromPath(self.projectPath)
+    if initialName == "untitled" then
+      initialName = projectStemFromPath(self.encodedProjectPath)
+    end
+  end
+
+  self.saveProjectFolderModal:show({
+    title = opts.title or "Save Project Folder",
+    confirmLabel = opts.confirmLabel or "Save here",
+    directoriesOnly = true,
+    initialDir = resolveSaveProjectFolderInitialDir(self),
+    initialProjectName = initialName,
+    onDirectoryChanged = function(path)
+      self._openFileModalLastDirs = self._openFileModalLastDirs or {}
+      self._openFileModalLastDirs[OPEN_FILE_MODAL_RUNTIME_DIR_KEY.saveProject] = path
+    end,
+    onOpen = function(dir, entry)
+      self._openFileModalLastDirs = self._openFileModalLastDirs or {}
+      self._openFileModalLastDirs[OPEN_FILE_MODAL_RUNTIME_DIR_KEY.saveProject] = dir
+      local stem = entry and (entry.projectName or entry.name) or nil
+      stem = sanitizeProjectStem(stem, self)
+      local luaPath, ppuxPath = buildNoRomProjectPaths(dir, stem)
+      local existing = existingNoRomSaveTargets(luaPath, ppuxPath, formats)
+
+      local function proceed()
+        self.projectPath = luaPath
+        self.encodedProjectPath = ppuxPath
+        _G.projectPath = self.projectPath
+        if type(opts.onConfirm) == "function" then
+          opts.onConfirm(dir, stem)
+        end
+      end
+
+      if #existing == 0 or self.skipOverwriteConfirm == true then
+        proceed()
+        return
+      end
+
+      local modal = self.genericActionsModal
+      if not (modal and modal.show) then
+        proceed()
+        return
+      end
+
+      local label
+      if #existing == 1 then
+        local base = existing[1]:match("([^/\\]+)$") or existing[1]
+        label = "Overwrite " .. tostring(base) .. "?"
+      else
+        label = "Overwrite existing project files?"
+      end
+
+      modal:show(label, {
+        {
+          text = "Overwrite",
+          callback = function()
+            if modal.isCheckboxChecked and modal:isCheckboxChecked() then
+              self.skipOverwriteConfirm = true
+            end
+            proceed()
+          end,
+        },
+        {
+          text = "Cancel",
+          callback = function()
+          end,
+        },
+      }, {
+        checkbox = {
+          text = "Don't ask again",
+          checked = false,
+        },
+      })
+    end,
+  })
+
   return true
 end
 

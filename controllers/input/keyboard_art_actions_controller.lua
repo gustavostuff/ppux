@@ -330,6 +330,8 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appCoreRef)
   if WindowCaps.isPpuFrame(w) and appCoreRef.snapshotPpuFrameUndoState then
     beforeState = appCoreRef:snapshotPpuFrameUndoState(w, li)
   elseif WindowCaps.isSketchReflectNametable(w) then
+    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+    SketchPalette.ensureAttrBytes(w)
     beforeAttrs = {}
     local attrs = w.nametableAttrBytes or {}
     for i = 1, #attrs do
@@ -388,13 +390,13 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appCoreRef)
     if beforeState and appCoreRef.pushPpuFrameNametableUndoIfChanged and appCoreRef.snapshotPpuFrameUndoState then
       local afterState = appCoreRef:snapshotPpuFrameUndoState(w, li)
       appCoreRef:pushPpuFrameNametableUndoIfChanged(w, li, beforeState, afterState)
-    elseif beforeAttrs and undoRedo and undoRedo.addDragEvent then
+    elseif beforeAttrs and undoRedo and undoRedo.addSketchNametableAttrsEvent then
       local afterAttrs = {}
       local attrs = w.nametableAttrBytes or {}
       for i = 1, #attrs do
         afterAttrs[i] = attrs[i]
       end
-      undoRedo:addDragEvent({
+      undoRedo:addSketchNametableAttrsEvent({
         type = "sketch_nametable_attrs",
         win = w,
         beforeNametableAttrBytes = beforeAttrs,

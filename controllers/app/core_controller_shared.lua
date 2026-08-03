@@ -83,6 +83,7 @@ M.APP_MODAL_KEYS_IN_ORDER = {
   "newWindowTypeModal",
   "newWindowModal",
   "openProjectModal",
+  "saveProjectFolderModal",
   "openReferencePngModal",
   "renameWindowModal",
   "romPaletteAddressModal",
@@ -116,6 +117,7 @@ M.MODAL_MOUSE_REFRESH_CURSOR_KEYS = {
 M.MODAL_WHEEL_HANDLER_KEYS = {
   openReferencePngModal = true,
   openProjectModal = true,
+  saveProjectFolderModal = true,
 }
 
 --- Text-input routing in APP_MODAL_KEYS_IN_ORDER precedence (subset of modals).
@@ -124,6 +126,7 @@ M.APP_MODAL_TEXTINPUT_ROUTES = {
   { key = "newWindowModal", method = "textinput" },
   { key = "renameWindowModal", method = "textinput" },
   { key = "romPaletteAddressModal", method = "textinput" },
+  { key = "saveProjectFolderModal", method = "textinput" },
   { key = "ppuFrameSpriteLayerModeModal", consumeOnly = true },
   { key = "ppuFrameAddSpriteModal", method = "textinput" },
   { key = "ppuFrameRangeModal", method = "textinput" },

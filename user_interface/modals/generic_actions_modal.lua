@@ -4,6 +4,11 @@ local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
 local Dialog = {}
 Dialog.__index = Dialog
 
+local function checkboxLabel(text, checked)
+  local mark = checked and "[x]" or "[ ]"
+  return string.format("%s %s", mark, tostring(text or "Don't ask again"))
+end
+
 local function rebuildPanel(self)
   local cols = math.max(1, self.cols or 1)
   local leftInset = math.floor((self.rowH or self.cellH or 0) / 2)
@@ -15,7 +20,8 @@ local function rebuildPanel(self)
   else
     optionRows = math.max(1, math.ceil(#(self.options or {}) / cols))
   end
-  local rows = optionRows + 1
+  local checkboxRows = self.checkbox and 1 or 0
+  local rows = optionRows + checkboxRows + 1
   self.panel = Panel.new({
     cols = cols,
     rows = rows,
@@ -65,6 +71,22 @@ local function rebuildPanel(self)
     })
   end
 
+  if self.checkbox then
+    local checkboxRow = optionRows + 1
+    self.panel:setCell(1, checkboxRow, {
+      kind = "button",
+      text = checkboxLabel(self.checkbox.text, self.checkboxChecked == true),
+      colspan = cols,
+      transparent = true,
+      textAlign = "left",
+      contentPaddingX = leftInset,
+      action = function()
+        self.checkboxChecked = not (self.checkboxChecked == true)
+        rebuildPanel(self)
+      end,
+    })
+  end
+
   self.panel:setCell(1, rows, {
     text = self.footerText,
     colspan = cols,
@@ -93,6 +115,8 @@ function Dialog.new()
     _boxW = nil,
     _boxH = nil,
     optionTextFormatter = nil,
+    checkbox = nil,
+    checkboxChecked = false,
   }, Dialog)
 
   ModalPanelUtils.applyPanelDefaults(self)
@@ -100,11 +124,28 @@ function Dialog.new()
   return self
 end
 
-function Dialog:show(title, options)
+--- @param title string
+--- @param options table|nil
+--- @param opts table|nil optional `{ checkbox = { text = string, checked = boolean|nil } }`
+function Dialog:show(title, options, opts)
+  opts = opts or {}
   self.title = title or ""
   self.options = options or {}
+  if type(opts.checkbox) == "table" then
+    self.checkbox = {
+      text = opts.checkbox.text or "Don't ask again",
+    }
+    self.checkboxChecked = opts.checkbox.checked == true
+  else
+    self.checkbox = nil
+    self.checkboxChecked = false
+  end
   self.visible = true
   rebuildPanel(self)
+end
+
+function Dialog:isCheckboxChecked()
+  return self.checkboxChecked == true
 end
 
 function Dialog:hide()

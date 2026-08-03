@@ -54,6 +54,18 @@ local function joinDir(dir, name)
 end
 
 function M.defaultExportDir(app)
+  -- Prefer the folder of the currently loaded / last-saved project.
+  if app then
+    for _, key in ipairs({ "projectPath", "encodedProjectPath" }) do
+      local path = app[key]
+      if type(path) == "string" and path ~= "" then
+        local dir = splitPath(path)
+        if dir and dir ~= "" then
+          return dir
+        end
+      end
+    end
+  end
   local path = app and app.appEditState and app.appEditState.romOriginalPath
   if type(path) == "string" and path ~= "" then
     local dir = splitPath(path)
@@ -61,7 +73,7 @@ function M.defaultExportDir(app)
       return dir
     end
   end
-  -- No ROM: prefer the user home directory so exports are easy to find.
+  -- No project/ROM path: prefer the user home directory so exports are easy to find.
   if love and love.filesystem and type(love.filesystem.getUserDirectory) == "function" then
     local home = love.filesystem.getUserDirectory()
     if type(home) == "string" and home ~= "" then
@@ -153,7 +165,10 @@ function M.encodeChrBankFromSketch(win)
     if not entry then
       return nil, string.format("missing pool entry for slot %d", slot)
     end
-    local pixels = canvas:extractTilePixels(entry.x, entry.y, SketchCanvasPackController.CELL or 8)
+    local pixels = SketchCanvasPackController.pixelsForPoolEntry(canvas, entry)
+    if not pixels then
+      return nil, string.format("missing pixels for slot %d", slot)
+    end
     local tileBytes, encErr = chr.encodeTile(pixels)
     if not tileBytes then
       return nil, encErr or "encodeTile failed"

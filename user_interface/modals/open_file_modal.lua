@@ -1,6 +1,7 @@
 local Button = require("user_interface.button")
 local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
 local Panel = require("user_interface.panel")
+local TextField = require("user_interface.text_field")
 local colors = require("app_colors")
 local images = require("images")
 local TU = require("utils.text_utils")
@@ -293,11 +294,23 @@ local function rebuildPanel(self)
   local leftInset = math.floor((self.cellH or 0) / 2)
   self.parentButton.contentPaddingX = leftInset
   self.homeButton.contentPaddingX = leftInset
+  if self.confirmButton then
+    self.confirmButton.contentPaddingX = leftInset
+    self.confirmButton.text = self._confirmLabel or "Use this folder"
+    self.confirmButton.hidden = self._directoriesOnly ~= true
+  end
   for i = 1, VISIBLE_FILE_SLOTS do
     self.fileButtons[i].contentPaddingX = leftInset
   end
 
-  local rows = 1 + 1 + VISIBLE_FILE_ROWS + 1
+  local nameRow = nil
+  local footerRow = 1 + 1 + VISIBLE_FILE_ROWS + 1
+  if self._directoriesOnly == true then
+    nameRow = footerRow
+    footerRow = footerRow + 1
+  end
+  local rows = footerRow
+
   self.panel = Panel.new({
     cols = MODAL_COLS,
     rows = rows,
@@ -334,10 +347,32 @@ local function rebuildPanel(self)
     end
   end
 
-  self.panel:setCell(1, rows, {
-    text = "Esc) Close",
-    colspan = MODAL_COLS,
-  })
+  if nameRow and self.nameField then
+    self.panel:setCell(1, nameRow, {
+      text = "Name:",
+      preserveTrailingColon = true,
+    })
+    self.panel:setCell(2, nameRow, {
+      component = self.nameField,
+      colspan = 2,
+    })
+  end
+
+  if self._directoriesOnly == true and self.confirmButton then
+    self.panel:setCell(1, footerRow, {
+      text = "Esc) Close",
+      colspan = 2,
+    })
+    self.panel:setCell(3, footerRow, {
+      component = self.confirmButton,
+      colspan = 1,
+    })
+  else
+    self.panel:setCell(1, footerRow, {
+      text = "Esc) Close",
+      colspan = MODAL_COLS,
+    })
+  end
 end
 
 local PRESETS = {
@@ -349,6 +384,13 @@ local PRESETS = {
     allowedExt = { png = true },
     defaultTitle = "Open PNG image",
   },
+  -- Browse folders only; confirm current directory (used for no-ROM project save).
+  saveProjectFolder = {
+    allowedExt = {},
+    directoriesOnly = true,
+    defaultTitle = "Save Project Folder",
+    confirmLabel = "Save here",
+  },
 }
 
 function Dialog.new(config)
@@ -356,7 +398,9 @@ function Dialog.new(config)
   local allowedExt = config.allowedExt or PRESETS.project.allowedExt
   local self = setmetatable({
     _allowedExt = allowedExt,
+    _directoriesOnly = config.directoriesOnly == true,
     _defaultTitle = config.defaultTitle or "Open file",
+    _confirmLabel = config.confirmLabel or "Use this folder",
     visible = false,
     title = config.defaultTitle or "Open file",
     onOpen = nil,
@@ -406,6 +450,23 @@ function Dialog.new(config)
     action = function()
       self:_goHome()
     end,
+  })
+
+  self.confirmButton = Button.new({
+    text = self._confirmLabel,
+    h = ModalPanelUtils.MODAL_BUTTON_H,
+    transparent = true,
+    textAlign = "left",
+    contentPaddingX = 4,
+    iconRespectTheme = false,
+    action = function()
+      self:_confirmCurrentDirectory()
+    end,
+  })
+
+  self.nameField = TextField.new({
+    width = 220,
+    height = ModalPanelUtils.MODAL_BUTTON_H,
   })
 
   self.fileButtons = {}
@@ -527,7 +588,74 @@ function Dialog:_refreshFileButtons()
 end
 
 function Dialog:_loadEntries(dir)
-  self.entries = listEntries(dir, self.showHidden == true, self._allowedExt or PRESETS.project.allowedExt)
+  local allowed = self._allowedExt
+  if self._directoriesOnly == true then
+    allowed = {}
+  elseif type(allowed) ~= "table" then
+    allowed = PRESETS.project.allowedExt
+  end
+  local entries = listEntries(dir, self.showHidden == true, allowed)
+  if self._directoriesOnly == true then
+    local dirsOnly = {}
+    for _, entry in ipairs(entries) do
+      if entry and entry.isDir then
+        dirsOnly[#dirsOnly + 1] = entry
+      end
+    end
+    self.entries = dirsOnly
+  else
+    self.entries = entries
+  end
+end
+
+function Dialog:_sanitizeProjectName(raw)
+  local name = trim(raw)
+  if name == "" then
+    return nil
+  end
+  -- Filename only: drop path separators and trailing extensions.
+  name = name:gsub("[/\\]", "")
+  name = name:gsub("%.lua$", ""):gsub("%.ppux$", ""):gsub("%.nes$", "")
+  name = trim(name)
+  if name == "" or name == "." or name == ".." then
+    return nil
+  end
+  return name
+end
+
+function Dialog:getProjectName()
+  if not self.nameField then
+    return nil
+  end
+  return self:_sanitizeProjectName(self.nameField:getText())
+end
+
+function Dialog:_confirmCurrentDirectory()
+  if self._directoriesOnly ~= true then
+    return false
+  end
+  local dir = self.currentDir
+  if type(dir) ~= "string" or trim(dir) == "" then
+    return false
+  end
+  local projectName = self:getProjectName()
+  if not projectName then
+    if self.nameField then
+      self.nameField:setFocused(true)
+    end
+    return false
+  end
+  local cb = self.onOpen
+  self:hide()
+  if cb then
+    cb(dir, {
+      name = projectName,
+      path = dir,
+      isDir = true,
+      projectName = projectName,
+    })
+  end
+  return true
 end
 
 function Dialog:_setDirectory(dir)
@@ -604,6 +732,12 @@ function Dialog:show(opts)
   if type(opts.allowedExt) == "table" then
     self._allowedExt = opts.allowedExt
   end
+  if opts.directoriesOnly ~= nil then
+    self._directoriesOnly = opts.directoriesOnly == true
+  end
+  if type(opts.confirmLabel) == "string" and opts.confirmLabel ~= "" then
+    self._confirmLabel = opts.confirmLabel
+  end
   self.title = opts.title or self._defaultTitle or "Open file"
   self.onOpen = opts.onOpen
   self.onCancel = opts.onCancel
@@ -611,6 +745,17 @@ function Dialog:show(opts)
   self.showHidden = opts.showHidden == true
   self.visible = true
   rebuildPanel(self)
+
+  if self._directoriesOnly == true and self.nameField then
+    local initialName = opts.initialProjectName
+    if type(initialName) ~= "string" or trim(initialName) == "" then
+      initialName = "untitled"
+    end
+    self.nameField:setText(self:_sanitizeProjectName(initialName) or "untitled")
+    self.nameField:setFocused(true)
+  elseif self.nameField then
+    self.nameField:setFocused(false)
+  end
 
   local initialDir = normalizePath(opts.initialDir or self.currentDir or ".")
   self:_setDirectory(initialDir)
@@ -622,6 +767,9 @@ function Dialog:hide()
   self.onOpen = nil
   self.onCancel = nil
   self.onDirectoryChanged = nil
+  if self.nameField then
+    self.nameField:setFocused(false)
+  end
   if self.panel then
     self.panel:setVisible(false)
   end
@@ -649,6 +797,15 @@ function Dialog:handleKey(key)
   if key == "escape" then
     self:_cancel()
     return true
+  end
+  if self._directoriesOnly == true and self.nameField and self.nameField.focused then
+    if key == "return" or key == "kpenter" then
+      self:_confirmCurrentDirectory()
+      return true
+    end
+    if self.nameField:onKeyPressed(key) then
+      return true
+    end
   end
   if key == "backspace" then
     self:_goUp()
@@ -679,8 +836,20 @@ function Dialog:handleKey(key)
     return true
   end
   if key == "return" or key == "kpenter" then
-    self:_activateVisibleSlot(1)
+    if self._directoriesOnly == true then
+      self:_confirmCurrentDirectory()
+    else
+      self:_activateVisibleSlot(1)
+    end
     return true
+  end
+  return false
+end
+
+function Dialog:textinput(text)
+  if not self.visible then return false end
+  if self._directoriesOnly == true and self.nameField then
+    return self.nameField:onTextInput(text)
   end
   return false
 end
@@ -691,6 +860,10 @@ function Dialog:mousepressed(x, y, button)
   if not self:_containsBox(x, y) then
     self:_cancel()
     return true
+  end
+  if self._directoriesOnly == true and self.nameField then
+    local fieldFocused = self.nameField:contains(x, y)
+    self.nameField:setFocused(fieldFocused)
   end
   return self.panel and self.panel:mousepressed(x, y, button) or false
 end

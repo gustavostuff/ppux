@@ -1263,6 +1263,10 @@ M.COMMANDS = {
         attrs[i] = state[i]
       end
       event.win.nametableAttrBytes = attrs
+      local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+      if SketchCanvasPackController.invalidateReflectDisplay then
+        SketchCanvasPackController.invalidateReflectDisplay(event.win)
+      end
       return true
     end,
   },

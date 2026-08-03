@@ -147,9 +147,11 @@ local function ensureQuickButtons(app)
     save = Button.new({
       icon = images.icons.actions.save,
       tooltip = "Save options",
-      action = withRom(app, function(a)
-        a:showSaveOptionsModal()
-      end),
+      action = function()
+        if app.showSaveOptionsModal then
+          app:showSaveOptionsModal()
+        end
+      end,
       x = 0,
       y = 0,
       w = cell,
@@ -391,6 +393,23 @@ local function hasOpenProject(app)
   return app and app.hasLoadedROM and app:hasLoadedROM() == true
 end
 
+local function hasAnyOpenWindow(app)
+  local wm = app and app.wm
+  if not (wm and wm.getWindows) then
+    return false
+  end
+  for _, w in ipairs(wm:getWindows() or {}) do
+    if w and w._closed ~= true then
+      return true
+    end
+  end
+  return false
+end
+
+local function canSaveWorkspace(app)
+  return hasOpenProject(app) or hasAnyOpenWindow(app)
+end
+
 local function quickButtonOrder(app)
   -- Always show the full strip; ROM-gated actions are disabled when no project is open.
   local order = {
@@ -441,7 +460,7 @@ local function updateMirrorPreviewButton(app)
   then
     allow = true
   end
-  b.enabled = hasOpenProject(app) and allow
+  b.enabled = allow
   local mirrorOn = focus and focus._mirrorXPreview == true
   if mirrorOn then
     b.bgColor = colors.green
@@ -472,7 +491,7 @@ local function updateAlwaysOnTopButton(app)
   then
     allow = true
   end
-  b.enabled = hasOpenProject(app) and allow
+  b.enabled = allow
   local on = focus and focus._alwaysOnTop == true
   if on then
     b.bgColor = colors.green
@@ -642,8 +661,10 @@ function M.syncLayout(app)
 
   -- Without a loaded ROM: keep the full strip visible, but disable project-only actions.
   -- New Window + Gallery ROM stay available for sketch/pattern-table export workflows.
+  -- Save is available for sketch-only workspaces (windows without a ROM).
   local galleryBtn = app._appTopQuickButtons and app._appTopQuickButtons.galleryRom
   local newWinBtn = app._appTopQuickButtons and app._appTopQuickButtons.newWindow
+  local saveBtn = app._appTopQuickButtons and app._appTopQuickButtons.save
   if newWinBtn then
     newWinBtn.enabled = true
     newWinBtn.tooltip = hasOpenProject(app)
@@ -653,16 +674,19 @@ function M.syncLayout(app)
   if galleryBtn then
     galleryBtn.enabled = true
   end
+  if saveBtn then
+    saveBtn.enabled = canSaveWorkspace(app)
+    saveBtn.tooltip = hasOpenProject(app)
+      and "Save options"
+      or "Save project (sketch / pattern table / palette workspace)"
+  end
   if not hasOpenProject(app) then
     local romOnlyKeys = {
-      "save",
       "copy",
       "cut",
       "paste",
       "zoomOut",
       "zoomIn",
-      "mirrorXPreview",
-      "alwaysOnTop",
       "addGridColumn",
       "addGridRow",
       "cloneWindow",
@@ -676,7 +700,6 @@ function M.syncLayout(app)
     end
   else
     -- Buttons without a dedicated updater must be re-enabled after a no-ROM session.
-    local saveBtn = app._appTopQuickButtons.save
     if saveBtn then
       saveBtn.enabled = true
     end

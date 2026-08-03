@@ -233,13 +233,19 @@ local function runMake(asmDir)
   return false, "make failed (" .. tostring(result) .. "): " .. cmd
 end
 
-local function defaultOutPath(app)
+function M.defaultOutPath(app)
   local dir = SketchCanvasExportController.defaultExportDir(app)
   local stem = "gallery"
-  local romPath = app and app.appEditState and app.appEditState.romOriginalPath
-  if type(romPath) == "string" and romPath ~= "" then
-    local base = romPath:match("([^/\\]+)$") or "rom.nes"
-    stem = (base:gsub("%.[^%.]+$", "")):gsub("_edited$", "") .. "_gallery"
+  local projectPath = app and (app.projectPath or app.encodedProjectPath)
+  if type(projectPath) == "string" and projectPath ~= "" then
+    local base = projectPath:match("([^/\\]+)$") or "project"
+    stem = (base:gsub("%.[^%.]+$", "")):gsub("_project$", "") .. "_gallery"
+  else
+    local romPath = app and app.appEditState and app.appEditState.romOriginalPath
+    if type(romPath) == "string" and romPath ~= "" then
+      local base = romPath:match("([^/\\]+)$") or "rom.nes"
+      stem = (base:gsub("%.[^%.]+$", "")):gsub("_edited$", "") .. "_gallery"
+    end
   end
   return joinPath(dir, stem .. ".nes")
 end
@@ -307,7 +313,7 @@ function M.buildGalleryRom(app, sketchWindows, opts)
     return false, "make succeeded but gallery.nes missing"
   end
 
-  local outPath = opts.outPath or defaultOutPath(app)
+  local outPath = opts.outPath or M.defaultOutPath(app)
   local okCopy, copyErr = copyFile(built, outPath)
   if not okCopy then
     return false, copyErr

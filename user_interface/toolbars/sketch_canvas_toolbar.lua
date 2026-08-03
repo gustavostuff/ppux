@@ -255,7 +255,8 @@ function SketchCanvasToolbar:_onPaletteLinkMenu()
   self:updateIcons()
 end
 
-function SketchCanvasToolbar:_runGenerate()
+function SketchCanvasToolbar:_runGenerate(opts)
+  opts = opts or {}
   if not self.window then
     return false
   end
@@ -270,7 +271,11 @@ function SketchCanvasToolbar:_runGenerate()
   local ok, packOrErr = SketchCanvasPackController.generateAndApply(self.window, wm)
   do
     local kind, text = SketchCanvasPackController.formatGenerateToast(ok, packOrErr)
-    showToast(self, kind, text)
+    if opts.statusOnly then
+      StatusHelpers.setStatus(self.ctx, text)
+    else
+      showToast(self, kind, text)
+    end
   end
 
   if ok and app and app.undoRedo and app.undoRedo.addSketchCanvasGenerateEvent then
@@ -300,7 +305,8 @@ function SketchCanvasToolbar:_scheduleToleranceRegen()
   self._toleranceRegenTimerId = Timer.after(TOLERANCE_REGEN_DELAY, function()
     self._toleranceRegenTimerId = nil
     if self.window and self:_isLinked() then
-      self:_runGenerate()
+      -- Tolerance buttons: status bar only (no toast spam while adjusting).
+      self:_runGenerate({ statusOnly = true })
     end
   end)
 end

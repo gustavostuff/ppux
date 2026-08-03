@@ -518,6 +518,9 @@ local function drawOverlays(app)
   if app.openProjectModal then
     app.openProjectModal:draw(app.canvas)
   end
+  if app.saveProjectFolderModal and app.saveProjectFolderModal:isVisible() then
+    app.saveProjectFolderModal:draw(app.canvas)
+  end
   if app.openReferencePngModal and app.openReferencePngModal:isVisible() then
     app.openReferencePngModal:draw(app.canvas)
   end

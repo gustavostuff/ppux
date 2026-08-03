@@ -467,6 +467,48 @@ function UndoRedoController:addSketchCanvasGenerateEvent(event)
   return pushed
 end
 
+function UndoRedoController:addSketchNametableAttrsEvent(event)
+  if not event or event.type ~= "sketch_nametable_attrs" or not event.win then
+    return false
+  end
+  local before = event.beforeNametableAttrBytes
+  local after = event.afterNametableAttrBytes
+  if type(before) ~= "table" or type(after) ~= "table" then
+    return false
+  end
+  if #before ~= #after then
+    -- Still allow restore of either side; treat as a change.
+  else
+    local same = true
+    for i = 1, #before do
+      if before[i] ~= after[i] then
+        same = false
+        break
+      end
+    end
+    if same then
+      return false
+    end
+  end
+  local beforeCopy, afterCopy = {}, {}
+  for i = 1, #before do
+    beforeCopy[i] = before[i]
+  end
+  for i = 1, #after do
+    afterCopy[i] = after[i]
+  end
+  local pushed = self:_pushEvent({
+    type = "sketch_nametable_attrs",
+    win = event.win,
+    beforeNametableAttrBytes = beforeCopy,
+    afterNametableAttrBytes = afterCopy,
+  })
+  if pushed then
+    self:_notifyUnsaved("sketch_nametable_attrs")
+  end
+  return pushed
+end
+
 function UndoRedoController:addPaletteColorEvent(event)
   if not event or event.type ~= "palette_color" then return false end
   if type(event.actions) ~= "table" or #event.actions == 0 then return false end

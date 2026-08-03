@@ -3,4 +3,4 @@
 
 .segment "RODATA"
 slide_count:
-  .byte 2
+  .byte 1

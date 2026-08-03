@@ -157,7 +157,16 @@ function AppCoreController:_buildWindowHeaderContextMenuItems(win, opts)
 end
 
 function AppCoreController:_buildEmptySpaceContextMenuItems()
-  local hasRom = self:hasLoadedROM()
+  local hasWindows = false
+  local wm = self.wm
+  if wm and wm.getWindows then
+    for _, w in ipairs(wm:getWindows() or {}) do
+      if w and w._closed ~= true then
+        hasWindows = true
+        break
+      end
+    end
+  end
   local tb = self.taskbar
   local sortTitleIcon = (tb and tb.sortAlphaButton and tb.sortAlphaButton.icon) or images.icons.chrome.sort_a_z
   local sortKindIcon = (tb and tb.sortKindButton and tb.sortKindButton.icon) or images.icons.chrome.sort_kind_asc
@@ -178,12 +187,12 @@ function AppCoreController:_buildEmptySpaceContextMenuItems()
       icon = images.icons.chrome.icon_cascade_all,
       text = "Expand all",
       menuGroup = "empty_wm_expand_all",
-      enabled = hasRom,
+      enabled = hasWindows,
       callback = function()
         self:hideAppContextMenus()
-        local wm = self.wm
-        if wm and wm.expandAll then
-          wm:expandAll()
+        local wmRef = self.wm
+        if wmRef and wmRef.expandAll then
+          wmRef:expandAll()
         end
       end,
     },
@@ -191,7 +200,7 @@ function AppCoreController:_buildEmptySpaceContextMenuItems()
       icon = images.icons.chrome.icon_collapse_all,
       text = "Collapse all",
       menuGroup = "empty_wm_collapse_all",
-      enabled = hasRom,
+      enabled = hasWindows,
       callback = function()
         self:hideAppContextMenus()
         self:_collapseAllWindowsFromMenu()
@@ -202,7 +211,7 @@ function AppCoreController:_buildEmptySpaceContextMenuItems()
       icon = images.icons.actions.icon_mosaic,
       text = "Mosaic all",
       menuGroup = "empty_wm_mosaic_all",
-      enabled = hasRom,
+      enabled = hasWindows,
       callback = function()
         self:hideAppContextMenus()
         self:_mosaicAllWindowsFromMenu()
@@ -213,7 +222,7 @@ function AppCoreController:_buildEmptySpaceContextMenuItems()
       icon = sortTitleIcon,
       text = "Sort by title",
       menuGroup = "empty_wm_sort_by_title",
-      enabled = hasRom,
+      enabled = hasWindows,
       callback = function()
         self:hideAppContextMenus()
         if tb and tb.sortAlphaButton and tb.sortAlphaButton.action then
@@ -225,7 +234,7 @@ function AppCoreController:_buildEmptySpaceContextMenuItems()
       icon = sortKindIcon,
       text = "Sort by kind",
       menuGroup = "empty_wm_sort_by_kind",
-      enabled = hasRom,
+      enabled = hasWindows,
       callback = function()
         self:hideAppContextMenus()
         if tb and tb.sortKindButton and tb.sortKindButton.action then
@@ -237,11 +246,11 @@ function AppCoreController:_buildEmptySpaceContextMenuItems()
       icon = images.icons.chrome.min_all,
       text = "Minimize all",
       menuGroup = "empty_wm_minimize_all",
-      enabled = hasRom,
+      enabled = hasWindows,
       callback = function()
         self:hideAppContextMenus()
-        local wm = self.wm
-        if wm and wm.minimizeAll and wm:minimizeAll() then
+        local wmRef = self.wm
+        if wmRef and wmRef.minimizeAll and wmRef:minimizeAll() then
         end
       end,
     },
@@ -249,11 +258,11 @@ function AppCoreController:_buildEmptySpaceContextMenuItems()
       icon = images.icons.chrome.max_all,
       text = "Maximize all",
       menuGroup = "empty_wm_maximize_all",
-      enabled = hasRom,
+      enabled = hasWindows,
       callback = function()
         self:hideAppContextMenus()
-        local wm = self.wm
-        if wm and wm.maximizeAll and wm:maximizeAll() then
+        local wmRef = self.wm
+        if wmRef and wmRef.maximizeAll and wmRef:maximizeAll() then
         end
       end,
     },

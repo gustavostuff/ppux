@@ -247,6 +247,61 @@ describe("core_controller.lua - contextual menu helpers", function()
     end
   end)
 
+  it("shows empty-space menu without a ROM with only New Window enabled", function()
+    local shownItems = nil
+    local app = setmetatable({
+      hasLoadedROM = function() return false end,
+      wm = {
+        getWindows = function()
+          return {}
+        end,
+      },
+      contentPointToCanvasPoint = function(_, x, y)
+        return x, y
+      end,
+      _hideAllContextMenus = function() end,
+      emptySpaceContextMenu = {
+        showAt = function(_, _x, _y, items)
+          shownItems = items
+        end,
+        isVisible = function()
+          return true
+        end,
+      },
+    }, AppCoreController)
+
+    expect(app:showEmptySpaceContextMenu(10, 20)).toBe(true)
+    expect(shownItems).toBeTruthy()
+    expect(shownItems[1].text).toBe("New Window")
+    expect(shownItems[1].enabled).toBe(true)
+    local enabledCount = 0
+    for _, item in ipairs(shownItems) do
+      if item.enabled ~= false then
+        enabledCount = enabledCount + 1
+      end
+    end
+    expect(enabledCount).toBe(1)
+  end)
+
+  it("enables window management empty-space items when at least one window exists without a ROM", function()
+    local app = setmetatable({
+      hasLoadedROM = function() return false end,
+      wm = {
+        getWindows = function()
+          return {
+            { title = "Sketch", _closed = false },
+          }
+        end,
+      },
+    }, AppCoreController)
+
+    local items = app:_buildEmptySpaceContextMenuItems()
+    expect(#items).toBe(7)
+    for i = 1, 7 do
+      expect(items[i].enabled).toBe(true)
+    end
+  end)
+
   it("builds OAM empty-space sprite context menu with add action", function()
     local addCalls = 0
     local app = setmetatable({

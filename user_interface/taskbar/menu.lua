@@ -216,6 +216,7 @@ function M.install(Taskbar, Helpers)
 
   function Taskbar:_buildMainMenuItems()
     local hasRom = Helpers.appHasLoadedRom(self.app)
+    local hasWindows = Helpers.appHasAnyOpenWindow(self.app)
     local recentItems = self:_buildRecentProjectMenuItems()
     local windowsItems = {
       {
@@ -229,14 +230,14 @@ function M.install(Taskbar, Helpers)
         icon = self._menuIcons and self._menuIcons.expandAll or nil,
         text = "Expand all",
         menuGroup = "tb_wm_expand_all",
-        enabled = hasRom,
+        enabled = hasWindows,
         callback = self._menuActions and self._menuActions.expandAll or nil,
       },
       {
         icon = self._menuIcons and self._menuIcons.collapseAll or nil,
         text = "Collapse all",
         menuGroup = "tb_wm_collapse_all",
-        enabled = hasRom,
+        enabled = hasWindows,
         callback = self._menuActions and self._menuActions.collapseAll or nil,
       },
       --[[ Mosaic all: deactivated in UI for now.
@@ -244,7 +245,7 @@ function M.install(Taskbar, Helpers)
         icon = self._menuIcons and self._menuIcons.mosaicAll or nil,
         text = "Mosaic all",
         menuGroup = "tb_wm_mosaic_all",
-        enabled = hasRom,
+        enabled = hasWindows,
         callback = self._menuActions and self._menuActions.mosaicAll or nil,
       },
       --]]
@@ -252,28 +253,28 @@ function M.install(Taskbar, Helpers)
         icon = self.sortAlphaButton and self.sortAlphaButton.icon or nil,
         text = "Sort by title",
         menuGroup = "tb_wm_sort_by_title",
-        enabled = hasRom,
+        enabled = hasWindows,
         callback = self._menuActions and self._menuActions.sortByTitle or nil,
       },
       {
         icon = self.sortKindButton and self.sortKindButton.icon or nil,
         text = "Sort by kind",
         menuGroup = "tb_wm_sort_by_kind",
-        enabled = hasRom,
+        enabled = hasWindows,
         callback = self._menuActions and self._menuActions.sortByType or nil,
       },
       {
         icon = self._menuIcons and self._menuIcons.minimizeAll or nil,
         text = "Minimize all",
         menuGroup = "tb_wm_minimize_all",
-        enabled = hasRom,
+        enabled = hasWindows,
         callback = self._menuActions and self._menuActions.minimizeAll or nil,
       },
       {
         icon = self._menuIcons and self._menuIcons.maximizeAll or nil,
         text = "Maximize all",
         menuGroup = "tb_wm_maximize_all",
-        enabled = hasRom,
+        enabled = hasWindows,
         callback = self._menuActions and self._menuActions.maximizeAll or nil,
       },
     }

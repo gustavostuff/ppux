@@ -157,7 +157,7 @@ function Dialog:show(opts)
   local total = #sketches
   local used = math.min(total, MAX_VISIBLE_SLIDES)
   self.summaryText = string.format(
-    "%d packed sketch canvas%s will be inserted as slides:",
+    "%d packed sketch canvas%s will be inserted:",
     used,
     used == 1 and "" or "es"
   )

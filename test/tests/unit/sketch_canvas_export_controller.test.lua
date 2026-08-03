@@ -39,6 +39,26 @@ describe("sketch_canvas_export_controller.lua - scaffold", function()
     expect(SketchCanvasExportController.defaultNametablePath(app, win)).toBe("/tmp/games/My_Sketch.nam")
   end)
 
+  it("prefers the saved project folder over the ROM folder for exports", function()
+    local app = {
+      projectPath = "/home/g/art/gallery.lua",
+      encodedProjectPath = "/home/g/art/gallery.ppux",
+      appEditState = {
+        romOriginalPath = "/tmp/games/demo.nes",
+      },
+    }
+    expect(SketchCanvasExportController.defaultExportDir(app)).toBe("/home/g/art")
+    expect(SketchCanvasGalleryRomController.defaultOutPath(app)).toBe("/home/g/art/gallery_gallery.nes")
+  end)
+
+  it("uses the encoded project folder when only .ppux is set", function()
+    local app = {
+      encodedProjectPath = "/tmp/sketches/my_slides.ppux",
+    }
+    expect(SketchCanvasExportController.defaultExportDir(app)).toBe("/tmp/sketches")
+    expect(SketchCanvasGalleryRomController.defaultOutPath(app)).toBe("/tmp/sketches/my_slides_gallery.nes")
+  end)
+
   it("pads a 4KB bank to 8KB", function()
     local four = string.rep("\1", 4096)
     local eight, err = SketchCanvasExportController.padChrBankTo8KiB(four)

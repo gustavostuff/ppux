@@ -274,11 +274,7 @@ function AppCoreController:keypressed(k, scancode, isrepeat)
     local altDown = love.keyboard.isDown("lalt") or love.keyboard.isDown("ralt")
     if not keyRepeat and not ctrlDown and not shiftDown and not altDown and k == "m" then
       local focus = self.wm and self.wm.getFocus and self.wm:getFocus()
-      if focus
-          and self.hasLoadedROM
-          and self:hasLoadedROM()
-          and self.togglePreviewMirrorX
-      then
+      if focus and self.togglePreviewMirrorX then
         local changed, on = self:togglePreviewMirrorX()
         if changed then
           if self.setStatus then

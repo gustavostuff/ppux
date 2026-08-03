@@ -45,6 +45,20 @@ function M.appHasLoadedRom(app)
     and state.romOriginalPath ~= ""
 end
 
+--- True when the WM has at least one non-closed window (ROM optional).
+function M.appHasAnyOpenWindow(app)
+  local wm = app and app.wm
+  if not (wm and wm.getWindows) then
+    return false
+  end
+  for _, w in ipairs(wm:getWindows() or {}) do
+    if w and w._closed ~= true then
+      return true
+    end
+  end
+  return false
+end
+
 function M.splitPath(path)
   if type(path) ~= "string" then
     return "", ""

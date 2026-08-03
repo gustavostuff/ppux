@@ -184,23 +184,28 @@ describe("sketch canvas - link + pattern table apply", function()
     assert(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm))
 
     local undo = UndoRedoController.new(10)
-    local statuses = {}
+    local toasts = {}
     local app = {
       wm = wm,
       undoRedo = undo,
-      setStatus = function(_app, text)
-        statuses[#statuses + 1] = text
+      showToast = function(_app, kind, text)
+        toasts[#toasts + 1] = { kind = kind, text = text }
       end,
       showPatternTableLinkDestinationContextMenu = function()
         return true
       end,
     }
-    local toolbar = ToolbarController.createSpecializedToolbar(sketch, { app = app }, wm)
+    local toolbar = ToolbarController.createSpecializedToolbar(sketch, {
+      app = app,
+      showToast = function(kind, text)
+        toasts[#toasts + 1] = { kind = kind, text = text }
+      end,
+    }, wm)
     expect(toolbar.linkButton.enabled).toBe(true)
 
     toolbar.generateButton.action()
     expect(#pt.layers[1].items).toBe(256)
-    expect(statuses[#statuses]:find("pattern table", 1, true)).toBeTruthy()
+    expect(toasts[#toasts].text:find("pattern table", 1, true)).toBeTruthy()
 
     undo:undo(app)
     expect(#(sketch.tilesPool or {})).toBe(0)

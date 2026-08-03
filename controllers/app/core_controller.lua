@@ -46,6 +46,7 @@ function AppCoreController.new()
   self.brushSize = 1
   self.editTool = "pencil"
   self.syncDuplicateTiles = false
+  self.skipOverwriteConfirm = false
   self.spaceHighlightActive = false
   self.spaceHighlightSourceWin = nil
   self.showDebugInfo = false
@@ -101,6 +102,7 @@ function AppCoreController.new()
   self.newWindowTypeModal = NewWindowTypeModal.new()
   self.newWindowModal = NewWindowModal.new()
   self.openProjectModal = OpenProjectModal.new()
+  self.saveProjectFolderModal = nil
   self.openReferencePngModal = nil
   self.renameWindowModal = RenameWindowModal.new()
   self.romPaletteAddressModal = RomPaletteAddressModal.new()

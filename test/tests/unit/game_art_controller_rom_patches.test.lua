@@ -97,6 +97,7 @@ describe("game_art_controller.lua - romPatches", function()
     local project = GameArtController.snapshotProject(wm, nil, 1, nil, {
       currentColor = 1,
       syncDuplicateTiles = false,
+      skipOverwriteConfirm = true,
       appEditState = {
         romPatches = {
           { address = 0x1234, value = 0x0F, reason = "keep black" },
@@ -106,6 +107,7 @@ describe("game_art_controller.lua - romPatches", function()
       },
     })
 
+    expect(project.skipOverwriteConfirm).toBe(true)
     expect(project.romPatches).toBeTruthy()
     expect(#project.romPatches).toBe(3)
     expect(project.romPatches[1].address).toBe(0x1234)

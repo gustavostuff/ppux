@@ -50,6 +50,85 @@ describe("app_top_toolbar_controller.lua", function()
     expect(warningStatus).toBe(nil)
   end)
 
+  it("enables Save when a sketch window exists without a ROM", function()
+    local saveCalls = 0
+    local app = {
+      canvas = {
+        getWidth = function() return 640 end,
+        getHeight = function() return 360 end,
+      },
+      separateToolbar = false,
+      hasLoadedROM = function() return false end,
+      wm = {
+        getWindows = function()
+          return { { kind = "sketch_canvas", _closed = false } }
+        end,
+      },
+      showSaveOptionsModal = function()
+        saveCalls = saveCalls + 1
+      end,
+      setStatus = function() end,
+      showToast = function() end,
+    }
+
+    AppTopToolbarController.syncLayout(app)
+    local saveButton = app._appTopQuickButtons.save
+    expect(saveButton.enabled).toBe(true)
+
+    local clickX = saveButton.x + math.floor(saveButton.w * 0.5)
+    local clickY = saveButton.y + math.floor(saveButton.h * 0.5)
+    expect(AppTopToolbarController.mousepressed(app, clickX, clickY, 1)).toBe(true)
+    expect(saveCalls).toBe(1)
+  end)
+
+  it("enables Mirror X for a focused sketch window without a ROM", function()
+    local toggleCalls = 0
+    local sketch = {
+      kind = "sketch_canvas",
+      _closed = false,
+      _minimized = false,
+      _collapsed = false,
+      _mirrorXPreview = false,
+    }
+    local app = {
+      canvas = {
+        getWidth = function() return 640 end,
+        getHeight = function() return 360 end,
+      },
+      separateToolbar = false,
+      hasLoadedROM = function() return false end,
+      wm = {
+        getFocus = function()
+          return sketch
+        end,
+        getWindows = function()
+          return { sketch }
+        end,
+      },
+      togglePreviewMirrorX = function(self)
+        toggleCalls = toggleCalls + 1
+        sketch._mirrorXPreview = not (sketch._mirrorXPreview == true)
+        return true, sketch._mirrorXPreview == true
+      end,
+      setStatus = function() end,
+      showToast = function() end,
+    }
+
+    AppTopToolbarController.syncLayout(app)
+    local mirrorButton = app._appTopQuickButtons.mirrorXPreview
+    expect(mirrorButton.enabled).toBe(true)
+    expect(mirrorButton.bgColor).toBe(nil)
+
+    local clickX = mirrorButton.x + math.floor(mirrorButton.w * 0.5)
+    local clickY = mirrorButton.y + math.floor(mirrorButton.h * 0.5)
+    expect(AppTopToolbarController.mousepressed(app, clickX, clickY, 1)).toBe(true)
+    expect(toggleCalls).toBe(1)
+    expect(sketch._mirrorXPreview).toBe(true)
+
+    AppTopToolbarController.syncLayout(app)
+    expect(app._appTopQuickButtons.mirrorXPreview.bgColor).toBeTruthy()
+  end)
+
   it("keeps New first and orders Open / Save / ... when project is loaded", function()
     local app = {
       canvas = {

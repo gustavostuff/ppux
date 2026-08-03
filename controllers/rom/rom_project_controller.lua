@@ -260,10 +260,25 @@ local function normalizeArtifactPath(path, romPath, ext)
   if type(path) == "string" and path ~= "" then
     local dir, base = splitPath(path)
     local stem = canonicalProjectStem(base or ("project." .. ext))
+    if stem == "" then
+      stem = "untitled"
+    end
     return joinPath(dir, stem .. "." .. tostring(ext))
   end
 
   return nil
+end
+
+--- Default paths when saving a sketch-only workspace (no ROM on disk).
+local function defaultUntitledProjectPaths(ext)
+  local cwd = "."
+  if love and love.filesystem and love.filesystem.getWorkingDirectory then
+    local dir = love.filesystem.getWorkingDirectory()
+    if type(dir) == "string" and dir ~= "" then
+      cwd = dir
+    end
+  end
+  return joinPath(cwd, "untitled." .. tostring(ext))
 end
 
 local function ensureProjectSavePaths(app, state)
@@ -271,13 +286,26 @@ local function ensureProjectSavePaths(app, state)
   state = state or app.appEditState or {}
   local romPath = state.romOriginalPath
 
+  if (type(romPath) ~= "string" or romPath == "") then
+    if type(app.projectPath) ~= "string" or app.projectPath == "" then
+      app.projectPath = defaultUntitledProjectPaths("lua")
+    end
+    if type(app.encodedProjectPath) ~= "string" or app.encodedProjectPath == "" then
+      app.encodedProjectPath = defaultUntitledProjectPaths("ppux")
+    end
+  end
+
   app.projectPath = normalizeArtifactPath(app.projectPath, romPath, "lua")
   app.encodedProjectPath = normalizeArtifactPath(app.encodedProjectPath, romPath, "ppux")
   _G.projectPath = app.projectPath
 
   if app.projectPath and app.encodedProjectPath and app.projectPath == app.encodedProjectPath then
-    app.projectPath = normalizeArtifactPath(nil, romPath, "lua") or normalizeArtifactPath(app.projectPath, nil, "lua")
-    app.encodedProjectPath = normalizeArtifactPath(nil, romPath, "ppux") or normalizeArtifactPath(app.encodedProjectPath, nil, "ppux")
+    app.projectPath = normalizeArtifactPath(nil, romPath, "lua")
+      or normalizeArtifactPath(app.projectPath, nil, "lua")
+      or defaultUntitledProjectPaths("lua")
+    app.encodedProjectPath = normalizeArtifactPath(nil, romPath, "ppux")
+      or normalizeArtifactPath(app.encodedProjectPath, nil, "ppux")
+      or defaultUntitledProjectPaths("ppux")
     _G.projectPath = app.projectPath
   end
 end
@@ -348,6 +376,41 @@ local function appHasLoadedRom(app)
     and state.romOriginalPath ~= ""
 end
 
+local function appHasOpenWindows(app)
+  local wm = app and app.wm
+  if not (wm and wm.getWindows) then
+    return false
+  end
+  for _, w in ipairs(wm:getWindows() or {}) do
+    if w and w._closed ~= true then
+      return true
+    end
+  end
+  return false
+end
+
+--- Windows that can be authored without a base .nes (sketch workflow / gallery).
+local ROM_OPTIONAL_WINDOW_KINDS = {
+  sketch_canvas = true,
+  pattern_table = true,
+  rom_palette = true,
+  palette = true,
+}
+
+local function projectNeedsBaseRom(project)
+  for _, w in ipairs((project and project.windows) or {}) do
+    local kind = w and w.kind
+    if not ROM_OPTIONAL_WINDOW_KINDS[kind] then
+      return true
+    end
+  end
+  return false
+end
+
+local function appCanSaveProject(app)
+  return appHasLoadedRom(app) or appHasOpenWindows(app)
+end
+
 local function resetStateForNewROM(app)
   if UserInput and UserInput.resetRuntimeState then
     UserInput.resetRuntimeState()
@@ -366,6 +429,7 @@ local function resetStateForNewROM(app)
   app.encodedProjectPath      = nil
   app.currentBank             = 1
   app.syncDuplicateTiles      = false
+  app.skipOverwriteConfirm    = false
   if app.undoRedo and app.undoRedo.clear then
     app.undoRedo:clear()
   end
@@ -820,6 +884,7 @@ local function loadFromProject(app, project)
   if project.syncDuplicateTiles ~= nil then
     app.syncDuplicateTiles = project.syncDuplicateTiles
   end
+  app.skipOverwriteConfirm = project.skipOverwriteConfirm == true
   state.romPatches = GameArtController.normalizeRomPatches(project.romPatches)
 
   pulseLoading(app, "Building project windows...")
@@ -967,6 +1032,7 @@ local function loadFromDBLayout(app, sha)
   if layout.syncDuplicateTiles ~= nil then
     app.syncDuplicateTiles = layout.syncDuplicateTiles == true
   end
+  app.skipOverwriteConfirm = layout.skipOverwriteConfirm == true
   if not dbLayoutHasWindows(layout) then
     DebugController.log("info", "ROM", "DB layout is empty for SHA-1 %s; falling back to default layout", tostring(sha))
     return false
@@ -1252,6 +1318,9 @@ function M.loadROM(app, fileOrPath)
     app.syncDuplicateTiles = project.syncDuplicateTiles
   end
   if project then
+    app.skipOverwriteConfirm = project.skipOverwriteConfirm == true
+  end
+  if project then
     pulseLoading(app, "Applying ROM patches...")
     local patchStartedAt = LoveCompat.getTime()
     state.romPatches = GameArtController.normalizeRomPatches(project.romPatches)
@@ -1348,33 +1417,59 @@ function M.loadProjectFile(app, fileOrPath)
 
   pulseLoading(app, "Resolving base ROM...")
   local romPath, romErr = resolveRomPathForProject(projectPath)
-  if not romPath then
+  local needsRom = projectNeedsBaseRom(project)
+  if needsRom and not romPath then
     notifyProjectLoadError(app, romErr or "Could not locate base ROM for project")
     return finish(false)
   end
 
   resetStateForNewROM(app)
 
-  pulseLoading(app, "Reading ROM...")
-  if not readROMFromFile(app, romPath) then
-    return finish(false)
+  if romPath then
+    pulseLoading(app, "Reading ROM...")
+    if not readROMFromFile(app, romPath) then
+      return finish(false)
+    end
+    setDefaultProjectPaths(app, romPath)
+  else
+    -- Sketch / pattern-table / palette-only project: no .nes required.
+    setDefaultProjectPaths(app, projectPath)
   end
-
-  setDefaultProjectPaths(app, romPath)
   if projectFormat == "lua" then
     app.projectPath = projectPath
     _G.projectPath = app.projectPath
   else
     app.encodedProjectPath = projectPath
   end
+  if not romPath then
+    -- Align sibling .lua / .ppux paths so Save opens in this folder with this stem.
+    local dir, base = splitPath(projectPath)
+    local stem = canonicalProjectStem(base or "untitled")
+    if stem == "" then
+      stem = "untitled"
+    end
+    local luaPath = joinPath(dir, stem .. ".lua")
+    local ppuxPath = joinPath(dir, stem .. ".ppux")
+    if projectFormat == "lua" then
+      app.projectPath = projectPath
+      app.encodedProjectPath = ppuxPath
+    else
+      app.projectPath = luaPath
+      app.encodedProjectPath = projectPath
+    end
+    _G.projectPath = app.projectPath
+    app._openFileModalLastDirs = app._openFileModalLastDirs or {}
+    app._openFileModalLastDirs.saveProject = (dir ~= "" and dir) or "."
+  end
 
   local state = app.appEditState
   if project.syncDuplicateTiles ~= nil then
     app.syncDuplicateTiles = project.syncDuplicateTiles
   end
+  app.skipOverwriteConfirm = project.skipOverwriteConfirm == true
   pulseLoading(app, "Applying ROM patches...")
   state.romPatches = GameArtController.normalizeRomPatches(project.romPatches)
-  if state.romPatches then
+  if romPath and state.romPatches then
     local patched, patchErr, applied = GameArtController.applyRomPatches(state.romRaw, state.romPatches)
     if not patched then
       notifyProjectLoadError(app, "ROM patch apply error: " .. tostring(patchErr or "unknown"))
@@ -1382,10 +1477,19 @@ function M.loadProjectFile(app, fileOrPath)
     end
     state.romRaw = patched
     DebugController.log("info", "ROM_PATCH", "Applied %d project ROM patch(es)", applied or 0)
+  elseif not romPath then
+    state.romPatches = nil
   end
 
-  if not parseROM(app) then
-    return finish(false)
+  if romPath then
+    if not parseROM(app) then
+      return finish(false)
+    end
+  else
+    state.romRaw = state.romRaw or ""
+    state.chrBanksBytes = state.chrBanksBytes or {}
+    state.originalChrBanksBytes = state.originalChrBanksBytes or {}
+    state.tilesPool = state.tilesPool or {}
   end
 
   if not loadFromProject(app, project) then
@@ -1610,8 +1714,8 @@ function M.handleFileDropped(app, file)
 end
 
 function M.saveProject(app)
-  if not appHasLoadedRom(app) then
-    app:setStatus("Open a ROM before saving.")
+  if not appCanSaveProject(app) then
+    app:setStatus("Nothing to save (create a window or open a ROM first).")
     return false
   end
 
@@ -1626,7 +1730,7 @@ function M.saveProject(app)
   local project = GameArtController.snapshotProject(
     app.wm,
     app.winBank,
-    state.currentBank,
+    state and state.currentBank,
     app.edits,
     app
   )
@@ -1639,8 +1743,8 @@ function M.saveProject(app)
 end
 
 function M.saveEncodedProject(app)
-  if not appHasLoadedRom(app) then
-    app:setStatus("Open a ROM before saving.")
+  if not appCanSaveProject(app) then
+    app:setStatus("Nothing to save (create a window or open a ROM first).")
     return false
   end
 
@@ -1655,7 +1759,7 @@ function M.saveEncodedProject(app)
   local project = GameArtController.snapshotProject(
     app.wm,
     app.winBank,
-    state.currentBank,
+    state and state.currentBank,
     app.edits,
     app
   )

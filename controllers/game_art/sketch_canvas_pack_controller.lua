@@ -32,6 +32,51 @@ local function pixelDiffCount(pattern1, pattern2, threshold)
   return differences
 end
 
+--- Count pixels that differ from a constant shade (0-3). Early-out past threshold.
+local function solidDiffCount(pixels, shade, threshold)
+  threshold = threshold or 0
+  shade = math.floor(tonumber(shade) or 0)
+  local differences = 0
+  for i = 1, 64 do
+    if pixels[i] ~= shade then
+      differences = differences + 1
+      if differences > threshold then
+        return differences
+      end
+    end
+  end
+  return differences
+end
+
+local function makeSolidPattern(shade)
+  shade = math.floor(tonumber(shade) or 0)
+  if shade < 0 then
+    shade = 0
+  elseif shade > 3 then
+    shade = 3
+  end
+  local pixels = {}
+  for i = 1, 64 do
+    pixels[i] = shade
+  end
+  return pixels
+end
+
+--- If a tile is within tolerance of a flat shade, collapse it to that shade.
+--- Prefer the closest shade; ties keep the lower shade index.
+local function canonicalSolidShade(pixels, tolerance)
+  local bestShade = nil
+  local bestDiff = nil
+  for shade = 0, 3 do
+    local diff = solidDiffCount(pixels, shade, tolerance)
+    if diff <= tolerance and (bestDiff == nil or diff < bestDiff) then
+      bestShade = shade
+      bestDiff = diff
+    end
+  end
+  return bestShade
+end
+
 local function resolveCanvas(winOrCanvas)
   if type(winOrCanvas) ~= "table" then
     return nil
@@ -109,6 +154,21 @@ function M.makeScratchTileFromPixels(pixels)
   end
   tile._imageDirty = true
   return tile
+end
+
+--- Pixels for a pool entry: canonical solid when packed as a flat shade, else canvas sample.
+function M.pixelsForPoolEntry(canvas, entry)
+  if type(entry) ~= "table" then
+    return nil
+  end
+  local shade = entry.solidShade
+  if type(shade) == "number" and shade >= 0 and shade <= 3 then
+    return makeSolidPattern(shade)
+  end
+  if not (canvas and type(canvas.extractTilePixels) == "function") then
+    return nil
+  end
+  return canvas:extractTilePixels(entry.x, entry.y, M.CELL)
 end
 
 --- Remember which sketch paint cell this scratch tile samples (for undo/redo sync).
@@ -246,6 +306,8 @@ function M.packFromCanvas(canvas, tolerance)
   tolerance = clampTolerance(tolerance)
   local tilesPool = {}
   local uniquePatterns = {}
+  -- One pool slot per flat shade (0-3) when any tile collapses to that solid.
+  local solidPoolIndex = { nil, nil, nil, nil } -- 1-based keyed by shade+1
   local nametableBytes = {}
 
   for row = 0, M.GRID_ROWS - 1 do
@@ -254,20 +316,52 @@ function M.packFromCanvas(canvas, tolerance)
       local oy = row * M.CELL
       local pixels = canvas:extractTilePixels(ox, oy, M.CELL)
       local matchIndex = nil
-      for i = 1, #uniquePatterns do
-        if pixelDiffCount(pixels, uniquePatterns[i], tolerance) <= tolerance then
-          matchIndex = i
-          break
-        end
-      end
 
-      if not matchIndex then
-        if #tilesPool >= M.MAX_UNIQUE then
-          return nil, "too_many_unique"
+      -- Near-flats within tolerance collapse to one canonical solid per shade.
+      -- Avoids several "empty looking" uniques that greedy pairwise match misses.
+      local solidShade = canonicalSolidShade(pixels, tolerance)
+      if solidShade ~= nil then
+        local slot = solidShade + 1
+        matchIndex = solidPoolIndex[slot]
+        local isExactSolid = solidDiffCount(pixels, solidShade, 0) == 0
+        if not matchIndex then
+          if #tilesPool >= M.MAX_UNIQUE then
+            return nil, "too_many_unique"
+          end
+          tilesPool[#tilesPool + 1] = {
+            x = ox,
+            y = oy,
+            solidShade = solidShade,
+            exactSolid = isExactSolid,
+          }
+          uniquePatterns[#uniquePatterns + 1] = makeSolidPattern(solidShade)
+          matchIndex = #tilesPool
+          solidPoolIndex[slot] = matchIndex
+        else
+          -- Upgrade sample point once from a near-flat to a true flat.
+          local entry = tilesPool[matchIndex]
+          if entry and entry.solidShade == solidShade and not entry.exactSolid and isExactSolid then
+            entry.x = ox
+            entry.y = oy
+            entry.exactSolid = true
+          end
         end
-        tilesPool[#tilesPool + 1] = { x = ox, y = oy }
-        uniquePatterns[#uniquePatterns + 1] = pixels
-        matchIndex = #tilesPool
+      else
+        for i = 1, #uniquePatterns do
+          if pixelDiffCount(pixels, uniquePatterns[i], tolerance) <= tolerance then
+            matchIndex = i
+            break
+          end
+        end
+
+        if not matchIndex then
+          if #tilesPool >= M.MAX_UNIQUE then
+            return nil, "too_many_unique"
+          end
+          tilesPool[#tilesPool + 1] = { x = ox, y = oy }
+          uniquePatterns[#uniquePatterns + 1] = pixels
+          matchIndex = #tilesPool
+        end
       end
 
       -- 0-based pool index stored in nametableBytes (NES tile index style).
@@ -375,9 +469,12 @@ function M.getReflectDisplayCanvas(sketchWin)
       local ntIndex = row * M.GRID_COLS + col + 1
       local poolIndex = math.floor(tonumber(nt[ntIndex]) or 0)
       local entry = pool[poolIndex + 1] or fallback
-      local ox = entry and math.floor(tonumber(entry.x) or 0) or 0
-      local oy = entry and math.floor(tonumber(entry.y) or 0) or 0
-      local pixels = paint:extractTilePixels(ox, oy, M.CELL)
+      local pixels = M.pixelsForPoolEntry(paint, entry)
+      if not pixels then
+        local ox = entry and math.floor(tonumber(entry.x) or 0) or 0
+        local oy = entry and math.floor(tonumber(entry.y) or 0) or 0
+        pixels = paint:extractTilePixels(ox, oy, M.CELL)
+      end
       display:loadTilePixels(col * M.CELL, row * M.CELL, pixels, M.CELL)
     end
   end
@@ -612,7 +709,11 @@ function M.extractFrozenPixelsForPatternTableCell(ptWin, col, row, wm)
   if not entry then
     return nil
   end
-  return copyPixels(canvas:extractTilePixels(entry.x, entry.y, M.CELL))
+  local pixels = M.pixelsForPoolEntry(canvas, entry)
+  if not pixels then
+    return nil
+  end
+  return copyPixels(pixels)
 end
 
 local function entryGridCoords(entry)
@@ -813,13 +914,15 @@ function M.applyPackToLinkedPatternTable(sketchWin, wm)
   local uniqueCount = #pool
   local padIndex = clampPaddingIndex(sketchWin, uniqueCount)
   local padEntry = pool[padIndex + 1]
-  local padPixels = canvas:extractTilePixels(padEntry.x, padEntry.y, M.CELL)
+  local padPixels = M.pixelsForPoolEntry(canvas, padEntry)
+    or canvas:extractTilePixels(padEntry.x, padEntry.y, M.CELL)
 
   -- Build unique scratch tiles once; padding slots share the pad tile ref.
   local uniqueTiles = {}
   for i = 1, uniqueCount do
     local entry = pool[i]
-    local pixels = canvas:extractTilePixels(entry.x, entry.y, M.CELL)
+    local pixels = M.pixelsForPoolEntry(canvas, entry)
+      or canvas:extractTilePixels(entry.x, entry.y, M.CELL)
     local tile = M.makeScratchTileFromPixels(pixels)
     M.stampScratchTileSketchSource(tile, sketchWin, entry.x, entry.y)
     uniqueTiles[i] = tile
