@@ -593,13 +593,7 @@ To build a packaged Linux app from Linux, run:
 
 The packaged Linux app will be created as `build/<version>/PPUX-<version>-x86_64.AppImage`.
 
-You can also build for Windows and macOS from Linux using `./scripts/unix/build_all.sh` (macOS build not tested yet). All platform packages for a version are written under `build/<version>/` (from `version.txt`, or `build/unversioned/` when no version is set).
-
-To move older flat artifacts into version folders, run:
-
-```bash
-./scripts/unix/reorganize_build_versions.sh
-```
+You can also build for Windows and macOS from Linux using `./scripts/unix/build_all.sh` (macOS build not tested yet).
 
 ### Unit testing
 
