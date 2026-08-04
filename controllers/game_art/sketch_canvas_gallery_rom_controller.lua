@@ -2,11 +2,10 @@
 -- Assemble a gallery .nes from packed sketch windows via asm/gallery (ca65).
 --
 -- Pipeline:
---   1. encodeChrBankFromSketch → pad to 8KB → data/chr/slideNN.chr
---   2. encodeNametableFromSketch({ includeAttributes = true }) → data/nam/slideNN.nam
---   3. encodePaletteFromSketch → data/pal/slideNN/main.pal
---   4. Write s/slide_meta.s (slide_count)
---   5. make -C asm/gallery → gallery.nes
+--   1. encodeHardwareSlideFromSketch (CHR + NT/attrs + pal, with NES color-0 bake)
+--   2. pad CHR to 8KB → data/chr/slideNN.chr, data/nam/slideNN.nam, data/pal/slideNN/main.pal
+--   3. Write s/slide_meta.s (slide_count)
+--   4. make -C asm/gallery → gallery.nes
 
 local WindowCaps = require("controllers.window.window_capabilities")
 local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
@@ -143,21 +142,20 @@ function M.writeSlideAssets(asmDir, sketches, wm)
   ensureDir(palRoot)
 
   for i, win in ipairs(sketches) do
-    local chr4k, chrErr = SketchCanvasExportController.encodeChrBankFromSketch(win)
+    -- Hardware bake: NES BG index 0 always uses $3F00, so per-attr color 0 from
+    -- sketch mode is remapped into visible CHR indices when needed.
+    local chr4k, nam, palBlob, slideErr =
+      SketchCanvasExportController.encodeHardwareSlideFromSketch(win, wm)
     if not chr4k then
-      return false, string.format("slide %d CHR: %s", i - 1, tostring(chrErr))
+      return false, string.format("slide %d: %s", i - 1, tostring(slideErr or nam or palBlob))
     end
     local chr8k, padErr = SketchCanvasExportController.padChrBankTo8KiB(chr4k)
     if not chr8k then
       return false, string.format("slide %d pad: %s", i - 1, tostring(padErr))
     end
-    local nam, namErr = SketchCanvasExportController.encodeNametableFromSketch(win, {
-      includeAttributes = true,
-    })
-    if not nam then
-      return false, string.format("slide %d nametable: %s", i - 1, tostring(namErr))
+    if type(nam) ~= "string" or #nam ~= SketchCanvasExportController.NAMETABLE_FULL then
+      return false, string.format("slide %d nametable: expected %d bytes", i - 1, SketchCanvasExportController.NAMETABLE_FULL)
     end
-    local palBlob = SketchCanvasExportController.encodePaletteFromSketch(win, wm)
     if type(palBlob) ~= "string" or #palBlob ~= 32 then
       return false, string.format("slide %d palette: expected 32 bytes", i - 1)
     end

@@ -217,6 +217,91 @@ describe("sketch_canvas_export_controller.lua - scaffold", function()
     expect(#(sketch.nametableAttrBytes or {})).toBe(64)
     expect(sketch.nametableAttrBytes[1]).toBe(0)
   end)
+
+  it("bakes non-backdrop color-0 into CHR for hardware / gallery export", function()
+    -- NES BG index 0 always uses $3F00. Sketch shows per-attr color 0; gallery
+    -- export remaps those pixels (and may pick a better backdrop) so regions keep
+    -- their intended solid fills on hardware.
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow({ title = "Color0Bake" })
+    local canvas = sketch:getActiveCanvas()
+    for y = 0, 15 do
+      for x = 0, 15 do
+        canvas:edit(x, y, 0)
+      end
+    end
+    for y = 0, 15 do
+      for x = 16, 31 do
+        canvas:edit(x, y, 0)
+      end
+    end
+    -- Occupy colors 1-3 under palette 2 so black cannot be injected into that row.
+    for y = 0, 7 do
+      for x = 16, 23 do
+        canvas:edit(x, y, 1 + (x + y) % 3)
+      end
+    end
+    expect(SketchCanvasPackController.generate(sketch)).toBe(true)
+
+    local pal = wm:createRomPaletteWindow({ title = "BakePal", paletteRole = "sketch" })
+    pal.codes2D[0][0], pal.codes2D[0][1], pal.codes2D[0][2], pal.codes2D[0][3] = "07", "17", "27", "36"
+    pal.codes2D[1][0], pal.codes2D[1][1], pal.codes2D[1][2], pal.codes2D[1][3] = "0F", "15", "26", "36"
+    local PaletteLinkController = require("controllers.palette.palette_link_controller")
+    expect(PaletteLinkController.linkLayerToPalette(sketch, 1, pal)).toBe(true)
+
+    local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
+    local layer = sketch.layers[1]
+    local prev = rawget(_G, "ctx")
+    rawset(_G, "ctx", { getMode = function() return "tile" end })
+    expect(NametableTilesController.setPaletteNumberForTile(sketch, layer, 2, 0, 2)).toBe(true)
+    expect(NametableTilesController.setPaletteNumberForTile(sketch, layer, 3, 0, 2)).toBe(true)
+    expect(NametableTilesController.setPaletteNumberForTile(sketch, layer, 2, 1, 2)).toBe(true)
+    expect(NametableTilesController.setPaletteNumberForTile(sketch, layer, 3, 1, 2)).toBe(true)
+    rawset(_G, "ctx", prev)
+
+    local chr4k, nam, palBlob, err =
+      SketchCanvasExportController.encodeHardwareSlideFromSketch(sketch, wm)
+    expect(err).toBeNil()
+    expect(#chr4k).toBe(4096)
+    expect(#nam).toBe(1024)
+    expect(#palBlob).toBe(32)
+
+    -- Tiles (2-3,0-1) share the top-right attr quadrant → palette index 1 → 0x04.
+    expect(string.byte(nam, 961)).toBe(0x04)
+
+    -- Prefer backdrop 0F so the fully-used pink row keeps 15/26/36.
+    expect(string.byte(palBlob, 1)).toBe(0x0F)
+    -- Brown 07 must still be present on BG row 0 (promoted into a non-zero slot).
+    local row0 = {
+      string.byte(palBlob, 1),
+      string.byte(palBlob, 2),
+      string.byte(palBlob, 3),
+      string.byte(palBlob, 4),
+    }
+    local hasBrown = false
+    for i = 1, 4 do
+      if row0[i] == 0x07 then
+        hasBrown = true
+      end
+    end
+    expect(hasBrown).toBe(true)
+
+    -- Left solid (palette 0) was remapped off index 0 → CHR has non-zero pixels.
+    local leftTile = string.byte(nam, 1)
+    local bank = {}
+    for i = 1, 16 do
+      bank[i] = string.byte(chr4k, leftTile * 16 + i)
+    end
+    local pixels = chr.decodeTile(bank, 0)
+    local sawNonZero = false
+    for i = 1, 64 do
+      if pixels[i] ~= 0 then
+        sawNonZero = true
+        break
+      end
+    end
+    expect(sawNonZero).toBe(true)
+  end)
 end)
 
 describe("sketch_canvas_gallery_rom_controller.lua", function()

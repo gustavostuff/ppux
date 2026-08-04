@@ -34,8 +34,13 @@ Controller 1 **Left** / **Right** - previous / next slide (edge-triggered).
 
 Per-slide blobs in `data/pal/slideNN/main.pal` (`.incbin` from `s/palette.s`):
 
-- BG rows: `07 17 27 36` x 4 (or from linked sketch palette)
-- Sprite rows: `07 0F 0F 0F` x 4 (color 0 matches BG backdrop; `$3F10` mirrors `$3F00`)
+- BG rows from the linked sketch palette (fallback `07 17 27 36` x 4)
+- Sprite rows: color 0 mirrors `$3F00`; other sprite colors `0F`
+
+NES note: background color index 0 always uses `$3F00` on hardware. Sketch mode
+shows each sub-palette's color 0, so Gallery export bakes non-backdrop color-0
+pixels into visible CHR indices (and may choose a better `$3F00`) so attribute
+regions keep their solid fills in emulators.
 
 ## PPUX
 
