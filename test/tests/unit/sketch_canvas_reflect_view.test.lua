@@ -156,4 +156,83 @@ describe("sketch canvas - tile-mode mirror view", function()
     expect(SketchCanvasPackController.isGenerateDirty(sketch)).toBe(false)
     toolbar:updateIcons()
   end)
+
+  it("does not use stale pack samples when Generate is dirty (avoids selection-move holes)", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow()
+    local paint = sketch.layers[1].canvas
+    paintTile(paint, 0, 0, 3)
+    paintTile(paint, 2, 2, 3)
+    assert(SketchCanvasPackController.generate(sketch))
+
+    -- Clear the sample cell that the pack points at for the solid tile.
+    paintTile(paint, 0, 0, 0)
+    SketchCanvasPackController.markGenerateDirty(sketch)
+    SketchCanvasPackController.invalidateReflectDisplay(sketch)
+
+    expect(SketchCanvasPackController.getReflectDisplayCanvas(sketch)).toBeNil()
+    withMode("tile", function()
+      expect(WindowCaps.isSketchReflectNametable(sketch)).toBe(false)
+    end)
+  end)
+
+  it("marks Generate dirty on load when pack samples disagree with paint", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow()
+    local paint = sketch.layers[1].canvas
+    -- Two identical non-solid tiles share one pool sample at the first occurrence.
+    local function paintMark(col, row)
+      local ox, oy = col * 8, row * 8
+      for y = 0, 7 do
+        for x = 0, 7 do
+          paint:edit(ox + x, oy + y, 0)
+        end
+      end
+      paint:edit(ox + 1, oy + 1, 3)
+      paint:edit(ox + 2, oy + 3, 2)
+      paint:edit(ox + 5, oy + 6, 1)
+    end
+    paintMark(0, 0)
+    paintMark(2, 2)
+    assert(SketchCanvasPackController.generate(sketch))
+    expect(SketchCanvasPackController.isGenerateDirty(sketch)).toBe(false)
+
+    -- Clear only the pool sample cell; the other shared occurrence still has paint.
+    paintTile(paint, 0, 0, 0)
+    expect(SketchCanvasPackController.markGenerateDirtyIfPackDisagreesWithPaint(sketch)).toBe(true)
+    expect(SketchCanvasPackController.isGenerateDirty(sketch)).toBe(true)
+    withMode("tile", function()
+      expect(WindowCaps.isSketchReflectNametable(sketch)).toBe(false)
+    end)
+  end)
+
+  it("does not collapse near-transparent skirt edges into blank solidShade 0", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow()
+    local paint = sketch.layers[1].canvas
+    -- Exact blank elsewhere; near-empty "skirt" tile with a few opaque pixels.
+    for y = 0, 7 do
+      for x = 0, 7 do
+        paint:edit(x, y, 0)
+      end
+    end
+    local ox, oy = 16, 16
+    for y = 0, 7 do
+      for x = 0, 7 do
+        paint:edit(ox + x, oy + y, 0)
+      end
+    end
+    paint:edit(ox + 1, oy + 2, 2)
+    paint:edit(ox + 2, oy + 3, 2)
+    paint:edit(ox + 3, oy + 4, 1)
+
+    local pack = assert(SketchCanvasPackController.packFromCanvas(paint, 8))
+    local skirtNt = (2 * 32 + 2) + 1 -- col=2,row=2
+    local poolIndex = pack.nametableBytes[skirtNt]
+    local entry = pack.tilesPool[poolIndex + 1]
+    expect(entry.solidShade).toBeNil()
+    local pixels = SketchCanvasPackController.pixelsForPoolEntry(paint, entry)
+    -- Local (1,2) was painted 2 → flat index py*8+px+1.
+    expect(pixels[2 * 8 + 1 + 1]).toBe(2)
+  end)
 end)

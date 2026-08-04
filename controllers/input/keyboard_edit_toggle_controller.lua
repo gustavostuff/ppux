@@ -1,5 +1,6 @@
 local WindowCaps = require("controllers.window.window_capabilities")
 local CursorsController = require("controllers.input_support.cursors_controller")
+local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
 
 local M = {}
 
@@ -26,6 +27,24 @@ function M.handleEditModeKeys(ctx, utils, key)
     app.editTool = (app.editTool == "rect_fill") and "pencil" or "rect_fill"
     CursorsController.applyModeCursor(app, ctx.getMode())
     return true
+  end
+
+  -- S: pixel select on sketch canvases (edit mode). Plain drag = rect; Shift+drag = freeform.
+  if key == "s" and not utils.ctrlDown() and not utils.altDown() and not utils.shiftDown() then
+    if not app then return false end
+    local focus = ctx.getFocus and ctx.getFocus() or nil
+    if WindowCaps.isSketchCanvas(focus) and not WindowCaps.isSketchReflectNametable(focus) then
+      app.editTool = (app.editTool == "rect_select") and "pencil" or "rect_select"
+      CursorsController.applyModeCursor(app, ctx.getMode())
+      if ctx.setStatus then
+        ctx.setStatus(
+          app.editTool == "rect_select"
+            and "Tool: select (S) — Shift+drag freeform"
+            or "Tool: pencil"
+        )
+      end
+      return true
+    end
   end
 
   return false
@@ -82,6 +101,14 @@ function M.handleUndoRedo(ctx, utils, key)
   if not app or not app.undoRedo then return false end
 
   if key == "z" then
+    -- Cancel an in-progress floating selection before undoing older edits.
+    local focus = ctx.getFocus and ctx.getFocus() or nil
+    if focus and PixelSel.hasFloatingSelection(focus) and PixelSel.cancelFloating(focus, app) then
+      if ctx.setStatus then
+        ctx.setStatus("Undid floating selection")
+      end
+      return true
+    end
     if app.undoRedo:undo(app) then
       return true
     end

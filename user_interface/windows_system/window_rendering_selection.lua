@@ -522,7 +522,13 @@ function Window:drawTileSelectionOverlays(isFocused)
   end
 
   -- Hovered cell (when focused or under the pointer); hidden during reference-only tracing view.
-  if showHover and mouse and not ReferenceBackgroundController.isReferenceTracingViewActive(self) then
+  -- Sketch edit mode paints freehand pixels — skip the semi-transparent 8x8 hover (tile mode keeps it).
+  local skipSketchEditHover = (
+    mode == "edit"
+    and WindowCaps.isSketchCanvas(self)
+    and not WindowCaps.isSketchReflectNametable(self)
+  )
+  if showHover and mouse and not skipSketchEditHover and not ReferenceBackgroundController.isReferenceTracingViewActive(self) then
     local ok, col, row = self:toGridCoords(mouse.x, mouse.y)
     if ok then
       local rx, ry, rw, rh, topRow = getTileSelectionRect(self, col, row, overlayCtx, L)

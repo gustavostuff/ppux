@@ -644,6 +644,7 @@ function M.createSketchCanvasWindow(w, decodePatternCanvasSnapshot, onPatternCan
       reflectPatternTable = w.reflectPatternTable,
       linkedPatternTableWindowId = w.linkedPatternTableWindowId,
       paddingTileIndex = w.paddingTileIndex,
+      generateDirty = w.generateDirty,
     }
   )
 
@@ -927,6 +928,7 @@ function M.afterLayoutPatternTablesHydrate(wm, tilesPool, ensureTiles, opts)
     wm = wm,
   })
   SketchCanvasPackController.reapplyAllSketchLinkedPatternTables(wm)
+  SketchCanvasPackController.reconcileLoadedSketchPacks(wm)
   M.finalizeDeferredPpuNametableHydrates(wm, opts.romRaw, tilesPool, ensureTiles)
 
   -- hydrateWindowNametable / early layout can populate nametable visuals before tilesPool CHR keys

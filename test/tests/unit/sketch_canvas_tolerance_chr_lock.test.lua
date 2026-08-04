@@ -106,17 +106,17 @@ describe("sketch canvas - live tolerance + CHR lock", function()
     assert(SketchCanvasPackController.generateAndApply(sketch, wm))
     expect(sketch.tilesPool and #sketch.tilesPool).toBe(3) -- blank + solid + near
 
-    local toasts = {}
+    local statuses = {}
     local app = {
       wm = wm,
-      showToast = function(_app, kind, text)
-        toasts[#toasts + 1] = { kind = kind, text = text }
+      setStatus = function(_app, text)
+        statuses[#statuses + 1] = text
       end,
     }
     local toolbar = ToolbarController.createSpecializedToolbar(sketch, {
       app = app,
-      showToast = function(kind, text)
-        toasts[#toasts + 1] = { kind = kind, text = text }
+      setStatus = function(text)
+        statuses[#statuses + 1] = text
       end,
     }, wm)
 
@@ -136,7 +136,8 @@ describe("sketch canvas - live tolerance + CHR lock", function()
     expect(sketch.tolerance).toBe(3)
     expect(#sketch.tilesPool).toBe(2) -- blank + merged painted pair
     expect(#pt.layers[1].items).toBe(256)
-    expect(toasts[#toasts].text:find("unique pattern", 1, true)).toBeTruthy()
+    expect(#statuses > 0).toBe(true)
+    expect(statuses[#statuses]:find("unique pattern", 1, true)).toBeTruthy()
   end)
 
   it("blocks CHR group drops onto sketch-owned pattern tables", function()

@@ -520,6 +520,25 @@ local function handleTileDrop(x, y, wm)
   }, x, y, wm)
 end
 
+local function finishPixelSelection(x, y, button)
+  if button ~= 1 then return false end
+  local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+  local win = ctx and ctx.wm and ctx.wm():getFocus() or nil
+  local sel = PixelSel.getSelection(win)
+  if not sel then
+    return false
+  end
+  if sel.moveDrag then
+    PixelSel.endMove(win)
+    return true
+  end
+  if sel.dragging then
+    PixelSel.commitDrag(win)
+    return true
+  end
+  return false
+end
+
 local function finishEditShape(x, y, button)
   if button ~= 1 then return false end
   local win = ctx and ctx.wm and ctx.wm():getFocus() or nil
@@ -591,6 +610,11 @@ function M.mousereleased(x, y, button)
   -- Handle toolbar releases first (for the focused window)
   if handleToolbarRelease(button, x, y, wm) then
     logRoute("mousereleased", "toolbar_release", x, y, button, fwin)
+    return
+  end
+
+  if finishPixelSelection(x, y, button) then
+    logRoute("mousereleased", "pixel_selection", x, y, button, fwin)
     return
   end
 

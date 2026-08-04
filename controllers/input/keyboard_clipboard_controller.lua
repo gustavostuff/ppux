@@ -627,6 +627,10 @@ local function getPasteCompatibilityError(focus, layer, data)
     return nil
   end
 
+  if layer.kind == "canvas" and data.kind == "sketch_pixels" and WindowCaps.isSketchCanvas(focus) then
+    return nil
+  end
+
   return "Clipboard content does not match active layer type"
 end
 
@@ -1053,6 +1057,27 @@ function M.getActionAvailability(ctx, focus, action, opts)
   if not layer then
     return { allowed = false, reason = "No active layer selected", layerIndex = layerIndex, layer = layer, noLayer = true }
   end
+
+  -- Sketch canvas pixel selection (edit mode, same window only).
+  local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+  if WindowCaps.isSketchCanvas(focus)
+    and layer.kind == "canvas"
+    and not WindowCaps.isSketchReflectNametable(focus)
+  then
+    if action == "paste" then
+      if not (clipboard and clipboard.kind == "sketch_pixels") then
+        return { allowed = false, reason = "Clipboard is empty", layerIndex = layerIndex, layer = layer }
+      end
+      return { allowed = true, layerIndex = layerIndex, layer = layer, sketchPixels = true }
+    end
+    if action == "copy" or action == "cut" then
+      if not PixelSel.hasSelection(focus) then
+        return { allowed = false, reason = "No pixel selection", layerIndex = layerIndex, layer = layer }
+      end
+      return { allowed = true, layerIndex = layerIndex, layer = layer, sketchPixels = true }
+    end
+  end
+
   if layer.kind ~= "tile" and layer.kind ~= "sprite" then
     return { allowed = false, reason = "Clipboard is not available for this layer type", layerIndex = layerIndex, layer = layer }
   end
@@ -1176,6 +1201,17 @@ local function doCopy(ctx, focus)
 
   local layerIndex = avail.layerIndex
   local layer = avail.layer
+  if avail.sketchPixels or layer.kind == "canvas" then
+    local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+    local captured = PixelSel.captureClipboard(focus)
+    if captured then
+      clipboard = captured
+      StatusHelpers.setStatus(ctx, string.format("Copied %dx%d pixels", captured.width, captured.height))
+    else
+      StatusHelpers.setStatus(ctx, "No pixel selection to copy")
+    end
+    return true
+  end
   if layer.kind == "tile" then
     clipboard = captureTileClipboard(focus, layer, layerIndex)
     if clipboard and clipboard.count > 0 then
@@ -1224,6 +1260,31 @@ local function doPaste(ctx, focus, opts)
     source = "none",
     reason = nil,
   }
+  if avail.sketchPixels or (layer.kind == "canvas" and clipboard and clipboard.kind == "sketch_pixels") then
+    local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+    local atX = clipboard.originX
+    local atY = clipboard.originY
+    if type(atX) ~= "number" or type(atY) ~= "number" then
+      atX, atY = 0, 0
+      if focus.getSelected then
+        local col, row = focus:getSelected()
+        if col and row then
+          atX = col * (focus.cellW or 8)
+          atY = row * (focus.cellH or 8)
+        end
+      end
+    end
+    local ok, err = PixelSel.pasteClipboard(focus, clipboard, ctx and ctx.app or nil, atX, atY)
+    if ok then
+      if ctx.app and ctx.app.markUnsaved then
+        ctx.app:markUnsaved("sketch_pixel_paste")
+      end
+      StatusHelpers.setStatus(ctx, string.format("Pasted %dx%d pixels", clipboard.width, clipboard.height))
+    else
+      StatusHelpers.setStatus(ctx, tostring(err or "Paste failed"))
+    end
+    return true
+  end
   if layer.kind == "tile" then
     local tileData = clipboard
     if clipboard.kind == "sprite" then
@@ -1285,6 +1346,20 @@ local function doCut(ctx, focus, opts)
 
   local layerIndex = avail.layerIndex
   local layer = avail.layer
+  if avail.sketchPixels or layer.kind == "canvas" then
+    local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+    local captured = PixelSel.cutSelection(focus, ctx and ctx.app or nil)
+    if captured then
+      clipboard = captured
+      if ctx.app and ctx.app.markUnsaved then
+        ctx.app:markUnsaved("sketch_pixel_cut")
+      end
+      StatusHelpers.setStatus(ctx, string.format("Cut %dx%d pixels", captured.width, captured.height))
+    else
+      StatusHelpers.setStatus(ctx, "No pixel selection to cut")
+    end
+    return true
+  end
   if layer.kind == "tile" then
     local copied = captureTileClipboard(focus, layer, layerIndex)
     if not (copied and copied.count and copied.count > 0) then
@@ -1381,7 +1456,11 @@ function M.handleCopySelection(ctx, utils, key, focus)
   if key ~= "c" and key ~= "C" then return false end
   if not (utils.ctrlDown and utils.ctrlDown()) then return false end
   if (utils.altDown and utils.altDown()) or (utils.shiftDown and utils.shiftDown()) then return false end
-  if ctx.getMode() == "edit" then return false end
+  if ctx.getMode() == "edit" then
+    if not (WindowCaps.isSketchCanvas(focus) and not WindowCaps.isSketchReflectNametable(focus)) then
+      return false
+    end
+  end
   return M.performClipboardAction(ctx, focus, "copy")
 end
 
@@ -1389,7 +1468,11 @@ function M.handleCutSelection(ctx, utils, key, focus)
   if key ~= "x" and key ~= "X" then return false end
   if not (utils.ctrlDown and utils.ctrlDown()) then return false end
   if (utils.altDown and utils.altDown()) or (utils.shiftDown and utils.shiftDown()) then return false end
-  if ctx.getMode() == "edit" then return false end
+  if ctx.getMode() == "edit" then
+    if not (WindowCaps.isSketchCanvas(focus) and not WindowCaps.isSketchReflectNametable(focus)) then
+      return false
+    end
+  end
   return M.performClipboardAction(ctx, focus, "cut")
 end
 
@@ -1397,7 +1480,11 @@ function M.handlePasteSelection(ctx, utils, key, focus)
   if key ~= "v" and key ~= "V" then return false end
   if not (utils.ctrlDown and utils.ctrlDown()) then return false end
   if (utils.altDown and utils.altDown()) or (utils.shiftDown and utils.shiftDown()) then return false end
-  if ctx.getMode() == "edit" then return false end
+  if ctx.getMode() == "edit" then
+    if not (WindowCaps.isSketchCanvas(focus) and not WindowCaps.isSketchReflectNametable(focus)) then
+      return false
+    end
+  end
   return M.performClipboardAction(ctx, focus, "paste")
 end
 

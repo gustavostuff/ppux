@@ -115,25 +115,38 @@ describe("sketch canvas - pack controller", function()
     paintTile(canvas, 6, 0, 2) -- flat shade 2
 
     local packGreedyWouldSplit = assert(SketchCanvasPackController.packFromCanvas(canvas, 8))
-    -- Near-empties + solid 0 → one shade-0 flat; plus solid 2; blank rest is shade 0.
-    expect(packGreedyWouldSplit.uniqueCount).toBe(2)
+    -- Near-empties stay unique (shade-0 collapse is exact-blank only); plus solid 2;
+    -- exact blank cells share one shade-0 flat.
+    expect(packGreedyWouldSplit.uniqueCount >= 2).toBe(true)
     local solid0Slots = 0
     local solid2Slots = 0
+    local nonSolid = 0
     for _, entry in ipairs(packGreedyWouldSplit.tilesPool) do
       if entry.solidShade == 0 then
         solid0Slots = solid0Slots + 1
       elseif entry.solidShade == 2 then
         solid2Slots = solid2Slots + 1
+      else
+        nonSolid = nonSolid + 1
       end
     end
     expect(solid0Slots).toBe(1)
     expect(solid2Slots).toBe(1)
+    expect(nonSolid >= 1).toBe(true)
 
-    -- CHR/PT sample for shade 0 must be a true flat, not the first near-empty.
-    local pixels = SketchCanvasPackController.pixelsForPoolEntry(canvas, packGreedyWouldSplit.tilesPool[1])
+    -- CHR/PT sample for shade 0 must be a true flat, not a near-empty skirt edge.
+    local solid0Entry = nil
+    for _, entry in ipairs(packGreedyWouldSplit.tilesPool) do
+      if entry.solidShade == 0 then
+        solid0Entry = entry
+        break
+      end
+    end
+    expect(solid0Entry).toBeTruthy()
+    local pixels = SketchCanvasPackController.pixelsForPoolEntry(canvas, solid0Entry)
     local allSame = true
     for i = 1, 64 do
-      if pixels[i] ~= pixels[1] then
+      if pixels[i] ~= 0 then
         allSame = false
         break
       end

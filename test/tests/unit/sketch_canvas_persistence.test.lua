@@ -97,6 +97,43 @@ describe("sketch canvas - data model + persistence", function()
     expect(restored.paddingTileIndex).toBe(0)
   end)
 
+  it("round-trips solidShade and generateDirty through layout snapshot", function()
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow({ title = "Sketch Solid" })
+    win._id = "sketch_solid"
+    win.layers[1].canvas:edit(1, 1, 3)
+    win.tilesPool = {
+      { x = 0, y = 0, solidShade = 0, exactSolid = true },
+      { x = 8, y = 8, solidShade = 2 },
+    }
+    win.nametableBytes = {}
+    for i = 1, 960 do
+      win.nametableBytes[i] = (i % 2)
+    end
+    win._generateDirty = true
+
+    local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1)
+    local entry = snapshot.windows[1]
+    expect(entry.tilesPool[1].solidShade).toBe(0)
+    expect(entry.tilesPool[1].exactSolid).toBe(true)
+    expect(entry.tilesPool[2].solidShade).toBe(2)
+    expect(entry.generateDirty).toBe(true)
+
+    local built = GameArtWindowBuilderController.buildWindowsFromLayout(snapshot, {
+      wm = WM.new(),
+      tilesPool = {},
+      ensureTiles = function() end,
+      romRaw = "",
+      decodeUserDefinedCodes = GameArtLayoutIOController.decodeUserDefinedCodes,
+      decodePatternCanvasSnapshot = GameArtLayoutIOController.decodePatternCanvasSnapshot,
+    })
+    local restored = built.windowsById["sketch_solid"]
+    expect(restored.tilesPool[1].solidShade).toBe(0)
+    expect(restored.tilesPool[1].exactSolid).toBe(true)
+    expect(restored.tilesPool[2].solidShade).toBe(2)
+    expect(restored._generateDirty).toBe(true)
+  end)
+
   it("omits empty nametableBytes and blank link id from the snapshot", function()
     local wm = WM.new()
     local win = wm:createSketchCanvasWindow({ title = "Sketch B" })

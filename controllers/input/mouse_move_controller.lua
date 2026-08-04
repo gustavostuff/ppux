@@ -64,6 +64,36 @@ local function forwardMouseMove(x, y, dx, dy, wm)
   end
 end
 
+local function handlePixelSelectionDrag(env, x, y, wm)
+  local ctx = env.ctx
+  if not (ctx and ctx.getMode and ctx.getMode() == "edit") then
+    return false
+  end
+  if not love.mouse.isDown(1) then
+    return false
+  end
+  local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+  local win = wm and wm.getFocus and wm:getFocus() or nil
+  local sel = PixelSel.getSelection(win)
+  if not sel then
+    return false
+  end
+  local ok, cx, cy = win:toContentCoords(x, y)
+  if not ok then
+    return true
+  end
+  local canvasX, canvasY = math.floor(cx), math.floor(cy)
+  if sel.moveDrag then
+    PixelSel.updateMove(win, canvasX, canvasY)
+    return true
+  end
+  if sel.dragging then
+    PixelSel.updateDrag(win, canvasX, canvasY)
+    return true
+  end
+  return false
+end
+
 local function handleEditShapeDrag(env, x, y, wm)
   local ctx = env.ctx
   local utils = env.utils or {}
@@ -343,6 +373,7 @@ function M.handleMouseMoved(env, x, y, dx, dy)
   if handleWindowResizing(x, y, fwin) then return true end
   if not overMenu then
     forwardMouseMove(x, y, dx, dy, wm)
+    if handlePixelSelectionDrag(env, x, y, wm) then return true end
     if handleEditShapeDrag(env, x, y, wm) then return true end
     if handleTilePaintDrag(env, x, y, wm) then return true end
     if handlePaintingDrag(env, x, y, wm) then return true end

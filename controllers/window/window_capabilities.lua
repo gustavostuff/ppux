@@ -20,8 +20,13 @@ function M.isSketchCanvas(win)
 end
 
 --- Sketch tile mode (global mode == "tile") with a pack: nametable-style editing + mirror view.
+--- When Generate is dirty, paint is ahead of the pack — do not use stale pool samples
+--- (they punch holes wherever a cleared sample point is reused across the nametable).
 function M.isSketchReflectNametable(win)
   if not M.isSketchCanvas(win) then
+    return false
+  end
+  if win._generateDirty == true then
     return false
   end
   if type(win.tilesPool) ~= "table" or #win.tilesPool < 1 then

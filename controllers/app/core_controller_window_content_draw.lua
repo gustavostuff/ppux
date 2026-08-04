@@ -1397,6 +1397,11 @@ drawNormalWindow = function(app, w, wm)
     renderWindowAttrGrid(w)
   end
 
+  if WindowCaps.isSketchCanvas(w) and not WindowCaps.isSketchReflectNametable(w) then
+    local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+    PixelSel.drawOverlay(w, isFocused)
+  end
+
   if w.drawSelectionOverlays then
     w:drawSelectionOverlays(isFocused)
   end

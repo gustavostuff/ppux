@@ -36,9 +36,11 @@ function AppCoreController:_buildCtx()
         SketchCanvasPackController.bakeAllReflectIntoPaint(selfRef.wm)
       elseif nextMode == "tile" then
         local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+        local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
         local windows = selfRef.wm and selfRef.wm.getWindows and selfRef.wm:getWindows() or {}
         for _, win in ipairs(windows) do
           if WindowCaps.isSketchCanvas(win) and not win._closed then
+            PixelSel.clearSelection(win, { app = selfRef, stamp = true })
             SketchCanvasPackController.invalidateReflectDisplay(win)
           end
         end

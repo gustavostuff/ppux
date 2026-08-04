@@ -16,7 +16,7 @@ local function rebuildPanel(self)
   local rows = hasDetail and 3 or 2
 
   self.panel = Panel.new({
-    cols = 1,
+    cols = 3,
     rows = rows,
     cellW = self.cellW,
     cellH = self.cellH,
@@ -36,18 +36,20 @@ local function rebuildPanel(self)
   self.panel:setCell(1, 1, {
     kind = "label",
     text = self.message,
-    colspan = 1,
+    colspan = 3,
   })
 
   local buttonRow = 2
   if hasDetail then
     self.panel:setCell(1, 2, {
       component = self.detailLabelComponent,
+      colspan = 3,
     })
     buttonRow = 3
   end
 
-  self.panel:setCell(1, buttonRow, {
+  -- OK sits in the rightmost column only.
+  self.panel:setCell(3, buttonRow, {
     component = self.okButton,
   })
 end
@@ -107,8 +109,9 @@ function Dialog.new()
   }
 
   ModalPanelUtils.applyPanelDefaults(self)
-  if (self.cellW or 0) < 320 then
-    self.cellW = 320
+  -- Three columns: modest per-cell width so the dialog is wide without being huge.
+  if (self.cellW or 0) < 120 then
+    self.cellW = 120
   end
   self.buttonGap = self.colGap
   rebuildPanel(self)

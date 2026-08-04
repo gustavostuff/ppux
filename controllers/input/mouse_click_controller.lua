@@ -858,6 +858,42 @@ local function handleEditModeClick(env, button, x, y, win, wm)
 
   if win.isPalette then return true end
 
+  -- Sketch pixel selection (S tool): plain drag = rect, Shift+drag = freeform lasso.
+  do
+    local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+    local editTool = ctx.app and ctx.app.editTool
+    if WindowCaps.isSketchCanvas(win)
+      and not WindowCaps.isSketchReflectNametable(win)
+      and PixelSel.isSelectTool(editTool)
+    then
+      local okc, cx, cy = win:toContentCoords(x, y)
+      if not okc then
+        ctx.setPainting(false)
+        return true
+      end
+      local canvasX, canvasY = math.floor(cx), math.floor(cy)
+
+      -- Click inside existing selection → drag-move (Shift does not start a new lasso).
+      if PixelSel.hitTest(win, canvasX, canvasY) then
+        PixelSel.beginMove(win, canvasX, canvasY, ctx.app)
+        ctx.setPainting(false)
+        return true
+      end
+
+      -- Click outside → stamp previous floating, start new rect or freeform.
+      if PixelSel.hasSelection(win) then
+        PixelSel.clearSelection(win, { app = ctx.app, stamp = true })
+      end
+      local kind = (utils.shiftDown and utils.shiftDown()) and PixelSel.KIND_FREE or PixelSel.KIND_RECT
+      local okBegin, err = PixelSel.begin(win, kind, canvasX, canvasY, ctx.app)
+      if not okBegin then
+        StatusHelpers.setStatus(ctx, tostring(err or "Could not start selection"))
+      end
+      ctx.setPainting(false)
+      return true
+    end
+  end
+
   local ok, col, row, lx, ly = win:toGridCoords(x, y)
   if ok then
     local layerIdx = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1

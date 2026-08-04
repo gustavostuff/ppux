@@ -50,17 +50,11 @@ function SketchCanvasWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
   -- Pack / link state (Phase 2+). Pixels stay on the canvas layer snapshot only.
   self.tilesPool = {}
   if type(data.tilesPool) == "table" then
+    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
     for i = 1, math.min(256, #data.tilesPool) do
-      local entry = data.tilesPool[i]
-      if type(entry) == "table" then
-        local x = tonumber(entry.x)
-        local y = tonumber(entry.y)
-        if x and y then
-          self.tilesPool[#self.tilesPool + 1] = {
-            x = math.floor(x),
-            y = math.floor(y),
-          }
-        end
+      local copied = SketchCanvasPackController.copyPoolEntry(data.tilesPool[i])
+      if copied then
+        self.tilesPool[#self.tilesPool + 1] = copied
       end
     end
   end
@@ -101,6 +95,9 @@ function SketchCanvasWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
     self.paddingTileIndex = 0
   elseif self.paddingTileIndex > 255 then
     self.paddingTileIndex = 255
+  end
+  if data.generateDirty == true then
+    self._generateDirty = true
   end
 
   addCanvasLayer(self, "Sketch", CANVAS_W, CANVAS_H, 0)

@@ -94,6 +94,30 @@ local function resolveCanvas(winOrCanvas)
   return nil
 end
 
+--- Serializable pool entry ({x,y} plus optional solidShade metadata).
+function M.copyPoolEntry(pe)
+  if type(pe) ~= "table" then
+    return nil
+  end
+  local x = tonumber(pe.x)
+  local y = tonumber(pe.y)
+  if not (x and y) then
+    return nil
+  end
+  local out = {
+    x = math.floor(x),
+    y = math.floor(y),
+  }
+  local shade = tonumber(pe.solidShade)
+  if shade and shade >= 0 and shade <= 3 then
+    out.solidShade = math.floor(shade)
+  end
+  if pe.exactSolid == true then
+    out.exactSolid = true
+  end
+  return out
+end
+
 local function clampTolerance(tolerance)
   local t = math.floor(tonumber(tolerance) or 0)
   if t < 0 then
@@ -163,6 +187,20 @@ function M.pixelsForPoolEntry(canvas, entry)
   end
   local shade = entry.solidShade
   if type(shade) == "number" and shade >= 0 and shade <= 3 then
+    -- Paint under the sample may have been edited (PT scratch / undo). If it no
+    -- longer matches the packed solid, fall back to the live canvas sample.
+    if canvas and type(canvas.extractTilePixels) == "function" then
+      local sampled = canvas:extractTilePixels(
+        math.floor(tonumber(entry.x) or 0),
+        math.floor(tonumber(entry.y) or 0),
+        M.CELL
+      )
+      if sampled and solidDiffCount(sampled, shade, 0) > 0 then
+        entry.solidShade = nil
+        entry.exactSolid = nil
+        return sampled
+      end
+    end
     return makeSolidPattern(shade)
   end
   if not (canvas and type(canvas.extractTilePixels) == "function") then
@@ -319,7 +357,13 @@ function M.packFromCanvas(canvas, tolerance)
 
       -- Near-flats within tolerance collapse to one canonical solid per shade.
       -- Avoids several "empty looking" uniques that greedy pairwise match misses.
+      -- Exception: shade 0 (transparent) only collapses when the tile is an *exact*
+      -- blank. Near-empty edge tiles (skirts, hair tips) must stay unique or tile
+      -- mode / Gallery ROM punch holes where freehand paint still has pixels.
       local solidShade = canonicalSolidShade(pixels, tolerance)
+      if solidShade == 0 and solidDiffCount(pixels, 0, 0) > 0 then
+        solidShade = nil
+      end
       if solidShade ~= nil then
         local slot = solidShade + 1
         matchIndex = solidPoolIndex[slot]
@@ -348,7 +392,14 @@ function M.packFromCanvas(canvas, tolerance)
         end
       else
         for i = 1, #uniquePatterns do
-          if pixelDiffCount(pixels, uniquePatterns[i], tolerance) <= tolerance then
+          local entry = tilesPool[i]
+          -- Never absorb freehand near-detail into a canonical solid slot via greedy.
+          if entry and type(entry.solidShade) == "number" then
+            if pixelDiffCount(pixels, uniquePatterns[i], 0) == 0 then
+              matchIndex = i
+              break
+            end
+          elseif pixelDiffCount(pixels, uniquePatterns[i], tolerance) <= tolerance then
             matchIndex = i
             break
           end
@@ -436,6 +487,58 @@ function M.isGenerateDirty(win)
   return WindowCaps.isSketchCanvas(win) and win._generateDirty == true
 end
 
+--- If paint at any nametable cell disagrees with the pack sample for that cell,
+--- mark Generate dirty so tile mode shows paint instead of punching stale holes.
+--- Skips solidShade entries (intentional NES collapse vs freehand detail).
+function M.markGenerateDirtyIfPackDisagreesWithPaint(win)
+  if not M.hasPackData(win) then
+    return false
+  end
+  if M.isGenerateDirty(win) then
+    return true
+  end
+  local paint = resolveCanvas(win)
+  if not paint then
+    return false
+  end
+  local pool = win.tilesPool
+  local nt = win.nametableBytes
+  for row = 0, M.GRID_ROWS - 1 do
+    for col = 0, M.GRID_COLS - 1 do
+      local ntIndex = row * M.GRID_COLS + col + 1
+      local poolIndex = math.floor(tonumber(nt[ntIndex]) or 0)
+      local entry = pool[poolIndex + 1]
+      if entry and type(entry.solidShade) ~= "number" then
+        local expected = M.pixelsForPoolEntry(paint, entry)
+        local actual = paint:extractTilePixels(col * M.CELL, row * M.CELL, M.CELL)
+        if expected and actual and pixelDiffCount(actual, expected, 0) > 0 then
+          M.markGenerateDirty(win)
+          M.invalidateReflectDisplay(win)
+          return true
+        end
+      end
+    end
+  end
+  return false
+end
+
+--- After project load: re-arm Generate dirty when pack samples no longer match paint.
+function M.reconcileLoadedSketchPacks(wm)
+  if not wm then
+    return 0
+  end
+  local windows = wm.getWindows and wm:getWindows() or wm.windows or wm._windows or {}
+  local count = 0
+  for _, win in ipairs(windows) do
+    if WindowCaps.isSketchCanvas(win) and not win._closed then
+      if M.markGenerateDirtyIfPackDisagreesWithPaint(win) then
+        count = count + 1
+      end
+    end
+  end
+  return count
+end
+
 --- Build/update a display-only canvas composed from nametableBytes + pool samples of the paint buffer.
 --- Does not mutate the paint PixelCanvas.
 function M.getReflectDisplayCanvas(sketchWin)
@@ -443,6 +546,10 @@ function M.getReflectDisplayCanvas(sketchWin)
     return nil
   end
   if not M.hasPackData(sketchWin) then
+    return nil
+  end
+  -- Paint moved since last Generate: pool {x,y} samples are stale (shared tiles → holes).
+  if M.isGenerateDirty(sketchWin) then
     return nil
   end
   local paint = resolveCanvas(sketchWin)
@@ -491,6 +598,10 @@ function M.bakeReflectIntoPaint(sketchWin)
     return false
   end
   if not M.hasPackData(sketchWin) then
+    return false
+  end
+  -- Never bake a stale pack over newer freehand/selection edits.
+  if M.isGenerateDirty(sketchWin) then
     return false
   end
   if not M.isReflectLayoutDirty(sketchWin) then
@@ -1053,10 +1164,15 @@ end
 function M.snapshotPackFields(win)
   local pool = {}
   for i, entry in ipairs((win and win.tilesPool) or {}) do
-    pool[i] = {
-      x = math.floor(tonumber(entry.x) or 0),
-      y = math.floor(tonumber(entry.y) or 0),
-    }
+    local copied = M.copyPoolEntry(entry)
+    if copied then
+      pool[i] = copied
+    else
+      pool[i] = {
+        x = math.floor(tonumber(entry and entry.x) or 0),
+        y = math.floor(tonumber(entry and entry.y) or 0),
+      }
+    end
   end
   local nt = nil
   if type(win and win.nametableBytes) == "table" then
@@ -1077,9 +1193,9 @@ function M.restorePackFields(win, snap)
   end
   win.tilesPool = {}
   for i, entry in ipairs(snap.tilesPool or {}) do
-    win.tilesPool[i] = {
-      x = math.floor(tonumber(entry.x) or 0),
-      y = math.floor(tonumber(entry.y) or 0),
+    win.tilesPool[i] = M.copyPoolEntry(entry) or {
+      x = math.floor(tonumber(entry and entry.x) or 0),
+      y = math.floor(tonumber(entry and entry.y) or 0),
     }
   end
   if type(snap.nametableBytes) == "table" then
@@ -1142,6 +1258,9 @@ function M.syncPatternTableCellPixelsToSketch(ptWin, col, row, wm)
       canvas:edit(ox + tx, oy + ty, math.floor(tonumber(v) or 0))
     end
   end
+  -- Scratch paint may no longer match a canonical solid; sample paint for Reflect.
+  entry.solidShade = nil
+  entry.exactSolid = nil
   M.invalidateReflectDisplay(sketch)
   return true
 end
@@ -1203,11 +1322,25 @@ function M.syncScratchTileItemToSketch(item, wm)
       canvas:edit(ox + tx, oy + ty, math.floor(tonumber(v) or 0))
     end
   end
+  if type(sketch.tilesPool) == "table" then
+    for _, entry in ipairs(sketch.tilesPool) do
+      if entry
+        and math.floor(tonumber(entry.x) or -1) == ox
+        and math.floor(tonumber(entry.y) or -1) == oy
+      then
+        entry.solidShade = nil
+        entry.exactSolid = nil
+        break
+      end
+    end
+  end
   M.invalidateReflectDisplay(sketch)
   return true
 end
 
 --- After undo/redo restores scratch tile pixels: refresh tile canvases + sketch Reflect/paint.
+--- Also marks Generate dirty when a sketch paint PixelCanvas was edited directly
+--- (selection move/stamp undo), so tile mode does not show a stale pack.
 function M.refreshViewsForScratchTileItems(app, items)
   if type(items) ~= "table" then
     return false
@@ -1220,6 +1353,19 @@ function M.refreshViewsForScratchTileItems(app, items)
       seen[item] = true
       if M.syncScratchTileItemToSketch(item, wm) then
         any = true
+      end
+    end
+  end
+
+  if wm and wm.getWindows then
+    for _, win in ipairs(wm:getWindows()) do
+      if WindowCaps.isSketchCanvas(win) and not win._closed then
+        local canvas = resolveCanvas(win)
+        if canvas and seen[canvas] then
+          M.markGenerateDirty(win)
+          M.invalidateReflectDisplay(win)
+          any = true
+        end
       end
     end
   end

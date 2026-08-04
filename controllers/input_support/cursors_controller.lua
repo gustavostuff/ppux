@@ -630,6 +630,9 @@ local function resolveTargetCursorName(app, mode)
     if app and app.editTool == "rect_fill" then
       return "rect_fill"
     end
+    if app and app.editTool == "rect_select" then
+      return "rect_fill"
+    end
     return hoveringEditable and "pencil" or "arrow"
   end
 

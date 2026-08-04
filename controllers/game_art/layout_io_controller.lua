@@ -545,16 +545,13 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
       entry.showSpriteOriginGuides = (w.showSpriteOriginGuides == true)
     end
     if WindowCaps.isSketchCanvas(w) then
+      local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
       local pool = {}
       if type(w.tilesPool) == "table" then
         for i = 1, math.min(256, #w.tilesPool) do
-          local pe = w.tilesPool[i]
-          if type(pe) == "table" then
-            local x = tonumber(pe.x)
-            local y = tonumber(pe.y)
-            if x and y then
-              pool[#pool + 1] = { x = math.floor(x), y = math.floor(y) }
-            end
+          local copied = SketchCanvasPackController.copyPoolEntry(w.tilesPool[i])
+          if copied then
+            pool[#pool + 1] = copied
           end
         end
       end
@@ -588,6 +585,9 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
         pad = 255
       end
       entry.paddingTileIndex = pad
+      if w._generateDirty == true then
+        entry.generateDirty = true
+      end
     end
 
     if not isPalette then
