@@ -12,6 +12,7 @@ local MODIFIER_KEYS = {
   ralt = true,
   f = true,
   g = true,
+  c = true, -- hold+click color mask on sketch (Ctrl+C still routes to copy)
 }
 
 function M.reset()

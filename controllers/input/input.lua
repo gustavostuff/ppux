@@ -54,6 +54,10 @@ local function grabDown()
   return love.keyboard.isDown("g")
 end
 
+local function colorMaskDown()
+  return love.keyboard.isDown("c")
+end
+
 local function altDown()
   return love.keyboard.isDown("lalt") or love.keyboard.isDown("ralt")
 end
@@ -176,6 +180,7 @@ function M.setup(context)
     shiftDown = shiftDown,
     fillDown = fillDown,
     grabDown = grabDown,
+    colorMaskDown = colorMaskDown,
     altDown = altDown,
     changeBrushSize = changeBrushSize,
   })
@@ -185,6 +190,7 @@ function M.setup(context)
     shiftDown = shiftDown,
     fillDown = fillDown,
     grabDown = grabDown,
+    colorMaskDown = colorMaskDown,
     altDown = altDown,
     screenToContent = screenToContent,
     pickByVisual = pickByVisual,

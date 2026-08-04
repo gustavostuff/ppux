@@ -47,7 +47,7 @@ function M.resolveHexFromRomAddress(romRaw, addr)
 end
 
 ----------------------------------------------------------------
--- Shader (index 0 transparent)
+-- Shader (index 0 alpha comes from uniforms; callers may force transparent)
 ----------------------------------------------------------------
 local PALETTE_SHADER_SRC = [[
 extern vec4 pal[4];   // RGBA colors, already normalized 0..1
@@ -62,11 +62,6 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc)
 
     vec4 outc = pal[i];
 
-    // Force full transparency for index 0 (first color)
-    if (i == 0) {
-        outc.a = 0.0;
-    }
-
     // Keep source alpha for cutout/sprite edges if you use it; otherwise outc.a drives it.
     // Multiplying by 'color' preserves tinting workflows.
     return outc * color;
@@ -80,8 +75,10 @@ local function ensureShader()
 end
 
 -- codes: array of 4 NES hex strings "HH" (optional; defaults to M.codes)
-local function updateShaderUniforms(drawingActiveLayer, codes, layerOpacityOverride)
+-- opts.transparentZero: when true (default), palette index 0 is fully transparent
+local function updateShaderUniforms(drawingActiveLayer, codes, layerOpacityOverride, opts)
   if not M.shader then return end
+  opts = opts or {}
 
   local useCodes = codes or M.codes
 
@@ -99,10 +96,13 @@ local function updateShaderUniforms(drawingActiveLayer, codes, layerOpacityOverr
     layerOpacity = drawingActiveLayer and 1.0 or 0.25
   end
 
-  -- Send as varargs of vec4 tables (flat), first entry alpha = 0
+  local transparentZero = opts.transparentZero ~= false
+  local a0 = transparentZero and 0.0 or layerOpacity
+
+  -- Send as varargs of vec4 tables (flat)
   M.shader:send(
     "pal",
-    { (c0[1] or 0), (c0[2] or 0), (c0[3] or 0), 0.0 },
+    { (c0[1] or 0), (c0[2] or 0), (c0[3] or 0), a0 },
     { (c1[1] or 0), (c1[2] or 0), (c1[3] or 0), layerOpacity },
     { (c2[1] or 0), (c2[2] or 0), (c2[3] or 0), layerOpacity },
     { (c3[1] or 0), (c3[2] or 0), (c3[3] or 0), layerOpacity }
@@ -148,7 +148,8 @@ end
 -- layer: optional layer to check shaderEnabled state
 -- codes: optional custom palette codes (if nil, uses M.codes)
 -- layerOpacityOverride: optional opacity override
-function M.applyShader(drawingActiveLayer, layer, codes, layerOpacityOverride)
+-- opts: optional { transparentZero = bool } (default true)
+function M.applyShader(drawingActiveLayer, layer, codes, layerOpacityOverride, opts)
   -- Check if shader is disabled for this layer
   if layer and layer.shaderEnabled == false then
     -- Don't apply shader, just ensure it's cleared
@@ -157,7 +158,7 @@ function M.applyShader(drawingActiveLayer, layer, codes, layerOpacityOverride)
   end
   
   ensureShader()
-  updateShaderUniforms(drawingActiveLayer, codes, layerOpacityOverride)
+  updateShaderUniforms(drawingActiveLayer, codes, layerOpacityOverride, opts)
   -- This is the ONLY place setShader should be called
   love.graphics.setShader(M.shader)
 end
@@ -289,7 +290,8 @@ end
 -- - Else, if item.paletteNumber exists (e.g., sprites), use that.
 -- - Else fall back to global M.codes.
 -- - layerOpacityOverride: optional opacity value (0.0-1.0) to use instead of default behavior
-function M.applyLayerItemPalette(layer, item, drawingActiveLayer, romRaw, paletteNumberOverride, layerOpacityOverride)
+-- - opts: optional { transparentZero = bool } (default true; false for opaque BG color 0)
+function M.applyLayerItemPalette(layer, item, drawingActiveLayer, romRaw, paletteNumberOverride, layerOpacityOverride, opts)
   local palNum = paletteNumberOverride or (item and item.paletteNumber)
   local codes  = nil
 
@@ -299,7 +301,7 @@ function M.applyLayerItemPalette(layer, item, drawingActiveLayer, romRaw, palett
 
   -- Use applyShader to centralize setShader call (all setShader calls go through applyShader)
   -- Pass the resolved codes and opacity override
-  M.applyShader(drawingActiveLayer, layer, codes or M.codes, layerOpacityOverride)
+  M.applyShader(drawingActiveLayer, layer, codes or M.codes, layerOpacityOverride, opts)
 end
 
 --- Get RGB color for a palette number (1-4) on a layer

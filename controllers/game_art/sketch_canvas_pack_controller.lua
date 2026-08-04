@@ -118,6 +118,133 @@ function M.copyPoolEntry(pe)
   return out
 end
 
+-- Compact project form (same spirit as PPU-frame tileSwaps strings):
+--   { "x,y|x,y,s|...", "..." }  -- chunks ~100 chars, split on |
+-- where s is solidShade 0..3 and optional trailing e means exactSolid.
+local function encodePoolEntryToken(pe)
+  local copied = M.copyPoolEntry(pe)
+  if not copied then
+    return nil
+  end
+  if type(copied.solidShade) == "number" then
+    if copied.exactSolid == true then
+      return string.format("%d,%d,%de", copied.x, copied.y, copied.solidShade)
+    end
+    return string.format("%d,%d,%d", copied.x, copied.y, copied.solidShade)
+  end
+  return string.format("%d,%d", copied.x, copied.y)
+end
+
+local function decodePoolEntryToken(token)
+  if type(token) ~= "string" or token == "" then
+    return nil
+  end
+  local x, y, shade, exact = token:match("^(%-?%d+),(%-?%d+),([0-3])(e?)$")
+  if x then
+    local out = {
+      x = math.floor(tonumber(x)),
+      y = math.floor(tonumber(y)),
+      solidShade = math.floor(tonumber(shade)),
+    }
+    if exact == "e" then
+      out.exactSolid = true
+    end
+    return out
+  end
+  x, y = token:match("^(%-?%d+),(%-?%d+)$")
+  if x then
+    return {
+      x = math.floor(tonumber(x)),
+      y = math.floor(tonumber(y)),
+    }
+  end
+  return nil
+end
+
+--- Encode tilesPool for project Lua as a list of pipe-separated strings
+--- (~100 chars each; never splits mid-token). Short pools are a one-element list.
+--- Empty pool is {}.
+--- @return table array of strings
+function M.encodeTilesPool(pool)
+  local parts = {}
+  if type(pool) == "table" then
+    for i = 1, math.min(256, #pool) do
+      local token = encodePoolEntryToken(pool[i])
+      if token then
+        parts[#parts + 1] = token
+      end
+    end
+  end
+  if #parts == 0 then
+    return {}
+  end
+
+  local maxChunk = 100
+  local chunks = {}
+  local current = parts[1]
+  for i = 2, #parts do
+    local token = parts[i]
+    local withSep = current .. "|" .. token
+    if #withSep <= maxChunk then
+      current = withSep
+    else
+      chunks[#chunks + 1] = current
+      current = token
+    end
+  end
+  chunks[#chunks + 1] = current
+  return chunks
+end
+
+local function decodeTilesPoolFromString(full, out)
+  if type(full) ~= "string" or full == "" then
+    return out
+  end
+  for token in full:gmatch("([^|]+)") do
+    local entry = decodePoolEntryToken(token)
+    if entry then
+      out[#out + 1] = entry
+      if #out >= 256 then
+        break
+      end
+    end
+  end
+  return out
+end
+
+--- Decode tilesPool from project form to entry tables.
+--- Accepts: chunked string list, single pipe string, or legacy entry-table.
+--- @return table
+function M.decodeTilesPool(encoded)
+  local out = {}
+  if type(encoded) == "string" then
+    return decodeTilesPoolFromString(encoded, out)
+  end
+  if type(encoded) ~= "table" then
+    return out
+  end
+
+  -- Chunked project form: { "0,0|8,8", "16,16|..." }
+  if type(encoded[1]) == "string" then
+    local parts = {}
+    for i = 1, #encoded do
+      if type(encoded[i]) == "string" then
+        parts[#parts + 1] = encoded[i]
+      end
+    end
+    return decodeTilesPoolFromString(table.concat(parts, "|"), out)
+  end
+
+  -- Legacy project form: array of {x,y[,solidShade][,exactSolid]}
+  for i = 1, math.min(256, #encoded) do
+    local copied = M.copyPoolEntry(encoded[i])
+    if copied then
+      out[#out + 1] = copied
+    end
+  end
+  return out
+end
+
 local function clampTolerance(tolerance)
   local t = math.floor(tonumber(tolerance) or 0)
   if t < 0 then

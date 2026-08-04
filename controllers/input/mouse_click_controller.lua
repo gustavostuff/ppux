@@ -683,6 +683,17 @@ local function handleRightButton(env, button, x, y, win, wm)
         if not hitWin then
           return false
         end
+        -- Hold C + right-click clears the same-color paint mask on sketch canvases.
+        if utils.colorMaskDown and utils.colorMaskDown()
+          and not (utils.ctrlDown and utils.ctrlDown())
+          and WindowCaps.isSketchCanvas(hitWin)
+          and not WindowCaps.isSketchReflectNametable(hitWin)
+        then
+          local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+          PixelSel.clearColorPaintMask(hitWin)
+          StatusHelpers.setStatus(ctx, "Color mask cleared")
+          return true
+        end
         if not CursorsController.isHoveringEditableContentAt(app, x, y) then
           return false
         end
@@ -888,6 +899,36 @@ local function handleEditModeClick(env, button, x, y, win, wm)
       local okBegin, err = PixelSel.begin(win, kind, canvasX, canvasY, ctx.app)
       if not okBegin then
         StatusHelpers.setStatus(ctx, tostring(err or "Could not start selection"))
+      end
+      ctx.setPainting(false)
+      return true
+    end
+  end
+
+  -- Sketch color mask: hold C + click samples that pixel and masks all matches.
+  do
+    local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+    if WindowCaps.isSketchCanvas(win)
+      and not WindowCaps.isSketchReflectNametable(win)
+      and utils.colorMaskDown
+      and utils.colorMaskDown()
+      and not (utils.ctrlDown and utils.ctrlDown())
+    then
+      local okc, cx, cy = win:toContentCoords(x, y)
+      if not okc then
+        ctx.setPainting(false)
+        return true
+      end
+      local canvasX, canvasY = math.floor(cx), math.floor(cy)
+      local okMask, count, color, err = PixelSel.applyColorPaintMaskAt(win, canvasX, canvasY)
+      if okMask then
+        StatusHelpers.setStatus(ctx, string.format(
+          "Color mask: index %d (%d px) — hold C+click to re-pick, C+right-click to clear",
+          color or 0,
+          count or 0
+        ))
+      else
+        StatusHelpers.setStatus(ctx, tostring(err or "Could not build color mask"))
       end
       ctx.setPainting(false)
       return true

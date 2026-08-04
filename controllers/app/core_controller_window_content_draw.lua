@@ -594,6 +594,8 @@ local function drawCanvasLayer(app, w, layerIndex, isFocused)
     local cols = w.cols or 32
     local rows = w.rows or 30
     local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+    -- BG sketch: color index 0 is a real palette color (not CHR/sprite transparency).
+    local opaqueBgZero = { transparentZero = false }
     for row = 0, rows - 1 do
       for col = 0, cols - 1 do
         local palNum = SketchPalette.getTilePaletteNumber(w, col, row) or 1
@@ -603,7 +605,8 @@ local function drawCanvasLayer(app, w, layerIndex, isFocused)
           true,
           romRaw,
           palNum,
-          layerOpacity
+          layerOpacity,
+          opaqueBgZero
         )
         local px = col * cell
         local py = row * cell
@@ -1400,6 +1403,7 @@ drawNormalWindow = function(app, w, wm)
   if WindowCaps.isSketchCanvas(w) and not WindowCaps.isSketchReflectNametable(w) then
     local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
     PixelSel.drawOverlay(w, isFocused)
+    PixelSel.drawColorPaintMaskOverlay(w)
   end
 
   if w.drawSelectionOverlays then

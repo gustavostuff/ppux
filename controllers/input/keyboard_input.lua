@@ -83,9 +83,9 @@ function M.keypressed(key, AppCoreControllerRef, keyRepeat)
     DebugController.log("debug", "INPUT_ROUTE", "key=%s route=modifier_hint", tostring(key))
     KeyboardModifierHintController.updateStatus(ctx, utils)
     local mode = ctx and ctx.getMode and ctx.getMode() or "tile"
-    local isEditToolHoldKey = (key == "f" or key == "g")
+    local isEditToolHoldKey = (key == "f" or key == "g" or key == "c")
     local skipRouting = (not isEditToolHoldKey) or mode == "edit"
-    -- In edit mode, bare F/G are fill/grab holds; Ctrl+F / Ctrl+G are shortcuts and must reach handlers.
+    -- In edit mode, bare F/G/C are fill/grab/color-mask holds; Ctrl+* shortcuts must reach handlers.
     if skipRouting and not (mode == "edit" and isEditToolHoldKey and utils.ctrlDown and utils.ctrlDown()) then
       return
     end

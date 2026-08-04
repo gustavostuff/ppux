@@ -166,6 +166,13 @@ local function paintCanvasPixelAt(app, win, canvas, px, py, pickOnly)
     return true
   end
 
+  if WindowCaps.isSketchCanvas(win) then
+    local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+    if not PixelSel.allowsColorPaintAt(win, px, py) then
+      return false
+    end
+  end
+
   local beforeValue = canvas:getPixel(px, py) or 0
   local color = getCanvasPaintColor(app, win)
   if beforeValue == color then
@@ -1057,7 +1064,15 @@ local function floodFillCanvas(app, win, canvas, px, py, targetColor, fillColor)
       goto continue
     end
 
+    -- Mark visited before mask check so non-masked same-color pixels don't re-queue forever.
     visited[key] = true
+    if WindowCaps.isSketchCanvas(win) then
+      local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+      if not PixelSel.allowsColorPaintAt(win, x, y) then
+        goto continue
+      end
+    end
+
     recordDirectPaint(app, canvas, x, y, target, fill)
     canvas:edit(x, y, fill)
     painted = painted + 1

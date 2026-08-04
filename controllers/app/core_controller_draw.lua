@@ -418,8 +418,9 @@ local function drawEditModeColorIndicator(app)
   local ctrlDown = love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")
   local fillDown = love.keyboard.isDown("f")
   local grabDown = love.keyboard.isDown("g")
+  local colorMaskDown = love.keyboard.isDown("c")
   local altDown = love.keyboard.isDown("lalt") or love.keyboard.isDown("ralt")
-  local nothingDown = not shiftDown and not ctrlDown and not altDown and not fillDown and not grabDown
+  local nothingDown = not shiftDown and not ctrlDown and not altDown and not fillDown and not grabDown and not colorMaskDown
   local showBrushPixels = (ctrlDown and altDown) or nothingDown
 
   if not showBrushPixels then

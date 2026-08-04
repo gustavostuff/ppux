@@ -48,36 +48,38 @@ function SketchCanvasWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
   self.layers = {}
 
   -- Pack / link state (Phase 2+). Pixels stay on the canvas layer snapshot only.
-  self.tilesPool = {}
-  if type(data.tilesPool) == "table" then
+  -- tilesPool may be a pipe-separated project string or a legacy entry table.
+  do
     local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
-    for i = 1, math.min(256, #data.tilesPool) do
-      local copied = SketchCanvasPackController.copyPoolEntry(data.tilesPool[i])
-      if copied then
-        self.tilesPool[#self.tilesPool + 1] = copied
-      end
-    end
+    self.tilesPool = SketchCanvasPackController.decodeTilesPool(data.tilesPool)
   end
 
   self.nametableBytes = nil
-  if type(data.nametableBytes) == "table" and #data.nametableBytes > 0 then
-    local nt = {}
-    for i = 1, #data.nametableBytes do
-      nt[i] = math.floor(tonumber(data.nametableBytes[i]) or 0)
+  if type(data.nametableBytes) == "table" then
+    local LayoutIO = require("controllers.game_art.layout_io_controller")
+    -- Prefer full NES nametable size when present; allow shorter legacy test arrays.
+    local expected = nil
+    if data.nametableBytes.kind == "byte_blob" then
+      expected = math.floor(tonumber(data.nametableBytes.count) or 960)
+    elseif #data.nametableBytes == 960 then
+      expected = 960
     end
-    self.nametableBytes = nt
+    local nt = LayoutIO.normalizeByteList(data.nametableBytes, expected)
+    if nt and #nt > 0 then
+      self.nametableBytes = nt
+    end
   end
 
   self.nametableAttrBytes = nil
-  if type(data.nametableAttrBytes) == "table" and #data.nametableAttrBytes > 0 then
-    local attrs = {}
-    for i = 1, math.min(64, #data.nametableAttrBytes) do
-      attrs[i] = math.floor(tonumber(data.nametableAttrBytes[i]) or 0) % 256
+  if type(data.nametableAttrBytes) == "table" then
+    local LayoutIO = require("controllers.game_art.layout_io_controller")
+    local attrs = LayoutIO.normalizeByteList(data.nametableAttrBytes, 64)
+    if attrs and #attrs > 0 then
+      while #attrs < 64 do
+        attrs[#attrs + 1] = 0
+      end
+      self.nametableAttrBytes = attrs
     end
-    while #attrs < 64 do
-      attrs[#attrs + 1] = 0
-    end
-    self.nametableAttrBytes = attrs
   end
 
   self.tolerance = math.floor(tonumber(data.tolerance) or 0)

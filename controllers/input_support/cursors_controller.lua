@@ -618,6 +618,7 @@ local function resolveTargetCursorName(app, mode)
   local resolvedMode = (mode == "edit") and "edit" or "tile"
   local grabDown = love.keyboard.isDown("g")
   local fillDown = love.keyboard.isDown("f")
+  local colorMaskDown = love.keyboard.isDown("c")
 
   if resolvedMode == "edit" then
     local hoveringEditable = isHoveringEditableContent(app)
@@ -626,6 +627,9 @@ local function resolveTargetCursorName(app, mode)
     end
     if fillDown then
       return hoveringEditable and "fill" or "arrow"
+    end
+    if colorMaskDown then
+      return hoveringEditable and "pick" or "arrow"
     end
     if app and app.editTool == "rect_fill" then
       return "rect_fill"

@@ -17,6 +17,41 @@ M.PROJECT_FORMAT_VERSION = 1
 local PPUX_COMPRESSION_FORMAT = "zlib"
 local PATTERN_CANVAS_SNAPSHOT_ENCODING = "2bpp_v1"
 local PATTERN_CANVAS_TEXT_ENCODING = "base64"
+-- Keep project Lua lines readable (same ballpark as tilesPool / tileSwaps chunks).
+local PROJECT_ENCODED_TEXT_CHUNK = 100
+
+local function chunkEncodedText(s, maxLen)
+  maxLen = math.floor(tonumber(maxLen) or PROJECT_ENCODED_TEXT_CHUNK)
+  if type(s) ~= "string" then
+    return s
+  end
+  if maxLen < 1 or #s <= maxLen then
+    return s
+  end
+  local chunks = {}
+  local i = 1
+  while i <= #s do
+    chunks[#chunks + 1] = s:sub(i, i + maxLen - 1)
+    i = i + maxLen
+  end
+  return chunks
+end
+
+local function joinEncodedText(data)
+  if type(data) == "string" then
+    return data
+  end
+  if type(data) ~= "table" then
+    return ""
+  end
+  local parts = {}
+  for i = 1, #data do
+    if type(data[i]) == "string" then
+      parts[#parts + 1] = data[i]
+    end
+  end
+  return table.concat(parts, "")
+end
 
 -------------------------------------------------------
 -- File utilities
@@ -130,7 +165,7 @@ local function encodePatternCanvasSnapshot(canvas)
     textEncoding = PATTERN_CANVAS_TEXT_ENCODING,
     width = canvas.width,
     height = canvas.height,
-    data = encodedCompressed,
+    data = chunkEncodedText(encodedCompressed),
     hash = hash,
   }
 end
@@ -145,7 +180,7 @@ function M.decodePatternCanvasSnapshot(canvas, edits)
   end
 
   local textEncoding = edits.textEncoding or PATTERN_CANVAS_TEXT_ENCODING
-  local decodeOk, compressed = pcall(love.data.decode, "string", textEncoding, edits.data or "")
+  local decodeOk, compressed = pcall(love.data.decode, "string", textEncoding, joinEncodedText(edits.data))
   if not decodeOk then
     return false, tostring(compressed)
   end
@@ -173,6 +208,127 @@ function M.decodePatternCanvasSnapshot(canvas, edits)
   end
 
   return unpackPatternCanvas2bpp(canvas, raw)
+end
+
+local BYTE_BLOB_KIND = "byte_blob"
+
+--- Pack a 1-based integer byte array into a zlib+base64 blob for project Lua.
+--- @param bytesTable table 1-based values (clamped 0..255)
+--- @param expectedCount number|nil if set, encode exactly this many entries
+function M.encodeByteBlob(bytesTable, expectedCount)
+  if type(bytesTable) ~= "table" then
+    return nil, "invalid_bytes"
+  end
+  if not (love and love.data and love.data.compress and love.data.encode) then
+    return nil, "love.data.compress/encode is unavailable"
+  end
+
+  local count = math.floor(tonumber(expectedCount) or #bytesTable or 0)
+  if count < 1 then
+    return nil, "empty_bytes"
+  end
+
+  local chars = {}
+  for i = 1, count do
+    local v = math.floor(tonumber(bytesTable[i]) or 0) % 256
+    if v < 0 then
+      v = 0
+    end
+    chars[i] = string.char(v)
+  end
+  local raw = table.concat(chars)
+
+  local ok, compressed = pcall(love.data.compress, "string", PPUX_COMPRESSION_FORMAT, raw)
+  if not ok then
+    return nil, tostring(compressed)
+  end
+
+  local encodedOk, encoded = pcall(love.data.encode, "string", PATTERN_CANVAS_TEXT_ENCODING, compressed)
+  if not encodedOk then
+    return nil, tostring(encoded)
+  end
+
+  return {
+    kind = BYTE_BLOB_KIND,
+    compression = PPUX_COMPRESSION_FORMAT,
+    textEncoding = PATTERN_CANVAS_TEXT_ENCODING,
+    count = count,
+    data = chunkEncodedText(encoded),
+  }
+end
+
+--- Decode a byte_blob back to a 1-based integer array.
+function M.decodeByteBlob(blob)
+  if type(blob) ~= "table" then
+    return nil, "invalid_blob"
+  end
+  if blob.kind ~= BYTE_BLOB_KIND then
+    return nil, "unsupported_kind"
+  end
+  if not (love and love.data and love.data.decompress and love.data.decode) then
+    return nil, "love.data.decompress/decode is unavailable"
+  end
+
+  local count = math.floor(tonumber(blob.count) or 0)
+  if count < 1 then
+    return nil, "invalid_count"
+  end
+
+  local textEncoding = blob.textEncoding or PATTERN_CANVAS_TEXT_ENCODING
+  local decodeOk, compressed = pcall(love.data.decode, "string", textEncoding, joinEncodedText(blob.data))
+  if not decodeOk then
+    return nil, tostring(compressed)
+  end
+
+  local ok, raw = pcall(love.data.decompress, "string", blob.compression or PPUX_COMPRESSION_FORMAT, compressed)
+  if not ok then
+    return nil, tostring(raw)
+  end
+  if type(raw) ~= "string" or #raw ~= count then
+    return nil, string.format("unexpected_blob_size:%d:%d", type(raw) == "string" and #raw or -1, count)
+  end
+
+  local out = {}
+  for i = 1, count do
+    out[i] = string.byte(raw, i) or 0
+  end
+  return out
+end
+
+--- Accept either a byte_blob or a legacy 1-based integer array.
+--- @param value table
+--- @param expectedCount number|nil when set, pad/truncate legacy arrays and validate blobs
+function M.normalizeByteList(value, expectedCount)
+  if type(value) ~= "table" then
+    return nil, "invalid_bytes"
+  end
+  if value.kind == BYTE_BLOB_KIND then
+    local decoded, err = M.decodeByteBlob(value)
+    if not decoded then
+      return nil, err
+    end
+    if expectedCount and #decoded ~= expectedCount then
+      return nil, string.format("blob_count_mismatch:%d:%d", #decoded, expectedCount)
+    end
+    return decoded
+  end
+
+  local count = math.floor(tonumber(expectedCount) or #value or 0)
+  if count < 1 and #value < 1 then
+    return nil, "empty_bytes"
+  end
+  if count < 1 then
+    count = #value
+  end
+  local out = {}
+  for i = 1, count do
+    local v = math.floor(tonumber(value[i]) or 0) % 256
+    if v < 0 then
+      v = 0
+    end
+    out[i] = v
+  end
+  return out
 end
 
 -- -------------------------------------------------------------------
@@ -546,22 +702,20 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
     end
     if WindowCaps.isSketchCanvas(w) then
       local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
-      local pool = {}
-      if type(w.tilesPool) == "table" then
-        for i = 1, math.min(256, #w.tilesPool) do
-          local copied = SketchCanvasPackController.copyPoolEntry(w.tilesPool[i])
-          if copied then
-            pool[#pool + 1] = copied
-          end
-        end
-      end
-      entry.tilesPool = pool
+      entry.tilesPool = SketchCanvasPackController.encodeTilesPool(w.tilesPool)
       if type(w.nametableBytes) == "table" and #w.nametableBytes > 0 then
         local nt = {}
         for i = 1, #w.nametableBytes do
-          nt[i] = math.floor(tonumber(w.nametableBytes[i]) or 0)
+          nt[i] = math.floor(tonumber(w.nametableBytes[i]) or 0) % 256
         end
-        entry.nametableBytes = nt
+        local blob, blobErr = M.encodeByteBlob(nt, #nt)
+        if blob then
+          entry.nametableBytes = blob
+        else
+          -- Fallback: keep legacy array if compress/encode is unavailable.
+          DebugController.log("warning", "LAYOUT", "nametableBytes blob encode failed: %s", tostring(blobErr))
+          entry.nametableBytes = nt
+        end
       end
       if type(w.nametableAttrBytes) == "table" and #w.nametableAttrBytes > 0 then
         local attrs = {}
@@ -571,7 +725,13 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
         while #attrs < 64 do
           attrs[#attrs + 1] = 0
         end
-        entry.nametableAttrBytes = attrs
+        local blob, blobErr = M.encodeByteBlob(attrs, 64)
+        if blob then
+          entry.nametableAttrBytes = blob
+        else
+          DebugController.log("warning", "LAYOUT", "nametableAttrBytes blob encode failed: %s", tostring(blobErr))
+          entry.nametableAttrBytes = attrs
+        end
       end
       entry.tolerance = math.floor(tonumber(w.tolerance) or 0)
       entry.reflectPatternTable = (w.reflectPatternTable == true)

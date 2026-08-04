@@ -55,6 +55,10 @@ describe("sketch canvas - data model + persistence", function()
     for i = 1, 960 do
       win.nametableBytes[i] = (i % 2)
     end
+    win.nametableAttrBytes = {}
+    for i = 1, 64 do
+      win.nametableAttrBytes[i] = (i == 1) and 85 or 0
+    end
     win.tolerance = 2
     win.reflectPatternTable = true
     win.linkedPatternTableWindowId = "pt_01"
@@ -64,12 +68,36 @@ describe("sketch canvas - data model + persistence", function()
     local entry = snapshot.windows[1]
     expect(entry.kind).toBe("sketch_canvas")
     expect(entry.layers[1].edits.kind).toBe("canvas_snapshot")
-    expect(#entry.tilesPool).toBe(2)
-    expect(entry.tilesPool[1].x).toBe(0)
-    expect(entry.tilesPool[1].y).toBe(0)
-    expect(entry.tilesPool[1].pixels).toBeNil()
-    expect(#entry.nametableBytes).toBe(960)
-    expect(entry.nametableBytes[1]).toBe(1)
+    expect(type(entry.tilesPool)).toBe("table")
+    expect(#entry.tilesPool).toBe(1)
+    expect(entry.tilesPool[1]).toBe("0,0|8,8")
+    expect(entry.nametableBytes.kind).toBe("byte_blob")
+    expect(entry.nametableBytes.count).toBe(960)
+    local ntData = entry.nametableBytes.data
+    if type(ntData) == "table" then
+      expect(#ntData >= 1).toBe(true)
+      for _, chunk in ipairs(ntData) do
+        expect(type(chunk)).toBe("string")
+        expect(#chunk > 0).toBe(true)
+        expect(#chunk <= 100).toBe(true)
+      end
+    else
+      expect(type(ntData)).toBe("string")
+      expect(#ntData > 0).toBe(true)
+      expect(#ntData <= 100).toBe(true)
+    end
+    expect(entry.nametableAttrBytes.kind).toBe("byte_blob")
+    expect(entry.nametableAttrBytes.count).toBe(64)
+    local attrData = entry.nametableAttrBytes.data
+    if type(attrData) == "table" then
+      for _, chunk in ipairs(attrData) do
+        expect(#chunk <= 100).toBe(true)
+      end
+    else
+      expect(type(attrData)).toBe("string")
+      expect(#attrData > 0).toBe(true)
+      expect(#attrData <= 100).toBe(true)
+    end
     expect(entry.tolerance).toBe(2)
     expect(entry.reflectPatternTable).toBe(true)
     expect(entry.linkedPatternTableWindowId).toBe("pt_01")
@@ -90,11 +118,130 @@ describe("sketch canvas - data model + persistence", function()
     expect(restored.tilesPool[2].x).toBe(8)
     expect(restored.tilesPool[2].y).toBe(8)
     expect(#restored.nametableBytes).toBe(960)
+    expect(restored.nametableBytes[1]).toBe(1)
     expect(restored.nametableBytes[2]).toBe(0)
+    expect(#restored.nametableAttrBytes).toBe(64)
+    expect(restored.nametableAttrBytes[1]).toBe(85)
     expect(restored.tolerance).toBe(2)
     expect(restored.reflectPatternTable).toBe(true)
     expect(restored.linkedPatternTableWindowId).toBe("pt_01")
     expect(restored.paddingTileIndex).toBe(0)
+  end)
+
+  it("loads legacy integer-array nametableBytes from older projects", function()
+    local legacyNt = {}
+    for i = 1, 960 do
+      legacyNt[i] = (i == 5) and 42 or 0
+    end
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow({
+      nametableBytes = legacyNt,
+      nametableAttrBytes = { 1, 2, 3 },
+    })
+    expect(#win.nametableBytes).toBe(960)
+    expect(win.nametableBytes[5]).toBe(42)
+    expect(#win.nametableAttrBytes).toBe(64)
+    expect(win.nametableAttrBytes[1]).toBe(1)
+    expect(win.nametableAttrBytes[2]).toBe(2)
+    expect(win.nametableAttrBytes[3]).toBe(3)
+    expect(win.nametableAttrBytes[4]).toBe(0)
+  end)
+
+  it("loads legacy table-form tilesPool from older projects", function()
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow({
+      tilesPool = {
+        { x = 16, y = 24, solidShade = 1, exactSolid = true },
+        { x = 32, y = 40 },
+      },
+    })
+    expect(#win.tilesPool).toBe(2)
+    expect(win.tilesPool[1].x).toBe(16)
+    expect(win.tilesPool[1].y).toBe(24)
+    expect(win.tilesPool[1].solidShade).toBe(1)
+    expect(win.tilesPool[1].exactSolid).toBe(true)
+    expect(win.tilesPool[2].x).toBe(32)
+    expect(win.tilesPool[2].y).toBe(40)
+  end)
+
+  it("encodeByteBlob / decodeByteBlob round-trip values", function()
+    local src = {}
+    for i = 1, 960 do
+      src[i] = (i * 7) % 256
+    end
+    local blob, err = GameArtLayoutIOController.encodeByteBlob(src, 960)
+    expect(blob).toBeTruthy()
+    expect(err).toBeNil()
+    expect(blob.kind).toBe("byte_blob")
+    expect(type(blob.data)).toBe("table")
+    expect(#blob.data > 1).toBe(true)
+    for _, chunk in ipairs(blob.data) do
+      expect(#chunk <= 100).toBe(true)
+    end
+    local decoded = assert(GameArtLayoutIOController.decodeByteBlob(blob))
+    expect(#decoded).toBe(960)
+    expect(decoded[1]).toBe(src[1])
+    expect(decoded[100]).toBe(src[100])
+    expect(decoded[960]).toBe(src[960])
+
+    -- Legacy single-string data still decodes.
+    local joined = table.concat(blob.data, "")
+    local legacy = {
+      kind = blob.kind,
+      compression = blob.compression,
+      textEncoding = blob.textEncoding,
+      count = blob.count,
+      data = joined,
+    }
+    local decodedLegacy = assert(GameArtLayoutIOController.decodeByteBlob(legacy))
+    expect(decodedLegacy[100]).toBe(src[100])
+  end)
+
+  it("encodeTilesPool / decodeTilesPool round-trip solid and sample entries", function()
+    local Pack = require("controllers.game_art.sketch_canvas_pack_controller")
+    local src = {
+      { x = 0, y = 0, solidShade = 0, exactSolid = true },
+      { x = 128, y = 48 },
+      { x = 8, y = 8, solidShade = 2 },
+    }
+    local encoded = Pack.encodeTilesPool(src)
+    expect(type(encoded)).toBe("table")
+    expect(#encoded).toBe(1)
+    expect(encoded[1]).toBe("0,0,0e|128,48|8,8,2")
+    local decoded = Pack.decodeTilesPool(encoded)
+    expect(#decoded).toBe(3)
+    expect(decoded[1].solidShade).toBe(0)
+    expect(decoded[1].exactSolid).toBe(true)
+    expect(decoded[2].x).toBe(128)
+    expect(decoded[2].y).toBe(48)
+    expect(decoded[2].solidShade).toBeNil()
+    expect(decoded[3].solidShade).toBe(2)
+    expect(decoded[3].exactSolid).toBeNil()
+  end)
+
+  it("encodeTilesPool chunks long pools on pipe boundaries under ~100 chars", function()
+    local Pack = require("controllers.game_art.sketch_canvas_pack_controller")
+    local src = {}
+    for i = 0, 39 do
+      src[#src + 1] = { x = i * 8, y = (i % 5) * 8 }
+    end
+    local encoded = Pack.encodeTilesPool(src)
+    expect(type(encoded)).toBe("table")
+    expect(#encoded > 1).toBe(true)
+    for _, chunk in ipairs(encoded) do
+      expect(type(chunk)).toBe("string")
+      expect(#chunk <= 100).toBe(true)
+      expect(chunk:sub(1, 1) ~= "|").toBe(true)
+      expect(chunk:sub(-1) ~= "|").toBe(true)
+    end
+    local decoded = Pack.decodeTilesPool(encoded)
+    expect(#decoded).toBe(40)
+    expect(decoded[1].x).toBe(0)
+    expect(decoded[40].x).toBe(39 * 8)
+    -- Single-string form from older saves still loads.
+    local joined = table.concat(encoded, "|")
+    local fromString = Pack.decodeTilesPool(joined)
+    expect(#fromString).toBe(40)
   end)
 
   it("round-trips solidShade and generateDirty through layout snapshot", function()
@@ -114,9 +261,7 @@ describe("sketch canvas - data model + persistence", function()
 
     local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1)
     local entry = snapshot.windows[1]
-    expect(entry.tilesPool[1].solidShade).toBe(0)
-    expect(entry.tilesPool[1].exactSolid).toBe(true)
-    expect(entry.tilesPool[2].solidShade).toBe(2)
+    expect(entry.tilesPool).toEqual({ "0,0,0e|8,8,2" })
     expect(entry.generateDirty).toBe(true)
 
     local built = GameArtWindowBuilderController.buildWindowsFromLayout(snapshot, {
@@ -144,8 +289,7 @@ describe("sketch canvas - data model + persistence", function()
 
     local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1)
     local entry = snapshot.windows[1]
-    expect(entry.tilesPool).toBeTruthy()
-    expect(#entry.tilesPool).toBe(0)
+    expect(entry.tilesPool).toEqual({})
     expect(entry.nametableBytes).toBeNil()
     expect(entry.linkedPatternTableWindowId).toBeNil()
     expect(entry.tolerance).toBe(0)

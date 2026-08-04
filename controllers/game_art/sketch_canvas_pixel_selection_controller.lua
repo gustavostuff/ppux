@@ -239,6 +239,102 @@ function M.isSelectTool(editTool)
   return editTool == "rect_select" or editTool == "free_select"
 end
 
+----------------------------------------------------------------
+-- Same-color paint mask (hold C + click): paint/fill only those pixels.
+----------------------------------------------------------------
+
+function M.getColorPaintMask(win)
+  return win and win.colorPaintMask or nil
+end
+
+function M.hasColorPaintMask(win)
+  local mask = M.getColorPaintMask(win)
+  return not not (mask and type(mask.bits) == "table" and (mask.count or 0) > 0)
+end
+
+function M.clearColorPaintMask(win)
+  if not win or not win.colorPaintMask then
+    return false
+  end
+  win.colorPaintMask = nil
+  return true
+end
+
+local function colorMaskIndex(width, x, y)
+  return y * width + x + 1
+end
+
+--- Build a static mask of every canvas pixel equal to `color` (0..3).
+--  Returns mask table or nil, count.
+function M.buildColorPaintMask(win, color)
+  local paint = resolvePaint(win)
+  if not paint then
+    return nil, 0
+  end
+  color = math.floor(tonumber(color) or 0)
+  if color < 0 then color = 0 end
+  if color > 3 then color = 3 end
+
+  local w = paint.width
+  local h = paint.height
+  local bits = {}
+  local count = 0
+  for y = 0, h - 1 do
+    for x = 0, w - 1 do
+      if (paint:getPixel(x, y) or 0) == color then
+        bits[colorMaskIndex(w, x, y)] = true
+        count = count + 1
+      end
+    end
+  end
+
+  local mask = {
+    color = color,
+    width = w,
+    height = h,
+    bits = bits,
+    count = count,
+  }
+  return mask, count
+end
+
+--- Sample the color at (px, py) and mask every canvas pixel of that color.
+--  @return ok boolean, count number, color number|nil, err string|nil
+function M.applyColorPaintMaskAt(win, px, py)
+  if not WindowCaps.isSketchCanvas(win) then
+    return false, 0, nil, "not_sketch_canvas"
+  end
+  if WindowCaps.isSketchReflectNametable(win) then
+    return false, 0, nil, "tile_mode"
+  end
+  local paint = resolvePaint(win)
+  if not paint then
+    return false, 0, nil, "no_canvas"
+  end
+  px, py = clampPointToCanvas(paint, px, py)
+  local color = math.floor(tonumber(paint:getPixel(px, py)) or 0)
+  local mask, count = M.buildColorPaintMask(win, color)
+  if not mask then
+    return false, 0, color, "build_failed"
+  end
+  win.colorPaintMask = mask
+  return true, count, color, nil
+end
+
+--- When a color paint mask is active, only masked pixels may be painted.
+function M.allowsColorPaintAt(win, px, py)
+  local mask = M.getColorPaintMask(win)
+  if not mask then
+    return true
+  end
+  px = math.floor(tonumber(px) or 0)
+  py = math.floor(tonumber(py) or 0)
+  if px < 0 or py < 0 or px >= mask.width or py >= mask.height then
+    return false
+  end
+  return mask.bits[colorMaskIndex(mask.width, px, py)] == true
+end
+
 function M.clearSelection(win, opts)
   opts = opts or {}
   local sel = M.getSelection(win)
@@ -888,6 +984,23 @@ function M.drawOverlay(win, isFocused)
   else
     drawAntsRect(ox, oy, z, bx, by, sel.w, sel.h)
   end
+  love.graphics.setScissor()
+end
+
+function M.drawColorPaintMaskOverlay(win)
+  local mask = M.getColorPaintMask(win)
+  if not (mask and mask.bits and mask.count and mask.count > 0) then
+    return
+  end
+
+  local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
+  local ox, oy = win:getContentScreenOrigin()
+  local sx, sy, sw, sh = win:getInsetContentScreenRect()
+  CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
+
+  love.graphics.setColor(colors.white)
+  local fakeSel = { mask = mask.bits, w = mask.width, h = mask.height }
+  drawMaskOutlineAnts(ox, oy, z, fakeSel, 0, 0)
   love.graphics.setScissor()
 end
 

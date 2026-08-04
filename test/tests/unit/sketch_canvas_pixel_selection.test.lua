@@ -249,4 +249,62 @@ describe("sketch_canvas_pixel_selection_controller", function()
 
     _G.ctx = nil
   end)
+
+  it("applies a same-color paint mask from a clicked pixel and gates painting", function()
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow()
+    local canvas = win:getActiveCanvas()
+    paintRect(canvas, 0, 0, 4, 4, 2)
+    paintRect(canvas, 8, 8, 4, 4, 1)
+    canvas:edit(1, 1, 3)
+
+    local ok, count, color = PixelSel.applyColorPaintMaskAt(win, 0, 0)
+    expect(ok).toBe(true)
+    expect(color).toBe(2)
+    expect(count).toBe(16 - 1) -- 4x4 of color 2 minus the one pixel changed to 3
+    expect(PixelSel.hasColorPaintMask(win)).toBe(true)
+    expect(PixelSel.allowsColorPaintAt(win, 0, 0)).toBe(true)
+    expect(PixelSel.allowsColorPaintAt(win, 1, 1)).toBe(false)
+    expect(PixelSel.allowsColorPaintAt(win, 8, 8)).toBe(false)
+
+    local BrushController = require("controllers.input_support.brush_controller")
+    local app = {
+      currentColor = 0,
+      brushSize = 1,
+      undoRedo = UndoRedoController.new(20),
+      setStatus = function() end,
+    }
+    expect(BrushController.paintPixel(app, win, 0, 0, 0, 0, false)).toBe(true)
+    expect(canvas:getPixel(0, 0)).toBe(0)
+    expect(BrushController.paintPixel(app, win, 0, 0, 1, 1, false)).toBe(false) -- (1,1) not in mask
+    expect(canvas:getPixel(1, 1)).toBe(3)
+    expect(BrushController.paintPixel(app, win, 1, 1, 0, 0, false)).toBe(false) -- color 1 region at (8,8)
+    expect(canvas:getPixel(8, 8)).toBe(1)
+
+    expect(PixelSel.clearColorPaintMask(win)).toBe(true)
+    expect(PixelSel.hasColorPaintMask(win)).toBe(false)
+    expect(PixelSel.allowsColorPaintAt(win, 8, 8)).toBe(true)
+  end)
+
+  it("hold C + click builds color mask from the clicked pixel color", function()
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow()
+    local canvas = win:getActiveCanvas()
+    paintRect(canvas, 5, 5, 3, 3, 2)
+
+    local okMask, count, color = PixelSel.applyColorPaintMaskAt(win, 5, 5)
+    expect(okMask).toBe(true)
+    expect(color).toBe(2)
+    expect(count).toBe(9)
+    expect(PixelSel.hasColorPaintMask(win)).toBe(true)
+
+    -- Re-pick a different color replaces the mask.
+    canvas:edit(10, 10, 1)
+    okMask, count, color = PixelSel.applyColorPaintMaskAt(win, 10, 10)
+    expect(okMask).toBe(true)
+    expect(color).toBe(1)
+    expect(count).toBe(1)
+    expect(PixelSel.allowsColorPaintAt(win, 5, 5)).toBe(false)
+    expect(PixelSel.allowsColorPaintAt(win, 10, 10)).toBe(true)
+  end)
 end)

@@ -242,7 +242,18 @@ describe("game_art_layout_io_controller.lua", function()
     expect(entry.layers[1].edits).toBeTruthy()
     expect(entry.layers[1].edits.kind).toBe("canvas_snapshot")
     expect(entry.layers[1].edits.encoding).toBe("2bpp_v1")
-    expect(type(entry.layers[1].edits.data)).toBe("string")
+    local snapData = entry.layers[1].edits.data
+    if type(snapData) == "table" then
+      expect(#snapData >= 1).toBe(true)
+      for _, chunk in ipairs(snapData) do
+        expect(type(chunk)).toBe("string")
+        expect(#chunk <= 100).toBe(true)
+      end
+    else
+      expect(type(snapData)).toBe("string")
+      expect(#snapData > 0).toBe(true)
+      expect(#snapData <= 100).toBe(true)
+    end
 
     local built = GameArtWindowBuilderController.buildWindowsFromLayout(snapshot, {
       wm = require("controllers.window.window_controller").new(),

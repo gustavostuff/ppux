@@ -116,5 +116,17 @@ describe("shader_palette_controller.lua", function()
       expect(type(codes[1])).toBe("string")
     end)
   end)
+
+  describe("transparentZero", function()
+    it("accepts opaque index-0 for BG sketch without error", function()
+      -- CHR/sprite default stays transparentZero; sketch BG linked draw passes false.
+      ShaderPaletteController.applyShader(true, nil, { "07", "17", "27", "37" }, 1.0)
+      ShaderPaletteController.applyShader(
+        true, nil, { "07", "17", "27", "37" }, 1.0, { transparentZero = false }
+      )
+      ShaderPaletteController.releaseShader()
+      expect(true).toBe(true)
+    end)
+  end)
   
 end)
