@@ -25,8 +25,11 @@ local utils = {}
 local tileClick = { active = false }
 local spriteClick = { active = false }
 local contextClick = { active = false }
+local colorPickClick = { active = false }
 -- Treat as "no movement" only when coordinates match within float noise (no pixel-level drag tolerance).
 local CONTEXT_MENU_PRESS_RELEASE_EPS = 1e-6
+-- Right-click color pick uses real (window) pixels, not canvas/PPUX pixels.
+local COLOR_PICK_CLICK_TOLERANCE_REAL_PX = 2
 
 local function fmtWin(win)
   if not win then return "nil" end
@@ -62,6 +65,7 @@ function M.setup(context, dragState, paintState, utilities)
   tileClick = { active = false }
   spriteClick = { active = false }
   contextClick = { active = false }
+  colorPickClick = { active = false }
 end
 
 function M.resetTransientState()
@@ -86,6 +90,7 @@ function M.resetTransientState()
   tileClick = { active = false }
   spriteClick = { active = false }
   contextClick = { active = false }
+  colorPickClick = { active = false }
   local app = ctx and ctx.app or nil
   if app and app.paletteLinkDrag then
     app.paletteLinkDrag.active = false
@@ -133,6 +138,85 @@ end
 
 local function handleResizeHandle(button, x, y, wm)
   return MouseWindowChromeController.handleResizeHandle(button, x, y, wm)
+end
+
+local function exceedsColorPickClickTolerance(x0, y0, x1, y1)
+  local ResolutionController = require("controllers.app.resolution_controller")
+  local sx = tonumber(ResolutionController.canvasScaleX) or 1
+  local sy = tonumber(ResolutionController.canvasScaleY) or 1
+  if sx < 1e-6 then sx = 1 end
+  if sy < 1e-6 then sy = 1 end
+  local dxReal = math.abs((x1 or 0) - (x0 or 0)) * sx
+  local dyReal = math.abs((y1 or 0) - (y0 or 0)) * sy
+  return dxReal > COLOR_PICK_CLICK_TOLERANCE_REAL_PX
+    or dyReal > COLOR_PICK_CLICK_TOLERANCE_REAL_PX
+end
+
+local function beginColorPickClick(x, y, win, opts)
+  opts = opts or {}
+  colorPickClick = {
+    active = true,
+    button = 2,
+    startX = x,
+    startY = y,
+    win = win,
+    moved = false,
+    clearMask = opts.clearMask == true,
+  }
+end
+
+local function updateColorPickDragState(x, y)
+  if not (colorPickClick and colorPickClick.active) then
+    return
+  end
+  if colorPickClick.moved then
+    return
+  end
+  local sx, sy = colorPickClick.startX or 0, colorPickClick.startY or 0
+  if not exceedsColorPickClickTolerance(sx, sy, x, y) then
+    return
+  end
+  colorPickClick.moved = true
+  -- Past click tolerance: treat as window drag (same as immediate right/middle press).
+  local win = colorPickClick.win
+  if win and not win.dragging and win.contains and win:contains(sx, sy) then
+    win.dragging = true
+    win.dx = sx - (win.x or 0)
+    win.dy = sy - (win.y or 0)
+    local app = ctx and ctx.app or nil
+    if app and app.wm then
+      local WindowLinkVisibility = require("controllers.window.window_link_visibility")
+      WindowLinkVisibility.refreshRevealForWindow(app, app.wm, win)
+    end
+  end
+end
+
+local function handleColorPickRelease(button, x, y)
+  if not (colorPickClick and colorPickClick.active) then
+    return false
+  end
+  local pending = colorPickClick
+  colorPickClick = { active = false }
+
+  if button ~= pending.button then
+    return false
+  end
+  if pending.moved then
+    return false
+  end
+  if exceedsColorPickClickTolerance(pending.startX or 0, pending.startY or 0, x, y) then
+    return false
+  end
+
+  local win = pending.win
+  if win and win.dragging then
+    win.dragging = false
+  end
+
+  return MouseClickController.finishEditModeColorPickClick({
+    ctx = ctx,
+    utils = utils,
+  }, x, y, win, { clearMask = pending.clearMask == true })
 end
 
 local function beginContextMenuClick(kind, x, y, button, win, extra)
@@ -362,6 +446,7 @@ function M.mousepressed(x, y, button)
     getSpriteClick = function() return spriteClick end,
     setSpriteClick = function(v) spriteClick = v end,
     beginContextMenuClick = beginContextMenuClick,
+    beginColorPickClick = beginColorPickClick,
   }, x, y, button)
   logRoute("mousepressed", handled and "mouse_click_controller" or "unhandled", x, y, button, getFocusedWindowSafe())
   return handled == true
@@ -369,6 +454,7 @@ end
 
 function M.mousemoved(x, y, dx, dy)
   updateContextMenuDragState(x, y)
+  updateColorPickDragState(x, y)
   MouseMoveController.handleMouseMoved({
     ctx = ctx,
     drag = drag,
@@ -660,6 +746,7 @@ function M.mousereleased(x, y, button)
     logRoute("mousereleased", "sprite_origin_drag", x, y, button, fwin)
     return
   end
+  if handleColorPickRelease(button, x, y) then logRoute("mousereleased", "color_pick_click", x, y, button, fwin); return end
   if handleContextMenuRelease(button, x, y) then logRoute("mousereleased", "context_menu_release", x, y, button, fwin); return end
   if resizeEnded then logRoute("mousereleased", "resize_end", x, y, button, fwin); return end
   if windowDragEnded then logRoute("mousereleased", "window_drag_end", x, y, button, fwin); return end

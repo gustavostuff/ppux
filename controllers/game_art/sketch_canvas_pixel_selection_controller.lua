@@ -15,6 +15,7 @@ local images = require("images")
 local Draw = require("utils.draw_utils")
 local colors = require("app_colors")
 local CanvasSpace = require("utils.canvas_space")
+local UiPulse = require("utils.ui_pulse")
 
 local M = {}
 
@@ -25,6 +26,63 @@ local SELECTION_RECT_ANIM = {
   stepPx = 1,
   intervalSeconds = 0.1,
 }
+
+-- Perimeter outline for color paint masks: pulse black↔white on exposed pixel edges.
+local colorMaskPerimeterShader = nil
+local function ensureColorMaskPerimeterShader()
+  if colorMaskPerimeterShader then
+    return colorMaskPerimeterShader
+  end
+  colorMaskPerimeterShader = love.graphics.newShader([[
+extern vec2 u_size;      // mask width/height in canvas pixels
+extern vec2 u_origin;    // content origin in screen pixels
+extern number u_zoom;    // window zoom
+extern number u_edgeFrac; // fraction of a canvas pixel for edge thickness (≈ 1/zoom)
+extern number u_pulse;    // 0=black .. 1=white
+
+float maskAt(Image mask, vec2 cell) {
+  if (cell.x < 0.0 || cell.y < 0.0 || cell.x >= u_size.x || cell.y >= u_size.y) {
+    return 0.0;
+  }
+  vec2 uv = (cell + vec2(0.5, 0.5)) / u_size;
+  return Texel(mask, uv).r;
+}
+
+vec4 effect(vec4 color, Image tex, vec2 texCoord, vec2 screenCoord)
+{
+  // Canvas space from screen so we can draw the outline *outside* the mask
+  // (including one pixel beyond the canvas bounds).
+  vec2 canvas = (screenCoord - u_origin) / max(u_zoom, 1.0);
+  vec2 cell = floor(canvas);
+  vec2 frac = canvas - cell;
+
+  // Never cover selected pixels — only the exterior side of each open edge.
+  if (maskAt(tex, cell) >= 0.5) {
+    return vec4(0.0);
+  }
+
+  float mL = maskAt(tex, cell + vec2(-1.0, 0.0));
+  float mR = maskAt(tex, cell + vec2( 1.0, 0.0));
+  float mU = maskAt(tex, cell + vec2( 0.0,-1.0));
+  float mD = maskAt(tex, cell + vec2( 0.0, 1.0));
+
+  float edge = max(u_edgeFrac, 0.05);
+  bool onOutsideEdge =
+    (mL >= 0.5 && frac.x < edge) ||
+    (mR >= 0.5 && frac.x > 1.0 - edge) ||
+    (mU >= 0.5 && frac.y < edge) ||
+    (mD >= 0.5 && frac.y > 1.0 - edge);
+
+  if (!onOutsideEdge) {
+    return vec4(0.0);
+  }
+
+  float p = clamp(u_pulse, 0.0, 1.0);
+  return vec4(p, p, p, 1.0) * color;
+}
+]])
+  return colorMaskPerimeterShader
+end
 
 local function resolvePaint(win)
   if not WindowCaps.isSketchCanvas(win) then
@@ -262,6 +320,40 @@ end
 
 local function colorMaskIndex(width, x, y)
   return y * width + x + 1
+end
+
+local function ensureColorMaskOutlineTexture(mask)
+  if not mask or type(mask.bits) ~= "table" then
+    return nil
+  end
+  if mask._outlineImage then
+    return mask._outlineImage
+  end
+  if not (love and love.image and love.image.newImageData and love.graphics and love.graphics.newImage) then
+    return nil
+  end
+
+  local w = math.floor(tonumber(mask.width) or 0)
+  local h = math.floor(tonumber(mask.height) or 0)
+  if w < 1 or h < 1 then
+    return nil
+  end
+
+  local id = love.image.newImageData(w, h)
+  for y = 0, h - 1 do
+    for x = 0, w - 1 do
+      if mask.bits[colorMaskIndex(w, x, y)] == true then
+        id:setPixel(x, y, 1, 1, 1, 1)
+      else
+        id:setPixel(x, y, 0, 0, 0, 0)
+      end
+    end
+  end
+  local img = love.graphics.newImage(id)
+  img:setFilter("nearest", "nearest")
+  img:setWrap("clamp", "clamp")
+  mask._outlineImage = img
+  return img
 end
 
 --- Build a static mask of every canvas pixel equal to `color` (0..3).
@@ -993,14 +1085,44 @@ function M.drawColorPaintMaskOverlay(win)
     return
   end
 
+  local outline = ensureColorMaskOutlineTexture(mask)
+  local shader = outline and ensureColorMaskPerimeterShader() or nil
+  if not (outline and shader) then
+    -- Fallback: CPU marching-ants edge rects if Image/Shader unavailable.
+    local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
+    local ox, oy = win:getContentScreenOrigin()
+    local sx, sy, sw, sh = win:getInsetContentScreenRect()
+    CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
+    love.graphics.setColor(colors.white)
+    drawMaskOutlineAnts(ox, oy, z, { mask = mask.bits, w = mask.width, h = mask.height }, 0, 0)
+    love.graphics.setScissor()
+    return
+  end
+
   local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
+  if z < 1 then z = 1 end
   local ox, oy = win:getContentScreenOrigin()
   local sx, sy, sw, sh = win:getInsetContentScreenRect()
-  CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
+  -- Allow one canvas-pixel of outline outside the content (for mask edges on the border).
+  CanvasSpace.setScissorFromContentRect(sx - z, sy - z, sw + 2 * z, sh + 2 * z)
 
+  local pulse = UiPulse.luminanceBackdrop01(UiPulse.nowSeconds())
+  shader:send("u_size", { mask.width, mask.height })
+  shader:send("u_origin", { ox, oy })
+  shader:send("u_zoom", z)
+  -- ~1 screen pixel of edge thickness in the exterior neighbor cell.
+  shader:send("u_edgeFrac", math.min(0.5, 1.0 / z))
+  shader:send("u_pulse", pulse)
+
+  love.graphics.setShader(shader)
+  love.graphics.setColor(1, 1, 1, 1)
+  -- Pad by 1 canvas pixel so exterior edges along the canvas border are visible.
+  local pad = z
+  local scaleX = ((mask.width + 2) * z) / mask.width
+  local scaleY = ((mask.height + 2) * z) / mask.height
+  love.graphics.draw(outline, ox - pad, oy - pad, 0, scaleX, scaleY)
+  love.graphics.setShader()
   love.graphics.setColor(colors.white)
-  local fakeSel = { mask = mask.bits, w = mask.width, h = mask.height }
-  drawMaskOutlineAnts(ox, oy, z, fakeSel, 0, 0)
   love.graphics.setScissor()
 end
 

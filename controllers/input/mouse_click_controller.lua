@@ -666,7 +666,11 @@ local function handleRightButton(env, button, x, y, win, wm)
         return true
       end
 
-      local function tryEditModeRightClickColorPick()
+      local function tryBeginEditModeColorPickClick()
+        -- Right-button only: middle click is reserved for window drag.
+        if button ~= 2 then
+          return false
+        end
         local ctx = env.ctx
         if not ctx or ctxMode(ctx) ~= "edit" then
           return false
@@ -683,33 +687,34 @@ local function handleRightButton(env, button, x, y, win, wm)
         if not hitWin then
           return false
         end
-        -- Hold C + right-click clears the same-color paint mask on sketch canvases.
+
+        local clearMask = false
         if utils.colorMaskDown and utils.colorMaskDown()
           and not (utils.ctrlDown and utils.ctrlDown())
           and WindowCaps.isSketchCanvas(hitWin)
           and not WindowCaps.isSketchReflectNametable(hitWin)
         then
-          local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
-          PixelSel.clearColorPaintMask(hitWin)
-          StatusHelpers.setStatus(ctx, "Color mask cleared")
-          return true
+          clearMask = true
+        elseif not CursorsController.isHoveringEditableContentAt(app, x, y) then
+          return false
+        elseif not hitWin.toGridCoords then
+          return false
+        else
+          local ok = hitWin:toGridCoords(x, y)
+          if not ok then
+            return false
+          end
         end
-        if not CursorsController.isHoveringEditableContentAt(app, x, y) then
+
+        if not env.beginColorPickClick then
           return false
         end
-        if not hitWin.toGridCoords then
-          return false
-        end
-        local ok, col, row, lx, ly = hitWin:toGridCoords(x, y)
-        if not ok then
-          return false
-        end
-        ctx.paintAt(hitWin, col, row, lx, ly, true)
+        env.beginColorPickClick(x, y, hitWin, { clearMask = clearMask })
         return true
       end
 
-      if tryEditModeRightClickColorPick() then
-        win:mousepressed(x, y, button)
+      if tryBeginEditModeColorPickClick() then
+        -- Defer pick until release (click). Do not start window drag on press.
         return true
       end
 
@@ -1293,6 +1298,46 @@ function M.handleMousePressed(env, x, y, button)
   if handleTileSelection(env, button, x, y, win, wm) then return true end
 
   return false
+end
+
+--- Complete a deferred right-click color pick (press+release within tolerance).
+--  opts.clearMask: hold-C clear of sketch color paint mask.
+function M.finishEditModeColorPickClick(env, x, y, win, opts)
+  opts = opts or {}
+  local ctx = env and env.ctx
+  if not ctx then
+    return false
+  end
+  local hitWin = win
+  if not hitWin and ctx.wm then
+    local wm = ctx.wm()
+    hitWin = wm and wm.windowAt and wm:windowAt(x, y) or nil
+  end
+  if not hitWin then
+    return false
+  end
+
+  if opts.clearMask then
+    if WindowCaps.isSketchCanvas(hitWin) and not WindowCaps.isSketchReflectNametable(hitWin) then
+      local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+      PixelSel.clearColorPaintMask(hitWin)
+      StatusHelpers.setStatus(ctx, "Color mask cleared")
+      return true
+    end
+    return false
+  end
+
+  if not hitWin.toGridCoords then
+    return false
+  end
+  local ok, col, row, lx, ly = hitWin:toGridCoords(x, y)
+  if not ok then
+    return false
+  end
+  if ctx.paintAt then
+    ctx.paintAt(hitWin, col, row, lx, ly, true)
+  end
+  return true
 end
 
 return M
