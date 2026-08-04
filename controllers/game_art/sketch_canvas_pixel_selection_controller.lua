@@ -65,6 +65,10 @@ vec4 effect(vec4 color, Image tex, vec2 texCoord, vec2 screenCoord)
   float mR = maskAt(tex, cell + vec2( 1.0, 0.0));
   float mU = maskAt(tex, cell + vec2( 0.0,-1.0));
   float mD = maskAt(tex, cell + vec2( 0.0, 1.0));
+  float mUL = maskAt(tex, cell + vec2(-1.0,-1.0));
+  float mUR = maskAt(tex, cell + vec2( 1.0,-1.0));
+  float mDL = maskAt(tex, cell + vec2(-1.0, 1.0));
+  float mDR = maskAt(tex, cell + vec2( 1.0, 1.0));
 
   float edge = max(u_edgeFrac, 0.05);
   bool onOutsideEdge =
@@ -73,7 +77,15 @@ vec4 effect(vec4 color, Image tex, vec2 texCoord, vec2 screenCoord)
     (mU >= 0.5 && frac.y < edge) ||
     (mD >= 0.5 && frac.y > 1.0 - edge);
 
-  if (!onOutsideEdge) {
+  // Convex corners: diagonal exterior cell has no orthogonal mask neighbor,
+  // so fill the corner nub that joins the H/V outline segments.
+  bool onOutsideCorner =
+    (mUL >= 0.5 && mL < 0.5 && mU < 0.5 && frac.x < edge && frac.y < edge) ||
+    (mUR >= 0.5 && mR < 0.5 && mU < 0.5 && frac.x > 1.0 - edge && frac.y < edge) ||
+    (mDL >= 0.5 && mL < 0.5 && mD < 0.5 && frac.x < edge && frac.y > 1.0 - edge) ||
+    (mDR >= 0.5 && mR < 0.5 && mD < 0.5 && frac.x > 1.0 - edge && frac.y > 1.0 - edge);
+
+  if (!onOutsideEdge && !onOutsideCorner) {
     return vec4(0.0);
   }
 

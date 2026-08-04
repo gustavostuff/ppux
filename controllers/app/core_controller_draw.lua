@@ -101,6 +101,14 @@ local function resolveTransparentPreviewColor(app, win, layer, paletteNum, romRa
     end
   end
 
+  -- Unlinked sketch: match default shader palette color 0 (not window chrome bg).
+  if WindowCaps.isSketchCanvas(win) then
+    local paletteColors = ShaderPaletteController.getPaletteColors(layer, 1, romRaw)
+    if paletteColors and paletteColors[1] then
+      return paletteColors[1]
+    end
+  end
+
   local wm = app and app.wm
   return app:getRomPaletteBgColorForWindow(win, wm)
     or (wm and app:getActiveGlobalPaletteBgColor(wm))
@@ -182,18 +190,23 @@ local function drawPatternBuilderPointPreview(win, brushScreenPoints, colorIndex
 
   if layer and hoveredItem then
     local layerOpacity = (layer.opacity ~= nil) and layer.opacity or 1.0
+    local sketchOpaqueZero = WindowCaps.isSketchCanvas(win) and paletteNum
+      and { transparentZero = false }
+      or nil
     ShaderPaletteController.applyLayerItemPalette(
       layer,
       hoveredItem,
       true,
       romRaw,
       paletteNum,
-      layerOpacity
+      layerOpacity,
+      sketchOpaqueZero
     )
   elseif layer and paletteNum then
     local layerOpacity = (layer.opacity ~= nil) and layer.opacity or 1.0
     local codes = ShaderPaletteController.resolveLayerPaletteCodes(layer, paletteNum, romRaw)
-    ShaderPaletteController.applyShader(true, layer, codes, layerOpacity)
+    local sketchOpaqueZero = WindowCaps.isSketchCanvas(win) and { transparentZero = false } or nil
+    ShaderPaletteController.applyShader(true, layer, codes, layerOpacity, sketchOpaqueZero)
   else
     ShaderPaletteController.applyShader(true)
   end
@@ -356,6 +369,16 @@ local function drawEditModeColorIndicator(app)
     end
   elseif layer.kind == "canvas" and layer.canvas then
     hoveredItem = layer.canvas
+    -- Sketch: preview uses the palette row for the 2x2 attr section under the pointer.
+    if WindowCaps.isSketchCanvas(win) then
+      local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+      if SketchPalette.getLinkedSketchPalette(win, app.wm) then
+        local ok, col, row = win:toGridCoords(mouse.x, mouse.y)
+        if ok then
+          paletteNum = SketchPalette.getTilePaletteNumber(win, col, row) or 1
+        end
+      end
+    end
   else
     return
   end
@@ -443,17 +466,25 @@ local function drawEditModeColorIndicator(app)
       love.graphics.rectangle("fill", xDraw, pt.y, zs, zs)
     end
   else
-    -- Apply palette shader matching hovered item.
+    -- Apply palette shader matching hovered item / sketch attr section.
+    local layerOpacity = (layer.opacity ~= nil) and layer.opacity or 1.0
+    local opacityOverride = app:isAnimationKind(win) and layerOpacity or nil
+    local sketchOpaqueZero = WindowCaps.isSketchCanvas(win) and paletteNum
+      and { transparentZero = false }
+      or nil
     if layer and hoveredItem then
-      local layerOpacity = (layer.opacity ~= nil) and layer.opacity or 1.0
       ShaderPaletteController.applyLayerItemPalette(
         layer,
         hoveredItem,
         true,  -- isActiveLayer
         romRaw,
         paletteNum,
-        app:isAnimationKind(win) and layerOpacity or nil
+        opacityOverride,
+        sketchOpaqueZero
       )
+    elseif layer and paletteNum then
+      local codes = ShaderPaletteController.resolveLayerPaletteCodes(layer, paletteNum, romRaw)
+      ShaderPaletteController.applyShader(true, layer, codes, opacityOverride, sketchOpaqueZero)
     else
       ShaderPaletteController.applyShader(true)
     end
