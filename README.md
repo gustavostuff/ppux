@@ -1,4 +1,4 @@
-![](img/readme_images/logo_v2.png)
+![](img/readme_images/logo_v3.png)
 
 An NES/Famicom Graphics Studio. Mod classic games or build new Homebrew assets.
 
