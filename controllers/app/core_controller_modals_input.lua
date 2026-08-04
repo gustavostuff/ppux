@@ -125,11 +125,25 @@ function AppCoreController:showGalleryRomConfirmModal()
   local SketchCanvasGalleryRomController = require("controllers.game_art.sketch_canvas_gallery_rom_controller")
   local sketches = SketchCanvasGalleryRomController.collectPackedSketches(self.wm)
   if #sketches < 1 then
-    return self:showGalleryRomResultModal(
-      false,
-      "No packed sketch canvases to export."
-    )
+    local msg = "No packed sketch canvases to export."
+    if self.showToast then
+      self:showToast("error", msg)
+    end
+    return self:showGalleryRomResultModal(false, msg)
   end
+
+  local toolsOk, toolsErr = SketchCanvasGalleryRomController.checkCc65Tools()
+  if not toolsOk then
+    local msg = tostring(toolsErr or "cc65 tools (ca65/ld65) not found")
+    if self.showToast then
+      self:showToast("error", msg)
+    end
+    if self.setStatus then
+      self:setStatus("Gallery ROM failed: " .. msg)
+    end
+    return self:showGalleryRomResultModal(false, msg)
+  end
+
   if not self.galleryRomConfirmModal then
     return false
   end
@@ -143,9 +157,13 @@ function AppCoreController:showGalleryRomConfirmModal()
           self:setStatus("Gallery ROM: " .. tostring(pathOrErr))
         end
       else
-        self:showGalleryRomResultModal(false, tostring(pathOrErr or "Gallery ROM build failed"))
+        local err = tostring(pathOrErr or "Gallery ROM build failed")
+        if self.showToast then
+          self:showToast("error", err)
+        end
+        self:showGalleryRomResultModal(false, err)
         if self.setStatus then
-          self:setStatus("Gallery ROM failed: " .. tostring(pathOrErr or "error"))
+          self:setStatus("Gallery ROM failed: " .. err)
         end
       end
     end,

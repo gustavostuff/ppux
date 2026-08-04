@@ -113,4 +113,72 @@ function M.toAbsolutePath(path)
   return cwd .. sep .. path
 end
 
+function M.pathExists(path)
+  if type(path) ~= "string" or path == "" then
+    return false
+  end
+  local ok = os.rename(path, path)
+  if ok then
+    return true
+  end
+  local file = io.open(path, "rb")
+  if file then
+    file:close()
+    return true
+  end
+  return false
+end
+
+--- Create a directory and parents (mkdir -p). Returns true when the path exists afterward.
+function M.ensureDir(path)
+  path = trim(path)
+  if path == "" then
+    return false
+  end
+  path = path:gsub("[/\\]+$", "")
+  if path == "" then
+    return false
+  end
+  if M.pathExists(path) then
+    return true
+  end
+
+  -- Create parents first.
+  local parent = path:match("^(.*)[/\\][^/\\]+$")
+  if parent and parent ~= "" and parent ~= path and not (IS_WINDOWS and parent:match("^%a:$")) then
+    if not M.ensureDir(parent) then
+      return false
+    end
+  end
+
+  if IS_WINDOWS then
+    local okFfi, ffi = pcall(require, "ffi")
+    if okFfi and ffi then
+      pcall(ffi.cdef, [[
+        int CreateDirectoryA(const char* lpPathName, void* lpSecurityAttributes);
+        unsigned long GetLastError(void);
+      ]])
+      local okKernel, kernel32 = pcall(ffi.load, "kernel32")
+      if okKernel and kernel32 then
+        local created = kernel32.CreateDirectoryA(path, nil)
+        if created ~= 0 then
+          return true
+        end
+        local err = tonumber(kernel32.GetLastError()) or 0
+        -- ERROR_ALREADY_EXISTS
+        if err == 183 then
+          return true
+        end
+      end
+    end
+    -- cmd mkdir creates intermediate dirs; normalize separators.
+    local winPath = path:gsub("/", "\\")
+    os.execute('mkdir "' .. winPath .. '" >NUL 2>NUL')
+  else
+    os.execute('mkdir -p "' .. path .. '" >/dev/null 2>&1')
+  end
+
+  return M.pathExists(path)
+end
+
 return M

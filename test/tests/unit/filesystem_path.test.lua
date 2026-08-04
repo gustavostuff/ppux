@@ -28,4 +28,18 @@ describe("filesystem_path.lua", function()
     expect(FilesystemPath.toAbsolutePath("My Games/rom.nes")).toBe("/cwd" .. sep .. "My Games/rom.nes")
     _G.love = previousLove
   end)
+
+  it("ensureDir creates nested directories", function()
+    local base = FilesystemPath.join(FilesystemPath.getTempDir(), "ppux_fs_path_test_" .. tostring(os.time()))
+    local nested = FilesystemPath.join(base, "a", "b", "c")
+    expect(FilesystemPath.ensureDir(nested)).toBe(true)
+    expect(FilesystemPath.pathExists(nested)).toBe(true)
+    -- Best-effort cleanup (ignore failures).
+    os.remove(FilesystemPath.join(nested, "x"))
+    if package.config:sub(1, 1) == "\\" then
+      os.execute('rmdir /s /q "' .. base:gsub("/", "\\") .. '" >NUL 2>NUL')
+    else
+      os.execute('rm -rf "' .. base .. '" >/dev/null 2>&1')
+    end
+  end)
 end)

@@ -397,7 +397,7 @@ describe("sketch_canvas_gallery_rom_controller.lua", function()
     expect(meta:find("%.byte 1", 1, false)).toBeTruthy()
   end)
 
-  it("buildGalleryRom runs make and copies gallery.nes", function()
+  it("buildGalleryRom runs assemble and copies gallery.nes", function()
     local wm = WM.new()
     local win = wm:createSketchCanvasWindow({ title = "MakeMe" })
     local canvas = win:getActiveCanvas()
@@ -408,8 +408,10 @@ describe("sketch_canvas_gallery_rom_controller.lua", function()
     end
     expect(SketchCanvasPackController.generate(win)).toBe(true)
 
-    local asmDir = SketchCanvasGalleryRomController.resolveGalleryAsmDir()
-    expect(asmDir).toBeTruthy()
+    local workDir = SketchCanvasGalleryRomController.prepareWritableGalleryDir({
+      destDir = os.tmpname() .. "_gallery_work",
+    })
+    expect(workDir).toBeTruthy()
     local outPath = os.tmpname() .. "_out_gallery.nes"
 
     local ok, pathOrErr = SketchCanvasGalleryRomController.buildGalleryRom(
@@ -418,7 +420,7 @@ describe("sketch_canvas_gallery_rom_controller.lua", function()
         appEditState = { romOriginalPath = "/tmp/demo.nes" },
       },
       { win },
-      { asmDir = asmDir, outPath = outPath }
+      { asmDir = workDir, outPath = outPath }
     )
     expect(ok).toBe(true)
     expect(pathOrErr).toBe(outPath)
@@ -437,5 +439,43 @@ describe("sketch_canvas_gallery_rom_controller.lua", function()
       end
     end
     expect(nonzero > 0).toBe(true)
+
+    if package.config:sub(1, 1) == "\\" then
+      os.execute('rmdir /s /q "' .. workDir:gsub("/", "\\") .. '" >NUL 2>NUL')
+    else
+      os.execute('rm -rf "' .. workDir .. '" >/dev/null 2>&1')
+    end
+  end)
+
+  it("prepareWritableGalleryDir copies template into a writable cache", function()
+    local dest = os.tmpname() .. "_gallery_prepare"
+    local dir, err = SketchCanvasGalleryRomController.prepareWritableGalleryDir({ destDir = dest })
+    expect(err).toBeNil()
+    expect(dir).toBe(dest)
+    local cfg = io.open(dest .. "/nes.cfg", "rb") or io.open(dest .. "\\nes.cfg", "rb")
+    expect(cfg).toBeTruthy()
+    if cfg then
+      cfg:close()
+    end
+    local main = io.open(dest .. "/s/main.s", "rb") or io.open(dest .. "\\s\\main.s", "rb")
+    expect(main).toBeTruthy()
+    if main then
+      main:close()
+    end
+    if package.config:sub(1, 1) == "\\" then
+      os.execute('rmdir /s /q "' .. dest:gsub("/", "\\") .. '" >NUL 2>NUL')
+    else
+      os.execute('rm -rf "' .. dest .. '" >/dev/null 2>&1')
+    end
+  end)
+
+  it("checkCc65Tools reports availability", function()
+    local ok, a, b = SketchCanvasGalleryRomController.checkCc65Tools()
+    if ok then
+      expect(type(a) == "string" and a ~= "").toBe(true)
+      expect(type(b) == "string" and b ~= "").toBe(true)
+    else
+      expect(type(a) == "string" and a:find("cc65", 1, true) ~= nil).toBe(true)
+    end
   end)
 end)

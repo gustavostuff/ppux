@@ -5,8 +5,6 @@ An NES/Famicom Graphics Studio. Mod classic games or build new Homebrew assets.
 <img src="img/readme_images/app_example.png" alt="">
 
 ![Version](https://img.shields.io/badge/version-0.2.0-6366F1?style=flat)
-![Unit](https://img.shields.io/badge/1073_(unit)_passing-22C55E?style=flat)
-![E2E](https://img.shields.io/badge/31_(E2E)_passing-22C55E?style=flat)
 [![Donate](https://img.shields.io/badge/Donate-ff69b4?style=flat&logo=githubsponsors&logoColor=white)](https://ko-fi.com/tavuntu)
 
 Edit NES graphics in game-context (as the player sees them). No tile puzzle solving.
@@ -442,7 +440,7 @@ Files land next to the open project or ROM folder.
 **Generate gallery ROM** on the app toolbar (NES cartridge icon) builds a CNROM gallery `.nes` from every **packed** sketch canvas in window order (up to 16 slides).
 
 1. Confirm modal lists the slides that will be included.
-2. PPUX writes CHR/nametable/palette binaries under `asm/gallery/data/`, assembles with ca65, and copies `{stem}_gallery.nes` beside your project/ROM.
+2. PPUX copies the gallery template into a writable cache, writes CHR/nametable/palette binaries, assembles with **ca65/ld65** (cc65), and saves `{stem}_gallery.nes` beside your project/ROM.
 3. A result modal shows the output path or an error.
 
 Each slide includes the linked sketch palette (or a default brown ramp) and the sketch attribute table.
