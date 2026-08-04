@@ -26,6 +26,8 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
   - [Database](#database)
   - [DB contribution tracker](#db-contribution-tracker)
   - [Lua project mapping](#lua-project-mapping)
+  - [Sketch canvas windows](#sketch-canvas-windows)
+  - [Gallery ROM](#gallery-rom)
   - [PPU frame windows](#ppu-frame-windows)
   - [Byte budget for PPU Frame windows](#byte-budget-for-ppu-frame-windows)
   - [PPU frame editing notes](#ppu-frame-editing-notes)
@@ -54,7 +56,10 @@ Create a folder, place your ROM inside it, then drag the ROM into PPUX. After th
 2. Open a DB layout
 3. Open a *.lua or *.ppux user project (if any)
 
-NOTE: You can also open a project from the app toolbar or with `Ctrl + O`. After you have opened projects before, the taskbar **Recent projects** menu reopens them quickly.
+NOTES:
+
+* You can open a project from the app toolbar or with `Ctrl + O`. After you have opened projects before, the taskbar **Recent projects** menu reopens them quickly.
+* You can also start a **sketch-only** workspace (no game ROM), to work on graphics "from scratch" (see [Sketch canvas windows](#sketch-canvas-windows) and [Gallery ROM](#gallery-rom) sections)
 
 If a ROM has no DB entry yet, it can still be used normally. DB entries are just curated starting points. That said, any user can "pick" a game and start working on a user project that can be used for a new DB entry Pull Request. [See this section](#db-contribution-tracker).
 
@@ -72,10 +77,10 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 | Animation (sprites)    | <img src="img/readme_images/windows_system_table/icon_animated_sprite_window.gif" alt="Animation sprites taskbar icon">                      | Sprite animation window for frame-by-frame sprite layouts                                                |
 | OAM Animation          | <img src="img/readme_images/windows_system_table/icon_oam_animated_window.gif" alt="OAM Animation taskbar icon">                          | ROM-backed sprite animation; **requires a linked Pattern table** window for sprite CHR                                                    |
 | Global palette         | <img src="img/readme_images/windows_system_table/icon_palette_window.png" alt="Global palette taskbar icon">             | Global palette window for items without an assigned ROM palette                                          |
-| ROM palette            | <img src="img/readme_images/windows_system_table/icon_rom_palette_window.png" alt="ROM palette taskbar icon">            | ROM palette editor tied to ROM addresses                                                                 |
+| ROM palette            | <img src="img/readme_images/windows_system_table/icon_rom_palette_window.png" alt="ROM palette taskbar icon">            | ROM palette editor: **ROM** role (addresses) or **Sketch** role (free 4x4 for sketch canvases)            |
 | PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view; It **also** requires pattern table links for rendering |
 | Pattern table          | <img src="img/readme_images/windows_system_table/icon_pattern_table_window.png" alt="Pattern table taskbar icon">        | Sub-set of CHR/ROM items, intended to mimic the actual pattern tables assembled in game run-time |
-| Sketch canvas          | <img src="img/readme_images/windows_system_table/sketch_canvas_window.png" alt="Sketch canvas taskbar icon">             | Free 256x240 paint canvas for background art; packs into a linked **Pattern table** (tolerance + Reflect) |
+| Sketch canvas          | <img src="img/readme_images/windows_system_table/sketch_canvas_window.png" alt="Sketch canvas taskbar icon">             | Free 256x240 background paint canvas; packs into a linked **Pattern table**; see [Sketch canvas windows](#sketch-canvas-windows) |
 
 
 Notes:
@@ -108,7 +113,8 @@ With no ROM loaded, only **Open project** appears on the strip. After a ROM or p
 12. **Add row below** - on grid-resizable layout windows only; **Shift** switches to **Remove last row**
 13. **Clone focused window** - duplicate the current window's kind and state where supported
 14. **Reference PNG** - add or remove a reference image on eligible **layout** windows (not CHR/ROM banks or palette windows). **`Alt + R`** toggles visibility while a reference is attached; removing uses the button and a confirm dialog.
-15. **Relocation pointer calculator** - helper for nametable **`relocateTo`** workflows: turns a ROM file offset into little-endian pointer bytes for `romPatches` (see [PPU frame windows](#ppu-frame-windows)).
+15. **Generate gallery ROM** - builds a playable multi-slide `.nes` from packed **Sketch canvas** windows (see [Gallery ROM](#gallery-rom)). Available even without a loaded game ROM.
+16. **Relocation pointer calculator** - helper for nametable **`relocateTo`** workflows: turns a ROM file offset into little-endian pointer bytes for `romPatches` (see [PPU frame windows](#ppu-frame-windows)).
 
 #### CHR Banks toolbar
 
@@ -142,11 +148,14 @@ When a **Sketch canvas** owns the pattern table, CHR/ROM drops are blocked and t
 
 <img src="img/readme_images/toolbars/sketch_canvas_toolbar.png" alt="Sketch canvas specialized toolbar">
 
-1. **Pattern table link** - left-click to link, jump to, or unlink a **Pattern table**. Turns **green** when linked. The linked table is sketch-owned (no CHR drops).
-2. **Tolerance (− / value / +)** - pixel-diff grouping for Generate (0–32). When linked, changing tolerance live-regenerates the pattern table.
-3. Number label to indicate pixel tolerance.
-4. **Generate** - packs the paint canvas into up to 256 unique patterns and applies them to the linked pattern table.
-5. **Reflect** - toggles a view composed from the packed nametable (compression preview). Paint is disabled while Reflect is on; turns **green** when active.
+1. **Palette link handle** - right-drag onto a **sketch-mode** ROM palette (or left-click for a menu). Turns **green** when linked. Needed for live multi-palette preview and Gallery ROM colors.
+2. **Pattern table link** - left-click to link, jump to, or unlink a **Pattern table**. Turns **green** when linked. The linked table is sketch-owned (no CHR/ROM drops).
+3. **Tolerance (- / value / +)** - pixel-diff grouping for Generate (0-32). When linked, changing tolerance live-regenerates the pattern table.
+4. **Generate** - packs the paint canvas into up to 256 unique patterns and applies them to the linked pattern table. Highlights when pixels changed since the last pack.
+5. **Export CHR** - writes a 4KB CHR bank (256 tiles) beside the project/ROM folder (needs a successful Generate).
+6. **Export nametable** - writes a 1024-byte `.nam` (960 tiles + 64 attribute bytes).
+
+There is no separate Reflect toolbar button: after Generate, **Tile mode** shows the packed nametable view; **Edit mode** returns to free paint. Details in [Sketch canvas windows](#sketch-canvas-windows).
 
 #### Static Art (tiles and sprites) toolbar
 
@@ -222,12 +231,15 @@ Palette windows are the palette editors/viewers used by the app.
 There are 2 kinds:
 
 * `Global palette`: the fallback palette for content that does not have a ROM palette linked to it. Use this for mockups, freeform art, and anything with no specific in-game palette assigned.
-* `ROM palette`: a real 4x4 palette window backed by ROM data. It can be linked to specific windows and layers, to use the actual in-game palette through palette links.
+* `ROM palette`: a `4x4` palette window. When you create one, PPUX asks for a **role**:
+  * **ROM** - backed by ROM addresses (in-game palette editing).
+  * **Sketch** - not tied to ROM addresses, link only to **Sketch canvas** windows.
 
 In practice:
 
 * If an item or layer has no ROM palette assigned, it uses a `Global palette`.
-* If you want the colors to reflect actual game palette bytes, use a `ROM palette`.
+* If you want the colors to reflect actual game palette bytes, use a **ROM**-role.
+* For sketch background art and Gallery ROM slides, use a **Sketch**-role palette linked to the sketch.
 * Only `ROM palette` windows are meant to be explicitly linked to other windows.
 * Click a color to select it for editing/painting.
 * In palette windows, arrow keys move the selected cell. For **global** palettes, set the palette as **active** (toolbar) before arrow/wheel color editing; **ROM** palettes do not require that step.
@@ -241,8 +253,10 @@ In practice:
 **Creating a link**
 
 * Drag (right-drag) from a **ROM palette** window's connect handle and release over a destination window, **or**
-* Drag from a **destination** window's connect handle (**Static Art**, **Animation** tiles/sprites, **OAM Animation**, etc.) and release over a **ROM palette** window, **or**
+* Drag (right-drag) from a **destination** window's connect handle (**Static Art**, **Animation** tiles/sprites, **OAM Animation**, **Sketch canvas**, etc.) and release over a matching **ROM palette** window, **or**:
 * Use left-click for contextual menus (**Link To Palette**, **Remove ROM palette link**, **Jump to linked palette**, etc.)
+
+Sketch canvases only accept **sketch-mode** palettes; other layout windows use **ROM**-role palettes.
 
 **On-canvas connection handles**
 
@@ -293,8 +307,10 @@ Edit mode is for pixel-level editing.
 - `Shift + click` draws a line from the last painted/clicked point
 - `R` toggles the rectangle fill tool
 - Hold `G` and left click or drag to grab a color
-- Right-click also grabs the color under the cursor; **Alt + right-click** opens the menu shown in Tile mode
+- **Right-click** (press and release without dragging) also picks the color under the cursor. Dragging with the right button moves the window instead. **Middle-click** is window drag only (not color pick). **Alt + right-click** opens the Tile-mode context menu.
 - Hold `F` and left click to flood fill
+- On a **Sketch canvas**: hold **`C`** and left-click to mask all pixels of the clicked color, hold **`C`** and right-click to clear the mask
+- On a **Sketch canvas**: **`S`** toggles the pixel select tool (drag for a rectangle; **Shift+drag** for freeform)
 - `1` to `4` to choose the active color
 - `Alt + 1/2/3/4` to change brush size presets
 - `Ctrl + Alt + mouse wheel` also changes brush size
@@ -375,6 +391,62 @@ Notes:
 
 Best practice: keep the base ROM, edited ROM, and project files in the same folder.
 
+### Sketch canvas windows
+
+Sketch canvases are for **authoring NES background art** as a free 256x240 paint buffer (32x30 tiles of 8x8), then packing that paint into a real nametable + pattern table catalog.
+
+You can use them **with or without a previously opened game ROM/project**. New Window still offers Sketch canvas, Pattern table, and sketch-mode palettes.
+
+#### Typical workflow
+
+1. **New Window -> Sketch canvas** (and optionally a **Pattern table** + **ROM palette** with sketch role).
+2. Paint in **Edit mode** (`Tab`) with colors `1`-`4`.
+3. Link a **Pattern table** from the sketch toolbar, set **tolerance**, then **Generate**.
+4. Link a **sketch-mode palette** so the canvas can use real NES colors and attribute-painted regions.
+5. Switch to **Tile mode** to inspect the packed screen, move/swap tiles, and assign **attribute palettes** with `1`-`4`.
+6. Export CHR/nametable from the sketch toolbar, and/or build a **Gallery ROM** from the app toolbar.
+
+Note: The pixel art tools available for Sketch Canvas windows are not available (not fully) for other kinds of windows, but this will be addressed.
+
+#### Paint vs packed (Tile) view
+
+| Mode | After Generate | Behavior |
+| --- | --- | --- |
+| **Edit** | Free paint | Pixel brush, fill, select, color mask; paint is the source of truth |
+| **Tile** | Packed view | Screen is composed from the current (linked) nametable tile pool. Painting is blocked. Select tiles, rearrange, remove, and change attributes.
+
+#### Pattern table link + Generate
+
+* Generate slices the canvas into 8x8 cells, groups similar cells by **tolerance** (pixel difference count), and fills the linked pattern table with up to **256** slots (unused slots pad with a repeated pool tile).
+* If unique patterns exceed 256, Generate fails and does not mutate the pattern table.
+* Changing tolerance while linked re-runs the pack.
+* A sketch-owned pattern table **rejects CHR/ROM tile drops**. Copy/drag from that pattern table into CHR/ROM banks is allowed though.
+* Unlinking clears the pattern table items, so it can take CHR ranges again.
+
+#### Edit-mode tools exclusive (for now) to Sketch Canvas windows:
+
+* **`S`** - pixel selection tool (rectangle; **Shift+drag** freeform).
+* Hold **`C` + left-click** - same-color paint mask (only that color paints/fills). Hold **`C` + right-click** to clear.
+
+#### Export
+
+From the sketch toolbar (after Generate):
+
+* **Export CHR** -> 4KB bank (256 tiles).
+* **Export nametable** -> 1024 bytes (960 tile indices + 64 attribute bytes).
+
+Files land next to the open project or ROM folder.
+
+### Gallery ROM
+
+**Generate gallery ROM** on the app toolbar (NES cartridge icon) builds a CNROM gallery `.nes` from every **packed** sketch canvas in window order (up to 16 slides).
+
+1. Confirm modal lists the slides that will be included.
+2. PPUX writes CHR/nametable/palette binaries under `asm/gallery/data/`, assembles with ca65, and copies `{stem}_gallery.nes` beside your project/ROM.
+3. A result modal shows the output path or an error.
+
+Each slide includes the linked sketch palette (or a default brown ramp) and the sketch attribute table.
+
 ### PPU frame windows
 
 `ppu_frame` windows are structured screen views: a **tile** layer backed by compressed nametable data in ROM, plus an optional **sprite** overlay that tracks real OAM bytes. Link **Pattern table** windows from the toolbar so the tile layer, sprite layer, or both can resolve CHR through shared **`patternTable.ranges`**. The same **Pattern table** window can be linked from multiple PPU frames or OAM animation windows.
@@ -405,7 +477,7 @@ PPUX warns when the compressed stream goes over budget and clears the warning if
 * Tile layers render from a **cached full-canvas** nametable view for performance; after heavy edits, use the normal refresh paths the UI offers if a screen looks stale.
 * For **sprites**, use **Add sprite** on the toolbar to bind OAM entries. Sprite items that share the same `startAddr` **stay in sync** with **OAM Animation** windows (and other PPU Frame sprite layers) so moving or reconfiguring one updates the linked entries.
 * **Nametable range sync:** PPU Frame windows that share the same `nametableStartAddr` and `nametableEndAddr` keep their uncompressed nametable + attribute bytes (and ROM slice) aligned when you edit the tile layer in any one of them - similar to sprite `startAddr` sync.
-* **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. When you are not dragging, **right-click** behaves like elsewhere (in **edit mode** over paintable pixels, **Alt + right-click** opens the menu if you want the menu instead of sampling a color - see [Edit mode](#edit-mode)).
+* **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. When you are not dragging, **right-click** behaves like elsewhere (in **edit mode** over paintable pixels, click-to-sample picks a color; **Alt + right-click** opens the menu - see [Edit mode](#edit-mode)).
 * **Pattern table ranges** live on the linked **Pattern table** window (drag tiles from **CHR Banks** / **ROM Banks** onto the pattern table canvas; see [Pattern table toolbar](#pattern-table-toolbar)). After editing ranges there, the PPU frame picks up the shared map through its link.
 
 **Project file sketch** (what the UI ultimately saves) - useful when diffing projects or contributing DB entries:
@@ -481,11 +553,11 @@ Important fields are frame timing (`delaysPerLayer`), sprite frames (`layers`), 
 
 ### ROM palette windows
 
-`rom_palette` windows are `4x4` palette editors backed directly by ROM addresses.
+`rom_palette` windows are `4x4` palette editors. **ROM**-role windows are backed by ROM addresses. **Sketch**-role windows hold free colors for [Sketch canvas](#sketch-canvas-windows) work (no addresses; creatable without a loaded ROM).
 
 Use the **connect button** on the ROM palette toolbar to right-drag links onto layers, and **left-click** it for source-side management (**Jump to linked layer**, **Remove all links**). Turns **green** when linked. Toggle **compact mode** from the same toolbar when you want a denser view. Destination windows still use their own connect handle plus the contextual **Link To Palette** / **Remove ROM palette link** entries documented in [Palette windows](#palette-windows).
 
-Example:
+Example (ROM-role addresses):
 
 ```lua
 {
