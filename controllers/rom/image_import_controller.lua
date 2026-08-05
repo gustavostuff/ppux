@@ -489,4 +489,283 @@ function M.importImageToCHRWindow(file, win, startCol, startRow, appEditState, e
     tilesWritten, tilesWide, tilesHigh, startCol, startRow)
 end
 
+--- Import an indexed PNG into a standalone Pattern table window.
+--  Same decode/palette path as CHR import, but each 8x8 frame is written through
+--  `patternTable.ranges` into the mapped bank + tileIndex (shared tilesPool refs).
+--  Sketch-owned pattern tables are rejected.
+--  Unmapped slots are skipped. Frames that fall outside the PT grid are clipped.
+function M.importImageToPatternTableWindow(file, win, startCol, startRow, appEditState, edits, undoRedo, app)
+  if not file then
+    return false, "No file provided"
+  end
+  if not WindowCaps.isPatternTable(win) then
+    return false, "Target window must be a Pattern table window"
+  end
+  if not appEditState then
+    return false, "appEditState is required"
+  end
+  if not appEditState.chrBanksBytes or not appEditState.tilesPool then
+    return false, "CHR banks or tiles pool not initialized"
+  end
+
+  local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+  local wm = app and app.wm or nil
+  if SketchCanvasPackController.isSketchOwnedPatternTable(win, wm) then
+    return false, SketchCanvasPackController.SKETCH_OWNED_PATTERN_TABLE_MSG
+  end
+
+  local layer = win.layers and win.layers[1] or nil
+  if not (layer and layer.kind == "tile") then
+    return false, "Pattern table has no tile layer"
+  end
+
+  local PpuRange = require("controllers.app.ppu_frame_range_helpers")
+  local patternTable = layer.patternTable
+  local map, mapErr = PpuRange.buildPatternTableMapAllowPartial(patternTable)
+  if not map then
+    return false, mapErr or "Invalid pattern table mapping"
+  end
+  local mapCount = 0
+  for _ in pairs(map) do
+    mapCount = mapCount + 1
+  end
+  if mapCount == 0 then
+    return false, "Pattern table has no mapped tiles (add CHR/ROM ranges first)"
+  end
+
+  startCol = math.max(0, math.floor(tonumber(startCol) or 0))
+  startRow = math.max(0, math.floor(tonumber(startRow) or 0))
+
+  file:open("r")
+  local fileData = file:read()
+  file:close()
+  if not fileData or #fileData == 0 then
+    return false, "Could not read file data"
+  end
+
+  local ok, fileDataObj = pcall(function()
+    return love.filesystem.newFileData(fileData, file:getFilename() or "image.png")
+  end)
+  if not ok or not fileDataObj then
+    return false, "Failed to create FileData: " .. (tostring(fileDataObj) or "unknown error")
+  end
+
+  local ok2, imgData = pcall(function()
+    return love.image.newImageData(fileDataObj)
+  end)
+  if not ok2 or not imgData then
+    return false, "Failed to decode image: " .. (tostring(imgData) or "unknown error")
+  end
+
+  local width, height = imgData:getWidth(), imgData:getHeight()
+  local validDims, dimError = validateImageDimensions(width, height)
+  if not validDims then
+    return false, dimError
+  end
+  local validColors, colorError = validateImageColors(imgData)
+  if not validColors then
+    return false, colorError
+  end
+
+  local paletteColors = ShaderPaletteController.getPaletteColors(
+    layer,
+    1,
+    appEditState.romRaw
+  )
+  if not paletteColors then
+    return false, "No palette context available for PNG color mapping"
+  end
+
+  local indexedData, mapColorErr = convertToIndexedByPaletteBrightness(imgData, paletteColors)
+  if not indexedData then
+    return false, tostring(mapColorErr or "Could not map PNG colors through palette")
+  end
+
+  local tilesWide = math.floor(width / 8)
+  local tilesHigh = math.floor(height / 8)
+  local ptCols = math.max(1, math.floor(tonumber(win.cols) or 16))
+  local ptRows = math.max(1, math.floor(tonumber(win.rows) or 16))
+  local layoutMode = layer.mode or "8x8"
+  local BankViewController = require("controllers.chr.bank_view_controller")
+
+  local trackUndo = undoRedo
+    and undoRedo.startPaintEvent
+    and undoRedo.recordPixelChange
+    and undoRedo.finishPaintEvent
+    and (undoRedo.activeEvent == nil)
+  if trackUndo then
+    undoRedo:startPaintEvent()
+  end
+  local function finalizeUndo()
+    if not trackUndo then return end
+    if undoRedo.activeEvent then
+      undoRedo:finishPaintEvent()
+    end
+  end
+
+  local syncChangedTargets = { list = {}, _set = {} }
+  local tilesWritten = 0
+  local tilesSkippedUnmapped = 0
+  local tilesClipped = 0
+  local ensuredBanks = {}
+
+  for tileY = 0, tilesHigh - 1 do
+    for tileX = 0, tilesWide - 1 do
+      local visualCol = startCol + tileX
+      local visualRow = startRow + tileY
+      if visualCol < 0 or visualRow < 0 or visualCol >= ptCols or visualRow >= ptRows then
+        tilesClipped = tilesClipped + 1
+        goto next_frame
+      end
+
+      local visualPos = visualRow * ptCols + visualCol
+      local logicalIndex = BankViewController.chrOrderingIndexForGridPos(layoutMode, visualPos)
+      local entry = map[logicalIndex]
+      if not entry then
+        tilesSkippedUnmapped = tilesSkippedUnmapped + 1
+        goto next_frame
+      end
+
+      local bankIdx = tonumber(entry.bank)
+      local tileIndex = tonumber(entry.tileIndex)
+      if not bankIdx or tileIndex == nil then
+        tilesSkippedUnmapped = tilesSkippedUnmapped + 1
+        goto next_frame
+      end
+
+      if not appEditState.chrBanksBytes[bankIdx] then
+        finalizeUndo()
+        return false, string.format("CHR bank %d is not available for mapped tile", bankIdx)
+      end
+      if not ensuredBanks[bankIdx] then
+        ensuredBanks[bankIdx] = true
+        BankViewController.ensureBankTiles(appEditState, bankIdx)
+      end
+
+      local tilePixels = {}
+      for y = 0, 7 do
+        for x = 0, 7 do
+          local imgX = tileX * 8 + x
+          local imgY = tileY * 8 + y
+          tilePixels[y * 8 + x + 1] = indexedData[imgY + 1][imgX + 1] or 0
+        end
+      end
+
+      local tileBytes = encodeTile(tilePixels)
+      local syncTargets = ChrDuplicateSync.getSyncGroup(
+        appEditState,
+        bankIdx,
+        tileIndex,
+        ChrDuplicateSync.isEnabledForWindow(app, win)
+      )
+      if #syncTargets == 0 then
+        syncTargets = { { bank = bankIdx, tileIndex = tileIndex } }
+      end
+
+      for _, target in ipairs(syncTargets) do
+        local tBank = target.bank
+        local tTileIndex = target.tileIndex
+        local tBankBytes = appEditState.chrBanksBytes and appEditState.chrBanksBytes[tBank]
+        if not tBankBytes or tTileIndex == nil then
+          goto next_target
+        end
+
+        local beforePixels = nil
+        if trackUndo then
+          local decoded = chr.decodeTile(tBankBytes, tTileIndex)
+          if decoded and #decoded == 64 then
+            beforePixels = decoded
+          end
+        end
+
+        local base = tTileIndex * 16
+        for i = 1, 16 do
+          tBankBytes[base + i] = tileBytes[i]
+        end
+
+        if beforePixels then
+          for y = 0, 7 do
+            for x = 0, 7 do
+              local pixelIndex = y * 8 + x + 1
+              local beforeValue = beforePixels[pixelIndex] or 0
+              local afterValue = tilePixels[pixelIndex] or 0
+              if beforeValue ~= afterValue then
+                undoRedo:recordPixelChange(tBank, tTileIndex, x, y, beforeValue, afterValue)
+              end
+            end
+          end
+        end
+
+        local tilesPool = appEditState.tilesPool[tBank]
+        if tilesPool and tilesPool[tTileIndex] then
+          tilesPool[tTileIndex]:loadFromCHR(tBankBytes, tTileIndex)
+        end
+
+        if edits then
+          local GameArtController = require("controllers.game_art.game_art_controller")
+          for y = 0, 7 do
+            for x = 0, 7 do
+              local pixelIndex = y * 8 + x + 1
+              GameArtController.recordEdit(edits, tBank, tTileIndex, x, y, tilePixels[pixelIndex])
+            end
+          end
+        end
+
+        do
+          local keyId = string.format("%d:%d", tBank, tTileIndex)
+          if not syncChangedTargets._set[keyId] then
+            syncChangedTargets._set[keyId] = true
+            syncChangedTargets.list[#syncChangedTargets.list + 1] = { bank = tBank, tileIndex = tTileIndex }
+          end
+        end
+
+        ::next_target::
+      end
+
+      tilesWritten = tilesWritten + 1
+      ::next_frame::
+    end
+  end
+
+  if #syncChangedTargets.list > 0 then
+    ChrDuplicateSync.updateTiles(appEditState, syncChangedTargets.list)
+    for _, target in ipairs(syncChangedTargets.list) do
+      BankCanvasSupport.invalidateTile(app, target.bank, target.tileIndex)
+    end
+  end
+
+  local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
+  PatternTableDisplayController.populateTileLayerItemsFromPatternTable(win, 1, {
+    tilesPool = appEditState.tilesPool,
+    wm = wm,
+    ensureTiles = function(bank)
+      BankViewController.ensureBankTiles(appEditState, bank)
+    end,
+  })
+  if win.invalidateTileLayerCanvas then
+    win:invalidateTileLayerCanvas(1)
+  end
+
+  finalizeUndo()
+
+  if tilesWritten == 0 then
+    return false, "No mapped Pattern table slots to write into from that start position"
+  end
+
+  local msg = string.format(
+    "Imported %d tiles into Pattern table map starting at (%d, %d)",
+    tilesWritten,
+    startCol,
+    startRow
+  )
+  if tilesSkippedUnmapped > 0 or tilesClipped > 0 then
+    msg = msg .. string.format(
+      " (skipped %d unmapped, clipped %d out of bounds)",
+      tilesSkippedUnmapped,
+      tilesClipped
+    )
+  end
+  return true, msg
+end
+
 return M

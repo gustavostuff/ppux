@@ -1663,6 +1663,52 @@ function M.handleFileDropped(app, file)
       return  -- Don't process as ROM file
     end
 
+    -- Handle PNG image import into Pattern table window (map-aware CHR writes)
+    if WindowCaps.isPatternTable(targetWin) then
+      DebugController.log("info", "PNG_DROP", "Routing PNG to Pattern table import for %s", fmtWin(targetWin))
+      local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+      if SketchCanvasPackController.isSketchOwnedPatternTable(targetWin, wm) then
+        app:setStatus(SketchCanvasPackController.SKETCH_OWNED_PATTERN_TABLE_MSG)
+        return
+      end
+
+      local col, row = 0, 0
+      if targetWin.getSelected then
+        local selectedCol, selectedRow = targetWin:getSelected()
+        if selectedCol and selectedRow then
+          col, row = selectedCol, selectedRow
+        end
+      end
+
+      local success, message = ImageImportController.importImageToPatternTableWindow(
+        file,
+        targetWin,
+        col,
+        row,
+        app.appEditState,
+        app.edits,
+        app.undoRedo,
+        app
+      )
+
+      if success then
+        app:setStatus(message or "Image imported into Pattern table")
+        -- Refresh any open CHR bank window so shared tiles show the new pixels.
+        if app.winBank then
+          local BankViewController = require("controllers.chr.bank_view_controller")
+          BankViewController.rebuildBankWindowItems(
+            app.winBank,
+            app.appEditState,
+            app.winBank.orderMode or "normal",
+            nil
+          )
+        end
+      else
+        app:setStatus("Import failed: " .. (message or "unknown error"))
+      end
+      return
+    end
+
     -- Handle PNG image import into CHR window
     if WindowCaps.isChrLike(targetWin) then
       DebugController.log("info", "PNG_DROP", "Routing PNG to CHR import for %s", fmtWin(targetWin))
@@ -1703,7 +1749,7 @@ function M.handleFileDropped(app, file)
       return  -- Don't process as ROM file
     else
       DebugController.log("warning", "PNG_DROP", "No compatible PNG drop target. targetWin=%s", fmtWin(targetWin))
-      app:setStatus("Please select a CHR bank window or PPU frame window")
+      app:setStatus("Please drop on a CHR bank, Pattern table, or PPU frame window")
       return  -- Don't process as ROM file
     end
   end

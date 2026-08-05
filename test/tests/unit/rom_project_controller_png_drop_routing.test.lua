@@ -9,6 +9,7 @@ describe("rom_project_controller.lua - PNG drop routing", function()
   local originalHandleSpritePngDrop
   local originalGetSelectedSpriteIndicesInOrder
   local originalImportImageToCHRWindow
+  local originalImportImageToPatternTableWindow
   local originalUnscrambleFromPNG
 
   local calls
@@ -25,6 +26,14 @@ describe("rom_project_controller.lua - PNG drop routing", function()
       getFocus = function(self) return self._focus end,
       setFocus = function(self, win) self._focus = win end,
       windowAt = function() return winUnderMouse end,
+      getWindows = function()
+        local list = {}
+        if focusedWin then list[#list + 1] = focusedWin end
+        if winUnderMouse and winUnderMouse ~= focusedWin then
+          list[#list + 1] = winUnderMouse
+        end
+        return list
+      end,
     }
   end
 
@@ -77,6 +86,7 @@ describe("rom_project_controller.lua - PNG drop routing", function()
     calls = {
       sprite = {},
       chr = {},
+      patternTable = {},
       ppu = {},
       status = {},
     }
@@ -85,6 +95,7 @@ describe("rom_project_controller.lua - PNG drop routing", function()
     originalHandleSpritePngDrop = SpriteController.handleSpritePngDrop
     originalGetSelectedSpriteIndicesInOrder = SpriteController.getSelectedSpriteIndicesInOrder
     originalImportImageToCHRWindow = ImageImportController.importImageToCHRWindow
+    originalImportImageToPatternTableWindow = ImageImportController.importImageToPatternTableWindow
     originalUnscrambleFromPNG = NametableUnscrambleController.unscrambleFromPNG
 
     ResolutionController.getScaledMouse = function()
@@ -108,6 +119,14 @@ describe("rom_project_controller.lua - PNG drop routing", function()
       return true, "ok"
     end
 
+    ImageImportController.importImageToPatternTableWindow = function(file, win, col, row, appEditState, edits)
+      calls.patternTable[#calls.patternTable + 1] = {
+        file = file, win = win, col = col, row = row,
+        appEditState = appEditState, edits = edits,
+      }
+      return true, "ok"
+    end
+
     NametableUnscrambleController.unscrambleFromPNG = function(win, file, tilesPool, threshold, app)
       calls.ppu[#calls.ppu + 1] = { win = win, file = file, tilesPool = tilesPool, threshold = threshold, app = app }
       return true, "ok"
@@ -120,6 +139,7 @@ describe("rom_project_controller.lua - PNG drop routing", function()
     SpriteController.handleSpritePngDrop = originalHandleSpritePngDrop
     SpriteController.getSelectedSpriteIndicesInOrder = originalGetSelectedSpriteIndicesInOrder
     ImageImportController.importImageToCHRWindow = originalImportImageToCHRWindow
+    ImageImportController.importImageToPatternTableWindow = originalImportImageToPatternTableWindow
     NametableUnscrambleController.unscrambleFromPNG = originalUnscrambleFromPNG
   end)
 
@@ -255,6 +275,46 @@ describe("rom_project_controller.lua - PNG drop routing", function()
     expect(#calls.ppu).toBe(0)
   end)
 
+  it("routes PNG to Pattern table import for standalone pattern_table windows", function()
+    local ptWin = makeWin("pattern_table", "pt01", {
+      {
+        kind = "tile",
+        patternTable = {
+          ranges = {
+            { bank = 1, from = 0, to = 255 },
+          },
+        },
+      },
+    })
+    ptWin.getSelected = function() return 2, 1 end
+    local app = makeApp(ptWin, ptWin)
+
+    RomProjectController.handleFileDropped(app, makeFile("tiles.png"))
+
+    expect(#calls.patternTable).toBe(1)
+    expect(calls.patternTable[1].win).toBe(ptWin)
+    expect(calls.patternTable[1].col).toBe(2)
+    expect(calls.patternTable[1].row).toBe(1)
+    expect(#calls.chr).toBe(0)
+    expect(#calls.ppu).toBe(0)
+    expect(#calls.sprite).toBe(0)
+  end)
+
+  it("rejects PNG drop on sketch-owned Pattern table windows", function()
+    local ptWin = makeWin("pattern_table", "pt_sketch", {
+      { kind = "tile", patternTable = { ranges = {} } },
+    })
+    ptWin.linkedSketchCanvasWindowId = "sketch_01"
+    local app = makeApp(ptWin, ptWin)
+
+    RomProjectController.handleFileDropped(app, makeFile("tiles.png"))
+
+    expect(#calls.patternTable).toBe(0)
+    expect(#calls.chr).toBe(0)
+    expect(type(app.statusText)).toBe("string")
+    expect(app.statusText:find("sketch", 1, true) ~= nil).toBe(true)
+  end)
+
   it("shows status when PNG drop has no compatible target window", function()
     local unsupported = makeWin("palette", "palette01", {})
     local app = makeApp(unsupported, unsupported)
@@ -263,8 +323,9 @@ describe("rom_project_controller.lua - PNG drop routing", function()
 
     expect(#calls.sprite).toBe(0)
     expect(#calls.chr).toBe(0)
+    expect(#calls.patternTable).toBe(0)
     expect(#calls.ppu).toBe(0)
-    expect(app.statusText).toBe("Please select a CHR bank window or PPU frame window")
+    expect(app.statusText).toBe("Please drop on a CHR bank, Pattern table, or PPU frame window")
   end)
 
   it("blocks PNG import when no ROM is loaded", function()

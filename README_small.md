@@ -315,10 +315,13 @@ You can drag and drop a PNG directly into PPUX. The drop always applies to the w
 
 **PPU Frame nametable unscramble**: when the drop is not treated as sprite import, dropping on a `ppu_frame` window matches the PNG against tiles from the linked **Pattern table** (its items / ranges) and rebuilds the nametable layout. This is powerful, but hard to explain in text. Video tutorials will probably do it better (still a To-Do).
 
+**Pattern table import** (standalone / non-sketch): same PNG-to-pixel decode as CHR banks, but each 8x8 frame is written through the Pattern table map into the mapped CHR `bank` + `tileIndex`. Shared tiles update in CHR/ROM bank windows too. Sketch-owned Pattern tables reject PNG drops.
+
 Notes:
 
 * Unscramble needs a linked Pattern table with usable ranges or populated items. Without that link, the drop reports an error instead of falling back to raw CHR bank order.
 * On CHR and ROM bank windows, dropping a PNG imports the image into the selected tile position, or the top-left if nothing is selected.
+* On Pattern table windows, import starts at the selected cell (else top-left), skips unmapped holes, and clips frames outside the grid.
 * PNG drops are not currently supported for regular tile Static Art or Animation windows.
 
 ## Advanced

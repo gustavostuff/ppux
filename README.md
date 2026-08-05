@@ -311,8 +311,9 @@ PPU Frame windows (nametable unscramble):
 
 Notes:
 
-* Unscramble needs a linked Pattern table with usable ranges or populated items. Without that link, the drop reports an error instead of falling back to raw CHR/ROM bank order.
 * On CHR and ROM bank windows, dropping a PNG imports the image into the selected tile position, or the top-left if nothing is selected.
+* On **Pattern table** windows that are **not** sketch-owned, PNG import uses the same decode as CHR banks, but writes each 8x8 through `patternTable.ranges` into the mapped CHR bank/tile. Sketch-linked Pattern tables reject the drop.
+* Unscramble needs a linked Pattern table with usable ranges or populated items. Without that link, the drop reports an error instead of falling back to raw CHR/ROM bank order.
 * PNG drops aren't currently supported for regular Tiles windows (static or animated).
 
 ## Advanced
