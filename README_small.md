@@ -60,6 +60,13 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 
 ### Toolbars
 
+Each row below is one toolbar: title, screenshot, then the control list.
+
+<table>
+<tbody>
+<tr>
+<td>
+
 #### App toolbar
 
 The App toolbar sits at the top and hosts global quick actions. It also reserves space for status text on the right.
@@ -83,6 +90,11 @@ The App toolbar sits at the top and hosts global quick actions. It also reserves
 15. **Generate gallery ROM** - builds an interactive `.nes` gallery ROM from packed **Sketch canvas** windows (see [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom)).
 16. **Relocation pointer calculator** - helper for nametable **`relocateTo`** workflows: turns a ROM file offset into little-endian pointer bytes for `romPatches` (see [PPU frame & OAM](#ppu-frame--oam)).
 
+</td>
+</tr>
+<tr>
+<td>
+
 #### CHR Banks toolbar
 
 <img src="img/readme_images/toolbars/chr_banks_toolbar.png" alt="CHR Banks specialized toolbar">
@@ -94,11 +106,21 @@ The App toolbar sits at the top and hosts global quick actions. It also reserves
 5. **Diff vs loaded CHR** - toggles "git-like" overlays on the bank canvas: compares current CHR tile bytes against the original ROM bytes. Shortcut: D.
 6. **Sync duplicate tiles** - ON: identical tiles edit together. OFF: independent cells.
 
+</td>
+</tr>
+<tr>
+<td>
+
 #### ROM Banks toolbar
 
 <img src="img/readme_images/toolbars/rom_banks_toolbar.png" alt="ROM Banks specialized toolbar">
 
 Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface makes that unsafe).
+
+</td>
+</tr>
+<tr>
+<td>
 
 #### Pattern table toolbar
 
@@ -108,6 +130,11 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 2. **Pattern table link (source)** - left-click for a menu: jump to linked consumer layer(s), or remove all links from this pattern table.
 
 Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks** onto the pattern table canvas. Ranges must add up to **256** tiles for a complete map. When a **Sketch canvas** owns the pattern table, CHR/ROM drops are blocked and the catalog comes from Generate.
+
+</td>
+</tr>
+<tr>
+<td>
 
 #### Sketch canvas toolbar
 
@@ -120,11 +147,21 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 5. **Export CHR** - writes a 4KB CHR bank (256 tiles) beside the project/ROM folder (needs a successful Generate).
 6. **Export nametable** - writes a 1024-byte `.nam` (960 tiles + 64 attribute bytes).
 
+</td>
+</tr>
+<tr>
+<td>
+
 #### Static Art (tiles and sprites) toolbar
 
 <img src="img/readme_images/toolbars/static_tiles_toolbar.png" alt="Static Art tiles/sprites specialized toolbar">
 
 1. **Palette link handle** - right-drag onto a **ROM palette** window, or from the ROM palette's handle onto this window. Left-click to link via a menu.
+
+</td>
+</tr>
+<tr>
+<td>
 
 #### Animation toolbar (for both sprites and tiles)
 
@@ -138,6 +175,11 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 6. **Play / Pause** - `P` key, layer switching is blocked while playing.
 7. **Frame delay** - `Shift` + `Left` or `Shift` + `Right` adjusts delay for all frames. Status bar shows the current value.
 8. **Palette link handle** - Same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
+
+</td>
+</tr>
+<tr>
+<td>
 
 #### OAM Animation toolbar
 
@@ -157,6 +199,11 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 
 **Shift + right-drag** on the canvas moves sprite `originX` / `originY` (same as PPU Frame sprite layers).
 
+</td>
+</tr>
+<tr>
+<td>
+
 #### Global palette toolbar
 
 <img src="img/readme_images/toolbars/global_palette.png" alt="Global palette specialized toolbar">
@@ -166,6 +213,11 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 3. **Compact / normal view** - Changes the window's size, basically.
 4. **Set as active palette** - for painting where no ROM palette applies (when there are multiple global palettes, use PgUp/PgDown to cycle through them).
 
+</td>
+</tr>
+<tr>
+<td>
+
 #### ROM palette toolbar
 
 <img src="img/readme_images/toolbars/rom_palette.png" alt="ROM palette specialized toolbar">
@@ -174,6 +226,11 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 2. **Next grouped slot** (when Grouped palettes is enabled).
 3. **Compact / normal view** - Changes the window's size, basically.
 4. **Palette link handle (source)** - right-drag to link layers onto destinations, or left-click for a menu.
+
+</td>
+</tr>
+<tr>
+<td>
 
 #### PPU Frame toolbar
 
@@ -185,6 +242,11 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 4. **Add sprite** - Adds a sprite (creates a sprite layer first, if there is none).
 5. **Pattern table link** - left-click for a menu with separate **background** and **sprites** submenus to link **Pattern table** windows (**required** for nametable and sprite CHR).
 6. **Toggle origin guides** - hidden until a sprite layer exists, it toggles dotted reference lines on sprite layers.
+
+</td>
+</tr>
+</tbody>
+</table>
 
 ### Palette windows
 
