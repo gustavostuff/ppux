@@ -1,6 +1,6 @@
 ![](img/readme_images/logo_v2.png)
 
-An NES/Famicom Graphics Studio. Mod classic games or build new Homebrew assets.
+NES/Famicom Graphics Studio. Mod classic games or build new Homebrew assets.
 
 <img src="img/readme_images/app_example_new.png" alt="">
 
@@ -59,8 +59,6 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 | Sketch canvas          | <img src="img/readme_images/windows_system_table/sketch_canvas_window.png" alt="Sketch canvas taskbar icon">             | Free 256x240 background paint canvas. It packs into a linked **Pattern table**. See [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom)   |
 
 ### Toolbars
-
-Each row below is one toolbar: title, screenshot, then the control list.
 
 <table>
 <tbody>
