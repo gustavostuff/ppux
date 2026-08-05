@@ -7,9 +7,9 @@ An NES/Famicom Graphics Studio. Mod classic games or build new Homebrew assets.
 ![Version](https://img.shields.io/badge/version-0.2.0_(beta)-6366F1?style=flat)
 [![Donate](https://img.shields.io/badge/Donate-ff69b4?style=flat&logo=githubsponsors&logoColor=white)](https://ko-fi.com/tavuntu)
 
-Edit NES graphics in game-context (as the player sees them). No tile puzzle solving.
+Edit graphics in game-context (as the player sees them), no tile puzzle solving.
 
-PPUX uses an in-app [database](#database) plus project files to understand banks, palettes, sprite layouts, animations, and other ROM-specific structures.
+PPUX uses an in-app [database](#database) plus project files to understand banks, palettes, sprite layouts, animations, and other ROM-specific structures. You drop an NES ROM and eveything is assembled for you, ready to be edited. That is the goal of PPUX.
 
 - [Basic Usage](#basic-usage)
   - [Getting started](#getting-started)
@@ -48,18 +48,18 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
 
 ### Getting started
 
-Create a folder, place your ROM inside it, then drag the ROM into PPUX. After that, the app will either:
+After dropping a ROM into the window, PPUX will either:
 
-1. Open a default layout
-2. Open a DB layout
-3. Open a *.lua or *.ppux user project (if any)
+1. Open a default layout.
+2. Open a DB layout.
+3. Open a *.lua or *.ppux user project (if any).
 
-NOTES:
+Notes:
 
-* You can open a project from the app toolbar or with `Ctrl + O`. After you have opened projects before, the taskbar **Recent projects** menu reopens them quickly.
-* You can also start a **sketch-only** workspace (no game ROM), to work on graphics "from scratch" (see [Sketch canvas windows](#sketch-canvas-windows) and [Gallery ROM](#gallery-rom) sections)
+* You can open a project from the app toolbar or with `Ctrl + O`
+* You can also start a **sketch-only** workspace (no game ROM required), to work on graphics "from scratch" (see [Sketch canvas windows](#sketch-canvas-windows) and [Gallery ROM](#gallery-rom) sections)
 
-If a ROM has no DB entry yet, it can still be used normally. DB entries are just curated starting points. That said, any user can "pick" a game and start working on a user project that can be used for a new DB entry Pull Request. [See this section](#db-contribution-tracker).
+If a ROM has no DB entry yet, it can still be used normally. DB entries are just curated starting points. Any user can "pick" a game and start working on a user project that can be used for a new DB entry Pull Request. [See this section](#db-contribution-tracker).
 
 ### Windows system
 
@@ -70,126 +70,115 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 | CHR Banks              | <img src="img/readme_images/windows_system_table/icon_chr_window.png" alt="CHR Banks taskbar icon">                      | Primary source window for normal CHR bank data                                                           |
 | ROM Banks              | <img src="img/readme_images/windows_system_table/icon_rom_window.png" alt="ROM Banks taskbar icon">                      | Same as CHR Banks, but loads the whole ROM                                                               |
 | Static Art (tiles)     | <img src="img/readme_images/windows_system_table/icon_static_tile_window.png" alt="Static Art tiles taskbar icon">       | Single-layer tile composition window for mockups and UI pieces                                           |
-| Animation (tiles)      | <img src="img/readme_images/windows_system_table/icon_animated_tile_window.gif" alt="Animation tiles taskbar icon">                        | Tile animation window where each layer acts as a frame                                                   |
+| Animation (tiles)      | <img src="img/readme_images/windows_system_table/icon_animated_tile_window.gif" alt="Animation tiles taskbar icon">      | Tile animation window where each layer acts as a frame                                                   |
 | Static Art (sprites)   | <img src="img/readme_images/windows_system_table/icon_static_sprite_window.png" alt="Static Art sprites taskbar icon">   | Single-layer sprite composition window with pixel-level placement                                        |
-| Animation (sprites)    | <img src="img/readme_images/windows_system_table/icon_animated_sprite_window.gif" alt="Animation sprites taskbar icon">                      | Sprite animation window for frame-by-frame sprite layouts                                                |
-| OAM Animation          | <img src="img/readme_images/windows_system_table/icon_oam_animated_window.gif" alt="OAM Animation taskbar icon">                          | ROM-backed sprite animation; **requires a linked Pattern table** window for sprite CHR                                                    |
-| Global palette         | <img src="img/readme_images/windows_system_table/icon_palette_window.png" alt="Global palette taskbar icon">             | Global palette window for items without an assigned ROM palette                                          |
-| ROM palette            | <img src="img/readme_images/windows_system_table/icon_rom_palette_window.png" alt="ROM palette taskbar icon">            | ROM palette editor: **ROM** role (addresses) or **Sketch** role (free 4x4 for sketch canvases)            |
-| PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view; It **also** requires pattern table links for rendering |
-| Pattern table          | <img src="img/readme_images/windows_system_table/icon_pattern_table_window.png" alt="Pattern table taskbar icon">        | Sub-set of CHR/ROM items, intended to mimic the actual pattern tables assembled in game run-time |
-| Sketch canvas          | <img src="img/readme_images/windows_system_table/sketch_canvas_window.png" alt="Sketch canvas taskbar icon">             | Free 256x240 background paint canvas; packs into a linked **Pattern table**; see [Sketch canvas windows](#sketch-canvas-windows) |
-
-
-Notes:
-
-* To be clearer on CHR vs ROM windows: CHR Banks is the normal source browser containing only graphics data.
-
-* ROM Banks is the fallback source browser, useful for Games that use CHR RAM data (like Megaman 2, for instance) and, as mentioned above, it will load the whole ROM, so be careful on unintentional non-graphics pixel edits.
+| Animation (sprites)    | <img src="img/readme_images/windows_system_table/icon_animated_sprite_window.gif" alt="Animation sprites taskbar icon">  | Sprite animation window for frame-by-frame sprite layouts                                                |
+| OAM Animation          | <img src="img/readme_images/windows_system_table/icon_oam_animated_window.gif" alt="OAM Animation taskbar icon">         | ROM-backed sprite animation, **requires a linked Pattern table** window for sprite CHR                   |
+| Global palette         | <img src="img/readme_images/windows_system_table/icon_palette_window.png" alt="Global palette taskbar icon">             | Global palette window for items without an assigned ROM palette (cycle with PgUp/PgDown)                 |
+| ROM palette            | <img src="img/readme_images/windows_system_table/icon_rom_palette_window.png" alt="ROM palette taskbar icon">            | ROM palette editor: **ROM** role (addresses) or **Sketch** role (free 4x4 for sketch canvases)           |
+| PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view. It **also** requires pattern table links for rendering             |
+| Pattern table          | <img src="img/readme_images/windows_system_table/icon_pattern_table_window.png" alt="Pattern table taskbar icon">        | Sub-set of CHR/ROM items, intended to mimic the actual pattern tables assembled in game run-time         |
+| Sketch canvas          | <img src="img/readme_images/windows_system_table/sketch_canvas_window.png" alt="Sketch canvas taskbar icon">             | Free 256x240 background paint canvas. It packs into a linked **Pattern table**; see [Sketch canvas windows](#sketch-canvas-windows) |
 
 ### Toolbars
 
 #### App toolbar
 
-The App toolbar sits at the top and hosts global quick actions; it also reserves space for status text on the right.
+The App toolbar sits at the top and hosts global quick actions. It also reserves space for status text on the right.
 
 <img src="img/readme_images/toolbars/app_toolbar.png" alt="App toolbar">
 
-With no ROM loaded, only **Open project** appears on the strip. After a ROM or project workspace is loaded, quick buttons appear **left to right** in this order:
-
-1. **New window** - opens the new window creation flow (`Ctrl + N`)
-2. **Open project** - `Ctrl + O`
-3. **Save options** - `Ctrl + S` (save / export flows)
-4. **Copy** - copies the current selection (`Ctrl + C` in **tile mode** only; works on tile or sprite layers where clipboard is allowed; blocked on PPU Frame and OAM Animation sprite layers)
-5. **Cut** - `Ctrl + X` (tile mode only for keyboard shortcuts)
-6. **Paste** - `Ctrl + V` (tile mode only for keyboard shortcuts)
-7. **Zoom out** - steps zoom on the **focused** window (palette windows are skipped); matches **Ctrl + wheel** down behavior
-8. **Zoom in** - **Ctrl + wheel** up on the focused window
-9. **Mirror X** - toggles horizontal mirror preview in the **focused** window. Shortcut: **`M`** (no modifiers). **CHR / ROM bank** and **pattern table** windows also use **`Ctrl + M`** for **8x8 vs 8x16 pair layout** (same cell size as CHR banks); see their toolbars below.
+1. **New window** - opens the new window creation flow (`Ctrl + N`).
+2. **Open project** - `Ctrl + O`.
+3. **Save options** - `Ctrl + S` (save / export flows).
+4. **Copy** - copies the current selection (`Ctrl + C` in **tile mode** only; works on tile or sprite layers where clipboard is allowed; blocked on PPU Frame and OAM Animation sprite layers).
+5. **Cut** - `Ctrl + X` (for now, tile mode only for keyboard shortcuts).
+6. **Paste** - `Ctrl + V` (for now, tile mode only for keyboard shortcuts).
+7. **Zoom out** - zooms in the focused window.
+8. **Zoom in** - zooms out the focused window.
+9. **Mirror X** - toggles horizontal mirror preview in the **focused** window. Shortcut: **`M`**.
 10. **Always on top** - toggles whether the **focused** window stays above others. Also available from the window's title-bar menu.
-11. **Add column to the right** - on grid-resizable layout windows only; hold **Shift** to switch the same control to **Remove last column** (tooltip updates)
-12. **Add row below** - on grid-resizable layout windows only; **Shift** switches to **Remove last row**
-13. **Clone focused window** - duplicate the current window's kind and state where supported
-14. **Reference PNG** - add or remove a reference image on eligible **layout** windows (not CHR/ROM banks or palette windows). **`Alt + R`** toggles visibility while a reference is attached; removing uses the button and a confirm dialog.
-15. **Generate gallery ROM** - builds a playable multi-slide `.nes` from packed **Sketch canvas** windows (see [Gallery ROM](#gallery-rom)). Available even without a loaded game ROM.
+11. **Add column to the right** - on grid-resizable layout windows only. Hold **Shift** to switch the same control to **Remove last column** (tooltip updates).
+12. **Add row below** - Same as the previous one, but for rows.
+13. **Clone focused window** - duplicate the current window's kind and state where supported.
+14. **Reference PNG** - add or remove a reference image on eligible **layout** windows. **`Alt + R`** toggles visibility while a reference is attached.
+15. **Generate gallery ROM** - builds an interactive `.nes` gallery ROM from packed **Sketch canvas** windows (see [Gallery ROM](#gallery-rom)).
 16. **Relocation pointer calculator** - helper for nametable **`relocateTo`** workflows: turns a ROM file offset into little-endian pointer bytes for `romPatches` (see [PPU frame windows](#ppu-frame-windows)).
 
 #### CHR Banks toolbar
 
 <img src="img/readme_images/toolbars/chr_banks_toolbar.png" alt="CHR Banks specialized toolbar">
 
-1. **Previous bank** - `Left` key
-2. **Next bank** - `Right` key
-3. **Open base ROM folder** - opens your OS file manager on the folder that contains the loaded base ROM (disabled until PPUX knows a ROM path; tooltip explains *load ROM first* / *path unknown* states)
-4. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - **`Ctrl + M`**. **`M`** alone toggles **Mirror X** (same as the app toolbar).
-5. **Diff vs loaded CHR** - toggles "git-like" overlays on the bank canvas: compares current CHR tile bytes against the ROM's CHR snapshot from when this session loaded (`D` shortcut with a CHR Banks window focused, no modifiers). When ON: **green** tint on tiles that changed, **dark** tint on unchanged tiles ([design detail](docs/ui/CHR_ROM_DIFF_MODE.md)).
-6. **Sync duplicate tiles** - on: identical tiles edit together; off: independent cells
+1. **Previous bank** - `Left` key.
+2. **Next bank** - `Right` key.
+3. **Open base ROM folder** - opens your OS file manager on the folder that contains the loaded base ROM.
+4. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - **`Ctrl + M`**.
+5. **Diff vs loaded CHR** - toggles "git-like" overlays on the bank canvas: compares current CHR tile bytes against the original ROM bytes. Shortcut: D.
+6. **Sync duplicate tiles** - ON: identical tiles edit together. OFF: independent cells.
 
 #### ROM Banks toolbar
 
 <img src="img/readme_images/toolbars/rom_banks_toolbar.png" alt="ROM Banks specialized toolbar">
 
-Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface makes that unsafe). Keyboard: **`Left`/`Right`** for banks, **`Ctrl + M`** for **tile layout**, **`M`** for **Mirror X**, **`D`** for **diff vs loaded CHR**.
+Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface makes that unsafe).
 
 #### Pattern table toolbar
 
 <img src="img/readme_images/toolbars/pattern_table_toolbar.png" alt="Pattern table specialized toolbar">
 
-1. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - **`Ctrl + M`** (same cell-size convention as CHR / ROM banks). Disabled when the pattern table has no active tile layer.
-2. **Pattern table link (source)** - left-click for a menu: jump to linked consumer layer(s), or remove all links from this pattern table. When only a **Sketch canvas** is linked, the menu says **Jump to sketch canvas** / **Unlink sketch canvas** instead. Turns **green** when at least one consumer is linked.
+1. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - **`Ctrl + M`**.
+2. **Pattern table link (source)** - left-click for a menu: jump to linked consumer layer(s), or remove all links from this pattern table.
 
-Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks** windows onto the pattern table canvas (not a toolbar button). Ranges must add up to **256** tiles for a complete map. Right-click a mapped cell for **Remove tile range at this tile**. Clipboard cut/paste is not available on pattern table windows.
+Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks** windows onto the pattern table canvas (not a toolbar button). Ranges must add up to **256** tiles for a complete map.
 
-When a **Sketch canvas** owns the pattern table, CHR/ROM drops are blocked and the catalog is filled from the sketch (Generate / tolerance). Unlinking clears the scratch catalog so the window can take CHR ranges again. Copy/drag from that pattern table into CHR/ROM paints frozen pixels (not ROM references).
+When a **Sketch canvas** owns the pattern table, CHR/ROM drops are blocked and the catalog is filled from the sketch pattern generation mechanism.
 
 #### Sketch canvas toolbar
 
 <img src="img/readme_images/toolbars/sketch_canvas_toolbar.png" alt="Sketch canvas specialized toolbar">
 
 1. **Palette link handle** - right-drag onto a **sketch-mode** ROM palette (or left-click for a menu). Turns **green** when linked. Needed for live multi-palette preview and Gallery ROM colors.
-2. **Pattern table link** - left-click to link, jump to, or unlink a **Pattern table**. Turns **green** when linked. The linked table is sketch-owned (no CHR/ROM drops).
+2. **Pattern table link** - left-click to link, jump to, or unlink a **Pattern table**.
 3. **Tolerance (- / value / +)** - pixel-diff grouping for Generate (0-32). When linked, changing tolerance live-regenerates the pattern table.
 4. **Generate** - packs the paint canvas into up to 256 unique patterns and applies them to the linked pattern table. Highlights when pixels changed since the last pack.
 5. **Export CHR** - writes a 4KB CHR bank (256 tiles) beside the project/ROM folder (needs a successful Generate).
 6. **Export nametable** - writes a 1024-byte `.nam` (960 tiles + 64 attribute bytes).
 
-There is no separate Reflect toolbar button: after Generate, **Tile mode** shows the packed nametable view; **Edit mode** returns to free paint. Details in [Sketch canvas windows](#sketch-canvas-windows).
-
 #### Static Art (tiles and sprites) toolbar
 
 <img src="img/readme_images/toolbars/static_tiles_toolbar.png" alt="Static Art tiles/sprites specialized toolbar">
 
-1. **Palette link handle** - right-drag onto a **ROM palette** window, or from the ROM palette's handle onto this window. Left-click to link via a menu. Turns **green** when linked.
+1. **Palette link handle** - right-drag onto a **ROM palette** window, or from the ROM palette's handle onto this window. Left-click to link via a menu.
 
 #### Animation toolbar (for both sprites and tiles)
 
 <img src="img/readme_images/toolbars/animation_tile_toolbar.png" alt="Animation tiles specialized toolbar">
 
-1. **Previous layer** - `Shift` + `Down` key
-2. **Next layer** - `Shift` + `Up` key
-3. **Remove layer** - `-` key; refuses when only one frame remains (button stays visible)
-4. **Add layer** - `+` key
-5. **Copy from previous layer**
-6. **Play / Pause** - `P` key (any case); layer switching is blocked while playing
-7. **Frame delay** - `Shift` + `Left` / `Shift` + `Right` adjusts delay for all frames (0.10s-1.00s, 0.05s steps); status bar shows the current value
-8. **Palette link handle** - rightmost; same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
+1. **Previous layer** - `Shift` + `Down` key.
+2. **Next layer** - `Shift` + `Up` key.
+3. **Remove layer** - `-` key; refuses when only one frame remains (button stays visible).
+4. **Add layer** - `+` key.
+5. **Copy from previous layer** - Copies everything, including palette links to individual items.
+6. **Play / Pause** - `P` key, layer switching is blocked while playing.
+7. **Frame delay** - `Shift` + `Left` or `Shift` + `Right` adjusts delay for all frames. Status bar shows the current value.
+8. **Palette link handle** - Same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
 
 
 #### OAM Animation toolbar
 
 <img src="img/readme_images/toolbars/oam_animation.png" alt="OAM Animation specialized toolbar">
 
-1. **Previous layer** - `Shift` + `Down` key
-2. **Next layer** - `Shift` + `Up` key
-3. **Remove layer** - `-` key; refuses when only one frame remains (button stays visible)
-4. **Add layer** - `+` key
-5. **Add sprite** - visible when the active layer is a sprite layer
-6. **Toggle origin guides** - toggles dotted reference lines (visible when a sprite layer exists and is active)
-7. **Copy from previous layer**
-8. **Play / Pause** - `P` key; layer switching is blocked while playing
-9. **Frame delay** - `Shift` + `Left` / `Shift` + `Right` adjusts delay for all frames (0.10s-1.00s, 0.05s steps); status bar shows the current value
-10. **Pattern table link** - left-click for a menu to link or unlink a **Pattern table** window for **all frames** at once (**required** for sprite CHR). Turns **green** when every frame shares the same link.
-11. **Palette link handle** - rightmost (bottom-most when collapsed), same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
+1. **Previous layer** - `Shift` + `Down` key.
+2. **Next layer** - `Shift` + `Up` key.
+3. **Remove layer** - `-` key, refuses when only one frame remains.
+4. **Add layer** - `+` key.
+5. **Add sprite** - visible when the active layer is a sprite layer.
+6. **Toggle origin guides** - toggles dotted reference lines, this is user defined, not something that comes from ROM data.
+7. **Copy from previous layer** - Copies everything, including palette links to individual items.
+8. **Play / Pause** - `P` key, layer switching is blocked while playing.
+9. **Frame delay** - `Shift` + `Left` / `Shift` + `Right` adjusts delay for all frames. Status bar shows the current value.
+10. **Pattern table link** - left-click for a menu to link or unlink a **Pattern table** window for **all frames** at once (**required** for sprite CHR).
+11. **Palette link handle** - Same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
 
 **Shift + right-drag** on the canvas moves sprite `originX` / `originY` (same as PPU Frame sprite layers).
 
@@ -197,30 +186,30 @@ There is no separate Reflect toolbar button: after Generate, **Tile mode** shows
 
 <img src="img/readme_images/toolbars/global_palette.png" alt="Global palette specialized toolbar">
 
-1. **Previous grouped slot** (when Grouped palettes is enabled)
-2. **Next grouped slot** (when Grouped palettes is enabled)
-3. **Compact / normal view**
-4. **Set as active palette** - for painting where no ROM palette applies; if already active, clicking again does nothing. Use this before keyboard color editing on **global** palettes.
+1. **Previous grouped slot** (when Grouped palettes is enabled).
+2. **Next grouped slot** (when Grouped palettes is enabled).
+3. **Compact / normal view** - Changes the window's size, basically.
+4. **Set as active palette** - for painting where no ROM palette applies (when there are multiple global palettes, use PgUp/PgDown to cycle through them).
 
 #### ROM palette toolbar
 
 <img src="img/readme_images/toolbars/rom_palette.png" alt="ROM palette specialized toolbar">
 
-1. **Previous grouped slot** (when Grouped palettes is enabled)
-2. **Next grouped slot** (when Grouped palettes is enabled)
-3. **Compact / normal view**
-4. **Palette link handle (source)** - right-drag to link layers onto destinations, or left-click for a menu. Turns **green** when linked layers are attached.
+1. **Previous grouped slot** (when Grouped palettes is enabled).
+2. **Next grouped slot** (when Grouped palettes is enabled).
+3. **Compact / normal view** - Changes the window's size, basically.
+4. **Palette link handle (source)** - right-drag to link layers onto destinations, or left-click for a menu.
 
 #### PPU Frame toolbar
 
 <img src="img/readme_images/toolbars/ppu_frame_sprite_layer_toolbar.png" alt="PPU Frame toolbar">
 
-1. **Previous layer** - `Shift` + `Down` key
-2. **Next layer** - `Shift` + `Up` key
-3. **Nametable range** - compressed nametable **start/end** ROM addresses
-4. **Add sprite** - creates sprite layer if needed, otherwise adds a sprite
-5. **Pattern table link** - left-click for a menu with separate **background** and **sprites** submenus to link **Pattern table** windows (**required** for nametable and sprite CHR). Turns **green** when at least one layer is linked. Tile/sprite layers consume the linked map; **ranges** are edited on the **Pattern table** window (see [Pattern table toolbar](#pattern-table-toolbar)), not here.
-6. **Toggle origin guides** - hidden until a sprite layer exists; toggles dotted reference lines on sprite layers
+1. **Previous layer** - `Shift` + `Down` key.
+2. **Next layer** - `Shift` + `Up` key.
+3. **Nametable range** - Set compressed nametable **start/end** ROM addresses (the range/stream of bytes used to build a given pattern table).
+4. **Add sprite** - Adds a sprite (creates a sprite layer first, if there is none).
+5. **Pattern table link** - left-click for a menu with separate **background** and **sprites** submenus to link **Pattern table** windows (**required** for nametable and sprite CHR).
+6. **Toggle origin guides** - hidden until a sprite layer exists, it toggles dotted reference lines on sprite layers.
 
 ### Palette windows
 
@@ -231,17 +220,7 @@ There are 2 kinds:
 * `Global palette`: the fallback palette for content that does not have a ROM palette linked to it. Use this for mockups, freeform art, and anything with no specific in-game palette assigned.
 * `ROM palette`: a `4x4` palette window. When you create one, PPUX asks for a **role**:
   * **ROM** - backed by ROM addresses (in-game palette editing).
-  * **Sketch** - not tied to ROM addresses, link only to **Sketch canvas** windows.
-
-In practice:
-
-* If an item or layer has no ROM palette assigned, it uses a `Global palette`.
-* If you want the colors to reflect actual game palette bytes, use a **ROM**-role.
-* For sketch background art and Gallery ROM slides, use a **Sketch**-role palette linked to the sketch.
-* Only `ROM palette` windows are meant to be explicitly linked to other windows.
-* Click a color to select it for editing/painting.
-* In palette windows, arrow keys move the selected cell. For **global** palettes, set the palette as **active** (toolbar) before arrow/wheel color editing; **ROM** palettes do not require that step.
-* `Shift + arrows`, mouse wheel, and `Shift + mouse wheel` adjust colors.
+  * **Sketch** - not tied to ROM addresses, linked only to **Sketch canvas** windows.
 
 |                | Normal mode | Compact mode |
 |----------------|-------------|--------------|
@@ -250,50 +229,47 @@ In practice:
 
 **Creating a link**
 
-* Drag (right-drag) from a **ROM palette** window's connect handle and release over a destination window, **or**
+* Drag (right-drag) from a **ROM palette** window's connect handle and release over a destination window, **or**:
 * Drag (right-drag) from a **destination** window's connect handle (**Static Art**, **Animation** tiles/sprites, **OAM Animation**, **Sketch canvas**, etc.) and release over a matching **ROM palette** window, **or**:
-* Use left-click for contextual menus (**Link To Palette**, **Remove ROM palette link**, **Jump to linked palette**, etc.)
+* Use left-click for contextual menus (**Link To Palette**, **Remove ROM palette link**, **Jump to linked palette**, etc).
 
 Sketch canvases only accept **sketch-mode** palettes; other layout windows use **ROM**-role palettes.
 
 **On-canvas connection handles**
 
-Linked ROM palette / pattern-table windows also show small **squares** on the left edge of the window chrome. Hover shows the link lines (depending on **Settings -> Appearance -> Window links**). Click a connected square to **focus and raise** the linked window(s).
+Linked ROM palette / pattern-table windows also show small **squares** on the left edge of the window chrome (or bellow, if collapsed). Hover shows the link lines (depending on **Settings -> Appearance -> Window links**). Click a connected square to **focus and raise** the linked window(s).
 
 ### Main controls
 
-- `Ctrl + 1/2/3`: set the **app window** to 1x, 2x, or 3x integer scale of the 640x360 canvas (e.g. 1280x720, 1920x1080)
-- `Page Up` / `Page Down`: cycle which **global** (**non-ROM**) palette is active - ROM palette windows are not cycled. When **Grouped palettes** is on, the grouped **global** slot (which palette is shown) stays in sync; needs at least two global palette windows
-- `Ctrl + F`: toggle fullscreen
-- `Ctrl + N`: open `New Window`
-- `Ctrl + S`: open save options
-- `Tab`: toggle `Tile` / `Edit` mode
-- `Space`: toggle **mapping highlight** - when a non-CHR/ROM layout window is focused, highlights tiles or sprites in the active layer that match the tile indices in the **current CHR/ROM bank**; matching cells are also emphasized in CHR/ROM bank windows for the same bank. On **PPU Frame**, this works on the **sprite** layer only, not the nametable tile layer. Press `Space` again to turn it off.
-- `Ctrl + G`: toggle the focused window grid
-- `Ctrl + R`: toggle shader rendering for the focused layer
-- `Ctrl + Z` / `Ctrl + Y`: undo / redo
-- `Ctrl + C` / `Ctrl + X` / `Ctrl + V`: copy / cut / paste selection (**tile mode** only for keyboard shortcuts)
-- In `ppu_frame` and `oam_animation` windows, clipboard actions are blocked **on sprite** layers
-- `Right click` or `middle click` drag: move windows
-- taskbar: focus, restore, and manage windows
+- `Ctrl + 1/2/3`: set the **app window** to 1x, 2x, or 3x integer scale of the 640x360 canvas (e.g. 1280x720, 1920x1080).
+- `Page Up` / `Page Down`: cycle which **global** (**non-ROM**) palette is active (ROM palette windows are not cycled). When **Grouped palettes** is on, the grouped **global** slot (which palette is shown) stays in sync.
+- `Ctrl + F`: toggle fullscreen.
+- `Ctrl + N`: open `New Window`.
+- `Ctrl + S`: open save options.
+- `Tab`: toggle `Tile` / `Edit` mode.
+- `Space`: Highlihts all sprites in the active sprite layer.
+- `Ctrl + G`: Cycle through different layer grids.
+- `Ctrl + R`: toggle shader rendering for the focused layer, ON by default (patterns are shader-colored, app-wide). When disabled, it shows gray values matching the pixel color code: 0, 1, 2 or 3.
+- In `ppu_frame` and `oam_animation` windows, clipboard actions (Ctrl + C/V/X) are blocked **on sprite** layers, because of reasons I'm too lazy to explain.
+- `Right click` or `middle click` drag: move windows.
+- taskbar: focus, restore, and manage windows.
 
 ### Tile mode
 
 <img src="img/readme_images/tile_mode_indicator.png" alt="">
 
-Tile mode is for selection, drag and drop and tile-level editing in general.
+Tile mode is for selection, drag, drop and tile-level editing in general.
 
-- Left click to select
-- `Ctrl + click` or `Shift + drag` for multi-selection
-- `Ctrl + A` to select all
-- `Delete` / `Backspace` to remove selection where supported
-- arrows to move tile selections among **occupied** cells
+- Left click to select.
+- `Ctrl + click` or `Shift + drag` for multi-selection.
+- `Ctrl + A` to select all.
+- `Delete` / `Backspace` to remove selection where supported.
+- arrows to move tile selections among **occupied** cells.
 - `Shift + Up/Down` to switch layers in **multi-layer** windows (animations, PPU Frame, OAM Animation, etc.): **`Up` = next layer, `Down` = previous**. **Static Art** windows stay single-layer and do not use layer switching shortcuts.
-- `Ctrl + Up/Down` to change inactive-layer opacity
-- `1` to `4` to assign palette numbers to tiles/sprites where supported
-- `H` / `V` to mirror selected sprites
-- Bank windows: `Left/Right` switch banks, **`Ctrl + M`** toggles `8x8` / `8x16` layout, **`M`** toggles **Mirror X**, `D` toggles **diff vs loaded CHR** (`8x16` pairs highlight as one unit when either half differs)
-- With a layout window focused, press **`Space`** to toggle cross-highlighting of matching tiles in the **current CHR/ROM bank** (see [Main controls](#main-controls)).
+- `Ctrl + Up/Down` to change inactive-layer opacity.
+- `1` to `4` to assign palette numbers to selected tiles/sprites where supported.
+- `H` / `V` to mirror selected sprites in a given sprite layer.
+- Bank windows: `Left/Right` switch banks, **`Ctrl + M`** toggles `8x8` / `8x16` layout, **`M`** toggles **Mirror X**, `D` toggles **diff vs loaded CHR**.
 
 ### Edit mode
 
@@ -301,29 +277,28 @@ Tile mode is for selection, drag and drop and tile-level editing in general.
 
 Edit mode is for pixel-level editing.
 
-- Left click to paint
-- `Shift + click` draws a line from the last painted/clicked point
-- `R` toggles the rectangle fill tool
-- Hold `G` and left click or drag to grab a color
-- **Right-click** (press and release without dragging) also picks the color under the cursor. Dragging with the right button moves the window instead. **Middle-click** is window drag only (not color pick). **Alt + right-click** opens the Tile-mode context menu.
-- Hold `F` and left click to flood fill
-- On a **Sketch canvas**: hold **`C`** and left-click to mask all pixels of the clicked color, hold **`C`** and right-click to clear the mask
-- On a **Sketch canvas**: **`S`** toggles the pixel select tool (drag for a rectangle; **Shift+drag** for freeform)
-- `1` to `4` to choose the active color
-- `Alt + 1/2/3/4` to change brush size presets
-- `Ctrl + Alt + mouse wheel` also changes brush size
-- `Ctrl + R` toggles shader rendering for the focused layer
-- `Ctrl + G` toggles the focused window grid
-- `Ctrl + Z` / `Ctrl + Y`: undo / redo
+- Left click to paint.
+- `Shift + click` draws a line from the last painted/clicked point.
+- `R` toggles the rectangle fill tool.
+- Hold `G` and left click to grab a color.
+- **Right-click** also picks the color under the cursor.
+- Hold `F` and left click to flood fill.
+- On a **Sketch canvas**: hold **`C`** and left-click to mask all pixels of the clicked color, hold **`C`** and right-click to clear the mask.
+- On a **Sketch canvas**: **`S`** toggles the pixel select tool (drag for a rectangle; **Shift+drag** for freeform).
+- `1` to `4` to choose the active color.
+- `Alt + 1/2/3/4` to change brush size presets.
+- `Ctrl + Alt + mouse wheel` also changes brush size.
+- `Ctrl + R` toggles shader rendering for the focused layer.
+- `Ctrl + G` toggles the focused window grid.
 
 ### PNG drops
 
-You can drag and drop a PNG directly into PPUX. Requires a loaded ROM (or project workspace with ROM backing). The drop is always applied to the window **under the mouse**. If the pointer is not over any window, the **focused** window is used as the drop target instead.
+You can drag and drop a PNG directly into PPUX. The drop is always applied to the window **under the mouse**. If the pointer is not over any window, the **focused** window is used as the drop target instead.
 
-Sprite PNG import (Static Art, Animation, OAM Animation, or **PPU Frame with the sprite layer active**):
+**Sprite** PNG import (Static Art, Animation, OAM Animation, or **PPU Frame with the sprite layer active**):
 
 * **Static Art**, **Animation**, and **OAM Animation**: a window qualifies if it has **any** sprite layer.
-* **PPU Frame**: a window qualifies for sprite import only when the **active layer** is the **sprite** layer. If the active layer is the **tile** layer, the drop is **not** treated as a sprite import - even if a sprite overlay exists on another layer.
+* **PPU Frame**: a window qualifies for sprite import only when the **active layer** is the **sprite** layer. If the active layer is the **tile** layer, the drop is **not** treated as a sprite import.
 * If you have selected sprites, PPUX imports into those sprites in selection order.
 * If no sprites are selected, PPUX imports into the layer's sprites from first to last.
 * The PNG must use at most 4 total colors including transparency, or at most 3 non-transparent colors.
@@ -334,13 +309,13 @@ Sprite PNG import (Static Art, Animation, OAM Animation, or **PPU Frame with the
 
 PPU Frame windows (nametable unscramble):
 
-* When the drop is **not** handled as sprite import (tile layer active on `ppu_frame`, or another window type), dropping on a **`ppu_frame`** window **under the mouse** runs the **nametable unscramble** flow for that screen: it matches the PNG against the current patterns in CHR/ROM and tries to build the nametable layout automatically. This is a powerful/time-saving piece of functionality but it's hard to explain exactly how it works, video tutorials will probably be more useful (soon to be made).
+* When the drop is **not** handled as sprite import, dropping on a **`ppu_frame`** window **under the mouse** runs the **nametable unscramble** flow for that screen: it matches the PNG against the current patterns in CHR/ROM and tries to build the nametable layout automatically. This is a powerful/time-saving piece of functionality but it's hard to explain exactly how it works, video tutorials will probably be more useful (video tutorials are a To-Do).
 
-CHR and ROM bank windows:
+Notes:
 
-* Dropping a PNG on a CHR-like window **under the mouse** imports the image into the selected tile position, or the top-left if nothing is selected.
-
-Note: PNG drops aren't currently supported for tile layouts (except for the tiles in CHR/ROM Bank windows)
+* The unscramble functionality needs an update and might not be working properly. Right now it matches the PNG patterns against the CHR/ROM banks window, but it should do it against the linked pattern table window.
+* On CHR and ROM bank windows, dropping a PNG imports the image into the selected tile position, or the top-left if nothing is selected.
+* PNG drops aren't currently supported for regular Tiles windows (static or animated).
 
 ## Advanced
 
@@ -350,13 +325,11 @@ The DB lets PPUX recognize specific ROMs and open a tailored starting workspace 
 
 DB entries are matched by ROM SHA-1 and can define open windows, relevant CHR banks, palette windows, ROM-backed views, and the initial workspace arrangement. If no DB entry exists, PPUX falls back to a default layout. User projects (*.lua and *.ppux) take priority over DB defaults.
 
-Coverage might change frequently; use the [DB contribution tracker](#db-contribution-tracker) for the current status and in-progress entries.
+Coverage might change frequently, use the [DB contribution tracker](#db-contribution-tracker) for the current status and in-progress entries.
 
 ### DB contribution tracker
 
-The [DB contribution tracker sheet](https://docs.google.com/spreadsheets/d/1uxwTMG9cmv7juRGnYeg7M8aFsWqMgMWwBduhdpviIm4/edit?gid=1408935396#gid=1408935396) is a shared place to track which games already have DB coverage, which ones are in progress, pending, etc.
-
-Use it to coordinate contributions, avoid duplicate effort, and leave notes about the current status of a game-specific DB entry.
+The [DB contribution tracker sheet](https://docs.google.com/spreadsheets/d/1uxwTMG9cmv7juRGnYeg7M8aFsWqMgMWwBduhdpviIm4/edit?gid=1408935396#gid=1408935396) is a shared place to track which games already have DB coverage, which ones are in progress, pending, etc. Use it to coordinate contributions, avoid duplicate effort, and leave notes about the current status of a game-specific DB entry.
 
 ### Lua project mapping
 
@@ -373,19 +346,16 @@ return {
 }
 ```
 
-The most important fields are windows and edits. For windows, common fields include kind, id, title, x/y/z, zoom, workspace size, viewport size, scroll position, and layer state.
+The most important fields are probably `windows` and `edits`. For `windows`, common fields include `kind`, `id`, `title`, `x/y/z`, `zoom`, workspace size, viewport size, scroll position, and layer state. For edits, the data stores per-bank, per-tile pixel edits applied on top of the source ROM data, using a compact compressed format.
 
-For edits, the data stores per-bank, per-tile pixel edits applied on top of the source ROM data, using a compact compressed format.
-
-The recommended workflow is to save once from the UI, use the generated project (*.lua or *.ppux) as the template, then create windows, layouts, edits, etc, and keep the project growing as you wish (either for personal use, sharing or even for a new DB entry PR).
+The recommended workflow is to save once from the UI, use the generated project (*.lua or *.ppux) as the template, then create windows, layouts, edits, etc, and keep the project growing as you wish (either for personal use, for sharing or even for a new DB entry PR).
 
 Notes:
 
-* PPUX never overwrites the original ROM. Pixel edits and other byte changes (like patches, palette color changes, etc) are written as `<rom>_edited.nes`.
-
+* PPUX never overwrites the original ROM, pixel edits and other byte changes (like patches, palette color changes, etc) are written into `<rom>_edited.nes`.
 * Project files are saved either as `<rom>.lua` and `<rom>.ppux`.
-
 * `*.ppux` files are just zlib-compressed versions of Lua project files, useful when you want smaller files or prefer not to keep the project contents easily readable.
+* Understand `<rom>` as the actual file name for the ROM you're working on (aka base ROM), it can contain spaces and dots.
 
 Best practice: keep the base ROM, edited ROM, and project files in the same folder.
 
