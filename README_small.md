@@ -67,7 +67,7 @@ Each row below is one toolbar: title, screenshot, then the control list.
 <tr>
 <td>
 
-#### App toolbar
+**App toolbar**
 
 The App toolbar sits at the top and hosts global quick actions. It also reserves space for status text on the right.
 
@@ -95,7 +95,7 @@ The App toolbar sits at the top and hosts global quick actions. It also reserves
 <tr>
 <td>
 
-#### CHR Banks toolbar
+**CHR Banks toolbar**
 
 <img src="img/readme_images/toolbars/chr_banks_toolbar.png" alt="CHR Banks specialized toolbar">
 
@@ -111,7 +111,7 @@ The App toolbar sits at the top and hosts global quick actions. It also reserves
 <tr>
 <td>
 
-#### ROM Banks toolbar
+**ROM Banks toolbar**
 
 <img src="img/readme_images/toolbars/rom_banks_toolbar.png" alt="ROM Banks specialized toolbar">
 
@@ -122,7 +122,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 <tr>
 <td>
 
-#### Pattern table toolbar
+**Pattern table toolbar**
 
 <img src="img/readme_images/toolbars/pattern_table_toolbar.png" alt="Pattern table specialized toolbar">
 
@@ -136,7 +136,7 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 <tr>
 <td>
 
-#### Sketch canvas toolbar
+**Sketch canvas toolbar**
 
 <img src="img/readme_images/toolbars/sketch_canvas_toolbar.png" alt="Sketch canvas specialized toolbar">
 
@@ -152,7 +152,7 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 <tr>
 <td>
 
-#### Static Art (tiles and sprites) toolbar
+<a id="static-art-tiles-and-sprites-toolbar"></a>**Static Art (tiles and sprites) toolbar**
 
 <img src="img/readme_images/toolbars/static_tiles_toolbar.png" alt="Static Art tiles/sprites specialized toolbar">
 
@@ -163,7 +163,7 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 <tr>
 <td>
 
-#### Animation toolbar (for both sprites and tiles)
+**Animation toolbar (for both sprites and tiles)**
 
 <img src="img/readme_images/toolbars/animation_tile_toolbar.png" alt="Animation tiles specialized toolbar">
 
@@ -181,7 +181,7 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 <tr>
 <td>
 
-#### OAM Animation toolbar
+**OAM Animation toolbar**
 
 <img src="img/readme_images/toolbars/oam_animation.png" alt="OAM Animation specialized toolbar">
 
@@ -204,7 +204,7 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 <tr>
 <td>
 
-#### Global palette toolbar
+**Global palette toolbar**
 
 <img src="img/readme_images/toolbars/global_palette.png" alt="Global palette specialized toolbar">
 
@@ -218,7 +218,7 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 <tr>
 <td>
 
-#### ROM palette toolbar
+**ROM palette toolbar**
 
 <img src="img/readme_images/toolbars/rom_palette.png" alt="ROM palette specialized toolbar">
 
@@ -232,7 +232,7 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 <tr>
 <td>
 
-#### PPU Frame toolbar
+**PPU Frame toolbar**
 
 <img src="img/readme_images/toolbars/ppu_frame_sprite_layer_toolbar.png" alt="PPU Frame toolbar">
 
