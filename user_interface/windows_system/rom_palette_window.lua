@@ -61,38 +61,51 @@ function RomPaletteWindow:isCellEditable(col, row)
 end
 
 --- Apply sketch-mode defaults: free colors, gallery-like BG rows 07/17/27/36.
+local SKETCH_PALETTE_DEFAULTS = {
+  { "07", "17", "27", "36" },
+  { "07", "17", "27", "36" },
+  { "07", "17", "27", "36" },
+  { "07", "17", "27", "36" },
+}
+
+local function parseUserDefinedCodeList(paletteData)
+  local userCodes = paletteData and paletteData.userDefinedCode or {}
+  if type(userCodes) == "string" then
+    local parsed = {}
+    for token in userCodes:gmatch("([^;]+)") do
+      local code, col, row = token:match("^([^,]+),(-?%d+),(-?%d+)$")
+      col, row = tonumber(col), tonumber(row)
+      if code and col and row then
+        parsed[#parsed + 1] = { code = code:upper(), col = col, row = row }
+      end
+    end
+    if paletteData then
+      paletteData.userDefinedCode = parsed
+    end
+    return parsed
+  end
+  return type(userCodes) == "table" and userCodes or {}
+end
+
 function RomPaletteWindow:applyPaletteRole(role)
   role = (role == "sketch") and "sketch" or "rom"
   self.paletteRole = role
   if role ~= "sketch" then
     return
   end
-  local defaults = {
-    { "07", "17", "27", "36" },
-    { "07", "17", "27", "36" },
-    { "07", "17", "27", "36" },
-    { "07", "17", "27", "36" },
-  }
   self.paletteData = self.paletteData or {}
   self.paletteData.romColors = {}
-  self.codes2D = self.codes2D or {}
   for row = 0, 3 do
     self.paletteData.romColors[row + 1] = {}
-    self.codes2D[row] = self.codes2D[row] or {}
     for col = 0, 3 do
       self.paletteData.romColors[row + 1][col + 1] = "sketch"
-      local code = defaults[row + 1][col + 1]
-      self.codes2D[row][col] = code
-      if self.set then
-        self:set(col, row, code)
-      end
     end
   end
   if type(self.title) == "string" and (self.title == "" or self.title == "ROM Palette") then
     self.title = "Sketch palette"
   end
-  -- Defaults already share color 0; keep explicit so callers can't leave rows divergent.
-  self:normalizeSketchUniversalColor0()
+  -- Rebuild colors from defaults + any saved userDefinedCode.
+  self:initializeFromROMOrUserCodes()
 end
 
 -- ROM byte address backing an editable cell, or nil if locked / missing.
@@ -232,28 +245,11 @@ function RomPaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
 
   -- Initialize codes2D from ROM or userDefinedCode
   -- This must run after PaletteWindow.new() to rebuild codes2D with ROM data
-  self:initializeFromROMOrUserCodes()
-
   if self:isSketchPalette() then
-    local savedCodes = {}
-    if type(self.paletteData.userDefinedCode) == "table" then
-      for _, item in ipairs(self.paletteData.userDefinedCode) do
-        if type(item.row) == "number" and type(item.col) == "number" and item.code then
-          savedCodes[#savedCodes + 1] = item
-        end
-      end
-    end
+    -- Sets sketch romColors markers, then rebuilds codes from defaults + userDefinedCode.
     self:applyPaletteRole("sketch")
-    for _, item in ipairs(savedCodes) do
-      local code = tostring(item.code):upper()
-      self.codes2D[item.row] = self.codes2D[item.row] or {}
-      self.codes2D[item.row][item.col] = code
-      if self.set then
-        self:set(item.col, item.row, code)
-      end
-    end
-    -- NES backdrop: all BG palette color-0 slots share one value.
-    self:normalizeSketchUniversalColor0()
+  else
+    self:initializeFromROMOrUserCodes()
   end
   
   -- Ensure codes2D is fully initialized (should be 4x4)
@@ -268,15 +264,31 @@ end
 
 -- Initialize codes2D from ROM bytes (if available) or userDefinedCode
 function RomPaletteWindow:initializeFromROMOrUserCodes()
-  -- Sketch-mode palettes are free colors; applyPaletteRole fills codes after this.
+  -- Sketch-mode: free colors. Rebuild from defaults + userDefinedCode (undo/redo relies on this).
   if self:isSketchPalette() then
     self.codes2D = {}
     for row = 0, 3 do
       self.codes2D[row] = {}
       for col = 0, 3 do
-        self.codes2D[row][col] = "0F"
+        local code = SKETCH_PALETTE_DEFAULTS[row + 1][col + 1]
+        self.codes2D[row][col] = code
+        if self.set then
+          self:set(col, row, code)
+        end
       end
     end
+    local userCodes = parseUserDefinedCodeList(self.paletteData)
+    for _, item in ipairs(userCodes) do
+      if type(item.row) == "number" and type(item.col) == "number" and item.code then
+        local code = normalizeInvalidBlack(tostring(item.code):upper())
+        self.codes2D[item.row] = self.codes2D[item.row] or {}
+        self.codes2D[item.row][item.col] = code
+        if self.set then
+          self:set(item.col, item.row, code)
+        end
+      end
+    end
+    self:normalizeSketchUniversalColor0()
     return
   end
 
@@ -287,19 +299,7 @@ function RomPaletteWindow:initializeFromROMOrUserCodes()
   end
   
   local romColors = self.paletteData.romColors or {}
-  local userCodes = self.paletteData.userDefinedCode or {}
-  if type(userCodes) == "string" then
-    userCodes = {}
-    for token in self.paletteData.userDefinedCode:gmatch("([^;]+)") do
-      local code, col, row = token:match("^([^,]+),(-?%d+),(-?%d+)$")
-      col, row = tonumber(col), tonumber(row)
-      if code and col and row then
-        userCodes[#userCodes + 1] = { code = code:upper(), col = col, row = row }
-      end
-    end
-    self.paletteData.userDefinedCode = userCodes
-  end
-  
+  local userCodes = parseUserDefinedCodeList(self.paletteData)
   -- Debug: Log ROM addresses for first row to verify they're correct
   if romColors[1] then
     DebugController.log("info", "ROM_PAL", "Row 0 ROM addresses: [1]=0x%X, [2]=0x%X, [3]=0x%X, [4]=0x%X", 

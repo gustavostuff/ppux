@@ -56,8 +56,8 @@ After dropping a ROM into the window, PPUX will either:
 
 Notes:
 
-* You can open a project from the app toolbar or with `Ctrl + O`
-* You can also start a **sketch-only** workspace (no game ROM required), to work on graphics "from scratch" (see [Sketch canvas windows](#sketch-canvas-windows) and [Gallery ROM](#gallery-rom) sections)
+* You can open a project from the app toolbar or with `Ctrl + O`.
+* You can also start a **sketch-only** workspace (no game ROM required), to work on graphics "from scratch" (see [Sketch canvas windows](#sketch-canvas-windows) and [Gallery ROM](#gallery-rom) sections).
 
 If a ROM has no DB entry yet, it can still be used normally. DB entries are just curated starting points. Any user can "pick" a game and start working on a user project that can be used for a new DB entry Pull Request. [See this section](#db-contribution-tracker).
 
@@ -65,20 +65,20 @@ If a ROM has no DB entry yet, it can still be used normally. DB entries are just
 
 Windows are the main work areas in PPUX. Some are source windows, some are layout windows, and some are ROM-backed helper windows.
 
-| Window                 | Taskbar icon                                                                                                             | Description                                                                                              |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------|
-| CHR Banks              | <img src="img/readme_images/windows_system_table/icon_chr_window.png" alt="CHR Banks taskbar icon">                      | Primary source window for normal CHR bank data                                                           |
-| ROM Banks              | <img src="img/readme_images/windows_system_table/icon_rom_window.png" alt="ROM Banks taskbar icon">                      | Same as CHR Banks, but loads the whole ROM                                                               |
-| Static Art (tiles)     | <img src="img/readme_images/windows_system_table/icon_static_tile_window.png" alt="Static Art tiles taskbar icon">       | Single-layer tile composition window for mockups and UI pieces                                           |
-| Animation (tiles)      | <img src="img/readme_images/windows_system_table/icon_animated_tile_window.gif" alt="Animation tiles taskbar icon">      | Tile animation window where each layer acts as a frame                                                   |
-| Static Art (sprites)   | <img src="img/readme_images/windows_system_table/icon_static_sprite_window.png" alt="Static Art sprites taskbar icon">   | Single-layer sprite composition window with pixel-level placement                                        |
-| Animation (sprites)    | <img src="img/readme_images/windows_system_table/icon_animated_sprite_window.gif" alt="Animation sprites taskbar icon">  | Sprite animation window for frame-by-frame sprite layouts                                                |
-| OAM Animation          | <img src="img/readme_images/windows_system_table/icon_oam_animated_window.gif" alt="OAM Animation taskbar icon">         | ROM-backed sprite animation, **requires a linked Pattern table** window for sprite CHR                   |
-| Global palette         | <img src="img/readme_images/windows_system_table/icon_palette_window.png" alt="Global palette taskbar icon">             | Global palette window for items without an assigned ROM palette (cycle with PgUp/PgDown)                 |
-| ROM palette            | <img src="img/readme_images/windows_system_table/icon_rom_palette_window.png" alt="ROM palette taskbar icon">            | ROM palette editor: **ROM** role (addresses) or **Sketch** role (free 4x4 for sketch canvases)           |
-| PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view. It **also** requires pattern table links for rendering             |
-| Pattern table          | <img src="img/readme_images/windows_system_table/icon_pattern_table_window.png" alt="Pattern table taskbar icon">        | Sub-set of CHR/ROM items, intended to mimic the actual pattern tables assembled in game run-time         |
-| Sketch canvas          | <img src="img/readme_images/windows_system_table/sketch_canvas_window.png" alt="Sketch canvas taskbar icon">             | Free 256x240 background paint canvas. It packs into a linked **Pattern table**; see [Sketch canvas windows](#sketch-canvas-windows) |
+| Window                 | Taskbar icon                                                                                                             | Description                                                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------|
+| CHR Banks              | <img src="img/readme_images/windows_system_table/icon_chr_window.png" alt="CHR Banks taskbar icon">                      | Primary source window for normal CHR bank data                                                                                                   |
+| ROM Banks              | <img src="img/readme_images/windows_system_table/icon_rom_window.png" alt="ROM Banks taskbar icon">                      | Same as CHR Banks, but loads the whole ROM                                                                                                       |
+| Static Art (tiles)     | <img src="img/readme_images/windows_system_table/icon_static_tile_window.png" alt="Static Art tiles taskbar icon">       | Single-layer tile composition window for mockups and UI pieces                                                                                   |
+| Animation (tiles)      | <img src="img/readme_images/windows_system_table/icon_animated_tile_window.gif" alt="Animation tiles taskbar icon">      | Tile animation window where each layer acts as a frame                                                                                           |
+| Static Art (sprites)   | <img src="img/readme_images/windows_system_table/icon_static_sprite_window.png" alt="Static Art sprites taskbar icon">   | Single-layer sprite composition window with pixel-level placement                                                                                |
+| Animation (sprites)    | <img src="img/readme_images/windows_system_table/icon_animated_sprite_window.gif" alt="Animation sprites taskbar icon">  | Sprite animation window for frame-by-frame sprite layouts                                                                                        |
+| OAM Animation          | <img src="img/readme_images/windows_system_table/icon_oam_animated_window.gif" alt="OAM Animation taskbar icon">         | ROM-backed sprite animation, **requires a linked Pattern table** window for sprite CHR and each sprite is created from a real ROM address (OAM)  |
+| Global palette         | <img src="img/readme_images/windows_system_table/icon_palette_window.png" alt="Global palette taskbar icon">             | Global palette window for items without an assigned ROM palette (cycle with PgUp/PgDown)                                                         |
+| ROM palette            | <img src="img/readme_images/windows_system_table/icon_rom_palette_window.png" alt="ROM palette taskbar icon">            | ROM palette editor: **ROM** role (addresses) or **Sketch** role (free 4x4 for sketch canvases)                                                   |
+| PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view. It **also** requires pattern table links for rendering                                                     |
+| Pattern table          | <img src="img/readme_images/windows_system_table/icon_pattern_table_window.png" alt="Pattern table taskbar icon">        | Sub-set of CHR/ROM items, intended to mimic the actual pattern tables assembled in game run-time                                                 |
+| Sketch canvas          | <img src="img/readme_images/windows_system_table/sketch_canvas_window.png" alt="Sketch canvas taskbar icon">             | Free 256x240 background paint canvas. It packs into a linked **Pattern table**; see [Sketch canvas windows](#sketch-canvas-windows)              |
 
 ### Toolbars
 
@@ -361,35 +361,16 @@ Best practice: keep the base ROM, edited ROM, and project files in the same fold
 
 ### Sketch canvas windows
 
-Sketch canvases are for **authoring NES background art** as a free 256x240 paint buffer (32x30 tiles of 8x8), then packing that paint into a real nametable + pattern table catalog.
+Sketch canvases are for **creating NES background art** from zero, on a free 256x240 paint buffer (32x30 tiles of 8x8), then packing that paint into a real nametable + pattern table catalog.
 
-You can use them **with or without a previously opened game ROM/project**. New Window still offers Sketch canvas, Pattern table, and sketch-mode palettes.
-
-#### Typical workflow
-
-1. **New Window -> Sketch canvas** (and optionally a **Pattern table** + **ROM palette** with sketch role).
-2. Paint in **Edit mode** (`Tab`) with colors `1`-`4`.
-3. Link a **Pattern table** from the sketch toolbar, set **tolerance**, then **Generate**.
-4. Link a **sketch-mode palette** so the canvas can use real NES colors and attribute-painted regions.
-5. Switch to **Tile mode** to inspect the packed screen, move/swap tiles, and assign **attribute palettes** with `1`-`4`.
-6. Export CHR/nametable from the sketch toolbar, and/or build a **Gallery ROM** from the app toolbar.
-
-Note: The pixel art tools available for Sketch Canvas windows are not available (not fully) for other kinds of windows, but this will be addressed.
+Note: The pixel art tools available for Sketch Canvas windows are not available (not fully) for other kinds of windows, but this will be addressed. The UI still needs work too (toolbar icons, binary save flow, etc).
 
 #### Paint vs packed (Tile) view
 
 | Mode | After Generate | Behavior |
 | --- | --- | --- |
-| **Edit** | Free paint | Pixel brush, fill, select, color mask; paint is the source of truth |
+| **Edit** | Free paint | Pixel brush, fill, select, color mask. Paint is the source of truth |
 | **Tile** | Packed view | Screen is composed from the current (linked) nametable tile pool. Painting is blocked. Select tiles, rearrange, remove, and change attributes.
-
-#### Pattern table link + Generate
-
-* Generate slices the canvas into 8x8 cells, groups similar cells by **tolerance** (pixel difference count), and fills the linked pattern table with up to **256** slots (unused slots pad with a repeated pool tile).
-* If unique patterns exceed 256, Generate fails and does not mutate the pattern table.
-* Changing tolerance while linked re-runs the pack.
-* A sketch-owned pattern table **rejects CHR/ROM tile drops**. Copy/drag from that pattern table into CHR/ROM banks is allowed though.
-* Unlinking clears the pattern table items, so it can take CHR ranges again.
 
 #### Edit-mode tools exclusive (for now) to Sketch Canvas windows:
 

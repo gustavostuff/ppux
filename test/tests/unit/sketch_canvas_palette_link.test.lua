@@ -87,6 +87,56 @@ describe("sketch_canvas_palette_link (B5)", function()
     rawset(_G, "ctx", previousCtx)
   end)
 
+  it("undo of sketch palette color does not wipe the palette to black", function()
+    local UndoRedoController = require("controllers.input_support.undo_redo_controller")
+    local wm = WM.new()
+    local ur = UndoRedoController.new(20)
+    local pal = wm:createRomPaletteWindow({ title = "Sketch palette", paletteRole = "sketch" })
+    local previousCtx = rawget(_G, "ctx")
+    local app = { wm = wm, undoRedo = ur }
+    rawset(_G, "ctx", { app = app })
+
+    -- Customize several cells so undo must restore more than defaults.
+    pal:setSelected(1, 0)
+    pal:adjustSelectedByArrows(1, 0) -- 17 -> 18
+    expect(pal.codes2D[0][1]).toBe("18")
+    pal:setSelected(2, 1)
+    pal:adjustSelectedByArrows(0, 1) -- 27 -> 37
+    expect(pal.codes2D[1][2]).toBe("37")
+    pal:setSelected(0, 0)
+    pal:adjustSelectedByArrows(1, 0) -- color0 07 -> 08 (synced)
+
+    local snapshot = {}
+    for row = 0, 3 do
+      snapshot[row] = {}
+      for col = 0, 3 do
+        snapshot[row][col] = pal.codes2D[row][col]
+      end
+    end
+
+    -- Undo color0 change: must restore previous palette, not all 0F.
+    expect(ur:undo(app)).toBe(true)
+    expect(pal.codes2D[0][0]).toBe("07")
+    for row = 0, 3 do
+      expect(pal.codes2D[row][0]).toBe("07")
+    end
+    expect(pal.codes2D[0][1]).toBe("18")
+    expect(pal.codes2D[1][2]).toBe("37")
+    -- Default sketch colors must still be present (not wiped to black).
+    expect(pal.codes2D[0][2]).toBe("27")
+    expect(pal.codes2D[0][3]).toBe("36")
+    expect(pal.codes2D[2][1]).toBe("17")
+
+    expect(ur:redo(app)).toBe(true)
+    for row = 0, 3 do
+      for col = 0, 3 do
+        expect(pal.codes2D[row][col]).toBe(snapshot[row][col])
+      end
+    end
+
+    rawset(_G, "ctx", previousCtx)
+  end)
+
   it("normalizes divergent sketch color-0 values on load", function()
     local RomPaletteWindow = require("user_interface.windows_system.rom_palette_window")
     local pal = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
