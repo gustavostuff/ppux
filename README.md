@@ -485,9 +485,7 @@ Example (ROM-role addresses):
 }
 ```
 
-So each `romColors[row][col]` stores a ROM address for a given palette color. The first column is the universal background color, usually one single "shared" ROM address. On cells that are not directly editable, **double-click** opens the ROM address assignment flow described in the in-app status hint.
-
-### Window references between entries
+So each `romColors[row][col]` stores a ROM address for a given palette color. The first column is the universal background color, usually one single "shared" ROM address. On **ROM**-role windows, **double-click** a cell to open the ROM address assignment flow. **Sketch**-role windows skip that double-click event, their colors are not tied to ROM addresses.
 
 Some windows refer to other windows by `id`, for example:
 
@@ -497,7 +495,7 @@ paletteData = {
 }
 ```
 
-The referenced window should exist elsewhere in the same `windows` array for correct palette resolution; missing IDs may fall back to inline palette data in legacy projects.
+The referenced window must also appear in the same `windows` array so palette resolution works. Pointing several windows at one `rom_palette` entry is how you share palette data without pasting the same hex addresses over and over.
 
 ### ROM patches
 
@@ -509,7 +507,7 @@ Patches live on the project table as an array, `romPatches`. Each entry must inc
 
 Use one of 3 different forms:
 
-#### 1. Single byte (`address` + `value`)
+1. Single byte (`address` + `value`)
 
 One ROM address, one new byte.
 
@@ -521,9 +519,9 @@ One ROM address, one new byte.
 }
 ```
 
-#### 2. Contiguous range (`addresses.from` / optional `addresses.to` + `values`)
+2. Contiguous range (`addresses.from` / optional `addresses.to` + `values`)
 
-If `addresses.to` is omitted, it is derived from `addresses.from` and the number of entries in `values` (`to = from + #values - 1`). If you include `to`, the inclusive byte count must match `#values` (i.e. `to = from + #values - 1`).
+If `addresses.to` is omitted, it is derived from `addresses.from` and the number of entries in `values`. If you include `to`, the inclusive byte count must match `#values`.
 
 ```lua
 {
@@ -538,7 +536,7 @@ If `addresses.to` is omitted, it is derived from `addresses.from` and the number
 }
 ```
 
-#### 3. Address list (useful for non-contiguous values)
+3. Address list (useful for non-contiguous values)
 
 `addresses[1]` gets `values[1]`, `addresses[2]` gets `values[2]`, etc. The two lists must have the same length. Addresses do not need to be consecutive.
 
