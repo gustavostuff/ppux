@@ -1999,6 +1999,20 @@ function WM:createRomPaletteWindow(opts)
     romRaw = app and app.appEditState and app.appEditState.romRaw or ""
   end
 
+  local paletteData = {
+    romColors = romColors,
+    userDefinedCode = {},
+  }
+  if type(opts.paletteData) == "table" then
+    if type(opts.paletteData.romColors) == "table" then
+      paletteData.romColors = opts.paletteData.romColors
+    end
+    if opts.paletteData.userDefinedCode ~= nil then
+      paletteData.userDefinedCode = opts.paletteData.userDefinedCode
+    end
+  end
+
+  -- Sketch role + universal color-0 normalize happen inside RomPaletteWindow.new.
   local win = RomPaletteWindow.new(
     defaults.x,
     defaults.y,
@@ -2008,20 +2022,13 @@ function WM:createRomPaletteWindow(opts)
     defaults.cols,
     {
       title = defaults.title,
-      paletteData = {
-        romColors = romColors,
-        userDefinedCode = {},
-      },
+      paletteData = paletteData,
       romRaw = romRaw,
       activePalette = false,
       compactView = (opts.compactView == true),
       paletteRole = paletteRole,
     }
   )
-
-  if paletteRole == "sketch" then
-    win:applyPaletteRole("sketch")
-  end
 
   if app and app.appEditState then
     win._updateRomRawCallback = function(newRom)

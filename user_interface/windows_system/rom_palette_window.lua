@@ -91,6 +91,8 @@ function RomPaletteWindow:applyPaletteRole(role)
   if type(self.title) == "string" and (self.title == "" or self.title == "ROM Palette") then
     self.title = "Sketch palette"
   end
+  -- Defaults already share color 0; keep explicit so callers can't leave rows divergent.
+  self:normalizeSketchUniversalColor0()
 end
 
 -- ROM byte address backing an editable cell, or nil if locked / missing.
@@ -131,6 +133,50 @@ local function collectEditableCellsForRomAddress(primaryWin, app, romAddr)
     end
   end
   return out
+end
+
+-- Sketch-mode universal backdrop: color column 0 on every row of every sketch palette.
+local function collectSketchUniversalColor0Cells(primaryWin, app)
+  local out = {}
+  for _, w in ipairs(getRomPaletteWindowsFromApp(app, primaryWin)) do
+    if w and not w._closed and w.isSketchPalette and w:isSketchPalette() then
+      for row = 0, 3 do
+        out[#out + 1] = { win = w, col = 0, row = row }
+      end
+    end
+  end
+  if #out == 0 and primaryWin and primaryWin.isSketchPalette and primaryWin:isSketchPalette() then
+    for row = 0, 3 do
+      out[#out + 1] = { win = primaryWin, col = 0, row = row }
+    end
+  end
+  return out
+end
+
+--- Force column 0 to the same NES code on all rows of this sketch palette.
+function RomPaletteWindow:normalizeSketchUniversalColor0(preferredCode)
+  if not self:isSketchPalette() then
+    return false
+  end
+  local code = preferredCode
+  if type(code) ~= "string" or #code < 2 then
+    code = self.codes2D and self.codes2D[0] and self.codes2D[0][0]
+  end
+  code = normalizeInvalidBlack(tostring(code or "0F"):upper())
+  self.codes2D = self.codes2D or {}
+  local changed = false
+  for row = 0, 3 do
+    self.codes2D[row] = self.codes2D[row] or {}
+    if self.codes2D[row][0] ~= code then
+      self.codes2D[row][0] = code
+      if self.set then
+        self:set(0, row, code)
+      end
+      self:saveUserDefinedCode(row, 0, code)
+      changed = true
+    end
+  end
+  return changed
 end
 
 -- Remove ROM backing for a cell (romColors slot becomes false), drop user override, show locked gray cell.
@@ -206,6 +252,8 @@ function RomPaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
         self:set(item.col, item.row, code)
       end
     end
+    -- NES backdrop: all BG palette color-0 slots share one value.
+    self:normalizeSketchUniversalColor0()
   end
   
   -- Ensure codes2D is fully initialized (should be 4x4)
@@ -401,32 +449,88 @@ function RomPaletteWindow:adjustSelectedByArrows(dx, dy)
   local gctx = rawget(_G, "ctx")
   local app = gctx and gctx.app
 
-  -- Sketch-mode: free colors, no shared ROM address sync.
+  -- Sketch-mode: free colors. Column 0 is the universal backdrop (synced like ROM $3F00).
   if self:isSketchPalette() then
     local beforePaletteData = TableUtils.deepcopy(self.paletteData or {})
-    self.codes2D[sr][sc] = new
-    self:set(sc, sr, new)
-    self:writeColorToROM(sr, sc, new)
-    self:saveUserDefinedCode(sr, sc, new)
-    recordPaletteColorUndo(
+    local paletteStates = {
       {
-        {
-          win = self,
-          row = sr,
-          col = sc,
-          beforeCode = old,
-          afterCode = new,
-        },
+        win = self,
+        beforePaletteData = beforePaletteData,
+        afterPaletteData = nil,
       },
-      {
+    }
+
+    if sc == 0 then
+      local cells = collectSketchUniversalColor0Cells(self, app)
+      local paletteWinOrder = {}
+      local paletteWinSeen = {}
+      for _, cell in ipairs(cells) do
+        local w = cell.win
+        if w and not paletteWinSeen[w] then
+          paletteWinSeen[w] = true
+          paletteWinOrder[#paletteWinOrder + 1] = w
+          if w ~= self then
+            paletteStates[#paletteStates + 1] = {
+              win = w,
+              beforePaletteData = TableUtils.deepcopy(w.paletteData or {}),
+              afterPaletteData = nil,
+            }
+          end
+        end
+      end
+
+      for _, cell in ipairs(cells) do
+        local w, c, r = cell.win, cell.col, cell.row
+        w.codes2D = w.codes2D or {}
+        w.codes2D[r] = w.codes2D[r] or {}
+        local prevCode = w.codes2D[r][c]
+        if prevCode ~= new then
+          w.codes2D[r][c] = new
+          w:set(c, r, new)
+          w:writeColorToROM(r, c, new)
+          w:saveUserDefinedCode(r, c, new)
+          undoActions[#undoActions + 1] = {
+            win = w,
+            row = r,
+            col = c,
+            beforeCode = prevCode,
+            afterCode = new,
+          }
+        end
+      end
+
+      for _, st in ipairs(paletteStates) do
+        st.afterPaletteData = TableUtils.deepcopy(st.win.paletteData or {})
+      end
+      recordPaletteColorUndo(undoActions, paletteStates)
+      for _, w in ipairs(paletteWinOrder) do
+        invalidateLinkedPpuFrames(w)
+      end
+    else
+      self.codes2D[sr][sc] = new
+      self:set(sc, sr, new)
+      self:writeColorToROM(sr, sc, new)
+      self:saveUserDefinedCode(sr, sc, new)
+      recordPaletteColorUndo(
         {
-          win = self,
-          beforePaletteData = beforePaletteData,
-          afterPaletteData = TableUtils.deepcopy(self.paletteData or {}),
+          {
+            win = self,
+            row = sr,
+            col = sc,
+            beforeCode = old,
+            afterCode = new,
+          },
         },
-      }
-    )
-    invalidateLinkedPpuFrames(self)
+        {
+          {
+            win = self,
+            beforePaletteData = beforePaletteData,
+            afterPaletteData = TableUtils.deepcopy(self.paletteData or {}),
+          },
+        }
+      )
+      invalidateLinkedPpuFrames(self)
+    end
     markPaletteUnsaved()
     return
   end

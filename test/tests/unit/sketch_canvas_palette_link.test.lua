@@ -47,8 +47,70 @@ describe("sketch_canvas_palette_link (B5)", function()
     expect(before).toBe("07")
     pal:adjustSelectedByArrows(1, 0)
     expect(pal.codes2D[0][0]).toBe("08")
+    -- Universal backdrop: all rows' color 0 stay in sync.
+    for row = 0, 3 do
+      expect(pal.codes2D[row][0]).toBe("08")
+    end
     pal:adjustSelectedByArrows(0, 1)
     expect(pal.codes2D[0][0]).toBe("18")
+    for row = 0, 3 do
+      expect(pal.codes2D[row][0]).toBe("18")
+    end
+  end)
+
+  it("syncs sketch palette color 0 across rows and sketch palette windows", function()
+    local wm = WM.new()
+    local palA = wm:createRomPaletteWindow({ title = "Sketch A", paletteRole = "sketch" })
+    local palB = wm:createRomPaletteWindow({ title = "Sketch B", paletteRole = "sketch" })
+    local previousCtx = rawget(_G, "ctx")
+    rawset(_G, "ctx", { app = { wm = wm } })
+
+    for row = 0, 3 do
+      palA.codes2D[row][0] = "07"
+      palA:set(0, row, "07")
+      palB.codes2D[row][0] = "0F"
+      palB:set(0, row, "0F")
+    end
+    palA:setSelected(0, 0)
+    palA:adjustSelectedByArrows(1, 0) -- 07 -> 08
+    for row = 0, 3 do
+      expect(palA.codes2D[row][0]).toBe("08")
+      expect(palB.codes2D[row][0]).toBe("08")
+    end
+
+    local col1BeforeB = palB.codes2D[0][1]
+    palA:setSelected(1, 0)
+    local col1BeforeA = palA.codes2D[0][1]
+    palA:adjustSelectedByArrows(1, 0)
+    expect(palA.codes2D[0][1]).toNotBe(col1BeforeA)
+    expect(palB.codes2D[0][1]).toBe(col1BeforeB)
+    rawset(_G, "ctx", previousCtx)
+  end)
+
+  it("normalizes divergent sketch color-0 values on load", function()
+    local RomPaletteWindow = require("user_interface.windows_system.rom_palette_window")
+    local pal = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
+      title = "Sketch palette",
+      paletteRole = "sketch",
+      paletteData = {
+        romColors = {
+          { "sketch", "sketch", "sketch", "sketch" },
+          { "sketch", "sketch", "sketch", "sketch" },
+          { "sketch", "sketch", "sketch", "sketch" },
+          { "sketch", "sketch", "sketch", "sketch" },
+        },
+        userDefinedCode = {
+          { row = 0, col = 0, code = "0F" },
+          { row = 1, col = 0, code = "07" },
+          { row = 2, col = 0, code = "09" },
+          { row = 0, col = 1, code = "15" },
+        },
+      },
+    })
+    for row = 0, 3 do
+      expect(pal.codes2D[row][0]).toBe("0F")
+    end
+    expect(pal.codes2D[0][1]).toBe("15")
   end)
 
   it("links sketch canvas to sketch palette and defaults attrs to row 0", function()
