@@ -203,7 +203,6 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 </tr>
 <tr>
 <td>
-
 #### Global palette toolbar
 
 <img src="img/readme_images/toolbars/global_palette.png" alt="Global palette specialized toolbar">
@@ -217,7 +216,6 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 </tr>
 <tr>
 <td>
-
 #### ROM palette toolbar
 
 <img src="img/readme_images/toolbars/rom_palette.png" alt="ROM palette specialized toolbar">
