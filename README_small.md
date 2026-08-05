@@ -36,8 +36,8 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
 After dropping a ROM into the window, PPUX opens a default layout, a DB layout, or a `*.lua` / `*.ppux` user project if one exists.
 
 * Open a project from the app toolbar or with `Ctrl + O`.
-* Start a **sketch-only** workspace (no game ROM) to work from scratch; see [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom).
-* ROMs without a DB entry still work; DB entries are curated starting points. Coordinate new DB work via the [DB contribution tracker](https://docs.google.com/spreadsheets/d/1uxwTMG9cmv7juRGnYeg7M8aFsWqMgMWwBduhdpviIm4/edit?gid=1408935396#gid=1408935396).
+* Start a **sketch-only** workspace (no game ROM) to work from scratch. See [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom).
+* ROMs without a DB entry still work. DB entries are curated starting points. Coordinate new DB work via the [DB contribution tracker](https://docs.google.com/spreadsheets/d/1uxwTMG9cmv7juRGnYeg7M8aFsWqMgMWwBduhdpviIm4/edit?gid=1408935396#gid=1408935396).
 
 ### Windows system
 
@@ -56,7 +56,7 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 | ROM palette            | <img src="img/readme_images/windows_system_table/icon_rom_palette_window.png" alt="ROM palette taskbar icon">            | ROM palette editor: **ROM** role (addresses) or **Sketch** role (free 4x4 for sketch canvases)                                                   |
 | PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view. It **also** requires pattern table links for rendering                                                     |
 | Pattern table          | <img src="img/readme_images/windows_system_table/icon_pattern_table_window.png" alt="Pattern table taskbar icon">        | Sub-set of CHR/ROM items, intended to mimic the actual pattern tables assembled in game run-time                                                 |
-| Sketch canvas          | <img src="img/readme_images/windows_system_table/sketch_canvas_window.png" alt="Sketch canvas taskbar icon">             | Free 256x240 background paint canvas. It packs into a linked **Pattern table**; see [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom)   |
+| Sketch canvas          | <img src="img/readme_images/windows_system_table/sketch_canvas_window.png" alt="Sketch canvas taskbar icon">             | Free 256x240 background paint canvas. It packs into a linked **Pattern table**. See [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom)   |
 
 ### Toolbars
 
@@ -69,7 +69,7 @@ The App toolbar sits at the top and hosts global quick actions. It also reserves
 1. **New window** - opens the new window creation flow (`Ctrl + N`).
 2. **Open project** - `Ctrl + O`.
 3. **Save options** - `Ctrl + S` (save / export flows).
-4. **Copy** - copies the current selection (`Ctrl + C` in **tile mode** only; works on tile or sprite layers where clipboard is allowed; blocked on PPU Frame and OAM Animation sprite layers).
+4. **Copy** - copies the current selection (`Ctrl + C` in **tile mode** only). Works on tile or sprite layers where clipboard is allowed. Blocked on PPU Frame and OAM Animation sprite layers.
 5. **Cut** - `Ctrl + X` (for now, tile mode only for keyboard shortcuts).
 6. **Paste** - `Ctrl + V` (for now, tile mode only for keyboard shortcuts).
 7. **Zoom out** - zooms in the focused window.
@@ -132,7 +132,7 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 
 1. **Previous layer** - `Shift` + `Down` key.
 2. **Next layer** - `Shift` + `Up` key.
-3. **Remove layer** - `-` key; refuses when only one frame remains (button stays visible).
+3. **Remove layer** - `-` key. Refuses when only one frame remains (button stays visible).
 4. **Add layer** - `+` key.
 5. **Copy from previous layer** - Copies everything, including palette links to individual items.
 6. **Play / Pause** - `P` key, layer switching is blocked while playing.
@@ -196,7 +196,7 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 | Global palette | <img src="img/readme_images/palettes_table/global_palette_normal.png" alt="Global palette normal mode"> | <img src="img/readme_images/palettes_table/global_palette_compact.png" alt="Global palette compact mode"> |
 | ROM palette    | <img src="img/readme_images/palettes_table/rom_palette_normal.png" alt="ROM palette normal mode"> | <img src="img/readme_images/palettes_table/rom_palette_compact.png" alt="ROM palette compact mode"> |
 
-Link by right-dragging a connect handle (palette or destination), or use left-click menus. Sketch canvases only accept **sketch-mode** palettes; other layout windows use **ROM**-role palettes. Linked windows also show small squares on the chrome edge; click to focus the linked window(s).
+Link by right-dragging a connect handle (palette or destination), or use left-click menus. Sketch canvases only accept **sketch-mode** palettes. Other layout windows use **ROM**-role palettes. Linked windows also show small squares on the chrome edge. Click to focus the linked window(s).
 
 ### Main controls
 
@@ -206,25 +206,25 @@ Link by right-dragging a connect handle (palette or destination), or use left-cl
 - `Tab`: toggle Tile / Edit mode.
 - `Space`: highlight sprites on the active sprite layer.
 - `Ctrl + G`: cycle layer grids. `Ctrl + R`: toggle shader coloring on the focused layer.
-- Right/middle-click drag to move windows; use the taskbar to focus and manage them.
+- Right/middle-click drag to move windows. Use the taskbar to focus and manage them.
 
 ### Tile mode
 
 <img src="img/readme_images/tile_mode_indicator.png" alt="">
 
-Selection, drag/drop, and tile-level editing. Multi-select with `Ctrl` / `Shift`; `Ctrl + A` selects all; arrows move among occupied cells; `Shift + Up/Down` switches layers in multi-layer windows; `1`–`4` assign palette indices where supported; `H` / `V` mirror sprites.
+Selection, drag/drop, and tile-level editing. Multi-select with `Ctrl` / `Shift`. `Ctrl + A` selects all. Arrows move among occupied cells. `Shift + Up/Down` switches layers in multi-layer windows. `1` to `4` assign palette indices where supported. `H` / `V` mirror sprites.
 
 ### Edit mode
 
 <img src="img/readme_images/edit_mode_indicator.png" alt="">
 
-Pixel painting. Left-click paints; `Shift + click` draws a line; `R` rectangle fill; `G` / right-click sample; `F` flood fill; `1`–`4` choose color; `Alt + 1/2/3/4` or `Ctrl + Alt + wheel` for brush size. On **Sketch canvas**, `C`+click masks a color and `S` toggles pixel select.
+Pixel painting. Left-click paints. `Shift + click` draws a line. `R` rectangle fill. `G` / right-click sample. `F` flood fill. `1` to `4` choose color. `Alt + 1/2/3/4` or `Ctrl + Alt + wheel` for brush size. On **Sketch canvas**, `C`+click masks a color and `S` toggles pixel select.
 
 ### PNG drops
 
 Drop a PNG onto a window (or the focused window if the pointer is over empty space).
 
-* **Sprite import** (Static Art / Animation / OAM, or PPU Frame with the **sprite** layer active): ≤4 colors including transparency; size must align to `8x8` or `8x16`; frames fill sprites left-to-right, top-to-bottom.
+* **Sprite import** (Static Art / Animation / OAM, or PPU Frame with the **sprite** layer active): at most 4 colors including transparency. Size must align to `8x8` or `8x16`. Frames fill sprites left-to-right, top-to-bottom.
 * **PPU Frame nametable unscramble**: when not treated as sprite import, matching a PNG against CHR/ROM patterns to rebuild the screen layout.
 * CHR/ROM banks: import into the selected tile (or top-left). Not supported yet for regular Static/Animation tile windows.
 
@@ -232,11 +232,11 @@ Drop a PNG onto a window (or the focused window if the pointer is over empty spa
 
 ### Database
 
-DB entries match ROM SHA-1 and open a tailored workspace (windows, banks, palettes, arrangement). No entry → default layout. User projects override DB defaults. Track coverage and in-progress games in the [DB contribution tracker sheet](https://docs.google.com/spreadsheets/d/1uxwTMG9cmv7juRGnYeg7M8aFsWqMgMWwBduhdpviIm4/edit?gid=1408935396#gid=1408935396).
+DB entries match ROM SHA-1 and open a tailored workspace (windows, banks, palettes, arrangement). No entry means the default layout. User projects override DB defaults. Track coverage and in-progress games in the [DB contribution tracker sheet](https://docs.google.com/spreadsheets/d/1uxwTMG9cmv7juRGnYeg7M8aFsWqMgMWwBduhdpviIm4/edit?gid=1408935396#gid=1408935396).
 
 ### Lua project mapping
 
-Projects are Lua tables (`kind = "project"`) with `windows`, `edits`, and related fields. Save once from the UI and grow the generated `*.lua` / `*.ppux` file. PPUX never overwrites the base ROM; edits go to `<rom>_edited.nes`. Keep the base ROM, edited ROM, and project in the same folder. `*.ppux` is a zlib-compressed Lua project.
+Projects are Lua tables (`kind = "project"`) with `windows`, `edits`, and related fields. Save once from the UI and grow the generated `*.lua` / `*.ppux` file. PPUX never overwrites the base ROM. Edits go to `<rom>_edited.nes`. Keep the base ROM, edited ROM, and project in the same folder. `*.ppux` is a zlib-compressed Lua project.
 
 ### Sketch canvas & Gallery ROM
 
@@ -244,8 +244,8 @@ Sketch canvases are a free 256x240 paint buffer that packs into a nametable + pa
 
 | Mode | After Generate | Behavior |
 | --- | --- | --- |
-| **Edit** | Free paint | Pixel tools; paint is the source of truth |
-| **Tile** | Packed view | Composed from the linked nametable tile pool; rearrange / attributes only |
+| **Edit** | Free paint | Pixel tools. Paint is the source of truth |
+| **Tile** | Packed view | Composed from the linked nametable tile pool. Rearrange / attributes only |
 
 **Generate gallery ROM** (app toolbar) builds a CNROM `{stem}_gallery.nes` from packed sketch canvases (up to 16 slides), using each slide's linked sketch palette and attributes. Needs **ca65/ld65** (cc65).
 
@@ -263,11 +263,11 @@ If a compressed stream may grow past its ROM range, set **`relocateTo`** and pat
 
 Codecs today: Konami-style (`konami.lua`) and Zelda II PPU macros (`zelda2.lua`).
 
-`oam_animation` windows are ROM-backed sprite animations (each layer = one hardware frame). Link a Pattern table, add sprites with OAM start addresses; shared `startAddr` values sync with PPU Frame sprite layers.
+`oam_animation` windows are ROM-backed sprite animations (each layer = one hardware frame). Link a Pattern table, then add sprites with OAM start addresses. Shared `startAddr` values sync with PPU Frame sprite layers.
 
 ### ROM palette & patches
 
-**ROM**-role `rom_palette` cells map to ROM addresses (`romColors[row][col]`); double-click assigns an address. **Sketch**-role palettes are free colors (no address double-click). Other windows can reference a palette by `winId` instead of repeating hex.
+**ROM**-role `rom_palette` cells map to ROM addresses (`romColors[row][col]`). Double-click assigns an address. **Sketch**-role palettes are free colors (no address double-click). Other windows can reference a palette by `winId` instead of repeating hex.
 
 `romPatches` apply small byte patches before windows build (not a full ROM-hacking suite). Each entry needs a `reason`. Forms: single `address`+`value`, contiguous `addresses.from`/`to`+`values`, or parallel `addresses`/`values` lists.
 
@@ -295,6 +295,6 @@ Windows E2E: `scripts\windows\run_e2e_tests.bat`. Unit tests are Linux-only for 
 
 ## Notes
 
-The UI renders to a **640x360** canvas (16:9) for crisp integer scaling (`Ctrl + 1/2/3` → 1x / 720p / 1080p). **Settings → Appearance** controls canvas scale (keep aspect / pixel-perfect / stretch), filter (sharp / soft / CRT), window-link visibility, and detached toolbars.
+The UI renders to a **640x360** canvas (16:9) for crisp integer scaling (`Ctrl + 1/2/3` for 1x / 720p / 1080p). **Settings > Appearance** controls canvas scale (keep aspect / pixel-perfect / stretch), filter (sharp / soft / CRT), window-link visibility, and detached toolbars.
 
 Built with [LÖVE](https://love2d.org/) 11.5. A custom `love.run` loop tightens input/frame pacing during interactive strokes.
