@@ -188,93 +188,163 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 
 ### Palette windows
 
-* **Global palette** - fallback for content with no ROM palette linked.
-* **ROM palette** (`4x4`) - when creating one, choose a role: **ROM** (ROM addresses) or **Sketch** (free colors for Sketch canvas only).
+Palette windows are the editors used for colors across the app.
+
+* **Global palette** - the fallback palette when nothing has a ROM palette linked. Handy for mockups and freeform art.
+* **ROM palette** (`4x4`) - when you create one, PPUX asks for a **role**: **ROM** (backed by ROM addresses for in-game palette editing) or **Sketch** (free colors, only for Sketch canvas windows).
 
 |                | Normal mode | Compact mode |
 |----------------|-------------|--------------|
 | Global palette | <img src="img/readme_images/palettes_table/global_palette_normal.png" alt="Global palette normal mode"> | <img src="img/readme_images/palettes_table/global_palette_compact.png" alt="Global palette compact mode"> |
 | ROM palette    | <img src="img/readme_images/palettes_table/rom_palette_normal.png" alt="ROM palette normal mode"> | <img src="img/readme_images/palettes_table/rom_palette_compact.png" alt="ROM palette compact mode"> |
 
-Link by right-dragging a connect handle (palette or destination), or use left-click menus. Sketch canvases only accept **sketch-mode** palettes. Other layout windows use **ROM**-role palettes. Linked windows also show small squares on the chrome edge. Click to focus the linked window(s).
+To create a link, right-drag from a connect handle on either the palette or the destination window, or use the left-click menus (**Link To Palette**, **Remove ROM palette link**, **Jump to linked palette**, and so on). Sketch canvases only accept **sketch-mode** palettes. Other layout windows use **ROM**-role palettes.
+
+Linked ROM palette and pattern-table windows also show small squares on the left edge of the window chrome (or below, if collapsed). Hover shows the link lines (depending on **Settings > Appearance > Window links**). Click a connected square to focus and raise the linked window(s).
 
 ### Main controls
 
-- `Ctrl + 1/2/3`: app window 1x / 2x / 3x of the 640x360 canvas.
-- `Page Up` / `Page Down`: cycle active **global** palette.
-- `Ctrl + F`: fullscreen. `Ctrl + N`: New Window. `Ctrl + S`: save options.
-- `Tab`: toggle Tile / Edit mode.
-- `Space`: highlight sprites on the active sprite layer.
-- `Ctrl + G`: cycle layer grids. `Ctrl + R`: toggle shader coloring on the focused layer.
-- Right/middle-click drag to move windows. Use the taskbar to focus and manage them.
+- `Ctrl + 1/2/3`: set the app window to 1x, 2x, or 3x integer scale of the 640x360 canvas (for example 1280x720 or 1920x1080).
+- `Page Up` / `Page Down`: cycle which **global** (non-ROM) palette is active. ROM palette windows are not part of this cycle.
+- `Ctrl + F`: toggle fullscreen.
+- `Ctrl + N`: open New Window.
+- `Ctrl + S`: open save options.
+- `Tab`: toggle between Tile and Edit mode.
+- `Space`: highlight all sprites on the active sprite layer.
+- `Ctrl + G`: cycle through different layer grids.
+- `Ctrl + R`: toggle shader coloring on the focused layer (on by default). When off, pixels show gray values matching color codes 0-3.
+- Right-click or middle-click drag to move windows. Use the taskbar to focus, restore, and manage them.
 
 ### Tile mode
 
 <img src="img/readme_images/tile_mode_indicator.png" alt="">
 
-Selection, drag/drop, and tile-level editing. Multi-select with `Ctrl` / `Shift`. `Ctrl + A` selects all. Arrows move among occupied cells. `Shift + Up/Down` switches layers in multi-layer windows. `1` to `4` assign palette indices where supported. `H` / `V` mirror sprites.
+Tile mode is for selection, drag/drop, and tile-level editing in general.
+
+- Left click to select. `Ctrl + click` or `Shift + drag` for multi-selection. `Ctrl + A` selects all.
+- `Delete` / `Backspace` removes the selection where supported.
+- Arrow keys move tile selections among occupied cells.
+- `Shift + Up/Down` switches layers in multi-layer windows (animations, PPU Frame, OAM Animation, and so on). Static Art stays single-layer.
+- `1` to `4` assign palette numbers to selected tiles or sprites where supported.
+- `H` / `V` mirror selected sprites on a sprite layer.
+- On bank windows, `Left/Right` switch banks, `Ctrl + M` toggles 8x8 / 8x16 layout, `M` toggles Mirror X, and `D` toggles diff vs loaded CHR.
 
 ### Edit mode
 
 <img src="img/readme_images/edit_mode_indicator.png" alt="">
 
-Pixel painting. Left-click paints. `Shift + click` draws a line. `R` rectangle fill. `G` / right-click sample. `F` flood fill. `1` to `4` choose color. `Alt + 1/2/3/4` or `Ctrl + Alt + wheel` for brush size. On **Sketch canvas**, `C` + click masks a color and `S` toggles region select (rectangular selection, unless shift is used before the click).
+Edit mode is for pixel-level painting.
+
+- Left click to paint. `Shift + click` draws a line from the last painted point.
+- `R` toggles the rectangle fill tool.
+- Hold `G` and left click (or just right-click) to sample a color.
+- Hold `F` and left click to flood fill.
+- `1` to `4` choose the active color. `Alt + 1/2/3/4` or `Ctrl + Alt + mouse wheel` change brush size.
+- On a **Sketch canvas**: hold `C` and left-click to mask all pixels of the clicked color. Hold `C` and right-click to clear the mask. `S` toggles region select (rectangular selection, unless Shift is used before the click).
 
 ### PNG drops
 
-Drop a PNG onto a window (or the focused window if the pointer is over empty space).
+You can drag and drop a PNG directly into PPUX. The drop always applies to the window under the mouse. If the pointer is not over any window, the focused window is used instead.
 
-* **Sprite import** (Static Art / Animation / OAM, or PPU Frame with the **sprite** layer active): at most 4 colors including transparency. Size must align to `8x8` or `8x16`. Frames fill sprites left-to-right, top-to-bottom.
-* **PPU Frame nametable unscramble**: when not treated as sprite import, matching a PNG against CHR/ROM patterns to rebuild the screen layout.
-* CHR/ROM banks: import into the selected tile (or top-left). Not supported yet for regular Static/Animation tile windows.
+**Sprite import** (Static Art, Animation, OAM Animation, or a PPU Frame with the **sprite** layer active):
+
+* The PNG must use at most 4 colors including transparency (or at most 3 non-transparent colors).
+* Dimensions must align to the current sprite mode: multiples of `8x8` or `8x16`.
+* The image is split into sprite-sized frames left to right, top to bottom. Fully transparent frames are skipped.
+* If sprites are selected, import fills those in selection order. Otherwise it fills the layer's sprites from first to last.
+
+**PPU Frame nametable unscramble**: when the drop is not treated as sprite import, dropping on a `ppu_frame` window tries to match the PNG against CHR/ROM patterns and rebuild the nametable layout automatically. This is powerful, but hard to explain in text. Video tutorials will probably do it better (still a To-Do).
 
 Notes:
 
 * The unscramble functionality needs an update and might not be working properly. Right now it matches the PNG patterns against the CHR/ROM banks window, but it should do it against the linked pattern table window.
 * On CHR and ROM bank windows, dropping a PNG imports the image into the selected tile position, or the top-left if nothing is selected.
+* PNG drops are not currently supported for regular tile Static Art or Animation windows.
 
 ## Advanced
 
 ### Database
 
-DB entries match ROM SHA-1 and open a tailored workspace (windows, banks, palettes, arrangement). No entry means the default layout. User projects override DB defaults. Track coverage and in-progress games in the [DB contribution tracker sheet](https://docs.google.com/spreadsheets/d/1uxwTMG9cmv7juRGnYeg7M8aFsWqMgMWwBduhdpviIm4/edit?gid=1408935396#gid=1408935396).
+The DB lets PPUX recognize specific ROMs and open a tailored starting workspace automatically.
+
+Entries are matched by ROM SHA-1 and can define which windows open, which CHR banks matter, palette windows, ROM-backed views, and the initial arrangement. If no DB entry exists, PPUX falls back to a default layout. User projects (`*.lua` and `*.ppux`) take priority over DB defaults.
+
+Coverage changes often. Use the [DB contribution tracker sheet](https://docs.google.com/spreadsheets/d/1uxwTMG9cmv7juRGnYeg7M8aFsWqMgMWwBduhdpviIm4/edit?gid=1408935396#gid=1408935396) to see what is done, in progress, or pending, and to coordinate contributions without duplicating work.
 
 ### Lua project mapping
 
-Projects are Lua tables (`kind = "project"`) with `windows`, `edits`, and related fields. Save once from the UI and grow the generated `*.lua` / `*.ppux` file by creating new windows, assembling layouts, etc. PPUX never overwrites the base ROM. Edits go to `<rom>_edited.nes`. Keep the base ROM, edited ROM, and project in the same folder.
+Lua project files are plain Lua tables returned from `<rom>.lua` (or the zlib-compressed `*.ppux` equivalent). The important fields are usually `windows` and `edits`: window layout and state on one side, and per-bank / per-tile pixel edits on the other.
+
+The recommended workflow is to save once from the UI, then use the generated project as a template. Keep adding windows, layouts, and edits from there, whether for personal use, sharing, or a future DB entry PR.
+
+Notes:
+
+* PPUX never overwrites the original ROM. Pixel edits and other byte changes (patches, palette colors, and so on) go into `<rom>_edited.nes`.
+* `<rom>` is the base ROM file name. It can contain spaces and dots.
+* Best practice: keep the base ROM, edited ROM, and project files in the same folder.
 
 ### Sketch canvas & Gallery ROM
 
-Sketch canvases are a free 256x240 paint buffer that packs into a nametable + pattern table catalog.
+Sketch canvases are for creating NES background art from scratch. You paint on a free 256x240 buffer (32x30 tiles of 8x8), then pack that paint into a real nametable plus pattern table catalog.
+
+Note: some of the pixel tools available on Sketch canvas are not fully available on other window kinds yet. The UI still needs polish too (toolbar icons, binary save flow, and so on).
 
 | Mode | After Generate | Behavior |
 | --- | --- | --- |
-| **Edit** | Free paint | Pixel tools. Paint is the source of truth |
-| **Tile** | Packed view | Composed from the linked nametable tile pool. Tiles rearranging and attribute bytes edit (keys 1-4) |
+| **Edit** | Free paint | Pixel brush, fill, select, color mask. Paint is the source of truth |
+| **Tile** | Packed view | Screen is composed from the linked nametable tile pool. Painting is blocked. You can select tiles, rearrange them, remove them, and change attributes (keys 1-4) |
 
-**Generate gallery ROM** (app toolbar) builds a CNROM `<rom>_gallery.nes` from packed sketch canvases (up to 16 slides), using each slide's linked sketch palette and attributes. Needs **ca65/ld65** (cc65).
+After Generate, the sketch toolbar can export a 4KB CHR bank and a 1024-byte nametable (`.nam`) next to the project or ROM folder.
+
+**Generate gallery ROM** on the app toolbar (NES cartridge icon) builds a CNROM gallery `.nes` from every packed sketch canvas in window order (up to 16 slides). PPUX writes CHR / nametable / palette binaries, assembles with **ca65/ld65** (cc65), and saves `<rom>_gallery.nes` beside your project or ROM. Each slide uses its linked sketch palette (or a default brown ramp) plus the sketch attribute table.
 
 ### PPU frame & OAM
 
-`ppu_frame` windows combine a compressed-nametable **tile** layer with optional ROM-backed **sprite** (OAM) overlay. Link **Pattern table** windows for CHR. Saving persists layer state and nametable diffs.
+`ppu_frame` windows are structured screen views: a **tile** layer backed by compressed nametable data in the ROM, plus an optional **sprite** overlay that tracks real OAM bytes. Link **Pattern table** windows from the toolbar so the tile layer, sprite layer, or both can resolve CHR through shared pattern-table ranges. The same Pattern table can be linked from multiple PPU frames or OAM animation windows.
 
-If a compressed stream may grow past its ROM range, set **`relocateTo`** and patch the game's pointer with `romPatches` (use the Relocation pointer calculator for little-endian bytes).
+Use **New Window > PPU Frame** and the toolbar / right-click menus to edit nametables and sprites. Saving the project keeps layer state and nametable diffs.
 
-**Byte budget** (`noOverflowSupported = true`): some games pack streams tightly (TMNT II), others leave headroom (Contra J). PPUX warns when the stream exceeds budget.
+When a compressed nametable may grow past its original ROM range, set **`relocateTo`** on the nametable layer so PPUX writes the stream to a new file offset, then patch the game's read pointer with `romPatches`. The app toolbar **Relocation pointer calculator** turns a `relocateTo` file offset into the little-endian `lo` / `hi` bytes for that patch. You still need to find the original table pointers in the ROM yourself. In short: if there is empty space that can hold the nametable (with room to spare), you can move the stream there and retarget the game to read it. This is advanced and may be clearer in a video tutorial later.
+
+**Byte budget** (`noOverflowSupported = true`) means the compressed stream should stay within its original ROM range. Some games leave safe free space after a stream. Others pack the next nametable immediately after the previous one.
+
+TMNT II is a tight example: one nametable ends and the next begins right away:
 
 <img src="img/readme_images/nametable_bytes_tmnt.png" alt="Nametable title screen TMNT II">
 
+Contra (J) has more headroom after the stream:
+
 <img src="img/readme_images/nametable_bytes_contra.png" alt="Nametable title screen Contra">
 
-Codecs today: Konami-style (`konami.lua`) and Zelda II PPU macros (`zelda2.lua`).
+PPUX warns when the compressed stream goes over budget, and clears the warning if it fits again. Some games have both situations depending on the screen.
 
-`oam_animation` windows are ROM-backed sprite animations (each layer = one hardware frame). Link a Pattern table, then add sprites with OAM start addresses. Shared `startAddr` values sync with PPU Frame sprite layers.
+Nametable codecs today cover Konami-style streams (`konami.lua`) and Zelda II PPU macro streams (`zelda2.lua`). More codecs and DB entries will land as development continues.
+
+`oam_animation` windows are ROM-backed sprite animations where **each layer is one hardware frame** of sprites tied to real OAM bytes. Like PPU frames, they need a linked **Pattern table** for sprite CHR. Multiple animation or PPU windows can share the same pattern table.
+
+From the UI: open **New Window > OAM Animation**, link a Pattern table, then use **Add sprite** and the frame controls to build each frame. The add-sprite modal sets the OAM start address. CHR comes from the linked pattern table. Playback works like other animation windows. Items that share a `startAddr` stay in sync with PPU Frame sprite layers (and other OAM windows). Origin and origin guides behave the same way as on PPU Frame sprite layers (`Shift + right-drag` moves `originX` / `originY`).
 
 ### ROM palette & patches
 
-**ROM**-role `rom_palette` cells map to ROM addresses (`romColors[row][col]`). Double-click assigns an address. **Sketch**-role palettes are free colors (no address double-click). Other windows can reference a palette by `winId` instead of repeating hex.
+`rom_palette` windows are `4x4` palette editors. **ROM**-role windows are backed by ROM addresses. **Sketch**-role windows hold free colors for Sketch canvas.
 
-`romPatches` apply small byte patches before windows build (not a full ROM-hacking suite). Each entry needs a `reason`. Forms: single `address`+`value`, contiguous `addresses.from`/`to`+`values`, or parallel `addresses`/`values` lists.
+On the ROM palette toolbar, use the connect button to right-drag links onto layers, or left-click it for source-side management (**Jump to linked layer**, **Remove all links**). Compact mode lives on the same toolbar. Destination windows still use their own connect handle and the Link / Remove / Jump menu entries described under [Palette windows](#palette-windows).
+
+For ROM-role data, each `romColors[row][col]` stores a ROM address for that palette color. The first column is usually the shared universal background color. Double-click a cell to open the ROM address assignment flow. Sketch-role windows skip that double-click, since their colors are not tied to ROM addresses.
+
+Other windows can point at a palette by `winId` instead of repeating hex addresses:
+
+```lua
+paletteData = {
+  winId = "rom_palette_02"
+}
+```
+
+The referenced window must also appear in the same `windows` array so palette resolution works. Pointing several windows at one `rom_palette` entry is how you share palette data without pasting the same hex over and over.
+
+`romPatches` apply small ROM patches from project data before windows are built, so you are already working on top of a patched ROM. This is for targeted graphics-related setup (force a game state, tweak a short byte sequence). It is not a full ROM hacking workflow.
+
+Patches live on the project as a `romPatches` array. Every entry needs a non-empty `reason`. Values are single bytes (0-255). Addresses are unsigned integers. You can use a single `address` + `value`, a contiguous `addresses.from` / `to` range with `values`, or parallel `addresses` / `values` lists for non-contiguous spots.
 
 ```lua
 {
@@ -286,20 +356,40 @@ Codecs today: Konami-style (`konami.lua`) and Zelda II PPU macros (`zelda2.lua`)
 
 ## Development
 
+To build a packaged Windows app from Windows:
+
 ```bat
 scripts\windows\build_windows.bat
 ```
 
+Output lands under `build\<version>\` (zip plus `PPUX.love`).
+
+To build a packaged Linux AppImage:
+
 ```bash
 ./scripts/unix/build_linux_appimage.sh
+```
+
+Unit tests are Linux-only for now:
+
+```bash
 ./scripts/unix/run_unit_tests.sh
+```
+
+Visible E2E scenarios boot the real app and should run on both Linux and Windows:
+
+```bash
 ./scripts/unix/run_e2e_tests.sh
 ```
 
-Windows E2E: `scripts\windows\run_e2e_tests.bat`. Unit tests are Linux-only for now.
+```bat
+scripts\windows\run_e2e_tests.bat
+```
 
 ## Notes
 
-The UI renders to a **640x360** canvas (16:9) for crisp integer scaling (`Ctrl + 1/2/3` for 1x / 720p / 1080p). **Settings > Appearance** controls canvas scale (keep aspect / pixel-perfect / stretch), filter (sharp / soft / CRT), window-link visibility, and detached toolbars.
+The entire UI is rendered to a **640x360** canvas (16:9). That base size scales cleanly to common monitors with integer multiples and no fuzzy upscaling (2x = 720p, 3x = 1080p, and so on). Use `Ctrl + 1/2/3` to snap the app window to 1x / 2x / 3x, or resize freely.
 
-Built with [LÖVE](https://love2d.org/) 11.5. A custom `love.run` loop tightens input/frame pacing during interactive strokes.
+Open **Settings > Appearance** for how the workspace fits the OS window (keep aspect, pixel-perfect, or stretch), how scaled pixels are filtered (sharp, soft, or CRT), when window-link lines and edge handles appear, and whether specialized toolbars detach from window headers. Those options persist across sessions.
+
+Built with [LÖVE](https://love2d.org/) 11.5. Instead of the stock main loop, PPUX uses a custom `love.run` that can tighten input and frame pacing during interactive strokes (for example while dragging a brush), then fall back to calmer pacing when that mode is off.
