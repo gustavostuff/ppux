@@ -218,7 +218,7 @@ Selection, drag/drop, and tile-level editing. Multi-select with `Ctrl` / `Shift`
 
 <img src="img/readme_images/edit_mode_indicator.png" alt="">
 
-Pixel painting. Left-click paints. `Shift + click` draws a line. `R` rectangle fill. `G` / right-click sample. `F` flood fill. `1` to `4` choose color. `Alt + 1/2/3/4` or `Ctrl + Alt + wheel` for brush size. On **Sketch canvas**, `C`+click masks a color and `S` toggles pixel select.
+Pixel painting. Left-click paints. `Shift + click` draws a line. `R` rectangle fill. `G` / right-click sample. `F` flood fill. `1` to `4` choose color. `Alt + 1/2/3/4` or `Ctrl + Alt + wheel` for brush size. On **Sketch canvas**, `C` + click masks a color and `S` toggles region select (rectangular selection, unless shift is used before the click).
 
 ### PNG drops
 
@@ -228,6 +228,11 @@ Drop a PNG onto a window (or the focused window if the pointer is over empty spa
 * **PPU Frame nametable unscramble**: when not treated as sprite import, matching a PNG against CHR/ROM patterns to rebuild the screen layout.
 * CHR/ROM banks: import into the selected tile (or top-left). Not supported yet for regular Static/Animation tile windows.
 
+Notes:
+
+* The unscramble functionality needs an update and might not be working properly. Right now it matches the PNG patterns against the CHR/ROM banks window, but it should do it against the linked pattern table window.
+* On CHR and ROM bank windows, dropping a PNG imports the image into the selected tile position, or the top-left if nothing is selected.
+
 ## Advanced
 
 ### Database
@@ -236,7 +241,7 @@ DB entries match ROM SHA-1 and open a tailored workspace (windows, banks, palett
 
 ### Lua project mapping
 
-Projects are Lua tables (`kind = "project"`) with `windows`, `edits`, and related fields. Save once from the UI and grow the generated `*.lua` / `*.ppux` file. PPUX never overwrites the base ROM. Edits go to `<rom>_edited.nes`. Keep the base ROM, edited ROM, and project in the same folder. `*.ppux` is a zlib-compressed Lua project.
+Projects are Lua tables (`kind = "project"`) with `windows`, `edits`, and related fields. Save once from the UI and grow the generated `*.lua` / `*.ppux` file by creating new windows, assembling layouts, etc. PPUX never overwrites the base ROM. Edits go to `<rom>_edited.nes`. Keep the base ROM, edited ROM, and project in the same folder.
 
 ### Sketch canvas & Gallery ROM
 
@@ -245,9 +250,9 @@ Sketch canvases are a free 256x240 paint buffer that packs into a nametable + pa
 | Mode | After Generate | Behavior |
 | --- | --- | --- |
 | **Edit** | Free paint | Pixel tools. Paint is the source of truth |
-| **Tile** | Packed view | Composed from the linked nametable tile pool. Rearrange / attributes only |
+| **Tile** | Packed view | Composed from the linked nametable tile pool. Tiles rearranging and attribute bytes edit (keys 1-4) |
 
-**Generate gallery ROM** (app toolbar) builds a CNROM `{stem}_gallery.nes` from packed sketch canvases (up to 16 slides), using each slide's linked sketch palette and attributes. Needs **ca65/ld65** (cc65).
+**Generate gallery ROM** (app toolbar) builds a CNROM `<rom>_gallery.nes` from packed sketch canvases (up to 16 slides), using each slide's linked sketch palette and attributes. Needs **ca65/ld65** (cc65).
 
 ### PPU frame & OAM
 
