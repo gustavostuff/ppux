@@ -183,7 +183,7 @@ local function paintCanvasPixelAt(app, win, canvas, px, py, pickOnly)
   canvas:edit(px, py, color)
   if WindowCaps.isSketchCanvas(win) then
     local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
-    SketchCanvasPackController.invalidateReflectDisplay(win)
+    -- Keep tile-mode packed preview frozen until Generate; only flag the toolbar.
     SketchCanvasPackController.markGenerateDirty(win)
     if win.specializedToolbar and win.specializedToolbar.updateIcons then
       win.specializedToolbar:updateIcons()
@@ -1086,7 +1086,6 @@ local function floodFillCanvas(app, win, canvas, px, py, targetColor, fillColor)
 
   if painted > 0 and WindowCaps.isSketchCanvas(win) then
     local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
-    SketchCanvasPackController.invalidateReflectDisplay(win)
     SketchCanvasPackController.markGenerateDirty(win)
     if win.specializedToolbar and win.specializedToolbar.updateIcons then
       win.specializedToolbar:updateIcons()

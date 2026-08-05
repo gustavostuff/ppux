@@ -110,9 +110,6 @@ local function markSketchDirty(win)
   if SketchCanvasPackController.markGenerateDirty then
     SketchCanvasPackController.markGenerateDirty(win)
   end
-  if SketchCanvasPackController.invalidateReflectDisplay then
-    SketchCanvasPackController.invalidateReflectDisplay(win)
-  end
 end
 
 local function normalizeRect(x0, y0, x1, y1)

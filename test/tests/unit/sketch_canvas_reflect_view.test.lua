@@ -157,22 +157,27 @@ describe("sketch canvas - tile-mode mirror view", function()
     toolbar:updateIcons()
   end)
 
-  it("does not use stale pack samples when Generate is dirty (avoids selection-move holes)", function()
+  it("keeps packed tile-mode view when Generate is dirty (paint edits wait for Generate)", function()
     local wm = WM.new()
     local sketch = wm:createSketchCanvasWindow()
     local paint = sketch.layers[1].canvas
     paintTile(paint, 0, 0, 3)
-    paintTile(paint, 2, 2, 3)
     assert(SketchCanvasPackController.generate(sketch))
 
-    -- Clear the sample cell that the pack points at for the solid tile.
-    paintTile(paint, 0, 0, 0)
-    SketchCanvasPackController.markGenerateDirty(sketch)
-    SketchCanvasPackController.invalidateReflectDisplay(sketch)
+    local before = SketchCanvasPackController.getReflectDisplayCanvas(sketch)
+    expect(before).toBeTruthy()
+    expect(before:getPixel(0, 0)).toBe(3)
 
-    expect(SketchCanvasPackController.getReflectDisplayCanvas(sketch)).toBeNil()
+    -- Paint without invalidating reflect (same as brush path now).
+    paintTile(paint, 0, 0, 1)
+    SketchCanvasPackController.markGenerateDirty(sketch)
+
+    expect(SketchCanvasPackController.isGenerateDirty(sketch)).toBe(true)
+    local after = SketchCanvasPackController.getReflectDisplayCanvas(sketch)
+    expect(after).toBeTruthy()
+    expect(after:getPixel(0, 0)).toBe(3)
     withMode("tile", function()
-      expect(WindowCaps.isSketchReflectNametable(sketch)).toBe(false)
+      expect(WindowCaps.isSketchReflectNametable(sketch)).toBe(true)
     end)
   end)
 
@@ -202,7 +207,7 @@ describe("sketch canvas - tile-mode mirror view", function()
     expect(SketchCanvasPackController.markGenerateDirtyIfPackDisagreesWithPaint(sketch)).toBe(true)
     expect(SketchCanvasPackController.isGenerateDirty(sketch)).toBe(true)
     withMode("tile", function()
-      expect(WindowCaps.isSketchReflectNametable(sketch)).toBe(false)
+      expect(WindowCaps.isSketchReflectNametable(sketch)).toBe(true)
     end)
   end)
 

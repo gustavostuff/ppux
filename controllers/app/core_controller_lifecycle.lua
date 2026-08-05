@@ -41,7 +41,10 @@ function AppCoreController:_buildCtx()
         for _, win in ipairs(windows) do
           if WindowCaps.isSketchCanvas(win) and not win._closed then
             PixelSel.clearSelection(win, { app = selfRef, stamp = true })
-            SketchCanvasPackController.invalidateReflectDisplay(win)
+            -- Dirty packs keep the frozen last-Generate preview until Generate runs.
+            if not SketchCanvasPackController.isGenerateDirty(win) then
+              SketchCanvasPackController.invalidateReflectDisplay(win)
+            end
           end
         end
       end

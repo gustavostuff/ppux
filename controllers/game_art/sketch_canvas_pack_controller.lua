@@ -601,6 +601,10 @@ end
 function M.markGenerateDirty(win)
   if WindowCaps.isSketchCanvas(win) then
     win._generateDirty = true
+    -- Freeze the last packed compose; paint edits stay Edit-mode only until Generate.
+    if win._reflectDisplayCanvas then
+      win._reflectDisplayDirty = false
+    end
   end
 end
 
@@ -615,7 +619,7 @@ function M.isGenerateDirty(win)
 end
 
 --- If paint at any nametable cell disagrees with the pack sample for that cell,
---- mark Generate dirty so tile mode shows paint instead of punching stale holes.
+--- mark Generate dirty so the toolbar prompts a re-pack.
 --- Skips solidShade entries (intentional NES collapse vs freehand detail).
 function M.markGenerateDirtyIfPackDisagreesWithPaint(win)
   if not M.hasPackData(win) then
@@ -640,7 +644,6 @@ function M.markGenerateDirtyIfPackDisagreesWithPaint(win)
         local actual = paint:extractTilePixels(col * M.CELL, row * M.CELL, M.CELL)
         if expected and actual and pixelDiffCount(actual, expected, 0) > 0 then
           M.markGenerateDirty(win)
-          M.invalidateReflectDisplay(win)
           return true
         end
       end
@@ -668,15 +671,13 @@ end
 
 --- Build/update a display-only canvas composed from nametableBytes + pool samples of the paint buffer.
 --- Does not mutate the paint PixelCanvas.
+--- When Generate is dirty, samples may lag paint; tile mode still shows this last-pack compose
+--- until Generate is applied again.
 function M.getReflectDisplayCanvas(sketchWin)
   if not WindowCaps.isSketchCanvas(sketchWin) then
     return nil
   end
   if not M.hasPackData(sketchWin) then
-    return nil
-  end
-  -- Paint moved since last Generate: pool {x,y} samples are stale (shared tiles → holes).
-  if M.isGenerateDirty(sketchWin) then
     return nil
   end
   local paint = resolveCanvas(sketchWin)
@@ -1228,6 +1229,8 @@ function M.generate(win)
   end
   M.applyPackToWindow(win, pack)
   M.clearGenerateDirty(win)
+  -- Snapshot packed preview now so later paint does not refresh tile-mode compose.
+  M.getReflectDisplayCanvas(win)
   return true, pack
 end
 
