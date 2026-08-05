@@ -384,7 +384,7 @@ From the sketch toolbar (after Generate):
 * **Export CHR** -> 4KB bank (256 tiles).
 * **Export nametable** -> 1024 bytes (960 tile indices + 64 attribute bytes).
 
-Files land next to the open project or ROM folder.
+The binary files land next to the open project or ROM folder.
 
 ### Gallery ROM
 
@@ -400,9 +400,11 @@ Each slide includes the linked sketch palette (or a default brown ramp) and the 
 
 `ppu_frame` windows are structured screen views: a **tile** layer backed by compressed nametable data in ROM, plus an optional **sprite** overlay that tracks real OAM bytes. Link **Pattern table** windows from the toolbar so the tile layer, sprite layer, or both can resolve CHR through shared **`patternTable.ranges`**. The same **Pattern table** window can be linked from multiple PPU frames or OAM animation windows.
 
-Use **New Window > PPU Frame** and the in-app toolbars / context menus to edit nametables and sprites; saving the project persists layer state and nametable diffs.
+Use **New Window > PPU Frame** and the toolbar actions or right-click menus to edit nametables and sprites. Saving the project persists layer state and nametable diffs.
 
 When a compressed nametable may grow past its original ROM range, set **`relocateTo`** on the nametable layer so PPUX writes the stream to a new file offset, and patch the game's read pointer with `romPatches`. The app toolbar **Relocation pointer calculator** converts a `relocateTo` file offset into the little-endian `lo`/`hi` bytes for that patch. That said, you need to manually find the ROM location of the original table pointers, so you can patch them to the new values.
+
+In other words, if there is empty/wasted space in the ROM, and this space can contain nametable data, maybe even with space to spare, then you might want to move the byte stream there and make the game logic read the data from there instead (the table pointer change). This is why `relocateTo` exists. That said, it's an advanced topic that might be better explained via a video tutorial.
 
 ### Byte budget for PPU Frame windows
 
@@ -420,62 +422,23 @@ Contra (J) example, where the byte "buffer" has plenty of space:
 
 PPUX warns when the compressed stream goes over budget and clears the warning if it returns to a valid size.
 
-### PPU frame editing notes
-
-* **Empty nametable cells** use nametable byte **0** by default, which resolves to pattern-table **tile 0** through the **linked Pattern table** window's **`patternTable.ranges`** (each range contributes bank, page, and tile index span).
-* Tile layers render from a **cached full-canvas** nametable view for performance; after heavy edits, use the normal refresh paths the UI offers if a screen looks stale.
-* For **sprites**, use **Add sprite** on the toolbar to bind OAM entries. Sprite items that share the same `startAddr` **stay in sync** with **OAM Animation** windows (and other PPU Frame sprite layers) so moving or reconfiguring one updates the linked entries.
-* **Nametable range sync:** PPU Frame windows that share the same `nametableStartAddr` and `nametableEndAddr` keep their uncompressed nametable + attribute bytes (and ROM slice) aligned when you edit the tile layer in any one of them - similar to sprite `startAddr` sync.
-* **Sprite layer origin**: hold **Shift** and **drag with the right mouse button** on the frame to slide `originX` / `originY` (values clamp to the PPU range). Use the **origin guides** toggle on the toolbar for dotted reference lines. When you are not dragging, **right-click** behaves like elsewhere (in **edit mode** over paintable pixels, click-to-sample picks a color; **Alt + right-click** opens the menu - see [Edit mode](#edit-mode)).
-* **Pattern table ranges** live on the linked **Pattern table** window (drag tiles from **CHR Banks** / **ROM Banks** onto the pattern table canvas; see [Pattern table toolbar](#pattern-table-toolbar)). After editing ranges there, the PPU frame picks up the shared map through its link.
-
-**Project file sketch** (what the UI ultimately saves) - useful when diffing projects or contributing DB entries:
-
-```lua
-{
-  kind = "ppu_frame",
-  id = "ppu_01",
-  layers = {
-    [1] = {
-      kind = "tile",
-      linkedPatternTableWindowId = "pattern_table_01",
-      -- legacy: `patternTable = { ranges = {...} }` inlined on the layer
-      nametableEndAddr = 0x01329B,
-      nametableStartAddr = 0x013110,
-      paletteData = { winId = "rom_palette_01" }
-    },  
-    [2] = {
-      kind = "sprite",
-      linkedPatternTableWindowId = "pattern_table_02",
-      mode = "8x16",
-      items = {
-        { startAddr = 0x009F2B },  -- optional legacy: bank, tile
-        ...
-      }
-    },
-  }
-}
-```
-
-In tile layers, `nametableStartAddr` and `nametableEndAddr` define the ROM byte range used for the nametable data handled by that window (it's the same bytes read by an emulator when loading a specific nametable). The app reads from that range when loading the screen data, and writes back into the same range when saving changes. CHR **bank/page** indexing for nametable tiles comes from the linked **`pattern_table`** window (**`linkedPatternTableWindowId`**, its **`patternTable.ranges`**); inlined **`patternTable`** on the tile layer remains for legacy saves.
-
-For sprite layers, `startAddr` is the most important field because it links the item to the 4 OAM bytes in ROM. The app uses byte 1 for Y position, byte 3 for attributes/palette/mirroring, and byte 4 for X position directly through the app UI. Byte 2 is the tile byte in ROM; the editor resolves visible CHR using the layer's **`linkedPatternTableWindowId`** (same idea as OAM). Optional **`bank` and `tile`** on each sprite item can still appear in saved projects for legacy or display resolution.
+Note: some games might fall into both cases: they might have nametable data that has space to grow, and also nametable data that is tightly packed.
 
 ### Current nametable codec coverage
 
-PPUX currently includes nametable codec implementations for Konami-style streams (`konami.lua`) and Zelda II PPU macro streams (`zelda2.lua`). There is also an early **Zelda II: The Adventure of Link (USA)** DB layout. New codecs and DB entries for different games/styles will be added as the app development progresses.
+PPUX currently includes nametable codec implementations for Konami-style streams (`konami.lua`) and Zelda II PPU macro streams (`zelda2.lua`). New codecs and DB entries for different games/styles will be added as the app development progresses.
 
 ### OAM animation windows
 
-`oam_animation` windows are ROM-backed sprite animations: **each layer is one hardware frame** of sprites tied to real OAM bytes. Like PPU frames, they **require** a linked **Pattern table** window for sprite CHR; multiple animation or PPU windows can share the same pattern table.
+`oam_animation` windows are ROM-backed sprite animations: **each layer is one hardware frame** of sprites tied to real OAM bytes. Like PPU frames, they **require** a linked **Pattern table** window for sprite CHR. Multiple animation or PPU windows can share the same pattern table.
 
-**Creating and editing from the UI**
+**Creating/editing from the UI**
 
 1. Open **New Window** and choose **OAM Animation**.
-2. Link a **Pattern table** window from the toolbar (**required** for sprite CHR), then use **Add sprite** and the frame/layer controls to build each frame. **OAM start address** is set in the add-sprite modal; CHR comes from the linked pattern table (no per-sprite bank/tile fields in the modal).
-3. Frames can be **played** from the toolbar like other animation windows; layer **switching** (`Shift+Up/Down`, toolbar prev/next) is blocked during playback.
+2. Link a **Pattern table** window from the toolbar, then use **Add sprite** and the frame/layer controls to build each frame. **OAM start address** is set in the add-sprite modal, CHR comes from the linked pattern table.
+3. Frames can be **played** from the toolbar like other animation windows.
 4. Items that share a `startAddr` **sync** with **PPU Frame** sprite layers (and other OAM windows) so OAM edits stay consistent everywhere that references the same bytes.
-5. **Origin** and **origin guides** behave like PPU Frame sprite layers: **Shift + right-click drag** moves `originX` / `originY`; the dotted-line button toggles guides.
+5. **Origin** and **origin guides** behave like PPU Frame sprite layers: **Shift + right-click drag** moves `originX` / `originY` and the dotted-line button toggles guides.
 
 **Project file sketch:**
 
@@ -502,9 +465,9 @@ Important fields are frame timing (`delaysPerLayer`), sprite frames (`layers`), 
 
 ### ROM palette windows
 
-`rom_palette` windows are `4x4` palette editors. **ROM**-role windows are backed by ROM addresses. **Sketch**-role windows hold free colors for [Sketch canvas](#sketch-canvas-windows) work (no addresses; creatable without a loaded ROM).
+`rom_palette` windows are `4x4` palette editors. **ROM**-role windows are backed by ROM addresses. **Sketch**-role windows hold free colors for [Sketch canvas](#sketch-canvas-windows).
 
-Use the **connect button** on the ROM palette toolbar to right-drag links onto layers, and **left-click** it for source-side management (**Jump to linked layer**, **Remove all links**). Turns **green** when linked. Toggle **compact mode** from the same toolbar when you want a denser view. Destination windows still use their own connect handle plus the contextual **Link To Palette** / **Remove ROM palette link** entries documented in [Palette windows](#palette-windows).
+Use the **connect button** on the ROM palette toolbar to right-drag links onto layers, and **left-click** it for source-side management (**Jump to linked layer**, **Remove all links**). Toggle **compact mode** from the same toolbar when you want a denser view. Destination windows still use their own connect handle plus the contextual **Link To Palette** / **Remove ROM palette link** entries documented in [Palette windows](#palette-windows).
 
 Example (ROM-role addresses):
 

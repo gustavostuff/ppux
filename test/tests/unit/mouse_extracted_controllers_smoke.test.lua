@@ -301,6 +301,7 @@ describe("mouse extracted controllers (smoke)", function()
       _id = "rom_palette",
       isPalette = true,
       kind = "rom_palette",
+      paletteRole = "rom",
       cols = 4,
       rows = 4,
       toGridCoords = function() return true, 0, 0 end,
@@ -348,6 +349,63 @@ describe("mouse extracted controllers (smoke)", function()
     expect(modalCalls[1].win).toBe(win)
     expect(modalCalls[1].col).toBe(0)
     expect(modalCalls[1].row).toBe(0)
+  end)
+
+  it("mouse_click_controller does not open ROM address modal on double click of a sketch palette cell", function()
+    local modalCalls = {}
+    local selected = nil
+    local win = {
+      _id = "sketch_palette",
+      isPalette = true,
+      kind = "rom_palette",
+      paletteRole = "sketch",
+      cols = 4,
+      rows = 4,
+      toGridCoords = function() return true, 1, 2 end,
+      isCellEditable = function() return true end,
+      setSelected = function(_, col, row)
+        selected = { col = col, row = row }
+      end,
+    }
+    local wm = {
+      getFocus = function() return nil end,
+      setFocus = function() end,
+      windowAt = function() return win end,
+    }
+    local env = {
+      nowSeconds = (function()
+        local times = { 1.0, 1.2 }
+        local idx = 0
+        return function()
+          idx = idx + 1
+          return times[idx] or 2.0
+        end
+      end)(),
+      ctx = {
+        app = {
+          showRomPaletteAddressModal = function(_, modalWin, col, row)
+            modalCalls[#modalCalls + 1] = { win = modalWin, col = col, row = row }
+          end,
+          currentColor = nil,
+        },
+        wm = function() return wm end,
+        setStatus = function() end,
+      },
+      chrome = {
+        handleToolbarClicks = function() return false end,
+        handleResizeHandle = function() return false end,
+        handleHeaderClick = function() return false end,
+      },
+    }
+
+    expect(MouseClickController.handleMousePressed(env, 10, 10, 1)).toBe(true)
+    expect(#modalCalls).toBe(0)
+    expect(selected).toEqual({ col = 1, row = 2 })
+
+    selected = nil
+    expect(MouseClickController.handleMousePressed(env, 10, 10, 1)).toBe(true)
+    expect(#modalCalls).toBe(0)
+    expect(selected).toEqual({ col = 1, row = 2 })
   end)
 
   it("mouse_click_controller starts drag on right-click over a PPU tile item while preparing context menu", function()

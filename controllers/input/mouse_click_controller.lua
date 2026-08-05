@@ -815,25 +815,30 @@ local function handlePaletteClick(env, button, x, y, win, wm)
     end
 
     if WindowCaps.isRomPaletteWindow(win) then
-      local at = nowSeconds(env)
-      local sameCell = romPaletteCellDoubleClick.win == win
-        and romPaletteCellDoubleClick.col == col
-        and romPaletteCellDoubleClick.row == row
-      local isDoubleClick = sameCell and ((at - (romPaletteCellDoubleClick.at or -math.huge)) <= ROM_PALETTE_DOUBLE_CLICK_SECONDS)
-      if isDoubleClick then
-        clearRomPaletteCellClick()
-        local app = ctx and ctx.app or nil
-        if app and app.showRomPaletteAddressModal then
-          app:showRomPaletteAddressModal(win, col, row)
-        else
-          StatusHelpers.setStatus(ctx, "ROM address entry is unavailable")
+      -- Sketch-role palettes are free colors (no ROM addresses); skip address double-click.
+      if not WindowCaps.isSketchModePalette(win) then
+        local at = nowSeconds(env)
+        local sameCell = romPaletteCellDoubleClick.win == win
+          and romPaletteCellDoubleClick.col == col
+          and romPaletteCellDoubleClick.row == row
+        local isDoubleClick = sameCell and ((at - (romPaletteCellDoubleClick.at or -math.huge)) <= ROM_PALETTE_DOUBLE_CLICK_SECONDS)
+        if isDoubleClick then
+          clearRomPaletteCellClick()
+          local app = ctx and ctx.app or nil
+          if app and app.showRomPaletteAddressModal then
+            app:showRomPaletteAddressModal(win, col, row)
+          else
+            StatusHelpers.setStatus(ctx, "ROM address entry is unavailable")
+          end
+          return true
         end
-        return true
-      end
-      rememberRomPaletteCellClick(win, col, row, at)
+        rememberRomPaletteCellClick(win, col, row, at)
 
-      if win.isCellEditable and not win:isCellEditable(col, row) then
-        return true
+        if win.isCellEditable and not win:isCellEditable(col, row) then
+          return true
+        end
+      else
+        clearRomPaletteCellClick()
       end
     end
 
