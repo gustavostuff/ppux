@@ -57,6 +57,11 @@ describe("nametable_unscramble_controller.lua - undo support", function()
       kind = "tile",
       bank = 1,
       page = 1,
+      patternTable = {
+        ranges = {
+          { bank = 1, from = 0, to = 255 },
+        },
+      },
     }
 
     local win = {

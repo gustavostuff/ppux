@@ -307,11 +307,11 @@ You can drag and drop a PNG directly into PPUX. The drop is always applied to th
 
 PPU Frame windows (nametable unscramble):
 
-* When the drop is **not** handled as sprite import, dropping on a **`ppu_frame`** window **under the mouse** runs the **nametable unscramble** flow for that screen: it matches the PNG against the current patterns in CHR/ROM and tries to build the nametable layout automatically. This is a powerful/time-saving piece of functionality but it's hard to explain exactly how it works, video tutorials will probably be more useful (video tutorials are a To-Do).
+* When the drop is **not** handled as sprite import, dropping on a **`ppu_frame`** window **under the mouse** runs the **nametable unscramble** flow for that screen: it matches the PNG against tiles from the linked **Pattern table** (window items / ranges) and tries to build the nametable layout automatically. This is a powerful/time-saving piece of functionality but it's hard to explain exactly how it works, video tutorials will probably be more useful (video tutorials are a To-Do).
 
 Notes:
 
-* The unscramble functionality needs an update and might not be working properly. Right now it matches the PNG patterns against the CHR/ROM banks window, but it should do it against the linked pattern table window.
+* Unscramble needs a linked Pattern table with usable ranges or populated items. Without that link, the drop reports an error instead of falling back to raw CHR/ROM bank order.
 * On CHR and ROM bank windows, dropping a PNG imports the image into the selected tile position, or the top-left if nothing is selected.
 * PNG drops aren't currently supported for regular Tiles windows (static or animated).
 

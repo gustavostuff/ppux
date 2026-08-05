@@ -101,6 +101,11 @@ describe("nametable_unscramble_controller.lua - spacing layout shifts", function
       bank = 1,
       page = 1,
       codec = "zelda2",
+      patternTable = {
+        ranges = {
+          { bank = 1, from = 0, to = 255 },
+        },
+      },
     }
 
     local original = {
@@ -170,6 +175,11 @@ describe("nametable_unscramble_controller.lua - spacing layout shifts", function
       bank = 1,
       page = 1,
       codec = "zelda2",
+      patternTable = {
+        ranges = {
+          { bank = 1, from = 0, to = 255 },
+        },
+      },
     }
 
     local original = {

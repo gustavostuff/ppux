@@ -6,6 +6,9 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local PngPaletteMappingController = require("controllers.png.palette_mapping_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 local PatternTableMapping = require("utils.pattern_table_mapping")
+local PpuRange = require("controllers.app.ppu_frame_range_helpers")
+local BankViewController = require("controllers.chr.bank_view_controller")
+local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
 
 local M = {}
 
@@ -127,31 +130,172 @@ local function isPngTileTransparent(imageData, tileCol, tileRow)
   return true
 end
 
-local function resolveTile(tilesPool, layer, byteVal)
-  if not layer then
+local function findLinkedPatternTableWindow(layer, app)
+  local id = layer and layer.linkedPatternTableWindowId
+  if type(id) ~= "string" or id == "" then
     return nil
   end
-  return PatternTableMapping.resolveTile(
-    tilesPool,
-    layer,
-    byteVal
-  )
+  local wm = app and app.wm
+  if not (wm and wm.getWindows) then
+    return nil
+  end
+  for _, w in ipairs(wm:getWindows()) do
+    if w and w._id == id then
+      return w
+    end
+  end
+  return nil
 end
 
-local function originalTileMatchesPng(originalByte, pngPattern, tilesPool, layer)
+--- Sync linked pattern-table ranges onto the nametable layer, then build the logical map.
+--- Returns map, errMessage (errMessage is set when no usable pattern table is available).
+local function resolveUnscramblePatternMap(layer, app)
+  if not layer then
+    return nil, "No tile layer found"
+  end
+
+  if app and app.wm and PatternTableDisplayController.resolveLinkedPatternTableLayers then
+    PatternTableDisplayController.resolveLinkedPatternTableLayers(app.wm)
+  end
+
+  local patternTable = layer.patternTable
+  if type(patternTable) ~= "table" or type(patternTable.ranges) ~= "table" or #patternTable.ranges == 0 then
+    if type(layer.linkedPatternTableWindowId) == "string" and layer.linkedPatternTableWindowId ~= "" then
+      return nil, "Linked Pattern table has no usable ranges"
+    end
+    return nil, "Link a Pattern table window (or set patternTable.ranges) before unscrambling"
+  end
+
+  local map, mapErr = PpuRange.buildPatternTableMapAllowPartial(patternTable)
+  if not map then
+    return nil, mapErr or "Invalid pattern table mapping"
+  end
+
+  local count = 0
+  for _ in pairs(map) do
+    count = count + 1
+  end
+  if count == 0 then
+    return nil, "Pattern table mapping is empty"
+  end
+
+  return map, nil
+end
+
+local function ensureMappedBanks(map, app)
+  local state = app and app.appEditState
+  if not (state and map and type(state.chrBanksBytes) == "table") then
+    return
+  end
+  local seen = {}
+  for _, entry in pairs(map) do
+    local bank = entry and tonumber(entry.bank)
+    if bank and not seen[bank] and state.chrBanksBytes[bank] then
+      seen[bank] = true
+      BankViewController.ensureBankTiles(state, bank)
+    end
+  end
+end
+
+local function resolveTile(tilesPool, map, byteVal)
+  if not (tilesPool and map and type(byteVal) == "number") then
+    return nil
+  end
+  local entry = map[byteVal]
+  if not entry then
+    return nil
+  end
+  local bankTiles = tilesPool[entry.bank]
+  return bankTiles and bankTiles[entry.tileIndex] or nil
+end
+
+local function addCatalogEntry(catalog, byteVal, tileRef)
+  if not (tileRef and tileRef.pixels and type(byteVal) == "number") then
+    return
+  end
+  local patternKey = table.concat(tileRef.pixels, ",")
+  if not catalog[patternKey] then
+    catalog[patternKey] = {
+      byte = byteVal,
+      bytes = { byteVal },
+      col = nil,
+      row = nil,
+      tile = tileRef,
+      pattern = tileRef.pixels,
+    }
+    return
+  end
+  local entry = catalog[patternKey]
+  local seen = false
+  for _, existingByte in ipairs(entry.bytes or {}) do
+    if existingByte == byteVal then
+      seen = true
+      break
+    end
+  end
+  if not seen then
+    entry.bytes = entry.bytes or {}
+    entry.bytes[#entry.bytes + 1] = byteVal
+  end
+end
+
+local function buildCatalogFromPatternTableItems(ptWin, tilesPool)
+  if not (ptWin and tilesPool) then
+    return nil
+  end
+  local layer = ptWin.layers and ptWin.layers[1]
+  local items = layer and layer.items
+  if type(items) ~= "table" then
+    return nil
+  end
+
+  local hasItem = false
+  for _, tileRef in pairs(items) do
+    if tileRef and tileRef.pixels then
+      hasItem = true
+      break
+    end
+  end
+  if not hasItem then
+    return nil
+  end
+
+  local catalog = {}
+  local cols = math.max(1, math.floor(tonumber(ptWin.cols) or 16))
+  local rows = math.max(1, math.floor(tonumber(ptWin.rows) or 16))
+  local layoutMode = (layer and layer.mode) or "8x8"
+  local maxPos = math.min(255, rows * cols - 1)
+
+  for pos = 0, maxPos do
+    local logicalIndex = BankViewController.chrOrderingIndexForGridPos(layoutMode, pos)
+    local tileRef = items[pos + 1]
+    addCatalogEntry(catalog, logicalIndex, tileRef)
+  end
+
+  local size = 0
+  for _ in pairs(catalog) do
+    size = size + 1
+  end
+  if size == 0 then
+    return nil
+  end
+  return catalog
+end
+
+local function originalTileMatchesPng(originalByte, pngPattern, tilesPool, map)
   if type(originalByte) ~= "number" then
     return false
   end
-  local tileRef = resolveTile(tilesPool, layer, originalByte)
+  local tileRef = resolveTile(tilesPool, map, originalByte)
   if not (tileRef and tileRef.pixels) then
     return false
   end
   return comparePatterns(pngPattern, tileRef.pixels, 0) == 0
 end
 
-local function pickCatalogByte(catalogEntry, originalByte, pngPattern, tilesPool, layer)
+local function pickCatalogByte(catalogEntry, originalByte, pngPattern, tilesPool, map)
   if catalogEntry and type(originalByte) == "number" and patternEntryHasByte(catalogEntry, originalByte) then
-    local tileRef = resolveTile(tilesPool, layer, originalByte)
+    local tileRef = resolveTile(tilesPool, map, originalByte)
     if tileRef and tileRef.pixels and comparePatterns(pngPattern, tileRef.pixels, 0) == 0 then
       return originalByte
     end
@@ -159,11 +303,11 @@ local function pickCatalogByte(catalogEntry, originalByte, pngPattern, tilesPool
   return catalogEntry and catalogEntry.byte or nil
 end
 
-local function preferOriginalAmongCandidates(candidates, originalByte, pngPattern, tilesPool, layer)
+local function preferOriginalAmongCandidates(candidates, originalByte, pngPattern, tilesPool, map)
   if type(originalByte) ~= "number" then
     return candidates[1]
   end
-  local tileRef = resolveTile(tilesPool, layer, originalByte)
+  local tileRef = resolveTile(tilesPool, map, originalByte)
   if not (tileRef and tileRef.pixels) then
     return candidates[1]
   end
@@ -178,7 +322,7 @@ local function preferOriginalAmongCandidates(candidates, originalByte, pngPatter
   return candidates[1]
 end
 
-local function findBestCatalogMatch(tileCatalog, pngPattern, threshold, originalByte, tilesPool, layer)
+local function findBestCatalogMatch(tileCatalog, pngPattern, threshold, originalByte, tilesPool, map)
   threshold = threshold or 0
   local bestMatch = nil
   local bestDiff = 999
@@ -199,14 +343,14 @@ local function findBestCatalogMatch(tileCatalog, pngPattern, threshold, original
   if #candidates > 0 then
     bestMatch = candidates[1]
     if #candidates > 1 then
-      bestMatch = preferOriginalAmongCandidates(candidates, originalByte, pngPattern, tilesPool, layer)
+      bestMatch = preferOriginalAmongCandidates(candidates, originalByte, pngPattern, tilesPool, map)
     end
   end
 
   return bestMatch, bestDiff
 end
 
-local function findNearestCatalogMatch(tileCatalog, pngPattern, originalByte, tilesPool, layer)
+local function findNearestCatalogMatch(tileCatalog, pngPattern, originalByte, tilesPool, map)
   local bestMatch = nil
   local bestDiff = 999
 
@@ -227,91 +371,73 @@ local function findNearestCatalogMatch(tileCatalog, pngPattern, originalByte, ti
       end
     end
     if #tied > 1 then
-      bestMatch = preferOriginalAmongCandidates(tied, originalByte, pngPattern, tilesPool, layer)
+      bestMatch = preferOriginalAmongCandidates(tied, originalByte, pngPattern, tilesPool, map)
     end
   end
 
   return bestMatch, bestDiff
 end
 
--- Build a catalog of all unique tile patterns in the current layer.
--- Includes all 256 logical bytes resolved through patternTable mapping.
--- Returns: map of pattern -> {byte, col, row, tile}
-local function buildTileCatalog(win, layer, tilesPool)
+-- Build a catalog of unique tile patterns from the linked Pattern table (preferred)
+-- or from the layer's patternTable.ranges map. Never falls back to a raw CHR bank.
+-- Returns: catalog, map, errMessage
+local function buildTileCatalog(win, layer, tilesPool, app)
   local catalog = {}
   local cols = win.cols
   local rows = win.rows
-  
+
   if not tilesPool then
-    DebugController.log("warning", "UNSCR", "No tilesPool available for catalog building")
-    return catalog
+    return catalog, nil, "No tiles pool available for catalog building"
   end
-  
-  -- Include ALL 256 logical tiles from the layer's pattern table mapping.
-  -- This ensures we have access to all available tiles, not just those in the nametable
-  for byteVal = 0, 255 do
-    local tileRef = resolveTile(tilesPool, layer, byteVal)
-    
-    if tileRef and tileRef.pixels then
-      local patternKey = table.concat(tileRef.pixels, ",")
-      
-      -- If this pattern already exists, keep the first byte value we found
-      -- (same pattern might exist at different byte positions, prefer lower byte)
-      if not catalog[patternKey] then
-        catalog[patternKey] = {
-          byte = byteVal,
-          bytes = { byteVal },
-          col = nil,  -- Not from a specific position
-          row = nil,
-          tile = tileRef,
-          pattern = tileRef.pixels
-        }
-      else
-        local entry = catalog[patternKey]
-        local seen = false
-        for _, existingByte in ipairs(entry.bytes or {}) do
-          if existingByte == byteVal then
-            seen = true
-            break
-          end
-        end
-        if not seen then
-          entry.bytes = entry.bytes or {}
-          entry.bytes[#entry.bytes + 1] = byteVal
-        end
-      end
+
+  local map, mapErr = resolveUnscramblePatternMap(layer, app)
+  if not map then
+    return catalog, nil, mapErr
+  end
+
+  ensureMappedBanks(map, app)
+
+  local ptWin = findLinkedPatternTableWindow(layer, app)
+  local fromItems = buildCatalogFromPatternTableItems(ptWin, tilesPool)
+  if fromItems then
+    catalog = fromItems
+    DebugController.log(
+      "info",
+      "UNSCR",
+      "Built tile catalog from linked Pattern table window items (%s)",
+      tostring(ptWin.title or ptWin._id or "?")
+    )
+  else
+    for byteVal, entry in pairs(map) do
+      local bankTiles = tilesPool[entry.bank]
+      local tileRef = bankTiles and bankTiles[entry.tileIndex] or nil
+      addCatalogEntry(catalog, byteVal, tileRef)
     end
+    DebugController.log("info", "UNSCR", "Built tile catalog from patternTable.ranges map")
   end
-  
-  -- Also mark which tiles are currently in use in the nametable
-  -- This helps with preferring existing tiles when matching
+
+  -- Mark which catalog patterns appear in the current nametable (prefer those when matching).
   if win.nametableBytes then
     for i = 1, #win.nametableBytes do
       local byteVal = win.nametableBytes[i]
-      local tileRef = resolveTile(tilesPool, layer, byteVal)
-      
+      local tileRef = resolveTile(tilesPool, map, byteVal)
+
       if tileRef and tileRef.pixels then
         local patternKey = table.concat(tileRef.pixels, ",")
         local entry = catalog[patternKey]
-        
-        -- Update entry with position info if it exists
+
         if entry then
           local z = i - 1
           local col = z % cols
           local row = math.floor(z / cols)
           entry.col = col
           entry.row = row
-          -- If multiple bytes have the same pattern, prefer the one in the nametable
-          if entry.byte ~= byteVal then
-            -- Keep the catalog entry but note that this byte also has this pattern
-            -- (we'll prefer entries that match byteVal in matching logic)
-          end
         end
       end
     end
   end
-  
-  return catalog
+
+  return catalog, map, nil
 end
 
 -- Main unscramble function
@@ -375,15 +501,18 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
     DebugController.log("info", "UNSCR", "PNG unique opaque colors (dark->light): %d", uniqueColorCount)
   end
   
-  -- Build catalog of all available tiles in the layer
+  -- Build catalog from the linked Pattern table (or layer patternTable.ranges).
   DebugController.log("info", "UNSCR", "Building tile catalog...")
-  local tileCatalog = buildTileCatalog(win, layer, tilesPool)
+  local tileCatalog, patternMap, catalogErr = buildTileCatalog(win, layer, tilesPool, app)
   local catalogSize = 0
   for _ in pairs(tileCatalog) do catalogSize = catalogSize + 1 end
-  DebugController.log("info", "UNSCR", "Found %d unique tile patterns in CHR bank (max 256 per page)", catalogSize)
-  
+  DebugController.log("info", "UNSCR", "Found %d unique tile patterns in pattern table catalog", catalogSize)
+
+  if not patternMap then
+    return false, catalogErr or "No pattern table available for unscramble"
+  end
   if catalogSize == 0 then
-    return false, "No tiles found in CHR bank"
+    return false, catalogErr or "No tiles found in linked Pattern table"
   end
   
   -- Count unique patterns in PNG
@@ -442,7 +571,7 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
 
       local exactEntry = tileCatalog[pngPatternKey]
       if exactEntry then
-        newNametableBytes[idx] = pickCatalogByte(exactEntry, originalByte, pngPattern, tilesPool, layer)
+        newNametableBytes[idx] = pickCatalogByte(exactEntry, originalByte, pngPattern, tilesPool, patternMap)
         matchedCount = matchedCount + 1
         perfectMatches = perfectMatches + 1
         if exactEntry.bytes and #exactEntry.bytes > 1 then
@@ -451,18 +580,18 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
         goto continue_match
       end
 
-      local origMatchesPng = originalTileMatchesPng(originalByte, pngPattern, tilesPool, layer)
+      local origMatchesPng = originalTileMatchesPng(originalByte, pngPattern, tilesPool, patternMap)
 
-      local bestMatch, bestDiff = findBestCatalogMatch(tileCatalog, pngPattern, threshold, originalByte, tilesPool, layer)
+      local bestMatch, bestDiff = findBestCatalogMatch(tileCatalog, pngPattern, threshold, originalByte, tilesPool, patternMap)
       if not bestMatch then
-        bestMatch, bestDiff = findNearestCatalogMatch(tileCatalog, pngPattern, originalByte, tilesPool, layer)
+        bestMatch, bestDiff = findNearestCatalogMatch(tileCatalog, pngPattern, originalByte, tilesPool, patternMap)
         if bestMatch and bestDiff > 16 and origMatchesPng then
           bestMatch = nil
         end
       end
 
       if bestMatch then
-        newNametableBytes[idx] = pickCatalogByte(bestMatch, originalByte, pngPattern, tilesPool, layer)
+        newNametableBytes[idx] = pickCatalogByte(bestMatch, originalByte, pngPattern, tilesPool, patternMap)
         matchedCount = matchedCount + 1
         if bestDiff == 0 then
           perfectMatches = perfectMatches + 1
@@ -476,9 +605,9 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
       end
 
       if not origMatchesPng then
-        bestMatch, bestDiff = findNearestCatalogMatch(tileCatalog, pngPattern, originalByte, tilesPool, layer)
+        bestMatch, bestDiff = findNearestCatalogMatch(tileCatalog, pngPattern, originalByte, tilesPool, patternMap)
         if bestMatch then
-          newNametableBytes[idx] = pickCatalogByte(bestMatch, originalByte, pngPattern, tilesPool, layer)
+          newNametableBytes[idx] = pickCatalogByte(bestMatch, originalByte, pngPattern, tilesPool, patternMap)
           matchedCount = matchedCount + 1
           fallbackMatches = fallbackMatches + 1
           if bestMatch.bytes and #bestMatch.bytes > 1 then
@@ -562,7 +691,7 @@ function M.unscrambleFromPNG(win, file, tilesPool, threshold, app)
   
   for i = 1, #win.nametableBytes do
     local byteVal = win.nametableBytes[i]
-    local tileRef = resolveTile(tilesPool, layer, byteVal)
+    local tileRef = resolveTile(tilesPool, patternMap, byteVal)
     
     if tileRef then
       local z = i - 1
