@@ -61,18 +61,20 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 | Pattern table          | <img src="img/readme_images/windows_system_table/icon_pattern_table_window.png" alt="Pattern table taskbar icon">        | Sub-set of CHR/ROM items, intended to mimic the actual pattern tables assembled in game run-time                                                 |
 | Sketch canvas          | <img src="img/readme_images/windows_system_table/sketch_canvas_window.png" alt="Sketch canvas taskbar icon">             | Free 256x240 background paint canvas. It packs into its own **Pattern table**. See [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom)    |
 
-You'll note these little "handles" on windows:
+You'll also notice these little "handles" on windows:
 
 <img src="img/readme_images/window_links.png" alt="App toolbar">
 
-When colored, they indicate the window has a link to another window. In order they indicate:
+When colored, they indicate the window has a link to another one. In order they are:
 
-1. Background/nametable pattern table link.
-2. OAM sprite layer link (PPU Frame and OAM animation windows).
-3. ROM palette link.
-4. You'll see these in a Pattern table, when it's being used for both BG and sprite layers.
+1. Background/nametable pattern table (red)
+2. Sprite-layer pattern table (green)
+3. ROM palette (blue)
+4. You'll see these in a Pattern table, when it's linked both BG and sprite layers.
 
-They can also be clicked, to bring the linked window to the front and focus it.
+Click a colored handle to bring the linked window forward and focus it. Handles aren’t drag targets. To add/change/remove links, use the toolbars _Pattern table link_ and _Palette link_ buttons.
+
+<img src="img/readme_images/pt_and_palette_buttons.png" alt="App toolbar">
 
 ### Toolbars
 
