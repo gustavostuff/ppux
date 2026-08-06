@@ -40,7 +40,7 @@ function SketchCanvasWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
     title = data.title or "Sketch canvas",
     visibleRows = data.visibleRows or rows,
     visibleCols = data.visibleCols or cols,
-    resizable = false,
+    resizable = true,
   })
   setmetatable(self, SketchCanvasWindow)
 
@@ -105,6 +105,10 @@ function SketchCanvasWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
   addCanvasLayer(self, "Sketch", CANVAS_W, CANVAS_H, 0)
   self.activeLayer = 1
 
+  if type(data.scrollCol) == "number" or type(data.scrollRow) == "number" then
+    self:setScroll(data.scrollCol or 0, data.scrollRow or 0)
+  end
+
   return self
 end
 
@@ -122,48 +126,11 @@ function SketchCanvasWindow:getActiveCanvas()
   return layer and layer.canvas or nil
 end
 
-function SketchCanvasWindow:getVisibleSize()
-  local canvas = self:getActiveCanvas()
-  if canvas then
-    return canvas.width, canvas.height
-  end
-  return Window.getVisibleSize(self)
-end
-
-function SketchCanvasWindow:getRealContentSize()
-  local canvas = self:getActiveCanvas()
-  if canvas then
-    return canvas.width, canvas.height
-  end
-  return Window.getRealContentSize(self)
-end
-
-function SketchCanvasWindow:getContentSize()
-  local canvas = self:getActiveCanvas()
-  if canvas then
-    return canvas.width, canvas.height
-  end
-  return Window.getContentSize(self)
-end
-
-function SketchCanvasWindow:toGridCoords(px, py)
-  local ok, cx, cy = self:toContentCoords(px, py)
-  if not ok then return false end
-
-  local canvas = self:getActiveCanvas()
-  if not canvas then
-    return Window.toGridCoords(self, px, py)
-  end
-
-  if cx < 0 or cy < 0 or cx >= canvas.width or cy >= canvas.height then
-    return false
-  end
-
-  local col = math.floor(cx / self.cellW)
-  local row = math.floor(cy / self.cellH)
-  local lx = cx - (col * self.cellW)
-  local ly = cy - (row * self.cellH)
-  return true, col, row, lx, ly
+--- Pixel scroll offsets for the 256x240 paint buffer (cell-aligned like other windows).
+function SketchCanvasWindow:getCanvasScrollPixels()
+  local cw = self.cellW or CELL
+  local ch = self.cellH or CELL
+  return (self.scrollCol or 0) * cw, (self.scrollRow or 0) * ch
 end
 
 local function ntIndex(self, col, row)

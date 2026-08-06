@@ -30,6 +30,20 @@ local SELECTION_RECT_ANIM = {
   intervalSeconds = 0.1,
 }
 
+--- Screen origin for drawing absolute canvas pixels (accounts for window scroll).
+local function overlayScreenOrigin(win)
+  local ox, oy = win:getContentScreenOrigin()
+  local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
+  local scrollX, scrollY = 0, 0
+  if type(win.getCanvasScrollPixels) == "function" then
+    scrollX, scrollY = win:getCanvasScrollPixels()
+  else
+    scrollX = (win.scrollCol or 0) * (win.cellW or 8)
+    scrollY = (win.scrollRow or 0) * (win.cellH or 8)
+  end
+  return ox - scrollX * z, oy - scrollY * z, z
+end
+
 -- Perimeter outline for color paint masks: pulse black↔white on exposed pixel edges.
 -- Checkerboard parity flips every COLOR_MASK_PARITY_INTERVAL for a marching-ants feel.
 -- Black↔white pulse period is independent (COLOR_MASK_PULSE_PERIOD).
@@ -1033,7 +1047,14 @@ function M.screenToCanvasPixel(win, screenX, screenY)
   if not ok then
     return nil
   end
-  return math.floor(cx), math.floor(cy)
+  local scrollX, scrollY = 0, 0
+  if type(win.getCanvasScrollPixels) == "function" then
+    scrollX, scrollY = win:getCanvasScrollPixels()
+  else
+    scrollX = (win.scrollCol or 0) * (win.cellW or 8)
+    scrollY = (win.scrollRow or 0) * (win.cellH or 8)
+  end
+  return math.floor(cx + scrollX), math.floor(cy + scrollY)
 end
 
 local function drawAntsRect(ox, oy, z, cx, cy, cw, ch)
@@ -1184,8 +1205,7 @@ function M.drawOverlay(win, isFocused)
     return
   end
 
-  local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
-  local ox, oy = win:getContentScreenOrigin()
+  local ox, oy, z = overlayScreenOrigin(win)
   local sx, sy, sw, sh = win:getInsetContentScreenRect()
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
 
@@ -1255,8 +1275,7 @@ function M.drawColorPaintMaskOverlay(win)
   local shader = outline and ensureColorMaskPerimeterShader() or nil
   if not (outline and shader) then
     -- Fallback: CPU marching-ants edge rects if Image/Shader unavailable.
-    local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
-    local ox, oy = win:getContentScreenOrigin()
+    local ox, oy, z = overlayScreenOrigin(win)
     local sx, sy, sw, sh = win:getInsetContentScreenRect()
     local pad = inside and 0 or z
     CanvasSpace.setScissorFromContentRect(sx - pad, sy - pad, sw + 2 * pad, sh + 2 * pad)
@@ -1266,9 +1285,8 @@ function M.drawColorPaintMaskOverlay(win)
     return
   end
 
-  local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
+  local ox, oy, z = overlayScreenOrigin(win)
   if z < 1 then z = 1 end
-  local ox, oy = win:getContentScreenOrigin()
   local sx, sy, sw, sh = win:getInsetContentScreenRect()
   -- Outside mode needs one canvas-pixel of pad so border edges remain visible.
   local pad = inside and 0 or z

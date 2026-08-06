@@ -48,6 +48,31 @@ function M.reset()
   clipboard = nil
 end
 
+--- Sketch edit-mode pixel clipboard (canvas layer, not tile-mode reflect).
+local function isSketchPixelClipboardLayer(win, layer)
+  return WindowCaps.isSketchCanvas(win)
+    and layer
+    and layer.kind == "canvas"
+    and not WindowCaps.isSketchReflectNametable(win)
+end
+
+--- Real tile layers, or sketch canvas in tile-mode nametable editing.
+local function isTileClipboardLayer(win, layer)
+  if not layer then
+    return false
+  end
+  if layer.kind == "tile" then
+    return true
+  end
+  return WindowCaps.isNametableTileEditableLayer(win, layer)
+end
+
+local function usesNametableByteClipboard(win)
+  return (WindowCaps.isPpuFrame(win) or WindowCaps.isSketchReflectNametable(win))
+    and type(win.nametableBytes) == "table"
+    and type(win.setNametableByteAt) == "function"
+end
+
 local function shallowCloneTable(src)
   local out = {}
   for k, v in pairs(src or {}) do
@@ -250,7 +275,7 @@ local function materializeClipboardTileItem(data, item, layerIndex)
 end
 
 local function captureTileClipboard(win, layer, layerIndex)
-  if not (win and layer and layer.kind == "tile") then return nil end
+  if not (win and isTileClipboardLayer(win, layer)) then return nil end
 
   local fallbackCol, fallbackRow = nil, nil
   if win.getSelected then
@@ -260,6 +285,7 @@ local function captureTileClipboard(win, layer, layerIndex)
   local maxCol, maxRow = -math.huge, -math.huge
   local entries = {}
   local isChr8x16 = WindowCaps.isChrLike(win) and win.orderMode == "oddEven"
+  local captureNtByte = usesNametableByteClipboard(win)
 
   if isChr8x16 then
     local pairs = MultiSelectController.getSelectedChr8x16Pairs(win, layerIndex, fallbackCol, fallbackRow) or {}
@@ -303,7 +329,7 @@ local function captureTileClipboard(win, layer, layerIndex)
           col = col,
           row = row,
           item = item,
-          byte = (WindowCaps.isPpuFrame(win) and win.nametableBytes and win.nametableBytes[idx]) or nil,
+          byte = (captureNtByte and win.nametableBytes[idx]) or nil,
         }
         minCol = math.min(minCol, col)
         minRow = math.min(minRow, row)
@@ -609,7 +635,7 @@ local function getPasteCompatibilityError(focus, layer, data)
     return "Pasting into CHR/ROM windows is only allowed from the same window"
   end
 
-  if layer.kind == "tile" then
+  if isTileClipboardLayer(focus, layer) then
     if data.kind ~= "tile" and data.kind ~= "sprite" then
       return "Clipboard content does not match active layer type"
     end
@@ -627,7 +653,7 @@ local function getPasteCompatibilityError(focus, layer, data)
     return nil
   end
 
-  if layer.kind == "canvas" and data.kind == "sketch_pixels" and WindowCaps.isSketchCanvas(focus) then
+  if isSketchPixelClipboardLayer(focus, layer) and data.kind == "sketch_pixels" then
     return nil
   end
 
@@ -696,7 +722,7 @@ local function resolveSpriteSelectionAnchor(layer)
 end
 
 local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
-  if not (focus and layer and layer.kind == "tile" and data and data.entries) then
+  if not (focus and layer and isTileClipboardLayer(focus, layer) and data and data.entries) then
     return { count = 0, shifted = false, source = "none" }
   end
 
@@ -796,7 +822,7 @@ local function pasteTileClipboard(ctx, focus, layer, layerIndex, data, opts)
     local row = anchorRow + (entry.offsetRow or 0)
     if col >= 0 and col < cols and row >= 0 and row < rows then
       local applied = false
-      if WindowCaps.isPpuFrame(focus) and focus.setNametableByteAt and entry.byte ~= nil then
+      if usesNametableByteClipboard(focus) and entry.byte ~= nil then
         local idx = (row * cols + col) + 1
         local beforeByte = focus.nametableBytes and focus.nametableBytes[idx] or nil
         focus:setNametableByteAt(col, row, entry.byte, tilesPool, layerIndex)
@@ -1058,12 +1084,9 @@ function M.getActionAvailability(ctx, focus, action, opts)
     return { allowed = false, reason = "No active layer selected", layerIndex = layerIndex, layer = layer, noLayer = true }
   end
 
-  -- Sketch canvas pixel selection (edit mode, same window only).
+  -- Sketch canvas pixel selection (edit mode only; tile mode uses nametable path below).
   local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
-  if WindowCaps.isSketchCanvas(focus)
-    and layer.kind == "canvas"
-    and not WindowCaps.isSketchReflectNametable(focus)
-  then
+  if isSketchPixelClipboardLayer(focus, layer) then
     if action == "paste" then
       if not (clipboard and clipboard.kind == "sketch_pixels") then
         return { allowed = false, reason = "Clipboard is empty", layerIndex = layerIndex, layer = layer }
@@ -1078,7 +1101,7 @@ function M.getActionAvailability(ctx, focus, action, opts)
     end
   end
 
-  if layer.kind ~= "tile" and layer.kind ~= "sprite" then
+  if layer.kind ~= "sprite" and not isTileClipboardLayer(focus, layer) then
     return { allowed = false, reason = "Clipboard is not available for this layer type", layerIndex = layerIndex, layer = layer }
   end
 
@@ -1201,7 +1224,7 @@ local function doCopy(ctx, focus)
 
   local layerIndex = avail.layerIndex
   local layer = avail.layer
-  if avail.sketchPixels or layer.kind == "canvas" then
+  if avail.sketchPixels or isSketchPixelClipboardLayer(focus, layer) then
     local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
     local captured = PixelSel.captureClipboard(focus)
     if captured then
@@ -1212,7 +1235,7 @@ local function doCopy(ctx, focus)
     end
     return true
   end
-  if layer.kind == "tile" then
+  if isTileClipboardLayer(focus, layer) then
     clipboard = captureTileClipboard(focus, layer, layerIndex)
     if clipboard and clipboard.count > 0 then
       local wm = ctx and ctx.app and ctx.app.wm
@@ -1260,7 +1283,7 @@ local function doPaste(ctx, focus, opts)
     source = "none",
     reason = nil,
   }
-  if avail.sketchPixels or (layer.kind == "canvas" and clipboard and clipboard.kind == "sketch_pixels") then
+  if avail.sketchPixels or isSketchPixelClipboardLayer(focus, layer) then
     local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
     local atX = clipboard.originX
     local atY = clipboard.originY
@@ -1285,7 +1308,7 @@ local function doPaste(ctx, focus, opts)
     end
     return true
   end
-  if layer.kind == "tile" then
+  if isTileClipboardLayer(focus, layer) then
     local tileData = clipboard
     if clipboard.kind == "sprite" then
       tileData = buildTileClipboardFromSpriteClipboard(focus, clipboard)
@@ -1346,7 +1369,7 @@ local function doCut(ctx, focus, opts)
 
   local layerIndex = avail.layerIndex
   local layer = avail.layer
-  if avail.sketchPixels or layer.kind == "canvas" then
+  if avail.sketchPixels or isSketchPixelClipboardLayer(focus, layer) then
     local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
     local captured = PixelSel.cutSelection(focus, ctx and ctx.app or nil)
     if captured then
@@ -1360,7 +1383,7 @@ local function doCut(ctx, focus, opts)
     end
     return true
   end
-  if layer.kind == "tile" then
+  if isTileClipboardLayer(focus, layer) then
     local copied = captureTileClipboard(focus, layer, layerIndex)
     if not (copied and copied.count and copied.count > 0) then
       StatusHelpers.setStatus(ctx, "No tiles selected to cut")

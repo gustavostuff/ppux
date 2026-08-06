@@ -639,6 +639,8 @@ function M.createSketchCanvasWindow(w, decodePatternCanvasSnapshot, onPatternCan
       title = w.title,
       visibleRows = w.visibleRows or w.rows,
       visibleCols = w.visibleCols or w.cols,
+      scrollCol = w.scrollCol,
+      scrollRow = w.scrollRow,
       tilesPool = w.tilesPool,
       nametableBytes = w.nametableBytes,
       nametableAttrBytes = w.nametableAttrBytes,

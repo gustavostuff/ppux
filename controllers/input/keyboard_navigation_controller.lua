@@ -71,7 +71,8 @@ function M.handleTileSelectionNavigation(ctx, utils, key, focus)
 
   local li = focus:getActiveLayerIndex()
   local layer = focus.layers and focus.layers[li]
-  if not (layer and layer.kind == "tile") then
+  -- Real tile layers, or sketch canvas in tile-mode nametable editing.
+  if not WindowCaps.isNametableTileEditableLayer(focus, layer) then
     return false
   end
 

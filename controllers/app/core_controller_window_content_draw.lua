@@ -592,6 +592,16 @@ local function drawCanvasLayer(app, w, layerIndex, isFocused)
   love.graphics.translate(ox, oy)
   local z = (w.getZoomLevel and w:getZoomLevel()) or w.zoom or 1
   love.graphics.scale(z, z)
+  local scrollPxX, scrollPxY = 0, 0
+  if type(w.getCanvasScrollPixels) == "function" then
+    scrollPxX, scrollPxY = w:getCanvasScrollPixels()
+  else
+    scrollPxX = (w.scrollCol or 0) * (w.cellW or 8)
+    scrollPxY = (w.scrollRow or 0) * (w.cellH or 8)
+  end
+  if scrollPxX ~= 0 or scrollPxY ~= 0 then
+    love.graphics.translate(-scrollPxX, -scrollPxY)
+  end
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
 
   local romRaw = app.appEditState and app.appEditState.romRaw

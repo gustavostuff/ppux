@@ -1841,6 +1841,8 @@ function WM:createSketchCanvasWindow(opts)
       title = defaults.title,
       visibleCols = opts.visibleCols or defaults.cols,
       visibleRows = opts.visibleRows or defaults.rows,
+      scrollCol = opts.scrollCol,
+      scrollRow = opts.scrollRow,
       tilesPool = opts.tilesPool,
       nametableBytes = opts.nametableBytes,
       nametableAttrBytes = opts.nametableAttrBytes,

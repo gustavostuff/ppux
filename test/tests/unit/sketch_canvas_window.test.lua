@@ -25,6 +25,7 @@ describe("sketch_canvas_window.lua", function()
     local win = wm:createSketchCanvasWindow()
 
     expect(win.kind).toBe("sketch_canvas")
+    expect(win.resizable).toBe(true)
     expect(#win.layers).toBe(1)
     expect(win.layers[1].name).toBe("Sketch")
     expect(win.layers[1].kind).toBe("canvas")
@@ -33,6 +34,40 @@ describe("sketch_canvas_window.lua", function()
     local w1, h1 = win:getContentSize()
     expect(w1).toBe(256)
     expect(h1).toBe(240)
+    local rw, rh = win:getRealContentSize()
+    expect(rw).toBe(256)
+    expect(rh).toBe(240)
+  end)
+
+  it("supports viewport resize and scrolled painting coordinates", function()
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow({ zoom = 1 })
+    expect(win.resizable).toBe(true)
+
+    win.visibleCols = 16
+    win.visibleRows = 15
+    win:setScroll(4, 2)
+
+    local vw, vh = win:getVisibleSize()
+    expect(vw).toBe(128)
+    expect(vh).toBe(120)
+    local scrollX, scrollY = win:getCanvasScrollPixels()
+    expect(scrollX).toBe(32)
+    expect(scrollY).toBe(16)
+
+    -- Content pixel under the top-left of the scrolled viewport is (32, 16).
+    local ox, oy = win:getContentScreenOrigin()
+    local ok, col, row, lx, ly = win:toGridCoords(ox, oy)
+    expect(ok).toBe(true)
+    expect(col).toBe(4)
+    expect(row).toBe(2)
+    expect(math.floor(lx or 0)).toBe(0)
+    expect(math.floor(ly or 0)).toBe(0)
+
+    local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+    local cx, cy = PixelSel.screenToCanvasPixel(win, ox + 3, oy + 5)
+    expect(cx).toBe(32 + 3)
+    expect(cy).toBe(16 + 5)
   end)
 
   it("supports canvas paint and undo redo on the sketch canvas", function()

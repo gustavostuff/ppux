@@ -1976,6 +1976,66 @@ describe("keyboard_input.lua - tile selection arrow navigation", function()
     expect(selectedLayer).toBe(1)
   end)
 
+  it("moves selection on sketch canvas in tile mode (canvas layer)", function()
+    local selectedCol, selectedRow, selectedLayer = 0, 0, 1
+    local layer = { kind = "canvas" }
+    local win = {
+      kind = "sketch_canvas",
+      cols = 4,
+      rows = 4,
+      layers = { layer },
+      tilesPool = { { x = 0, y = 0 } },
+      nametableBytes = {},
+      linkedPatternTableWindowId = "pt1",
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return selectedCol, selectedRow, selectedLayer end,
+      setSelected = function(_, c, r, li)
+        selectedCol, selectedRow, selectedLayer = c, r, li
+      end,
+      get = function(_, c, r, _)
+        return { kind = "sketch_nt", id = c + r * 4 }
+      end,
+    }
+    for i = 1, 960 do
+      win.nametableBytes[i] = 0
+    end
+
+    local pt = { kind = "pattern_table", _closed = false }
+    local wm = {
+      findWindowById = function(_, id)
+        if id == "pt1" then return pt end
+        return nil
+      end,
+    }
+
+    local ctx = {
+      getMode = function() return "tile" end,
+      setMode = function() end,
+      getFocus = function() return win end,
+      setStatus = function() end,
+      setColor = function() end,
+      wm = function() return wm end,
+      app = { wm = wm },
+    }
+    _G.ctx = ctx
+
+    KeyboardInput.setup(ctx, {
+      ctrlDown = function() return false end,
+      shiftDown = function() return false end,
+      altDown = function() return false end,
+    })
+
+    KeyboardInput.keypressed("right", ctx.app)
+    expect(selectedCol).toBe(1)
+    expect(selectedRow).toBe(0)
+
+    KeyboardInput.keypressed("down", ctx.app)
+    expect(selectedCol).toBe(1)
+    expect(selectedRow).toBe(1)
+
+    _G.ctx = nil
+  end)
+
   it("keeps current selection when next coordinate has no tile", function()
     local selectedCol, selectedRow, selectedLayer = 1, 1, 1
     local nextLayerCalls = 0
