@@ -384,9 +384,10 @@ local PRESETS = {
     allowedExt = { png = true },
     defaultTitle = "Open PNG image",
   },
-  -- Browse folders only; confirm current directory (used for no-ROM project save).
+  -- Browse folders + existing project files; confirm saves into the current directory.
+  -- Clicking a .lua/.ppux fills the Name field (does not open/save).
   saveProjectFolder = {
-    allowedExt = {},
+    allowedExt = { lua = true, ppux = true },
     directoriesOnly = true,
     defaultTitle = "Save Project Folder",
     confirmLabel = "Save here",
@@ -589,23 +590,15 @@ end
 
 function Dialog:_loadEntries(dir)
   local allowed = self._allowedExt
-  if self._directoriesOnly == true then
+  if type(allowed) ~= "table" then
     allowed = {}
-  elseif type(allowed) ~= "table" then
+  end
+  -- Open modes need a default extension set; save-folder mode may use {} for dirs-only
+  -- or a non-empty set (e.g. lua/ppux) so existing projects appear for name picking.
+  if self._directoriesOnly ~= true and not next(allowed) then
     allowed = PRESETS.project.allowedExt
   end
-  local entries = listEntries(dir, self.showHidden == true, allowed)
-  if self._directoriesOnly == true then
-    local dirsOnly = {}
-    for _, entry in ipairs(entries) do
-      if entry and entry.isDir then
-        dirsOnly[#dirsOnly + 1] = entry
-      end
-    end
-    self.entries = dirsOnly
-  else
-    self.entries = entries
-  end
+  self.entries = listEntries(dir, self.showHidden == true, allowed)
 end
 
 function Dialog:_sanitizeProjectName(raw)
@@ -692,13 +685,30 @@ function Dialog:_goHome()
 end
 
 function Dialog:_activateVisibleSlot(slotIndex)
-  local absoluteIndex = (self.scrollOffset or 0) + tonumber(slotIndex or 0)
+  slotIndex = math.floor(tonumber(slotIndex) or 0)
+  if slotIndex < 1 or slotIndex > VISIBLE_FILE_SLOTS then
+    return false
+  end
+  local row = math.floor((slotIndex - 1) / FILE_COLS)
+  local col = (slotIndex - 1) % FILE_COLS
+  local absoluteIndex = ((self.scrollOffset or 0) + row) * FILE_COLS + col + 1
   local entry = self.entries and self.entries[absoluteIndex] or nil
   if not entry then
     return false
   end
   if entry.isDir then
     self:_setDirectory(entry.path)
+    return true
+  end
+  -- Save-folder mode: pick an existing project name into the Name field.
+  if self._directoriesOnly == true then
+    if self.nameField then
+      local stem = self:_sanitizeProjectName(entry.name)
+      if stem then
+        self.nameField:setText(stem)
+        self.nameField:setFocused(true)
+      end
+    end
     return true
   end
   if self.onOpen then
