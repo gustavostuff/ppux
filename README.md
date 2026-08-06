@@ -419,46 +419,42 @@ The referenced window must also appear in the same `windows` array so palette re
 
 `romPatches` apply small ROM patches from project data before windows are built, so you are already working on top of a patched ROM. This is for targeted graphics-related setup (force a game state, tweak a short byte sequence). It is not a full ROM hacking workflow.
 
-Patches live on the project as a `romPatches` array. Every entry needs a non-empty `reason`. Values are single bytes (0-255). Addresses are unsigned integers. You can use a single `address` + `value`, a contiguous `addresses.from` / `to` range with `values`, or parallel `addresses` / `values` lists for non-contiguous spots.
+Patches live on the project as a `romPatches` array. Every entry needs a non-empty `reason`. Values are single bytes (0-255). Addresses are unsigned integers. Three formats are supported:
 
 ```lua
+-- 1) Single byte
 {
   address = 0x009A36,
   reason = "Indoors, idle pose, change tile index in right leg",
   value = 0x70
 }
+
+-- 2) Contiguous range (values length must match from..to inclusive)
+{
+  addresses = { from = 0x0000AA, to = 0x0000AB },
+  values = { 0x03, 0x04 },
+  reason = "Title screen palette nudge"
+}
+
+-- 3) Non-contiguous address list (parallel addresses / values)
+{
+  addresses = { 0x000123, 0x000126, 0x000144 },
+  values = { 0x05, 0x06, 0x00 },
+  reason = "Force two unrelated control bytes"
+}
 ```
 
 ## Development
 
-To build a packaged Windows app from Windows:
-
 ```bat
-scripts\windows\build_windows.bat
+scripts\windows\build_windows.bat      :: zip + PPUX.love under build\<version>\
+scripts\windows\run_e2e_tests.bat      :: visible E2E scenarios
 ```
-
-Output lands under `build\<version>\` (zip plus `PPUX.love`).
-
-To build a packaged Linux AppImage:
 
 ```bash
-./scripts/unix/build_linux_appimage.sh
-```
-
-Unit tests are Linux-only for now:
-
-```bash
-./scripts/unix/run_unit_tests.sh
-```
-
-Visible E2E scenarios boot the real app and should run on both Linux and Windows:
-
-```bash
-./scripts/unix/run_e2e_tests.sh
-```
-
-```bat
-scripts\windows\run_e2e_tests.bat
+./scripts/unix/build_linux_appimage.sh # AppImage under build/<version>/
+./scripts/unix/run_unit_tests.sh       # unit tests (Linux)
+./scripts/unix/run_e2e_tests.sh        # visible E2E scenarios
 ```
 
 ## Notes
