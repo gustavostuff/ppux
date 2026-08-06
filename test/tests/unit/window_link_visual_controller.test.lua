@@ -73,6 +73,48 @@ describe("window_link_visual_controller.lua", function()
     expect(type(cy)).toBe("number")
   end)
 
+  it("gives sketch canvas the same three PPU-style link handles", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow({ title = "Sketch", x = 40, y = 40 })
+    local pt = wm:createPatternTableWindow({ title = "PT", x = 300, y = 40 })
+    local rom = wm:createRomPaletteWindow({ title = "ROM", x = 300, y = 200 })
+    sketch.linkedPatternTableWindowId = pt._id
+    pt.linkedSketchCanvasWindowId = sketch._id
+    sketch.layers[1].paletteData = { winId = rom._id }
+
+    local app = {
+      wm = wm,
+      windowLinksMode = "always",
+      canvas = { getWidth = function() return 640 end, getHeight = function() return 360 end },
+    }
+
+    expect(LinkVisual.ppuPatternBgLinked(sketch, wm)).toBe(true)
+    expect(LinkVisual.ppuPatternSpriteLinked(sketch, wm)).toBe(false)
+    expect(LinkVisual.innerColorForSlot(sketch, "ppu_pattern_bg", wm)[1]).toBe(colors.red[1])
+    expect(LinkVisual.innerColorForSlot(sketch, "ppu_pattern_sprite", wm)).toBe(colors.transparent)
+    expect(LinkVisual.innerColorForSlot(sketch, "ppu_palette", wm)[1]).toBe(colors.blue[1])
+
+    local edges = LinkVisual.collectWindowLinkEdges(app)
+    local sawPalette, sawPattern = false, false
+    for _, edge in ipairs(edges) do
+      if edge.fromWin == sketch and edge.fromSlot == "ppu_palette" and edge.toWin == rom then
+        sawPalette = true
+      end
+      if edge.toWin == sketch and edge.toSlot == "ppu_pattern_bg" and edge.fromWin == pt then
+        sawPattern = true
+        expect(edge.color).toBe(colors.red)
+      end
+    end
+    expect(sawPalette).toBe(true)
+    expect(sawPattern).toBe(true)
+
+    local layouts = LinkVisual.buildAnchorLayouts(app, edges)
+    expect(layouts[sketch]).toBeTruthy()
+    expect(layouts[sketch].ppu_pattern_bg).toBeTruthy()
+    expect(layouts[sketch].ppu_pattern_sprite).toBeTruthy()
+    expect(layouts[sketch].ppu_palette).toBeTruthy()
+  end)
+
   it("prepareLinkDrawState returns nil when modals block workspace", function()
     local app = {
       wm = WM.new(),

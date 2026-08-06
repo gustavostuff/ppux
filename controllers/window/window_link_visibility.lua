@@ -352,6 +352,11 @@ local function collectPatternTableIdsForFocusedConsumer(win)
         end
       end
     end
+  elseif WindowCaps.isSketchCanvas(win) then
+    local id = win.linkedPatternTableWindowId
+    if type(id) == "string" and id ~= "" then
+      ids[id] = true
+    end
   elseif WindowCaps.isPpuFrame(win) then
     local idx = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
     local layer = win.layers and win.layers[idx]
@@ -409,7 +414,7 @@ local function refreshPatternRevealForWindow(app, wm, win)
     return
   end
 
-  if WindowCaps.isPpuFrame(win) or WindowCaps.isOamAnimation(win) then
+  if WindowCaps.isPpuFrame(win) or WindowCaps.isOamAnimation(win) or WindowCaps.isSketchCanvas(win) then
     for id in pairs(collectPatternTableIdsForFocusedConsumer(win)) do
       local ptWin = wm.findWindowById and wm:findWindowById(id)
       if ptWin and isLinkWindowEligible(ptWin) and WindowCaps.isPatternTable(ptWin) then

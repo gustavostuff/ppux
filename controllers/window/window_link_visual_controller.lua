@@ -143,15 +143,21 @@ local function consumerSupportsPaletteLink(win)
     return false
   end
   return WindowCaps.isPpuFrame(win)
+    or WindowCaps.isSketchCanvas(win)
     or WindowCaps.isAnimationLike(win)
     or WindowCaps.isStaticArt(win)
+end
+
+--- PPU Frame and Sketch canvas share the same three left-edge handles.
+local function usesPpuStyleLinkSlots(win)
+  return WindowCaps.isPpuFrame(win) or WindowCaps.isSketchCanvas(win)
 end
 
 local function isPaletteOnlyConsumer(win)
   if not consumerSupportsPaletteLink(win) then
     return false
   end
-  return not WindowCaps.isPpuFrame(win) and not WindowCaps.isOamAnimation(win)
+  return not usesPpuStyleLinkSlots(win) and not WindowCaps.isOamAnimation(win)
 end
 
 local function buildHandleAnchorPositions(win, count)
@@ -256,7 +262,7 @@ function M.getConsumerLinkedPaletteWindowIncludingMinimized(consumer, wm)
 end
 
 local function consumerPaletteLinkSlot(win)
-  if WindowCaps.isPpuFrame(win) then
+  if usesPpuStyleLinkSlots(win) then
     return "ppu_palette"
   end
   return "layout_palette"
@@ -264,7 +270,7 @@ end
 
 local function orderedActiveSlots(win, slotSet)
   local order
-  if WindowCaps.isPpuFrame(win) then
+  if usesPpuStyleLinkSlots(win) then
     order = PPU_SLOTS
   elseif WindowCaps.isPatternTable(win) then
     order = { PATTERN_TABLE_SLOT }
@@ -568,7 +574,7 @@ function M.getLeftAnchorPoint(win, slot, layouts)
 end
 
 function M.innerColorForSlot(win, slot, wm)
-  if WindowCaps.isPpuFrame(win) then
+  if usesPpuStyleLinkSlots(win) then
     if slot == "ppu_pattern_bg" then
       return M.ppuPatternBgLinked(win, wm) and colors.red or colors.transparent
     end
@@ -625,7 +631,7 @@ function M.buildAnchorLayouts(app, edges)
     if not isLinkWindowVisible(win) then
       goto continue
     end
-    if WindowCaps.isPpuFrame(win) then
+    if usesPpuStyleLinkSlots(win) then
       for _, slot in ipairs(PPU_SLOTS) do
         if WindowLinkVisibility.shouldShowSlot(app, slot) then
           needSlot(win, slot)
@@ -728,7 +734,21 @@ function M.buildAnchorLayouts(app, edges)
 end
 
 function M.ppuPatternBgLinked(ppu, wm)
-  if not (ppu and ppu.layers and wm) then
+  if not (ppu and wm) then
+    return false
+  end
+  -- Sketch canvas links pattern tables at window level (BG / nametable role).
+  if WindowCaps.isSketchCanvas(ppu) then
+    local id = ppu.linkedPatternTableWindowId
+    if type(id) == "string" and id ~= "" and wm.findWindowById then
+      local pt = wm:findWindowById(id)
+      if pt and isLinkWindowEligible(pt) and WindowCaps.isPatternTable(pt) then
+        return true
+      end
+    end
+    return false
+  end
+  if not ppu.layers then
     return false
   end
   for _, layer in ipairs(ppu.layers) do
@@ -764,6 +784,10 @@ function M.oamPatternLinked(oam, wm)
 end
 
 function M.ppuPatternSpriteLinked(ppu, wm)
+  -- Sketch canvas has no sprite-layer pattern link yet; slot stays empty.
+  if WindowCaps.isSketchCanvas(ppu) then
+    return false
+  end
   if not (ppu and ppu.layers) then
     return false
   end
@@ -882,7 +906,11 @@ function M.drawHardShadowMasksForVisibleHandles(app, shadowOx, shadowOy)
 end
 
 local function patternConsumerAnchorSlot(win, layer)
-  if WindowCaps.isPpuFrame(win) then
+  if usesPpuStyleLinkSlots(win) then
+    if WindowCaps.isSketchCanvas(win) then
+      -- Window-level PT link maps to the BG / nametable handle.
+      return "ppu_pattern_bg"
+    end
     if layer and layer.kind == "sprite" then
       return "ppu_pattern_sprite"
     end
@@ -940,9 +968,16 @@ function M.collectWindowLinkEdges(app)
       local consumers = PatternTableDisplayController.getLinkedConsumersForPatternTable(wm, ptWin)
       for _, entry in ipairs(consumers) do
         local consumer = entry.win
-        local layer = consumer and consumer.layers and consumer.layers[entry.layerIndex]
-        local lineColor = patternEdgeColorForLayer(layer)
-        local toSlot = consumer and patternConsumerAnchorSlot(consumer, layer)
+        local lineColor
+        local toSlot
+        if entry.kind == "sketch_canvas" or WindowCaps.isSketchCanvas(consumer) then
+          lineColor = colors.red
+          toSlot = "ppu_pattern_bg"
+        else
+          local layer = consumer and consumer.layers and consumer.layers[entry.layerIndex]
+          lineColor = patternEdgeColorForLayer(layer)
+          toSlot = consumer and patternConsumerAnchorSlot(consumer, layer)
+        end
         if lineColor and toSlot and isLinkWindowEligible(consumer) then
           edges[#edges + 1] = {
             fromWin = ptWin,
