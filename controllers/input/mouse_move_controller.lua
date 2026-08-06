@@ -35,13 +35,29 @@ local function updateSpriteHover(x, y, wm, fwin)
 
   local li = win:getActiveLayerIndex()
   local L = win.layers[li]
-  if L and L.kind == "sprite" then
-    local _, itemIndex = SpriteController.pickSpriteAt(win, x, y, li)
-    if itemIndex then
-      L.hoverSpriteIndex = itemIndex
-    else
-      L.hoverSpriteIndex = nil
+  if not (L and L.kind == "sprite") then
+    return
+  end
+
+  -- Do not hover-pick sprites under an attached specialized toolbar strip.
+  local app = rawget(_G, "ctx") and _G.ctx.app
+  local skipSpec = app and app.separateToolbar == true
+  local tb = win.specializedToolbar
+  if not skipSpec and not win._collapsed and tb then
+    if tb.updatePosition then
+      tb:updatePosition()
     end
+    if tb.contains and tb:contains(x, y) then
+      L.hoverSpriteIndex = nil
+      return
+    end
+  end
+
+  local _, itemIndex = SpriteController.pickSpriteAt(win, x, y, li)
+  if itemIndex then
+    L.hoverSpriteIndex = itemIndex
+  else
+    L.hoverSpriteIndex = nil
   end
 end
 

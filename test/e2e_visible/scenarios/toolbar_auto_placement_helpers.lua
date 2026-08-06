@@ -1,8 +1,9 @@
--- Shared asserts for window-attached toolbar when windowToolbarPlacement = auto.
+-- Shared asserts for window-attached specialized toolbars (top strip + viewport clamp).
 
-local WindowToolbarPlacement = require("controllers.window.window_toolbar_placement")
+local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 
-local GAP = 4 -- TOOLBAR_OUTSIDE_GAP (match ui/toolbars/toolbar_base.lua)
+-- Match ui/toolbars/toolbar_base.lua TOOLBAR_OUTSIDE_GAP.
+local GAP = 4
 
 local M = {}
 
@@ -18,8 +19,18 @@ function M.dragWindowContentToward(win, targetContentX, targetContentY)
   win:mousereleased(mx, my, 1)
 end
 
---- After updatePosition, geometry must match placement from resolveAutoPlacement.
-function M.assertSpecializedToolbarMatchesAutoLayout(win, app)
+local function canvasWidth(app)
+  if app and app.canvas and app.canvas.getWidth then
+    local w = app.canvas:getWidth()
+    if type(w) == "number" and w > 0 then
+      return w
+    end
+  end
+  return nil
+end
+
+--- After updatePosition, specialized toolbar stays in-view (Y: app top bar; X: canvas ± gap).
+function M.assertSpecializedToolbarMatchesTopClamp(win, app)
   local wm = app.wm
   assert(wm and wm:getFocus() == win, "window must stay focused for toolbar layout")
   local tb = win.specializedToolbar
@@ -27,32 +38,56 @@ function M.assertSpecializedToolbarMatchesAutoLayout(win, app)
 
   tb:updatePosition()
 
-  local placement = WindowToolbarPlacement.effectiveForLayout(app.windowToolbarPlacement, win, app, tb)
-  local resolved = WindowToolbarPlacement.resolveAutoPlacement(win, app, tb)
-  assert(placement == resolved, string.format("effective placement %q should match resolveAutoPlacement %q", placement, resolved))
+  assert(tb._verticalLayout ~= true, "attached toolbar should use horizontal layout")
 
-  local hx, hy, hw, hh = win:getHeaderRect()
-  local bx, by, bw, bh = win:getBaseContentScreenRect()
+  local hx, hy, hw = win:getHeaderRect()
+  local minY = AppTopToolbarController.getContentOffsetY(app) + GAP
+  local preferredY = math.floor(hy - tb.h - 1)
+  local expectedY = math.max(preferredY, minY)
 
-  if placement == "top" then
-    assert(tb._verticalLayout ~= true, "top placement should use horizontal toolbar layout")
+  assert(
+    tb.y == expectedY,
+    string.format("toolbar y: expected %s (preferred=%s min=%s) got %s", expectedY, preferredY, minY, tb.y)
+  )
+
+  if preferredY >= minY then
     local bottom = tb.y + tb.h
-    assert(math.abs(bottom - (hy - 1)) <= 1, string.format("top strip bottom: expected ~%s got %s", hy - 1, bottom))
-  elseif placement == "bottom" then
-    assert(tb._verticalLayout ~= true, "bottom placement should use horizontal toolbar layout")
-    local ey = math.floor(by + bh + GAP)
-    assert(tb.y == ey, string.format("bottom strip y: expected %s got %s", ey, tb.y))
-  elseif placement == "left" then
-    assert(tb._verticalLayout == true, "left placement should use vertical toolbar layout")
-    local leftEdge = tb.x - 1
-    assert(leftEdge + tb.w == bx - GAP, string.format("left strip: expected right edge bx-gap=%s, got %s", bx - GAP, leftEdge + tb.w))
-  elseif placement == "right" then
-    assert(tb._verticalLayout == true, "right placement should use vertical toolbar layout")
-    local leftEdge = tb.x - 1
-    assert(leftEdge == bx + bw + GAP, string.format("right strip: expected left edge %s got %s", bx + bw + GAP, leftEdge))
+    assert(
+      math.abs(bottom - (hy - 1)) <= 1,
+      string.format("top strip bottom: expected ~%s got %s", hy - 1, bottom)
+    )
   else
-    error("unexpected placement key: " .. tostring(placement))
+    assert(tb.y == minY, string.format("clamped toolbar y should be minY=%s got %s", minY, tb.y))
   end
+
+  local cw = canvasWidth(app)
+  assert(cw, "expected canvas width for horizontal clamp assert")
+  local drawLeft = tb.x - 1
+  local drawRight = drawLeft + tb.w
+  local minLeft = GAP
+  local maxRight = cw - GAP
+
+  assert(drawLeft >= minLeft, string.format("toolbar left edge %s should be >= %s", drawLeft, minLeft))
+  assert(drawRight <= maxRight, string.format("toolbar right edge %s should be <= %s", drawRight, maxRight))
+
+  -- When the natural centered strip fits, X should match header centering (unless clamped).
+  local preferredLeft = hx + math.floor((hw - tb.w) / 2)
+  local maxLeft = maxRight - tb.w
+  local expectedLeft = preferredLeft
+  if maxLeft < minLeft then
+    expectedLeft = minLeft
+  elseif preferredLeft < minLeft then
+    expectedLeft = minLeft
+  elseif preferredLeft > maxLeft then
+    expectedLeft = maxLeft
+  end
+  assert(
+    drawLeft == expectedLeft,
+    string.format("toolbar left: expected %s (preferred=%s) got %s", expectedLeft, preferredLeft, drawLeft)
+  )
 end
+
+-- Back-compat alias for older scenario/test names.
+M.assertSpecializedToolbarMatchesAutoLayout = M.assertSpecializedToolbarMatchesTopClamp
 
 return M

@@ -283,8 +283,20 @@ end
 
 -- Convert screen -> content (viewport) -> grid, accounting for scroll
 function Window:toContentCoords(px,py)
+  local screenX, screenY = px, py
   px, py = self:remapPreviewMirrorScreenXYIfNeeded(px, py)
   if not self:contains(px,py) then return false end
+
+  -- Attached specialized toolbar may overlap content when Y-clamped; never treat that as content.
+  local app = rawget(_G, "ctx") and _G.ctx.app
+  local skipSpec = app and app.separateToolbar == true
+  local tb = self.specializedToolbar
+  if not skipSpec and not self._collapsed and tb and tb.contains then
+    if tb:contains(screenX, screenY) then
+      return false
+    end
+  end
+
   local z = self:getZoomLevel()
   if type(self.isInContentArea) == "function" and self:isInContentArea(px, py) then
     local sx, sy = self:getInsetContentScreenRect()

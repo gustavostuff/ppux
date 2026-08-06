@@ -430,7 +430,6 @@ function Dialog.new()
     _canvasImageModeDropdown = nil,
     _canvasFilterDropdown = nil,
     _windowLinksDropdown = nil,
-    _windowToolbarPlacementDropdown = nil,
   }, Dialog)
 
   ModalPanelUtils.applyPanelDefaults(self)
@@ -662,7 +661,6 @@ function Dialog:show(opts)
   self._canvasImageModeDropdown = opts.canvasImageModeDropdown
   self._canvasFilterDropdown = opts.canvasFilterDropdown
   self._windowLinksDropdown = opts.windowLinksDropdown
-  self._windowToolbarPlacementDropdown = opts.windowToolbarPlacementDropdown
   self.onActiveTabChange = opts.onActiveTabChange
   self.visible = true
   self.pressedButton = nil

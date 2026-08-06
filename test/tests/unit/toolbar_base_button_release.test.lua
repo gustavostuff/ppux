@@ -8,20 +8,25 @@ describe("toolbar_base.lua - button activation", function()
     }
   end
 
-  it("cancels button action when press starts inside and release happens outside", function()
-    local actionCalls = 0
+  local function makeToolbar()
     local win = {
       getHeaderRect = function() return 10, 20, 100, 15 end,
     }
     local wm = {
       getFocus = function() return win end,
     }
-
     local toolbar = ToolbarBase.new(win, { h = 15 })
     toolbar.windowController = wm
+    return toolbar
+  end
+
+  it("cancels button action when press starts inside and release happens outside", function()
+    local actionCalls = 0
+    local toolbar = makeToolbar()
     toolbar:addButton(fakeIcon(15, 15), function()
       actionCalls = actionCalls + 1
     end, "Test")
+    toolbar:updatePosition()
 
     local btn = toolbar.buttons[1]
     expect(btn).toBeTruthy()
@@ -38,18 +43,11 @@ describe("toolbar_base.lua - button activation", function()
 
   it("triggers button action when released inside the pressed button", function()
     local actionCalls = 0
-    local win = {
-      getHeaderRect = function() return 10, 20, 100, 15 end,
-    }
-    local wm = {
-      getFocus = function() return win end,
-    }
-
-    local toolbar = ToolbarBase.new(win, { h = 15 })
-    toolbar.windowController = wm
+    local toolbar = makeToolbar()
     toolbar:addButton(fakeIcon(15, 15), function()
       actionCalls = actionCalls + 1
     end, "Test")
+    toolbar:updatePosition()
 
     local btn = toolbar.buttons[1]
     local x = btn.x + math.floor(btn.w / 2)

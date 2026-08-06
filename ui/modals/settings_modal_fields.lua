@@ -54,13 +54,6 @@ function M.buildGeneralTabRows(modal)
       },
     },
   }
-  if modal._windowToolbarPlacementDropdown then
-    rows[#rows + 1] = {
-      id = "window_toolbar_placement",
-      label = "Window toolbar position",
-      dropdown = modal._windowToolbarPlacementDropdown,
-    }
-  end
   rows[#rows + 1] = {
     id = "never_show_resize_handle",
     label = "Never show resize handle",

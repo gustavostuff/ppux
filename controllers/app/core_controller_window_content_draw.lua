@@ -1195,12 +1195,13 @@ local function drawCrtLensVisualizerWindow(app, w, wm)
 
   w:drawScrollBars(isFocused)
 
+  -- Header first so a clamped specialized toolbar (overlapping the title bar) stays on top.
+  w:drawHeader(isFocused)
+
   if w.specializedToolbar
     and not (app.separateToolbar == true and w == wm:getFocus()) then
     w.specializedToolbar:draw()
   end
-
-  w:drawHeader(isFocused)
 
   if w.headerToolbar then
     w.headerToolbar:draw()
@@ -1234,12 +1235,13 @@ local function drawCrtLensWindowChromeOnly(app, w, wm)
 
   w:drawScrollBars(isFocused)
 
+  -- Header first so a clamped specialized toolbar (overlapping the title bar) stays on top.
+  w:drawHeader(isFocused)
+
   if w.specializedToolbar
     and not (app.separateToolbar == true and w == wm:getFocus()) then
     w.specializedToolbar:draw()
   end
-
-  w:drawHeader(isFocused)
 
   if w.headerToolbar then
     w.headerToolbar:draw()
@@ -1457,12 +1459,13 @@ drawNormalWindow = function(app, w, wm)
   w:drawBorder(isFocused)
   w:drawScrollBars(isFocused)
 
+  -- Header first so a clamped specialized toolbar (overlapping the title bar) stays on top.
+  w:drawHeader(isFocused)
+
   if w.specializedToolbar
     and not (app.separateToolbar == true and w == wm:getFocus()) then
     w.specializedToolbar:draw()
   end
-
-  w:drawHeader(isFocused)
 
   if w.headerToolbar then
     w.headerToolbar:draw()

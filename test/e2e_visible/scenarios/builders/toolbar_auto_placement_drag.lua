@@ -1,4 +1,4 @@
--- Visible E2E: drag CHR window around; specialized toolbar stays correct for placement "auto".
+-- Visible E2E: drag CHR window around; specialized toolbar stays on top with Y clamp.
 
 local P = require("test.e2e_visible.scenarios.prelude")
 local BubbleExample, pause, call, appendDrag, windowHeaderCenter = P.BubbleExample, P.pause, P.call, P.appendDrag, P.windowHeaderCenter
@@ -29,16 +29,17 @@ local function buildToolbarAutoPlacementDragScenario(harness, app, runner)
     { 10, 160 },
     { 840, 120 },
     { 180, 300 },
+    { 200, -40 },
+    { 100, -120 },
+    { -80, 200 },
+    { 1200, 220 },
   }
 
   local steps = {
-    pause("Start - auto toolbar placement (drag CHR)", 0.45),
-    call("Use Auto placement + attached (non-detached) toolbar", function(_, currentApp)
+    pause("Start - toolbar top clamp (drag CHR)", 0.45),
+    call("Use attached (non-detached) toolbar", function(_, currentApp)
       if currentApp._applySeparateToolbarSetting then
         currentApp:_applySeparateToolbarSetting(false, false)
-      end
-      if currentApp._applyWindowToolbarPlacementSetting then
-        currentApp:_applyWindowToolbarPlacementSetting("auto", false)
       end
     end),
     pause("Settings applied", 0.35),
@@ -65,11 +66,11 @@ local function buildToolbarAutoPlacementDragScenario(harness, app, runner)
         postPause = 0.28,
       }
     )
-    steps[#steps + 1] = call(string.format("Assert toolbar matches auto layout (spot %d)", i), function(_, currentApp, currentRunner)
+    steps[#steps + 1] = call(string.format("Assert toolbar top clamp (spot %d)", i), function(_, currentApp, currentRunner)
       local win = assert(currentRunner.toolbarAutoChrWin, "expected CHR window")
-      ToolbarAuto.assertSpecializedToolbarMatchesAutoLayout(win, currentApp)
+      ToolbarAuto.assertSpecializedToolbarMatchesTopClamp(win, currentApp)
     end)
-    steps[#steps + 1] = pause(string.format("Placement OK - spot %d", i), 0.45)
+    steps[#steps + 1] = pause(string.format("Layout OK - spot %d", i), 0.45)
   end
 
   steps[#steps + 1] = pause("Done", 0.85)
@@ -78,7 +79,7 @@ end
 
 return {
   toolbar_auto_placement_drag = {
-    title = "Toolbar auto placement (drag CHR)",
+    title = "Toolbar top clamp (drag CHR)",
     build = buildToolbarAutoPlacementDragScenario,
   },
 }

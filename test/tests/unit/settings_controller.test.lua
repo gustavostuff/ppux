@@ -11,7 +11,6 @@ describe("settings_controller.lua - defaults", function()
       canvasFilter = "sharp",
       windowLinks = "on_hover",
       separateToolbar = false,
-      windowToolbarPlacement = "auto",
       neverShowResizeHandle = false,
       windowShadowEnabled = true,
       windowShadowBlur = 0.2,

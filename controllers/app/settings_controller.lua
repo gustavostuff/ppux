@@ -17,8 +17,6 @@ local DEFAULT_SETTINGS = {
   canvasFilter = "sharp",
   windowLinks = "on_hover",
   separateToolbar = false,
-  --- Window-attached toolbar strip: top | left | right | bottom | auto.
-  windowToolbarPlacement = "auto",
   --- When true, the resize-corner glyph is never drawn (resize hotspot/cursor unchanged).
   --- When false, the glyph hides while the pointer is over the handle or during resize drag.
   neverShowResizeHandle = false,
@@ -158,15 +156,6 @@ local function normalizeWindowLinksKey(key, data)
     return WindowLinkVisibility.normalizeLinkMode(data.paletteLinks or data.patternTableLinks)
   end
   return "on_hover"
-end
-
-local function normalizeWindowToolbarPlacementKey(key)
-  if key == "left" then return "left" end
-  if key == "right" then return "right" end
-  if key == "bottom" then return "bottom" end
-  if key == "auto" then return "auto" end
-  if key == "top" then return "top" end
-  return "auto"
 end
 
 local function normalizeCrtDistortion(n)
@@ -319,7 +308,6 @@ local function withDefaults(data)
   out.canvasFilter = normalizeCanvasFilterKey(data and data.canvasFilter)
   out.windowLinks = normalizeWindowLinksKey(data and data.windowLinks, data)
   out.separateToolbar = (data and data.separateToolbar == true)
-  out.windowToolbarPlacement = normalizeWindowToolbarPlacementKey(data and data.windowToolbarPlacement)
   out.neverShowResizeHandle = (data and data.neverShowResizeHandle == true)
   out.windowShadowEnabled = not (data and data.windowShadowEnabled == false)
   out.windowShadowBlur = normalizeWindowShadowBlur(data and data.windowShadowBlur)
@@ -395,9 +383,6 @@ function AppSettingsController.save(opts)
   if opts.canvasFilter ~= nil then data.canvasFilter = opts.canvasFilter end
   if opts.windowLinks ~= nil then data.windowLinks = normalizeWindowLinksKey(opts.windowLinks) end
   if opts.separateToolbar ~= nil then data.separateToolbar = (opts.separateToolbar == true) end
-  if opts.windowToolbarPlacement ~= nil then
-    data.windowToolbarPlacement = normalizeWindowToolbarPlacementKey(opts.windowToolbarPlacement)
-  end
   if opts.neverShowResizeHandle ~= nil then data.neverShowResizeHandle = (opts.neverShowResizeHandle == true) end
   if opts.windowShadowEnabled ~= nil then data.windowShadowEnabled = (opts.windowShadowEnabled == true) end
   if opts.windowShadowBlur ~= nil then data.windowShadowBlur = normalizeWindowShadowBlur(opts.windowShadowBlur) end

@@ -1,5 +1,4 @@
 local AppSettingsController = require("controllers.app.settings_controller")
-local WindowToolbarPlacement = require("controllers.window.window_toolbar_placement")
 local ResolutionController = require("controllers.app.resolution_controller")
 local KeyboardWindowShortcutsController = require("controllers.input.keyboard_window_shortcuts_controller")
 local SettingsModal = require("ui.modals.settings_modal")
@@ -377,105 +376,6 @@ function AppCoreController:_applyNeverShowResizeHandleSetting(enabled, saveSetti
   return self.neverShowResizeHandle
 end
 
-function AppCoreController:_getWindowToolbarPlacementForSettings()
-  if self.windowToolbarPlacement ~= nil then
-    return WindowToolbarPlacement.normalizeKey(self.windowToolbarPlacement)
-  end
-  local settings = AppSettingsController.load()
-  return WindowToolbarPlacement.normalizeKey(settings and settings.windowToolbarPlacement)
-end
-
-function AppCoreController:_applyWindowToolbarPlacementSetting(placementKey, saveSetting)
-  local key = WindowToolbarPlacement.normalizeKey(placementKey)
-  self.windowToolbarPlacement = key
-  if saveSetting ~= false then
-    AppSettingsController.save({ windowToolbarPlacement = key })
-  end
-  if saveSetting ~= false and self._refreshSettingsModalIfOpen then
-    self:_refreshSettingsModalIfOpen()
-  end
-  return key
-end
-
-function AppCoreController:_ensureSettingsWindowToolbarPlacementDropdown()
-  if self._windowToolbarPlacementDropdown then
-    return
-  end
-  local appRef = self
-  self._windowToolbarPlacementDropdownItems = {
-    {
-      value = WindowToolbarPlacement.dropdownValueForKey(WindowToolbarPlacement.KEY_AUTO),
-      text = "Auto",
-      onPick = function(entry)
-        appRef:_applyWindowToolbarPlacementSetting(
-          WindowToolbarPlacement.keyForDropdownValue(entry.value),
-          true
-        )
-      end,
-    },
-    {
-      value = WindowToolbarPlacement.dropdownValueForKey(WindowToolbarPlacement.KEY_TOP),
-      text = "Top",
-      onPick = function(entry)
-        appRef:_applyWindowToolbarPlacementSetting(
-          WindowToolbarPlacement.keyForDropdownValue(entry.value),
-          true
-        )
-      end,
-    },
-    {
-      value = WindowToolbarPlacement.dropdownValueForKey(WindowToolbarPlacement.KEY_LEFT),
-      text = "Left",
-      onPick = function(entry)
-        appRef:_applyWindowToolbarPlacementSetting(
-          WindowToolbarPlacement.keyForDropdownValue(entry.value),
-          true
-        )
-      end,
-    },
-    {
-      value = WindowToolbarPlacement.dropdownValueForKey(WindowToolbarPlacement.KEY_RIGHT),
-      text = "Right",
-      onPick = function(entry)
-        appRef:_applyWindowToolbarPlacementSetting(
-          WindowToolbarPlacement.keyForDropdownValue(entry.value),
-          true
-        )
-      end,
-    },
-    {
-      value = WindowToolbarPlacement.dropdownValueForKey(WindowToolbarPlacement.KEY_BOTTOM),
-      text = "Bottom",
-      onPick = function(entry)
-        appRef:_applyWindowToolbarPlacementSetting(
-          WindowToolbarPlacement.keyForDropdownValue(entry.value),
-          true
-        )
-      end,
-    },
-  }
-  self._windowToolbarPlacementDropdown = Dropdown.new({
-    getBounds = function()
-      return { w = appRef.canvas:getWidth(), h = appRef.canvas:getHeight() }
-    end,
-    default = WindowToolbarPlacement.dropdownValueForKey(appRef:_getWindowToolbarPlacementForSettings()),
-    tooltip = "Where to attach the focused window's toolbar strip (when not using Detached Window Toolbar)",
-    items = self._windowToolbarPlacementDropdownItems,
-  })
-end
-
-function AppCoreController:_syncSettingsWindowToolbarPlacementDropdown()
-  local dd = self._windowToolbarPlacementDropdown
-  if not dd or not self._windowToolbarPlacementDropdownItems then
-    return
-  end
-  dd:setGetBounds(function()
-    return { w = self.canvas:getWidth(), h = self.canvas:getHeight() }
-  end)
-  dd._defaultSpec = WindowToolbarPlacement.dropdownValueForKey(self:_getWindowToolbarPlacementForSettings())
-  dd:setItems(self._windowToolbarPlacementDropdownItems)
-end
-
 function AppCoreController:_getWindowShadowEnabledForSettings()
   if self.windowShadowEnabled ~= nil then
     return self.windowShadowEnabled == true
@@ -657,7 +557,6 @@ function AppCoreController:_refreshSettingsModalIfOpen()
     self:_syncSettingsCanvasFilterDropdown()
     self:_syncSettingsCanvasImageModeDropdown()
     self:_syncSettingsWindowLinksDropdown()
-    self:_syncSettingsWindowToolbarPlacementDropdown()
     ModalPanelUtils.refreshTargetMetrics(self.settingsModal)
     if self.settingsModal._rebuildRows then
       self.settingsModal:_rebuildRows()
@@ -1082,7 +981,6 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
   self:_applyCanvasFilterSetting(D.canvasFilter, false)
   self:_applyWindowLinksSetting(D.windowLinks, false)
   self:_applySeparateToolbarSetting(D.separateToolbar, false)
-  self:_applyWindowToolbarPlacementSetting(D.windowToolbarPlacement or "auto", false)
   self:_applyNeverShowResizeHandleSetting(D.neverShowResizeHandle == true, false)
   self:_applyWindowShadowSetting(D.windowShadowEnabled == true, false)
   self:_applyWindowShadowBlurSetting(D.windowShadowBlur, false)
@@ -1100,7 +998,6 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
     canvasFilter = D.canvasFilter,
     windowLinks = D.windowLinks,
     separateToolbar = D.separateToolbar,
-    windowToolbarPlacement = D.windowToolbarPlacement or "auto",
     neverShowResizeHandle = D.neverShowResizeHandle,
     windowShadowEnabled = D.windowShadowEnabled,
     windowShadowBlur = D.windowShadowBlur,
@@ -1149,9 +1046,6 @@ function AppCoreController:showSettingsModal()
 
   self:_ensureSettingsCanvasImageModeDropdown()
   self:_syncSettingsCanvasImageModeDropdown()
-
-  self:_ensureSettingsWindowToolbarPlacementDropdown()
-  self:_syncSettingsWindowToolbarPlacementDropdown()
 
   self:_ensureSettingsWindowLinksDropdown()
   self:_syncSettingsWindowLinksDropdown()
@@ -1258,7 +1152,6 @@ function AppCoreController:showSettingsModal()
     canvasImageModeDropdown = appRef._canvasImageModeDropdown,
     canvasFilterDropdown = appRef._canvasFilterDropdown,
     windowLinksDropdown = appRef._windowLinksDropdown,
-    windowToolbarPlacementDropdown = appRef._windowToolbarPlacementDropdown,
     initialTabId = appRef._tabbedModalActiveTabIds and appRef._tabbedModalActiveTabIds.settings or nil,
     onActiveTabChange = function(tabId)
       appRef._tabbedModalActiveTabIds = appRef._tabbedModalActiveTabIds or {}

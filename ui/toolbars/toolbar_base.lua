@@ -12,13 +12,36 @@ local SpaceHighlightController = require("controllers.window.space_highlight_con
 local WindowCaps = require("controllers.window.window_capabilities")
 local Timer = require("utils.timer_utils")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
-local WindowToolbarPlacement = require("controllers.window.window_toolbar_placement")
+local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 
 local ToolbarBase = {}
 ToolbarBase.__index = ToolbarBase
 
--- Outside gap (screen px) between window body edge and attached toolbar strip (top/sides/bottom).
+-- Outside gap (screen px) used as viewport inset when clamping attached toolbars.
 local TOOLBAR_OUTSIDE_GAP = 4
+
+local function resolveCanvasWidth(app)
+  if app and app.canvas and type(app.canvas.getWidth) == "function" then
+    local w = app.canvas:getWidth()
+    if type(w) == "number" and w > 0 then
+      return w
+    end
+  end
+  local ok, ResolutionController = pcall(require, "controllers.app.resolution_controller")
+  if ok and ResolutionController then
+    local w = ResolutionController.canvasWidth
+    if type(w) == "number" and w > 0 then
+      return w
+    end
+  end
+  if love and love.graphics and love.graphics.getWidth then
+    local w = love.graphics.getWidth()
+    if type(w) == "number" and w > 0 then
+      return w
+    end
+  end
+  return nil
+end
 
 local _layerLabelId = 0
 
@@ -199,9 +222,10 @@ function ToolbarBase:_getToolbarHeight(fallbackHeight)
   return rowHeight * rowCount
 end
 
--- Update toolbar position based on window header
--- Specialized toolbars (left-aligned) are positioned above header by default (placement "top").
--- Header toolbars (right-aligned) override this method
+-- Update toolbar position based on window header.
+-- Specialized toolbars sit above the header; when that would leave the usable
+-- workspace, clamp Y/X so the strip stays visible (app top bar + 4px inset).
+-- Header toolbars (right-aligned) override this method.
 function ToolbarBase:updatePosition()
   if not self.window then
     return
@@ -242,62 +266,73 @@ function ToolbarBase:updatePosition()
     return
   end
 
-  local placement = WindowToolbarPlacement.effectiveForLayout(
-    app and app.windowToolbarPlacement,
-    wnd,
-    app,
-    self
-  )
-
-  local hx, hy, hw, hh = 0, 0, 0, 0
+  local hy, hh = 0, 0
   if type(wnd.getHeaderRect) == "function" then
-    hx, hy, hw, hh = wnd:getHeaderRect()
-  end
-  local bx, by, bw, bh
-  if type(wnd.getBaseContentScreenRect) == "function" then
-    bx, by, bw, bh = wnd:getBaseContentScreenRect()
-  elseif type(wnd.getScreenRect) == "function" then
-    bx, by, bw, bh = wnd:getScreenRect()
-  else
-    -- Unit-test mocks often stub only getHeaderRect(); approximate body rect from header or fields.
-    bx = tonumber(wnd.x)
-    by = tonumber(wnd.y)
-    bw = tonumber(wnd.w)
-    bh = tonumber(wnd.h)
-    if not bx then bx = hx end
-    if not by then by = (tonumber(hy) or 0) + (tonumber(hh) or 0) end
-    if not bw then bw = hw end
-    if not bh then bh = 0 end
+    local _hx, headerY, _hw, headerH = wnd:getHeaderRect()
+    hy, hh = headerY, headerH
   end
 
+  self._verticalLayout = false
+  self._layoutCenterWidth = nil
+  self._verticalReserveW = nil
   self.rowHeight = self:_getRowHeight(hh)
+  self.h = self:_getToolbarHeight(hh)
+  local preferredY = math.floor(hy - self.h - 1)
+  -- Without an app (unit mocks), do not invent a top-bar floor.
+  local minY = 0
+  if app then
+    minY = AppTopToolbarController.getContentOffsetY(app) + TOOLBAR_OUTSIDE_GAP
+  end
+  self.y = math.max(preferredY, minY)
+  self:_layoutButtons()
+  self:_clampAttachedToolbarHorizontally(app)
+end
 
-  if placement == "top" then
-    self._verticalLayout = false
-    self._layoutCenterWidth = nil
-    self._verticalReserveW = nil
-    self.h = self:_getToolbarHeight(hh)
-    self.y = math.floor(hy - self.h - 1)
-    self:_layoutButtons()
+--- Keep the drawn strip inside the canvas with TOOLBAR_OUTSIDE_GAP on left/right.
+function ToolbarBase:_clampAttachedToolbarHorizontally(app)
+  if self._dockLayout then
+    return
+  end
+  local canvasW = resolveCanvasWidth(app)
+  if not canvasW then
     return
   end
 
-  if placement == "bottom" then
-    self._verticalLayout = false
-    self._layoutCenterWidth = bw
-    self._verticalReserveW = nil
-    self.h = self:_getToolbarHeight(hh)
-    -- Horizontal strip centered below the window body (outside; does not reserve canvas inset).
-    self.y = math.floor(by + bh + TOOLBAR_OUTSIDE_GAP)
-    self:_layoutButtons()
+  local gap = TOOLBAR_OUTSIDE_GAP
+  local drawW = math.max(0, math.floor(tonumber(self.w) or 0))
+  local drawLeft = math.floor((tonumber(self.x) or 0) - 1)
+  local minLeft = gap
+  local maxRight = canvasW - gap
+  local maxLeft = maxRight - drawW
+  local clampedLeft = drawLeft
+  if maxLeft < minLeft then
+    -- Strip wider than the usable span: pin to the left inset.
+    clampedLeft = minLeft
+  else
+    if clampedLeft < minLeft then
+      clampedLeft = minLeft
+    elseif clampedLeft > maxLeft then
+      clampedLeft = maxLeft
+    end
+  end
+
+  local dx = clampedLeft - drawLeft
+  if dx == 0 then
     return
   end
 
-  if placement == "left" or placement == "right" then
-    self._verticalLayout = true
-    self._layoutCenterWidth = nil
-    self:_layoutButtonsVertical(placement, bx, by, bw, bh, hh)
-    return
+  self.x = math.floor((tonumber(self.x) or 0) + dx)
+  for _, button in ipairs(self.buttons) do
+    if button.setPosition then
+      button:setPosition((button.x or 0) + dx, button.y or 0)
+    else
+      button.x = (button.x or 0) + dx
+    end
+  end
+  for _, label in ipairs(self.labels) do
+    if not label.renderInContent then
+      label.x = (label.x or 0) + dx
+    end
   end
 end
 
@@ -522,31 +557,25 @@ function ToolbarBase:_layoutButtons()
   self.w = totalWidth
 end
 
--- Check if a point is inside the toolbar (check all buttons and labels)
+-- Check if a point is inside the toolbar chrome (full strip bounds, matching draw).
+-- Uses the whole bar so hover/clicks cannot fall through gaps onto window content
+-- (especially when the strip is Y-clamped over the header/content).
 function ToolbarBase:contains(px, py)
   if not self.visible then return false end
-  
+
   -- For specialized toolbars, check if window is focused
   if not self.window or not self.windowController then return false end
   local isFocused = (self.window == self.windowController:getFocus())
   if not isFocused then return false end
-  
-  -- Check if point is within any button bounds
-  for _, button in ipairs(self.buttons) do
-    if isButtonVisible(button) and button:contains(px, py) then
-      return true
-    end
+
+  local drawX = math.floor((tonumber(self.x) or 0) - 1)
+  local drawY = math.floor(tonumber(self.y) or 0)
+  local drawW = math.max(0, math.floor(tonumber(self.w) or 0))
+  local drawH = math.max(0, math.floor(tonumber(self.h) or 0))
+  if drawW <= 0 or drawH <= 0 then
+    return false
   end
-  -- Check if point is within any label bounds (skip content-drawn labels; their x/y are not toolbar space)
-  for _, label in ipairs(self.labels) do
-    if not label.renderInContent then
-      if px >= label.x and px <= label.x + label.width and
-         py >= label.y and py <= label.y + label.h then
-        return true
-      end
-    end
-  end
-  return false
+  return px >= drawX and px <= drawX + drawW and py >= drawY and py <= drawY + drawH
 end
 
 -- Get button at a point
@@ -620,15 +649,19 @@ function ToolbarBase:mousepressed(x, y, button)
     DebugController.log("info", "UI", "ToolbarBase:mousepressed - label clicked, consuming event to maintain focus")
     return true  -- Consume the event to prevent focus loss
   end
-  
+
   DebugController.log("info", "UI", "ToolbarBase:mousepressed - no button found. Button count: %d", #self.buttons)
   for i, b in ipairs(self.buttons) do
     if isButtonVisible(b) then
       DebugController.log("info", "UI", "  Button %d: (%.1f, %.1f, %.1f, %.1f)", i, b.x, b.y, b.w, b.h)
     end
   end
-  
+
   self.pressedButton = nil
+  -- Empty chrome still consumes so events do not hit window content under a clamped strip.
+  if self:contains(x, y) then
+    return true
+  end
   return false
 end
 
@@ -672,13 +705,16 @@ function ToolbarBase:mousereleased(x, y, button)
   end
   
   DebugController.log("info", "UI", "ToolbarBase:mousereleased - no pressed button or wrong button (%d)", button)
-  
+
   -- Reset pressed state for all buttons
   for _, b in ipairs(self.buttons) do
     b.pressed = false
   end
   self.pressedButton = nil
-  
+
+  if self:contains(x, y) then
+    return true
+  end
   return false
 end
 

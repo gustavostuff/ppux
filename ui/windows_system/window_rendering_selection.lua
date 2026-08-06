@@ -177,6 +177,34 @@ local function hoverBlockedByAppChrome(ctx, mouse)
   return false
 end
 
+--- Specialized / header toolbars sit above content and may overlap it when Y-clamped.
+local function hoverBlockedByWindowToolbar(win, mouse)
+  if not (win and mouse) then
+    return false
+  end
+  local app = rawget(_G, "ctx") and _G.ctx.app
+  local skipSpec = app and app.separateToolbar == true
+  local tb = win.specializedToolbar
+  if not skipSpec and not win._collapsed and tb then
+    if tb.updatePosition then
+      tb:updatePosition()
+    end
+    if tb.contains and tb:contains(mouse.x, mouse.y) then
+      return true
+    end
+  end
+  local ht = win.headerToolbar
+  if ht then
+    if ht.updatePosition then
+      ht:updatePosition()
+    end
+    if ht.contains and ht:contains(mouse.x, mouse.y) then
+      return true
+    end
+  end
+  return false
+end
+
 function Window:highlightOverlappingSprites(overlayCtx, overlappingSpritesByKey)
   for _, sprite in pairs(overlappingSpritesByKey or {}) do
     local sx, sy, sw, sh = spriteScreenRect(self, sprite, overlayCtx)
@@ -274,6 +302,7 @@ function Window:drawSpriteSelectionOverlays(isFocused)
     or hoverBlockedByAppChrome(ctx, mouse)
     or hoverBlockedByOpenContextMenu(ctx, mouse)
     or hoverBlockedByModal(ctx, mouse)
+    or hoverBlockedByWindowToolbar(self, mouse)
   local hoveredWindow
   if wm and mouse then
     hoveredWindow = (wm.getTopInteractiveSurfaceWindowAt and wm:getTopInteractiveSurfaceWindowAt(mouse.x, mouse.y))
@@ -433,6 +462,7 @@ function Window:drawTileSelectionOverlays(isFocused)
     or hoverBlockedByAppChrome(ctx, mouse)
     or hoverBlockedByOpenContextMenu(ctx, mouse)
     or hoverBlockedByModal(ctx, mouse)
+    or hoverBlockedByWindowToolbar(self, mouse)
   local hoveredWindow
   if wm and mouse then
     hoveredWindow = (wm.getTopInteractiveSurfaceWindowAt and wm:getTopInteractiveSurfaceWindowAt(mouse.x, mouse.y))
