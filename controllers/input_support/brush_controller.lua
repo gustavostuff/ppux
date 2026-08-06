@@ -650,6 +650,8 @@ local function paintTileLayerCellPixel(app, win, layer, col, row, tx, ty, pickOn
     item:edit(tx, ty, color)
     if WindowCaps.isPatternTable(win) then
       SketchCanvasPackController.afterScratchPatternTablePaint(app, win, col, row)
+    elseif win.invalidateNametableLayerCanvas and WindowCaps.isPpuFrame(win) then
+      win:invalidateNametableLayerCanvas(layerIndex, col, row)
     elseif win.invalidateTileLayerCanvas then
       win:invalidateTileLayerCanvas(layerIndex, col, row)
     end

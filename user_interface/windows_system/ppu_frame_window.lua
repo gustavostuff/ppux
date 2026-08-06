@@ -58,6 +58,31 @@ local function getCurrentTilesPool()
   return nil
 end
 
+local function ensureTilesForCurrentApp(bankIdx)
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app or nil
+  local state = app and app.appEditState or nil
+  if not (state and state.chrBanksBytes and state.chrBanksBytes[bankIdx]) then
+    return false
+  end
+  local BankViewController = require("controllers.chr.bank_view_controller")
+  BankViewController.ensureBankTiles(state, bankIdx)
+  return true
+end
+
+local function applyOnTheFlyForLayer(self, layer, tilesPool)
+  if not layer then
+    return 0
+  end
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app or nil
+  return NametableTilesController.applyOnTheFlyReplacements(self, layer, tilesPool, {
+    ensureTiles = ensureTilesForCurrentApp,
+    wm = app and app.wm or nil,
+    appEditState = app and app.appEditState or nil,
+  })
+end
+
 local function recordSwap(self, idx)
   if not self._originalNametableBytes then return end
   local orig = self._originalNametableBytes[idx]
@@ -486,6 +511,9 @@ function PPUFrameWindow:setNametableBytes(bytesTbl, bankIndex, pageIndex, tilesP
       self:syncNametableVisualCell(col, row, b, tilesPool, li)
     end
   end
+  if L then
+    applyOnTheFlyForLayer(self, L, tilesPool)
+  end
   self:invalidateNametableLayerCanvas(li)
 
   if self.setScroll then self:setScroll(self.scrollCol or 0, self.scrollRow or 0) end
@@ -628,6 +656,9 @@ function PPUFrameWindow:setBankPage(bankIndex, pageIndex, tilesPool)
       self:syncNametableVisualCell(col, row, b, tilesPool, li)
     end
   end
+  if layer then
+    applyOnTheFlyForLayer(self, layer, tilesPool)
+  end
   self:invalidateNametableLayerCanvas(li)
   if self.setScroll then self:setScroll(self.scrollCol or 0, self.scrollRow or 0) end
 
@@ -666,6 +697,10 @@ function PPUFrameWindow:set(col, row, item, layerIndex)
   if L._runtimePatternTableRefLayer == true then
     Window.set(self, col, row, item, layerIndex)
     self:invalidateNametableLayerCanvas(layerIndex or self.activeLayer or 1, col, row)
+    return
+  end
+  if NametableTilesController.isOnTheFlyReplacementCell(L, col, row, self.cols) then
+    -- Locked: on-the-fly cells are display overrides, not drag/swap targets.
     return
   end
   
@@ -715,6 +750,11 @@ function PPUFrameWindow:swapCells(c1, r1, c2, r2)
   local L = self:getLayer(Lidx)
   if not L or L.kind ~= "tile" then return end
   if L._runtimePatternTableRefLayer == true then
+    return
+  end
+  if NametableTilesController.isOnTheFlyReplacementCell(L, c1, r1, self.cols)
+    or NametableTilesController.isOnTheFlyReplacementCell(L, c2, r2, self.cols)
+  then
     return
   end
   
@@ -841,6 +881,12 @@ function PPUFrameWindow:setNametableByteAt(col, row, byteVal, tilesPool, layerIn
     return
   end
 
+  local li = layerIndex or self.activeLayer or 1
+  local L = self:getLayer(li)
+  if L and NametableTilesController.isOnTheFlyReplacementCell(L, col, row, self.cols) then
+    return
+  end
+
   -- Clamp to byte range
   local v = math.max(0, math.min(255, math.floor(byteVal or 0)))
   self.nametableBytes[idx] = v
@@ -849,7 +895,6 @@ function PPUFrameWindow:setNametableByteAt(col, row, byteVal, tilesPool, layerIn
   recordSwap(self, idx)
 
   -- Refresh visual tile if we can resolve it
-  local li = layerIndex or self.activeLayer or 1
   self:syncNametableVisualCell(col, row, v, tilesPool, li)
   self:invalidateNametableLayerCanvas(li, col, row)
 
@@ -881,6 +926,20 @@ function PPUFrameWindow:refreshNametableVisuals(tilesPool, layerIndex)
     local byteVal = self.nametableBytes[i]
     self:syncNametableVisualCell(col, row, byteVal, tilesPool, li)
   end
+
+  NametableTilesController.applyOnTheFlyReplacements(self, layer, tilesPool, {
+    ensureTiles = ensureTilesForCurrentApp,
+    wm = (function()
+      local gctx = rawget(_G, "ctx")
+      local app = gctx and gctx.app or nil
+      return app and app.wm or nil
+    end)(),
+    appEditState = (function()
+      local gctx = rawget(_G, "ctx")
+      local app = gctx and gctx.app or nil
+      return app and app.appEditState or nil
+    end)(),
+  })
 
   if self.setScroll then
     self:setScroll(self.scrollCol or 0, self.scrollRow or 0)

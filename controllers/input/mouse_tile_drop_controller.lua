@@ -1524,6 +1524,17 @@ function M.handleTileDrop(env, x, y, wm)
     -- Same-window PPU/sketch tile move should use the native swap path so we only
     -- recompress/write once (avoids transient intermediate budget states).
     if not drag.copyMode and src == dst and (src.swapCells or src.swapNametableBytesAt) then
+      local srcLayerTbl = src.layers and src.layers[srcLayer]
+      local dstLayerTbl = dst.layers and dst.layers[dstLayer]
+      local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
+      if NametableTilesController.isOnTheFlyReplacementCell(srcLayerTbl, drag.srcCol, drag.srcRow, src.cols)
+        or NametableTilesController.isOnTheFlyReplacementCell(dstLayerTbl, col, row, dst.cols)
+      then
+        StatusHelpers.setStatusFromEnv(env, "On-the-fly replacement tiles cannot be moved")
+        env.clearDragState(false)
+        return true
+      end
+
       if recorder then
         recorder.stageCell(src, srcLayer, drag.srcCol, drag.srcRow)
         recorder.stageCell(dst, dstLayer, col, row)

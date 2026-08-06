@@ -511,6 +511,7 @@ function M.invalidateConsumersUsingPatternTable(app, patternTableRef)
                 nametableEndAddr = layer.nametableEndAddr,
                 tileSwaps = layer.tileSwaps,
                 userDefinedAttrs = layer.userDefinedAttrs,
+                onTheFlyReplacements = layer.onTheFlyReplacements,
                 codec = layer.codec,
               })
               if okH then

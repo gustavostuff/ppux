@@ -961,4 +961,74 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(selectAllRefs ~= nil).toBe(true)
     expect(selectAllRefs.enabled).toBe(true)
   end)
+
+  it("jumps on-the-fly nametable cells to replacement PT slot instead of underlying NT byte", function()
+    local app = setmetatable({
+      wm = {
+        getWindows = function()
+          return {
+            {
+              _id = "pt_cutscene",
+              kind = "pattern_table",
+              cols = 16,
+              rows = 16,
+              layers = {
+                {
+                  kind = "tile",
+                  mode = "8x8",
+                  patternTable = {
+                    ranges = {
+                      { bank = 16, from = 128, to = 191 },
+                      { bank = 6, from = 64, to = 255 },
+                    },
+                  },
+                },
+              },
+            },
+          }
+        end,
+      },
+    }, AppCoreController)
+
+    local patternTable = {
+      ranges = {
+        { bank = 16, from = 128, to = 191 },
+        { bank = 6, from = 64, to = 255 },
+      },
+    }
+    local win = {
+      kind = "ppu_frame",
+      cols = 32,
+      rows = 30,
+      nametableBytes = {},
+      layers = {
+        {
+          kind = "tile",
+          linkedPatternTableWindowId = "pt_cutscene",
+          patternTable = patternTable,
+          onTheFlyReplacements = {
+            { col = 8, row = 8, tileIndex = 160 },
+          },
+        },
+      },
+      getLayer = function(self, i)
+        return self.layers[i]
+      end,
+      get = function()
+        -- Normal shared PT tile ref after byte-patch + syncNametableVisualCell.
+        return { index = 160, _bankIndex = 6 }
+      end,
+    }
+    for i = 1, 32 * 30 do
+      win.nametableBytes[i] = 0x05
+    end
+    -- Simulate applyOnTheFlyReplacements having patched the display byte.
+    win.nametableBytes[8 * 32 + 8 + 1] = 160
+
+    local context = app:_buildPpuTileContext(win, 1, 8, 8)
+    expect(context).toBeTruthy()
+    expect(context.byteVal).toBe(160)
+    expect(app:_patternLogicalSlotForJump(context)).toBe(160)
+    expect(app:_nametablePatternTableNavigateEnabled(context)).toBe(true)
+  end)
 end)

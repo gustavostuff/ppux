@@ -110,8 +110,11 @@ local function hydrateNametableLayerIfReady(app, win, layer, layerIndex)
     patternTable = layer.patternTable,
     tileSwaps = layer.tileSwaps,
     userDefinedAttrs = layer.userDefinedAttrs,
+    onTheFlyReplacements = layer.onTheFlyReplacements,
     codec = layer.codec,
     reportErrors = false,
+    wm = self.wm,
+    appEditState = state,
   })
   if not ok then
     return false, err or "Failed to load PPU frame range"

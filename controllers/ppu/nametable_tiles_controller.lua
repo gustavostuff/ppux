@@ -189,7 +189,7 @@ local function hasWindowNametableChanges(win)
     return true
   end
 
-  local nt = win and win.nametableBytes or nil
+  local nt = M.copyNametableBytesWithoutOnTheFly(win)
   local ntOrig = win and win._originalNametableBytes or nil
   local at = win and win.nametableAttrBytes or nil
   local atOrig = win and win._originalNametableAttrBytes or nil
@@ -215,7 +215,7 @@ end
 
 function M.encodeWindowNametableBytes(win, layer, opts)
   opts = opts or {}
-  local nt = win and win.nametableBytes or nil
+  local nt = M.copyNametableBytesWithoutOnTheFly(win)
   local at = win and win.nametableAttrBytes or nil
   if type(nt) ~= "table" or #nt == 0 then
     return nil, "empty_nametableBytes"
@@ -564,6 +564,7 @@ end
 --    nametableStartAddr  : 0-based ROM address of compressed stream start
 --    nametableEndAddr    : 0-based ROM address of compressed stream end (inclusive)
 --    tileSwaps           : optional list { {col,row,val}, ... } to apply after load
+--    onTheFlyReplacements: optional list { {col,row,tileIndex}, ... } visual PT overrides
 function M.hydrateWindowNametable(win, layer, opts)
   if not (win and layer and opts) then
     return nil, "missing_args"
@@ -798,6 +799,24 @@ function M.hydrateWindowNametable(win, layer, opts)
     logPerf("ntm.apply_tile_swaps", swapsStartedAt, string.format("title=%s count=%d", tostring(win.title or ""), tileSwaps and #tileSwaps or 0))
   end
 
+  -- On-the-fly replacements: patch nametableBytes with PT logical indexes, then
+  -- let the normal syncNametableVisualCell / patternTable path render them.
+  do
+    local replacements = opts.onTheFlyReplacements or layer.onTheFlyReplacements
+    if replacements ~= nil then
+      layer.onTheFlyReplacements = TableUtils.deepcopy(replacements)
+    end
+    if tilesPool or layer.onTheFlyReplacements then
+      local otfStartedAt = LoveCompat.getTime()
+      local n = M.applyOnTheFlyReplacements(win, layer, tilesPool, {
+        ensureTiles = ensureTiles,
+        wm = opts.wm,
+        appEditState = opts.appEditState,
+      })
+      logPerf("ntm.apply_on_the_fly", otfStartedAt, string.format("title=%s count=%d", tostring(win.title or ""), n or 0))
+    end
+  end
+
   -- Load user-defined attribute bytes from project if they exist
   -- These override the attribute bytes loaded from ROM
   local userDefinedAttrs = (opts and opts.userDefinedAttrs) or nil
@@ -966,6 +985,186 @@ function M.applyTileSwaps(win, layer, swaps, tilesPool, opts)
 end
 
 ----------------------------------------------------------------------
+-- On-the-fly nametable replacements (visual override; not baked to ROM)
+----------------------------------------------------------------------
+
+--- Normalize project list `{ {col,row,tileIndex}, ... }` into a clean array.
+function M.normalizeOnTheFlyReplacements(list)
+  if type(list) ~= "table" then
+    return {}
+  end
+  local out = {}
+  for _, entry in ipairs(list) do
+    if type(entry) == "table" then
+      local col = tonumber(entry.col)
+      local row = tonumber(entry.row)
+      local tileIndex = tonumber(entry.tileIndex)
+      if col and row and tileIndex then
+        out[#out + 1] = {
+          col = math.floor(col),
+          row = math.floor(row),
+          tileIndex = math.max(0, math.min(255, math.floor(tileIndex))),
+        }
+      end
+    end
+  end
+  return out
+end
+
+function M.rebuildOnTheFlyReplacementIndex(layer, cols)
+  if not layer then
+    return
+  end
+  cols = cols or 32
+  local map = {}
+  for _, entry in ipairs(layer.onTheFlyReplacements or {}) do
+    if type(entry) == "table" then
+      local col = tonumber(entry.col)
+      local row = tonumber(entry.row)
+      if col and row then
+        local idx = math.floor(row) * cols + math.floor(col) + 1
+        map[idx] = entry
+      end
+    end
+  end
+  layer._onTheFlyReplacementByIdx = map
+end
+
+function M.isOnTheFlyReplacementCell(layer, col, row, cols)
+  if not (layer and type(col) == "number" and type(row) == "number") then
+    return false
+  end
+  if type(layer._onTheFlyReplacementByIdx) ~= "table" then
+    M.rebuildOnTheFlyReplacementIndex(layer, cols)
+  end
+  local map = layer._onTheFlyReplacementByIdx
+  if type(map) ~= "table" then
+    return false
+  end
+  cols = cols or 32
+  local idx = math.floor(row) * cols + math.floor(col) + 1
+  return map[idx] ~= nil
+end
+
+--- Pattern-table logical slot for an on-the-fly cell, or nil.
+function M.onTheFlyLogicalIndexAt(layer, col, row, cols)
+  if not (layer and type(col) == "number" and type(row) == "number") then
+    return nil
+  end
+  if type(layer._onTheFlyReplacementByIdx) ~= "table" then
+    M.rebuildOnTheFlyReplacementIndex(layer, cols)
+  end
+  local map = layer._onTheFlyReplacementByIdx
+  if type(map) ~= "table" then
+    return nil
+  end
+  cols = cols or 32
+  local entry = map[math.floor(row) * cols + math.floor(col) + 1]
+  if type(entry) ~= "table" then
+    return nil
+  end
+  local tileIndex = tonumber(entry.tileIndex)
+  if type(tileIndex) ~= "number" then
+    return nil
+  end
+  return math.max(0, math.min(255, math.floor(tileIndex)))
+end
+
+--- Restore nametableBytes cells previously overridden by onTheFlyReplacements.
+local function restoreOnTheFlyBaseBytes(win)
+  if not win then
+    return
+  end
+  local base = win._onTheFlyBaseByIdx
+  if type(base) ~= "table" then
+    return
+  end
+  win.nametableBytes = win.nametableBytes or {}
+  for idx, val in pairs(base) do
+    win.nametableBytes[idx] = val
+  end
+  win._onTheFlyBaseByIdx = nil
+end
+
+--- Copy of nametableBytes with on-the-fly overlays removed (for ROM / peer sync / diffs).
+function M.copyNametableBytesWithoutOnTheFly(win)
+  local nt = win and win.nametableBytes or nil
+  if type(nt) ~= "table" then
+    return {}
+  end
+  local out = copyBytes(nt)
+  local base = win and win._onTheFlyBaseByIdx
+  if type(base) == "table" then
+    for idx, val in pairs(base) do
+      out[idx] = val
+    end
+  end
+  return out
+end
+
+--- After nametableBytes are built (decode + tileSwaps), overwrite cells with
+--- onTheFlyReplacements.tileIndex (decimal PT logical 0..255) and refresh
+--- visuals through the normal syncNametableVisualCell / patternTable path.
+--- Overlays are kept out of ROM bake via _onTheFlyBaseByIdx.
+function M.applyOnTheFlyReplacements(win, layer, tilesPool, opts)
+  if not (win and layer and layer.kind == "tile") then
+    return 0
+  end
+  if layer._runtimePatternTableRefLayer == true then
+    return 0
+  end
+
+  -- Re-applying must start from the non-overlay bytes.
+  restoreOnTheFlyBaseBytes(win)
+
+  local list = M.normalizeOnTheFlyReplacements(layer.onTheFlyReplacements)
+  layer.onTheFlyReplacements = list
+  local cols = win.cols or 32
+  local rows = win.rows or 30
+  M.rebuildOnTheFlyReplacementIndex(layer, cols)
+
+  if #list == 0 then
+    return 0
+  end
+
+  opts = opts or {}
+  ensurePatternTableBanks(layer.patternTable, opts.ensureTiles)
+
+  win.nametableBytes = win.nametableBytes or {}
+  win._onTheFlyBaseByIdx = {}
+  local li = findLayerIndex(win, layer) or 1
+  local applied = 0
+
+  for _, entry in ipairs(list) do
+    local col, row, tileIndex = entry.col, entry.row, entry.tileIndex
+    if col >= 0 and col < cols and row >= 0 and row < rows then
+      local idx = row * cols + col + 1
+      if win._onTheFlyBaseByIdx[idx] == nil then
+        win._onTheFlyBaseByIdx[idx] = win.nametableBytes[idx]
+      end
+      win.nametableBytes[idx] = tileIndex
+      if tilesPool then
+        if win.syncNametableVisualCell then
+          win:syncNametableVisualCell(col, row, tileIndex, tilesPool, li)
+        else
+          local tileRef = PatternTableMapping.resolveTile(tilesPool, layer, tileIndex)
+          local L = win.getLayer and win:getLayer(li) or (win.layers and win.layers[li])
+          if L then
+            L.items = L.items or {}
+            L.items[idx] = tileRef
+          end
+        end
+      end
+      applied = applied + 1
+      if win.invalidateNametableLayerCanvas then
+        win:invalidateNametableLayerCanvas(li, col, row)
+      end
+    end
+  end
+  return applied
+end
+
+----------------------------------------------------------------------
 -- Snapshot / serialization helpers
 ----------------------------------------------------------------------
 
@@ -1014,6 +1213,11 @@ function M.snapshotNametableLayer(win, layer)
   if swaps then
     local encoded = encodeTileSwapsRLE(swaps, win.cols, win.rows)
     out.tileSwaps = encoded or swaps
+  end
+
+  -- On-the-fly visual replacements (not part of nametableBytes / ROM bake).
+  if type(layer.onTheFlyReplacements) == "table" and #layer.onTheFlyReplacements > 0 then
+    out.onTheFlyReplacements = TableUtils.deepcopy(M.normalizeOnTheFlyReplacements(layer.onTheFlyReplacements))
   end
 
   -- User-defined attribute bytes as hex string (64 bytes = 128 hex characters).
@@ -1526,7 +1730,7 @@ function M.syncPeerPpuFrameNametableWindows(sourceWin, sourceLayer, opts)
   end
 
   opts = opts or {}
-  local srcNt = sourceWin.nametableBytes or {}
+  local srcNt = M.copyNametableBytesWithoutOnTheFly(sourceWin)
   local srcAt = sourceWin.nametableAttrBytes or {}
   if #srcNt == 0 then
     return 0

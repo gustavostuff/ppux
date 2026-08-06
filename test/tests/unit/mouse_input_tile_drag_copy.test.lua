@@ -614,8 +614,11 @@ describe("mouse_input.lua - tile ctrl+drag copy", function()
     local status = nil
     local win = makeTileWindow()
     win.kind = "pattern_table"
-    local tile = { id = "pt", index = 222 }
-    win:set(0, 0, tile, 1)
+    win.cols = 16
+    win.rows = 16
+    -- PT logical slot 222 = row 13, col 14 in 8x8 layout (not CHR item.index).
+    local tile = { id = "pt", index = 999 }
+    win:set(14, 13, tile, 1)
 
     local wm = {
       setFocus = function() end,
@@ -640,7 +643,7 @@ describe("mouse_input.lua - tile ctrl+drag copy", function()
       altDown = function() return false end,
       DRAG_TOL = 4,
       pickByVisual = function(_, _x, _y, li)
-        return true, 0, 0, win:get(0, 0, li)
+        return true, 14, 13, win:get(14, 13, li)
       end,
     })
 
@@ -652,11 +655,14 @@ describe("mouse_input.lua - tile ctrl+drag copy", function()
     local status = nil
     local win = makeTileWindow()
     win.kind = "pattern_table"
+    win.cols = 16
+    win.rows = 16
     win.layers[1].mode = "8x16"
-    local top = { id = "top", index = 10 }
-    local bot = { id = "bot", index = 11 }
-    win:set(0, 0, top, 1)
-    win:set(0, 1, bot, 1)
+    -- 8x16 logical slot 10 lives at top cell (col 5, row 0); click the bottom half.
+    local top = { id = "top", index = 999 }
+    local bot = { id = "bot", index = 998 }
+    win:set(5, 0, top, 1)
+    win:set(5, 1, bot, 1)
 
     local wm = {
       setFocus = function() end,
@@ -681,7 +687,7 @@ describe("mouse_input.lua - tile ctrl+drag copy", function()
       altDown = function() return false end,
       DRAG_TOL = 4,
       pickByVisual = function(_, _x, _y, li)
-        return true, 0, 1, win:get(0, 1, li)
+        return true, 5, 1, win:get(5, 1, li)
       end,
     })
 

@@ -58,6 +58,25 @@ end
 
 function AppCoreController:_patternLogicalSlotForJump(context)
   if not context then return nil end
+  -- On-the-fly visual overrides: jump to the replacement PT slot, not the underlying NT byte.
+  if context.item and context.item._onTheFlyReplacement == true
+    and type(context.item._onTheFlyLogicalIndex) == "number"
+  then
+    return Shared.clampByte(context.item._onTheFlyLogicalIndex)
+  end
+  if context.layer and context.win and WindowCaps.isPpuFrame(context.win)
+    and type(context.col) == "number" and type(context.row) == "number"
+  then
+    local otf = NametableTilesController.onTheFlyLogicalIndexAt(
+      context.layer,
+      context.col,
+      context.row,
+      context.win.cols
+    )
+    if type(otf) == "number" then
+      return Shared.clampByte(otf)
+    end
+  end
   if type(context.byteVal) == "number" then
     return Shared.clampByte(context.byteVal)
   end
@@ -118,6 +137,14 @@ function AppCoreController:_nametablePatternTableNavigateEnabled(context)
   if not PatternTableMapping.validate(layer.patternTable) then return false end
   if self:_patternLogicalSlotForJump(context) == nil then return false end
   if not self:_resolveLinkedPatternTableWindow(context) then return false end
+  if context.item and context.item._onTheFlyReplacement == true then
+    return true
+  end
+  if type(context.col) == "number" and type(context.row) == "number"
+    and NametableTilesController.isOnTheFlyReplacementCell(layer, context.col, context.row, context.win.cols)
+  then
+    return true
+  end
   return resolveChrTileIndexFromPpuNametableCell(context.layer, context.item, context.byteVal) ~= nil
 end
 
@@ -209,15 +236,28 @@ function AppCoreController:_buildPpuTileContext(win, layerIndex, col, row)
   local idx = Shared.ppuTileLinearIndex(win, col, row)
   local byteVal = win.nametableBytes and win.nametableBytes[idx] or nil
   local item = win.get and win:get(col, row, layerIndex) or nil
+  local otfLogical = (item and item._onTheFlyReplacement == true and tonumber(item._onTheFlyLogicalIndex))
+    or NametableTilesController.onTheFlyLogicalIndexAt(layer, col, row, win.cols)
 
-  local sourceBank = tonumber(item._bankIndex)
-  if not sourceBank and type(byteVal) == "number" and type(layer.patternTable) == "table" then
+  local sourceBank = tonumber(item and item._bankIndex)
+  local lookupLogical = (type(otfLogical) == "number" and otfLogical)
+    or ((type(byteVal) == "number") and Shared.clampByte(byteVal))
+    or nil
+  if not sourceBank and type(lookupLogical) == "number" and type(layer.patternTable) == "table" then
     local map = PatternTableMapping.buildMap(layer.patternTable)
-    local entry = map and map[Shared.clampByte(byteVal)] or nil
+    local entry = map and map[Shared.clampByte(lookupLogical)] or nil
     sourceBank = entry and tonumber(entry.bank) or nil
   end
   sourceBank = sourceBank or 1
   local clampedByte = (type(byteVal) == "number") and Shared.clampByte(byteVal) or nil
+  local tileIndex
+  if type(otfLogical) == "number" and type(layer.patternTable) == "table" then
+    local map = PatternTableMapping.buildMap(layer.patternTable)
+    local entry = map and map[Shared.clampByte(otfLogical)] or nil
+    tileIndex = entry and tonumber(entry.tileIndex) or nil
+  else
+    tileIndex = resolveChrTileIndexFromPpuNametableCell(layer, item, clampedByte)
+  end
 
   return {
     win = win,
@@ -227,7 +267,8 @@ function AppCoreController:_buildPpuTileContext(win, layerIndex, col, row)
     row = row,
     item = item,
     byteVal = clampedByte,
-    tileIndex = resolveChrTileIndexFromPpuNametableCell(layer, item, clampedByte),
+    logicalIndex = (type(otfLogical) == "number") and Shared.clampByte(otfLogical) or nil,
+    tileIndex = tileIndex,
     sourceBank = sourceBank,
   }
 end

@@ -689,19 +689,24 @@ function M.deleteTileSelection(win, layerIdx, fallbackCol, fallbackRow, app, und
   if WindowCaps.isPpuFrame(win) or WindowCaps.isSketchReflectNametable(win) then
     local clearByte = 0x00
     local actions = {}
+    local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
 
     for _, cell in ipairs(cells) do
       local idx = cell.idx or ((cell.row * (win.cols or 0) + cell.col) + 1)
-      local prevByte = win.nametableBytes and win.nametableBytes[idx]
-      if prevByte ~= clearByte then
-        actions[#actions + 1] = {
-          win        = win,
-          layerIndex = layerIdx,
-          col        = cell.col,
-          row        = cell.row,
-          prevByte   = prevByte,
-          newByte    = clearByte,
-        }
+      if NametableTilesController.isOnTheFlyReplacementCell(layer, cell.col, cell.row, win.cols) then
+        -- Locked on-the-fly replacement cells cannot be cleared.
+      else
+        local prevByte = win.nametableBytes and win.nametableBytes[idx]
+        if prevByte ~= clearByte then
+          actions[#actions + 1] = {
+            win        = win,
+            layerIndex = layerIdx,
+            col        = cell.col,
+            row        = cell.row,
+            prevByte   = prevByte,
+            newByte    = clearByte,
+          }
+        end
       end
     end
 
@@ -789,6 +794,13 @@ function M.buildTileDragGroup(win, layerIdx, anchorCol, anchorRow)
   if not (win and layerIdx and anchorCol and anchorRow) then return nil end
   local layer = win.layers and win.layers[layerIdx]
   if not (layer and layer.kind == "tile") then return nil end
+
+  local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
+  if WindowCaps.isPpuFrame(win)
+    and NametableTilesController.isOnTheFlyReplacementCell(layer, anchorCol, anchorRow, win.cols)
+  then
+    return nil
+  end
 
   if isChr8x16SelectionMode(win) then
     local pairs = M.getSelectedChr8x16Pairs(win, layerIdx, anchorCol, anchorRow)
@@ -929,7 +941,9 @@ function M.buildTileDragGroup(win, layerIdx, anchorCol, anchorRow)
   for _, cell in ipairs(selected) do
     local idx = cell.idx or ((cell.row * cols + cell.col) + 1)
     local item = getTileInteractionItem(win, cell.col, cell.row, layerIdx)
-    if item ~= nil and not (removedCells and removedCells[idx]) then
+    local lockedOtf = WindowCaps.isPpuFrame(win)
+      and NametableTilesController.isOnTheFlyReplacementCell(layer, cell.col, cell.row, cols)
+    if item ~= nil and not (removedCells and removedCells[idx]) and not lockedOtf then
       local offsetCol = cell.col - anchorCol
       local offsetRow = cell.row - anchorRow
       entries[#entries + 1] = {
@@ -1065,16 +1079,21 @@ function M.applyTileDragGroup(win, layerIdx, group, anchorCol, anchorRow, opts)
       if type(srcCol) == "number" and type(srcRow) == "number"
         and dstCol >= 0 and dstCol < cols and dstRow >= 0 and dstRow < rows
       then
-        local srcIdx = (srcRow * srcCols + srcCol) + 1
-        local srcByte = srcWin.nametableBytes[srcIdx] or 0
-        placementBytes[#placementBytes + 1] = {
-          col = dstCol,
-          row = dstRow,
-          byte = srcByte,
-          srcIdx = srcIdx,
-          srcCol = srcCol,
-          srcRow = srcRow,
-        }
+        local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
+        local srcLocked = NametableTilesController.isOnTheFlyReplacementCell(srcLayerTbl, srcCol, srcRow, srcCols)
+        local dstLocked = NametableTilesController.isOnTheFlyReplacementCell(layer, dstCol, dstRow, cols)
+        if not srcLocked and not dstLocked then
+          local srcIdx = (srcRow * srcCols + srcCol) + 1
+          local srcByte = srcWin.nametableBytes[srcIdx] or 0
+          placementBytes[#placementBytes + 1] = {
+            col = dstCol,
+            row = dstRow,
+            byte = srcByte,
+            srcIdx = srcIdx,
+            srcCol = srcCol,
+            srcRow = srcRow,
+          }
+        end
       end
     end
 

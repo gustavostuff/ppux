@@ -576,6 +576,7 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
         noOverflowSupported = ntLayer and ntLayer.noOverflowSupported == true,
         tileSwaps = ntLayer and ntLayer.tileSwaps,
         userDefinedAttrs = ntLayer and ntLayer.userDefinedAttrs,
+        onTheFlyReplacements = ntLayer and ntLayer.onTheFlyReplacements,
       }
       DebugController.log(
         "info",
@@ -604,6 +605,7 @@ function M.createPPUFrameWindow(w, tilesPool, ensureTiles, romRaw)
         patternTable = patternTable,
         tileSwaps = ntLayer and ntLayer.tileSwaps,
         userDefinedAttrs = ntLayer and ntLayer.userDefinedAttrs,
+        onTheFlyReplacements = ntLayer and ntLayer.onTheFlyReplacements,
       })
       if not ok then
         DebugController.log("info", "GAM", "hydrateWindowNametable failed for PPU frame: %s", tostring(err))
@@ -743,6 +745,9 @@ local function applyLayerMetadataFromLayout(win, layoutLayers)
       if Lsrc.tileSwaps ~= nil then
         Ldst.tileSwaps = TableUtils.deepcopy(Lsrc.tileSwaps)
       end
+      if Lsrc.onTheFlyReplacements ~= nil then
+        Ldst.onTheFlyReplacements = TableUtils.deepcopy(Lsrc.onTheFlyReplacements)
+      end
       if type(Lsrc.userDefinedAttrs) == "string" then
         Ldst.userDefinedAttrs = Lsrc.userDefinedAttrs
       end
@@ -852,10 +857,11 @@ function M.finalizeWindow(win, w, windowsById, wm, romRaw, tilesPool, layoutCurr
   end
 end
 
-function M.finalizeDeferredPpuNametableHydrates(wm, romRaw, tilesPool, ensureTiles)
+function M.finalizeDeferredPpuNametableHydrates(wm, romRaw, tilesPool, ensureTiles, opts)
   if not wm or not wm.getWindows then
     return
   end
+  opts = type(opts) == "table" and opts or {}
   romRaw = romRaw or ""
   for _, win in ipairs(wm:getWindows()) do
     local pend = win and win._ppuxDeferNametableHydrate
@@ -885,6 +891,9 @@ function M.finalizeDeferredPpuNametableHydrates(wm, romRaw, tilesPool, ensureTil
           noOverflowSupported = pend.noOverflowSupported == true,
           tileSwaps = pend.tileSwaps,
           userDefinedAttrs = pend.userDefinedAttrs,
+          onTheFlyReplacements = pend.onTheFlyReplacements,
+          wm = wm,
+          appEditState = opts.appEditState,
         })
         if not ok then
           DebugController.log(
@@ -929,7 +938,7 @@ function M.afterLayoutPatternTablesHydrate(wm, tilesPool, ensureTiles, opts)
   })
   SketchCanvasPackController.reapplyAllSketchLinkedPatternTables(wm)
   SketchCanvasPackController.reconcileLoadedSketchPacks(wm)
-  M.finalizeDeferredPpuNametableHydrates(wm, opts.romRaw, tilesPool, ensureTiles)
+  M.finalizeDeferredPpuNametableHydrates(wm, opts.romRaw, tilesPool, ensureTiles, opts)
 
   -- hydrateWindowNametable / early layout can populate nametable visuals before tilesPool CHR keys
   -- exist or before pattern linkage is finalized, leaving sparse layer.items until something
