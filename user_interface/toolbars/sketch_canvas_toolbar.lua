@@ -1,5 +1,5 @@
 -- sketch_canvas_toolbar.lua
--- Sketch canvas toolbar: Link, tolerance, Generate, Export CHR/NT.
+-- Sketch canvas toolbar: tolerance, Generate, Export CHR/NT, then pattern table + palette links.
 -- Tile/edit global mode drives packed mirror view (no dedicated Reflect button).
 
 local ToolbarBase = require("user_interface.toolbars.toolbar_base")
@@ -104,26 +104,6 @@ function SketchCanvasToolbar.new(window, ctx, windowController)
   local actions = images.icons and images.icons.actions or {}
   local chrome = images.icons and images.icons.chrome or {}
 
-  -- Palette link destination handle (ROM palette → sketch), separate from PT link.
-  self.paletteLinkButton = self:addButton(
-    actions.icon_connect or chrome.icon_circle,
-    function()
-      self:_onPaletteLinkMenu()
-    end,
-    "Palette link handle; right-drag to a sketch palette to link; left-click for menu",
-    {
-      paletteLinkHandle = true,
-    }
-  )
-
-  self.linkButton = self:addButton(
-    actions.icon_pattern_table or actions.icon_connect or chrome.icon_circle,
-    function()
-      self:_onLinkMenu()
-    end,
-    "Link pattern table"
-  )
-
   self.toleranceDownButton = self:addButton(
     chrome.icon_minus or chrome.icon_circle,
     function()
@@ -183,6 +163,26 @@ function SketchCanvasToolbar.new(window, ctx, windowController)
       self:_onExportNametable()
     end,
     "Export nametable binary"
+  )
+
+  -- Link handles last (same order as OAM / animation: pattern table, then palette).
+  self.linkButton = self:addButton(
+    actions.icon_pattern_table or actions.icon_connect or chrome.icon_circle,
+    function()
+      self:_onLinkMenu()
+    end,
+    "Link pattern table"
+  )
+
+  self.paletteLinkButton = self:addButton(
+    actions.icon_connect or chrome.icon_circle,
+    function()
+      self:_onPaletteLinkMenu()
+    end,
+    "Palette link handle; right-drag to a sketch palette to link; left-click for menu",
+    {
+      paletteLinkHandle = true,
+    }
   )
 
   self:updateIcons()

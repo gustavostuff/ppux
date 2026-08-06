@@ -36,8 +36,8 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
 After dropping a ROM into the window, PPUX opens a default layout, a DB layout, or a `*.lua` / `*.ppux` user project if one exists.
 
 * Open a project from the app toolbar or with `Ctrl + O`.
-* Start a **sketch-only** workspace (no game ROM) to work from scratch. See [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom).
-* ROMs without a DB entry still work. DB entries are curated starting points. Coordinate new DB work via the [DB contribution tracker](https://docs.google.com/spreadsheets/d/1uxwTMG9cmv7juRGnYeg7M8aFsWqMgMWwBduhdpviIm4/edit?gid=1408935396#gid=1408935396).
+* Start a **sketch-only** workspace (no game ROM) to work on graphics _from scratch_. See [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom).
+* ROMs without a DB entry still work. DB entries are just curated starting points, an existing base to work on. Coordinate new DB work via the [DB contribution tracker](https://docs.google.com/spreadsheets/d/1uxwTMG9cmv7juRGnYeg7M8aFsWqMgMWwBduhdpviIm4/edit?gid=1408935396#gid=1408935396).
 
 ### Windows system
 
@@ -75,10 +75,10 @@ The App toolbar sits at the top and hosts global quick actions. It also reserves
 2. **Open project** - `Ctrl + O`.
 3. **Save options** - `Ctrl + S` (save / export flows).
 4. **Copy** - copies the current selection (`Ctrl + C` in **tile mode** only). Works on tile or sprite layers where clipboard is allowed. Blocked on PPU Frame and OAM Animation sprite layers.
-5. **Cut** - `Ctrl + X` (for now, tile mode only for keyboard shortcuts).
-6. **Paste** - `Ctrl + V` (for now, tile mode only for keyboard shortcuts).
-7. **Zoom out** - zooms in the focused window.
-8. **Zoom in** - zooms out the focused window.
+5. **Cut** - `Ctrl + X` (for now, tile mode only).
+6. **Paste** - `Ctrl + V` (for now, tile mode only).
+7. **Zoom out** - zooms out the focused window.
+8. **Zoom in** - zooms in the focused window.
 9. **Mirror X** - toggles horizontal mirror preview in the **focused** window. Shortcut: **`M`**.
 10. **Always on top** - toggles whether the **focused** window stays above others. Also available from the window's title-bar menu.
 11. **Add column to the right** - on grid-resizable layout windows only. Hold **Shift** to switch the same control to **Remove last column** (tooltip updates).
@@ -138,12 +138,12 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 
 <img src="img/readme_images/toolbars/sketch_canvas_toolbar.png" alt="Sketch canvas specialized toolbar">
 
-1. **Palette link handle** - right-drag onto a **sketch-mode** ROM palette (or left-click for a menu). Turns **green** when linked. Needed for live multi-palette preview and Gallery ROM colors.
-2. **Pattern table link** - left-click to link, jump to, or unlink a **Pattern table**.
-3. **Tolerance (- / value / +)** - pixel-diff grouping for Generate (0-32). When linked, changing tolerance live-regenerates the pattern table.
-4. **Generate** - packs the paint canvas into up to 256 unique patterns and applies them to the linked pattern table. Highlights when pixels changed since the last pack.
-5. **Export CHR** - writes a 4KB CHR bank (256 tiles) beside the project/ROM folder (needs a successful Generate).
-6. **Export nametable** - writes a 1024-byte `.nam` (960 tiles + 64 attribute bytes).
+1. **Tolerance (- / value / +)** - pixel-diff grouping for Generate (0-32). When linked, changing tolerance live-regenerates the pattern table.
+2. **Generate** - packs the paint canvas into up to 256 unique patterns and applies them to the linked pattern table. Highlights when pixels changed since the last pack.
+3. **Export CHR** - writes a 4KB CHR bank (256 tiles) beside the project/ROM folder (needs a successful Generate).
+4. **Export nametable** - writes a 1024-byte `.nam` (960 tiles + 64 attribute bytes).
+5. **Pattern table link** - left-click to link, jump to, or unlink a **Pattern table**.
+6. **Palette link handle** - right-drag onto a **sketch-mode** ROM palette (or left-click for a menu). Turns **green** when linked. Needed for live multi-palette preview and Gallery ROM colors.
 
 </td>
 </tr>
