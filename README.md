@@ -61,9 +61,18 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 | Pattern table          | <img src="img/readme_images/windows_system_table/icon_pattern_table_window.png" alt="Pattern table taskbar icon">        | Sub-set of CHR/ROM items, intended to mimic the actual pattern tables assembled in game run-time                                                 |
 | Sketch canvas          | <img src="img/readme_images/windows_system_table/sketch_canvas_window.png" alt="Sketch canvas taskbar icon">             | Free 256x240 background paint canvas. It packs into a linked **Pattern table**. See [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom)   |
 
-### Toolbars
+<a id="toolbars"></a>
 
 <table>
+<thead>
+<tr>
+<th>
+
+Toolbars
+
+</th>
+</tr>
+</thead>
 <tbody>
 <tr>
 <td>
