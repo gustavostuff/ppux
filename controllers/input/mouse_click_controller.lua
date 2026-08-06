@@ -317,9 +317,8 @@ local function handleSpriteClick(env, button, x, y, win, wm)
     setSpriteClick({ active = false })
     SpriteController.clearSpriteSelection(L)
     L.hoverSpriteIndex = nil
-    if WindowCaps.isPpuFrame(win) then
-      return false
-    end
+    -- Consume empty sprite-space clicks. On PPU frames, falling through used to
+    -- start a nametable tile drag under the cursor (a "ghost" while dragging nothing).
     return true
   end
 
@@ -1122,6 +1121,9 @@ local function handleTileSelection(env, button, x, y, win, wm)
       if not ntIdx then
         return false
       end
+      -- Reached when handleSpriteClick returns false (e.g. sprite layer locked).
+      -- Empty unlocked sprite misses are consumed there so they no longer start
+      -- a nametable tile-drag ghost.
       tileLayerIdx = ntIdx
     else
       return false
