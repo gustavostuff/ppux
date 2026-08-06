@@ -33,17 +33,20 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
 
 ### Getting started
 
-After dropping a ROM into the window, PPUX opens a default layout, a DB layout, or a `*.lua` / `*.ppux` user project if one exists.
+PPUX has two main functionalities:
 
-* Open a project from the app toolbar or with `Ctrl + O`.
-* Start a **sketch-only** workspace (no game ROM) to work on graphics _from scratch_. See [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom).
-* ROMs without a DB entry still work. DB entries are just curated starting points, an existing base to work on. Coordinate new DB work via the [DB contribution tracker](https://docs.google.com/spreadsheets/d/1uxwTMG9cmv7juRGnYeg7M8aFsWqMgMWwBduhdpviIm4/edit?gid=1408935396#gid=1408935396).
+1. Modify graphics on an existing game.
+2. Create graphics from scratch.
+
+For the first approach, a ROM needs to be dropped into the window. If the ROM has no DB entry, a default, basic layout will be loaded. If a DB entry exists, then things get much easier: a tailored workspace will be loaded (this is where PPUX shines, the core idea).
+
+For the second approach, _Sketch Canvas_ windows are used. From them, pattern tables can be generated and they can also map colors thru attributes, like real nametables. Binaries for both CHR data and nametable data can be exported, and even a full _Gallery ROM_ featuring N _gallery items_ (one item per Sketch Canvas windows.
 
 ### Windows system
 
 Windows are the main work areas in PPUX. Some are source windows, some are layout windows, and some are ROM-backed helper windows.
 
-| Window                 | Taskbar icon                                                                                                             | Description                                                                                                                                      |
+| Window        | Taskbar icon                                                                                                        | Description                                                                                                                                      |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------|
 | CHR Banks              | <img src="img/readme_images/windows_system_table/icon_chr_window.png" alt="CHR Banks taskbar icon">                      | Primary source window for normal CHR bank data                                                                                                   |
 | ROM Banks              | <img src="img/readme_images/windows_system_table/icon_rom_window.png" alt="ROM Banks taskbar icon">                      | Same as CHR Banks, but loads the whole ROM                                                                                                       |
