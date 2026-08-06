@@ -115,6 +115,30 @@ describe("window_link_visual_controller.lua", function()
     expect(layouts[sketch].ppu_palette).toBeTruthy()
   end)
 
+  it("uses brown for pattern-table handles linked to both BG and sprite layers", function()
+    local wm = WM.new()
+    local pt = wm:createPatternTableWindow({ title = "PT", x = 10, y = 10 })
+    local ppu = wm:createPPUFrameWindow({ title = "PPU", x = 200, y = 10, romRaw = string.rep("\0", 256) })
+    ppu.layers[1].linkedPatternTableWindowId = pt._id
+    table.insert(ppu.layers, {
+      kind = "sprite",
+      items = {},
+      linkedPatternTableWindowId = pt._id,
+    })
+
+    local app = {
+      wm = wm,
+      windowLinksMode = "always",
+      canvas = { getWidth = function() return 640 end, getHeight = function() return 360 end },
+    }
+    local edges = LinkVisual.collectWindowLinkEdges(app)
+    local layouts = LinkVisual.buildAnchorLayouts(app, edges)
+    expect(layouts[pt]).toBeTruthy()
+    expect(layouts[pt].pattern_source).toBeTruthy()
+    expect(layouts[pt].pattern_source.innerColor).toBe(colors.brown)
+    expect(layouts[pt].pattern_source.innerSplit).toBeNil()
+  end)
+
   it("prepareLinkDrawState returns nil when modals block workspace", function()
     local app = {
       wm = WM.new(),

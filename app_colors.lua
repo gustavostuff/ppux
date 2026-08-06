@@ -7,6 +7,8 @@ local colors = {
   gray75 = "BFBFBF",
   red = "d95763",
   green = "37946e",
+  --- Pattern-table handle when linked to both BG (red) and sprite (green) consumers.
+  brown = "a37a69",
   blue = "5b6ee1",
   lightBlue = "8895e1",
   yellow = "fbf236",

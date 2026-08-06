@@ -326,11 +326,12 @@ local function innerColorAndSplitForHandleSlot(win, slot, wm, edges, hasLine)
   if WindowCaps.isPatternTable(win) and slot == PATTERN_TABLE_SLOT then
     local hasRed, hasGreen = patternTableOutgoingKinds(win, edges)
     if hasRed and hasGreen then
-      return colors.transparent, "red_green"
+      -- Mix of red (BG) + green (sprite) link colors.
+      return colors.brown, nil
     elseif hasRed then
-      return colors.red, "red"
+      return colors.red, nil
     elseif hasGreen then
-      return colors.green, "green"
+      return colors.green, nil
     end
     return colors.transparent, nil
   end
@@ -829,7 +830,7 @@ function M.drawPivotHandleChrome(cx, cy, chromeFillColor)
   love.graphics.rectangle("fill", ox, oy, HANDLE_OUTER_W, HANDLE_OUTER_H, HANDLE_OUTER_RADIUS, HANDLE_OUTER_RADIUS)
 end
 
-function M.drawPivotHandleInner(cx, cy, innerColor, pulseInner, chromeInkColor, innerSplit)
+function M.drawPivotHandleInner(cx, cy, innerColor, pulseInner, chromeInkColor, _innerSplit)
   if not (cx and cy) then
     return
   end
@@ -841,20 +842,11 @@ function M.drawPivotHandleInner(cx, cy, innerColor, pulseInner, chromeInkColor, 
   local iy = oy + math.floor((HANDLE_OUTER_H - HANDLE_INNER_H) * 0.5)
   local idle = chromeInkColor or idleInnerColorForWindow(nil, nil)
 
-  if innerSplit == "red_green" then
-    for row = 0, HANDLE_INNER_H - 1 do
-      for col = 0, HANDLE_INNER_W - 1 do
-        local cellColor = ((col + row) % 2 == 0) and colors.red or colors.green
-        drawLinkInnerSolid(ix + col, iy + row, 1, 1, cellColor)
-      end
-    end
-  else
-    local baseInner = innerColor or idle
-    if isInnerColorTransparent(baseInner) then
-      return
-    end
-    drawLinkInnerSolid(ix, iy, HANDLE_INNER_W, HANDLE_INNER_H, baseInner)
+  local baseInner = innerColor or idle
+  if isInnerColorTransparent(baseInner) then
+    return
   end
+  drawLinkInnerSolid(ix, iy, HANDLE_INNER_W, HANDLE_INNER_H, baseInner)
   love.graphics.setColor(colors.white)
 end
 

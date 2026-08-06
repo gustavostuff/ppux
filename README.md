@@ -70,7 +70,7 @@ When colored, they indicate the window has a link to another one. In order they 
 1. Background/nametable pattern table (red)
 2. Sprite-layer pattern table (green)
 3. ROM palette (blue)
-4. You'll see these in a Pattern table, when it's linked both BG and sprite layers.
+4. Pattern table linked to both BG and sprite layers (brown)
 
 Click a colored handle to bring the linked window forward and focus it. Handles aren’t drag targets. To add/change/remove links, use the toolbars _Pattern table link_ and _Palette link_ buttons.
 
