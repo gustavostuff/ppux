@@ -93,6 +93,8 @@ function Dialog:show(opts)
   self.message = opts.message or "Unsaved work may be lost."
   self.onYes = opts.onYes
   self.onNo = opts.onNo
+  self.yesButton.text = opts.yesText or "Yes"
+  self.noButton.text = opts.noText or "No"
   self.visible = true
   self.pressedButton = nil
   self.focusedButton = "yes"
@@ -114,6 +116,8 @@ function Dialog:hide()
   self.noButton.hovered = false
   self.yesButton.focused = false
   self.noButton.focused = false
+  self.yesButton.text = "Yes"
+  self.noButton.text = "No"
   self.onYes = nil
   self.onNo = nil
   if self.panel then

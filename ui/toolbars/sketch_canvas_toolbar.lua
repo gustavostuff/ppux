@@ -335,13 +335,46 @@ function SketchCanvasToolbar:_onToleranceDelta(delta)
   end
 end
 
-function SketchCanvasToolbar:_onGenerate()
-  if not self:_isLinked() then
+function SketchCanvasToolbar:_createLinkedPatternTableAndGenerate()
+  local app = getApp(self)
+  if not (app and app.createAndLinkPatternTableForSketch and self.window) then
+    StatusHelpers.setStatus(self.ctx, "Could not create pattern table")
+    return false
+  end
+  local pt, err = app:createAndLinkPatternTableForSketch(self.window)
+  if not pt then
+    StatusHelpers.setStatus(self.ctx, "Could not create pattern table: " .. tostring(err or "error"))
+    return false
+  end
+  self:updateIcons()
+  return self:_runGenerate()
+end
+
+function SketchCanvasToolbar:_promptCreatePatternTableThenGenerate()
+  local app = getApp(self)
+  local modal = app and app.confirmModal
+  if not (modal and modal.show) then
     StatusHelpers.setStatus(self.ctx, "Sketch Generate needs a linked pattern table")
     return
   end
+  modal:show({
+    title = "No pattern table linked",
+    message = "create one?",
+    yesText = "Yes",
+    noText = "Cancel",
+    onYes = function()
+      self:_createLinkedPatternTableAndGenerate()
+    end,
+  })
+end
+
+function SketchCanvasToolbar:_onGenerate()
   if not self:_hasCanvas() then
     StatusHelpers.setStatus(self.ctx, "Sketch Generate needs a paint canvas")
+    return
+  end
+  if not self:_isLinked() then
+    self:_promptCreatePatternTableThenGenerate()
     return
   end
   self:_runGenerate()
@@ -433,7 +466,7 @@ function SketchCanvasToolbar:updateIcons()
       or string.format("Increase pack tolerance (now %d)", tol)
   end
   if self.generateButton then
-    self.generateButton.enabled = hasCanvas and linked
+    self.generateButton.enabled = hasCanvas
     if generateDirty and hasCanvas and linked then
       self.generateButton.bgColor = NES_DIRTY_ORANGE
       self.generateButton.bgAlpha = 1
@@ -443,10 +476,11 @@ function SketchCanvasToolbar:updateIcons()
       self.generateButton.bgAlpha = nil
       self.generateButton.skipChromeTextTint = nil
     end
-    if not linked then
-      self.generateButton.tooltip = "Generate needs a linked pattern table"
-    elseif not hasCanvas then
+    if not hasCanvas then
       self.generateButton.tooltip = "Generate needs a paint canvas"
+    elseif not linked then
+      self.generateButton.tooltip =
+        "Generate patterns and update linked pattern table"
     elseif generateDirty then
       self.generateButton.tooltip = string.format(
         "Pixels changed since last Generate (tolerance %d) - click to refresh pattern table",

@@ -87,10 +87,10 @@ describe("sketch canvas - New Window + toolbar shell", function()
     expect(toolbar.linkButton.bgColor).toBe(colors.gray20)
     expect(toolbar.toleranceDownButton.enabled).toBe(false) -- tolerance starts at 0
     expect(toolbar.toleranceUpButton.enabled).toBe(true)
-    expect(toolbar.generateButton.enabled).toBe(false) -- needs linked pattern table
+    expect(toolbar.generateButton.enabled).toBe(true) -- enabled; prompts to create PT if unlinked
 
     expect(toolbar.linkButton.tooltip:find("Link", 1, true)).toBeTruthy()
-    expect(toolbar.generateButton.tooltip:find("linked pattern table", 1, true)).toBeTruthy()
+    expect(toolbar.generateButton.tooltip:find("create a pattern table", 1, true)).toBeTruthy()
 
     local pt = wm:createPatternTableWindow()
     local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
@@ -103,5 +103,59 @@ describe("sketch canvas - New Window + toolbar shell", function()
 
   it("maps sketch_canvas windows to the sketch taskbar icon key", function()
     expect(TaskbarHelpers.getTaskbarIconKeyForWindow({ kind = "sketch_canvas" })).toBe("sketch_canvas")
+  end)
+
+  it("Generate without a link prompts to create a named pattern table, then packs on Yes", function()
+    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow({ title = "Boss BG" })
+    expect(SketchCanvasPackController.defaultLinkedPatternTableTitle(win)).toBe("Boss BG pattern table")
+
+    local modalShow = nil
+    local toasts = {}
+    local app = setmetatable({
+      wm = wm,
+      undoRedo = {
+        addWindowCreateEvent = function()
+          return true
+        end,
+        addSketchCanvasGenerateEvent = function()
+          return true
+        end,
+        addSketchCanvasPatternTableLinkEvent = function()
+          return true
+        end,
+      },
+      confirmModal = {
+        show = function(_, opts)
+          modalShow = opts
+        end,
+      },
+    }, AppCoreController)
+
+    local ctx = {
+      app = app,
+      showToast = function(kind, text)
+        toasts[#toasts + 1] = { kind = kind, text = text }
+      end,
+      setStatus = function() end,
+    }
+    local toolbar = ToolbarController.createSpecializedToolbar(win, ctx, wm)
+    expect(toolbar.generateButton.enabled).toBe(true)
+
+    toolbar.generateButton.action()
+    expect(modalShow).toBeTruthy()
+    expect(modalShow.message).toBe("No pattern table linked, create one?")
+    expect(modalShow.yesText).toBe("Yes")
+    expect(modalShow.noText).toBe("Cancel")
+    expect(win.linkedPatternTableWindowId).toBeNil()
+
+    modalShow.onYes()
+    expect(type(win.linkedPatternTableWindowId)).toBe("string")
+    local pt = wm:findWindowById(win.linkedPatternTableWindowId)
+    expect(pt).toBeTruthy()
+    expect(pt.title).toBe("Boss BG pattern table")
+    expect(#(win.nametableBytes or {})).toBe(960)
+    expect(#toasts >= 1).toBe(true)
   end)
 end)

@@ -778,6 +778,27 @@ local function linkSketchCanvasToPatternTableWithUndo(self, sketchWin, ptWin)
   return ok
 end
 
+--- Create a Pattern table named from the sketch, link it, and record undo for create + link.
+function AppCoreController:createAndLinkPatternTableForSketch(sketchWin)
+  if not (self.wm and WindowCaps.isSketchCanvas(sketchWin)) then
+    return nil, "not_sketch_canvas"
+  end
+  local Shared = require("controllers.app.core_controller_shared")
+  local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+  local prevFocusedWin = self.wm.getFocus and self.wm:getFocus() or nil
+  local pt = self.wm:createPatternTableWindow({
+    title = SketchCanvasPackController.defaultLinkedPatternTableTitle(sketchWin),
+    cols = 16,
+    rows = 16,
+  })
+  Shared.recordWindowCreateUndo(self, pt, prevFocusedWin)
+  local ok = linkSketchCanvasToPatternTableWithUndo(self, sketchWin, pt)
+  if not ok then
+    return nil, "link_failed"
+  end
+  return pt
+end
+
 function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(contentWin)
   local items = {}
   local ptWindows = PatternTableDisplayController.collectPatternTableWindows(self.wm)
@@ -818,9 +839,10 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
           text = "Create new pattern table",
           icon = iconsRoot.link,
           callback = function()
+            local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
             local prevFocusedWin = self.wm and self.wm.getFocus and self.wm:getFocus() or nil
             local pt = self.wm:createPatternTableWindow({
-              title = "Sketch pattern table",
+              title = SketchCanvasPackController.defaultLinkedPatternTableTitle(contentWin),
               cols = 16,
               rows = 16,
             })

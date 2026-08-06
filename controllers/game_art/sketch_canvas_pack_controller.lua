@@ -1067,6 +1067,16 @@ local function clearReverseLinkIfOwned(ptWin, sketchWin)
   end
 end
 
+--- Default title for a Pattern table created for / linked from a sketch canvas.
+function M.defaultLinkedPatternTableTitle(sketchWin)
+  local name = tostring(sketchWin and sketchWin.title or "Sketch canvas")
+  name = name:match("^%s*(.-)%s*$") or name
+  if name == "" then
+    name = "Sketch canvas"
+  end
+  return name .. " pattern table"
+end
+
 --- Link sketch -> pattern table (window-level). Marks PT as sketch-owned.
 function M.linkSketchToPatternTable(sketchWin, ptWin, wm)
   if not WindowCaps.isSketchCanvas(sketchWin) then

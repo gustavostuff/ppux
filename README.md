@@ -40,7 +40,7 @@ PPUX has two main functionalities:
 
 For the first approach, drop a ROM into the window. Without a DB entry, PPUX loads a basic default layout. With one, it opens a tailored workspace: the core strength of the tool.
 
-For the second approach, use _Sketch Canvas_ windows. From these you can generate pattern tables and map colors through attributes, as with real nametables. You can export CHR and nametable binaries, or a full _Gallery ROM_ with one _gallery item_ per Sketch Canvas.
+For the second approach, use _Sketch Canvas_ windows. From these you can generate pattern tables and map colors through attributes, as with real nametables. You can export CHR and nametable binaries, or a full _Gallery ROM_ with one gallery item per Sketch Canvas.
 
 ### Windows system
 
@@ -238,7 +238,7 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 <img src="img/readme_images/toolbars/sketch_canvas_toolbar.png" alt="Sketch canvas specialized toolbar">
 
 1. **Tolerance (- / value / +)** - pixel-diff grouping for Generate (0-32). When linked, changing tolerance live-regenerates the pattern table.
-2. **Generate** - packs the paint canvas into up to 256 unique patterns and applies them to the linked pattern table. Highlights when pixels changed since the last pack.
+2. **Generate** - packs the paint canvas into up to 256 unique patterns and applies them to the linked pattern table. If none is linked, offers to create one named from the sketch. Highlights when pixels changed since the last pack.
 3. **Export CHR** - writes a 4KB CHR bank (256 tiles) beside the project/ROM folder (needs a successful Generate).
 4. **Export nametable** - writes a 1024-byte `.nam` (960 tiles + 64 attribute bytes).
 5. **Pattern table link** - left-click to link, jump to, or unlink a **Pattern table**.
