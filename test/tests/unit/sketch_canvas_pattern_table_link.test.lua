@@ -178,7 +178,7 @@ describe("sketch canvas - link + pattern table apply", function()
     expect(SketchCanvasPackController.hasPackData(sketch)).toBe(true)
   end)
 
-  it("unlink in tile mode clears sketch pack catalog; edit mode keeps it", function()
+  it("unlink in tile mode clears sketch pack catalog but keeps paint", function()
     local wm = WM.new()
     local sketch = wm:createSketchCanvasWindow()
     local pt = wm:createPatternTableWindow()
@@ -188,12 +188,30 @@ describe("sketch canvas - link + pattern table apply", function()
     expect(SketchCanvasPackController.hasPackData(sketch)).toBe(true)
     expect(sketch.layers[1].canvas:getPixel(0, 0)).toBe(2)
 
+    local toasts = {}
+    local prevCtx = rawget(_G, "ctx")
+    rawset(_G, "ctx", {
+      getMode = function()
+        return "tile"
+      end,
+      app = {
+        showToast = function(_, kind, text)
+          toasts[#toasts + 1] = { kind = kind, text = text }
+        end,
+      },
+    })
+
     assert(SketchCanvasPackController.unlinkSketchPatternTable(sketch, wm, { clearPack = true }))
     expect(SketchCanvasPackController.hasPackData(sketch)).toBe(false)
     expect(#(sketch.tilesPool or {})).toBe(0)
     expect(sketch.nametableBytes).toBeNil()
-    -- Tile-mode clear blanks paint so the canvas does not still look packed.
-    expect(sketch.layers[1].canvas:getPixel(0, 0)).toBe(0)
+    -- Paint must survive so switching back to Edit mode still shows the canvas.
+    expect(sketch.layers[1].canvas:getPixel(0, 0)).toBe(2)
+    expect(#toasts).toBe(1)
+    expect(toasts[1].kind).toBe("info")
+    expect(toasts[1].text).toBe("Sketch tiles cleared; Edit-mode paint kept")
+
+    rawset(_G, "ctx", prevCtx)
   end)
 
   it("undo of tile-mode unlink restores pack, paint, and pattern table tiles", function()
@@ -257,7 +275,7 @@ describe("sketch canvas - link + pattern table apply", function()
     expect(SketchCanvasPackController.hasPackData(sketch)).toBe(false)
     expect(#(pt.layers[1].items or {})).toBe(0)
     expect(pt.linkedSketchCanvasWindowId).toBeNil()
-    expect(sketch.layers[1].canvas:getPixel(0, 0)).toBe(0)
+    expect(sketch.layers[1].canvas:getPixel(0, 0)).toBe(2)
     expect(type(pt._sketchCloseUndoRestore)).toBe("table")
 
     ctx.getMode = prevGetMode

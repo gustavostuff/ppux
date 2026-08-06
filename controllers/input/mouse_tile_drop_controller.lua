@@ -235,6 +235,22 @@ local function ppuNametableTileLayer(win, layerIndex)
   return L and L.kind == "tile"
 end
 
+--- True when tile-drag undo must snapshot numeric nametable bytes (not win:get handles).
+--- Sketch Tile-mode rearrange uses nametableBytes; get() returns ephemeral {kind=sketch_nt,...}
+--- tables that must not be stored as before/after.
+local function recordsNametableByteDrag(win, layerIndex)
+  if ppuNametableTileLayer(win, layerIndex) then
+    return true
+  end
+  if WindowCaps.isSketchCanvas(win)
+    and type(win.nametableBytes) == "table"
+    and type(win.setNametableByteAt) == "function"
+  then
+    return true
+  end
+  return false
+end
+
 local function ppuNametableByteAt(win, col, row)
   if not (win and win.nametableBytes) then
     return nil
@@ -265,7 +281,7 @@ local function makeTileDragRecorder(undoRedo, mode)
     if byKey[key] then return end
 
     local before
-    if ppuNametableTileLayer(win, layerIndex) then
+    if recordsNametableByteDrag(win, layerIndex) then
       before = ppuNametableByteAt(win, col, row)
       if before == nil then
         before = 0
@@ -293,7 +309,7 @@ local function makeTileDragRecorder(undoRedo, mode)
 
     for _, rec in ipairs(order) do
       local after
-      if ppuNametableTileLayer(rec.win, rec.layerIndex) then
+      if recordsNametableByteDrag(rec.win, rec.layerIndex) then
         after = ppuNametableByteAt(rec.win, rec.col, rec.row)
         if after == nil then
           after = 0
@@ -310,7 +326,7 @@ local function makeTileDragRecorder(undoRedo, mode)
           before = rec.before,
           after = after,
         }
-        if ppuNametableTileLayer(rec.win, rec.layerIndex) then
+        if recordsNametableByteDrag(rec.win, rec.layerIndex) then
           ch.isNametableByte = true
         end
         changes[#changes + 1] = ch

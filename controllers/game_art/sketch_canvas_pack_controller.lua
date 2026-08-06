@@ -1189,14 +1189,25 @@ function M.unlinkSketchPatternTable(sketchWin, wm, opts)
   end
 
   -- Tile mode shows the packed nametable; without a PT link, clear that catalog
-  -- and blank paint so the canvas does not keep looking like the old pack.
-  -- Edit/pixel mode keeps pack data so paint + last Generate stay intact.
+  -- so the reflect view goes empty. Keep Edit-mode paint pixels intact.
   local clearPack = opts.clearPack
   if clearPack == nil then
     clearPack = M.isSketchGlobalTileMode()
   end
   if clearPack then
-    M.clearPackData(sketchWin, { clearPaint = true })
+    -- Bake pending tile-mode rearranges into paint before dropping the pack.
+    if M.isReflectLayoutDirty(sketchWin) and M.hasPackData(sketchWin) then
+      M.bakeReflectIntoPaint(sketchWin)
+    end
+    local hadPack = M.hasPackData(sketchWin)
+    M.clearPackData(sketchWin, { clearPaint = false })
+    if opts.toast ~= false and hadPack then
+      local ctx = rawget(_G, "ctx")
+      local app = ctx and ctx.app
+      if app and type(app.showToast) == "function" then
+        app:showToast("info", "Sketch tiles cleared; Edit-mode paint kept")
+      end
+    end
   end
   return true
 end
