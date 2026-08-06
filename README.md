@@ -72,7 +72,7 @@ When colored, they indicate the window has a link to another one. In order they 
 3. ROM palette (blue)
 4. Pattern table linked to both BG and sprite layers (brown)
 
-Click a colored handle to bring the linked window forward and focus it. Handles aren’t drag targets. To add/change/remove links, use the toolbars _Pattern table link_ and _Palette link_ buttons.
+Click a colored handle to bring the linked window forward and focus it. Handles aren’t drag targets. To add/change/remove links, use the toolbars _Pattern table link_ and _ROM Palette link_ buttons.
 
 <img src="img/readme_images/pt_and_palette_buttons.png" alt="App toolbar">
 
