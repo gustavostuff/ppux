@@ -92,6 +92,43 @@ describe("applyPpuFrameRangeState peer sync", function()
     expect(layer.userDefinedAttrs:sub(1, 2)).toBe("22")
   end)
 
+  it("hydrateNametableLayerIfReady uses app.wm (not a nil global self)", function()
+    local hydrateOpts = nil
+    local oldHydrate = NametableTilesController.hydrateWindowNametable
+    NametableTilesController.hydrateWindowNametable = function(win, layer, opts)
+      hydrateOpts = opts
+      return true
+    end
+
+    local layer = makeLayer(0x2000, 0x23bf)
+    local win = {
+      kind = "ppu_frame",
+      cols = 32,
+      rows = 30,
+      layers = { layer },
+      activeLayer = 1,
+      nametableAttrBytes = makeAttrBytes(0),
+      invalidateNametableLayerCanvas = function() end,
+    }
+    local fakeWm = { id = "wm" }
+    local app = setmetatable({
+      appEditState = {
+        romRaw = string.rep("\0", 0x10000),
+        tilesPool = {},
+        chrBanksBytes = { [1] = true },
+      },
+      wm = fakeWm,
+    }, AppCoreController)
+
+    local ok, err = app:hydrateNametableLayerIfReady(win, layer, 1)
+    NametableTilesController.hydrateWindowNametable = oldHydrate
+
+    expect(err).toBeNil()
+    expect(ok).toBe(true)
+    expect(hydrateOpts).toBeTruthy()
+    expect(hydrateOpts.wm).toBe(fakeWm)
+  end)
+
   it("propagates restored attribute bytes to peer windows sharing the nametable range", function()
     local layerA = makeLayer(0x1000, 0x1100)
     local layerB = makeLayer(0x1000, 0x1100)

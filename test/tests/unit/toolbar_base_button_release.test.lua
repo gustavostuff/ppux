@@ -57,4 +57,120 @@ describe("toolbar_base.lua - button activation", function()
     expect(toolbar:mousereleased(x, y, 1)).toBeTruthy()
     expect(actionCalls).toBe(1)
   end)
+
+  it("does not consume empty-chrome release so deferred context menus can fire", function()
+    local toolbar = makeToolbar()
+    toolbar:addButton(fakeIcon(15, 15), nil, "No action")
+    toolbar:updatePosition()
+
+    -- No pressed button: release over the strip must return false.
+    local x = toolbar.x + 1
+    local y = toolbar.y + 1
+    expect(toolbar:contains(x, y)).toBe(true)
+    expect(toolbar:mousereleased(x, y, 1)).toBe(false)
+  end)
+end)
+
+describe("mouse_input.lua - ROM palette link handle left click", function()
+  local MouseInput = require("controllers.input.mouse_input")
+  local MouseWindowChromeController = require("controllers.input.mouse_window_chrome_controller")
+  local MouseMoveController = require("controllers.input.mouse_move_controller")
+  local MouseTileDropController = require("controllers.input.mouse_tile_drop_controller")
+  local MouseWheelController = require("controllers.input.mouse_wheel_controller")
+  local SpriteController = require("controllers.sprite.sprite_controller")
+  local MultiSelectController = require("controllers.input_support.multi_select_controller")
+  local ToolbarController = require("controllers.window.toolbar_controller")
+  local WM = require("controllers.window.window_controller")
+
+  local originals
+
+  beforeEach(function()
+    originals = {
+      move = MouseMoveController.handleMouseMoved,
+      tileDrop = MouseTileDropController.handleTileDrop,
+      wheel = MouseWheelController.handleWheel,
+      finishSpriteMarquee = SpriteController.finishSpriteMarquee,
+      isDragging = SpriteController.isDragging,
+      finishDrag = SpriteController.finishDrag,
+      endDrag = SpriteController.endDrag,
+      finishTileMarquee = MultiSelectController.finishTileMarquee,
+      reset = MultiSelectController.reset,
+    }
+    MouseMoveController.handleMouseMoved = function() end
+    MouseTileDropController.handleTileDrop = function() return false end
+    MouseWheelController.handleWheel = function() return false end
+    SpriteController.finishSpriteMarquee = function() return false end
+    SpriteController.isDragging = function() return false end
+    SpriteController.finishDrag = function() end
+    SpriteController.endDrag = function() end
+    MultiSelectController.finishTileMarquee = function() return false end
+    MultiSelectController.reset = function() end
+    if MouseWindowChromeController._resetHeaderDoubleClickState then
+      MouseWindowChromeController._resetHeaderDoubleClickState()
+    end
+  end)
+
+  afterEach(function()
+    MouseMoveController.handleMouseMoved = originals.move
+    MouseTileDropController.handleTileDrop = originals.tileDrop
+    MouseWheelController.handleWheel = originals.wheel
+    SpriteController.finishSpriteMarquee = originals.finishSpriteMarquee
+    SpriteController.isDragging = originals.isDragging
+    SpriteController.finishDrag = originals.finishDrag
+    SpriteController.endDrag = originals.endDrag
+    MultiSelectController.finishTileMarquee = originals.finishTileMarquee
+    MultiSelectController.reset = originals.reset
+  end)
+
+  it("opens the palette link source menu on left click/release over the handle", function()
+    local wm = WM.new()
+    local pal = wm:createRomPaletteWindow({ title = "ROM Palette" })
+    wm:setFocus(pal)
+    local ctx = {
+      app = {
+        appEditState = { romRaw = string.rep("\0", 64) },
+        isGroupedPaletteWindowsEnabled = function()
+          return false
+        end,
+        showPaletteLinkSourceContextMenu = function()
+          return true
+        end,
+      },
+    }
+    local menuCalls = {}
+    ctx.app.showPaletteLinkSourceContextMenu = function(_, win, x, y)
+      menuCalls[#menuCalls + 1] = { win = win, x = x, y = y }
+    end
+    ToolbarController.createToolbarsForWindow(pal, ctx, wm)
+    local toolbar = pal.specializedToolbar
+    expect(toolbar).toBeTruthy()
+    expect(toolbar.linkButton).toBeTruthy()
+    toolbar:updateIcons()
+    toolbar:updatePosition()
+    local hx, hy, hw, hh = toolbar:getLinkHandleRect()
+    expect(hx).toBeTruthy()
+    local cx = hx + math.floor(hw / 2)
+    local cy = hy + math.floor(hh / 2)
+
+    MouseInput.setup({
+      wm = function()
+        return wm
+      end,
+      getMode = function()
+        return "tile"
+      end,
+      getPainting = function()
+        return false
+      end,
+      setPainting = function() end,
+      setStatus = function() end,
+      app = ctx.app,
+    }, { active = false, pending = false }, { active = false }, {})
+
+    expect(MouseInput.mousepressed(cx, cy, 1)).toBe(true)
+    -- Real toolbar release must not swallow the deferred context-menu click.
+    MouseInput.mousereleased(cx, cy, 1)
+    expect(#menuCalls).toBe(1)
+    expect(menuCalls[1].win).toBe(pal)
+  end)
 end)

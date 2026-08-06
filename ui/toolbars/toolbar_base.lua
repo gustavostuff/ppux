@@ -712,9 +712,8 @@ function ToolbarBase:mousereleased(x, y, button)
   end
   self.pressedButton = nil
 
-  if self:contains(x, y) then
-    return true
-  end
+  -- Do not consume empty-chrome releases: press already ate the event, and
+  -- swallowing release here blocks deferred context menus (palette link handle).
   return false
 end
 

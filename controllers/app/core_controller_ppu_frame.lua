@@ -113,7 +113,7 @@ local function hydrateNametableLayerIfReady(app, win, layer, layerIndex)
     onTheFlyReplacements = layer.onTheFlyReplacements,
     codec = layer.codec,
     reportErrors = false,
-    wm = self.wm,
+    wm = app and app.wm,
     appEditState = state,
   })
   if not ok then
