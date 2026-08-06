@@ -68,7 +68,7 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 <tr>
 <th>
 
-Toolbars
+## Toolbars
 
 </th>
 </tr>
