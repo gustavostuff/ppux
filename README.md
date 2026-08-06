@@ -63,7 +63,7 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 
 You'll note these little "handles" on windows:
 
-<img src="img/readme_images/toolbars/window_links.png" alt="App toolbar">
+<img src="img/readme_images/window_links.png" alt="App toolbar">
 
 When colored, they indicate the window has a link to another window. In order they indicate:
 
