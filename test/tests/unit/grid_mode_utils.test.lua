@@ -17,7 +17,7 @@ describe("grid_mode_utils.lua", function()
     expect(GridModeUtils.next("attr")).toBe("none")
   end)
 
-  it("cycles attr after lines for PPU frame windows", function()
+  it("cycles attr after lines when includeAttr is set", function()
     local opts = { includeAttr = true }
     expect(GridModeUtils.next("none", opts)).toBe("chess")
     expect(GridModeUtils.next("chess", opts)).toBe("lines")

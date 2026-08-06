@@ -271,7 +271,7 @@ Linked ROM palette and pattern-table windows also show small squares on the left
 - `Ctrl + S`: open save options.
 - `Tab`: toggle between Tile and Edit mode.
 - `Space`: highlight all sprites on the active sprite layer.
-- `Ctrl + G`: cycle through different layer grids.
+- `Ctrl + G`: cycle through different layer grids (PPU Frame and Sketch canvas include the attribute-region grid).
 - `Ctrl + R`: toggle shader coloring on the focused layer (on by default). When off, pixels show gray values matching color codes 0-3.
 - Right-click or middle-click drag to move windows. Use the taskbar to focus, restore, and manage them.
 
@@ -304,25 +304,20 @@ Edit mode is for pixel-level painting.
 
 ### PNG drops
 
-You can drag and drop a PNG directly into PPUX. The drop always applies to the window under the mouse. If the pointer is not over any window, the focused window is used instead.
+You can drag and drop a PNG onto the window under the mouse (or the focused window if the pointer is not over any window). Two import paths are supported:
 
-**Sprite import** (Static Art, Animation, OAM Animation, or a PPU Frame with the **sprite** layer active):
+**OAM sprite layers** (**OAM Animation**, or a **PPU Frame** with the **sprite** layer active):
 
-* The PNG must use at most 4 colors including transparency (or at most 3 non-transparent colors).
-* Dimensions must align to the current sprite mode: multiples of `8x8` or `8x16`.
-* The image is split into sprite-sized frames left to right, top to bottom. Fully transparent frames are skipped.
-* If sprites are selected, import fills those in selection order. Otherwise it fills the layer's sprites from first to last.
+* At most 4 colors, and one may be fully transparent. Transparent pixels become NES palette index 0 (BG). BG stand-in defaults to black. If that black is already an opaque color, BG falls back to brown so opaque black stays visible. With no alpha, the darkest opaque color is BG instead.
+* Dimensions must match the sprite mode: multiples of `8x8` or `8x16`.
+* Frames are read left to right, top to bottom. Fully transparent frames are skipped.
+* Selected sprites are filled in selection order. With no selection, sprites are filled from first to last.
 
-**PPU Frame nametable unscramble**: when the drop is not treated as sprite import, dropping on a `ppu_frame` window matches the PNG against tiles from the linked **Pattern table** (its items / ranges) and rebuilds the nametable layout. This is powerful, but hard to explain in text. Video tutorials will probably do it better (still a To-Do).
+**Sketch canvas** (edit or tile mode):
 
-**Pattern table import** (standalone / non-sketch): same PNG-to-pixel decode as CHR banks, but each 8x8 frame is written through the Pattern table map into the mapped CHR `bank` + `tileIndex`. Shared tiles update in CHR/ROM bank windows too. Sketch-owned Pattern tables reject PNG drops.
-
-Notes:
-
-* Unscramble needs a linked Pattern table with usable ranges or populated items. Without that link, the drop reports an error instead of falling back to raw CHR bank order.
-* On CHR and ROM bank windows, dropping a PNG imports the image into the selected tile position, or the top-left if nothing is selected.
-* On Pattern table windows, import starts at the selected cell (else top-left), skips unmapped holes, and clips frames outside the grid.
-* PNG drops are not currently supported for regular tile Static Art or Animation windows.
+* Drop a **256x240** PNG to write the paint buffer and pack it into the **linked Pattern table** (256-slot catalog, same as Generate).
+* A linked Pattern table is required. If the pack or Pattern table is already filled, PPUX asks to confirm replace-all.
+* Packing uses tolerance 0 so tile mode matches the PNG. More than 256 unique patterns fails.
 
 ## Advanced
 
@@ -348,7 +343,7 @@ Notes:
 
 ### Sketch canvas & Gallery ROM
 
-Sketch canvases are for creating NES background art from scratch. You paint on a free 256x240 buffer (32x30 tiles of 8x8), then pack that paint into a real nametable plus pattern table catalog.
+Sketch canvases are for creating NES background art from scratch. You paint on a free 256x240 buffer (32x30 tiles of 8x8), then pack that paint into a real nametable plus pattern table catalog. You can also drop a 256x240 PNG onto the sketch to pack it in one step (see [PNG drops](#png-drops)).
 
 Note: some of the pixel tools available on Sketch canvas are not fully available on other window kinds yet. The UI still needs polish too (toolbar icons, binary save flow, and so on).
 

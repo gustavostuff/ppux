@@ -218,6 +218,7 @@ function M.handleGridToggleInWindow(ctx, utils, key, focus)
   end
   local WindowCaps = require("controllers.window.window_capabilities")
   local includeAttr = WindowCaps.isPpuFrame(focus) == true
+    or WindowCaps.isSketchCanvas(focus) == true
   focus.showGrid = GridModeUtils.next(focus.showGrid, { includeAttr = includeAttr })
   return true
 end

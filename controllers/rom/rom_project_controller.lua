@@ -1566,12 +1566,7 @@ function M.handleFileDropped(app, file)
   local isPNG = filename:match("%.png$") or filename:match("%.PNG$")
   
   if isPNG then
-    if not appHasLoadedRom(app) then
-      app:setStatus("Open a ROM before importing PNGs.")
-      return
-    end
-    local ImageImportController = require("controllers.rom.image_import_controller")
-    local NametableUnscrambleController = require("controllers.ppu.nametable_unscramble_controller")
+    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
     local wm = app.wm
     local focusedWin = wm and wm:getFocus()
     local mouse = ResolutionController:getScaledMouse(true)
@@ -1589,169 +1584,106 @@ function M.handleFileDropped(app, file)
       fmtWin(targetWin)
     )
 
-    local function windowHasSpriteLayer(win)
-      if not (win and win.layers) then return false end
+    -- Sketch canvas PNG pack (no ROM required): paint -> pack -> linked Pattern table.
+    if WindowCaps.isSketchCanvas(targetWin) then
+      DebugController.log("info", "PNG_DROP", "Routing PNG to Sketch canvas import for %s", fmtWin(targetWin))
+      local function finishSketchImport(ok, packOrErr)
+        local msg = SketchCanvasPackController.formatPngImportStatus(ok, packOrErr)
+        app:setStatus(msg)
+        if ok and app.markUnsaved then
+          app:markUnsaved("pixel_edit")
+        end
+        if ok and app.showToast then
+          app:showToast("info", msg)
+        elseif not ok and app.showToast and packOrErr ~= SketchCanvasPackController.PNG_IMPORT_NEEDS_CONFIRM then
+          app:showToast("error", msg)
+        end
+      end
+
+      local ok, packOrErr, pending = SketchCanvasPackController.importPngToSketchCanvas(
+        targetWin,
+        file,
+        wm,
+        { app = app }
+      )
+      if not ok and packOrErr == SketchCanvasPackController.PNG_IMPORT_NEEDS_CONFIRM then
+        local modal = app.confirmModal
+        if not (modal and modal.show) then
+          app:setStatus("Sketch PNG import needs confirm, but no confirm modal is available")
+          return
+        end
+        modal:show({
+          title = "Replace pattern table?",
+          message = "This will replace all Pattern table items and the sketch pack.",
+          onYes = function()
+            local ok2, packOrErr2 = SketchCanvasPackController.importPngToSketchCanvas(
+              targetWin,
+              file,
+              wm,
+              { app = app, confirmed = true, pending = pending }
+            )
+            finishSketchImport(ok2, packOrErr2)
+          end,
+          onNo = function()
+            app:setStatus("Sketch PNG import cancelled")
+          end,
+        })
+        return
+      end
+      finishSketchImport(ok, packOrErr)
+      return
+    end
+
+    if not appHasLoadedRom(app) then
+      app:setStatus("Open a ROM before importing PNGs.")
+      return
+    end
+
+    local function isOamOrPpuSpritePngTarget(win)
+      if not (win and win.layers) then
+        return false
+      end
+      if WindowCaps.isOamAnimation(win) then
+        for _, L in ipairs(win.layers) do
+          if L and L.kind == "sprite" then
+            DebugController.log("info", "PNG_DROP", "isOamOrPpuSpritePngTarget(%s)=true (oam)", fmtWin(win))
+            return true
+          end
+        end
+        DebugController.log("info", "PNG_DROP", "isOamOrPpuSpritePngTarget(%s)=false (oam, no sprite layer)", fmtWin(win))
+        return false
+      end
       if WindowCaps.isPpuFrame(win) then
         local activeIndex = win.getActiveLayerIndex and win:getActiveLayerIndex() or win.activeLayer or 1
         local activeLayer = win.layers[activeIndex]
-        local hasActiveSpriteLayer = activeLayer and activeLayer.kind == "sprite"
+        local ok = activeLayer and activeLayer.kind == "sprite"
         DebugController.log(
           "info",
           "PNG_DROP",
-          "windowHasSpriteLayer(%s) ppu_frame activeLayer=%s activeKind=%s result=%s",
+          "isOamOrPpuSpritePngTarget(%s) ppu activeLayer=%s activeKind=%s result=%s",
           fmtWin(win),
           tostring(activeIndex),
           tostring(activeLayer and activeLayer.kind or nil),
-          tostring(hasActiveSpriteLayer)
+          tostring(ok)
         )
-        return hasActiveSpriteLayer
+        return ok == true
       end
-      for _, L in ipairs(win.layers) do
-        if L and L.kind == "sprite" then
-          DebugController.log("info", "PNG_DROP", "windowHasSpriteLayer(%s)=true", fmtWin(win))
-          return true
-        end
-      end
-      DebugController.log("info", "PNG_DROP", "windowHasSpriteLayer(%s)=false", fmtWin(win))
       return false
     end
 
-    -- Sprite PNG import always uses the same window as the drop target (under mouse),
-    -- or the focused window only when the pointer is not over any window (targetWin fallback).
-    local spriteTargetWin = windowHasSpriteLayer(targetWin) and targetWin or nil
+    -- Sprite PNG import: OAM Animation, or PPU Frame with sprite layer active.
+    local spriteTargetWin = isOamOrPpuSpritePngTarget(targetWin) and targetWin or nil
     DebugController.log("info", "PNG_DROP", "spriteTargetWin=%s", fmtWin(spriteTargetWin))
     
-    -- Handle PNG drop on sprite window (any window with active sprite layer)
     if spriteTargetWin and SpriteController.handleSpritePngDrop(app, file, spriteTargetWin) then
       DebugController.log("info", "PNG_DROP", "Sprite PNG drop handled by SpriteController for %s", fmtWin(spriteTargetWin))
       return
     end
     DebugController.log("info", "PNG_DROP", "SpriteController did not handle PNG for %s", fmtWin(spriteTargetWin))
 
-    -- Handle PNG drop on PPU frame window (unscramble)
-    if WindowCaps.isPpuFrame(targetWin) then
-      DebugController.log("info", "PNG_DROP", "Routing PNG to PPU unscramble for %s", fmtWin(targetWin))
-      -- Get tiles pool from app state
-      local tilesPool = app.appEditState and app.appEditState.tilesPool
-      
-      if not tilesPool then
-        app:setStatus("No tiles pool available")
-        return
-      end
-      
-      -- Perform unscrambling
-      local success, message = NametableUnscrambleController.unscrambleFromPNG(
-        targetWin,
-        file,
-        tilesPool,
-        0,  -- threshold = 0 for zero-error margin by default
-        app
-      )
-      
-      if success then
-        app:setStatus(message or "Nametable unscrambled successfully")
-        
-        -- Trigger a refresh if needed
-        if app.winBank then
-          local BankViewController = require("controllers.chr.bank_view_controller")
-          -- Refresh bank window to show any changes
-        end
-      else
-        app:setStatus("Unscramble failed: " .. (message or "unknown error"))
-      end
-      
-      return  -- Don't process as ROM file
-    end
-
-    -- Handle PNG image import into Pattern table window (map-aware CHR writes)
-    if WindowCaps.isPatternTable(targetWin) then
-      DebugController.log("info", "PNG_DROP", "Routing PNG to Pattern table import for %s", fmtWin(targetWin))
-      local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
-      if SketchCanvasPackController.isSketchOwnedPatternTable(targetWin, wm) then
-        app:setStatus(SketchCanvasPackController.SKETCH_OWNED_PATTERN_TABLE_MSG)
-        return
-      end
-
-      local col, row = 0, 0
-      if targetWin.getSelected then
-        local selectedCol, selectedRow = targetWin:getSelected()
-        if selectedCol and selectedRow then
-          col, row = selectedCol, selectedRow
-        end
-      end
-
-      local success, message = ImageImportController.importImageToPatternTableWindow(
-        file,
-        targetWin,
-        col,
-        row,
-        app.appEditState,
-        app.edits,
-        app.undoRedo,
-        app
-      )
-
-      if success then
-        app:setStatus(message or "Image imported into Pattern table")
-        -- Refresh any open CHR bank window so shared tiles show the new pixels.
-        if app.winBank then
-          local BankViewController = require("controllers.chr.bank_view_controller")
-          BankViewController.rebuildBankWindowItems(
-            app.winBank,
-            app.appEditState,
-            app.winBank.orderMode or "normal",
-            nil
-          )
-        end
-      else
-        app:setStatus("Import failed: " .. (message or "unknown error"))
-      end
-      return
-    end
-
-    -- Handle PNG image import into CHR window
-    if WindowCaps.isChrLike(targetWin) then
-      DebugController.log("info", "PNG_DROP", "Routing PNG to CHR import for %s", fmtWin(targetWin))
-      -- Get selected tile position, or default to (0,0)
-      local col, row = 0, 0
-      if targetWin.getSelected then
-        local selectedCol, selectedRow = targetWin:getSelected()
-        if selectedCol and selectedRow then
-          col, row = selectedCol, selectedRow
-        end
-      end
-      
-      -- Import image
-      local success, message = ImageImportController.importImageToCHRWindow(
-        file,
-        targetWin,
-        col,
-        row,
-        app.appEditState,
-        app.edits,
-        targetWin.orderMode or "normal",
-        app.undoRedo,
-        app
-      )
-      
-      if success then
-        app:setStatus(message or "Image imported successfully")
-        
-        -- Refresh the CHR bank window if needed
-        if app.winBank == targetWin then
-          local BankViewController = require("controllers.chr.bank_view_controller")
-          BankViewController.rebuildBankWindowItems(targetWin, app.appEditState, targetWin.orderMode or "normal", nil)
-        end
-      else
-        app:setStatus("Import failed: " .. (message or "unknown error"))
-      end
-      
-      return  -- Don't process as ROM file
-    else
-      DebugController.log("warning", "PNG_DROP", "No compatible PNG drop target. targetWin=%s", fmtWin(targetWin))
-      app:setStatus("Please drop on a CHR bank, Pattern table, or PPU frame window")
-      return  -- Don't process as ROM file
-    end
+    DebugController.log("warning", "PNG_DROP", "No compatible PNG drop target. targetWin=%s", fmtWin(targetWin))
+    app:setStatus("Drop a PNG on a Sketch canvas, OAM Animation, or PPU Frame sprite layer")
+    return
   end
   
   -- Default behavior: handle as ROM/project file using the guarded loader

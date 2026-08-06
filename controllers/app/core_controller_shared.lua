@@ -76,6 +76,7 @@ end
 --- Keys on app, top-first stack order for keyboard/mouse routing.
 M.APP_MODAL_KEYS_IN_ORDER = {
   "quitConfirmModal",
+  "confirmModal",
   "pressEscAgainExitModal",
   "saveOptionsModal",
   "genericActionsModal",
@@ -102,12 +103,14 @@ M.APP_MODAL_KEYS_IN_ORDER = {
 --- After dispatching key to this modal, refresh the cursor (matches prior behavior).
 M.MODAL_KEY_REFRESH_CURSOR_KEYS = {
   quitConfirmModal = true,
+  confirmModal = true,
   saveOptionsModal = true,
 }
 
 --- After mousepressed/mousereleased on this modal, refresh the cursor.
 M.MODAL_MOUSE_REFRESH_CURSOR_KEYS = {
   quitConfirmModal = true,
+  confirmModal = true,
   pressEscAgainExitModal = true,
   saveOptionsModal = true,
   genericActionsModal = true,
@@ -272,7 +275,7 @@ function M.dispatchModalWheel(app, dx, dy)
   if not modal then
     return false
   end
-  if modalKey == "quitConfirmModal" then
+  if modalKey == "quitConfirmModal" or modalKey == "confirmModal" then
     return true
   end
   if M.MODAL_WHEEL_HANDLER_KEYS[modalKey] and modal.wheelmoved then

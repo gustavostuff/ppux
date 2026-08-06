@@ -6,6 +6,8 @@ local PixelCanvas = require("user_interface.windows_system.pixel_canvas")
 local BankViewController = require("controllers.chr.bank_view_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local TileInvalidationIndex = require("controllers.app.tile_invalidation_index")
+local ImageImportController = require("controllers.rom.image_import_controller")
+local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 
 local M = {}
 
@@ -17,6 +19,12 @@ M.CELL = 8
 M.MAX_TOLERANCE = 32
 M.SKETCH_OWNED_PATTERN_TABLE_MSG =
   "Pattern table is linked to a sketch canvas (CHR drops blocked)"
+M.PNG_IMPORT_TOLERANCE = 0
+M.PNG_IMPORT_WIDTH = M.GRID_COLS * M.CELL
+M.PNG_IMPORT_HEIGHT = M.GRID_ROWS * M.CELL
+M.PNG_DROP_USE_SKETCH_MSG =
+  "Drop PNG on a Sketch canvas to pack into its linked Pattern table"
+M.PNG_IMPORT_NEEDS_CONFIRM = "needs_confirm"
 
 local function pixelDiffCount(pattern1, pattern2, threshold)
   threshold = threshold or 0
@@ -1524,6 +1532,152 @@ function M.refreshViewsForScratchTileItems(app, items)
     end
   end
   return any
+end
+
+----------------------------------------------------------------------
+-- Sketch canvas PNG import (paint -> pack tol 0 -> linked PT catalog)
+----------------------------------------------------------------------
+
+function M.patternTableHasCatalogItems(ptWin)
+  if not WindowCaps.isPatternTable(ptWin) then
+    return false
+  end
+  local layer = ptWin.layers and ptWin.layers[1]
+  if not (layer and type(layer.items) == "table") then
+    return false
+  end
+  for _, item in pairs(layer.items) do
+    if item ~= nil then
+      return true
+    end
+  end
+  return false
+end
+
+function M.needsPngImportReplaceConfirm(sketchWin, wm)
+  if M.hasPackData(sketchWin) then
+    return true
+  end
+  local pt = M.resolveLinkedPatternTable(sketchWin, wm)
+  return pt ~= nil and M.patternTableHasCatalogItems(pt)
+end
+
+local function resolveSketchPaletteColors(sketchWin, app)
+  local layer = sketchWin and sketchWin.layers and sketchWin.layers[1]
+  local romRaw = app and app.appEditState and app.appEditState.romRaw
+  return ShaderPaletteController.getPaletteColors(layer, 1, romRaw)
+end
+
+local function buildPendingFromFile(sketchWin, file, wm, app)
+  if not WindowCaps.isSketchCanvas(sketchWin) then
+    return nil, "not_sketch_canvas"
+  end
+  local ptWin = M.resolveLinkedPatternTable(sketchWin, wm)
+  if not ptWin then
+    return nil, "no_linked_pattern_table"
+  end
+
+  local paletteColors = resolveSketchPaletteColors(sketchWin, app)
+  local flat, width, height = ImageImportController.decodePngFileToIndexedPixels(file, paletteColors)
+  if not flat then
+    return nil, width -- width holds err when flat is nil
+  end
+  if width ~= M.PNG_IMPORT_WIDTH or height ~= M.PNG_IMPORT_HEIGHT then
+    return nil, "bad_dimensions"
+  end
+
+  local temp = PixelCanvas.new(width, height, 0)
+  temp:loadRect(0, 0, flat, width, height)
+  local pack, packErr = M.packFromCanvas(temp, M.PNG_IMPORT_TOLERANCE)
+  if not pack then
+    return nil, packErr or "pack_failed"
+  end
+
+  return {
+    flat = flat,
+    width = width,
+    height = height,
+    pack = pack,
+    needsConfirm = M.needsPngImportReplaceConfirm(sketchWin, wm),
+  }
+end
+
+local function applyPendingToSketch(sketchWin, pending, wm)
+  local canvas = resolveCanvas(sketchWin)
+  if not canvas then
+    return false, "no_canvas"
+  end
+
+  canvas:loadRect(0, 0, pending.flat, pending.width, pending.height)
+  M.applyPackToWindow(sketchWin, pending.pack)
+  M.clearGenerateDirty(sketchWin)
+  local applyOk, applyInfoOrErr = M.applyPackToLinkedPatternTable(sketchWin, wm)
+  if not applyOk then
+    return false, applyInfoOrErr or "apply_failed"
+  end
+  -- Warm tile-mode compose so edit and tile views both match the PNG.
+  M.getReflectDisplayCanvas(sketchWin)
+  pending.pack.appliedToPatternTable = true
+  pending.pack.paddingTileIndex = applyInfoOrErr and applyInfoOrErr.paddingTileIndex
+  return true, pending.pack
+end
+
+--- Import a 256x240 PNG onto a sketch canvas: write paint, pack at tolerance 0,
+--- fill the linked Pattern table with a 256-slot scratch catalog.
+--- When the PT / pack is already populated and opts.confirmed is not true,
+--- returns false, "needs_confirm", pending (so the caller can show a modal).
+--- @return ok, packOrErr [, pending]
+function M.importPngToSketchCanvas(sketchWin, file, wm, opts)
+  opts = opts or {}
+  local pending = opts.pending
+  if not pending then
+    local built, err = buildPendingFromFile(sketchWin, file, wm, opts.app)
+    if not built then
+      return false, err
+    end
+    pending = built
+  end
+
+  if pending.needsConfirm and opts.confirmed ~= true then
+    return false, M.PNG_IMPORT_NEEDS_CONFIRM, pending
+  end
+
+  return applyPendingToSketch(sketchWin, pending, wm)
+end
+
+function M.formatPngImportStatus(ok, packOrErr)
+  if ok and type(packOrErr) == "table" then
+    local n = tonumber(packOrErr.uniqueCount) or 0
+    return string.format(
+      "Sketch PNG imported: %d unique pattern%s -> pattern table",
+      n,
+      n == 1 and "" or "s"
+    )
+  end
+  local err = tostring(packOrErr or "import_failed")
+  if err == M.PNG_IMPORT_NEEDS_CONFIRM then
+    return "Sketch PNG import: confirm replace"
+  end
+  if err == "too_many_unique" then
+    return "Sketch PNG import failed: more than 256 unique patterns"
+  end
+  if err == "no_linked_pattern_table" then
+    return "Sketch PNG import failed: link a Pattern table first"
+  end
+  if err == "bad_dimensions" then
+    return string.format(
+      "Sketch PNG import failed: image must be %dx%d",
+      M.PNG_IMPORT_WIDTH,
+      M.PNG_IMPORT_HEIGHT
+    )
+  end
+  if err == "no_canvas" then
+    return "Sketch PNG import failed: no canvas"
+  end
+  if err == "not_sketch_canvas" then
+    return "Sketch PNG import failed: not a Sketch canvas"
+  end
+  return "Sketch PNG import failed: " .. err
 end
 
 return M

@@ -768,4 +768,77 @@ function M.importImageToPatternTableWindow(file, win, startCol, startRow, appEdi
   return true, msg
 end
 
+----------------------------------------------------------------------
+-- Shared PNG decode (sketch canvas import and other callers)
+----------------------------------------------------------------------
+
+--- Load a LOVE File as ImageData after open/read/close.
+--  Returns: imgData or nil, err
+function M.loadImageDataFromFile(file)
+  if not file then
+    return nil, "No file provided"
+  end
+
+  file:open("r")
+  local fileData = file:read()
+  file:close()
+
+  if not fileData or #fileData == 0 then
+    return nil, "Could not read file data"
+  end
+
+  local ok, fileDataObj = pcall(function()
+    return love.filesystem.newFileData(fileData, file:getFilename() or "image.png")
+  end)
+  if not ok or not fileDataObj then
+    return nil, "Failed to create FileData: " .. (tostring(fileDataObj) or "unknown error")
+  end
+
+  local ok2, imgData = pcall(function()
+    return love.image.newImageData(fileDataObj)
+  end)
+  if not ok2 or not imgData then
+    return nil, "Failed to decode image: " .. (tostring(imgData) or "unknown error")
+  end
+
+  return imgData
+end
+
+--- Decode a PNG file to a flat 1-based indexed pixel array (0-3).
+--  When paletteColors is provided, remaps through palette luminance like CHR import.
+--  Returns: flatPixels, width, height or nil, err
+function M.decodePngFileToIndexedPixels(file, paletteColors)
+  local imgData, err = M.loadImageDataFromFile(file)
+  if not imgData then
+    return nil, err
+  end
+
+  local width, height = imgData:getWidth(), imgData:getHeight()
+
+  local validColors, colorError = validateImageColors(imgData)
+  if not validColors then
+    return nil, colorError
+  end
+
+  local indexedData
+  if type(paletteColors) == "table" then
+    indexedData, err = convertToIndexedByPaletteBrightness(imgData, paletteColors)
+    if not indexedData then
+      return nil, tostring(err or "Could not map PNG colors through palette")
+    end
+  else
+    indexedData = convertToIndexedByBrightness(imgData)
+  end
+
+  local flat = {}
+  for y = 1, height do
+    local row = indexedData[y]
+    for x = 1, width do
+      flat[(y - 1) * width + x] = math.floor(tonumber(row and row[x]) or 0)
+    end
+  end
+
+  return flat, width, height
+end
+
 return M

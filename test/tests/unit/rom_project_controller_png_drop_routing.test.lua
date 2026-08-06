@@ -1,16 +1,11 @@
 local RomProjectController = require("controllers.rom.rom_project_controller")
 local ResolutionController = require("controllers.app.resolution_controller")
 local SpriteController = require("controllers.sprite.sprite_controller")
-local ImageImportController = require("controllers.rom.image_import_controller")
-local NametableUnscrambleController = require("controllers.ppu.nametable_unscramble_controller")
 
 describe("rom_project_controller.lua - PNG drop routing", function()
   local originalGetScaledMouse
   local originalHandleSpritePngDrop
   local originalGetSelectedSpriteIndicesInOrder
-  local originalImportImageToCHRWindow
-  local originalImportImageToPatternTableWindow
-  local originalUnscrambleFromPNG
 
   local calls
 
@@ -85,18 +80,12 @@ describe("rom_project_controller.lua - PNG drop routing", function()
   beforeEach(function()
     calls = {
       sprite = {},
-      chr = {},
-      patternTable = {},
-      ppu = {},
       status = {},
     }
 
     originalGetScaledMouse = ResolutionController.getScaledMouse
     originalHandleSpritePngDrop = SpriteController.handleSpritePngDrop
     originalGetSelectedSpriteIndicesInOrder = SpriteController.getSelectedSpriteIndicesInOrder
-    originalImportImageToCHRWindow = ImageImportController.importImageToCHRWindow
-    originalImportImageToPatternTableWindow = ImageImportController.importImageToPatternTableWindow
-    originalUnscrambleFromPNG = NametableUnscrambleController.unscrambleFromPNG
 
     ResolutionController.getScaledMouse = function()
       return { x = 10, y = 10 }
@@ -110,126 +99,25 @@ describe("rom_project_controller.lua - PNG drop routing", function()
       calls.sprite[#calls.sprite + 1] = { app = app, file = file, win = win }
       return true
     end
-
-    ImageImportController.importImageToCHRWindow = function(file, win, col, row, appEditState, edits)
-      calls.chr[#calls.chr + 1] = {
-        file = file, win = win, col = col, row = row,
-        appEditState = appEditState, edits = edits,
-      }
-      return true, "ok"
-    end
-
-    ImageImportController.importImageToPatternTableWindow = function(file, win, col, row, appEditState, edits)
-      calls.patternTable[#calls.patternTable + 1] = {
-        file = file, win = win, col = col, row = row,
-        appEditState = appEditState, edits = edits,
-      }
-      return true, "ok"
-    end
-
-    NametableUnscrambleController.unscrambleFromPNG = function(win, file, tilesPool, threshold, app)
-      calls.ppu[#calls.ppu + 1] = { win = win, file = file, tilesPool = tilesPool, threshold = threshold, app = app }
-      return true, "ok"
-    end
-
   end)
 
   afterEach(function()
     ResolutionController.getScaledMouse = originalGetScaledMouse
     SpriteController.handleSpritePngDrop = originalHandleSpritePngDrop
     SpriteController.getSelectedSpriteIndicesInOrder = originalGetSelectedSpriteIndicesInOrder
-    ImageImportController.importImageToCHRWindow = originalImportImageToCHRWindow
-    ImageImportController.importImageToPatternTableWindow = originalImportImageToPatternTableWindow
-    NametableUnscrambleController.unscrambleFromPNG = originalUnscrambleFromPNG
   end)
 
-  it("routes PNG to sprite importer for sprite-layer windows across static/animation/oam kinds", function()
-    local cases = {
-      { kind = "static_art" },
-      { kind = "animation" },
-      { kind = "oam_animation" },
-    }
-
-    for _, case in ipairs(cases) do
-      calls.sprite = {}
-      calls.chr = {}
-      calls.ppu = {}
-
-      local win = makeWin(case.kind, case.kind .. "_win", { spriteLayer() })
-      local app = makeApp(win, win)
-
-      RomProjectController.handleFileDropped(app, makeFile("sheet.png"))
-
-      expect(#calls.sprite).toBe(1)
-      expect(calls.sprite[1].win).toBe(win)
-      expect(#calls.chr).toBe(0)
-      expect(#calls.ppu).toBe(0)
-    end
-  end)
-
-  it("routes PNG to CHR when pointer is over CHR even if focused window has sprite selection", function()
-    local focusedSpriteWin = makeWin("animation", "anim", {
-      spriteLayer({ selectedOrder = { 1 }, selectedSpriteIndex = 1 }),
-    })
-    local chrWin = makeWin("chr", "bank", {})
-    chrWin.getSelected = function() return 0, 0 end
-    local app = makeApp(focusedSpriteWin, chrWin)
+  it("routes PNG to sprite importer for OAM Animation windows", function()
+    local win = makeWin("oam_animation", "oam_win", { spriteLayer() })
+    local app = makeApp(win, win)
 
     RomProjectController.handleFileDropped(app, makeFile("sheet.png"))
 
-    expect(#calls.chr).toBe(1)
-    expect(calls.chr[1].win).toBe(chrWin)
-    expect(#calls.sprite).toBe(0)
-    expect(#calls.ppu).toBe(0)
+    expect(#calls.sprite).toBe(1)
+    expect(calls.sprite[1].win).toBe(win)
   end)
 
-  it("routes PNG to PPU unscramble for ppu_frame when no sprite target is available", function()
-    local ppuWin = makeWin("ppu_frame", "ppu", {
-      { kind = "tile" },
-    })
-    local app = makeApp(ppuWin, ppuWin)
-
-    RomProjectController.handleFileDropped(app, makeFile("nt.png"))
-
-    expect(#calls.ppu).toBe(1)
-    expect(calls.ppu[1].win).toBe(ppuWin)
-    expect(#calls.sprite).toBe(0)
-    expect(#calls.chr).toBe(0)
-  end)
-
-  it("routes PNG to PPU unscramble for ppu_frame when active layer is tile even if sprite overlay exists", function()
-    local ppuWin = makeWin("ppu_frame", "ppu", {
-      { kind = "tile" },
-      spriteLayer(),
-    })
-    ppuWin.activeLayer = 1
-    ppuWin.getActiveLayerIndex = function() return ppuWin.activeLayer end
-    local app = makeApp(ppuWin, ppuWin)
-
-    RomProjectController.handleFileDropped(app, makeFile("nt.png"))
-
-    expect(#calls.ppu).toBe(1)
-    expect(calls.ppu[1].win).toBe(ppuWin)
-    expect(#calls.sprite).toBe(0)
-    expect(#calls.chr).toBe(0)
-  end)
-
-  it("uses the window under mouse for PPU unscramble even when focus is on another window", function()
-    local ppuWin = makeWin("ppu_frame", "ppu_under_mouse", {
-      { kind = "tile" },
-    })
-    local focusedChrWin = makeWin("chr", "focused_chr", {})
-    local app = makeApp(focusedChrWin, ppuWin)
-
-    RomProjectController.handleFileDropped(app, makeFile("nt.png"))
-
-    expect(#calls.ppu).toBe(1)
-    expect(calls.ppu[1].win).toBe(ppuWin)
-    expect(#calls.sprite).toBe(0)
-    expect(#calls.chr).toBe(0)
-  end)
-
-  it("routes PNG to sprite importer for ppu_frame when active layer is sprite", function()
+  it("routes PNG to sprite importer for PPU Frame when sprite layer is active", function()
     local ppuWin = makeWin("ppu_frame", "ppu", {
       { kind = "tile" },
       spriteLayer(),
@@ -242,77 +130,62 @@ describe("rom_project_controller.lua - PNG drop routing", function()
 
     expect(#calls.sprite).toBe(1)
     expect(calls.sprite[1].win).toBe(ppuWin)
-    expect(#calls.ppu).toBe(0)
-    expect(#calls.chr).toBe(0)
   end)
 
-  it("uses focused window as drop target when pointer is not over any window", function()
-    local animWin = makeWin("animation", "anim", {
+  it("does not route PNG to PPU Frame when tile layer is active", function()
+    local ppuWin = makeWin("ppu_frame", "ppu", {
+      { kind = "tile" },
+      spriteLayer(),
+    })
+    ppuWin.activeLayer = 1
+    ppuWin.getActiveLayerIndex = function() return ppuWin.activeLayer end
+    local app = makeApp(ppuWin, ppuWin)
+
+    RomProjectController.handleFileDropped(app, makeFile("sheet.png"))
+
+    expect(#calls.sprite).toBe(0)
+    expect(app.statusText).toBe("Drop a PNG on a Sketch canvas, OAM Animation, or PPU Frame sprite layer")
+  end)
+
+  it("does not route PNG to Static Art or Animation sprite windows", function()
+    local cases = {
+      { kind = "static_art" },
+      { kind = "animation" },
+    }
+
+    for _, case in ipairs(cases) do
+      calls.sprite = {}
+      local win = makeWin(case.kind, case.kind .. "_win", { spriteLayer() })
+      local app = makeApp(win, win)
+
+      RomProjectController.handleFileDropped(app, makeFile("sheet.png"))
+
+      expect(#calls.sprite).toBe(0)
+      expect(app.statusText).toBe("Drop a PNG on a Sketch canvas, OAM Animation, or PPU Frame sprite layer")
+    end
+  end)
+
+  it("uses focused OAM window as drop target when pointer is not over any window", function()
+    local oamWin = makeWin("oam_animation", "oam", {
       spriteLayer({ selectedOrder = { 1 }, selectedSpriteIndex = 1 }),
     })
-    local app = makeApp(animWin, nil)
+    local app = makeApp(oamWin, nil)
 
     RomProjectController.handleFileDropped(app, makeFile("sheet.png"))
 
     expect(#calls.sprite).toBe(1)
-    expect(calls.sprite[1].win).toBe(animWin)
-    expect(#calls.chr).toBe(0)
-    expect(#calls.ppu).toBe(0)
+    expect(calls.sprite[1].win).toBe(oamWin)
   end)
 
-  it("routes PNG to CHR import for CHR window when no sprite target is available", function()
-    local chrWin = makeWin("chr", "bank", {})
-    chrWin.getSelected = function() return 3, 4 end
-    local app = makeApp(chrWin, chrWin)
+  it("uses the OAM window under mouse even when focus is elsewhere", function()
+    local focusedChrWin = makeWin("chr", "focused_chr", {})
+    local oamWin = makeWin("oam_animation", "oam_under_mouse", { spriteLayer() })
+    local app = makeApp(focusedChrWin, oamWin)
 
-    RomProjectController.handleFileDropped(app, makeFile("tiles.png"))
+    RomProjectController.handleFileDropped(app, makeFile("sheet.png"))
 
-    expect(#calls.chr).toBe(1)
-    expect(calls.chr[1].win).toBe(chrWin)
-    expect(calls.chr[1].col).toBe(3)
-    expect(calls.chr[1].row).toBe(4)
-    expect(#calls.sprite).toBe(0)
-    expect(#calls.ppu).toBe(0)
-  end)
-
-  it("routes PNG to Pattern table import for standalone pattern_table windows", function()
-    local ptWin = makeWin("pattern_table", "pt01", {
-      {
-        kind = "tile",
-        patternTable = {
-          ranges = {
-            { bank = 1, from = 0, to = 255 },
-          },
-        },
-      },
-    })
-    ptWin.getSelected = function() return 2, 1 end
-    local app = makeApp(ptWin, ptWin)
-
-    RomProjectController.handleFileDropped(app, makeFile("tiles.png"))
-
-    expect(#calls.patternTable).toBe(1)
-    expect(calls.patternTable[1].win).toBe(ptWin)
-    expect(calls.patternTable[1].col).toBe(2)
-    expect(calls.patternTable[1].row).toBe(1)
-    expect(#calls.chr).toBe(0)
-    expect(#calls.ppu).toBe(0)
-    expect(#calls.sprite).toBe(0)
-  end)
-
-  it("rejects PNG drop on sketch-owned Pattern table windows", function()
-    local ptWin = makeWin("pattern_table", "pt_sketch", {
-      { kind = "tile", patternTable = { ranges = {} } },
-    })
-    ptWin.linkedSketchCanvasWindowId = "sketch_01"
-    local app = makeApp(ptWin, ptWin)
-
-    RomProjectController.handleFileDropped(app, makeFile("tiles.png"))
-
-    expect(#calls.patternTable).toBe(0)
-    expect(#calls.chr).toBe(0)
-    expect(type(app.statusText)).toBe("string")
-    expect(app.statusText:find("sketch", 1, true) ~= nil).toBe(true)
+    expect(#calls.sprite).toBe(1)
+    expect(calls.sprite[1].win).toBe(oamWin)
   end)
 
   it("shows status when PNG drop has no compatible target window", function()
@@ -322,24 +195,84 @@ describe("rom_project_controller.lua - PNG drop routing", function()
     RomProjectController.handleFileDropped(app, makeFile("x.png"))
 
     expect(#calls.sprite).toBe(0)
-    expect(#calls.chr).toBe(0)
-    expect(#calls.patternTable).toBe(0)
-    expect(#calls.ppu).toBe(0)
-    expect(app.statusText).toBe("Please drop on a CHR bank, Pattern table, or PPU frame window")
+    expect(app.statusText).toBe("Drop a PNG on a Sketch canvas, OAM Animation, or PPU Frame sprite layer")
   end)
 
-  it("blocks PNG import when no ROM is loaded", function()
-    local chrWin = makeWin("chr", "bank", {})
-    local app = makeApp(chrWin, chrWin)
+  it("routes PNG to Sketch canvas import without requiring a loaded ROM", function()
+    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+    local originalImport = SketchCanvasPackController.importPngToSketchCanvas
+    local sketchCalls = {}
+    SketchCanvasPackController.importPngToSketchCanvas = function(win, file, wm, opts)
+      sketchCalls[#sketchCalls + 1] = { win = win, file = file, wm = wm, opts = opts }
+      return true, { uniqueCount = 2, appliedToPatternTable = true }
+    end
+
+    local sketchWin = makeWin("sketch_canvas", "sketch01", {
+      { kind = "canvas" },
+    })
+    local app = makeApp(sketchWin, sketchWin)
     app.appEditState.romRaw = nil
     app.appEditState.romSha1 = nil
     app.appEditState.romOriginalPath = nil
 
-    RomProjectController.handleFileDropped(app, makeFile("tiles.png"))
+    RomProjectController.handleFileDropped(app, makeFile("bg.png"))
+
+    SketchCanvasPackController.importPngToSketchCanvas = originalImport
+
+    expect(#sketchCalls).toBe(1)
+    expect(sketchCalls[1].win).toBe(sketchWin)
+    expect(#calls.sprite).toBe(0)
+    expect(type(app.statusText)).toBe("string")
+    expect(app.statusText:find("Sketch PNG", 1, true) ~= nil).toBe(true)
+  end)
+
+  it("opens confirm modal when Sketch PNG import needs replace confirmation", function()
+    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+    local originalImport = SketchCanvasPackController.importPngToSketchCanvas
+    local pending = { needsConfirm = true, pack = { uniqueCount = 1 } }
+    local importCalls = 0
+    SketchCanvasPackController.importPngToSketchCanvas = function(_, _, _, opts)
+      importCalls = importCalls + 1
+      opts = opts or {}
+      if opts.confirmed then
+        return true, { uniqueCount = 1, appliedToPatternTable = true }
+      end
+      return false, SketchCanvasPackController.PNG_IMPORT_NEEDS_CONFIRM, pending
+    end
+
+    local sketchWin = makeWin("sketch_canvas", "sketch01", {
+      { kind = "canvas" },
+    })
+    local app = makeApp(sketchWin, sketchWin)
+    local shown = nil
+    app.confirmModal = {
+      show = function(_, opts)
+        shown = opts
+      end,
+    }
+
+    RomProjectController.handleFileDropped(app, makeFile("bg.png"))
+
+    expect(importCalls).toBe(1)
+    expect(shown).toBeTruthy()
+    expect(shown.title:find("Replace", 1, true) ~= nil).toBe(true)
+    shown.onYes()
+    expect(importCalls).toBe(2)
+    expect(app.statusText:find("imported", 1, true) ~= nil).toBe(true)
+
+    SketchCanvasPackController.importPngToSketchCanvas = originalImport
+  end)
+
+  it("blocks non-sketch PNG import when no ROM is loaded", function()
+    local oamWin = makeWin("oam_animation", "oam", { spriteLayer() })
+    local app = makeApp(oamWin, oamWin)
+    app.appEditState.romRaw = nil
+    app.appEditState.romSha1 = nil
+    app.appEditState.romOriginalPath = nil
+
+    RomProjectController.handleFileDropped(app, makeFile("sheet.png"))
 
     expect(#calls.sprite).toBe(0)
-    expect(#calls.chr).toBe(0)
-    expect(#calls.ppu).toBe(0)
     expect(app.statusText).toBe("Open a ROM before importing PNGs.")
   end)
 end)

@@ -1396,7 +1396,8 @@ drawNormalWindow = function(app, w, wm)
 
   if (not isPaletteWindow) and gridMode == "lines" then
     renderWindowLinesGrid(w)
-  elseif (not isPaletteWindow) and gridMode == "attr" and WindowCaps.isPpuFrame(w) then
+  elseif (not isPaletteWindow) and gridMode == "attr"
+      and (WindowCaps.isPpuFrame(w) or WindowCaps.isSketchCanvas(w)) then
     renderWindowAttrGrid(w)
   end
 

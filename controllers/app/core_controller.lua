@@ -112,6 +112,8 @@ function AppCoreController.new()
   self.ppuFramePatternRangeModal = PPUFramePatternRangeModal.new()
   self.saveOptionsModal = SaveOptionsModal.new()
   self.quitConfirmModal = QuitConfirmModal.new()
+  -- Generic Yes/No confirm (e.g. sketch PNG replace-all); separate from quit.
+  self.confirmModal = QuitConfirmModal.new()
   self.pressEscAgainExitModal = PressEscAgainExitModal.new()
   self.settingsModal = SettingsModal.new()
   self.textFieldDemoModal = TextFieldDemoModal.new()

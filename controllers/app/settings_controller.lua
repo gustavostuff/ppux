@@ -41,6 +41,12 @@ local DEFAULT_SETTINGS = {
     refs = {},
   },
   recentProjects = {},
+  --- RGB (0-1) that fully-transparent PNG pixels stand in for during sprite import.
+  --- Default black: transparent becomes NES palette index 0 (BG / first color).
+  pngImportTransparentRgb = { 0, 0, 0 },
+  --- Used when pngImportTransparentRgb is already an opaque color in the PNG
+  --- (e.g. art uses pure black + alpha). Default brown keeps opaque black visible.
+  pngImportTransparentFallbackRgb = { 0.40, 0.20, 0.10 },
 }
 
 local MAX_RECENT_PROJECTS = 4

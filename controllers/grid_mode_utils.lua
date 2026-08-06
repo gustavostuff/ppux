@@ -4,8 +4,8 @@
 local M = {}
 
 local modesDefault = { "none", "chess", "lines" }
--- PPU frame windows add attribute-region lines after tile lines.
-local modesPpuFrame = { "none", "chess", "lines", "attr" }
+-- PPU frame and sketch canvas windows add attribute-region lines after tile lines.
+local modesWithAttr = { "none", "chess", "lines", "attr" }
 
 local validModes = {
   none = true,
@@ -23,9 +23,9 @@ function M.normalize(value)
 end
 
 --- @param value any
---- @param opts table|nil { includeAttr = bool } — PPU frame windows cycle through "attr"
+--- @param opts table|nil { includeAttr = bool } — PPU frame / sketch canvas cycle through "attr"
 function M.next(value, opts)
-  local modes = (opts and opts.includeAttr) and modesPpuFrame or modesDefault
+  local modes = (opts and opts.includeAttr) and modesWithAttr or modesDefault
   local cur = M.normalize(value)
   if cur == "attr" and not (opts and opts.includeAttr) then
     return modes[1]

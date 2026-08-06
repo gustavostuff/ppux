@@ -246,7 +246,7 @@ Linked ROM palette / pattern-table windows also show small **squares** on the le
 - `Ctrl + S`: open save options.
 - `Tab`: toggle `Tile` / `Edit` mode.
 - `Space`: Highlihts all sprites in the active sprite layer.
-- `Ctrl + G`: Cycle through different layer grids.
+- `Ctrl + G`: Cycle through different layer grids (PPU Frame and Sketch canvas include the attribute-region grid).
 - `Ctrl + R`: toggle shader rendering for the focused layer, ON by default (patterns are shader-colored, app-wide). When disabled, it shows gray values matching the pixel color code: 0, 1, 2 or 3.
 - In `ppu_frame` and `oam_animation` windows, clipboard actions (Ctrl + C/V/X) are blocked **on sprite** layers, because of reasons I'm too lazy to explain.
 - `Right click` or `middle click` drag: move windows.
@@ -291,30 +291,21 @@ Edit mode is for pixel-level editing.
 
 ### PNG drops
 
-You can drag and drop a PNG directly into PPUX. The drop is always applied to the window **under the mouse**. If the pointer is not over any window, the **focused** window is used as the drop target instead.
+You can drag and drop a PNG onto the window **under the mouse** (or the **focused** window if the pointer is not over any window). Two import paths are supported:
 
-**Sprite** PNG import (Static Art, Animation, OAM Animation, or **PPU Frame with the sprite layer active**):
+**OAM sprite layers** (**OAM Animation**, or a **PPU Frame** with the **sprite** layer active):
 
-* **Static Art**, **Animation**, and **OAM Animation**: a window qualifies if it has **any** sprite layer.
-* **PPU Frame**: a window qualifies for sprite import only when the **active layer** is the **sprite** layer. If the active layer is the **tile** layer, the drop is **not** treated as a sprite import.
-* If you have selected sprites, PPUX imports into those sprites in selection order.
-* If no sprites are selected, PPUX imports into the layer's sprites from first to last.
-* The PNG must use at most 4 total colors including transparency, or at most 3 non-transparent colors.
-* The PNG dimensions must align to the current sprite mode: `8x8` sprites require multiples of `8x8`, and `8x16` sprites require multiples of `8x16`.
-* The image is split into sprite-sized frames from left to right, top to bottom.
-* Fully transparent frames are skipped.
-* When importing into an unselected sprite layer, PPUX also repositions sprites to match the frame grid automatically.
+* Selected sprites are filled in selection order. With no selection, sprites are filled from first to last.
+* At most 4 colors, and one may be fully transparent. Transparent pixels become NES palette index 0 (BG). That BG stand-in defaults to black (`settings.pngImportTransparentRgb`). If the PNG already uses that black as an opaque color, BG falls back to brown (`settings.pngImportTransparentFallbackRgb`) so opaque black stays visible. With no alpha, the darkest opaque color is BG instead.
+* Dimensions must match the sprite mode: multiples of `8x8` or `8x16`.
+* Frames are read left to right, top to bottom. Fully transparent frames are skipped.
+* When importing into an unselected sprite layer, sprites are also repositioned to match the frame grid.
 
-PPU Frame windows (nametable unscramble):
+**Sketch canvas** (edit or tile mode):
 
-* When the drop is **not** handled as sprite import, dropping on a **`ppu_frame`** window **under the mouse** runs the **nametable unscramble** flow for that screen: it matches the PNG against tiles from the linked **Pattern table** (window items / ranges) and tries to build the nametable layout automatically. This is a powerful/time-saving piece of functionality but it's hard to explain exactly how it works, video tutorials will probably be more useful (video tutorials are a To-Do).
-
-Notes:
-
-* On CHR and ROM bank windows, dropping a PNG imports the image into the selected tile position, or the top-left if nothing is selected.
-* On **Pattern table** windows that are **not** sketch-owned, PNG import uses the same decode as CHR banks, but writes each 8x8 through `patternTable.ranges` into the mapped CHR bank/tile. Sketch-linked Pattern tables reject the drop.
-* Unscramble needs a linked Pattern table with usable ranges or populated items. Without that link, the drop reports an error instead of falling back to raw CHR/ROM bank order.
-* PNG drops aren't currently supported for regular Tiles windows (static or animated).
+* Drop a **256x240** PNG to write the paint buffer and pack it into the **linked Pattern table** (256-slot scratch catalog, same as Generate).
+* A linked Pattern table is required. If the pack or Pattern table is already populated, PPUX asks to confirm replace-all.
+* Packing uses tolerance 0 so tile mode matches the PNG. More than 256 unique 8x8 patterns fails.
 
 ## Advanced
 
@@ -360,7 +351,7 @@ Best practice: keep the base ROM, edited ROM, and project files in the same fold
 
 ### Sketch canvas windows
 
-Sketch canvases are for **creating NES background art** from zero, on a free 256x240 paint buffer (32x30 tiles of 8x8), then packing that paint into a real nametable + pattern table catalog.
+Sketch canvases are for **creating NES background art** from zero, on a free 256x240 paint buffer (32x30 tiles of 8x8), then packing that paint into a real nametable + pattern table catalog. Dropping a **256x240** PNG onto the sketch (with a linked Pattern table) packs the image the same way. See [PNG drops](#png-drops).
 
 Note: The pixel art tools available for Sketch Canvas windows are not available (not fully) for other kinds of windows, but this will be addressed. The UI still needs work too (toolbar icons, binary save flow, etc).
 

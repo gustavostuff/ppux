@@ -28,6 +28,8 @@ describe("settings_controller.lua - defaults", function()
         refs = {},
       },
       recentProjects = {},
+      pngImportTransparentRgb = { 0, 0, 0 },
+      pngImportTransparentFallbackRgb = { 0.40, 0.20, 0.10 },
     })
   end)
 end)

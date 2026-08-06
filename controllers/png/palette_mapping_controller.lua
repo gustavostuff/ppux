@@ -11,9 +11,11 @@ function M.rgbKeyFromFloats(r, g, b)
   return string.format("%d_%d_%d", r8, g8, b8)
 end
 
--- Build a mapping from unique opaque colors (sorted darkest->lightest) to brightness ranks.
+-- Build a mapping from unique colors (sorted darkest->lightest) to brightness ranks.
 -- opts.rankStart: default 0
 -- opts.maxRank: default 3
+-- opts.includeTransparentAsRgb: optional {r,g,b} floats (0-1). When set, fully transparent
+--   pixels are counted as that RGB (default use-case: black BG / NES transparent).
 -- Returns: map[key]=rank, uniqueCount
 function M.buildBrightnessRankMap(imgData, opts)
   if not imgData then return {}, 0 end
@@ -21,23 +23,40 @@ function M.buildBrightnessRankMap(imgData, opts)
   local rankStart = tonumber(opts.rankStart) or 0
   local maxRank = tonumber(opts.maxRank)
   if maxRank == nil then maxRank = 3 end
+  local transparentAs = opts.includeTransparentAsRgb
+  local transparentKey = nil
+  local transparentLum = nil
+  if type(transparentAs) == "table" then
+    transparentKey = M.rgbKeyFromFloats(transparentAs[1], transparentAs[2], transparentAs[3])
+    transparentLum = M.calculateLuminance(transparentAs[1], transparentAs[2], transparentAs[3])
+  end
 
   local width, height = imgData:getWidth(), imgData:getHeight()
   local seen = {}
   local entries = {}
 
+  local function addEntry(key, lum)
+    if seen[key] then
+      return
+    end
+    seen[key] = true
+    entries[#entries + 1] = {
+      key = key,
+      lum = lum,
+    }
+  end
+
+  if transparentKey then
+    addEntry(transparentKey, transparentLum)
+  end
+
   for y = 0, height - 1 do
     for x = 0, width - 1 do
       local r, g, b, a = imgData:getPixel(x, y)
       if a > 0 then
-        local key = M.rgbKeyFromFloats(r, g, b)
-        if not seen[key] then
-          seen[key] = true
-          entries[#entries + 1] = {
-            key = key,
-            lum = M.calculateLuminance(r, g, b),
-          }
-        end
+        addEntry(M.rgbKeyFromFloats(r, g, b), M.calculateLuminance(r, g, b))
+      elseif transparentKey then
+        -- already seeded; still mark that transparency was observed
       end
     end
   end

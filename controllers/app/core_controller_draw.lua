@@ -708,6 +708,9 @@ function AppCoreController:draw()
       self.pressEscAgainExitModal:draw(self.canvas)
     end
     self.quitConfirmModal:draw(self.canvas)
+    if self.confirmModal then
+      self.confirmModal:draw(self.canvas)
+    end
     drawToasts(self)
     CursorsController.draw(self)
     love.graphics.setCanvas()
@@ -750,6 +753,9 @@ function AppCoreController:draw()
     self.pressEscAgainExitModal:draw(self.canvas)
   end
   self.quitConfirmModal:draw(self.canvas)
+  if self.confirmModal then
+    self.confirmModal:draw(self.canvas)
+  end
   CursorsController.draw(self)
 
   love.graphics.setCanvas()

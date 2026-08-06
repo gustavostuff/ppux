@@ -9,6 +9,95 @@ local PngPaletteMappingController = require("controllers.png.palette_mapping_con
 
 local M = {}
 
+-- Preferred stand-in for fully transparent PNG pixels (NES index 0 / BG).
+-- Overridable via settings.pngImportTransparentRgb (0-1 floats).
+M.DEFAULT_TRANSPARENT_RGB = { 0, 0, 0 }
+-- When the preferred stand-in is already an opaque color in the PNG (e.g. pure black
+-- art on a transparent sheet), use this instead so opaque black stays a visible index.
+-- Overridable via settings.pngImportTransparentFallbackRgb.
+M.FALLBACK_TRANSPARENT_RGB = { 0.40, 0.20, 0.10 } -- brown
+
+local function clampRgb(rgb, fallback)
+  if type(rgb) ~= "table"
+    or type(rgb[1]) ~= "number"
+    or type(rgb[2]) ~= "number"
+    or type(rgb[3]) ~= "number"
+  then
+    return {
+      fallback[1],
+      fallback[2],
+      fallback[3],
+    }
+  end
+  return {
+    math.max(0, math.min(1, rgb[1])),
+    math.max(0, math.min(1, rgb[2])),
+    math.max(0, math.min(1, rgb[3])),
+  }
+end
+
+local function collectOpaqueColorKeys(imgData)
+  local keys = {}
+  if not imgData then
+    return keys
+  end
+  local w, h = imgData:getWidth(), imgData:getHeight()
+  local seen = {}
+  for y = 0, h - 1 do
+    for x = 0, w - 1 do
+      local r, g, b, a = imgData:getPixel(x, y)
+      if a > 0 then
+        local key = PngPaletteMappingController.rgbKeyFromFloats(r, g, b)
+        if not seen[key] then
+          seen[key] = true
+          keys[#keys + 1] = key
+        end
+      end
+    end
+  end
+  return keys
+end
+
+local function opaqueSetContainsRgb(opaqueKeys, rgb)
+  local key = PngPaletteMappingController.rgbKeyFromFloats(rgb[1], rgb[2], rgb[3])
+  for i = 1, #opaqueKeys do
+    if opaqueKeys[i] == key then
+      return true
+    end
+  end
+  return false
+end
+
+--- Resolve the RGB stand-in for transparent pixels (palette index 0).
+--- Default black; if that black is already used as an opaque color, fall back to brown
+--- so opaque black can keep a visible NES index.
+local function resolveTransparentAsRgb(app, imgData)
+  local preferred = M.DEFAULT_TRANSPARENT_RGB
+  local fallback = M.FALLBACK_TRANSPARENT_RGB
+  local ok, AppSettingsController = pcall(require, "controllers.app.settings_controller")
+  if ok and AppSettingsController and AppSettingsController.load then
+    local settings = AppSettingsController.load()
+    if settings then
+      preferred = clampRgb(settings.pngImportTransparentRgb, preferred)
+      fallback = clampRgb(settings.pngImportTransparentFallbackRgb, fallback)
+    end
+  end
+  if app then
+    if type(app.pngImportTransparentRgb) == "table" then
+      preferred = clampRgb(app.pngImportTransparentRgb, preferred)
+    end
+    if type(app.pngImportTransparentFallbackRgb) == "table" then
+      fallback = clampRgb(app.pngImportTransparentFallbackRgb, fallback)
+    end
+  end
+
+  local opaqueKeys = collectOpaqueColorKeys(imgData)
+  if opaqueSetContainsRgb(opaqueKeys, preferred) then
+    return fallback, true
+  end
+  return preferred, false
+end
+
 local function loadImageDataFromDroppedFile(file)
   if not file then return nil, "no_file" end
   file:open("r")
@@ -20,57 +109,51 @@ local function loadImageDataFromDroppedFile(file)
 end
 
 local function countUniqueColors(imgData)
+  -- Opaque RGB colors + optional fully-transparent "color" (counts as one).
   local colorSet = {}
   local w, h = imgData:getWidth(), imgData:getHeight()
-  local count = 0
+  local opaqueCount = 0
+  local hasTransparency = false
   for y = 0, h - 1 do
     for x = 0, w - 1 do
       local r, g, b, a = imgData:getPixel(x, y)
-      local key = string.format("%d_%d_%d_%d",
-        math.floor(r * 255), math.floor(g * 255), math.floor(b * 255), math.floor(a * 255))
-      if not colorSet[key] then
-        colorSet[key] = true
-        count = count + 1
-        if count > 4 then
-          return count
-        end
-      end
-    end
-  end
-  return count
-end
-
-local function countUniqueNonTransparentColors(imgData)
-  local colorSet = {}
-  local w, h = imgData:getWidth(), imgData:getHeight()
-  local count = 0
-  for y = 0, h - 1 do
-    for x = 0, w - 1 do
-      local r, g, b, a = imgData:getPixel(x, y)
-      if a > 0 then
+      if a == 0 then
+        hasTransparency = true
+      else
         local key = string.format("%d_%d_%d",
           math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5))
         if not colorSet[key] then
           colorSet[key] = true
-          count = count + 1
-          if count > 3 then
-            return count
+          opaqueCount = opaqueCount + 1
+          if opaqueCount + (hasTransparency and 1 or 0) > 4 then
+            return opaqueCount + 1
           end
         end
       end
     end
   end
-  return count
+  return opaqueCount + (hasTransparency and 1 or 0)
 end
 
-local function buildBrightnessIndexMapForSprites(imgData)
+local function buildBrightnessIndexMapForSprites(imgData, hasTransparency, transparentAsRgb)
+  -- * no alpha: darkest opaque color -> rank 0 (NES BG)
+  -- * with alpha: index 0 is reserved for transparency only. Opaque colors (including
+  --   pure black) rank from 1..3 so they stay visible. transparentAsRgb is the
+  --   conceptual BG stand-in (black, or brown if black is already opaque) for
+  --   settings / future palette slot-0 writes — not mixed into opaque ranking.
+  if hasTransparency then
+    return PngPaletteMappingController.buildBrightnessRankMap(imgData, {
+      rankStart = 1,
+      maxRank = 3,
+    })
+  end
   return PngPaletteMappingController.buildBrightnessRankMap(imgData, {
-    rankStart = 1,
+    rankStart = 0,
     maxRank = 3,
   })
 end
 
-local function buildPaletteBrightnessRemapForSprite(layer, paletteNumber, romRaw)
+local function buildPaletteBrightnessRemapForSprite(layer, paletteNumber, romRaw, hasTransparency)
   if not paletteNumber then
     return nil
   end
@@ -80,23 +163,31 @@ local function buildPaletteBrightnessRemapForSprite(layer, paletteNumber, romRaw
     return nil
   end
 
+  if hasTransparency then
+    -- Slot 0 reserved for transparent pixels; opaque map through visible slots.
+    return PngPaletteMappingController.buildPaletteBrightnessRemap(paletteColors, {
+      pixelValues = { 1, 2, 3 },
+      rankStart = 1,
+    })
+  end
   return PngPaletteMappingController.buildPaletteBrightnessRemap(paletteColors, {
-    pixelValues = { 1, 2, 3 },
-    rankStart = 1,
+    pixelValues = { 0, 1, 2, 3 },
+    rankStart = 0,
   })
 end
 
-local function mapPixelToPaletteIndex(r, g, b, a, brightnessMap, paletteRemap)
+local function mapPixelToPaletteIndex(r, g, b, a, brightnessMap, paletteRemap, hasTransparency)
   if a == 0 then
     return 0
   end
 
   local key = PngPaletteMappingController.rgbKeyFromFloats(r, g, b)
-  local rank = brightnessMap[key] or 1
+  local defaultRank = hasTransparency and 1 or 0
+  local rank = brightnessMap[key] or defaultRank
   if paletteRemap and paletteRemap[rank] then
     return paletteRemap[rank]
   end
-  return (paletteRemap and paletteRemap[1]) or 1
+  return (paletteRemap and paletteRemap[defaultRank]) or defaultRank
 end
 
 local function recordEdit(edits, bankIdx, tileIdx, x, y, color)
@@ -106,7 +197,7 @@ local function recordEdit(edits, bankIdx, tileIdx, x, y, color)
   edits.banks[bankIdx][tileIdx][x .. "_" .. y] = color
 end
 
-local function writeTilePixels(tileRef, imgData, srcX, srcY, brightnessMap, paletteRemap, edits, undoRedo, app, syncChangedTargets)
+local function writeTilePixels(tileRef, imgData, srcX, srcY, brightnessMap, paletteRemap, hasTransparency, edits, undoRedo, app, syncChangedTargets)
   if not tileRef then return false, "no_tile" end
   local bankBytes = tileRef._bankBytesRef
   local tileIndex = tileRef.index
@@ -130,7 +221,7 @@ local function writeTilePixels(tileRef, imgData, srcX, srcY, brightnessMap, pale
   for y = 0, 7 do
     for x = 0, 7 do
       local r, g, b, a = imgData:getPixel(srcX + x, srcY + y)
-      local idx = mapPixelToPaletteIndex(r, g, b, a, brightnessMap, paletteRemap)
+      local idx = mapPixelToPaletteIndex(r, g, b, a, brightnessMap, paletteRemap, hasTransparency)
       for _, target in ipairs(targets) do
         local tBank = target.bank
         local tIdx = target.tileIndex
@@ -189,7 +280,7 @@ local function writeTilePixels(tileRef, imgData, srcX, srcY, brightnessMap, pale
   return true
 end
 
-local function applyFrameToSprite(sprite, imgData, frameX, frameY, spriteW, spriteH, brightnessMap, paletteRemap, edits, undoRedo, app, syncChangedTargets)
+local function applyFrameToSprite(sprite, imgData, frameX, frameY, spriteW, spriteH, brightnessMap, paletteRemap, hasTransparency, edits, undoRedo, app, syncChangedTargets)
   if not sprite or sprite.removed == true then
     return false, "sprite missing"
   end
@@ -200,7 +291,7 @@ local function applyFrameToSprite(sprite, imgData, frameX, frameY, spriteW, spri
     return false, "missing top tile"
   end
 
-  local okTop, errTop = writeTilePixels(sprite.topRef, imgData, frameX, frameY, brightnessMap, paletteRemap, edits, undoRedo, app, syncChangedTargets)
+  local okTop, errTop = writeTilePixels(sprite.topRef, imgData, frameX, frameY, brightnessMap, paletteRemap, hasTransparency, edits, undoRedo, app, syncChangedTargets)
   if not okTop then
     return false, errTop
   end
@@ -209,7 +300,7 @@ local function applyFrameToSprite(sprite, imgData, frameX, frameY, spriteW, spri
     if not sprite.botRef then
       return false, "missing bottom tile"
     end
-    local okBot, errBot = writeTilePixels(sprite.botRef, imgData, frameX, frameY + 8, brightnessMap, paletteRemap, edits, undoRedo, app, syncChangedTargets)
+    local okBot, errBot = writeTilePixels(sprite.botRef, imgData, frameX, frameY + 8, brightnessMap, paletteRemap, hasTransparency, edits, undoRedo, app, syncChangedTargets)
     if not okBot then
       return false, errBot
     end
@@ -407,17 +498,13 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
   local colorCount = countUniqueColors(imgData)
   if colorCount > 4 then
     DebugController.log("warning", "PNG_DROP", "Rejected PNG: too many colors=%d", colorCount)
-    setErrorStatus(app, string.format("PNG has too many colors (%d). Max 4 incl. transparency.", colorCount))
-    return true
-  end
-  local nonTransparentCount = countUniqueNonTransparentColors(imgData)
-  if nonTransparentCount > 3 then
-    DebugController.log("warning", "PNG_DROP", "Rejected PNG: too many non-transparent colors=%d", nonTransparentCount)
-    setErrorStatus(app, string.format("PNG has too many non-transparent colors (%d). Max allowed is 3", nonTransparentCount))
+    setErrorStatus(app, string.format("PNG has too many colors (%d). Max 4 (one may be transparent).", colorCount))
     return true
   end
 
-  local brightnessMap = buildBrightnessIndexMapForSprites(imgData)
+  local hasTransparency = PngPaletteMappingController.imageHasTransparency(imgData)
+  local transparentAsRgb = resolveTransparentAsRgb(app, imgData)
+  local brightnessMap = buildBrightnessIndexMapForSprites(imgData, hasTransparency, transparentAsRgb)
 
   local mode = layer.mode or "8x8"
   local spriteW = 8
@@ -465,7 +552,7 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
       return cached ~= false and cached or nil
     end
 
-    local remap = buildPaletteBrightnessRemapForSprite(layer, palNum, romRaw)
+    local remap = buildPaletteBrightnessRemapForSprite(layer, palNum, romRaw, hasTransparency)
     paletteRemapByPaletteNumber[palNum] = remap or false
     return remap
   end
@@ -534,7 +621,7 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
     local spriteEntry = sprites[spriteIdx]
     local sprite = spriteEntry.sprite
     local paletteRemap = getPaletteRemapForSprite(sprite)
-    local ok, why = applyFrameToSprite(sprite, imgData, frame.x, frame.y, spriteW, spriteH, brightnessMap, paletteRemap, app.edits, undoRedo, app, syncChangedTargets)
+    local ok, why = applyFrameToSprite(sprite, imgData, frame.x, frame.y, spriteW, spriteH, brightnessMap, paletteRemap, hasTransparency, app.edits, undoRedo, app, syncChangedTargets)
     if not ok then
       DebugController.log(
         "warning",

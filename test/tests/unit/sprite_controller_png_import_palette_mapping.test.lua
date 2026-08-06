@@ -19,7 +19,7 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
       getHeight = function() return 8 end,
       getPixel = function(_, x, _)
         if x < 3 then
-          return 0.10, 0.10, 0.10, 1.0 -- dark
+          return 0.10, 0.10, 0.10, 1.0 -- dark (NES transparent / BG)
         elseif x < 6 then
           return 0.50, 0.50, 0.50, 1.0 -- mid
         end
@@ -29,14 +29,18 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
   end
 
   local function makeTwoFrameImageData()
+    -- Black corner marks NES transparent; frame bodies use mid/bright so imports stay non-zero.
     return {
       getWidth = function() return 16 end,
       getHeight = function() return 8 end,
-      getPixel = function(_, x, _)
-        if x < 8 then
-          return 0.10, 0.10, 0.10, 1.0 -- frame 1: dark
+      getPixel = function(_, x, y)
+        if (x % 8) == 0 and y == 0 then
+          return 0.0, 0.0, 0.0, 1.0 -- darkest -> index 0
         end
-        return 0.90, 0.90, 0.90, 1.0 -- frame 2: bright
+        if x < 8 then
+          return 0.50, 0.50, 0.50, 1.0 -- frame 1: mid -> 1
+        end
+        return 0.90, 0.90, 0.90, 1.0 -- frame 2: bright -> 2
       end,
     }
   end
@@ -189,17 +193,17 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
     SpriteController.updateDrag = function() end
     SpriteController.endDrag = function() end
 
-    -- Default test behavior for layers without paletteData: deterministic identity
-    -- brightness order for visible sprite colors (1..3).
+    -- Default: identity brightness order across all NES slots (0..3).
+    -- Darkest PNG color maps to slot 0 (transparent / BG).
     ShaderPaletteController.getPaletteColors = function(layer, paletteNumber, romRaw)
       if layer and layer.paletteData then
         return originalGetPaletteColors(layer, paletteNumber, romRaw)
       end
       return {
-        { 0.00, 0.00, 0.00 }, -- transparent slot (ignored for sprite mapping)
-        { 0.20, 0.20, 0.20 }, -- visible slot 1 (dark)
-        { 0.50, 0.50, 0.50 }, -- visible slot 2 (mid)
-        { 0.90, 0.90, 0.90 }, -- visible slot 3 (bright)
+        { 0.00, 0.00, 0.00 }, -- slot 0 transparent / BG (darkest)
+        { 0.20, 0.20, 0.20 }, -- slot 1
+        { 0.50, 0.50, 0.50 }, -- slot 2
+        { 0.90, 0.90, 0.90 }, -- slot 3
       }
     end
   end)
@@ -239,9 +243,53 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
     local handled = SpriteController.handleSpritePngDrop(app, makeDroppedFile(), win)
 
     expect(handled).toBe(true)
-    expect(tileRef.pixels[1]).toBe(2) -- darkest PNG color -> darkest palette slot
-    expect(tileRef.pixels[4]).toBe(3) -- middle PNG color  -> middle palette slot
-    expect(tileRef.pixels[7]).toBe(1) -- brightest PNG color -> brightest palette slot
+    expect(tileRef.pixels[1]).toBe(0) -- darkest PNG color -> NES transparent / BG
+    expect(tileRef.pixels[4]).toBe(2) -- middle PNG color
+    expect(tileRef.pixels[7]).toBe(3) -- brightest PNG color
+  end)
+
+  it("keeps opaque black visible when PNG also has alpha transparency", function()
+    -- Transparent + black + mid + bright: alpha -> index 0, opaque black must not collapse to 0.
+    love.image.newImageData = function()
+      return {
+        getWidth = function() return 8 end,
+        getHeight = function() return 8 end,
+        getPixel = function(_, x, _)
+          if x < 2 then
+            return 0, 0, 0, 0 -- transparent
+          elseif x < 4 then
+            return 0, 0, 0, 1 -- opaque black
+          elseif x < 6 then
+            return 0.50, 0.50, 0.50, 1
+          end
+          return 0.90, 0.90, 0.90, 1
+        end,
+      }
+    end
+
+    local tileRef = makeTileRef()
+    local layer = {
+      kind = "sprite",
+      mode = "8x8",
+      items = {
+        {
+          removed = false,
+          paletteNumber = 1,
+          topRef = tileRef,
+          x = 0, y = 0, worldX = 0, worldY = 0, baseX = 0, baseY = 0,
+        },
+      },
+    }
+    local win = makeWindow(layer)
+    local app = makeApp()
+
+    local handled = SpriteController.handleSpritePngDrop(app, makeDroppedFile(), win)
+
+    expect(handled).toBe(true)
+    expect(tileRef.pixels[1]).toBe(0) -- transparent -> BG
+    expect(tileRef.pixels[3]).toNotBe(0) -- opaque black stays visible
+    expect(tileRef.pixels[5]).toNotBe(0)
+    expect(tileRef.pixels[7]).toNotBe(0)
   end)
 
   it("records an undoable paint event for sprite PNG import", function()
@@ -332,19 +380,19 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
     expect(undoRedo.stack[1].type).toBe("composite")
     expect(layer.items[1].worldX).toBe(24)
     expect(layer.items[1].worldY).toBe(16)
-    expect(tileRef.pixels[1]).toNotBe(0)
+    expect(tileRef.pixels[4]).toNotBe(0)
 
     expect(undoRedo:undo(app)).toBe(true)
     expect(layer.items[1].worldX).toBe(0)
     expect(layer.items[1].worldY).toBe(0)
     expect(layer.items[1].dx).toBe(0)
     expect(layer.items[1].dy).toBe(0)
-    expect(tileRef.pixels[1]).toBe(0)
+    expect(tileRef.pixels[4]).toBe(0)
 
     expect(undoRedo:redo(app)).toBe(true)
     expect(layer.items[1].worldX).toBe(24)
     expect(layer.items[1].worldY).toBe(16)
-    expect(tileRef.pixels[1]).toNotBe(0)
+    expect(tileRef.pixels[4]).toNotBe(0)
   end)
 
   it("uses global palette brightness order when layer has no assigned palette", function()
@@ -367,9 +415,9 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
     local handled = SpriteController.handleSpritePngDrop(app, makeDroppedFile(), win)
 
     expect(handled).toBe(true)
-    expect(tileRef.pixels[1]).toBe(1)
-    expect(tileRef.pixels[4]).toBe(2)
-    expect(tileRef.pixels[7]).toBe(3)
+    expect(tileRef.pixels[1]).toBe(0)
+    expect(tileRef.pixels[4]).toBe(1)
+    expect(tileRef.pixels[7]).toBe(2)
   end)
 
   it("maps PNG brightness ranks through fallback global palette colors", function()
@@ -377,7 +425,7 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
       return {
         { 0.0, 0.0, 0.0 },
         { 0.95, 0.95, 0.95 }, -- slot 1 brightest
-        { 0.10, 0.10, 0.10 }, -- slot 2 darkest
+        { 0.10, 0.10, 0.10 }, -- slot 2
         { 0.50, 0.50, 0.50 }, -- slot 3 mid
       }
     end
@@ -401,9 +449,9 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
     local handled = SpriteController.handleSpritePngDrop(app, makeDroppedFile(), win)
 
     expect(handled).toBe(true)
-    expect(tileRef.pixels[1]).toBe(2) -- darkest PNG -> darkest visible palette slot
-    expect(tileRef.pixels[4]).toBe(3) -- mid PNG -> mid slot
-    expect(tileRef.pixels[7]).toBe(1) -- brightest PNG -> brightest slot
+    expect(tileRef.pixels[1]).toBe(0) -- darkest PNG -> darkest palette slot (BG)
+    expect(tileRef.pixels[4]).toBe(2) -- mid PNG -> next darkest slot
+    expect(tileRef.pixels[7]).toBe(3) -- brightest PNG -> next slot
   end)
 
   it("syncs duplicate CHR tiles during sprite PNG import when syncDuplicateTiles is enabled", function()
@@ -491,9 +539,9 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
     local handled = SpriteController.handleSpritePngDrop(app, makeDroppedFile(), win)
 
     expect(handled).toBe(true)
-    expect(tileRef1.pixels[1]).toBe(0)
-    expect(tileRef2.pixels[1]).toBe(1)
-    expect(tileRef3.pixels[1]).toBe(2)
+    expect(tileRef1.pixels[2]).toBe(0)
+    expect(tileRef2.pixels[2]).toBe(1)
+    expect(tileRef3.pixels[2]).toBe(2)
     expect(beginDragCallCount).toBe(0)
   end)
 
@@ -526,9 +574,9 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
     local handled = SpriteController.handleSpritePngDrop(app, makeDroppedFile(), win)
 
     expect(handled).toBe(true)
-    expect(tileRef1.pixels[1]).toBe(0)
-    expect(tileRef2.pixels[1]).toBe(2)
-    expect(tileRef3.pixels[1]).toBe(1)
+    expect(tileRef1.pixels[2]).toBe(0)
+    expect(tileRef2.pixels[2]).toBe(2)
+    expect(tileRef3.pixels[2]).toBe(1)
     expect(beginDragCallCount).toBe(0)
   end)
 
@@ -555,9 +603,9 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
     local handled = SpriteController.handleSpritePngDrop(app, makeDroppedFile(), win)
 
     expect(handled).toBe(true)
-    expect(tileRef1.pixels[1]).toBe(1)
-    expect(tileRef2.pixels[1]).toBe(2)
-    expect(tileRef3.pixels[1]).toBe(0)
+    expect(tileRef1.pixels[2]).toBe(1)
+    expect(tileRef2.pixels[2]).toBe(2)
+    expect(tileRef3.pixels[2]).toBe(0)
     expect(beginDragCallCount).toBe(2)
   end)
 
@@ -606,7 +654,7 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
     local handled = SpriteController.handleSpritePngDrop(app, makeDroppedFile(), win)
 
     expect(handled).toBe(true)
-    expect(tileRef.pixels[1]).toBe(1)
+    expect(tileRef.pixels[1]).toBe(0)
     expect(beginDragCallCount).toBe(0)
   end)
 

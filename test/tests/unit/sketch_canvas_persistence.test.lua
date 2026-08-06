@@ -14,6 +14,30 @@ describe("sketch canvas - data model + persistence", function()
     expect(win.reflectPatternTable).toBe(false)
     expect(win.linkedPatternTableWindowId).toBeNil()
     expect(win.paddingTileIndex).toBe(0)
+    expect(win.showGrid).toBe("chess")
+  end)
+
+  it("persists showGrid attr mode through layout snapshot/restore", function()
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow({ title = "Sketch grid" })
+    win._id = "sketch_grid_01"
+    win.showGrid = "attr"
+
+    local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1)
+    expect(snapshot.windows[1].showGrid).toBe("attr")
+
+    local built = GameArtWindowBuilderController.buildWindowsFromLayout(snapshot, {
+      wm = WM.new(),
+      tilesPool = {},
+      ensureTiles = function() end,
+      romRaw = "",
+      decodeUserDefinedCodes = GameArtLayoutIOController.decodeUserDefinedCodes,
+      decodePatternCanvasSnapshot = GameArtLayoutIOController.decodePatternCanvasSnapshot,
+    })
+    local restored = built.windowsById["sketch_grid_01"]
+    expect(restored).toBeTruthy()
+    expect(restored.kind).toBe("sketch_canvas")
+    expect(restored.showGrid).toBe("attr")
   end)
 
   it("accepts pack/link fields through createSketchCanvasWindow opts", function()
