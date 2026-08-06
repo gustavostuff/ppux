@@ -39,7 +39,8 @@ describe("app_top_toolbar_controller.lua", function()
     expect(newButton.enabled).toBe(true)
     expect(openButton.enabled ~= false).toBe(true)
     expect(saveButton.enabled).toBe(false)
-    expect(galleryButton.enabled).toBe(true)
+    expect(galleryButton.enabled).toBe(false)
+    expect(galleryButton.tooltip:find("linked pattern table", 1, true)).toBeTruthy()
     expect(app._appTopQuickButtons.relocationPointerCalc).toBeTruthy()
     expect(app._appTopQuickButtons.relocationPointerCalc.x > galleryButton.x).toBe(true)
 
@@ -79,6 +80,44 @@ describe("app_top_toolbar_controller.lua", function()
     local clickY = saveButton.y + math.floor(saveButton.h * 0.5)
     expect(AppTopToolbarController.mousepressed(app, clickX, clickY, 1)).toBe(true)
     expect(saveCalls).toBe(1)
+  end)
+
+  it("enables Gallery ROM only when a packed sketch has a linked pattern table", function()
+    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+    local WM = require("controllers.window.window_controller")
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow({ title = "Sketch" })
+    local app = {
+      canvas = {
+        getWidth = function() return 640 end,
+        getHeight = function() return 360 end,
+      },
+      separateToolbar = false,
+      hasLoadedROM = function() return false end,
+      wm = wm,
+      setStatus = function() end,
+      showToast = function() end,
+    }
+
+    AppTopToolbarController.syncLayout(app)
+    expect(app._appTopQuickButtons.galleryRom.enabled).toBe(false)
+
+    local canvas = sketch:getActiveCanvas()
+    for y = 0, 7 do
+      for x = 0, 7 do
+        canvas:edit(x, y, 1)
+      end
+    end
+    expect(SketchCanvasPackController.generate(sketch)).toBe(true)
+    AppTopToolbarController.syncLayout(app)
+    expect(app._appTopQuickButtons.galleryRom.enabled).toBe(false)
+
+    local pt = wm:createPatternTableWindow({ title = "PT" })
+    expect(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm)).toBe(true)
+    expect(SketchCanvasPackController.generateAndApply(sketch, wm)).toBe(true)
+    AppTopToolbarController.syncLayout(app)
+    expect(app._appTopQuickButtons.galleryRom.enabled).toBe(true)
+    expect(app._appTopQuickButtons.galleryRom.tooltip:find("from packed sketch", 1, true)).toBeTruthy()
   end)
 
   it("enables Mirror X for a focused sketch window without a ROM", function()

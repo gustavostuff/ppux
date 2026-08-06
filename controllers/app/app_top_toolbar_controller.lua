@@ -660,7 +660,8 @@ function M.syncLayout(app)
   updateReferenceBackgroundButton(app)
 
   -- Without a loaded ROM: keep the full strip visible, but disable project-only actions.
-  -- New Window + Gallery ROM stay available for sketch/pattern-table export workflows.
+  -- New Window stays available for sketch/pattern-table export workflows.
+  -- Gallery ROM needs at least one packed sketch with a linked pattern table.
   -- Save is available for sketch-only workspaces (windows without a ROM).
   local galleryBtn = app._appTopQuickButtons and app._appTopQuickButtons.galleryRom
   local newWinBtn = app._appTopQuickButtons and app._appTopQuickButtons.newWindow
@@ -672,7 +673,13 @@ function M.syncLayout(app)
       or "New window (Sketch canvas / Pattern table without a ROM)"
   end
   if galleryBtn then
-    galleryBtn.enabled = true
+    local SketchCanvasGalleryRomController =
+      require("controllers.game_art.sketch_canvas_gallery_rom_controller")
+    local canGallery = SketchCanvasGalleryRomController.canBuildGalleryRom(app.wm)
+    galleryBtn.enabled = canGallery == true
+    galleryBtn.tooltip = canGallery
+      and "Generate gallery ROM from packed sketch canvases"
+      or "Generate gallery ROM (needs a packed sketch with a linked pattern table)"
   end
   if saveBtn then
     saveBtn.enabled = canSaveWorkspace(app)

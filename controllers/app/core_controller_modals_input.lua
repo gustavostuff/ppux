@@ -125,7 +125,7 @@ function AppCoreController:showGalleryRomConfirmModal()
   local SketchCanvasGalleryRomController = require("controllers.game_art.sketch_canvas_gallery_rom_controller")
   local sketches = SketchCanvasGalleryRomController.collectPackedSketches(self.wm)
   if #sketches < 1 then
-    local msg = "No packed sketch canvases to export."
+    local msg = "No packed sketch canvases with a linked pattern table to export."
     if self.showToast then
       self:showToast("error", msg)
     end

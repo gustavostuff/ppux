@@ -325,22 +325,42 @@ describe("sketch_canvas_export_controller.lua - scaffold", function()
 end)
 
 describe("sketch_canvas_gallery_rom_controller.lua", function()
-  it("collects only packed sketch canvases", function()
-    local wm = WM.new()
-    local empty = wm:createSketchCanvasWindow({ title = "Empty" })
-    local packed = wm:createSketchCanvasWindow({ title = "Packed" })
-    local canvas = packed:getActiveCanvas()
+  local function paintAndLinkGenerate(wm, win)
+    local canvas = win:getActiveCanvas()
     for y = 0, 7 do
       for x = 0, 7 do
         canvas:edit(x, y, 1)
       end
     end
-    expect(SketchCanvasPackController.generate(packed)).toBe(true)
+    local pt = wm:createPatternTableWindow({ title = (win.title or "S") .. " PT" })
+    expect(SketchCanvasPackController.linkSketchToPatternTable(win, pt, wm)).toBe(true)
+    expect(SketchCanvasPackController.generateAndApply(win, wm)).toBe(true)
+    return pt
+  end
+
+  it("collects only packed sketches that still have a linked pattern table", function()
+    local wm = WM.new()
+    local empty = wm:createSketchCanvasWindow({ title = "Empty" })
+    local packedOnly = wm:createSketchCanvasWindow({ title = "PackedNoLink" })
+    local canvas = packedOnly:getActiveCanvas()
+    for y = 0, 7 do
+      for x = 0, 7 do
+        canvas:edit(x, y, 1)
+      end
+    end
+    expect(SketchCanvasPackController.generate(packedOnly)).toBe(true)
+    expect(SketchCanvasGalleryRomController.canBuildGalleryRom(wm)).toBe(false)
+    expect(#SketchCanvasGalleryRomController.collectPackedSketches(wm)).toBe(0)
+
+    local packed = wm:createSketchCanvasWindow({ title = "Packed" })
+    paintAndLinkGenerate(wm, packed)
 
     local list = SketchCanvasGalleryRomController.collectPackedSketches(wm)
     expect(#list).toBe(1)
     expect(list[1]).toBe(packed)
+    expect(SketchCanvasGalleryRomController.canBuildGalleryRom(wm)).toBe(true)
     expect(empty).toBeTruthy()
+    expect(packedOnly).toBeTruthy()
   end)
 
   it("writes slide assets and meta without make", function()
@@ -392,13 +412,7 @@ describe("sketch_canvas_gallery_rom_controller.lua", function()
   it("buildGalleryRom writes assets with skipMake", function()
     local wm = WM.new()
     local win = wm:createSketchCanvasWindow({ title = "G" })
-    local canvas = win:getActiveCanvas()
-    for y = 0, 7 do
-      for x = 0, 7 do
-        canvas:edit(x, y, 2)
-      end
-    end
-    expect(SketchCanvasPackController.generate(win)).toBe(true)
+    paintAndLinkGenerate(wm, win)
 
     local asmDir = SketchCanvasGalleryRomController.resolveGalleryAsmDir()
     expect(asmDir).toBeTruthy()
@@ -426,7 +440,9 @@ describe("sketch_canvas_gallery_rom_controller.lua", function()
         canvas:edit(x, y, 1)
       end
     end
-    expect(SketchCanvasPackController.generate(win)).toBe(true)
+    local pt = wm:createPatternTableWindow({ title = "MakeMe PT" })
+    expect(SketchCanvasPackController.linkSketchToPatternTable(win, pt, wm)).toBe(true)
+    expect(SketchCanvasPackController.generateAndApply(win, wm)).toBe(true)
 
     local workDir = SketchCanvasGalleryRomController.prepareWritableGalleryDir({
       destDir = os.tmpname() .. "_gallery_work",

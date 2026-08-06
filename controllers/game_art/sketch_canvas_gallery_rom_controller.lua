@@ -276,12 +276,18 @@ end
 
 function M.collectPackedSketches(wm, sketchWindows)
   local list = {}
+  local Pack = SketchCanvasPackController
+
+  local function isExportable(win)
+    return WindowCaps.isSketchCanvas(win)
+      and not win._closed
+      and Pack.hasPackData(win)
+      and Pack.resolveLinkedPatternTable(win, wm) ~= nil
+  end
+
   if type(sketchWindows) == "table" and #sketchWindows > 0 then
     for _, win in ipairs(sketchWindows) do
-      if WindowCaps.isSketchCanvas(win)
-        and not win._closed
-        and SketchCanvasPackController.hasPackData(win)
-      then
+      if isExportable(win) then
         list[#list + 1] = win
       end
     end
@@ -296,14 +302,16 @@ function M.collectPackedSketches(wm, sketchWindows)
     return list
   end
   for _, win in ipairs(windows) do
-    if WindowCaps.isSketchCanvas(win)
-      and not win._closed
-      and SketchCanvasPackController.hasPackData(win)
-    then
+    if isExportable(win) then
       list[#list + 1] = win
     end
   end
   return list
+end
+
+--- True when at least one sketch is packed and still linked to an open pattern table.
+function M.canBuildGalleryRom(wm)
+  return #M.collectPackedSketches(wm) > 0
 end
 
 function M.writeSlideMeta(path, slideCount)
