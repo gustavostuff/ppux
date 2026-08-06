@@ -87,4 +87,70 @@ describe("save_project_folder_modal.lua", function()
     expect(OpenFileModal.presets.saveProjectFolder).toBeTruthy()
     expect(OpenFileModal.presets.saveProjectFolder.directoriesOnly).toBe(true)
   end)
+
+  it("does not append the first textinput after show (Save Options digit leak)", function()
+    local originalPopen = io.popen
+    io.popen = makePopenStub({
+      ["ls -1Ap '/tmp/work' 2>/dev/null"] = {
+        "folderA/",
+      },
+    })
+
+    local modal = SaveProjectFolderModal.new()
+    modal:show({
+      initialDir = "/tmp/work",
+      initialProjectName = "test_01",
+    })
+    expect(modal:getProjectName()).toBe("test_01")
+    expect(modal:textinput("1")).toBe(true)
+    expect(modal:getProjectName()).toBe("test_01")
+    expect(modal:textinput("a")).toBe(true)
+    expect(modal:getProjectName()).toBe("test_01a")
+
+    io.popen = originalPopen
+  end)
+
+  it("clears textinput suppression when the modal is clicked", function()
+    local originalPopen = io.popen
+    io.popen = makePopenStub({
+      ["ls -1Ap '/tmp/work' 2>/dev/null"] = {
+        "folderA/",
+      },
+    })
+
+    local modal = SaveProjectFolderModal.new()
+    modal:show({
+      initialDir = "/tmp/work",
+      initialProjectName = "test_01",
+    })
+    expect(modal._suppressNextTextInput).toBe(true)
+    local contains = modal._containsBox
+    modal._containsBox = function() return true end
+    modal:mousepressed(10, 10, 1)
+    modal._containsBox = contains
+    expect(modal._suppressNextTextInput).toBe(false)
+
+    io.popen = originalPopen
+  end)
+
+  it("accepts typed characters after textinput suppression is cleared", function()
+    local originalPopen = io.popen
+    io.popen = makePopenStub({
+      ["ls -1Ap '/tmp/work' 2>/dev/null"] = {
+        "folderA/",
+      },
+    })
+
+    local modal = SaveProjectFolderModal.new()
+    modal:show({
+      initialDir = "/tmp/work",
+      initialProjectName = "test_01",
+    })
+    -- Same as first paint / mouse interaction clearing the Save Options digit gate.
+    modal._suppressNextTextInput = false
+    expect(modal:textinput("z")).toBe(true)
+    expect(modal:getProjectName()).toBe("test_01z")
+
+    io.popen = originalPopen
+  end)
 end)

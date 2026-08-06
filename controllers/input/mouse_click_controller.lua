@@ -866,6 +866,88 @@ local function handlePaletteClick(env, button, x, y, win, wm)
   return true
 end
 
+local function handleSketchPixelSelectionClick(env, button, x, y, win, wm)
+  local ctx = env.ctx
+  local utils = env.utils or {}
+  if button ~= 1 and button ~= 2 then
+    return false
+  end
+  if ctxMode(ctx) ~= "edit" then
+    return false
+  end
+  if not win or win.isPalette then
+    return false
+  end
+
+  local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+  local editTool = ctx.app and ctx.app.editTool
+  if not (WindowCaps.isSketchCanvas(win)
+    and not WindowCaps.isSketchReflectNametable(win)
+    and PixelSel.isSelectTool(editTool))
+  then
+    return false
+  end
+
+  local focused = wm:getFocus()
+  if win ~= focused then
+    wm:setFocus(win)
+    ctx.setPainting(false)
+    return true
+  end
+
+  local okc, cx, cy = win:toContentCoords(x, y)
+  if not okc then
+    ctx.setPainting(false)
+    return true
+  end
+  local canvasX, canvasY = math.floor(cx), math.floor(cy)
+
+  if PixelSel.hasSelection(win) then
+    if PixelSel.hitTest(win, canvasX, canvasY) then
+      if button == 1 then
+        PixelSel.beginMove(win, canvasX, canvasY, ctx.app)
+        ctx.setPainting(false)
+        return true
+      end
+      -- Right-click inside selection: leave for other handlers (e.g. color pick).
+      return false
+    end
+
+    -- Outside: stamp/clear the active selection.
+    PixelSel.clearSelection(win, { app = ctx.app, stamp = true })
+    ctx.setPainting(false)
+    if button ~= 1 then
+      -- Right-click only applies; do not start a new gesture.
+      return true
+    end
+    -- Left-click outside: begin a new gesture so a drag creates a replacement
+    -- selection. A click with no movement is discarded on release.
+    local kind = (utils.shiftDown and utils.shiftDown()) and PixelSel.KIND_FREE or PixelSel.KIND_RECT
+    local okBegin, err = PixelSel.begin(win, kind, canvasX, canvasY, ctx.app)
+    if not okBegin then
+      StatusHelpers.setStatus(ctx, tostring(err or "Could not start selection"))
+    else
+      local sel = PixelSel.getSelection(win)
+      if sel and sel.dragging then
+        sel.dismissIfUnmoved = true
+      end
+    end
+    return true
+  end
+
+  -- No active selection yet: only left-click starts a new rect/freeform gesture.
+  if button ~= 1 then
+    return false
+  end
+  local kind = (utils.shiftDown and utils.shiftDown()) and PixelSel.KIND_FREE or PixelSel.KIND_RECT
+  local okBegin, err = PixelSel.begin(win, kind, canvasX, canvasY, ctx.app)
+  if not okBegin then
+    StatusHelpers.setStatus(ctx, tostring(err or "Could not start selection"))
+  end
+  ctx.setPainting(false)
+  return true
+end
+
 local function handleEditModeClick(env, button, x, y, win, wm)
   local ctx = env.ctx
   local utils = env.utils or {}
@@ -887,41 +969,7 @@ local function handleEditModeClick(env, button, x, y, win, wm)
 
   if win.isPalette then return true end
 
-  -- Sketch pixel selection (S tool): plain drag = rect, Shift+drag = freeform lasso.
-  do
-    local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
-    local editTool = ctx.app and ctx.app.editTool
-    if WindowCaps.isSketchCanvas(win)
-      and not WindowCaps.isSketchReflectNametable(win)
-      and PixelSel.isSelectTool(editTool)
-    then
-      local okc, cx, cy = win:toContentCoords(x, y)
-      if not okc then
-        ctx.setPainting(false)
-        return true
-      end
-      local canvasX, canvasY = math.floor(cx), math.floor(cy)
-
-      -- Click inside existing selection → drag-move (Shift does not start a new lasso).
-      if PixelSel.hitTest(win, canvasX, canvasY) then
-        PixelSel.beginMove(win, canvasX, canvasY, ctx.app)
-        ctx.setPainting(false)
-        return true
-      end
-
-      -- Click outside → stamp previous floating, start new rect or freeform.
-      if PixelSel.hasSelection(win) then
-        PixelSel.clearSelection(win, { app = ctx.app, stamp = true })
-      end
-      local kind = (utils.shiftDown and utils.shiftDown()) and PixelSel.KIND_FREE or PixelSel.KIND_RECT
-      local okBegin, err = PixelSel.begin(win, kind, canvasX, canvasY, ctx.app)
-      if not okBegin then
-        StatusHelpers.setStatus(ctx, tostring(err or "Could not start selection"))
-      end
-      ctx.setPainting(false)
-      return true
-    end
-  end
+  -- Sketch pixel selection is handled earlier (left + right) via handleSketchPixelSelectionClick.
 
   -- Sketch color mask: hold C + click samples that pixel and masks all matches.
   do
@@ -1297,6 +1345,7 @@ function M.handleMousePressed(env, x, y, button)
 
   if handlePaletteClick(env, button, x, y, win, wm) then return true end
   if handleSpriteClick(env, button, x, y, win, wm) then return true end
+  if handleSketchPixelSelectionClick(env, button, x, y, win, wm) then return true end
   if handleRightButton(env, button, x, y, win, wm) then return true end
   if handleEditModeClick(env, button, x, y, win, wm) then return true end
   if handleTilePaintMode(env, button, x, y, win, wm) then return true end

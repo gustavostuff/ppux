@@ -1,13 +1,10 @@
 local Panel = require("ui.panel")
+local Checkbox = require("ui.checkbox")
 local ModalPanelUtils = require("ui.modals.panel_modal_utils")
+local colors = require("app_colors")
 
 local Dialog = {}
 Dialog.__index = Dialog
-
-local function checkboxLabel(text, checked)
-  local mark = checked and "[x]" or "[ ]"
-  return string.format("%s %s", mark, tostring(text or "Don't ask again"))
-end
 
 local function rebuildPanel(self)
   local cols = math.max(1, self.cols or 1)
@@ -63,28 +60,38 @@ local function rebuildPanel(self)
       textAlign = "left",
       contentPaddingX = leftInset,
       action = function()
+        self:hide()
         if option and option.callback then
           option.callback()
         end
-        self:hide()
       end,
     })
   end
 
   if self.checkbox then
     local checkboxRow = optionRows + 1
-    self.panel:setCell(1, checkboxRow, {
-      kind = "button",
-      text = checkboxLabel(self.checkbox.text, self.checkboxChecked == true),
-      colspan = cols,
-      transparent = true,
-      textAlign = "left",
-      contentPaddingX = leftInset,
-      action = function()
-        self.checkboxChecked = not (self.checkboxChecked == true)
-        rebuildPanel(self)
+    local ink = nil
+    if self._modalChromeOverBlue == true then
+      ink = colors:chromeTextIconsColorNonFocused()
+    end
+    local checkbox = Checkbox.new({
+      text = self.checkbox.text or "Don't ask again",
+      checked = self.checkboxChecked == true,
+      -- Align icon with option button outlines (not the indented button label text).
+      contentPaddingX = 0,
+      contentColor = ink,
+      onChange = function(checked)
+        self.checkboxChecked = checked == true
       end,
     })
+    self._checkbox = checkbox
+    self.panel:setCell(1, checkboxRow, {
+      kind = "component",
+      component = checkbox,
+      colspan = cols,
+    })
+  else
+    self._checkbox = nil
   end
 
   self.panel:setCell(1, rows, {
@@ -117,6 +124,7 @@ function Dialog.new()
     optionTextFormatter = nil,
     checkbox = nil,
     checkboxChecked = false,
+    _checkbox = nil,
   }, Dialog)
 
   ModalPanelUtils.applyPanelDefaults(self)
@@ -183,8 +191,10 @@ function Dialog:handleKey(key)
   if idx and idx >= 1 and idx <= #self.options then
     local option = self.options[idx]
     if option and option.callback then
-      option.callback()
+      -- Hide first so a newly opened text field is not under this modal;
+      -- Love2D still delivers textinput for this key after keypressed.
       self:hide()
+      option.callback()
       return true
     end
   end

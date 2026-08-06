@@ -592,6 +592,14 @@ function M.commitDrag(win)
 
   local paint = resolvePaint(win)
   local d = sel.dragging
+  local dismissIfUnmoved = sel.dismissIfUnmoved == true
+  if dismissIfUnmoved
+    and math.floor(tonumber(d.startX) or 0) == math.floor(tonumber(d.currentX) or 0)
+    and math.floor(tonumber(d.startY) or 0) == math.floor(tonumber(d.currentY) or 0)
+  then
+    win.pixelSelection = nil
+    return true
+  end
 
   if sel.kind == M.KIND_FREE then
     if not sel.freePath or #sel.freePath < 1 then
@@ -602,6 +610,7 @@ function M.commitDrag(win)
     appendLineToPath(sel.freePath, d.currentX, d.currentY, d.startX, d.startY)
     local mask, cx, cy, cw, ch = buildMaskFromClosedPath(sel.freePath, paint)
     sel.dragging = nil
+    sel.dismissIfUnmoved = nil
     if not mask then
       win.pixelSelection = nil
       return false
@@ -618,6 +627,7 @@ function M.commitDrag(win)
   local x, y, w, h = normalizeRect(d.startX, d.startY, d.currentX, d.currentY)
   local cx, cy, cw, ch = clampRectToCanvas(paint, x, y, w, h)
   sel.dragging = nil
+  sel.dismissIfUnmoved = nil
   if not cx then
     win.pixelSelection = nil
     return false

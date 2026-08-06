@@ -570,6 +570,43 @@ local function shouldUseResizeCursor(app, mx, my)
   return win and win.resizing == true
 end
 
+local function pixelSelIsSelectTool(editTool)
+  return editTool == "rect_select" or editTool == "free_select"
+end
+
+--- Sketch S-tool cursor: rect when armed / outside a selection; hand over it (including while dragging).
+local function resolveSketchSelectToolCursor(app, mx, my)
+  local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+  local wm = app and app.wm
+  local win = nil
+  if wm and type(mx) == "number" and type(my) == "number" and wm.windowAt then
+    win = wm:windowAt(mx, my)
+  end
+  if not (win and WindowCaps.isSketchCanvas(win) and not WindowCaps.isSketchReflectNametable(win)) then
+    local focus = wm and wm.getFocus and wm:getFocus() or nil
+    if focus and PixelSel.getSelection(focus) and PixelSel.getSelection(focus).moveDrag then
+      return "hand"
+    end
+    return "rect_fill"
+  end
+
+  local sel = PixelSel.getSelection(win)
+  if sel and sel.moveDrag then
+    return "hand"
+  end
+  if PixelSel.hasSelection(win) then
+    if type(mx) == "number" and type(my) == "number" and win.toContentCoords then
+      local ok, cx, cy = win:toContentCoords(mx, my)
+      if ok and PixelSel.hitTest(win, math.floor(cx), math.floor(cy)) then
+        return "hand"
+      end
+    end
+    return "rect_fill"
+  end
+
+  return "rect_fill"
+end
+
 local function resolveTargetCursorName(app, mode)
   local mx, my = getMouseCanvasPosition()
   if type(mx) == "number" and type(my) == "number" then
@@ -633,8 +670,8 @@ local function resolveTargetCursorName(app, mode)
     if colorMaskDown then
       return hoveringEditable and "color_select" or "arrow"
     end
-    if app and app.editTool == "rect_select" then
-      return "rect_fill"
+    if app and pixelSelIsSelectTool(app.editTool) then
+      return resolveSketchSelectToolCursor(app, mx, my)
     end
     return hoveringEditable and "pencil" or "arrow"
   end

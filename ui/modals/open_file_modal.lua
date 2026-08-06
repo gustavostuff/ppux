@@ -753,8 +753,12 @@ function Dialog:show(opts)
     end
     self.nameField:setText(self:_sanitizeProjectName(initialName) or "untitled")
     self.nameField:setFocused(true)
+    -- Love2D emits textinput after keypressed. Opening this modal from a
+    -- numbered Save Options key (e.g. "1") would otherwise append that digit.
+    self._suppressNextTextInput = true
   elseif self.nameField then
     self.nameField:setFocused(false)
+    self._suppressNextTextInput = false
   end
 
   local initialDir = normalizePath(opts.initialDir or self.currentDir or ".")
@@ -849,6 +853,10 @@ end
 function Dialog:textinput(text)
   if not self.visible then return false end
   if self._directoriesOnly == true and self.nameField then
+    if self._suppressNextTextInput == true then
+      self._suppressNextTextInput = false
+      return true
+    end
     return self.nameField:onTextInput(text)
   end
   return false
@@ -856,6 +864,8 @@ end
 
 function Dialog:mousepressed(x, y, button)
   if not self.visible then return false end
+  -- Mouse interaction means any pending key→textinput suppress is stale.
+  self._suppressNextTextInput = false
   if button ~= 1 then return false end
   if not self:_containsBox(x, y) then
     self:_cancel()
@@ -901,6 +911,9 @@ function Dialog:draw(canvas)
   self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)
   self.panel:draw()
   self:_drawScrollIndicator()
+  -- Key digit textinput is delivered before draw in the same frame; clear after
+  -- paint so a mouse-opened name field still accepts the first typed character.
+  self._suppressNextTextInput = false
 end
 
 function Dialog:_drawScrollIndicator()

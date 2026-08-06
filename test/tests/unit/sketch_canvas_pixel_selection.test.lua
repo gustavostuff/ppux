@@ -307,4 +307,98 @@ describe("sketch_canvas_pixel_selection_controller", function()
     expect(PixelSel.allowsColorPaintAt(win, 5, 5)).toBe(false)
     expect(PixelSel.allowsColorPaintAt(win, 10, 10)).toBe(true)
   end)
+
+  it("left or right click outside an active selection stamps and clears it", function()
+    local MouseClickController = require("controllers.input.mouse_click_controller")
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow({ x = 0, y = 0 })
+    local canvas = win:getActiveCanvas()
+    paintRect(canvas, 0, 0, 4, 4, 3)
+    _G.ctx = { getMode = function() return "edit" end }
+
+    local ur = UndoRedoController.new(20)
+    local app = { undoRedo = ur, editTool = "rect_select" }
+
+    PixelSel.begin(win, PixelSel.KIND_RECT, 0, 0)
+    PixelSel.updateDrag(win, 3, 3)
+    PixelSel.commitDrag(win)
+    expect(PixelSel.ensureLifted(win, app)).toBe(true)
+    expect(canvas:getPixel(0, 0)).toBe(0)
+
+    PixelSel.beginMove(win, 1, 1, app)
+    PixelSel.updateMove(win, 9, 1)
+    PixelSel.endMove(win)
+
+    -- Force content mapping so the press is always outside the moved selection.
+    win.toContentCoords = function()
+      return true, 100, 100
+    end
+
+    local env = {
+      ctx = {
+        app = app,
+        getMode = function() return "edit" end,
+        wm = function() return wm end,
+        setPainting = function() end,
+        setStatus = function() end,
+      },
+      utils = {
+        shiftDown = function() return false end,
+        ctrlDown = function() return false end,
+        colorMaskDown = function() return false end,
+      },
+      chrome = {
+        findToolbarWindowAt = function() return nil end,
+        getTopInteractiveWindowAt = function() return win end,
+        getTopInteractiveSurfaceWindowAt = function() return win end,
+        handleToolbarClicks = function() return false end,
+        handleResizeHandle = function() return false end,
+        handleHeaderClick = function() return false end,
+      },
+      getTileClick = function() return { active = false } end,
+      setTileClick = function() end,
+      getSpriteClick = function() return { active = false } end,
+      setSpriteClick = function() end,
+      beginContextMenuClick = function() end,
+    }
+
+    wm:setFocus(win)
+
+    expect(MouseClickController.handleMousePressed(env, 10, 10, 1)).toBe(true)
+    -- Left outside applies then starts a pending gesture; unmoved release discards it.
+    expect(PixelSel.getSelection(win)).toBeTruthy()
+    expect(PixelSel.getSelection(win).dismissIfUnmoved).toBe(true)
+    expect(PixelSel.commitDrag(win)).toBe(true)
+    expect(PixelSel.hasSelection(win)).toBe(false)
+    expect(canvas:getPixel(8, 0)).toBe(3)
+
+    paintRect(canvas, 0, 0, 4, 4, 2)
+    PixelSel.begin(win, PixelSel.KIND_RECT, 0, 0)
+    PixelSel.updateDrag(win, 3, 3)
+    PixelSel.commitDrag(win)
+    expect(PixelSel.ensureLifted(win, app)).toBe(true)
+    PixelSel.beginMove(win, 1, 1, app)
+    PixelSel.updateMove(win, 9, 1)
+    PixelSel.endMove(win)
+    expect(MouseClickController.handleMousePressed(env, 10, 10, 2)).toBe(true)
+    expect(PixelSel.hasSelection(win)).toBe(false)
+    expect(canvas:getPixel(8, 0)).toBe(2)
+
+    -- Left outside + drag creates a replacement selection.
+    paintRect(canvas, 0, 0, 4, 4, 1)
+    PixelSel.begin(win, PixelSel.KIND_RECT, 0, 0)
+    PixelSel.updateDrag(win, 3, 3)
+    PixelSel.commitDrag(win)
+    expect(MouseClickController.handleMousePressed(env, 10, 10, 1)).toBe(true)
+    local pending = PixelSel.getSelection(win)
+    expect(pending).toBeTruthy()
+    expect(pending.dismissIfUnmoved).toBe(true)
+    PixelSel.updateDrag(win, 108, 108)
+    expect(PixelSel.commitDrag(win)).toBe(true)
+    expect(PixelSel.hasSelection(win)).toBe(true)
+    local replaced = PixelSel.getSelection(win)
+    expect(replaced.w > 1 or replaced.h > 1).toBe(true)
+
+    _G.ctx = nil
+  end)
 end)

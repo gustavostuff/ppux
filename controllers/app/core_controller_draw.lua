@@ -329,6 +329,20 @@ local function drawEditModeColorIndicator(app)
     return
   end
 
+  -- Select tool / active sketch pixel selection: no brush stamp preview.
+  do
+    local editTool = app.editTool
+    if editTool == "rect_select" or editTool == "free_select" then
+      return
+    end
+    if WindowCaps.isSketchCanvas(win) then
+      local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+      if PixelSel.hasSelection(win) then
+        return
+      end
+    end
+  end
+
   -- Get window properties for pixel snapping and scaling
   local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
   local cw = win.cellW or 8

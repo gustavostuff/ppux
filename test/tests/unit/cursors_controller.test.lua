@@ -316,14 +316,60 @@ describe("cursors_controller.lua", function()
 
     local app = {
       editTool = "rect_select",
-      hardwareCursors = { arrow = "arrow", pencil = "pencil", rect_fill = "rect_fill" },
+      hardwareCursors = { arrow = "arrow", pencil = "pencil", rect_fill = "rect_fill", hand = "hand" },
       wm = {
         windowAt = function() return nil end,
+        getFocus = function() return nil end,
       },
     }
 
     CursorsController.applyModeCursor(app, "edit")
     expect(setTo).toBe("rect_fill")
+  end)
+
+  it("uses hand over an active sketch pixel selection and rect outside it", function()
+    local setTo = nil
+    love.mouse.setCursor = function(cursor) setTo = cursor end
+    love.keyboard.isDown = function() return false end
+
+    local win = {
+      kind = "sketch_canvas",
+      isPalette = false,
+      layers = { { kind = "canvas", canvas = true } },
+      getActiveLayerIndex = function() return 1 end,
+      toGridCoords = function() return true, 0, 0 end,
+      toContentCoords = function(_, x, y)
+        return true, x, y
+      end,
+      isInHeader = function() return false end,
+      pixelSelection = { x = 2, y = 2, w = 4, h = 4 },
+    }
+
+    local app = {
+      editTool = "rect_select",
+      hardwareCursors = { arrow = "arrow", pencil = "pencil", rect_fill = "rect_fill", hand = "hand" },
+      wm = {
+        windowAt = function() return win end,
+        getFocus = function() return win end,
+      },
+    }
+
+    ResolutionController.getScaledMouse = function()
+      return { x = 3, y = 3 }
+    end
+    CursorsController.applyModeCursor(app, "edit")
+    expect(setTo).toBe("hand")
+
+    ResolutionController.getScaledMouse = function()
+      return { x = 20, y = 20 }
+    end
+    CursorsController.applyModeCursor(app, "edit")
+    expect(setTo).toBe("rect_fill")
+
+    -- While move-dragging, keep the hand even if the pointer leaves the AABB briefly.
+    win.pixelSelection.moveDrag = { grabX = 3, grabY = 3, origOffsetX = 2, origOffsetY = 2 }
+    CursorsController.applyModeCursor(app, "edit")
+    expect(setTo).toBe("hand")
   end)
 
   it("uses arrow in edit mode over empty tile cells", function()
