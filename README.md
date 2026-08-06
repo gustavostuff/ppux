@@ -120,36 +120,6 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 <tr>
 <td>
 
-**Pattern table toolbar**
-
-<img src="img/readme_images/toolbars/pattern_table_toolbar.png" alt="Pattern table specialized toolbar">
-
-1. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - **`Ctrl + M`**.
-2. **Pattern table link (source)** - left-click for a menu: jump to linked consumer layer(s), or remove all links from this pattern table.
-
-Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks** onto the pattern table canvas. Ranges must add up to **256** tiles for a complete map. When a **Sketch canvas** owns the pattern table, CHR/ROM drops are blocked and the catalog comes from Generate.
-
-</td>
-</tr>
-<tr>
-<td>
-
-**Sketch canvas toolbar**
-
-<img src="img/readme_images/toolbars/sketch_canvas_toolbar.png" alt="Sketch canvas specialized toolbar">
-
-1. **Tolerance (- / value / +)** - pixel-diff grouping for Generate (0-32). When linked, changing tolerance live-regenerates the pattern table.
-2. **Generate** - packs the paint canvas into up to 256 unique patterns and applies them to the linked pattern table. Highlights when pixels changed since the last pack.
-3. **Export CHR** - writes a 4KB CHR bank (256 tiles) beside the project/ROM folder (needs a successful Generate).
-4. **Export nametable** - writes a 1024-byte `.nam` (960 tiles + 64 attribute bytes).
-5. **Pattern table link** - left-click to link, jump to, or unlink a **Pattern table**.
-6. **Palette link handle** - right-drag onto a **sketch-mode** ROM palette (or left-click for a menu). Turns **green** when linked. Needed for live multi-palette preview and Gallery ROM colors.
-
-</td>
-</tr>
-<tr>
-<td>
-
 <a id="static-art-tiles-and-sprites-toolbar"></a>**Static Art (tiles and sprites) toolbar**
 
 <img src="img/readme_images/toolbars/static_tiles_toolbar.png" alt="Static Art tiles/sprites specialized toolbar">
@@ -240,6 +210,36 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 4. **Add sprite** - Adds a sprite (creates a sprite layer first, if there is none).
 5. **Pattern table link** - left-click for a menu with separate **background** and **sprites** submenus to link **Pattern table** windows (**required** for nametable and sprite CHR).
 6. **Toggle origin guides** - hidden until a sprite layer exists, it toggles dotted reference lines on sprite layers.
+
+</td>
+</tr>
+<tr>
+<td>
+
+**Pattern table toolbar**
+
+<img src="img/readme_images/toolbars/pattern_table_toolbar.png" alt="Pattern table specialized toolbar">
+
+1. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - **`Ctrl + M`**.
+2. **Pattern table link (source)** - left-click for a menu: jump to linked consumer layer(s), or remove all links from this pattern table.
+
+Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks** onto the pattern table canvas. Ranges must add up to **256** tiles for a complete map. When a **Sketch canvas** owns the pattern table, CHR/ROM drops are blocked and the catalog comes from Generate.
+
+</td>
+</tr>
+<tr>
+<td>
+
+**Sketch canvas toolbar**
+
+<img src="img/readme_images/toolbars/sketch_canvas_toolbar.png" alt="Sketch canvas specialized toolbar">
+
+1. **Tolerance (- / value / +)** - pixel-diff grouping for Generate (0-32). When linked, changing tolerance live-regenerates the pattern table.
+2. **Generate** - packs the paint canvas into up to 256 unique patterns and applies them to the linked pattern table. Highlights when pixels changed since the last pack.
+3. **Export CHR** - writes a 4KB CHR bank (256 tiles) beside the project/ROM folder (needs a successful Generate).
+4. **Export nametable** - writes a 1024-byte `.nam` (960 tiles + 64 attribute bytes).
+5. **Pattern table link** - left-click to link, jump to, or unlink a **Pattern table**.
+6. **Palette link handle** - right-drag onto a **sketch-mode** ROM palette (or left-click for a menu). Turns **green** when linked. Needed for live multi-palette preview and Gallery ROM colors.
 
 </td>
 </tr>
