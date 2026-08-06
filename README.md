@@ -9,7 +9,7 @@ NES/Famicom Graphics Studio. Mod classic games or build new Homebrew assets.
 
 Edit graphics in game-context (as the player sees them), no tile puzzle solving.
 
-PPUX uses an in-app [database](#database) plus project files to understand banks, palettes, sprite layouts, animations, and other ROM-specific structures. You drop an NES ROM and everything is assembled for you, ready to be edited.
+PPUX uses an in-app [database](#database) plus project files to understand banks, palettes, sprite layouts, animations, and other ROM-specific structures.
 
 - [Basic Usage](#basic-usage)
   - [Getting started](#getting-started)
