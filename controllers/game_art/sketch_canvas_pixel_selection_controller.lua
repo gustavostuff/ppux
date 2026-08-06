@@ -22,16 +22,31 @@ local M = {}
 M.KIND_RECT = "rect"
 M.KIND_FREE = "free"
 
+-- Pulsating color-mask outline: "outside" (empty neighbors) or "inside" (rim of mask pixels).
+M.COLOR_MASK_OUTLINE_SIDE = "inside"
+
 local SELECTION_RECT_ANIM = {
   stepPx = 1,
   intervalSeconds = 0.1,
 }
 
 -- Perimeter outline for color paint masks: pulse black↔white on exposed pixel edges.
+-- Checkerboard parity flips every COLOR_MASK_PARITY_INTERVAL for a marching-ants feel.
+-- Black↔white pulse period is independent (COLOR_MASK_PULSE_PERIOD).
+local COLOR_MASK_PARITY_INTERVAL = 0.1
+local COLOR_MASK_PULSE_PERIOD = 1.0
+
 local colorMaskPerimeterShader = nil
 local function ensureColorMaskPerimeterShader()
+  -- Always rebuild if the cached shader predates screen-space parity (missing uniform).
   if colorMaskPerimeterShader then
-    return colorMaskPerimeterShader
+    local ok, _ = pcall(function()
+      colorMaskPerimeterShader:send("u_wantOdd", 0)
+    end)
+    if ok then
+      return colorMaskPerimeterShader
+    end
+    colorMaskPerimeterShader = nil
   end
   colorMaskPerimeterShader = love.graphics.newShader([[
 extern vec2 u_size;      // mask width/height in canvas pixels
@@ -39,6 +54,8 @@ extern vec2 u_origin;    // content origin in screen pixels
 extern number u_zoom;    // window zoom
 extern number u_edgeFrac; // fraction of a canvas pixel for edge thickness (≈ 1/zoom)
 extern number u_pulse;    // 0=black .. 1=white
+extern number u_inside;   // 0=outside neighbors, 1=inside mask rim
+extern number u_wantOdd;  // 1=draw odd screen pixels, 0=draw even
 
 float maskAt(Image mask, vec2 cell) {
   if (cell.x < 0.0 || cell.y < 0.0 || cell.x >= u_size.x || cell.y >= u_size.y) {
@@ -50,14 +67,19 @@ float maskAt(Image mask, vec2 cell) {
 
 vec4 effect(vec4 color, Image tex, vec2 texCoord, vec2 screenCoord)
 {
-  // Canvas space from screen so we can draw the outline *outside* the mask
-  // (including one pixel beyond the canvas bounds).
   vec2 canvas = (screenCoord - u_origin) / max(u_zoom, 1.0);
   vec2 cell = floor(canvas);
   vec2 frac = canvas - cell;
 
-  // Never cover selected pixels — only the exterior side of each open edge.
-  if (maskAt(tex, cell) >= 0.5) {
+  float here = maskAt(tex, cell);
+  bool insideMode = u_inside >= 0.5;
+
+  // Outside: only empty cells. Inside: only mask cells.
+  if (insideMode) {
+    if (here < 0.5) {
+      return vec4(0.0);
+    }
+  } else if (here >= 0.5) {
     return vec4(0.0);
   }
 
@@ -71,21 +93,47 @@ vec4 effect(vec4 color, Image tex, vec2 texCoord, vec2 screenCoord)
   float mDR = maskAt(tex, cell + vec2( 1.0, 1.0));
 
   float edge = max(u_edgeFrac, 0.05);
-  bool onOutsideEdge =
-    (mL >= 0.5 && frac.x <= edge) ||
-    (mR >= 0.5 && frac.x >= 1.0 - edge) ||
-    (mU >= 0.5 && frac.y <= edge) ||
-    (mD >= 0.5 && frac.y >= 1.0 - edge);
+  bool onEdge;
+  bool onCorner;
 
-  // Convex corners: diagonal exterior cell has no orthogonal mask neighbor,
-  // so fill the corner nub that joins the H/V outline segments.
-  bool onOutsideCorner =
-    (mUL >= 0.5 && mL < 0.5 && mU < 0.5 && frac.x <= edge && frac.y <= edge) ||
-    (mUR >= 0.5 && mR < 0.5 && mU < 0.5 && frac.x >= 1.0 - edge && frac.y <= edge) ||
-    (mDL >= 0.5 && mL < 0.5 && mD < 0.5 && frac.x <= edge && frac.y >= 1.0 - edge) ||
-    (mDR >= 0.5 && mR < 0.5 && mD < 0.5 && frac.x >= 1.0 - edge && frac.y >= 1.0 - edge);
+  if (insideMode) {
+    // Draw on the rim of mask pixels facing empty neighbors.
+    onEdge =
+      (mL < 0.5 && frac.x <= edge) ||
+      (mR < 0.5 && frac.x >= 1.0 - edge) ||
+      (mU < 0.5 && frac.y <= edge) ||
+      (mD < 0.5 && frac.y >= 1.0 - edge);
+    // Concave exterior corners are covered by the two orthogonal rim strips.
+    onCorner = false;
+  } else {
+    // Draw in empty neighbors just outside the mask.
+    onEdge =
+      (mL >= 0.5 && frac.x <= edge) ||
+      (mR >= 0.5 && frac.x >= 1.0 - edge) ||
+      (mU >= 0.5 && frac.y <= edge) ||
+      (mD >= 0.5 && frac.y >= 1.0 - edge);
+    // Convex corners: diagonal exterior cell has no orthogonal mask neighbor.
+    onCorner =
+      (mUL >= 0.5 && mL < 0.5 && mU < 0.5 && frac.x <= edge && frac.y <= edge) ||
+      (mUR >= 0.5 && mR < 0.5 && mU < 0.5 && frac.x >= 1.0 - edge && frac.y <= edge) ||
+      (mDL >= 0.5 && mL < 0.5 && mD < 0.5 && frac.x <= edge && frac.y >= 1.0 - edge) ||
+      (mDR >= 0.5 && mR < 0.5 && mD < 0.5 && frac.x >= 1.0 - edge && frac.y >= 1.0 - edge);
+  }
 
-  if (!onOutsideEdge && !onOutsideCorner) {
+  if (!onEdge && !onCorner) {
+    return vec4(0.0);
+  }
+
+  // Marching checkerboard in *screen* pixels (not canvas cells) so zoomed
+  // art-pixel edges show many dots instead of one solid segment per cell.
+  vec2 sp = floor(screenCoord);
+  float parity = mod(sp.x + sp.y, 2.0);
+  if (parity < 0.0) {
+    parity += 2.0;
+  }
+  bool pixelOdd = parity >= 1.0;
+  bool wantOdd = u_wantOdd >= 0.5;
+  if (pixelOdd != wantOdd) {
     return vec4(0.0);
   }
 
@@ -94,6 +142,21 @@ vec4 effect(vec4 color, Image tex, vec2 texCoord, vec2 screenCoord)
 }
 ]])
   return colorMaskPerimeterShader
+end
+
+local function colorMaskOutlineIsInside()
+  return M.COLOR_MASK_OUTLINE_SIDE == "inside"
+end
+
+local function colorMaskWantOddParity()
+  local t = UiPulse.nowSeconds()
+  return (math.floor(t / COLOR_MASK_PARITY_INTERVAL) % 2) == 0
+end
+
+--- Luminance 0=black → 1=white → 0 over COLOR_MASK_PULSE_PERIOD seconds.
+local function colorMaskPulse01(t)
+  local w = (2 * math.pi) / COLOR_MASK_PULSE_PERIOD
+  return (1 - math.cos(w * t)) / 2
 end
 
 local function resolvePaint(win)
@@ -1002,19 +1065,101 @@ local function drawPathAnts(ox, oy, z, path, closeToStart)
   end
 end
 
-local function drawMaskOutlineAnts(ox, oy, z, sel, bx, by)
+local function drawMaskOutlineAnts(ox, oy, z, sel, bx, by, inside, wantOdd)
   if not (sel and sel.mask and sel.w and sel.h) then
     drawAntsRect(ox, oy, z, bx, by, sel.w, sel.h)
     return
   end
+
   local w, h = sel.w, sel.h
-  for ly = 0, h - 1 do
-    for lx = 0, w - 1 do
-      if maskGet(sel, lx, ly) then
-        local edge = not maskGet(sel, lx - 1, ly)
-          or not maskGet(sel, lx + 1, ly)
-          or not maskGet(sel, lx, ly - 1)
-          or not maskGet(sel, lx, ly + 1)
+
+  -- Color-mask path (wantOdd set): 1 screen-pixel dots along edges, screen parity.
+  if wantOdd ~= nil then
+    local function screenParityOk(sx, sy)
+      local odd = ((sx + sy) % 2) ~= 0
+      return odd == wantOdd
+    end
+    local function dot(sx, sy)
+      if screenParityOk(sx, sy) then
+        love.graphics.rectangle("fill", sx, sy, 1, 1)
+      end
+    end
+    local function edgeStripHorizontal(x0, x1, sy)
+      local xa, xb = math.min(x0, x1), math.max(x0, x1)
+      for sx = xa, xb - 1 do
+        dot(sx, sy)
+      end
+    end
+    local function edgeStripVertical(sx, y0, y1)
+      local ya, yb = math.min(y0, y1), math.max(y0, y1)
+      for sy = ya, yb - 1 do
+        dot(sx, sy)
+      end
+    end
+
+    local function emitCellEdges(lx, ly)
+      local x0 = math.floor(ox + (bx + lx) * z)
+      local y0 = math.floor(oy + (by + ly) * z)
+      local x1 = math.floor(ox + (bx + lx + 1) * z)
+      local y1 = math.floor(oy + (by + ly + 1) * z)
+      if inside then
+        if not maskGet(sel, lx - 1, ly) then edgeStripVertical(x0, y0, y1) end
+        if not maskGet(sel, lx + 1, ly) then edgeStripVertical(x1 - 1, y0, y1) end
+        if not maskGet(sel, lx, ly - 1) then edgeStripHorizontal(x0, x1, y0) end
+        if not maskGet(sel, lx, ly + 1) then edgeStripHorizontal(x0, x1, y1 - 1) end
+      else
+        if maskGet(sel, lx - 1, ly) then edgeStripVertical(x0, y0, y1) end
+        if maskGet(sel, lx + 1, ly) then edgeStripVertical(x1 - 1, y0, y1) end
+        if maskGet(sel, lx, ly - 1) then edgeStripHorizontal(x0, x1, y0) end
+        if maskGet(sel, lx, ly + 1) then edgeStripHorizontal(x0, x1, y1 - 1) end
+      end
+    end
+
+    if inside then
+      for ly = 0, h - 1 do
+        for lx = 0, w - 1 do
+          if maskGet(sel, lx, ly) then
+            emitCellEdges(lx, ly)
+          end
+        end
+      end
+    else
+      for ly = -1, h do
+        for lx = -1, w do
+          if not maskGet(sel, lx, ly) then
+            emitCellEdges(lx, ly)
+          end
+        end
+      end
+    end
+    return
+  end
+
+  -- Selection overlay path: canvas-cell ants rects (unchanged).
+  if inside then
+    for ly = 0, h - 1 do
+      for lx = 0, w - 1 do
+        if maskGet(sel, lx, ly) then
+          local edge = not maskGet(sel, lx - 1, ly)
+            or not maskGet(sel, lx + 1, ly)
+            or not maskGet(sel, lx, ly - 1)
+            or not maskGet(sel, lx, ly + 1)
+          if edge then
+            drawAntsRect(ox, oy, z, bx + lx, by + ly, 1, 1)
+          end
+        end
+      end
+    end
+    return
+  end
+
+  for ly = -1, h do
+    for lx = -1, w do
+      if not maskGet(sel, lx, ly) then
+        local edge = maskGet(sel, lx - 1, ly)
+          or maskGet(sel, lx + 1, ly)
+          or maskGet(sel, lx, ly - 1)
+          or maskGet(sel, lx, ly + 1)
         if edge then
           drawAntsRect(ox, oy, z, bx + lx, by + ly, 1, 1)
         end
@@ -1081,7 +1226,7 @@ function M.drawOverlay(win, isFocused)
 
   love.graphics.setColor(colors.white)
   if sel.mask then
-    drawMaskOutlineAnts(ox, oy, z, sel, bx, by)
+    drawMaskOutlineAnts(ox, oy, z, sel, bx, by, true)
   else
     drawAntsRect(ox, oy, z, bx, by, sel.w, sel.h)
   end
@@ -1094,6 +1239,8 @@ function M.drawColorPaintMaskOverlay(win)
     return
   end
 
+  local inside = colorMaskOutlineIsInside()
+  local wantOdd = colorMaskWantOddParity()
   local outline = ensureColorMaskOutlineTexture(mask)
   local shader = outline and ensureColorMaskPerimeterShader() or nil
   if not (outline and shader) then
@@ -1101,9 +1248,10 @@ function M.drawColorPaintMaskOverlay(win)
     local z = (win.getZoomLevel and win:getZoomLevel()) or win.zoom or 1
     local ox, oy = win:getContentScreenOrigin()
     local sx, sy, sw, sh = win:getInsetContentScreenRect()
-    CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
+    local pad = inside and 0 or z
+    CanvasSpace.setScissorFromContentRect(sx - pad, sy - pad, sw + 2 * pad, sh + 2 * pad)
     love.graphics.setColor(colors.white)
-    drawMaskOutlineAnts(ox, oy, z, { mask = mask.bits, w = mask.width, h = mask.height }, 0, 0)
+    drawMaskOutlineAnts(ox, oy, z, { mask = mask.bits, w = mask.width, h = mask.height }, 0, 0, inside, wantOdd)
     love.graphics.setScissor()
     return
   end
@@ -1112,26 +1260,30 @@ function M.drawColorPaintMaskOverlay(win)
   if z < 1 then z = 1 end
   local ox, oy = win:getContentScreenOrigin()
   local sx, sy, sw, sh = win:getInsetContentScreenRect()
-  -- Allow one canvas-pixel of outline outside the content (for mask edges on the border).
-  CanvasSpace.setScissorFromContentRect(sx - z, sy - z, sw + 2 * z, sh + 2 * z)
+  -- Outside mode needs one canvas-pixel of pad so border edges remain visible.
+  local pad = inside and 0 or z
+  CanvasSpace.setScissorFromContentRect(sx - pad, sy - pad, sw + 2 * pad, sh + 2 * pad)
 
-  local pulse = UiPulse.luminanceBackdrop01(UiPulse.nowSeconds())
+  local pulse = colorMaskPulse01(UiPulse.nowSeconds())
   shader:send("u_size", { mask.width, mask.height })
   shader:send("u_origin", { ox, oy })
   shader:send("u_zoom", z)
-  -- ~1 screen pixel of edge thickness in the exterior neighbor cell.
-  -- Cap at 1.0 (full canvas cell) so zoom 1 still covers the single screen pixel
-  -- (a 0.5 cap left the fragment center unpainted).
+  -- ~1 screen pixel of edge thickness.
+  -- Cap at 1.0 (full canvas cell) so zoom 1 still covers the single screen pixel.
   shader:send("u_edgeFrac", math.min(1.0, 1.0 / z))
   shader:send("u_pulse", pulse)
+  shader:send("u_inside", inside and 1 or 0)
+  shader:send("u_wantOdd", wantOdd and 1 or 0)
 
   love.graphics.setShader(shader)
   love.graphics.setColor(1, 1, 1, 1)
-  -- Pad by 1 canvas pixel so exterior edges along the canvas border are visible.
-  local pad = z
-  local scaleX = ((mask.width + 2) * z) / mask.width
-  local scaleY = ((mask.height + 2) * z) / mask.height
-  love.graphics.draw(outline, ox - pad, oy - pad, 0, scaleX, scaleY)
+  if pad > 0 then
+    local scaleX = ((mask.width + 2) * z) / mask.width
+    local scaleY = ((mask.height + 2) * z) / mask.height
+    love.graphics.draw(outline, ox - pad, oy - pad, 0, scaleX, scaleY)
+  else
+    love.graphics.draw(outline, ox, oy, 0, z, z)
+  end
   love.graphics.setShader()
   love.graphics.setColor(colors.white)
   love.graphics.setScissor()
