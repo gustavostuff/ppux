@@ -9,6 +9,9 @@ M.ATTR_BYTES = 64
 M.GRID_COLS = 32
 M.GRID_ROWS = 30
 
+--- Gallery / unlinked sketch default: brown ramp (NES $07/$17/$27/$36).
+M.DEFAULT_BROWN_CODES = { "07", "17", "27", "36" }
+
 function M.isSketchModePalette(win)
   return WindowCaps.isRomPaletteWindow(win) and win.paletteRole == "sketch"
 end
@@ -116,17 +119,28 @@ function M.onLinkedToPalette(sketchWin, paletteWin)
   return true
 end
 
+--- After palette unlink/close: keep attrs, but force a redraw using the brown default.
+function M.onUnlinkedFromPalette(sketchWin)
+  if not WindowCaps.isSketchCanvas(sketchWin) then
+    return false
+  end
+  local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+  SketchCanvasPackController.invalidateReflectDisplay(sketchWin)
+  return true
+end
+
 --- Encode 32-byte NES palette blob from a sketch-mode ROM palette window.
 --  BG rows from 4x4 codes. Sprite color-0 slots ($3F10/$14/$18/$1C) mirror
 --  BG color 0 ($3F00), so they must match BG0 or a later write stomps the backdrop.
 --  Other sprite colors stay 0F (unused in gallery BG slides).
 --  Falls back to hardcoded gallery defaults when palette is missing.
 function M.encodePaletteBlob32(paletteWin)
+  local brown = M.DEFAULT_BROWN_CODES
   local bg = {
-    { "07", "17", "27", "36" },
-    { "07", "17", "27", "36" },
-    { "07", "17", "27", "36" },
-    { "07", "17", "27", "36" },
+    { brown[1], brown[2], brown[3], brown[4] },
+    { brown[1], brown[2], brown[3], brown[4] },
+    { brown[1], brown[2], brown[3], brown[4] },
+    { brown[1], brown[2], brown[3], brown[4] },
   }
   if M.isSketchModePalette(paletteWin) and paletteWin.codes2D then
     for row = 0, 3 do

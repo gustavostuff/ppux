@@ -169,11 +169,167 @@ describe("sketch canvas - link + pattern table apply", function()
     assert(SketchCanvasPackController.generateAndApply(sketch, wm))
     expect(#pt.layers[1].items).toBe(256)
 
-    assert(SketchCanvasPackController.unlinkSketchPatternTable(sketch, wm))
+    assert(SketchCanvasPackController.unlinkSketchPatternTable(sketch, wm, { clearPack = false }))
     expect(sketch.linkedPatternTableWindowId).toBeNil()
     expect(pt.linkedSketchCanvasWindowId).toBeNil()
     expect(#(pt.layers[1].items or {})).toBe(0)
     expect(#(pt.layers[1].patternTable.ranges or {})).toBe(0)
+    -- Edit/pixel path: pack data stays when clearPack is false (or when not in tile mode).
+    expect(SketchCanvasPackController.hasPackData(sketch)).toBe(true)
+  end)
+
+  it("unlink in tile mode clears sketch pack catalog; edit mode keeps it", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow()
+    local pt = wm:createPatternTableWindow()
+    paintTile(sketch.layers[1].canvas, 0, 0, 2)
+    assert(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm))
+    assert(SketchCanvasPackController.generateAndApply(sketch, wm))
+    expect(SketchCanvasPackController.hasPackData(sketch)).toBe(true)
+    expect(sketch.layers[1].canvas:getPixel(0, 0)).toBe(2)
+
+    assert(SketchCanvasPackController.unlinkSketchPatternTable(sketch, wm, { clearPack = true }))
+    expect(SketchCanvasPackController.hasPackData(sketch)).toBe(false)
+    expect(#(sketch.tilesPool or {})).toBe(0)
+    expect(sketch.nametableBytes).toBeNil()
+    -- Tile-mode clear blanks paint so the canvas does not still look packed.
+    expect(sketch.layers[1].canvas:getPixel(0, 0)).toBe(0)
+  end)
+
+  it("undo of tile-mode unlink restores pack, paint, and pattern table tiles", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow()
+    local pt = wm:createPatternTableWindow()
+    paintTile(sketch.layers[1].canvas, 0, 0, 2)
+    assert(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm))
+    assert(SketchCanvasPackController.generateAndApply(sketch, wm))
+    local beforePack = SketchCanvasPackController.snapshotPackFields(sketch)
+    local beforeItems = SketchCanvasPackController.snapshotPatternTableItemPixels(pt)
+    expect(#pt.layers[1].items).toBe(256)
+
+    local undo = UndoRedoController.new(10)
+    local app = { wm = wm, undoRedo = undo }
+    assert(SketchCanvasPackController.unlinkSketchPatternTable(sketch, wm, { clearPack = true }))
+    undo:addSketchCanvasPatternTableLinkEvent({
+      type = "sketch_canvas_pattern_table_link",
+      sketchWin = sketch,
+      beforeLinkedId = pt._id,
+      afterLinkedId = nil,
+      beforePack = beforePack,
+      afterPack = SketchCanvasPackController.snapshotPackFields(sketch),
+      beforeItemsPixels = beforeItems,
+      afterItemsPixels = nil,
+    })
+
+    expect(SketchCanvasPackController.hasPackData(sketch)).toBe(false)
+    expect(#(pt.layers[1].items or {})).toBe(0)
+
+    assert(undo:undo(app))
+    expect(sketch.linkedPatternTableWindowId).toBe(pt._id)
+    expect(SketchCanvasPackController.hasPackData(sketch)).toBe(true)
+    expect(sketch.layers[1].canvas:getPixel(0, 0)).toBe(2)
+    expect(#(pt.layers[1].items or {})).toBe(256)
+    expect(pt.layers[1].items[1].pixels[1]).toBe(2)
+  end)
+
+  it("closing a linked pattern table unlinks the sketch and clears tile-mode pack", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow()
+    local pt = wm:createPatternTableWindow()
+    paintTile(sketch.layers[1].canvas, 0, 0, 2)
+    assert(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm))
+    assert(SketchCanvasPackController.generateAndApply(sketch, wm))
+    expect(#(pt.layers[1].items or {}) > 0).toBe(true)
+
+    local prevGetMode = nil
+    local ctx = rawget(_G, "ctx")
+    if type(ctx) ~= "table" then
+      ctx = {}
+      _G.ctx = ctx
+    end
+    prevGetMode = ctx.getMode
+    ctx.getMode = function()
+      return "tile"
+    end
+
+    assert(wm:closeWindow(pt))
+    expect(sketch.linkedPatternTableWindowId).toBeNil()
+    expect(SketchCanvasPackController.hasPackData(sketch)).toBe(false)
+    expect(#(pt.layers[1].items or {})).toBe(0)
+    expect(pt.linkedSketchCanvasWindowId).toBeNil()
+    expect(sketch.layers[1].canvas:getPixel(0, 0)).toBe(0)
+    expect(type(pt._sketchCloseUndoRestore)).toBe("table")
+
+    ctx.getMode = prevGetMode
+  end)
+
+  it("undo of closing a linked pattern table restores link, pack, paint, and tiles", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow()
+    local pt = wm:createPatternTableWindow()
+    paintTile(sketch.layers[1].canvas, 0, 0, 3)
+    assert(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm))
+    assert(SketchCanvasPackController.generateAndApply(sketch, wm))
+
+    local ctx = rawget(_G, "ctx")
+    if type(ctx) ~= "table" then
+      ctx = {}
+      _G.ctx = ctx
+    end
+    local prevGetMode = ctx.getMode
+    ctx.getMode = function()
+      return "tile"
+    end
+
+    local undo = UndoRedoController.new(10)
+    local app = { wm = wm, undoRedo = undo }
+    assert(wm:closeWindow(pt))
+    local restore = pt._sketchCloseUndoRestore
+    pt._sketchCloseUndoRestore = nil
+    undo:addWindowEvent({
+      type = "window_close",
+      win = pt,
+      wm = wm,
+      prevClosed = false,
+      prevMinimized = false,
+      prevFocused = true,
+      sketchPtRestore = restore,
+    })
+
+    assert(undo:undo(app))
+    expect(pt._closed).toBe(false)
+    expect(sketch.linkedPatternTableWindowId).toBe(pt._id)
+    expect(SketchCanvasPackController.hasPackData(sketch)).toBe(true)
+    expect(sketch.layers[1].canvas:getPixel(0, 0)).toBe(3)
+    expect(#(pt.layers[1].items or {})).toBe(256)
+
+    ctx.getMode = prevGetMode
+  end)
+
+  it("closing a linked pattern table in edit mode keeps pack data", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow()
+    local pt = wm:createPatternTableWindow()
+    paintTile(sketch.layers[1].canvas, 0, 0, 2)
+    assert(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm))
+    assert(SketchCanvasPackController.generateAndApply(sketch, wm))
+
+    local ctx = rawget(_G, "ctx")
+    if type(ctx) ~= "table" then
+      ctx = {}
+      _G.ctx = ctx
+    end
+    local prevGetMode = ctx.getMode
+    ctx.getMode = function()
+      return "edit"
+    end
+
+    assert(wm:closeWindow(pt))
+    expect(sketch.linkedPatternTableWindowId).toBeNil()
+    expect(SketchCanvasPackController.hasPackData(sketch)).toBe(true)
+    expect(sketch.layers[1].canvas:getPixel(0, 0)).toBe(2)
+
+    ctx.getMode = prevGetMode
   end)
 
   it("toolbar Generate applies to linked PT and records undo", function()

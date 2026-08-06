@@ -358,8 +358,8 @@ function SketchCanvasToolbar:_promptCreatePatternTableThenGenerate()
     return
   end
   modal:show({
-    title = "No pattern table linked",
-    message = "create one?",
+    title = "Generate",
+    message = "No pattern table linked, create one?",
     yesText = "Yes",
     noText = "Cancel",
     onYes = function()
@@ -480,7 +480,7 @@ function SketchCanvasToolbar:updateIcons()
       self.generateButton.tooltip = "Generate needs a paint canvas"
     elseif not linked then
       self.generateButton.tooltip =
-        "Generate patterns and update linked pattern table"
+        "Generate: create a pattern table if needed, then pack the sketch"
     elseif generateDirty then
       self.generateButton.tooltip = string.format(
         "Pixels changed since last Generate (tolerance %d) - click to refresh pattern table",

@@ -561,9 +561,23 @@ local function drawCanvasLayer(app, w, layerIndex, isFocused)
     return false
   end
 
+  local SketchCanvasPackController = nil
+  local sketchTileModeUnlinked = false
+  if WindowCaps.isSketchCanvas(w) then
+    SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+    local mode = (app and app.mode) or "tile"
+    if mode == "tile"
+      and not SketchCanvasPackController.resolveLinkedPatternTable(w, app and app.wm)
+    then
+      -- Unlinked in tile mode: empty view (paint is Edit-mode only).
+      sketchTileModeUnlinked = true
+    end
+  end
+
   -- Sketch tile mode: compose from packed nametable + pool samples; keep paint canvas intact.
-  if WindowCaps.isSketchReflectNametable(w) then
-    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+  if (not sketchTileModeUnlinked) and WindowCaps.isSketchReflectNametable(w) then
+    SketchCanvasPackController = SketchCanvasPackController
+      or require("controllers.game_art.sketch_canvas_pack_controller")
     local reflectCanvas = SketchCanvasPackController.getReflectDisplayCanvas(w)
     if reflectCanvas then
       canvas = reflectCanvas
@@ -582,14 +596,30 @@ local function drawCanvasLayer(app, w, layerIndex, isFocused)
 
   local romRaw = app.appEditState and app.appEditState.romRaw
   local useAttrPalette = false
-  if WindowCaps.isSketchCanvas(w) and layer and layer.paletteData and layer.paletteData.winId then
+  if WindowCaps.isSketchCanvas(w) and not sketchTileModeUnlinked then
     local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
-    if SketchPalette.getLinkedSketchPalette(w, app.wm) then
-      useAttrPalette = true
-    end
+    useAttrPalette = SketchPalette.getLinkedSketchPalette(w, app.wm) ~= nil
   end
 
-  if useAttrPalette and canvas.drawRegion then
+  if sketchTileModeUnlinked then
+    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+    local Palettes = require("palettes")
+    local code = SketchPalette.DEFAULT_BROWN_CODES[1] or "07"
+    local linkedPal = SketchPalette.getLinkedSketchPalette(w, app and app.wm)
+    if linkedPal and linkedPal.codes2D and linkedPal.codes2D[0] and linkedPal.codes2D[0][0] then
+      code = linkedPal.codes2D[0][0]
+    end
+    local rgb = (Palettes.smooth_fbx and Palettes.smooth_fbx[code]) or { 0.33, 0.2, 0.08 }
+    love.graphics.setColor(rgb[1] or 1, rgb[2] or 1, rgb[3] or 1, layerOpacity)
+    love.graphics.rectangle(
+      "fill",
+      0,
+      0,
+      canvas.width or (w.cols or 32) * (w.cellW or 8),
+      canvas.height or (w.rows or 30) * (w.cellH or 8)
+    )
+    love.graphics.setColor(colors.white)
+  elseif useAttrPalette and canvas.drawRegion then
     local cell = w.cellW or 8
     local cols = w.cols or 32
     local rows = w.rows or 30
@@ -613,6 +643,13 @@ local function drawCanvasLayer(app, w, layerIndex, isFocused)
         canvas:drawRegion(px, py, px, py, cell, cell, 1)
       end
     end
+    ShaderPaletteController.releaseShader()
+  elseif WindowCaps.isSketchCanvas(w) then
+    -- No linked sketch palette (unlinked or closed): default brown ramp in edit and tile mode.
+    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+    local brown = SketchPalette.DEFAULT_BROWN_CODES
+    ShaderPaletteController.applyShader(true, layer, brown, layerOpacity, { transparentZero = false })
+    canvas:draw(0, 0, 1)
     ShaderPaletteController.releaseShader()
   else
     ShaderPaletteController.applyLayerItemPalette(

@@ -730,7 +730,7 @@ local function patternTableRootMenuIcons()
   }
 end
 
-local function pushSketchCanvasPatternTableLinkUndo(self, sketchWin, beforeLinkedId, afterLinkedId, stolenMeta)
+local function pushSketchCanvasPatternTableLinkUndo(self, sketchWin, beforeLinkedId, afterLinkedId, stolenMeta, packMeta)
   if not (self and self.undoRedo and self.undoRedo.addSketchCanvasPatternTableLinkEvent and sketchWin) then
     return
   end
@@ -746,12 +746,17 @@ local function pushSketchCanvasPatternTableLinkUndo(self, sketchWin, beforeLinke
     afterLinkedId = afterLinkedId,
     beforeStolenSketchWin = stolenMeta and stolenMeta.sketchWin or nil,
     beforeStolenLinkedId = stolenMeta and stolenMeta.linkedId or nil,
+    beforePack = packMeta and packMeta.beforePack or nil,
+    afterPack = packMeta and packMeta.afterPack or nil,
+    beforeItemsPixels = packMeta and packMeta.beforeItemsPixels or nil,
+    afterItemsPixels = packMeta and packMeta.afterItemsPixels or nil,
   })
 end
 
 local function linkSketchCanvasToPatternTableWithUndo(self, sketchWin, ptWin)
   local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
   local beforeLinkedId = sketchWin.linkedPatternTableWindowId
+  local beforePack = SketchCanvasPackController.snapshotPackFields(sketchWin)
   local stolenMeta = nil
   if type(ptWin.linkedSketchCanvasWindowId) == "string"
     and ptWin.linkedSketchCanvasWindowId ~= ""
@@ -772,7 +777,11 @@ local function linkSketchCanvasToPatternTableWithUndo(self, sketchWin, ptWin)
       sketchWin,
       beforeLinkedId,
       sketchWin.linkedPatternTableWindowId,
-      stolenMeta
+      stolenMeta,
+      {
+        beforePack = beforePack,
+        afterPack = SketchCanvasPackController.snapshotPackFields(sketchWin),
+      }
     )
   end
   return ok
@@ -873,9 +882,18 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
         icon = iconsRoot.unlink,
         menuGroup = "pt_sketch_follow",
         callback = function()
+          local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
           local beforeLinkedId = contentWin.linkedPatternTableWindowId
+          local beforePack = SketchCanvasPackController.snapshotPackFields(contentWin)
+          local ptWin = SketchCanvasPackController.resolveLinkedPatternTable(contentWin, self.wm)
+          local beforeItems = ptWin and SketchCanvasPackController.snapshotPatternTableItemPixels(ptWin) or nil
           SketchCanvasPackController.unlinkSketchPatternTable(contentWin, self.wm)
-          pushSketchCanvasPatternTableLinkUndo(self, contentWin, beforeLinkedId, nil, nil)
+          pushSketchCanvasPatternTableLinkUndo(self, contentWin, beforeLinkedId, nil, nil, {
+            beforePack = beforePack,
+            afterPack = SketchCanvasPackController.snapshotPackFields(contentWin),
+            beforeItemsPixels = beforeItems,
+            afterItemsPixels = nil,
+          })
           hideMenus()
         end,
       }
@@ -1305,8 +1323,16 @@ function AppCoreController:_buildPatternTableLinkSourceContextMenuItems(patternT
         PatternTableDisplayController.unlinkContentLayerPatternTable(entry.win, entry.layerIndex)
       end
       for _, entry in ipairs(sketchUnlinks) do
+        local beforePack = SketchCanvasPackController.snapshotPackFields(entry.sketchWin)
+        local ptWin = SketchCanvasPackController.resolveLinkedPatternTable(entry.sketchWin, self.wm)
+        local beforeItems = ptWin and SketchCanvasPackController.snapshotPatternTableItemPixels(ptWin) or nil
         SketchCanvasPackController.unlinkSketchPatternTable(entry.sketchWin, self.wm)
-        pushSketchCanvasPatternTableLinkUndo(self, entry.sketchWin, entry.beforeLinkedId, nil, nil)
+        pushSketchCanvasPatternTableLinkUndo(self, entry.sketchWin, entry.beforeLinkedId, nil, nil, {
+          beforePack = beforePack,
+          afterPack = SketchCanvasPackController.snapshotPackFields(entry.sketchWin),
+          beforeItemsPixels = beforeItems,
+          afterItemsPixels = nil,
+        })
       end
       pushPatternTableLinkUndoBatchAfterMutations(self, batchBefore)
       for _, entry in ipairs(batchBefore) do

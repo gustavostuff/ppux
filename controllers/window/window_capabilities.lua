@@ -19,10 +19,15 @@ function M.isSketchCanvas(win)
   return win and win.kind == "sketch_canvas"
 end
 
---- Sketch tile mode (global mode == "tile") with a pack: nametable-style editing + mirror view.
---- Shows the last Generate result until Generate is applied again (paint edits stay in Edit mode).
+--- Sketch tile mode (global mode == "tile") with a pack and a live linked pattern table:
+--- nametable-style editing + mirror view. Without a PT link, tile mode stays empty
+--- (paint remains Edit-mode only).
 function M.isSketchReflectNametable(win)
   if not M.isSketchCanvas(win) then
+    return false
+  end
+  local linkedId = win.linkedPatternTableWindowId
+  if type(linkedId) ~= "string" or linkedId == "" then
     return false
   end
   if type(win.tilesPool) ~= "table" or #win.tilesPool < 1 then
@@ -33,7 +38,24 @@ function M.isSketchReflectNametable(win)
   end
   local ctx = rawget(_G, "ctx")
   local mode = ctx and ctx.getMode and ctx.getMode() or nil
-  return mode == "tile"
+  if mode ~= "tile" then
+    return false
+  end
+  local wm = nil
+  if ctx then
+    if type(ctx.wm) == "function" then
+      wm = ctx.wm()
+    elseif ctx.app and ctx.app.wm then
+      wm = ctx.app.wm
+    end
+  end
+  if wm and wm.findWindowById then
+    local pt = wm:findWindowById(linkedId)
+    if not (pt and M.isPatternTable(pt) and pt._closed ~= true) then
+      return false
+    end
+  end
+  return true
 end
 
 function M.isSketchModePalette(win)

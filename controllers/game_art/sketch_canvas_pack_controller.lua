@@ -582,6 +582,48 @@ function M.hasPackData(win)
     and #win.nametableBytes == (M.GRID_COLS * M.GRID_ROWS)
 end
 
+--- True when the app global mode is tile (sketch nametable / reflect editing).
+function M.isSketchGlobalTileMode()
+  local ctx = rawget(_G, "ctx")
+  local mode = ctx and ctx.getMode and ctx.getMode() or nil
+  return mode == "tile"
+end
+
+--- Drop packed nametable/catalog state (paint canvas is unchanged unless clearPaint).
+function M.clearPackData(win, opts)
+  opts = opts or {}
+  if not WindowCaps.isSketchCanvas(win) then
+    return false
+  end
+  win.tilesPool = {}
+  win.nametableBytes = nil
+  win.reflectPatternTable = false
+  win._reflectDisplayCanvas = nil
+  M.clearReflectLayoutDirty(win)
+  M.invalidateReflectDisplay(win)
+  M.markGenerateDirty(win)
+  if opts.clearPaint == true then
+    local canvas = resolveCanvas(win)
+    if canvas and canvas.clear then
+      canvas:clear(0)
+    end
+    local layer = win.layers and win.layers[win.activeLayer or 1]
+    if layer then
+      layer.multiTileSelection = nil
+    end
+    if type(win.clearSelection) == "function" then
+      win:clearSelection()
+    elseif win.selectedCol ~= nil or win.selectedRow ~= nil then
+      win.selectedCol = nil
+      win.selectedRow = nil
+    end
+  end
+  if win.specializedToolbar and win.specializedToolbar.updateIcons then
+    win.specializedToolbar:updateIcons()
+  end
+  return true
+end
+
 function M.invalidateReflectDisplay(win)
   if not win then
     return
@@ -1123,18 +1165,121 @@ function M.linkSketchToPatternTable(sketchWin, ptWin, wm)
   return true
 end
 
-function M.unlinkSketchPatternTable(sketchWin, wm)
+function M.unlinkSketchPatternTable(sketchWin, wm, opts)
+  opts = opts or {}
   if not WindowCaps.isSketchCanvas(sketchWin) then
     return false, "not_sketch_canvas"
   end
   local pt = M.resolveLinkedPatternTable(sketchWin, wm)
+  if not pt then
+    -- Close path marks the PT `_closed` before unlink; still clear its scratch catalog.
+    local id = sketchWin.linkedPatternTableWindowId
+    if type(id) == "string" and id ~= "" then
+      local candidate = findWindowById(wm, id)
+      if candidate and WindowCaps.isPatternTable(candidate) then
+        pt = candidate
+      end
+    end
+  end
   sketchWin.linkedPatternTableWindowId = nil
   if pt then
     clearReverseLinkIfOwned(pt, sketchWin)
     -- Empty the PT: scratch catalog cannot coexist with CHR ranges after unlink.
     clearPatternTableScratchItems(pt)
   end
+
+  -- Tile mode shows the packed nametable; without a PT link, clear that catalog
+  -- and blank paint so the canvas does not keep looking like the old pack.
+  -- Edit/pixel mode keeps pack data so paint + last Generate stay intact.
+  local clearPack = opts.clearPack
+  if clearPack == nil then
+    clearPack = M.isSketchGlobalTileMode()
+  end
+  if clearPack then
+    M.clearPackData(sketchWin, { clearPaint = true })
+  end
   return true
+end
+
+--- Snapshot sketch + PT state before a linked pattern table is closed/unlinked.
+function M.captureSketchPatternTableCloseRestore(ptWin, wm)
+  if not WindowCaps.isPatternTable(ptWin) then
+    return nil
+  end
+  local ptId = ptWin._id
+  if type(ptId) ~= "string" or ptId == "" then
+    return nil
+  end
+  local sketch = nil
+  local windows = wm and wm.getWindows and wm:getWindows() or {}
+  for _, w in ipairs(windows) do
+    if WindowCaps.isSketchCanvas(w) and w.linkedPatternTableWindowId == ptId then
+      sketch = w
+      break
+    end
+  end
+  if not sketch and type(ptWin.linkedSketchCanvasWindowId) == "string" then
+    sketch = findWindowById(wm, ptWin.linkedSketchCanvasWindowId)
+    if not WindowCaps.isSketchCanvas(sketch) then
+      sketch = nil
+    end
+  end
+  if not sketch then
+    return nil
+  end
+  return {
+    sketchWin = sketch,
+    linkedId = ptId,
+    beforePack = M.snapshotPackFields(sketch),
+    beforeItemsPixels = M.snapshotPatternTableItemPixels(ptWin),
+  }
+end
+
+--- Re-link sketch and restore pack/paint/PT tiles after undoing a PT window close.
+function M.restoreSketchPatternTableCloseUndo(restore, wm)
+  if type(restore) ~= "table" or not restore.sketchWin then
+    return false
+  end
+  local sketchWin = restore.sketchWin
+  local ptWin = findWindowById(wm, restore.linkedId)
+  if not (WindowCaps.isSketchCanvas(sketchWin) and WindowCaps.isPatternTable(ptWin)) then
+    return false
+  end
+  M.restorePackFields(sketchWin, restore.beforePack)
+  local ok = M.linkSketchToPatternTable(sketchWin, ptWin, wm)
+  if type(restore.beforeItemsPixels) == "table" then
+    M.restorePatternTableItemPixels(ptWin, restore.beforeItemsPixels, wm)
+  elseif ok and M.hasPackData(sketchWin) then
+    M.applyPackToLinkedPatternTable(sketchWin, wm)
+  end
+  if sketchWin.specializedToolbar and sketchWin.specializedToolbar.updateIcons then
+    sketchWin.specializedToolbar:updateIcons()
+  end
+  if ptWin.specializedToolbar and ptWin.specializedToolbar.updateIcons then
+    ptWin.specializedToolbar:updateIcons()
+  end
+  return true
+end
+
+--- Pattern table window closed/removed: detach owning sketch(es) and clear tile-mode packs.
+function M.onPatternTableClosed(ptWin, wm)
+  if not WindowCaps.isPatternTable(ptWin) or not wm then
+    return
+  end
+  local ptId = ptWin._id
+  if type(ptId) ~= "string" or ptId == "" then
+    ptWin.linkedSketchCanvasWindowId = nil
+    return
+  end
+  -- Stash for window_close undo (HeaderToolbar reads this after closeWindow returns).
+  ptWin._sketchCloseUndoRestore = M.captureSketchPatternTableCloseRestore(ptWin, wm)
+  local windows = wm.getWindows and wm:getWindows() or {}
+  for _, w in ipairs(windows) do
+    if WindowCaps.isSketchCanvas(w) and w.linkedPatternTableWindowId == ptId then
+      M.unlinkSketchPatternTable(w, wm)
+    end
+  end
+  ptWin.linkedSketchCanvasWindowId = nil
 end
 
 local function clampPaddingIndex(sketchWin, uniqueCount)
@@ -1329,9 +1474,18 @@ function M.snapshotPackFields(win)
       nt[i] = math.floor(tonumber(b) or 0)
     end
   end
+  local paintPixels = nil
+  local canvas = resolveCanvas(win)
+  if canvas and type(canvas.pixels) == "table" and #canvas.pixels > 0 then
+    paintPixels = {}
+    for i = 1, #canvas.pixels do
+      paintPixels[i] = math.floor(tonumber(canvas.pixels[i]) or 0)
+    end
+  end
   return {
     tilesPool = pool,
     nametableBytes = nt,
+    paintPixels = paintPixels,
   }
 end
 
@@ -1354,9 +1508,22 @@ function M.restorePackFields(win, snap)
   else
     win.nametableBytes = nil
   end
+  if type(snap.paintPixels) == "table" then
+    local canvas = resolveCanvas(win)
+    if canvas and type(canvas.pixels) == "table" then
+      local n = math.min(#canvas.pixels, #snap.paintPixels)
+      for i = 1, n do
+        canvas.pixels[i] = math.floor(tonumber(snap.paintPixels[i]) or 0)
+      end
+      canvas._imageDirty = true
+    end
+  end
   M.invalidateReflectDisplay(win)
   if win.reflectPatternTable and not M.hasPackData(win) then
     win.reflectPatternTable = false
+  end
+  if win.specializedToolbar and win.specializedToolbar.updateIcons then
+    win.specializedToolbar:updateIcons()
   end
   return true
 end

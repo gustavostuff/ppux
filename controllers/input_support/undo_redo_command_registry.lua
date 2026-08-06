@@ -123,15 +123,32 @@ local function applySketchCanvasPatternTableLinkEvent(event, direction, app)
     end
   end
 
+  local ok
   if linkedId then
     local ptWin = undoRedoFindWindowById(app.wm, linkedId)
     if not ptWin then
       return false
     end
-    return SketchCanvasPackController.linkSketchToPatternTable(sketchWin, ptWin, app.wm)
+    ok = SketchCanvasPackController.linkSketchToPatternTable(sketchWin, ptWin, app.wm)
+  else
+    -- Replay unlink without pack side effects; pack snap below is authoritative.
+    ok = SketchCanvasPackController.unlinkSketchPatternTable(sketchWin, app.wm, { clearPack = false })
   end
 
-  return SketchCanvasPackController.unlinkSketchPatternTable(sketchWin, app.wm)
+  local packSnap = (direction == "undo") and event.beforePack or event.afterPack
+  if type(packSnap) == "table" then
+    SketchCanvasPackController.restorePackFields(sketchWin, packSnap)
+  end
+
+  local itemsSnap = (direction == "undo") and event.beforeItemsPixels or event.afterItemsPixels
+  local ptWin = linkedId and undoRedoFindWindowById(app.wm, linkedId) or nil
+  if ptWin and type(itemsSnap) == "table" then
+    SketchCanvasPackController.restorePatternTableItemPixels(ptWin, itemsSnap, app.wm)
+  elseif ptWin and linkedId and SketchCanvasPackController.hasPackData(sketchWin) then
+    -- Unlink-in-tile-mode clears PT tiles before pack restore; rebuild from pack+paint.
+    SketchCanvasPackController.applyPackToLinkedPatternTable(sketchWin, app.wm)
+  end
+  return ok == true
 end
 
 local function applySketchCanvasGenerateEvent(event, direction, app)
@@ -810,19 +827,26 @@ local function applyWindowCloseEvent(event, direction, app)
       return true
     end
 
+    local reopened = false
     if wm and wm.reopenWindow then
-      return wm:reopenWindow(win, {
+      reopened = wm:reopenWindow(win, {
         minimized = (event.prevMinimized == true),
         focus = (event.prevFocused == true),
       })
+    else
+      win._closed = false
+      win._minimized = (event.prevMinimized == true)
+      if wm and event.prevFocused == true and wm.setFocus then
+        wm:setFocus(win)
+      end
+      reopened = true
     end
 
-    win._closed = false
-    win._minimized = (event.prevMinimized == true)
-    if wm and event.prevFocused == true and wm.setFocus then
-      wm:setFocus(win)
+    if reopened and type(event.sketchPtRestore) == "table" then
+      local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+      SketchCanvasPackController.restoreSketchPatternTableCloseUndo(event.sketchPtRestore, wm)
     end
-    return true
+    return reopened == true
   end
 
   if wm and wm.closeWindow then

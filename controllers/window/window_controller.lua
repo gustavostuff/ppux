@@ -1241,6 +1241,13 @@ function WM:closeWindow(win)
   win.resizing = false
   bumpStructureGeneration(self)
 
+  if WindowCaps.isPatternTable(win) then
+    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+    SketchCanvasPackController.onPatternTableClosed(win, self)
+  elseif WindowCaps.isRomPaletteWindow(win) then
+    PaletteLinkController.onRomPaletteClosed(win, self)
+  end
+
   if self.focused == win then
     self.focused = findTopVisibleWindow(self)
   end

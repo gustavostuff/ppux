@@ -709,6 +709,17 @@ local function unlinkAllPaletteTargets(wm, paletteWin, opts)
     pushPaletteLinkUndo(undoActions, false)
   end
   invalidatePaletteLinkedPpuLayersForActions(undoActions)
+  do
+    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+    local seen = {}
+    for _, act in ipairs(undoActions) do
+      local win = act.win
+      if WindowCaps.isSketchCanvas(win) and not seen[win] then
+        seen[win] = true
+        SketchPalette.onUnlinkedFromPalette(win)
+      end
+    end
+  end
   if opts.setStatus ~= false then
     local app = getApp()
     if app and app.setStatus then
@@ -753,6 +764,11 @@ local function unlinkPaletteConnection(contentWin, paletteWin)
   pushPaletteLinkUndo(actions, false)
   invalidatePaletteLinkedPpuLayersForActions(actions)
 
+  if WindowCaps.isSketchCanvas(contentWin) then
+    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+    SketchPalette.onUnlinkedFromPalette(contentWin)
+  end
+
   local app = getApp()
   if app and app.setStatus then
     app:setStatus(string.format(
@@ -792,6 +808,11 @@ local function unlinkPaletteConnectionForLayer(contentWin, paletteWin, layerInde
     },
   }, false)
   invalidatePaletteLinkedPpuLayer(contentWin, layerIndex)
+
+  if WindowCaps.isSketchCanvas(contentWin) then
+    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+    SketchPalette.onUnlinkedFromPalette(contentWin)
+  end
 
   local app = getApp()
   if app and app.setStatus then
@@ -1376,6 +1397,20 @@ function M.removeAllLinksForPalette(wm, paletteWin)
     setStatus = true,
   })
   return ok and true or false
+end
+
+--- Palette window closed: keep winIds (reopen restores the link), but refresh sketch draw to brown.
+function M.onRomPaletteClosed(paletteWin, wm)
+  if not WindowCaps.isRomPaletteWindow(paletteWin) then
+    return
+  end
+  local targets = collectLinkedTargetsForPalette(wm, paletteWin)
+  local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+  for _, entry in ipairs(targets or {}) do
+    if WindowCaps.isSketchCanvas(entry.win) then
+      SketchPalette.onUnlinkedFromPalette(entry.win)
+    end
+  end
 end
 
 function M.removeLinkForLayer(contentWin, layerIndex)

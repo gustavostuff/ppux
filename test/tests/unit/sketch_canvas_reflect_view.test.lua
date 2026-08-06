@@ -30,12 +30,16 @@ local function paintTileDiffPixels(canvas, tileCol, tileRow, baseValue, flipCoun
   end
 end
 
-local function withMode(mode, fn)
+local function withMode(mode, fn, wm)
   local prev = rawget(_G, "ctx")
   rawset(_G, "ctx", {
     getMode = function()
       return mode
     end,
+    app = wm and { wm = wm } or nil,
+    wm = wm and function()
+      return wm
+    end or nil,
   })
   local ok, err = pcall(fn)
   rawset(_G, "ctx", prev)
@@ -76,7 +80,9 @@ describe("sketch canvas - tile-mode mirror view", function()
   it("blocks paint in global tile mode when a pack exists", function()
     local wm = WM.new()
     local sketch = wm:createSketchCanvasWindow()
+    local pt = wm:createPatternTableWindow()
     paintTile(sketch.layers[1].canvas, 0, 0, 2)
+    assert(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm))
     assert(SketchCanvasPackController.generate(sketch))
 
     withMode("tile", function()
@@ -85,11 +91,31 @@ describe("sketch canvas - tile-mode mirror view", function()
       local painted = BrushController.paintPixel(app, sketch, 2, 0, 0, 0, false)
       expect(painted).toBe(false)
       expect(sketch.layers[1].canvas:getPixel(16, 0)).toBe(0)
-    end)
+    end, wm)
 
     withMode("edit", function()
       expect(WindowCaps.isSketchReflectNametable(sketch)).toBe(false)
-    end)
+    end, wm)
+  end)
+
+  it("tile mode without a linked pattern table is not reflect (edit paint stays hidden)", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow()
+    local pt = wm:createPatternTableWindow()
+    paintTile(sketch.layers[1].canvas, 0, 0, 2)
+    assert(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm))
+    assert(SketchCanvasPackController.generateAndApply(sketch, wm))
+    expect(SketchCanvasPackController.hasPackData(sketch)).toBe(true)
+
+    -- Unlink in edit mode: pack + paint kept.
+    assert(SketchCanvasPackController.unlinkSketchPatternTable(sketch, wm, { clearPack = false }))
+    expect(sketch.layers[1].canvas:getPixel(0, 0)).toBe(2)
+    expect(SketchCanvasPackController.hasPackData(sketch)).toBe(true)
+
+    withMode("tile", function()
+      -- Tile mode must not treat an unlinked sketch as a nametable mirror.
+      expect(WindowCaps.isSketchReflectNametable(sketch)).toBe(false)
+    end, wm)
   end)
 
   it("bakes nametable composition into paint when leaving tile mode after NT edits", function()
@@ -160,8 +186,10 @@ describe("sketch canvas - tile-mode mirror view", function()
   it("keeps packed tile-mode view when Generate is dirty (paint edits wait for Generate)", function()
     local wm = WM.new()
     local sketch = wm:createSketchCanvasWindow()
+    local pt = wm:createPatternTableWindow()
     local paint = sketch.layers[1].canvas
     paintTile(paint, 0, 0, 3)
+    assert(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm))
     assert(SketchCanvasPackController.generate(sketch))
 
     local before = SketchCanvasPackController.getReflectDisplayCanvas(sketch)
@@ -178,12 +206,13 @@ describe("sketch canvas - tile-mode mirror view", function()
     expect(after:getPixel(0, 0)).toBe(3)
     withMode("tile", function()
       expect(WindowCaps.isSketchReflectNametable(sketch)).toBe(true)
-    end)
+    end, wm)
   end)
 
   it("marks Generate dirty on load when pack samples disagree with paint", function()
     local wm = WM.new()
     local sketch = wm:createSketchCanvasWindow()
+    local pt = wm:createPatternTableWindow()
     local paint = sketch.layers[1].canvas
     -- Two identical non-solid tiles share one pool sample at the first occurrence.
     local function paintMark(col, row)
@@ -199,6 +228,7 @@ describe("sketch canvas - tile-mode mirror view", function()
     end
     paintMark(0, 0)
     paintMark(2, 2)
+    assert(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm))
     assert(SketchCanvasPackController.generate(sketch))
     expect(SketchCanvasPackController.isGenerateDirty(sketch)).toBe(false)
 
@@ -208,7 +238,7 @@ describe("sketch canvas - tile-mode mirror view", function()
     expect(SketchCanvasPackController.isGenerateDirty(sketch)).toBe(true)
     withMode("tile", function()
       expect(WindowCaps.isSketchReflectNametable(sketch)).toBe(true)
-    end)
+    end, wm)
   end)
 
   it("does not collapse near-transparent skirt edges into blank solidShade 0", function()

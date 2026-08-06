@@ -438,12 +438,14 @@ describe("keyboard_art_actions_controller.lua", function()
 
     local wm = WM.new()
     local win = wm:createSketchCanvasWindow({ title = "AttrUndo" })
+    local pt = wm:createPatternTableWindow({ title = "AttrUndo PT" })
     local canvas = win:getActiveCanvas()
     for y = 0, 7 do
       for x = 0, 7 do
         canvas:edit(x, y, 2)
       end
     end
+    expect(SketchCanvasPackController.linkSketchToPatternTable(win, pt, wm)).toBe(true)
     expect(SketchCanvasPackController.generate(win)).toBe(true)
     SketchPalette.ensureAttrBytes(win)
     expect(#win.nametableAttrBytes).toBe(64)

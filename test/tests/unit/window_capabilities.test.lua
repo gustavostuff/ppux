@@ -20,6 +20,7 @@ describe("window_capabilities.lua", function()
       rawset(_G, "ctx", { getMode = function() return "tile" end })
       local packed = {
         kind = "sketch_canvas",
+        linkedPatternTableWindowId = "pt_1",
         tilesPool = { { x = 0, y = 0 } },
         nametableBytes = {},
       }
@@ -27,6 +28,9 @@ describe("window_capabilities.lua", function()
         packed.nametableBytes[i] = 0
       end
       expect(WindowCaps.isSketchReflectNametable(packed)).toBeTruthy()
+      packed.linkedPatternTableWindowId = nil
+      expect(WindowCaps.isSketchReflectNametable(packed)).toBeFalsy()
+      packed.linkedPatternTableWindowId = "pt_1"
       rawset(_G, "ctx", { getMode = function() return "edit" end })
       expect(WindowCaps.isSketchReflectNametable(packed)).toBeFalsy()
       rawset(_G, "ctx", prev)

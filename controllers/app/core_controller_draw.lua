@@ -101,8 +101,15 @@ local function resolveTransparentPreviewColor(app, win, layer, paletteNum, romRa
     end
   end
 
-  -- Unlinked sketch: match default shader palette color 0 (not window chrome bg).
+  -- Unlinked sketch: default brown ramp color 0 (gallery default).
   if WindowCaps.isSketchCanvas(win) then
+    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+    if not SketchPalette.getLinkedSketchPalette(win, app and app.wm) then
+      local code = SketchPalette.DEFAULT_BROWN_CODES[1] or "07"
+      local Palettes = require("palettes")
+      local p = Palettes.smooth_fbx or Palettes
+      return (p and p[code]) or colors.black
+    end
     local paletteColors = ShaderPaletteController.getPaletteColors(layer, 1, romRaw)
     if paletteColors and paletteColors[1] then
       return paletteColors[1]

@@ -141,6 +141,7 @@ describe("sketch_canvas_export_controller.lua - scaffold", function()
   it("encodes nametable bytes with optional attributes", function()
     local wm = WM.new()
     local win = wm:createSketchCanvasWindow({ title = "NT" })
+    local pt = wm:createPatternTableWindow({ title = "NT PT" })
     local canvas = win:getActiveCanvas()
     for y = 0, 239 do
       for x = 0, 255 do
@@ -152,6 +153,7 @@ describe("sketch_canvas_export_controller.lua - scaffold", function()
         canvas:edit(8 + x, y, 2)
       end
     end
+    expect(SketchCanvasPackController.linkSketchToPatternTable(win, pt, wm)).toBe(true)
     expect(SketchCanvasPackController.generate(win)).toBe(true)
 
     local tilesOnly, err = SketchCanvasExportController.encodeNametableFromSketch(win)
@@ -171,7 +173,15 @@ describe("sketch_canvas_export_controller.lua - scaffold", function()
 
     -- Real attrs: set quadrant palette 2 (UI key 3 -> index 2) at tile 0,0
     local prev = rawget(_G, "ctx")
-    rawset(_G, "ctx", { getMode = function() return "tile" end })
+    rawset(_G, "ctx", {
+      getMode = function()
+        return "tile"
+      end,
+      app = { wm = wm },
+      wm = function()
+        return wm
+      end,
+    })
     local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
     local layer = win.layers[1]
     expect(NametableTilesController.setPaletteNumberForTile(win, layer, 0, 0, 3)).toBe(true)
@@ -224,6 +234,7 @@ describe("sketch_canvas_export_controller.lua - scaffold", function()
     -- their intended solid fills on hardware.
     local wm = WM.new()
     local sketch = wm:createSketchCanvasWindow({ title = "Color0Bake" })
+    local pt = wm:createPatternTableWindow({ title = "Color0Bake PT" })
     local canvas = sketch:getActiveCanvas()
     for y = 0, 15 do
       for x = 0, 15 do
@@ -241,6 +252,7 @@ describe("sketch_canvas_export_controller.lua - scaffold", function()
         canvas:edit(x, y, 1 + (x + y) % 3)
       end
     end
+    expect(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm)).toBe(true)
     expect(SketchCanvasPackController.generate(sketch)).toBe(true)
 
     local pal = wm:createRomPaletteWindow({ title = "BakePal", paletteRole = "sketch" })
@@ -252,7 +264,15 @@ describe("sketch_canvas_export_controller.lua - scaffold", function()
     local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
     local layer = sketch.layers[1]
     local prev = rawget(_G, "ctx")
-    rawset(_G, "ctx", { getMode = function() return "tile" end })
+    rawset(_G, "ctx", {
+      getMode = function()
+        return "tile"
+      end,
+      app = { wm = wm },
+      wm = function()
+        return wm
+      end,
+    })
     expect(NametableTilesController.setPaletteNumberForTile(sketch, layer, 2, 0, 2)).toBe(true)
     expect(NametableTilesController.setPaletteNumberForTile(sketch, layer, 3, 0, 2)).toBe(true)
     expect(NametableTilesController.setPaletteNumberForTile(sketch, layer, 2, 1, 2)).toBe(true)

@@ -438,6 +438,10 @@ function UndoRedoController:addSketchCanvasPatternTableLinkEvent(event)
     afterLinkedId = afterId,
     beforeStolenSketchWin = event.beforeStolenSketchWin,
     beforeStolenLinkedId = event.beforeStolenLinkedId,
+    beforePack = event.beforePack,
+    afterPack = event.afterPack,
+    beforeItemsPixels = event.beforeItemsPixels,
+    afterItemsPixels = event.afterItemsPixels,
   })
   if pushed then
     self:_notifyUnsaved("sketch_canvas_pattern_table_link")

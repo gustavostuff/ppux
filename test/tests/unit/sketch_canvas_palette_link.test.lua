@@ -210,17 +210,27 @@ describe("sketch_canvas_palette_link (B5)", function()
   it("tile mode keys 1-4 write attribute quadrants", function()
     local wm = WM.new()
     local sketch = wm:createSketchCanvasWindow({ title = "Reflect" })
+    local pt = wm:createPatternTableWindow()
     local canvas = sketch:getActiveCanvas()
     for y = 0, 7 do
       for x = 0, 7 do
         canvas:edit(x, y, 1)
       end
     end
+    expect(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm)).toBe(true)
     expect(SketchCanvasPackController.generate(sketch)).toBe(true)
     SketchPalette.ensureAttrBytes(sketch)
 
     local prev = rawget(_G, "ctx")
-    rawset(_G, "ctx", { getMode = function() return "tile" end })
+    rawset(_G, "ctx", {
+      getMode = function()
+        return "tile"
+      end,
+      app = { wm = wm },
+      wm = function()
+        return wm
+      end,
+    })
 
     local layer = sketch.layers[1]
     sketch:setSelected(0, 0, 1)
@@ -232,7 +242,7 @@ describe("sketch_canvas_palette_link (B5)", function()
       getMode = function()
         return "tile"
       end,
-      app = { undoRedo = nil },
+      app = { undoRedo = nil, wm = wm },
       setStatus = function() end,
     }
     expect(KeyboardArtActions.handlePaletteNumberAssignment(ctx, "4", sketch, {})).toBe(true)
@@ -272,5 +282,53 @@ describe("sketch_canvas_palette_link (B5)", function()
 
     -- Cleanup
     os.execute("rm -rf '" .. asmDir .. "'")
+  end)
+
+  it("unlinking sketch palette keeps attrs and treats palette as gone (brown draw path)", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow({ title = "S" })
+    local pal = wm:createRomPaletteWindow({ title = "Sketch pal", paletteRole = "sketch" })
+    local prev = rawget(_G, "ctx")
+    rawset(_G, "ctx", { app = { wm = wm } })
+
+    expect(PaletteLinkController.linkLayerToPalette(sketch, 1, pal)).toBe(true)
+    sketch.nametableAttrBytes[1] = 0x03
+    expect(SketchPalette.getLinkedSketchPalette(sketch, wm)).toBe(pal)
+
+    expect(PaletteLinkController.removeLinkForLayer(sketch, 1)).toBe(true)
+    expect(SketchPalette.getLinkedSketchPalette(sketch, wm)).toBeNil()
+    expect(sketch.nametableAttrBytes[1]).toBe(0x03)
+    expect(SketchPalette.DEFAULT_BROWN_CODES[1]).toBe("07")
+    expect(SketchPalette.DEFAULT_BROWN_CODES[2]).toBe("17")
+    expect(SketchPalette.DEFAULT_BROWN_CODES[3]).toBe("27")
+    expect(SketchPalette.DEFAULT_BROWN_CODES[4]).toBe("36")
+
+    rawset(_G, "ctx", prev)
+  end)
+
+  it("closing linked sketch palette keeps winId but getLinkedSketchPalette returns nil", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow({ title = "S" })
+    local pal = wm:createRomPaletteWindow({ title = "Sketch pal", paletteRole = "sketch" })
+    expect(PaletteLinkController.linkLayerToPalette(sketch, 1, pal)).toBe(true)
+    SketchPalette.ensureAttrBytes(sketch)
+    sketch.nametableAttrBytes[2] = 0x02
+
+    assert(wm:closeWindow(pal))
+    expect(sketch.layers[1].paletteData.winId).toBe(pal._id)
+    expect(SketchPalette.getLinkedSketchPalette(sketch, wm)).toBeNil()
+    expect(sketch.nametableAttrBytes[2]).toBe(0x02)
+
+    assert(wm:reopenWindow(pal))
+    expect(SketchPalette.getLinkedSketchPalette(sketch, wm)).toBe(pal)
+  end)
+
+  it("encodePaletteBlob32 falls back to brown when palette is missing", function()
+    local blob = SketchPalette.encodePaletteBlob32(nil)
+    expect(#blob).toBe(32)
+    expect(blob[1]).toBe(0x07)
+    expect(blob[2]).toBe(0x17)
+    expect(blob[3]).toBe(0x27)
+    expect(blob[4]).toBe(0x36)
   end)
 end)
