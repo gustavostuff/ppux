@@ -625,6 +625,20 @@ local function finishPixelSelection(x, y, button)
   return false
 end
 
+local function setEditLastPointFromScreen(win, x, y)
+  if not (win and win.toGridCoords) then
+    return
+  end
+  local ok, col, row, lx, ly = win:toGridCoords(x, y)
+  if not ok then
+    return
+  end
+  win.editLastPoint = {
+    x = col * (win.cellW or 8) + math.floor(lx or 0),
+    y = row * (win.cellH or 8) + math.floor(ly or 0),
+  }
+end
+
 local function finishEditShape(x, y, button)
   if button ~= 1 then return false end
   local win = ctx and ctx.wm and ctx.wm():getFocus() or nil
@@ -652,10 +666,11 @@ local function finishEditShape(x, y, button)
     local ok = BrushController.fillRect(app, win, shape.startX, shape.startY, endX, endY, false)
     if ok then
       app.undoRedo:finishPaintEvent()
-      win.editLastPoint = { x = endX, y = endY }
     else
       app.undoRedo:cancelPaintEvent()
     end
+    -- Anchor even when the fill changed no pixels (same-color fill).
+    win.editLastPoint = { x = endX, y = endY }
     return true
   end
 
@@ -664,13 +679,12 @@ local function finishEditShape(x, y, button)
     local ok = BrushController.drawLine(app, win, win.editLastPoint.x, win.editLastPoint.y, endX, endY, false)
     if ok then
       app.undoRedo:finishPaintEvent()
-      win.editLastPoint = { x = endX, y = endY }
     else
       app.undoRedo:cancelPaintEvent()
     end
-  else
-    win.editLastPoint = { x = endX, y = endY }
   end
+  -- Always update the Shift line/rect anchor to this click (including same-color / empty strokes).
+  win.editLastPoint = { x = endX, y = endY }
 
   return true
 end
@@ -697,22 +711,13 @@ function M.mousereleased(x, y, button)
 
   -- Finish undo/redo paint event if we were painting
   if ctx.getMode() == "edit" and ctx.getPainting() and ctx.app and ctx.app.undoRedo then
-    if ctx.app.undoRedo:finishPaintEvent() then
-      -- Paint event was stored successfully
-      if fwin and fwin.toGridCoords then
-        local ok, col, row, lx, ly = fwin:toGridCoords(x, y)
-        if ok then
-          local px = col * (fwin.cellW or 8) + math.floor(lx or 0)
-          local py = row * (fwin.cellH or 8) + math.floor(ly or 0)
-          fwin.editLastPoint = { x = px, y = py }
-        end
-      end
-      ctx.setPainting(false)
-    else
-      -- No pixels were painted, just cancel
+    if not ctx.app.undoRedo:finishPaintEvent() then
+      -- No pixels changed (e.g. same-color click); drop the empty event.
       ctx.app.undoRedo:cancelPaintEvent()
-      ctx.setPainting(false)
     end
+    -- Still register the click as the Shift line/rect anchor.
+    setEditLastPointFromScreen(fwin, x, y)
+    ctx.setPainting(false)
   end
 
   -- Clear tile paint state on mouse release

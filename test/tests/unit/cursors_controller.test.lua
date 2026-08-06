@@ -238,6 +238,43 @@ describe("cursors_controller.lua", function()
     expect(setTo).toBe("fill")
   end)
 
+  it("uses the color_select cursor when C is held over editable content", function()
+    local setTo = nil
+    love.mouse.setCursor = function(cursor) setTo = cursor end
+    love.keyboard.isDown = function(key)
+      return key == "c"
+    end
+    ResolutionController.getScaledMouse = function()
+      return { x = 10, y = MY }
+    end
+
+    local layer = { kind = "tile", removedCells = {} }
+    local win = {
+      isPalette = false,
+      cols = 8,
+      layers = { layer },
+      getActiveLayerIndex = function() return 1 end,
+      toGridCoords = function() return true, 1, 2 end,
+      get = function() return { id = "tile" } end,
+      isInHeader = function() return false end,
+    }
+
+    local app = {
+      hardwareCursors = {
+        arrow = "arrow",
+        pencil = "pencil",
+        pick = "pick",
+        color_select = "color_select",
+      },
+      wm = {
+        windowAt = function() return win end,
+      },
+    }
+
+    CursorsController.applyModeCursor(app, "edit")
+    expect(setTo).toBe("color_select")
+  end)
+
   it("uses the rect cursor when the sketch select tool is active in edit mode", function()
     local setTo = nil
     love.mouse.setCursor = function(cursor) setTo = cursor end

@@ -72,18 +72,18 @@ vec4 effect(vec4 color, Image tex, vec2 texCoord, vec2 screenCoord)
 
   float edge = max(u_edgeFrac, 0.05);
   bool onOutsideEdge =
-    (mL >= 0.5 && frac.x < edge) ||
-    (mR >= 0.5 && frac.x > 1.0 - edge) ||
-    (mU >= 0.5 && frac.y < edge) ||
-    (mD >= 0.5 && frac.y > 1.0 - edge);
+    (mL >= 0.5 && frac.x <= edge) ||
+    (mR >= 0.5 && frac.x >= 1.0 - edge) ||
+    (mU >= 0.5 && frac.y <= edge) ||
+    (mD >= 0.5 && frac.y >= 1.0 - edge);
 
   // Convex corners: diagonal exterior cell has no orthogonal mask neighbor,
   // so fill the corner nub that joins the H/V outline segments.
   bool onOutsideCorner =
-    (mUL >= 0.5 && mL < 0.5 && mU < 0.5 && frac.x < edge && frac.y < edge) ||
-    (mUR >= 0.5 && mR < 0.5 && mU < 0.5 && frac.x > 1.0 - edge && frac.y < edge) ||
-    (mDL >= 0.5 && mL < 0.5 && mD < 0.5 && frac.x < edge && frac.y > 1.0 - edge) ||
-    (mDR >= 0.5 && mR < 0.5 && mD < 0.5 && frac.x > 1.0 - edge && frac.y > 1.0 - edge);
+    (mUL >= 0.5 && mL < 0.5 && mU < 0.5 && frac.x <= edge && frac.y <= edge) ||
+    (mUR >= 0.5 && mR < 0.5 && mU < 0.5 && frac.x >= 1.0 - edge && frac.y <= edge) ||
+    (mDL >= 0.5 && mL < 0.5 && mD < 0.5 && frac.x <= edge && frac.y >= 1.0 - edge) ||
+    (mDR >= 0.5 && mR < 0.5 && mD < 0.5 && frac.x >= 1.0 - edge && frac.y >= 1.0 - edge);
 
   if (!onOutsideEdge && !onOutsideCorner) {
     return vec4(0.0);
@@ -1120,7 +1120,9 @@ function M.drawColorPaintMaskOverlay(win)
   shader:send("u_origin", { ox, oy })
   shader:send("u_zoom", z)
   -- ~1 screen pixel of edge thickness in the exterior neighbor cell.
-  shader:send("u_edgeFrac", math.min(0.5, 1.0 / z))
+  -- Cap at 1.0 (full canvas cell) so zoom 1 still covers the single screen pixel
+  -- (a 0.5 cap left the fragment center unpainted).
+  shader:send("u_edgeFrac", math.min(1.0, 1.0 / z))
   shader:send("u_pulse", pulse)
 
   love.graphics.setShader(shader)

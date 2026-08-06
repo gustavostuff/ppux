@@ -28,6 +28,7 @@ local CURSOR_FILES_BY_SET = {
     pencil = "cursor_pencil_6_6.png",
     fill = "cursor_fill_2_21.png",
     pick = "cursor_pick_2_27.png",
+    color_select = "cursor_colorselect_8_1.png",
     rect_fill = "cursor_rect_14_14.png",
     unavailable = "cursor_unavailable_14_14.png",
     resize = "cursor_resize_14_14.png",
@@ -38,6 +39,7 @@ local CURSOR_FILES_BY_SET = {
     pencil = "cursor_pencil_3_3.png",
     fill = "cursor_fill_1_10.png",
     pick = "cursor_pick_1_13.png",
+    color_select = "cursor_colorselect_4_0.png",
     rect_fill = "cursor_rect_7_7.png",
     unavailable = "cursor_unavailable_7_7.png",
     resize = "cursor_resize_7_7.png",
@@ -629,7 +631,7 @@ local function resolveTargetCursorName(app, mode)
       return hoveringEditable and "fill" or "arrow"
     end
     if colorMaskDown then
-      return hoveringEditable and "pick" or "arrow"
+      return hoveringEditable and "color_select" or "arrow"
     end
     if app and app.editTool == "rect_select" then
       return "rect_fill"
@@ -654,6 +656,9 @@ function CursorsController.applyModeCursor(app, mode)
   if app and targetName == "rect_fill" and not cursors.rect_fill then
     cursors.rect_fill = ensureNamedCursorLoaded(app, "rect_fill")
   end
+  if app and targetName == "color_select" and not cursors.color_select then
+    cursors.color_select = ensureNamedCursorLoaded(app, "color_select")
+  end
   if app and targetName == "unavailable" and not cursors.unavailable then
     cursors.unavailable = ensureNamedCursorLoaded(app, "unavailable")
   end
@@ -665,6 +670,9 @@ function CursorsController.applyModeCursor(app, mode)
   if useSoftwareCursor then
     if app and targetName == "rect_fill" then
       ensureNamedSoftwareCursorLoaded(app, "rect_fill")
+    end
+    if app and targetName == "color_select" then
+      ensureNamedSoftwareCursorLoaded(app, "color_select")
     end
     if app and targetName == "unavailable" then
       ensureNamedSoftwareCursorLoaded(app, "unavailable")
@@ -729,6 +737,7 @@ local function loadAllCursorAssets(app)
     pencil = loadNamedCursor("pencil", cursorSet),
     fill = loadNamedCursor("fill", cursorSet),
     pick = loadNamedCursor("pick", cursorSet),
+    color_select = loadNamedCursor("color_select", cursorSet),
     rect_fill = loadNamedCursor("rect_fill", cursorSet),
     unavailable = loadNamedCursor("unavailable", cursorSet),
     resize = loadNamedCursor("resize", cursorSet),
@@ -740,6 +749,7 @@ local function loadAllCursorAssets(app)
   app.softwareCursors.pencil = ensureNamedSoftwareCursorLoaded(app, "pencil")
   app.softwareCursors.fill = ensureNamedSoftwareCursorLoaded(app, "fill")
   app.softwareCursors.pick = ensureNamedSoftwareCursorLoaded(app, "pick")
+  app.softwareCursors.color_select = ensureNamedSoftwareCursorLoaded(app, "color_select")
   app.softwareCursors.rect_fill = ensureNamedSoftwareCursorLoaded(app, "rect_fill")
   app.softwareCursors.unavailable = ensureNamedSoftwareCursorLoaded(app, "unavailable")
   app.softwareCursors.resize = ensureNamedSoftwareCursorLoaded(app, "resize")

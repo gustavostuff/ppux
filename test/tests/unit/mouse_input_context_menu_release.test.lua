@@ -516,3 +516,146 @@ describe("mouse_input.lua - context menus on release", function()
     expect(focusWin.editLastPoint.y).toBe(5)
   end)
 end)
+
+describe("mouse_input.lua - editLastPoint after paint", function()
+  local originals
+
+  beforeEach(function()
+    originals = {
+      toolbarRelease = MouseWindowChromeController.handleToolbarRelease,
+      resizeEnd = MouseWindowChromeController.handleResizeEnd,
+      finishSpriteMarquee = SpriteController.finishSpriteMarquee,
+      isDragging = SpriteController.isDragging,
+      finishDrag = SpriteController.finishDrag,
+      endDrag = SpriteController.endDrag,
+      finishTileMarquee = MultiSelectController.finishTileMarquee,
+      reset = MultiSelectController.reset,
+    }
+    MouseWindowChromeController.handleToolbarRelease = function() return false end
+    MouseWindowChromeController.handleResizeEnd = function() return false end
+    SpriteController.finishSpriteMarquee = function() return false end
+    SpriteController.isDragging = function() return false end
+    SpriteController.finishDrag = function() end
+    SpriteController.endDrag = function() end
+    MultiSelectController.finishTileMarquee = function() return false end
+    MultiSelectController.reset = function() end
+  end)
+
+  afterEach(function()
+    MouseWindowChromeController.handleToolbarRelease = originals.toolbarRelease
+    MouseWindowChromeController.handleResizeEnd = originals.resizeEnd
+    SpriteController.finishSpriteMarquee = originals.finishSpriteMarquee
+    SpriteController.isDragging = originals.isDragging
+    SpriteController.finishDrag = originals.finishDrag
+    SpriteController.endDrag = originals.endDrag
+    MultiSelectController.finishTileMarquee = originals.finishTileMarquee
+    MultiSelectController.reset = originals.reset
+  end)
+
+  it("updates the Shift line/rect anchor even when the paint stroke changed no pixels", function()
+    local painting = true
+    local focusWin = {
+      kind = "static_art",
+      cellW = 8,
+      cellH = 8,
+      editLastPoint = { x = 1, y = 1 },
+      toGridCoords = function()
+        return true, 2, 3, 4, 5
+      end,
+    }
+    local undoRedo = {
+      finished = 0,
+      canceled = 0,
+      finishPaintEvent = function(self)
+        self.finished = self.finished + 1
+        return false
+      end,
+      cancelPaintEvent = function(self)
+        self.canceled = self.canceled + 1
+      end,
+    }
+    local wm = {
+      getFocus = function() return focusWin end,
+      setFocus = function() end,
+      windowAt = function() return focusWin end,
+    }
+
+    MouseInput.setup({
+      wm = function() return wm end,
+      getMode = function() return "edit" end,
+      getPainting = function() return painting end,
+      setPainting = function(v) painting = v end,
+      setStatus = function() end,
+      app = { undoRedo = undoRedo },
+    }, { active = false, pending = false }, { active = false }, {})
+
+    MouseInput.mousereleased(40, 30, 1)
+
+    expect(undoRedo.finished).toBe(1)
+    expect(undoRedo.canceled).toBe(1)
+    expect(painting).toBe(false)
+    -- col*cellW + lx = 2*8 + 4 = 20; row*cellH + ly = 3*8 + 5 = 29
+    expect(focusWin.editLastPoint.x).toBe(20)
+    expect(focusWin.editLastPoint.y).toBe(29)
+  end)
+
+  it("updates the Shift line/rect anchor after a same-color Shift line click", function()
+    local focusWin = {
+      kind = "static_art",
+      editShapeDrag = {
+        kind = "rect_or_line",
+        startX = 9,
+        startY = 10,
+        currentX = 9,
+        currentY = 10,
+        moved = false,
+      },
+      editLastPoint = { x = 1, y = 2 },
+    }
+    local undoRedo = {
+      started = 0,
+      finished = 0,
+      canceled = 0,
+      startPaintEvent = function(self)
+        self.started = self.started + 1
+      end,
+      finishPaintEvent = function(self)
+        self.finished = self.finished + 1
+        return true
+      end,
+      cancelPaintEvent = function(self)
+        self.canceled = self.canceled + 1
+      end,
+    }
+    local wm = {
+      getFocus = function() return focusWin end,
+      setFocus = function() end,
+      windowAt = function() return focusWin end,
+    }
+
+    MouseInput.setup({
+      wm = function() return wm end,
+      getMode = function() return "edit" end,
+      getPainting = function() return false end,
+      setPainting = function() end,
+      setStatus = function() end,
+      app = { undoRedo = undoRedo },
+    }, { active = false, pending = false }, { active = false }, {})
+
+    local BrushController = require("controllers.input_support.brush_controller")
+    local originalDrawLine = BrushController.drawLine
+    BrushController.drawLine = function()
+      return false
+    end
+
+    MouseInput.mousereleased(10, 10, 1)
+
+    BrushController.drawLine = originalDrawLine
+
+    expect(undoRedo.started).toBe(1)
+    expect(undoRedo.canceled).toBe(1)
+    expect(focusWin.editShapeDrag).toBeNil()
+    expect(focusWin.editLastPoint.x).toBe(9)
+    expect(focusWin.editLastPoint.y).toBe(10)
+  end)
+end)
