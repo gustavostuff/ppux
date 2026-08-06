@@ -631,9 +631,6 @@ local function resolveTargetCursorName(app, mode)
     if colorMaskDown then
       return hoveringEditable and "pick" or "arrow"
     end
-    if app and app.editTool == "rect_fill" then
-      return "rect_fill"
-    end
     if app and app.editTool == "rect_select" then
       return "rect_fill"
     end

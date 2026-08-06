@@ -238,7 +238,7 @@ describe("cursors_controller.lua", function()
     expect(setTo).toBe("fill")
   end)
 
-  it("uses the rect fill cursor when the rect tool is active in edit mode", function()
+  it("uses the rect cursor when the sketch select tool is active in edit mode", function()
     local setTo = nil
     love.mouse.setCursor = function(cursor) setTo = cursor end
     love.keyboard.isDown = function() return false end
@@ -258,7 +258,7 @@ describe("cursors_controller.lua", function()
     }
 
     local app = {
-      editTool = "rect_fill",
+      editTool = "rect_select",
       hardwareCursors = { arrow = "arrow", pencil = "pencil", rect_fill = "rect_fill" },
       wm = {
         windowAt = function() return win end,
@@ -269,7 +269,7 @@ describe("cursors_controller.lua", function()
     expect(setTo).toBe("rect_fill")
   end)
 
-  it("uses the rect fill cursor in edit mode even when not hovering content", function()
+  it("uses the rect cursor for sketch select even when not hovering content", function()
     local setTo = nil
     love.mouse.setCursor = function(cursor) setTo = cursor end
     love.keyboard.isDown = function() return false end
@@ -278,7 +278,7 @@ describe("cursors_controller.lua", function()
     end
 
     local app = {
-      editTool = "rect_fill",
+      editTool = "rect_select",
       hardwareCursors = { arrow = "arrow", pencil = "pencil", rect_fill = "rect_fill" },
       wm = {
         windowAt = function() return nil end,

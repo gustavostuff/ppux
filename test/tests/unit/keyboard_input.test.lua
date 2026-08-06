@@ -126,8 +126,9 @@ describe("keyboard_input.lua - delete key on sprite selections", function()
 end)
 
 describe("keyboard_input.lua - edit and grid shortcuts", function()
-  it("toggles the rect fill tool with R in edit mode", function()
+  it("toggles sketch pixel select with S in edit mode", function()
     local status = "Idle"
+    local sketchWin = { kind = "sketch_canvas" }
     local app = { editTool = "pencil" }
     local appliedCursorMode = nil
     local originalApplyModeCursor = CursorsController.applyModeCursor
@@ -138,7 +139,7 @@ describe("keyboard_input.lua - edit and grid shortcuts", function()
     local ctx = {
       getMode = function() return "edit" end,
       setMode = function() end,
-      getFocus = function() return nil end,
+      getFocus = function() return sketchWin end,
       getStatus = function() return status end,
       setStatus = function(msg) status = msg end,
       setColor = function() end,
@@ -154,16 +155,16 @@ describe("keyboard_input.lua - edit and grid shortcuts", function()
       altDown = function() return false end,
     })
 
-    KeyboardInput.keypressed("r", ctx.app)
-    expect(app.editTool).toBe("rect_fill")
+    KeyboardInput.keypressed("s", ctx.app)
+    expect(app.editTool).toBe("rect_select")
     expect(appliedCursorMode).toBe("edit")
-    expect(status).toBe("Idle")
+    expect(status).toBe("Tool: select (S) — Shift+drag freeform")
 
     appliedCursorMode = nil
-    KeyboardInput.keypressed("r", ctx.app)
+    KeyboardInput.keypressed("s", ctx.app)
     expect(app.editTool).toBe("pencil")
     expect(appliedCursorMode).toBe("edit")
-    expect(status).toBe("Idle")
+    expect(status).toBe("Tool: pencil")
 
     CursorsController.applyModeCursor = originalApplyModeCursor
   end)

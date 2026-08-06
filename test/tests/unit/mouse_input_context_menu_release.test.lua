@@ -460,15 +460,16 @@ describe("mouse_input.lua - context menus on release", function()
     expect(lastArgs.layerIndex).toBe(1)
   end)
 
-  it("finishes rect fill edit shapes on left-button release without crashing", function()
+  it("finishes shift-drag rectangle fill shapes on left-button release without crashing", function()
     local focusWin = {
       kind = "static_art",
       editShapeDrag = {
-        kind = "rect_fill",
+        kind = "rect_or_line",
         startX = 1,
         startY = 2,
         currentX = 4,
         currentY = 5,
+        moved = true,
       },
       editLastPoint = nil,
     }
@@ -490,8 +491,9 @@ describe("mouse_input.lua - context menus on release", function()
       },
     }, { active = false, pending = false }, { active = false }, {})
 
-    local originalFillRect = package.loaded["controllers.input_support.brush_controller"].fillRect
-    package.loaded["controllers.input_support.brush_controller"].fillRect = function(app, win, x0, y0, x1, y1, pickOnly)
+    local BrushController = require("controllers.input_support.brush_controller")
+    local originalFillRect = BrushController.fillRect
+    BrushController.fillRect = function(app, win, x0, y0, x1, y1, pickOnly)
       expect(app.undoRedo).toBe(undoRedo)
       expect(win).toBe(focusWin)
       expect(x0).toBe(1)
@@ -504,7 +506,7 @@ describe("mouse_input.lua - context menus on release", function()
 
     MouseInput.mousereleased(10, 10, 1)
 
-    package.loaded["controllers.input_support.brush_controller"].fillRect = originalFillRect
+    BrushController.fillRect = originalFillRect
 
     expect(undoRedo.started).toBe(1)
     expect(undoRedo.finished).toBe(1)

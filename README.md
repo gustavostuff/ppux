@@ -295,8 +295,7 @@ Tile mode is for selection, drag/drop, and tile-level editing in general.
 
 Edit mode is for pixel-level painting.
 
-- Left click to paint. `Shift + click` draws a line from the last painted point.
-- `R` toggles the rectangle fill tool.
+- Left click to paint. `Shift + click` draws a line from the last painted point. `Shift + drag` fills a rectangle.
 - Hold `G` and left click (or just right-click) to sample a color.
 - Hold `F` and left click to flood fill.
 - `1` to `4` choose the active color. `Alt + 1/2/3/4` or `Ctrl + Alt + mouse wheel` change brush size.

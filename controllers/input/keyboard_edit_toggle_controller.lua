@@ -22,13 +22,6 @@ function M.handleEditModeKeys(ctx, utils, key)
     return true
   end
 
-  if key == "r" and not utils.ctrlDown() and not utils.altDown() then
-    if not app then return false end
-    app.editTool = (app.editTool == "rect_fill") and "pencil" or "rect_fill"
-    CursorsController.applyModeCursor(app, ctx.getMode())
-    return true
-  end
-
   -- S: pixel select on sketch canvases (edit mode). Plain drag = rect; Shift+drag = freeform.
   if key == "s" and not utils.ctrlDown() and not utils.altDown() and not utils.shiftDown() then
     if not app then return false end

@@ -236,7 +236,7 @@ local function tryDrawGenericEditShapePreview(app, win, layer, hoveredItem, romR
   local bgPreviewColor = resolveTransparentPreviewColor(app, win, layer, paletteNum, romRaw)
 
   if win.editShapeDrag
-    and (win.editShapeDrag.kind == "rect_or_line" or win.editShapeDrag.kind == "rect_fill")
+    and win.editShapeDrag.kind == "rect_or_line"
     and win.editShapeDrag.moved then
     local shape = win.editShapeDrag
     drawPatternBuilderRectPreview(
@@ -251,7 +251,9 @@ local function tryDrawGenericEditShapePreview(app, win, layer, hoveredItem, romR
     return true
   end
 
-  if app.editTool == "rect_fill" then
+  -- Sketch select remaps Shift (freeform lasso); do not show the line-from-last-point preview.
+  local editTool = app.editTool
+  if editTool == "rect_select" or editTool == "free_select" then
     return false
   end
 

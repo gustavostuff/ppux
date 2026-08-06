@@ -962,22 +962,11 @@ local function handleEditModeClick(env, button, x, y, win, wm)
       end
       ctx.setPainting(false)
     elseif utils.shiftDown and utils.shiftDown() then
+      -- Click = line from last point; drag = filled rectangle.
       local px = col * (win.cellW or 8) + math.floor(lx or 0)
       local py = row * (win.cellH or 8) + math.floor(ly or 0)
       win.editShapeDrag = {
         kind = "rect_or_line",
-        startX = px,
-        startY = py,
-        currentX = px,
-        currentY = py,
-        moved = false,
-      }
-      ctx.setPainting(false)
-    elseif ctx.app and ctx.app.editTool == "rect_fill" then
-      local px = col * (win.cellW or 8) + math.floor(lx or 0)
-      local py = row * (win.cellH or 8) + math.floor(ly or 0)
-      win.editShapeDrag = {
-        kind = "rect_fill",
         startX = px,
         startY = py,
         currentX = px,

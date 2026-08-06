@@ -640,20 +640,6 @@ local function finishEditShape(x, y, button)
     return false
   end
 
-  if shape.kind == "rect_fill" then
-    local endX = shape.currentX or shape.startX
-    local endY = shape.currentY or shape.startY
-    app.undoRedo:startPaintEvent()
-    local ok = BrushController.fillRect(app, win, shape.startX, shape.startY, endX, endY, false)
-    if ok then
-      app.undoRedo:finishPaintEvent()
-      win.editLastPoint = { x = endX, y = endY }
-    else
-      app.undoRedo:cancelPaintEvent()
-    end
-    return true
-  end
-
   if shape.kind ~= "rect_or_line" then
     return false
   end
