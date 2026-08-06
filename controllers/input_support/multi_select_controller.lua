@@ -1309,6 +1309,88 @@ function M.getTileMarquee()
   return nil
 end
 
+--- Count tile/sprite cells on the layer whose CHR identity matches refBank + refTileIndex.
+--- Does not change selection state.
+function M.countChrReferences(win, layerIndex, refBank, refTileIndex)
+  refBank = tonumber(refBank)
+  refTileIndex = tonumber(refTileIndex)
+  if not (win and win.layers and type(layerIndex) == "number" and refBank and refTileIndex) then
+    return 0
+  end
+
+  local layer = win.layers[layerIndex]
+  if not layer then
+    return 0
+  end
+
+  if layer.kind == "tile" then
+    local cols = win.cols or 0
+    local rows = win.rows or 0
+    if cols <= 0 or rows <= 0 then
+      return 0
+    end
+
+    local removedCells = (WindowCaps.isPpuFrame(win) and layer.kind == "tile") and nil or layer.removedCells
+    local count = 0
+
+    for row = 0, rows - 1 do
+      for col = 0, cols - 1 do
+        local idx = row * cols + col + 1
+        if not (removedCells and removedCells[idx]) then
+          local item = getTileInteractionItem(win, col, row, layerIndex)
+          item = materializeTileInteractionItem(win, item, layerIndex)
+          if item then
+            local bank = tileSourceBankAt(win, layer, col, row, item)
+            local t = normalizeChrTileIndex(item)
+            if bank == refBank and t == refTileIndex then
+              count = count + 1
+            end
+          end
+        end
+      end
+    end
+    return count
+  end
+
+  if layer.kind == "sprite" then
+    local count = 0
+    for _, s in ipairs(layer.items or {}) do
+      if s and s.removed ~= true then
+        local bank = spriteSourceBank(s, layer)
+        local t = normalizeChrTileIndex(s)
+        if bank == refBank and t == refTileIndex then
+          count = count + 1
+        end
+      end
+    end
+    return count
+  end
+
+  return 0
+end
+
+--- Count CHR references matching the tile at (col, row) on the layer.
+function M.countChrReferencesAt(win, layerIndex, col, row)
+  if not (win and type(layerIndex) == "number" and type(col) == "number" and type(row) == "number") then
+    return 0
+  end
+  local layer = win.layers and win.layers[layerIndex]
+  if not (layer and layer.kind == "tile") then
+    return 0
+  end
+  local item = getTileInteractionItem(win, col, row, layerIndex)
+  item = materializeTileInteractionItem(win, item, layerIndex)
+  if not item then
+    return 0
+  end
+  local bank = tileSourceBankAt(win, layer, col, row, item)
+  local tileIndex = normalizeChrTileIndex(item)
+  if not tileIndex then
+    return 0
+  end
+  return M.countChrReferences(win, layerIndex, bank, tileIndex)
+end
+
 --- Select every tile cell or sprite on the layer whose CHR identity matches refBank + refTileIndex
 --- (same semantics as select-in-CHR context). Updates multi-tile or multi-sprite selection state.
 function M.selectAllChrReferences(win, layerIndex, refBank, refTileIndex)

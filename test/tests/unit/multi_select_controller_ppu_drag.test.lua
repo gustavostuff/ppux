@@ -285,4 +285,36 @@ describe("multi_select_controller.lua - oam marquee selection with layer origin"
     expect(layer.multiSpriteSelectionOrder).toEqual({ 1 })
     expect(layer.selectedSpriteIndex).toBe(1)
   end)
+
+  it("counts CHR references at a nametable cell without changing selection", function()
+    local layer = {
+      kind = "tile",
+      items = {},
+      multiTileSelection = { [1] = true },
+    }
+    local cols, rows = 4, 2
+    local grid = {}
+    local function put(col, row, index)
+      grid[row * cols + col + 1] = { index = index, _bankIndex = 1 }
+    end
+    put(0, 0, 5)
+    put(1, 0, 5)
+    put(2, 0, 7)
+    put(0, 1, 5)
+
+    local win = {
+      kind = "ppu_frame",
+      cols = cols,
+      rows = rows,
+      layers = { layer },
+      get = function(_, col, row)
+        return grid[row * cols + col + 1]
+      end,
+    }
+
+    expect(MultiSelectController.countChrReferencesAt(win, 1, 0, 0)).toBe(3)
+    expect(MultiSelectController.countChrReferencesAt(win, 1, 2, 0)).toBe(1)
+    -- Selection state unchanged.
+    expect(layer.multiTileSelection[1]).toBe(true)
+  end)
 end)

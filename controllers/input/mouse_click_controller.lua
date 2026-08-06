@@ -132,19 +132,28 @@ local function showSelectedTileLabel(ctx, win, col, row, item)
   end
 end
 
--- PPU nametable cell pick: status bar updates removed (tile info shown in-window).
-local function setPpuTilePickStatus(_ctx, _win, _col, _row, _item)
-  if not (WindowCaps.isPpuFrame(_win) and _item) then
+-- PPU nametable cell pick: show col/row and how many times this CHR tile appears in the layer.
+-- Only when the nametable (tile) layer is active — not when a sprite-layer miss falls through.
+local function setPpuTilePickStatus(ctx, win, col, row, item, layerIdx)
+  if not (WindowCaps.isPpuFrame(win) and item) then
     return
   end
-  local li = (_win.getActiveLayerIndex and _win:getActiveLayerIndex()) or _win.activeLayer or 1
-  local layer = _win.layers and _win.layers[li]
+  local activeIdx = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
+  local activeLayer = win.layers and win.layers[activeIdx]
+  if not (activeLayer and activeLayer.kind == "tile") then
+    return
+  end
+  local li = layerIdx or activeIdx
+  local layer = win.layers and win.layers[li]
   if not (layer and layer.kind == "tile") then
     return
   end
   if layer._runtimePatternTableRefLayer == true then
     return
   end
+  local count = MultiSelectController.countChrReferencesAt(win, li, col, row)
+  local refsLabel = (count == 1) and "1 reference" or string.format("%d references", count)
+  StatusHelpers.setStatus(ctx, string.format("Nametable col %d, row %d - %s", col, row, refsLabel))
 end
 
 -- CHR/ROM bank window pick: status bar updates removed.
@@ -160,18 +169,18 @@ local function setPatternTableTilePickStatus(ctx, win, col, row, item)
   end
   local li = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1
   local layer = win.layers and win.layers[li]
-  local infoItem = item
+  local reportCol, reportRow = col, row
   if layer and (layer.mode == "8x16" or layer.mode == "oddEven") and type(row) == "number" then
-    local topRow = row - (row % 2)
-    if topRow ~= row then
-      if win.getVirtualTileHandle then
-        infoItem = win:getVirtualTileHandle(col, topRow, li) or infoItem
-      elseif win.get then
-        infoItem = win:get(col, topRow, li) or infoItem
-      end
-    end
+    reportRow = row - (row % 2)
   end
-  local tileIndex = infoItem and tonumber(infoItem.index)
+  if type(reportCol) ~= "number" or type(reportRow) ~= "number" then
+    return
+  end
+  local BankViewController = require("controllers.chr.bank_view_controller")
+  local cols = win.cols or 16
+  local gridPos = reportRow * cols + reportCol
+  local layoutMode = (layer and layer.mode) or "8x8"
+  local tileIndex = BankViewController.chrOrderingIndexForGridPos(layoutMode, gridPos)
   if type(tileIndex) ~= "number" then
     return
   end
@@ -179,8 +188,8 @@ local function setPatternTableTilePickStatus(ctx, win, col, row, item)
   StatusHelpers.setStatus(ctx, string.format("Tile %d ($%02X)", tileIndex, tileIndex % 0x100))
 end
 
-local function setTilePickStatus(ctx, win, col, row, item)
-  setPpuTilePickStatus(ctx, win, col, row, item)
+local function setTilePickStatus(ctx, win, col, row, item, layerIdx)
+  setPpuTilePickStatus(ctx, win, col, row, item, layerIdx)
   setChrTilePickStatus(ctx, win, col, row, item)
   setPatternTableTilePickStatus(ctx, win, col, row, item)
 end
@@ -1056,13 +1065,13 @@ local function handleTileHitSelection(env, ctx, win, wm, tileLayerIdx, col, row,
     local toggled = MultiSelectController.toggleTileCellToSelection(win, tileLayerIdx, col, row, true)
     if toggled == "removed" then
       setTileClick({ active = false })
-      setTilePickStatus(ctx, win, col, row, item)
+      setTilePickStatus(ctx, win, col, row, item, tileLayerIdx)
       return true
     end
     tileGroup = MultiSelectController.buildTileDragGroup(win, tileLayerIdx, col, row)
     setTileClick({ active = false })
     showSelectedTileLabel(ctx, win, col, row, item)
-    setTilePickStatus(ctx, win, col, row, item)
+    setTilePickStatus(ctx, win, col, row, item, tileLayerIdx)
     startTileDrag(env, win, col, row, tileLayerIdx, item, wm, x, y, true, tileGroup)
     return true
   end
@@ -1083,7 +1092,7 @@ local function handleTileHitSelection(env, ctx, win, wm, tileLayerIdx, col, row,
   })
   win:setSelected(col, row, tileLayerIdx)
   showSelectedTileLabel(ctx, win, col, row, item)
-  setTilePickStatus(ctx, win, col, row, item)
+  setTilePickStatus(ctx, win, col, row, item, tileLayerIdx)
   startTileDrag(env, win, col, row, tileLayerIdx, item, wm, x, y, false, tileGroup)
   return true
 end
