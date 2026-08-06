@@ -2,7 +2,7 @@ hue_ramp.png — horizontal hue strip for the color picker matrix.
 
 Replace this file with your own ramp exported at full pixel resolution, then regenerate:
 
-  python3 tools/extract_hue_ramp.py assets/hue_ramp.png --lua-out user_interface/hue_ramp_matrix_columns.lua
+  python3 tools/extract_hue_ramp.py assets/hue_ramp.png --lua-out ui/hue_ramp_matrix_columns.lua
 
 Optional: dump every column’s RGB to JSON (image width samples):
 

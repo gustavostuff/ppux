@@ -4,8 +4,8 @@ local BankCanvasController = require("controllers.chr.bank_canvas_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local AppSettingsController = require("controllers.app.settings_controller")
 local CursorsController = require("controllers.input_support.cursors_controller")
-local Taskbar = require("user_interface.taskbar")
-local UiScale = require("user_interface.ui_scale")
+local Taskbar = require("ui.taskbar")
+local UiScale = require("ui.ui_scale")
 local ToastController = require("controllers.ui.toast_controller")
 local UserInput = require("controllers.input")
 local RomProjectController = require("controllers.rom.rom_project_controller")
@@ -219,13 +219,13 @@ end
 
 local function loadAppFont(size)
   local candidates = {
-    "user_interface/fonts/AsepriteFont.ttf",
-    "../user_interface/fonts/AsepriteFont.ttf",
-    "user_interface/fonts/proggy-tiny.ttf",
-    "../user_interface/fonts/proggy-tiny.ttf",
-    "user_interface/fonts/proggy-clean-sz.ttf",
-    "../user_interface/fonts/proggy-clean-sz.ttf",
-    "user_interface/fonts/Tiny5-Regular.ttf",
+    "ui/fonts/AsepriteFont.ttf",
+    "../ui/fonts/AsepriteFont.ttf",
+    "ui/fonts/proggy-tiny.ttf",
+    "../ui/fonts/proggy-tiny.ttf",
+    "ui/fonts/proggy-clean-sz.ttf",
+    "../ui/fonts/proggy-clean-sz.ttf",
+    "ui/fonts/Tiny5-Regular.ttf",
   }
 
   for _, candidate in ipairs(candidates) do

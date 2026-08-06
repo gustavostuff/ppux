@@ -1,7 +1,7 @@
 local SaveController = require("controllers.rom.save_controller")
 local RomProjectController = require("controllers.rom.rom_project_controller")
 local AppSettingsController = require("controllers.app.settings_controller")
-local SaveOptionsModal = require("user_interface.modals.save_options_modal")
+local SaveOptionsModal = require("ui.modals.save_options_modal")
 
 return function(AppCoreController)
 
@@ -691,7 +691,7 @@ end
 function AppCoreController:showSaveProjectFolderModal(opts)
   opts = opts or {}
   if not self.saveProjectFolderModal then
-    local SaveProjectFolderModal = require("user_interface.modals.save_project_folder_modal")
+    local SaveProjectFolderModal = require("ui.modals.save_project_folder_modal")
     self.saveProjectFolderModal = SaveProjectFolderModal.new()
   end
 
@@ -783,7 +783,7 @@ end
 
 function AppCoreController:showOpenProjectModal()
   if not self.openProjectModal then
-    local OpenProjectModal = require("user_interface.modals.open_project_modal")
+    local OpenProjectModal = require("ui.modals.open_project_modal")
     self.openProjectModal = OpenProjectModal.new()
   end
 
@@ -828,7 +828,7 @@ function AppCoreController:pickReferenceBackgroundForFocusedWindow()
 
   local function openPngChooser()
     if not self.openReferencePngModal then
-      local OpenReferenceBackgroundModal = require("user_interface.modals.open_reference_background_modal")
+      local OpenReferenceBackgroundModal = require("ui.modals.open_reference_background_modal")
       self.openReferencePngModal = OpenReferenceBackgroundModal.new()
     end
 

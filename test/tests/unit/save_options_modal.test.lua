@@ -1,4 +1,4 @@
-local SaveOptionsModal = require("user_interface.modals.save_options_modal")
+local SaveOptionsModal = require("ui.modals.save_options_modal")
 
 describe("save_options_modal.lua", function()
   it("renders vertical option buttons with numeric prefixes", function()

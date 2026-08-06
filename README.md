@@ -38,9 +38,9 @@ PPUX has two main functionalities:
 1. Modify graphics on an existing game.
 2. Create graphics from scratch.
 
-For the first approach, a ROM needs to be dropped into the window. If the ROM has no DB entry, a default, basic layout will be loaded. If a DB entry exists, then things get much easier: a tailored workspace will be loaded (this is where PPUX shines, the core idea).
+For the first approach, drop a ROM into the window. Without a DB entry, PPUX loads a basic default layout. With one, it opens a tailored workspace: the core strength of the tool.
 
-For the second approach, _Sketch Canvas_ windows are used. From them, pattern tables can be generated and they can also map colors thru attributes, like real nametables. Binaries for both CHR data and nametable data can be exported, and even a full _Gallery ROM_ featuring N _gallery items_ (one item per Sketch Canvas windows.
+For the second approach, use _Sketch Canvas_ windows. From these you can generate pattern tables and map colors through attributes, as with real nametables. You can export CHR and nametable binaries, or a full _Gallery ROM_ with one _gallery item_ per Sketch Canvas.
 
 ### Windows system
 

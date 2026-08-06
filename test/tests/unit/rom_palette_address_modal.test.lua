@@ -1,4 +1,4 @@
-local RomPaletteAddressModal = require("user_interface.modals.rom_palette_address_modal")
+local RomPaletteAddressModal = require("ui.modals.rom_palette_address_modal")
 
 describe("rom_palette_address_modal.lua", function()
   it("confirms trimmed address text on enter", function()

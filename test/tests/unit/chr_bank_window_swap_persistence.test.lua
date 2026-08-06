@@ -1,4 +1,4 @@
-local ChrBankWindow = require("user_interface.windows_system.chr_bank_window")
+local ChrBankWindow = require("ui.windows_system.chr_bank_window")
 local ChrDuplicateSync = require("controllers.chr.duplicate_sync_controller")
 
 local function makeTile(index, fill)

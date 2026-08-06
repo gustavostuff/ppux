@@ -1,17 +1,17 @@
 -- toolbar_controller.lua
 -- Manages creation and lifecycle of window toolbars
 
-local HeaderToolbar = require("user_interface.toolbars.header_toolbar")
-local ChrHeaderToolbar = require("user_interface.toolbars.chr_header_toolbar")
-local AnimationToolbar = require("user_interface.toolbars.animation_toolbar")
-local StaticArtToolbar = require("user_interface.toolbars.static_art_toolbar")
-local SketchCanvasToolbar = require("user_interface.toolbars.sketch_canvas_toolbar")
-local PatternTableToolbar = require("user_interface.toolbars.pattern_table_toolbar")
-local PPUFrameToolbar = require("user_interface.toolbars.ppu_frame_toolbar")
-local PaletteToolbar = require("user_interface.toolbars.palette_toolbar")
-local RomPaletteToolbar = require("user_interface.toolbars.rom_palette_toolbar")
-local ChrToolbar = require("user_interface.toolbars.chr_toolbar")
-local CrtViewerToolbar = require("user_interface.toolbars.crt_viewer_toolbar")
+local HeaderToolbar = require("ui.toolbars.header_toolbar")
+local ChrHeaderToolbar = require("ui.toolbars.chr_header_toolbar")
+local AnimationToolbar = require("ui.toolbars.animation_toolbar")
+local StaticArtToolbar = require("ui.toolbars.static_art_toolbar")
+local SketchCanvasToolbar = require("ui.toolbars.sketch_canvas_toolbar")
+local PatternTableToolbar = require("ui.toolbars.pattern_table_toolbar")
+local PPUFrameToolbar = require("ui.toolbars.ppu_frame_toolbar")
+local PaletteToolbar = require("ui.toolbars.palette_toolbar")
+local RomPaletteToolbar = require("ui.toolbars.rom_palette_toolbar")
+local ChrToolbar = require("ui.toolbars.chr_toolbar")
+local CrtViewerToolbar = require("ui.toolbars.crt_viewer_toolbar")
 local DebugController = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 

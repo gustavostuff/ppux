@@ -1,5 +1,5 @@
 local WM = require("controllers.window.window_controller")
-local PixelCanvas = require("user_interface.windows_system.pixel_canvas")
+local PixelCanvas = require("ui.windows_system.pixel_canvas")
 local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 

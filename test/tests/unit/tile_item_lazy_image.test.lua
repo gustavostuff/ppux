@@ -1,4 +1,4 @@
-local Tile = require("user_interface.windows_system.tile_item")
+local Tile = require("ui.windows_system.tile_item")
 
 describe("tile_item.lua - lazy image creation", function()
   it("defers image allocation until the tile is drawn", function()

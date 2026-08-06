@@ -1,8 +1,8 @@
 -- Top-of-canvas strip: quick actions + optional docked focused-window toolbar ("Separate toolbar").
 local colors = require("app_colors")
-local Button = require("user_interface.button")
+local Button = require("ui.button")
 local images = require("images")
-local UiScale = require("user_interface.ui_scale")
+local UiScale = require("ui.ui_scale")
 local WindowCaps = require("controllers.window.window_capabilities")
 local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")

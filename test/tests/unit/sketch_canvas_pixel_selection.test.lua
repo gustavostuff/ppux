@@ -1,4 +1,4 @@
-local PixelCanvas = require("user_interface.windows_system.pixel_canvas")
+local PixelCanvas = require("ui.windows_system.pixel_canvas")
 local WM = require("controllers.window.window_controller")
 local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
 local UndoRedoController = require("controllers.input_support.undo_redo_controller")

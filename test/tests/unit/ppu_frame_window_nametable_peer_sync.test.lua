@@ -1,4 +1,4 @@
-local PPUFrameWindow = require("user_interface.windows_system.ppu_frame_window")
+local PPUFrameWindow = require("ui.windows_system.ppu_frame_window")
 local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
 local NametableUtils = require("utils.nametable_utils")
 local chr = require("chr")

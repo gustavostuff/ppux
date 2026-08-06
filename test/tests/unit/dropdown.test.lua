@@ -1,6 +1,6 @@
-local Dropdown = require("user_interface.dropdown")
+local Dropdown = require("ui.dropdown")
 
-describe("user_interface/dropdown.lua", function()
+describe("ui/dropdown.lua", function()
   local function makeItems()
     return {
       { value = 10, text = "Alpha" },

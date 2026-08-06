@@ -505,7 +505,7 @@ describe("game_art_layout_io_controller.lua", function()
 
   it("snapshotLayout persists windowOrderIds from taskbar minimized strip order", function()
     local WM = require("controllers.window.window_controller")
-    local Taskbar = require("user_interface.taskbar")
+    local Taskbar = require("ui.taskbar")
     local wm = WM.new()
     local app = { wm = wm }
     local tb = Taskbar.new(app, { h = 15 })
@@ -527,7 +527,7 @@ describe("game_art_layout_io_controller.lua", function()
 
   it("buildWindowsFromLayout restores wm stack from layout.windows and taskbar strip from windowOrderIds", function()
     local WM = require("controllers.window.window_controller")
-    local Taskbar = require("user_interface.taskbar")
+    local Taskbar = require("ui.taskbar")
     local GameArtWindowBuilderController = require("controllers.game_art.window_builder_controller")
 
     local wm1 = WM.new()
@@ -574,7 +574,7 @@ describe("game_art_layout_io_controller.lua", function()
 
   it("buildWindowsFromLayout uses layout.windows z-order when windowOrderIds misses a window id", function()
     local WM = require("controllers.window.window_controller")
-    local Taskbar = require("user_interface.taskbar")
+    local Taskbar = require("ui.taskbar")
     local GameArtWindowBuilderController = require("controllers.game_art.window_builder_controller")
 
     local snap = {
@@ -629,7 +629,7 @@ describe("game_art_layout_io_controller.lua", function()
 
   it("buildWindowsFromLayout uses construction order when layout entries have blank ids", function()
     local WM = require("controllers.window.window_controller")
-    local Taskbar = require("user_interface.taskbar")
+    local Taskbar = require("ui.taskbar")
     local GameArtWindowBuilderController = require("controllers.game_art.window_builder_controller")
 
     local snap = {

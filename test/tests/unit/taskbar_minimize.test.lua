@@ -1,4 +1,4 @@
-local Taskbar = require("user_interface.taskbar")
+local Taskbar = require("ui.taskbar")
 local WM = require("controllers.window.window_controller")
 local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
 local images = require("images")

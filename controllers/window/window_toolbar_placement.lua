@@ -11,7 +11,7 @@ M.KEY_RIGHT = "right"
 M.KEY_BOTTOM = "bottom"
 M.KEY_AUTO = "auto"
 
--- Must match user_interface/toolbars/toolbar_base.lua TOOLBAR_OUTSIDE_GAP.
+-- Must match ui/toolbars/toolbar_base.lua TOOLBAR_OUTSIDE_GAP.
 local OUT_GAP = 4
 
 local function btnVis(b)
@@ -235,7 +235,7 @@ function M.effectiveForLayout(key, wnd, app, toolbar)
   return k
 end
 
--- Dropdown items use numeric `value` (see user_interface/dropdown.lua).
+-- Dropdown items use numeric `value` (see ui/dropdown.lua).
 -- Order in UI: Auto, Top, Left, Right, Bottom.
 local VAL_AUTO, VAL_TOP, VAL_LEFT, VAL_RIGHT, VAL_BOTTOM = 1, 2, 3, 4, 5
 

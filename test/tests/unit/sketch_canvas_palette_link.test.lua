@@ -138,7 +138,7 @@ describe("sketch_canvas_palette_link (B5)", function()
   end)
 
   it("normalizes divergent sketch color-0 values on load", function()
-    local RomPaletteWindow = require("user_interface.windows_system.rom_palette_window")
+    local RomPaletteWindow = require("ui.windows_system.rom_palette_window")
     local pal = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
       title = "Sketch palette",
       paletteRole = "sketch",

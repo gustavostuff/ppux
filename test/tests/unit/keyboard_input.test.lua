@@ -1,8 +1,8 @@
 local KeyboardInput = require("controllers.input.keyboard_input")
 local BankViewController = require("controllers.chr.bank_view_controller")
 local CursorsController = require("controllers.input_support.cursors_controller")
-local Tile = require("user_interface.windows_system.tile_item")
-local Window = require("user_interface.windows_system.window")
+local Tile = require("ui.windows_system.tile_item")
+local Window = require("ui.windows_system.window")
 
 describe("keyboard_input.lua - delete key on sprite selections", function()
   it("applies sprite delete rules by window kind (static/animation/oam allow)", function()

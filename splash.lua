@@ -1,5 +1,5 @@
 local colors = require("app_colors")
-local Button = require("user_interface.button")
+local Button = require("ui.button")
 local images = require("images")
 
 local Splash = {}

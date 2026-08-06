@@ -28,8 +28,8 @@ local function getOverlayFont()
   end
 
   local paths = {
-    "user_interface/fonts/proggy-tiny.ttf",
-    "../user_interface/fonts/proggy-tiny.ttf",
+    "ui/fonts/proggy-tiny.ttf",
+    "../ui/fonts/proggy-tiny.ttf",
   }
 
   for _, path in ipairs(paths) do

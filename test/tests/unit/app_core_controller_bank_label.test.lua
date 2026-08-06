@@ -1,5 +1,5 @@
 local AppCoreController = require("controllers.app.core_controller")
-local Window = require("user_interface.windows_system.window")
+local Window = require("ui.windows_system.window")
 
 describe("app_core_controller.lua - bank tile label mirroring", function()
   it("shows the current-bank tile label for a selected non-chr tile", function()

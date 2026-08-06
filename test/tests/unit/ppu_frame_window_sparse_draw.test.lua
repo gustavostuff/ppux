@@ -1,4 +1,4 @@
-local PPUFrameWindow = require("user_interface.windows_system.ppu_frame_window")
+local PPUFrameWindow = require("ui.windows_system.ppu_frame_window")
 
 describe("ppu_frame_window.lua sparse tile rendering", function()
   local originalGraphics = {}

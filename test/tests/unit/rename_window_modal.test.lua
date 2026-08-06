@@ -1,4 +1,4 @@
-local RenameWindowModal = require("user_interface.modals.rename_window_modal")
+local RenameWindowModal = require("ui.modals.rename_window_modal")
 
 describe("rename_window_modal.lua", function()
   it("confirms renamed title on enter", function()

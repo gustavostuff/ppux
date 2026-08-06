@@ -4,10 +4,10 @@
 local chr             = require("chr")
 local WindowController   = require("controllers.window.window_controller")
 local GameArtController  = require("controllers.game_art.game_art_controller")
-local PaletteWindow   = require("user_interface.windows_system.palette_window")
-local RomWindow       = require("user_interface.windows_system.rom_window")
-local StaticArtWindow = require("user_interface.windows_system.static_art_window")
-local AnimationWindow = require("user_interface.windows_system.animation_window")
+local PaletteWindow   = require("ui.windows_system.palette_window")
+local RomWindow       = require("ui.windows_system.rom_window")
+local StaticArtWindow = require("ui.windows_system.static_art_window")
+local AnimationWindow = require("ui.windows_system.animation_window")
 local BankViewController = require("controllers.chr.bank_view_controller")
 local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
 local ChrDuplicateSync = require("controllers.chr.duplicate_sync_controller")
@@ -1149,7 +1149,7 @@ local function createDefaultWindows(app)
 
   pulseLoading(app, "Building default windows...")
   local useRomWindow = ChrBackingController.isRomRawMode(state)
-  local winCtor = useRomWindow and RomWindow or require("user_interface.windows_system.chr_bank_window")
+  local winCtor = useRomWindow and RomWindow or require("ui.windows_system.chr_bank_window")
   local winBank = winCtor.new(30, 30, 8, 8, 16, 32, 2, {
     visibleRows = 16,
     visibleCols = 16,

@@ -1,4 +1,4 @@
-local OpenProjectModal = require("user_interface.modals.open_project_modal")
+local OpenProjectModal = require("ui.modals.open_project_modal")
 
 local function makePopenStub(commandOutputs)
   return function(command)

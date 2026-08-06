@@ -2,10 +2,10 @@ local AppSettingsController = require("controllers.app.settings_controller")
 local WindowToolbarPlacement = require("controllers.window.window_toolbar_placement")
 local ResolutionController = require("controllers.app.resolution_controller")
 local KeyboardWindowShortcutsController = require("controllers.input.keyboard_window_shortcuts_controller")
-local SettingsModal = require("user_interface.modals.settings_modal")
-local SettingsFields = require("user_interface.modals.settings_modal_fields")
-local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
-local Dropdown = require("user_interface.dropdown")
+local SettingsModal = require("ui.modals.settings_modal")
+local SettingsFields = require("ui.modals.settings_modal_fields")
+local ModalPanelUtils = require("ui.modals.panel_modal_utils")
+local Dropdown = require("ui.dropdown")
 local WindowCaps = require("controllers.window.window_capabilities")
 local WindowLinkVisibility = require("controllers.window.window_link_visibility")
 local colors = require("app_colors")
@@ -522,7 +522,7 @@ function AppCoreController:_ensureSettingsWindowShadowBlurSlider()
   if self._windowShadowBlurSlider then
     return
   end
-  local Slider = require("user_interface.slider")
+  local Slider = require("ui.slider")
   local appRef = self
   self._windowShadowBlurSlider = Slider.new({
     min = 0,
@@ -634,7 +634,7 @@ function AppCoreController:_ensureSettingsWindowShadowStrengthSlider()
   if self._windowShadowStrengthSlider then
     return
   end
-  local Slider = require("user_interface.slider")
+  local Slider = require("ui.slider")
   local appRef = self
   self._windowShadowStrengthSlider = Slider.new({
     min = 0,
@@ -787,7 +787,7 @@ function AppCoreController:_ensureSettingsCrtCurveSlider()
   if self._crtCurveSlider then
     return
   end
-  local Slider = require("user_interface.slider")
+  local Slider = require("ui.slider")
   local appRef = self
   self._crtCurveSlider = Slider.new({
     min = 0,

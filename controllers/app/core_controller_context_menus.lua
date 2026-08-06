@@ -171,7 +171,7 @@ function AppCoreController:_buildEmptySpaceContextMenuItems()
   local sortTitleIcon = (tb and tb.sortAlphaButton and tb.sortAlphaButton.icon) or images.icons.chrome.sort_a_z
   local sortKindIcon = (tb and tb.sortKindButton and tb.sortKindButton.icon) or images.icons.chrome.sort_kind_asc
 
-  -- Same entries and enable rules as taskbar main menu → Windows (see user_interface/taskbar/menu.lua).
+  -- Same entries and enable rules as taskbar main menu → Windows (see ui/taskbar/menu.lua).
   return {
     {
       icon = images.icons.chrome.icon_new_window,

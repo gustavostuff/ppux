@@ -1,4 +1,4 @@
-local Panel = require("user_interface.panel")
+local Panel = require("ui.panel")
 
 describe("panel.lua", function()
   it("lays out arbitrary components with colspan and rowspan", function()
@@ -141,7 +141,7 @@ describe("panel.lua", function()
   end)
 
   it("does not hover covered dropdown triggers while an open menu is under the cursor", function()
-    local Dropdown = require("user_interface.dropdown")
+    local Dropdown = require("ui.dropdown")
     local items = {
       { value = 1, text = "One" },
       { value = 2, text = "Two" },

@@ -1,4 +1,4 @@
-local QuitConfirmModal = require("user_interface.modals.quit_confirm_modal")
+local QuitConfirmModal = require("ui.modals.quit_confirm_modal")
 local AppCoreController = require("controllers.app.core_controller")
 
 describe("quit_confirm_modal.lua", function()
@@ -272,7 +272,7 @@ describe("app_core_controller.lua - quit handling", function()
     love.event.quit = function()
       quitCalls = quitCalls + 1
     end
-    local PressEscAgainExitModal = require("user_interface.modals.press_esc_again_exit_modal")
+    local PressEscAgainExitModal = require("ui.modals.press_esc_again_exit_modal")
     local modal = PressEscAgainExitModal.new()
     modal:show()
     modal:handleKey("escape")
@@ -285,7 +285,7 @@ describe("app_core_controller.lua - quit handling", function()
     love.event.quit = function()
       quitCalls = quitCalls + 1
     end
-    local PressEscAgainExitModal = require("user_interface.modals.press_esc_again_exit_modal")
+    local PressEscAgainExitModal = require("ui.modals.press_esc_again_exit_modal")
     local modal = PressEscAgainExitModal.new()
     modal:show()
     modal:handleKey("return")
@@ -298,7 +298,7 @@ describe("app_core_controller.lua - quit handling", function()
     love.event.quit = function()
       quitCalls = quitCalls + 1
     end
-    local PressEscAgainExitModal = require("user_interface.modals.press_esc_again_exit_modal")
+    local PressEscAgainExitModal = require("ui.modals.press_esc_again_exit_modal")
     local modal = PressEscAgainExitModal.new()
     modal:show()
     local bx = modal.cancelButton.x + math.floor(modal.cancelButton.w / 2)

@@ -1,5 +1,5 @@
-local UiScale = require("user_interface.ui_scale")
-local ModalPanelUtils = require("user_interface.modals.panel_modal_utils")
+local UiScale = require("ui.ui_scale")
+local ModalPanelUtils = require("ui.modals.panel_modal_utils")
 
 local M = {}
 

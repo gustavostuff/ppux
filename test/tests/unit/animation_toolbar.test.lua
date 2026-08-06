@@ -1,5 +1,5 @@
-local AnimationWindow = require("user_interface.windows_system.animation_window")
-local AnimationToolbar = require("user_interface.toolbars.animation_toolbar")
+local AnimationWindow = require("ui.windows_system.animation_window")
+local AnimationToolbar = require("ui.toolbars.animation_toolbar")
 
 describe("animation_window.lua - copyTilesFromPreviousLayer", function()
   it("copies tile items and metadata from previous layer into active layer", function()

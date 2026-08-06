@@ -1,4 +1,4 @@
-local TextField = require("user_interface.text_field")
+local TextField = require("ui.text_field")
 
 describe("text_field.lua", function()
   local originalGetTime

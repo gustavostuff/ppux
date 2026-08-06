@@ -1,5 +1,5 @@
-local NametableHelpers = require("user_interface.windows_system.ppu_frame_nametable_helpers")
-local PPUFrameWindow = require("user_interface.windows_system.ppu_frame_window")
+local NametableHelpers = require("ui.windows_system.ppu_frame_nametable_helpers")
+local PPUFrameWindow = require("ui.windows_system.ppu_frame_window")
 
 describe("ppu_frame_nametable_helpers.lua", function()
   it("maps grid coordinates to linear indices", function()

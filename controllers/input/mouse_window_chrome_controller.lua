@@ -1,5 +1,5 @@
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
-local UiScale = require("user_interface.ui_scale")
+local UiScale = require("ui.ui_scale")
 local LoveCompat = require("utils.love_compat")
 
 local M = {}

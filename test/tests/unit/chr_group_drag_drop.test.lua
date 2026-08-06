@@ -569,7 +569,7 @@ describe("mouse_tile_drop_controller.lua - CHR grouped drag/drop", function()
       return 0, 0, contentW, contentH
     end
     -- Real remap path: must flip even when another window (e.g. CHR source) has focus.
-    local Window = require("user_interface.windows_system.window")
+    local Window = require("ui.windows_system.window")
     dst.remapPreviewMirrorScreenXYIfNeeded = Window.remapPreviewMirrorScreenXYIfNeeded
     dst.screenToAbsoluteCanvasXY = Window.screenToAbsoluteCanvasXY
 
@@ -690,7 +690,7 @@ describe("mouse_tile_drop_controller.lua - CHR grouped drag/drop", function()
     dst.getInsetContentScreenRect = function()
       return 0, 0, contentW, 64
     end
-    local Window = require("user_interface.windows_system.window")
+    local Window = require("ui.windows_system.window")
     dst.remapPreviewMirrorScreenXYIfNeeded = Window.remapPreviewMirrorScreenXYIfNeeded
     dst.screenToAbsoluteCanvasXY = Window.screenToAbsoluteCanvasXY
 
@@ -737,7 +737,7 @@ describe("mouse_tile_drop_controller.lua - CHR grouped drag/drop", function()
     dst.getInsetContentScreenRect = function()
       return 0, 0, contentW, 64
     end
-    local Window = require("user_interface.windows_system.window")
+    local Window = require("ui.windows_system.window")
     dst.remapPreviewMirrorScreenXYIfNeeded = Window.remapPreviewMirrorScreenXYIfNeeded
     dst.screenToAbsoluteCanvasXY = Window.screenToAbsoluteCanvasXY
 

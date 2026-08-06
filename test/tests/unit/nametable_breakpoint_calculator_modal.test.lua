@@ -1,4 +1,4 @@
-local NametableBreakpointCalculatorModal = require("user_interface.modals.nametable_breakpoint_calculator_modal")
+local NametableBreakpointCalculatorModal = require("ui.modals.nametable_breakpoint_calculator_modal")
 local NametableBreakpointMath = require("utils.nametable_breakpoint_math")
 
 describe("nametable_breakpoint_calculator_modal.lua", function()

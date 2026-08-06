@@ -2,7 +2,7 @@ local AppCoreController = require("controllers.app.core_controller")
 local WM = require("controllers.window.window_controller")
 local ToolbarController = require("controllers.window.toolbar_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
-local TaskbarHelpers = require("user_interface.taskbar.helpers")
+local TaskbarHelpers = require("ui.taskbar.helpers")
 
 describe("sketch canvas - New Window + toolbar shell", function()
   it("includes Sketch canvas in New Window options and creates a sketch_canvas window", function()

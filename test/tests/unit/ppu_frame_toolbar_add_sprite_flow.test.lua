@@ -1,4 +1,4 @@
-local PPUFrameToolbar = require("user_interface.toolbars.ppu_frame_toolbar")
+local PPUFrameToolbar = require("ui.toolbars.ppu_frame_toolbar")
 
 local function makeWindow(layers, activeLayer)
   local win = {

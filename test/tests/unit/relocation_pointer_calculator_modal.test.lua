@@ -1,4 +1,4 @@
-local RelocationPointerCalculatorModal = require("user_interface.modals.relocation_pointer_calculator_modal")
+local RelocationPointerCalculatorModal = require("ui.modals.relocation_pointer_calculator_modal")
 local RelocationPointerMath = require("utils.relocation_pointer_math")
 
 describe("relocation_pointer_calculator_modal.lua", function()

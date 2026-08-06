@@ -1,6 +1,6 @@
 local BankViewController = require("controllers.chr.bank_view_controller")
-local ChrBankWindow = require("user_interface.windows_system.chr_bank_window")
-local Tile = require("user_interface.windows_system.tile_item")
+local ChrBankWindow = require("ui.windows_system.chr_bank_window")
+local Tile = require("ui.windows_system.tile_item")
 
 describe("bank_view_controller.lua", function()
   local originalFromCHR

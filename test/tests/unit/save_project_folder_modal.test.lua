@@ -1,5 +1,5 @@
-local OpenFileModal = require("user_interface.modals.open_file_modal")
-local SaveProjectFolderModal = require("user_interface.modals.save_project_folder_modal")
+local OpenFileModal = require("ui.modals.open_file_modal")
+local SaveProjectFolderModal = require("ui.modals.save_project_folder_modal")
 
 local function makePopenStub(commandOutputs)
   return function(command)

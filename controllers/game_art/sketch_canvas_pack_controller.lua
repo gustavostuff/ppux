@@ -1,8 +1,8 @@
 -- sketch_canvas_pack_controller.lua
 -- Pack a sketch canvas into tilesPool ({x,y} refs) + nametableBytes, and apply to a linked PT.
 
-local Tile = require("user_interface.windows_system.tile_item")
-local PixelCanvas = require("user_interface.windows_system.pixel_canvas")
+local Tile = require("ui.windows_system.tile_item")
+local PixelCanvas = require("ui.windows_system.pixel_canvas")
 local BankViewController = require("controllers.chr.bank_view_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local TileInvalidationIndex = require("controllers.app.tile_invalidation_index")

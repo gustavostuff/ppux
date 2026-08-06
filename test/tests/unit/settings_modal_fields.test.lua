@@ -1,4 +1,4 @@
-local SettingsFields = require("user_interface.modals.settings_modal_fields")
+local SettingsFields = require("ui.modals.settings_modal_fields")
 
 describe("settings_modal_fields.lua", function()
   it("builds general tab rows with core toggles", function()

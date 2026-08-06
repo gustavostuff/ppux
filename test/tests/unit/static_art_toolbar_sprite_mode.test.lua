@@ -1,5 +1,5 @@
 local WM = require("controllers.window.window_controller")
-local StaticArtToolbar = require("user_interface.toolbars.static_art_toolbar")
+local StaticArtToolbar = require("ui.toolbars.static_art_toolbar")
 
 describe("static_art_toolbar.lua", function()
   local previousCtx

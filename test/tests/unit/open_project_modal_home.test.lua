@@ -1,4 +1,4 @@
-local OpenProjectModal = require("user_interface.modals.open_project_modal")
+local OpenProjectModal = require("ui.modals.open_project_modal")
 
 describe("open_project_modal.lua - home directory", function()
   it("resolves a non-empty home directory when Home is used", function()

@@ -1,5 +1,5 @@
-local RomPaletteWindow = require("user_interface.windows_system.rom_palette_window")
-local Window = require("user_interface.windows_system.window")
+local RomPaletteWindow = require("ui.windows_system.rom_palette_window")
+local Window = require("ui.windows_system.window")
 local colors = require("app_colors")
 local chr = require("chr")
 

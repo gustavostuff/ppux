@@ -30,10 +30,10 @@ local function getLoadingFont(app)
   end
 
   local candidates = {
-    "user_interface/fonts/AsepriteFont.ttf",
-    "../user_interface/fonts/AsepriteFont.ttf",
-    "user_interface/fonts/proggy-tiny.ttf",
-    "../user_interface/fonts/proggy-tiny.ttf",
+    "ui/fonts/AsepriteFont.ttf",
+    "../ui/fonts/AsepriteFont.ttf",
+    "ui/fonts/proggy-tiny.ttf",
+    "../ui/fonts/proggy-tiny.ttf",
   }
 
   for _, path in ipairs(candidates) do

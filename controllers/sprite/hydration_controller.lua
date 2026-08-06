@@ -2,7 +2,7 @@
 -- Sprite layer hydration and project snapshot/reapply helpers.
 
 local chr = require("chr")
-local Tile = require("user_interface.windows_system.tile_item")
+local Tile = require("ui.windows_system.tile_item")
 local TableUtils = require("utils.table_utils")
 local PatternTableMapping = require("utils.pattern_table_mapping")
 

@@ -1,4 +1,4 @@
-local PPUFrameSpriteLayerModeModal = require("user_interface.modals.ppu_frame_sprite_layer_mode_modal")
+local PPUFrameSpriteLayerModeModal = require("ui.modals.ppu_frame_sprite_layer_mode_modal")
 
 describe("ppu_frame_sprite_layer_mode_modal.lua", function()
   it("renders the sprite mode label and toggles the mode button text", function()

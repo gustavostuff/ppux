@@ -1,4 +1,4 @@
-local NewWindowModal = require("user_interface.modals.new_window_modal")
+local NewWindowModal = require("ui.modals.new_window_modal")
 
 describe("new_window_modal.lua", function()
   it("uses fixed grid and sprite mode for pattern-table-style options", function()

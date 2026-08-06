@@ -69,7 +69,7 @@ local function statesEqual(a, b)
 end
 
 function SpriteDragSelectionController.pickSpriteAt(SpriteController, win, x, y, activeLayerIndex)
-  local SpriteLayerDraw = require("user_interface.windows_system.sprite_layer_draw")
+  local SpriteLayerDraw = require("ui.windows_system.sprite_layer_draw")
   local SpriteHydrationController = require("controllers.sprite.hydration_controller")
 
   if not win or not win.layers then return nil end

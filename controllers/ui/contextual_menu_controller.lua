@@ -1,5 +1,5 @@
-local Panel = require("user_interface.panel")
-local UiScale = require("user_interface.ui_scale")
+local Panel = require("ui.panel")
+local UiScale = require("ui.ui_scale")
 local colors = require("app_colors")
 local LoveCompat = require("utils.love_compat")
 

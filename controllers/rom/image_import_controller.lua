@@ -4,7 +4,7 @@
 
 local chr = require("chr")
 local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
-local Tile = require("user_interface.windows_system.tile_item")
+local Tile = require("ui.windows_system.tile_item")
 local DebugController = require("controllers.dev.debug_controller")
 local ChrDuplicateSync = require("controllers.chr.duplicate_sync_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")

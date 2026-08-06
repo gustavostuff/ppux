@@ -1,4 +1,4 @@
-local Window = require("user_interface.windows_system.window")
+local Window = require("ui.windows_system.window")
 local ResolutionController = require("controllers.app.resolution_controller")
 
 describe("window.lua - drag bounds", function()

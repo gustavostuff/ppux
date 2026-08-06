@@ -1,4 +1,4 @@
-local Window = require("user_interface.windows_system.window")
+local Window = require("ui.windows_system.window")
 local SpaceHighlightController = require("controllers.window.space_highlight_controller")
 
 describe("space_highlight_controller.lua", function()

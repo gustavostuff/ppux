@@ -1,4 +1,4 @@
-local Window = require("user_interface.windows_system.window")
+local Window = require("ui.windows_system.window")
 local MouseClickController = require("controllers.input.mouse_click_controller")
 
 describe("chr odd-even selection mode", function()

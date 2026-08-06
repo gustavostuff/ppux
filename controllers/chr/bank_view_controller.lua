@@ -1,7 +1,7 @@
 -- managers/bank_view_controller.lua
 -- Handles CHR bank tiles and the CHR bank window content.
 
-local Tile = require("user_interface.windows_system.tile_item")
+local Tile = require("ui.windows_system.tile_item")
 local DebugController = require("controllers.dev.debug_controller")
 local LoveCompat = require("utils.love_compat")
 

@@ -1,7 +1,7 @@
 local Builder = require("controllers.game_art.window_builder_controller")
 local Factory = require("controllers.game_art.window_factory_controller")
 local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
-local PPUFrameWindow = require("user_interface.windows_system.ppu_frame_window")
+local PPUFrameWindow = require("ui.windows_system.ppu_frame_window")
 
 describe("game_art_window_builder_controller.lua", function()
   local originals

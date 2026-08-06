@@ -1,4 +1,4 @@
-local ToolbarBase = require("user_interface.toolbars.toolbar_base")
+local ToolbarBase = require("ui.toolbars.toolbar_base")
 
 describe("toolbar_base.lua - button activation", function()
   local function fakeIcon(w, h)

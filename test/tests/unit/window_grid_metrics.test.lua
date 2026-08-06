@@ -1,4 +1,4 @@
-local Window = require("user_interface.windows_system.window")
+local Window = require("ui.windows_system.window")
 
 describe("window.lua - display grid metrics", function()
   it("keeps 8px grid for sprite layers in 8x16 mode (OAM / pixel viewport, not CHR tile rows)", function()

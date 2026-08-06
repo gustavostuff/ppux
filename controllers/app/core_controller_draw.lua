@@ -18,7 +18,7 @@ local images = require("images")
 local CanvasSpace = require("utils.canvas_space")
 local ChrCanvasOnlyMode = require("controllers.chr.chr_canvas_only_mode")
 local CrtLayerViz = require("controllers.crt.crt_layer_viz")
-local UiScale = require("user_interface.ui_scale")
+local UiScale = require("ui.ui_scale")
 local GridOverlayMetrics = require("controllers.window.grid_overlay_metrics")
 
 --- Drop-shadow mask offset defaults (pixels, code-only). Positive X -> right, Y -> down.
@@ -607,13 +607,13 @@ end
 -- F1 debug HUD: 2x app UI font size (16 -> 32), white fill + black outline (Text.print outline).
 local HUD_DEBUG_FONT_PX = 32
 local HUD_DEBUG_FONT_CANDIDATES = {
-  "user_interface/fonts/AsepriteFont.ttf",
-  "../user_interface/fonts/AsepriteFont.ttf",
-  "user_interface/fonts/proggy-tiny.ttf",
-  "../user_interface/fonts/proggy-tiny.ttf",
-  "user_interface/fonts/proggy-clean-sz.ttf",
-  "../user_interface/fonts/proggy-clean-sz.ttf",
-  "user_interface/fonts/Tiny5-Regular.ttf",
+  "ui/fonts/AsepriteFont.ttf",
+  "../ui/fonts/AsepriteFont.ttf",
+  "ui/fonts/proggy-tiny.ttf",
+  "../ui/fonts/proggy-tiny.ttf",
+  "ui/fonts/proggy-clean-sz.ttf",
+  "../ui/fonts/proggy-clean-sz.ttf",
+  "ui/fonts/Tiny5-Regular.ttf",
 }
 local hudDebugFontCache
 

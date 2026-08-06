@@ -1,5 +1,5 @@
 local GridOverlay = require("controllers.window.grid_overlay_metrics")
-local Window = require("user_interface.windows_system.window")
+local Window = require("ui.windows_system.window")
 
 describe("grid_overlay_metrics — chess band height", function()
   it("uses doubled vertical period on CHR banks in oddEven mode", function()

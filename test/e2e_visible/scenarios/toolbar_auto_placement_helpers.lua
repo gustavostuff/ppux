@@ -2,7 +2,7 @@
 
 local WindowToolbarPlacement = require("controllers.window.window_toolbar_placement")
 
-local GAP = 4 -- TOOLBAR_OUTSIDE_GAP (match user_interface/toolbars/toolbar_base.lua)
+local GAP = 4 -- TOOLBAR_OUTSIDE_GAP (match ui/toolbars/toolbar_base.lua)
 
 local M = {}
 

@@ -1,7 +1,7 @@
 -- Shared fixtures for Mirror X drag/drop and clipboard layout tests.
 -- Loaded via loadfile from sibling unit test files (not on package.path).
 
-local Window = require("user_interface.windows_system.window")
+local Window = require("ui.windows_system.window")
 
 local M = {}
 

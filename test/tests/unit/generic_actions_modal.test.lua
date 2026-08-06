@@ -1,4 +1,4 @@
-local GenericActionsModal = require("user_interface.modals.generic_actions_modal")
+local GenericActionsModal = require("ui.modals.generic_actions_modal")
 
 describe("generic_actions_modal checkbox", function()
   it("toggles Don't ask again and reports checked state", function()

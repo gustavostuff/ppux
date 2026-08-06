@@ -1,4 +1,4 @@
-local PPUFrameWindow = require("user_interface.windows_system.ppu_frame_window")
+local PPUFrameWindow = require("ui.windows_system.ppu_frame_window")
 
 local FULL_PATTERN_TABLE = {
   ranges = {

@@ -1,0 +1,361 @@
+local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
+local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
+local RomProjectController = require("controllers.rom.rom_project_controller")
+local images = require("images")
+local UiScale = require("ui.ui_scale")
+
+local M = {}
+
+function M.install(Taskbar, Helpers)
+  function Taskbar:_initMenu()
+    local menuCell = UiScale.menuCellSize()
+    self.menuController = ContextualMenuController.new({
+      getBounds = function()
+        return {
+          w = self.x + self.w,
+          h = self.y + self.h,
+        }
+      end,
+      cols = 8,
+      cellW = menuCell,
+      cellH = menuCell,
+      padding = 0,
+      colGap = 0,
+      splitIconCell = true,
+    })
+
+    local function closeMenu()
+      if self.menuController then
+        self.menuController:hide()
+      end
+    end
+
+    local function actionSave()
+      closeMenu()
+      if self.app and self.app.showSaveOptionsModal then
+        self.app:showSaveOptionsModal()
+      end
+    end
+
+    local function actionNewWindow()
+      closeMenu()
+      if self.app and self.app.showNewWindowModal then
+        self.app:showNewWindowModal()
+      end
+    end
+
+    local function actionSettings()
+      closeMenu()
+      if self.app and self.app.showSettingsModal then
+        self.app:showSettingsModal()
+      end
+    end
+
+    local function actionCloseProject()
+      closeMenu()
+      if self.app and self.app.requestCloseProject then
+        self.app:requestCloseProject()
+      end
+    end
+
+    local function actionQuit()
+      closeMenu()
+      if not self.app then return end
+      if self.app.handleQuitRequest and self.app:handleQuitRequest() then
+        return
+      end
+      love.event.quit()
+    end
+
+    local function actionCollapseAll()
+      closeMenu()
+      local wm = self.app and self.app.wm
+      local canvas = self.app and self.app.canvas
+      if wm and wm.collapseAll and canvas then
+        local areaX = 30
+        local topPad = AppTopToolbarController.getContentOffsetY(self.app)
+        local areaY = math.max(30, topPad + 8)
+        local areaH = math.max(1, self.y - areaY - 8)
+        wm:collapseAll({
+          areaX = areaX,
+          areaY = areaY,
+          areaH = areaH,
+          gapX = 8,
+          gapY = 2,
+        })
+      end
+    end
+
+    --[[ Mosaic all: deactivated in UI for now (see WM:mosaicAll).
+    local function actionMosaicAll()
+      closeMenu()
+      if self.app and self.app._mosaicAllWindowsFromMenu then
+        self.app:_mosaicAllWindowsFromMenu()
+      end
+    end
+    --]]
+
+    local function actionExpandAll()
+      closeMenu()
+      local wm = self.app and self.app.wm
+      if wm and wm.expandAll then
+        wm:expandAll()
+      end
+    end
+
+    local function actionSortByTitle()
+      closeMenu()
+      if self.sortAlphaButton and self.sortAlphaButton.action then
+        self.sortAlphaButton.action()
+      end
+    end
+
+    local function actionSortByType()
+      closeMenu()
+      if self.sortKindButton and self.sortKindButton.action then
+        self.sortKindButton.action()
+      end
+    end
+
+    local function actionMinimizeAll()
+      closeMenu()
+      local wm = self.app and self.app.wm
+      if wm and wm.minimizeAll then
+        wm:minimizeAll()
+      end
+    end
+
+    local function actionMaximizeAll()
+      closeMenu()
+      local wm = self.app and self.app.wm
+      if wm and wm.maximizeAll then
+        wm:maximizeAll()
+      end
+    end
+
+    self._menuActions = {
+      expandAll = actionExpandAll,
+      collapseAll = actionCollapseAll,
+      -- mosaicAll = actionMosaicAll,
+      sortByTitle = actionSortByTitle,
+      sortByType = actionSortByType,
+      minimizeAll = actionMinimizeAll,
+      maximizeAll = actionMaximizeAll,
+      newWindow = actionNewWindow,
+      save = actionSave,
+      settings = actionSettings,
+      closeProject = actionCloseProject,
+      quit = actionQuit,
+    }
+    self._menuIcons = {
+      expandAll = images.icons.chrome.icon_cascade_all,
+      collapseAll = images.icons.chrome.icon_collapse_all,
+      -- mosaicAll = images.icons.actions.icon_mosaic,
+      minimizeAll = images.icons.chrome.min_all,
+      maximizeAll = images.icons.chrome.max_all,
+      newWindow = images.icons.chrome.icon_new_window,
+      save = images.icons.actions.save,
+      settings = images.icons.actions.settings,
+      windows = images.icons.chrome.icon_windows,
+      recentProjects = images.icons.chrome.icon_clock,
+      recentProjectItem = images.icons.chrome.icon_circle,
+      closeProject = images.icons.chrome.icon_x,
+      quit = images.icons.chrome.icon_quit,
+    }
+    self:_refreshMenuItems()
+  end
+
+  function Taskbar:_getMenuAnchor()
+    local menuH = (self.menuController and self.menuController.panel and self.menuController.panel.h) or 0
+    local menuW = (self.menuController and self.menuController.panel and self.menuController.panel.w) or 0
+    local panelX = self.menuButton and self.menuButton.x or self.x
+    local gap = ContextualMenuController.PARENT_GAP_PX or 2
+    local panelY = self.y - menuH - gap
+    if panelY < 0 then
+      panelY = 0
+    end
+    if panelX + menuW > self.x + self.w then
+      panelX = math.max(self.x, self.x + self.w - menuW)
+    end
+    return panelX, panelY
+  end
+
+  function Taskbar:_buildRecentProjectMenuItems()
+    local recent = (self.app and self.app.getRecentProjects and self.app:getRecentProjects()) or {}
+    local entries = {}
+    local stemCounts = {}
+
+    for _, path in ipairs(recent) do
+      local _, stem = Helpers.splitPath(path)
+      stemCounts[stem] = (stemCounts[stem] or 0) + 1
+    end
+
+    for ri, path in ipairs(recent) do
+      local projectPath = path
+      local dir, stem = Helpers.splitPath(projectPath)
+      local label = stem
+      if (stemCounts[stem] or 0) > 1 then
+        local folder = Helpers.baseName(dir)
+        label = ((folder ~= "" and folder) or dir or "?") .. "/" .. stem
+      end
+      entries[#entries + 1] = {
+        icon = (self._menuIcons and self._menuIcons.recentProjectItem) or nil,
+        text = label,
+        tooltip = RomProjectController.resolveRecentProjectTooltipPath(projectPath),
+        menuGroup = "tb_recent_" .. tostring(ri),
+        callback = function()
+          if self.app and self.app.openRecentProject then
+            self.app:openRecentProject(projectPath)
+          end
+        end,
+      }
+    end
+
+    return entries
+  end
+
+  function Taskbar:_buildMainMenuItems()
+    local hasRom = Helpers.appHasLoadedRom(self.app)
+    local hasWindows = Helpers.appHasAnyOpenWindow(self.app)
+    local recentItems = self:_buildRecentProjectMenuItems()
+    local windowsItems = {
+      {
+        icon = self._menuIcons and self._menuIcons.newWindow or nil,
+        text = "New Window",
+        menuGroup = "tb_wm_new_window",
+        enabled = true,
+        callback = self._menuActions and self._menuActions.newWindow or nil,
+      },
+      {
+        icon = self._menuIcons and self._menuIcons.expandAll or nil,
+        text = "Expand all",
+        menuGroup = "tb_wm_expand_all",
+        enabled = hasWindows,
+        callback = self._menuActions and self._menuActions.expandAll or nil,
+      },
+      {
+        icon = self._menuIcons and self._menuIcons.collapseAll or nil,
+        text = "Collapse all",
+        menuGroup = "tb_wm_collapse_all",
+        enabled = hasWindows,
+        callback = self._menuActions and self._menuActions.collapseAll or nil,
+      },
+      --[[ Mosaic all: deactivated in UI for now.
+      {
+        icon = self._menuIcons and self._menuIcons.mosaicAll or nil,
+        text = "Mosaic all",
+        menuGroup = "tb_wm_mosaic_all",
+        enabled = hasWindows,
+        callback = self._menuActions and self._menuActions.mosaicAll or nil,
+      },
+      --]]
+      {
+        icon = self.sortAlphaButton and self.sortAlphaButton.icon or nil,
+        text = "Sort by title",
+        menuGroup = "tb_wm_sort_by_title",
+        enabled = hasWindows,
+        callback = self._menuActions and self._menuActions.sortByTitle or nil,
+      },
+      {
+        icon = self.sortKindButton and self.sortKindButton.icon or nil,
+        text = "Sort by kind",
+        menuGroup = "tb_wm_sort_by_kind",
+        enabled = hasWindows,
+        callback = self._menuActions and self._menuActions.sortByType or nil,
+      },
+      {
+        icon = self._menuIcons and self._menuIcons.minimizeAll or nil,
+        text = "Minimize all",
+        menuGroup = "tb_wm_minimize_all",
+        enabled = hasWindows,
+        callback = self._menuActions and self._menuActions.minimizeAll or nil,
+      },
+      {
+        icon = self._menuIcons and self._menuIcons.maximizeAll or nil,
+        text = "Maximize all",
+        menuGroup = "tb_wm_maximize_all",
+        enabled = hasWindows,
+        callback = self._menuActions and self._menuActions.maximizeAll or nil,
+      },
+    }
+
+    return {
+      {
+        icon = self._menuIcons and self._menuIcons.recentProjects or nil,
+        text = "Recent Projects",
+        menuGroup = "tb_root_recent_projects",
+        enabled = #recentItems > 0,
+        children = (#recentItems > 0) and function()
+          return self:_buildRecentProjectMenuItems()
+        end or nil,
+      },
+      {
+        icon = self._menuIcons and self._menuIcons.windows or nil,
+        text = "Windows",
+        menuGroup = "tb_root_windows",
+        enabled = true,
+        children = function()
+          return windowsItems
+        end,
+      },
+      {
+        icon = self._menuIcons and self._menuIcons.quit or nil,
+        text = "Quit",
+        menuGroup = "tb_root_quit",
+        enabled = true,
+        callback = self._menuActions and self._menuActions.quit or nil,
+      },
+      {
+        icon = self._menuIcons and self._menuIcons.closeProject or nil,
+        text = "Close Project",
+        menuGroup = "tb_root_close_project",
+        enabled = hasRom,
+        callback = self._menuActions and self._menuActions.closeProject or nil,
+      },
+      {
+        icon = self._menuIcons and self._menuIcons.settings or nil,
+        text = "Settings",
+        menuGroup = "tb_root_settings",
+        enabled = true,
+        callback = self._menuActions and self._menuActions.settings or nil,
+      },
+      {
+        icon = self._menuIcons and self._menuIcons.save or nil,
+        text = "Save",
+        menuGroup = "tb_root_save",
+        enabled = hasRom,
+        callback = self._menuActions and self._menuActions.save or nil,
+      },
+    }
+  end
+
+  function Taskbar:_refreshMenuItems()
+    if not self.menuController then
+      return
+    end
+    self.menuController:setItems(self:_buildMainMenuItems())
+    if self.menuController:isVisible() then
+      local panelX, panelY = self:_getMenuAnchor()
+      self.menuController:setPosition(panelX, panelY)
+    end
+  end
+
+  function Taskbar:_refreshMenuAvailability()
+    self:_refreshMenuItems()
+  end
+
+  function Taskbar:_refreshMenuSortCells()
+    self:_refreshMenuItems()
+  end
+
+  function Taskbar:toggleMenu()
+    if not self.menuController then
+      return false
+    end
+    self:_refreshMenuItems()
+    local panelX, panelY = self:_getMenuAnchor()
+    return self.menuController:toggleAt(panelX, panelY, self:_buildMainMenuItems())
+  end
+end
+
+return M

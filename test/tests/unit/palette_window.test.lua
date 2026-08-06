@@ -1,4 +1,4 @@
-local PaletteWindow = require("user_interface.windows_system.palette_window")
+local PaletteWindow = require("ui.windows_system.palette_window")
 
 describe("palette_window.lua - compact mode", function()
   it("supports compact mode and switches between normal and compact cell sizes", function()
