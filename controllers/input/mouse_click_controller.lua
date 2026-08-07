@@ -980,12 +980,12 @@ local function handleEditModeClick(env, button, x, y, win, wm)
       and utils.colorMaskDown()
       and not (utils.ctrlDown and utils.ctrlDown())
     then
-      local okc, cx, cy = win:toContentCoords(x, y)
-      if not okc then
+      -- screenToCanvasPixel honors Mirror X preview + scroll (via toContentCoords).
+      local canvasX, canvasY = PixelSel.screenToCanvasPixel(win, x, y)
+      if canvasX == nil or canvasY == nil then
         ctx.setPainting(false)
         return true
       end
-      local canvasX, canvasY = math.floor(cx), math.floor(cy)
       local okMask, count, color, err = PixelSel.applyColorPaintMaskAt(win, canvasX, canvasY)
       if okMask then
         StatusHelpers.setStatus(ctx, string.format(

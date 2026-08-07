@@ -2021,7 +2021,7 @@ function WM:createRomPaletteWindow(opts)
     end
   end
 
-  -- Sketch role + universal color-0 normalize happen inside RomPaletteWindow.new.
+  -- Sketch role + per-window universal color-0 normalize happen inside RomPaletteWindow.new.
   local win = RomPaletteWindow.new(
     defaults.x,
     defaults.y,

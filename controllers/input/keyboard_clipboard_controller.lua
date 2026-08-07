@@ -1285,18 +1285,10 @@ local function doPaste(ctx, focus, opts)
   }
   if avail.sketchPixels or isSketchPixelClipboardLayer(focus, layer) then
     local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
-    local atX = clipboard.originX
-    local atY = clipboard.originY
-    if type(atX) ~= "number" or type(atY) ~= "number" then
-      atX, atY = 0, 0
-      if focus.getSelected then
-        local col, row = focus:getSelected()
-        if col and row then
-          atX = col * (focus.cellW or 8)
-          atY = row * (focus.cellH or 8)
-        end
-      end
-    end
+    -- Default paste nudges +3,+3 from the last selection (see pasteClipboard).
+    -- Explicit pixel anchors (opts) keep context-menu / test placements exact.
+    local atX = opts and opts.anchorPixelX
+    local atY = opts and opts.anchorPixelY
     local ok, err = PixelSel.pasteClipboard(focus, clipboard, ctx and ctx.app or nil, atX, atY)
     if ok then
       if ctx.app and ctx.app.markUnsaved then

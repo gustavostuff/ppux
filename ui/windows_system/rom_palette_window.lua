@@ -148,17 +148,10 @@ local function collectEditableCellsForRomAddress(primaryWin, app, romAddr)
   return out
 end
 
--- Sketch-mode universal backdrop: color column 0 on every row of every sketch palette.
-local function collectSketchUniversalColor0Cells(primaryWin, app)
+-- Sketch-mode universal backdrop: color column 0 on every row of *this* sketch palette only.
+local function collectSketchUniversalColor0Cells(primaryWin)
   local out = {}
-  for _, w in ipairs(getRomPaletteWindowsFromApp(app, primaryWin)) do
-    if w and not w._closed and w.isSketchPalette and w:isSketchPalette() then
-      for row = 0, 3 do
-        out[#out + 1] = { win = w, col = 0, row = row }
-      end
-    end
-  end
-  if #out == 0 and primaryWin and primaryWin.isSketchPalette and primaryWin:isSketchPalette() then
+  if primaryWin and primaryWin.isSketchPalette and primaryWin:isSketchPalette() then
     for row = 0, 3 do
       out[#out + 1] = { win = primaryWin, col = 0, row = row }
     end
@@ -449,7 +442,7 @@ function RomPaletteWindow:adjustSelectedByArrows(dx, dy)
   local gctx = rawget(_G, "ctx")
   local app = gctx and gctx.app
 
-  -- Sketch-mode: free colors. Column 0 is the universal backdrop (synced like ROM $3F00).
+  -- Sketch-mode: free colors. Column 0 is the per-window universal backdrop (synced across rows).
   if self:isSketchPalette() then
     local beforePaletteData = TableUtils.deepcopy(self.paletteData or {})
     local paletteStates = {
@@ -461,23 +454,7 @@ function RomPaletteWindow:adjustSelectedByArrows(dx, dy)
     }
 
     if sc == 0 then
-      local cells = collectSketchUniversalColor0Cells(self, app)
-      local paletteWinOrder = {}
-      local paletteWinSeen = {}
-      for _, cell in ipairs(cells) do
-        local w = cell.win
-        if w and not paletteWinSeen[w] then
-          paletteWinSeen[w] = true
-          paletteWinOrder[#paletteWinOrder + 1] = w
-          if w ~= self then
-            paletteStates[#paletteStates + 1] = {
-              win = w,
-              beforePaletteData = TableUtils.deepcopy(w.paletteData or {}),
-              afterPaletteData = nil,
-            }
-          end
-        end
-      end
+      local cells = collectSketchUniversalColor0Cells(self)
 
       for _, cell in ipairs(cells) do
         local w, c, r = cell.win, cell.col, cell.row
@@ -499,13 +476,9 @@ function RomPaletteWindow:adjustSelectedByArrows(dx, dy)
         end
       end
 
-      for _, st in ipairs(paletteStates) do
-        st.afterPaletteData = TableUtils.deepcopy(st.win.paletteData or {})
-      end
+      paletteStates[1].afterPaletteData = TableUtils.deepcopy(self.paletteData or {})
       recordPaletteColorUndo(undoActions, paletteStates)
-      for _, w in ipairs(paletteWinOrder) do
-        invalidateLinkedPpuFrames(w)
-      end
+      invalidateLinkedPpuFrames(self)
     else
       self.codes2D[sr][sc] = new
       self:set(sc, sr, new)

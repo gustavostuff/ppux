@@ -22,6 +22,9 @@ local M = {}
 M.KIND_RECT = "rect"
 M.KIND_FREE = "free"
 
+--- Nudge for successive pastes relative to the last selection origin.
+M.PASTE_OFFSET_PX = 3
+
 -- Pulsating color-mask outline: "outside" (empty neighbors) or "inside" (rim of mask pixels).
 M.COLOR_MASK_OUTLINE_SIDE = "inside"
 
@@ -52,10 +55,12 @@ local COLOR_MASK_PULSE_PERIOD = 1.0
 
 local colorMaskPerimeterShader = nil
 local function ensureColorMaskPerimeterShader()
-  -- Always rebuild if the cached shader predates screen-space parity (missing uniform).
+  -- Always rebuild if the cached shader predates mirror-aware screen mapping.
   if colorMaskPerimeterShader then
     local ok, _ = pcall(function()
       colorMaskPerimeterShader:send("u_wantOdd", 0)
+      colorMaskPerimeterShader:send("u_mirrorX", 0)
+      colorMaskPerimeterShader:send("u_mirrorRect", { 0, 1 })
     end)
     if ok then
       return colorMaskPerimeterShader
@@ -64,12 +69,14 @@ local function ensureColorMaskPerimeterShader()
   end
   colorMaskPerimeterShader = love.graphics.newShader([[
 extern vec2 u_size;      // mask width/height in canvas pixels
-extern vec2 u_origin;    // content origin in screen pixels
+extern vec2 u_origin;    // content origin in screen pixels (pre-mirror draw space)
 extern number u_zoom;    // window zoom
 extern number u_edgeFrac; // fraction of a canvas pixel for edge thickness (≈ 1/zoom)
 extern number u_pulse;    // 0=black .. 1=white
 extern number u_inside;   // 0=outside neighbors, 1=inside mask rim
 extern number u_wantOdd;  // 1=draw odd screen pixels, 0=draw even
+extern number u_mirrorX;  // 1 when layer draw is Mirror-X flipped
+extern vec2 u_mirrorRect; // window screen rect x,width used by the flip transform
 
 float maskAt(Image mask, vec2 cell) {
   if (cell.x < 0.0 || cell.y < 0.0 || cell.x >= u_size.x || cell.y >= u_size.y) {
@@ -81,7 +88,14 @@ float maskAt(Image mask, vec2 cell) {
 
 vec4 effect(vec4 color, Image tex, vec2 texCoord, vec2 screenCoord)
 {
-  vec2 canvas = (screenCoord - u_origin) / max(u_zoom, 1.0);
+  // Overlay is drawn inside the same Mirror X transform as layer content.
+  // screenCoord is post-flip framebuffer space; undo that so canvas cells
+  // match the unmirrored mask / paint buffer.
+  vec2 logical = screenCoord;
+  if (u_mirrorX >= 0.5) {
+    logical.x = u_mirrorRect.x * 2.0 + u_mirrorRect.y - screenCoord.x;
+  }
+  vec2 canvas = (logical - u_origin) / max(u_zoom, 1.0);
   vec2 cell = floor(canvas);
   vec2 frac = canvas - cell;
 
@@ -995,12 +1009,34 @@ function M.pasteClipboard(win, clipboard, app, atX, atY)
     return false, "bad_payload"
   end
 
+  -- Last selection origin (before stamp) drives the default +3,+3 paste nudge.
+  local lastX, lastY = nil, nil
+  local selBefore = M.getSelection(win)
+  if M.hasSelection(win) and selBefore then
+    lastX = math.floor(tonumber(
+      selBefore.lifted and (selBefore.floatingOffsetX or selBefore.x) or selBefore.x
+    ) or 0)
+    lastY = math.floor(tonumber(
+      selBefore.lifted and (selBefore.floatingOffsetY or selBefore.y) or selBefore.y
+    ) or 0)
+  end
+
   if win.pixelSelection and win.pixelSelection.lifted then
     M.stampDown(win, app)
   end
 
-  local x = math.floor(tonumber(atX) or 0)
-  local y = math.floor(tonumber(atY) or 0)
+  local x, y
+  if type(atX) == "number" and type(atY) == "number" then
+    x = math.floor(atX)
+    y = math.floor(atY)
+  else
+    if lastX == nil then
+      lastX = math.floor(tonumber(clipboard.originX) or 0)
+      lastY = math.floor(tonumber(clipboard.originY) or 0)
+    end
+    x = lastX + M.PASTE_OFFSET_PX
+    y = lastY + M.PASTE_OFFSET_PX
+  end
   if x < 0 then x = 0 end
   if y < 0 then y = 0 end
   if x >= paint.width then x = math.max(0, paint.width - w) end
@@ -1293,6 +1329,14 @@ function M.drawColorPaintMaskOverlay(win)
   CanvasSpace.setScissorFromContentRect(sx - pad, sy - pad, sw + 2 * pad, sh + 2 * pad)
 
   local pulse = colorMaskPulse01(UiPulse.nowSeconds())
+  local mirrorX = win._mirrorXPreview == true
+  local mirrorRectX, mirrorRectW = ox, mask.width * z
+  if type(win.getScreenRect) == "function" then
+    local mx, _, mw = win:getScreenRect()
+    if type(mx) == "number" and type(mw) == "number" and mw > 0 then
+      mirrorRectX, mirrorRectW = mx, mw
+    end
+  end
   shader:send("u_size", { mask.width, mask.height })
   shader:send("u_origin", { ox, oy })
   shader:send("u_zoom", z)
@@ -1302,6 +1346,8 @@ function M.drawColorPaintMaskOverlay(win)
   shader:send("u_pulse", pulse)
   shader:send("u_inside", inside and 1 or 0)
   shader:send("u_wantOdd", wantOdd and 1 or 0)
+  shader:send("u_mirrorX", mirrorX and 1 or 0)
+  shader:send("u_mirrorRect", { mirrorRectX, mirrorRectW })
 
   love.graphics.setShader(shader)
   love.graphics.setColor(1, 1, 1, 1)

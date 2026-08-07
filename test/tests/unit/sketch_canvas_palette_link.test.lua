@@ -58,7 +58,7 @@ describe("sketch_canvas_palette_link (B5)", function()
     end
   end)
 
-  it("syncs sketch palette color 0 across rows and sketch palette windows", function()
+  it("syncs sketch palette color 0 across rows within the same window only", function()
     local wm = WM.new()
     local palA = wm:createRomPaletteWindow({ title = "Sketch A", paletteRole = "sketch" })
     local palB = wm:createRomPaletteWindow({ title = "Sketch B", paletteRole = "sketch" })
@@ -75,7 +75,8 @@ describe("sketch_canvas_palette_link (B5)", function()
     palA:adjustSelectedByArrows(1, 0) -- 07 -> 08
     for row = 0, 3 do
       expect(palA.codes2D[row][0]).toBe("08")
-      expect(palB.codes2D[row][0]).toBe("08")
+      -- Other sketch palettes keep their own column 0.
+      expect(palB.codes2D[row][0]).toBe("0F")
     end
 
     local col1BeforeB = palB.codes2D[0][1]

@@ -250,6 +250,70 @@ describe("sketch_canvas_pixel_selection_controller", function()
     _G.ctx = nil
   end)
 
+  it("default paste stamps floating selection and nudges +3,+3 from last origin", function()
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow()
+    local canvas = win:getActiveCanvas()
+    paintRect(canvas, 4, 4, 2, 2, 2)
+    _G.ctx = { getMode = function() return "edit" end }
+    local app = { undoRedo = UndoRedoController.new(20) }
+
+    PixelSel.begin(win, PixelSel.KIND_RECT, 4, 4)
+    PixelSel.updateDrag(win, 5, 5)
+    PixelSel.commitDrag(win)
+    local clip = PixelSel.captureClipboard(win)
+    expect(clip.originX).toBe(4)
+    expect(clip.originY).toBe(4)
+
+    -- First paste: no floating yet; nudge from current selection at (4,4).
+    expect(PixelSel.pasteClipboard(win, clip, app)).toBe(true)
+    local sel = PixelSel.getSelection(win)
+    expect(sel.lifted).toBe(true)
+    expect(sel.floatingOffsetX).toBe(4 + PixelSel.PASTE_OFFSET_PX)
+    expect(sel.floatingOffsetY).toBe(4 + PixelSel.PASTE_OFFSET_PX)
+    expect(sel.floating:getPixel(0, 0)).toBe(2)
+    -- Source pixels remain (copy, not cut).
+    expect(canvas:getPixel(4, 4)).toBe(2)
+
+    -- Second paste: stamps previous float, then nudges again from stamped origin.
+    expect(PixelSel.pasteClipboard(win, clip, app)).toBe(true)
+    expect(canvas:getPixel(7, 7)).toBe(2) -- stamped previous paste
+    sel = PixelSel.getSelection(win)
+    expect(sel.floatingOffsetX).toBe(7 + PixelSel.PASTE_OFFSET_PX)
+    expect(sel.floatingOffsetY).toBe(7 + PixelSel.PASTE_OFFSET_PX)
+
+    _G.ctx = nil
+  end)
+
+  it("copies freeform selections including the mask", function()
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow()
+    local canvas = win:getActiveCanvas()
+    paintRect(canvas, 2, 2, 6, 6, 1)
+    _G.ctx = { getMode = function() return "edit" end }
+    local app = { undoRedo = UndoRedoController.new(20) }
+
+    expect(PixelSel.begin(win, PixelSel.KIND_FREE, 2, 2)).toBe(true)
+    PixelSel.updateDrag(win, 8, 2)
+    PixelSel.updateDrag(win, 8, 8)
+    PixelSel.updateDrag(win, 2, 8)
+    expect(PixelSel.commitDrag(win)).toBe(true)
+    expect(PixelSel.hasSelection(win)).toBe(true)
+
+    local clip = PixelSel.captureClipboard(win)
+    expect(clip).toBeTruthy()
+    expect(clip.selectionKind).toBe(PixelSel.KIND_FREE)
+    expect(clip.mask).toBeTruthy()
+
+    expect(PixelSel.pasteClipboard(win, clip, app)).toBe(true)
+    local sel = PixelSel.getSelection(win)
+    expect(sel.kind).toBe(PixelSel.KIND_FREE)
+    expect(sel.mask).toBeTruthy()
+    expect(sel.floatingOffsetX).toBe((clip.originX or 0) + PixelSel.PASTE_OFFSET_PX)
+
+    _G.ctx = nil
+  end)
+
   it("applies a same-color paint mask from a clicked pixel and gates painting", function()
     local wm = WM.new()
     local win = wm:createSketchCanvasWindow()
@@ -306,6 +370,71 @@ describe("sketch_canvas_pixel_selection_controller", function()
     expect(count).toBe(1)
     expect(PixelSel.allowsColorPaintAt(win, 5, 5)).toBe(false)
     expect(PixelSel.allowsColorPaintAt(win, 10, 10)).toBe(true)
+  end)
+
+  it("hold C + click samples the visually mirrored pixel under Mirror X", function()
+    local MouseClickController = require("controllers.input.mouse_click_controller")
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow({ x = 40, y = 20, zoom = 1 })
+    win._mirrorXPreview = true
+    local canvas = win:getActiveCanvas()
+    -- Distinct color only on the far-left buffer column; Mirror X shows it on the right.
+    canvas:edit(0, 8, 2)
+    canvas:edit(255, 8, 1)
+
+    local sx, sy, sw = win:getInsetContentScreenRect()
+    -- Inclusive right edge: Mirror X maps this visual X to canvas x=0.
+    local clickX = sx + sw
+    local clickY = sy + 8
+
+    local cx, cy = PixelSel.screenToCanvasPixel(win, clickX, clickY)
+    expect(cx).toBe(0)
+    expect(cy).toBe(8)
+
+    local focused = win
+    local status = nil
+    local env = {
+      ctx = {
+        app = { editTool = "brush", undoRedo = UndoRedoController.new(20) },
+        getMode = function() return "edit" end,
+        wm = function()
+          return {
+            getFocus = function() return focused end,
+            windowAt = function() return win end,
+            setFocus = function(_, target) focused = target end,
+          }
+        end,
+        setPainting = function() end,
+        setStatus = function(text) status = text end,
+        paintAt = function() end,
+      },
+      utils = {
+        shiftDown = function() return false end,
+        ctrlDown = function() return false end,
+        altDown = function() return false end,
+        fillDown = function() return false end,
+        grabDown = function() return false end,
+        colorMaskDown = function() return true end,
+      },
+      chrome = {
+        findToolbarWindowAt = function() return nil end,
+        getTopInteractiveWindowAt = function() return win end,
+        getTopInteractiveSurfaceWindowAt = function() return win end,
+        handleToolbarClicks = function() return false end,
+        handleResizeHandle = function() return false end,
+        handleHeaderClick = function() return false end,
+      },
+    }
+    _G.ctx = env.ctx
+
+    expect(MouseClickController.handleMousePressed(env, clickX, clickY, 1)).toBe(true)
+    expect(PixelSel.hasColorPaintMask(win)).toBe(true)
+    expect(PixelSel.getColorPaintMask(win).color).toBe(2)
+    expect(PixelSel.allowsColorPaintAt(win, 0, 8)).toBe(true)
+    expect(PixelSel.allowsColorPaintAt(win, 255, 8)).toBe(false)
+    expect(type(status) == "string" and status:find("Color mask", 1, true) ~= nil).toBe(true)
+
+    _G.ctx = nil
   end)
 
   it("left or right click outside an active selection stamps and clears it", function()
