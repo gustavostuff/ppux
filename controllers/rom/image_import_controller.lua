@@ -281,7 +281,7 @@ function M.importImageToCHRWindow(file, win, startCol, startRow, appEditState, e
   end
   
   -- Convert to indexed color data using the same palette-color luminance ordering
-  -- used by shader rendering. CHR windows default to global palette #1.
+  -- used by shader rendering. CHR windows default to generic palette #1.
   local chrLayer = win.layers and win.layers[1] or nil
   local paletteColors = ShaderPaletteController.getPaletteColors(
     chrLayer,

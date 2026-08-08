@@ -395,7 +395,7 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
     expect(tileRef.pixels[4]).toNotBe(0)
   end)
 
-  it("uses global palette brightness order when layer has no assigned palette", function()
+  it("uses generic palette brightness order when layer has no assigned palette", function()
     local tileRef = makeTileRef()
     local layer = {
       kind = "sprite",
@@ -420,7 +420,7 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
     expect(tileRef.pixels[7]).toBe(2)
   end)
 
-  it("maps PNG brightness ranks through fallback global palette colors", function()
+  it("maps PNG brightness ranks through fallback generic palette colors", function()
     ShaderPaletteController.getPaletteColors = function()
       return {
         { 0.0, 0.0, 0.0 },

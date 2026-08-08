@@ -144,7 +144,7 @@ function M.getColorAt(index) -- index 1..4
   return hex2rgb(M.paletteName, M.codes[index])
 end
 
--- Global apply: uses M.codes (current global palette).
+-- Global apply: uses M.codes (current generic palette).
 -- layer: optional layer to check shaderEnabled state
 -- codes: optional custom palette codes (if nil, uses M.codes)
 -- layerOpacityOverride: optional opacity override
@@ -204,14 +204,14 @@ local function resolvePaletteEntryToHex(entry, romRaw)
     -- ROM-backed color slot; read the byte at this address and convert to hex string
     return M.resolveHexFromRomAddress(romRaw, entry)
   else
-    -- Fallback; caller may override with global palette.
+    -- Fallback; caller may override with generic palette.
     return nil
   end
 end
 
 -- Resolve a palette# (1..4) on a given layer into 4 hex codes "HH".
 -- Supports:
---   layer.paletteData = { winId = "rom_palette_01" }  -- link to ROM/global palette window
+--   layer.paletteData = { winId = "rom_palette_01" }  -- link to ROM/generic palette window
 --   layer.paletteData = { items = { ... } }           -- old inline palettes (back-compat)
 function M.resolveLayerPaletteCodes(layer, paletteNumber, romRaw)
   if not layer or not layer.paletteData then
@@ -306,10 +306,10 @@ end
 
 --- Get RGB color for a palette number (1-4) on a layer
 -- Returns {r, g, b} 0..1 for the 2nd color of the palette (most visible)
--- Falls back to global palette if layer paletteData is not available
+-- Falls back to generic palette if layer paletteData is not available
 function M.getPaletteColor(layer, paletteNumber, romRaw)
   if not paletteNumber or paletteNumber < 1 or paletteNumber > 4 then
-    -- Fall back to global palette, 2nd color
+    -- Fall back to generic palette, 2nd color
     return hex2rgb(M.paletteName, M.codes[2] or "30")
   end
   

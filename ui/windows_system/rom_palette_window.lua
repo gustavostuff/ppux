@@ -213,7 +213,7 @@ function RomPaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
   rows, cols = rows or 4, cols or 4  -- Fixed 4x4 for ROM palettes
   
   -- Don't use default palette controller codes - we'll initialize from ROM
-  -- Create empty initCodes array so PaletteWindow doesn't use global palette codes
+  -- Create empty initCodes array so PaletteWindow doesn't use generic palette codes
   data.initCodes = data.initCodes or {}
   -- Fill with defaults if empty (but we'll override them anyway)
   if #data.initCodes == 0 then

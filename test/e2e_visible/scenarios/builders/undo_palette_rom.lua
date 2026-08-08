@@ -26,8 +26,8 @@ local function buildUndoRedoEventsScenario(harness, app, runner)
   local staticWin = assert(BubbleExample.findStaticWindow(app), "expected static art window")
   local globalPaletteWin = assert(harness:findWindow({
     kind = "palette",
-    title = "Global palette",
-  }), "expected global palette window")
+    title = "Generic palette",
+  }), "expected generic palette window")
   local createdSpriteWindowName = "Undo Sprite Window"
   local renamedSpriteWindowName = "Undo Sprite Renamed"
 
@@ -206,17 +206,17 @@ local function buildUndoRedoEventsScenario(harness, app, runner)
   steps[#steps + 1] = call("Store palette code before edit", function(_, currentApp, currentRunner)
     currentRunner.undoPaletteBefore = assert(
       globalPaletteWin.codes2D and globalPaletteWin.codes2D[0] and globalPaletteWin.codes2D[0][2],
-      "expected original global palette code"
+      "expected original generic palette code"
     )
     currentApp.wm:setFocus(globalPaletteWin)
   end)
-  appendClick(steps, "Select editable global palette color", function(h)
+  appendClick(steps, "Select editable generic palette color", function(h)
     return h:windowCellCenter(globalPaletteWin, 2, 0)
   end, {
     moveDuration = 0.08,
     postPause = 0.16,
   })
-  steps[#steps + 1] = keyPress("Change global palette color", "right", { "lshift" })
+  steps[#steps + 1] = keyPress("Change generic palette color", "right", { "lshift" })
   steps[#steps + 1] = pause("Observe palette color change", 0.3)
   steps[#steps + 1] = call("Assert palette color change applied", function(_, _, currentRunner)
     local code = globalPaletteWin.codes2D and globalPaletteWin.codes2D[0] and globalPaletteWin.codes2D[0][2]
@@ -440,8 +440,8 @@ local function buildPaletteEditRoundtripScenario(harness, app, runner)
   local staticWin = assert(BubbleExample.findStaticWindow(app), "expected static art window")
   local paletteWin = assert(harness:findWindow({
     kind = "palette",
-    title = "Global palette",
-  }), "expected global palette window")
+    title = "Generic palette",
+  }), "expected generic palette window")
 
   BubbleExample.clearStaticWindow(staticWin)
 
@@ -467,14 +467,14 @@ local function buildPaletteEditRoundtripScenario(harness, app, runner)
     postPause = 0.3,
   })
 
-  steps[#steps + 1] = call("Store original global palette code", function(_, _, currentRunner)
+  steps[#steps + 1] = call("Store original generic palette code", function(_, _, currentRunner)
     currentRunner.originalPaletteCode = assert(
       paletteWin.codes2D and paletteWin.codes2D[0] and paletteWin.codes2D[0][2],
-      "expected original global palette code"
+      "expected original generic palette code"
     )
   end)
 
-  appendClick(steps, "Select third global palette color", function(h)
+  appendClick(steps, "Select third generic palette color", function(h)
     return h:windowCellCenter(paletteWin, 2, 0)
   end, {
     moveDuration = 0.08,
@@ -488,7 +488,7 @@ local function buildPaletteEditRoundtripScenario(harness, app, runner)
   steps[#steps + 1] = call("Assert palette code changed", function(_, _, currentRunner)
     local newCode = paletteWin.codes2D and paletteWin.codes2D[0] and paletteWin.codes2D[0][2]
     assert(newCode and newCode ~= currentRunner.originalPaletteCode,
-      string.format("expected global palette code to change from %s", tostring(currentRunner.originalPaletteCode)))
+      string.format("expected generic palette code to change from %s", tostring(currentRunner.originalPaletteCode)))
   end)
 
   steps[#steps + 1] = keyPress("Shift up to restore palette high nibble", "up", { "lshift" })

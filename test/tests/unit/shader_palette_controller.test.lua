@@ -50,7 +50,7 @@ describe("shader_palette_controller.lua", function()
       expect(ShaderPaletteController.resolveLayerPaletteCodes(layer, 1, nil)).toBeNil()
     end)
 
-    it("resolves linked global palette window codes by winId", function()
+    it("resolves linked generic palette window codes by winId", function()
       local previousCtx = rawget(_G, "ctx")
       _G.ctx = {
         wm = function()
@@ -101,7 +101,7 @@ describe("shader_palette_controller.lua", function()
       expect(#colors[1]).toBe(3) -- r, g, b
     end)
     
-    it("falls back to global palette when layer has no paletteData", function()
+    it("falls back to generic palette when layer has no paletteData", function()
       local layer = {}
       local colors = ShaderPaletteController.getPaletteColors(layer, 1, nil)
       expect(colors).toBeTruthy()

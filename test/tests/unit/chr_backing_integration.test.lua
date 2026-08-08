@@ -168,7 +168,7 @@ describe("chr backing integration", function()
       return {
         kind = "palette",
         isPalette = true,
-        title = (data and data.title) or "Global palette",
+        title = (data and data.title) or "Generic palette",
         layers = {},
       }
     end
@@ -303,7 +303,7 @@ describe("chr backing integration", function()
       return {
         kind = "palette",
         isPalette = true,
-        title = (data and data.title) or "Global palette",
+        title = (data and data.title) or "Generic palette",
         layers = {},
       }
     end

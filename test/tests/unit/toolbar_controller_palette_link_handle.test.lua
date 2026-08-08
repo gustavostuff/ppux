@@ -22,7 +22,7 @@ describe("toolbar_controller.lua - palette link handle", function()
     _G.ctx = previousCtx
   end)
 
-  it("creates a specialized toolbar without a link handle for a single global palette window", function()
+  it("creates a specialized toolbar without a link handle for a single generic palette window", function()
     local wm = WM.new()
     local win = wm:createPaletteWindow({
       title = "Palette A",

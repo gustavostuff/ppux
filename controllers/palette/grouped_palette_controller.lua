@@ -427,8 +427,8 @@ function M:activateWindow(window)
   return true
 end
 
---- When grouped palettes are on, align the **global** slot (active index, hidden peers, shared layout)
---- with a given global palette window — same visibility/layout outcome as toolbar cycling, but **no
+--- When grouped palettes are on, align the **generic** slot (active index, hidden peers, shared layout)
+--- with a given generic palette window — same visibility/layout outcome as toolbar cycling, but **no
 --- window focus change** (for keyboard active-palette cycling).
 function M:syncGlobalGroupedDisplayToWindow(window)
   if self.enabled ~= true then

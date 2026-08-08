@@ -1073,7 +1073,7 @@ local function setAppStatusForPaletteFocusWindow(app, win)
     segments[#segments + 1] = "ROM palette"
     segments[#segments + 1] = string.format("%d×%d (%d colors)", rows, cols, total)
   else
-    segments[#segments + 1] = "Global palette"
+    segments[#segments + 1] = "Generic palette"
     segments[#segments + 1] = string.format("%d×%d (%d colors)", rows, cols, total)
     if win.activePalette == true then
       segments[#segments + 1] = "Active"

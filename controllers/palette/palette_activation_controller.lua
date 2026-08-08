@@ -24,7 +24,7 @@ function M.findActiveGlobalPaletteWindow(wm)
   return nil
 end
 
---- First palette color from the shader-active global palette, or the first global palette if none is active.
+--- First palette color from the shader-active generic palette, or the first generic palette if none is active.
 --- Minimized or group-hidden palettes still count; only closed/runtime-only windows are excluded.
 function M.getBackgroundColor(wm)
   local paletteWin = M.findActiveGlobalPaletteWindow(wm)
@@ -53,7 +53,7 @@ function M.refreshPaletteToolbarActiveIcons(wm)
   end
 end
 
---- Make `target` the sole shader-active global palette. Does not change window focus.
+--- Make `target` the sole shader-active generic palette. Does not change window focus.
 function M.activateGlobalPalette(target, app)
   if not WindowCaps.isGlobalPaletteWindow(target) then
     return false

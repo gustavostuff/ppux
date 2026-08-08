@@ -1,5 +1,5 @@
 -- palette_window.lua
--- Global palette window (default: 1 row x 4 cols).
+-- Generic palette window (default: 1 row x 4 cols).
 -- Arrow keys move selection. Shift + arrows adjust selected color nibble.
 local Window = require("ui.windows_system.window")
 local Palettes = require("palettes")
@@ -86,7 +86,7 @@ function PaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
     end
   end
   
-  -- Sync to global palette manager if this palette is active
+  -- Sync to shader palette manager if this palette is active
   if self.activePalette then
     self:syncToGlobalPalette()
   end
@@ -152,12 +152,12 @@ function PaletteWindow:adjustSelectedByArrows(dx,dy)
   
   DebugController.log("info", "PAL", "Palette '%s' color adjusted at (%d,%d): %s -> %s", self.title or "untitled", sc, sr, old, new)
   
-  -- Sync to global palette manager if this palette is shader-active.
+  -- Sync to shader palette manager if this palette is shader-active.
   if self.activePalette then
     if self.rows==1 and self.cols==4 then
       ShaderPaletteController.setCodeAt(sc+1, new)
     else
-      -- For multi-row palettes, sync all codes to global
+      -- For multi-row palettes, sync all codes into the shader manager
       local flat = {}
       for r=0, self.rows-1 do
         for c=0, self.cols-1 do
@@ -184,7 +184,7 @@ function PaletteWindow:adjustSelectedByArrows(dx,dy)
   markPaletteUnsaved()
 end
 
--- Sync this palette's codes to the global palette manager
+-- Sync this palette's codes to the shader palette manager.
 function PaletteWindow:syncToGlobalPalette()
   if not self.activePalette then return end
   

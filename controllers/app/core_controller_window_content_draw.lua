@@ -54,7 +54,7 @@ local function getRomPaletteBgColorForWindow(win, wm)
   return nil
 end
 local function renderWindowChessPattern(window, wm)
-  -- Pick base BG color: window ROM palette BG -> global active BG -> black
+  -- Pick base BG color: window ROM palette BG -> active generic palette BG -> black
   local bgColor = getRomPaletteBgColorForWindow(window, wm) or getActiveGlobalPaletteBgColor(wm) or colors.black
   local grid = (window.getDisplayGridMetrics and window:getDisplayGridMetrics()) or {
     baseCellW = window.cellW or 8,

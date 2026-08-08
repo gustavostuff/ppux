@@ -141,7 +141,7 @@ describe("image_import_controller.lua - undo support for PNG import", function()
     expect(hasChangedPixel).toBe(true)
   end)
 
-  it("maps CHR PNG colors through global palette brightness order", function()
+  it("maps CHR PNG colors through generic palette brightness order", function()
     ShaderPaletteController.getPaletteColors = function()
       return {
         { 0.80, 0.80, 0.80 }, -- pixel value 0 (bright)

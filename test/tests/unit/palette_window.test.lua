@@ -3,7 +3,7 @@ local PaletteWindow = require("ui.windows_system.palette_window")
 describe("palette_window.lua - compact mode", function()
   it("supports compact mode and switches between normal and compact cell sizes", function()
     local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 1, 4, {
-      title = "Global Palette Compact",
+      title = "Generic Palette Compact",
     })
 
     expect(win:supportsCompactMode()).toBe(true)
@@ -24,7 +24,7 @@ describe("palette_window.lua - compact mode", function()
 
   it("applies compact mode from constructor data", function()
     local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 1, 4, {
-      title = "Global Palette Compact Init",
+      title = "Generic Palette Compact Init",
       compactView = true,
     })
 
@@ -35,7 +35,7 @@ describe("palette_window.lua - compact mode", function()
 
   it("builds row and column strip codes from the selected color", function()
     local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 1, 4, {
-      title = "Global Palette Strips",
+      title = "Generic Palette Strips",
       initCodes = { "0F", "30", "37", "2B" },
     })
 
@@ -54,7 +54,7 @@ describe("palette_window.lua - compact mode", function()
 
   it("uses quarter-cell strip sizes in normal mode and hides strips in compact mode", function()
     local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
-      title = "Global Palette Strip Metrics",
+      title = "Generic Palette Strip Metrics",
       initCodes = {
         "00", "01", "02", "03",
         "10", "11", "12", "13",
@@ -106,7 +106,7 @@ describe("palette_window.lua - compact mode", function()
     expect(win:getSelectionStripShadowRectsCanvas(wm)).toBe(nil)
   end)
 
-  it("adjusts colors on inactive global palettes without syncing the shader", function()
+  it("adjusts colors on inactive generic palettes without syncing the shader", function()
     local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
     local before = { ShaderPaletteController.getCodes()[1], ShaderPaletteController.getCodes()[2], ShaderPaletteController.getCodes()[3], ShaderPaletteController.getCodes()[4] }
 
@@ -128,7 +128,7 @@ describe("palette_window.lua - compact mode", function()
 
   it("bypasses the shared minimum window size constraint", function()
     local win = PaletteWindow.new(0, 0, 2, "smooth_fbx", 1, 4, {
-      title = "Global Palette Small Compact",
+      title = "Generic Palette Small Compact",
       compactView = true,
     })
 

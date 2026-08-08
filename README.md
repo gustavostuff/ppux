@@ -38,7 +38,7 @@ PPUX has two main functionalities:
 1. Modify graphics on an existing game.
 2. Create graphics from scratch.
 
-For the first approach, drop a ROM into the window. Without a DB entry, PPUX loads a basic default layout. With one, it opens a tailored workspace: the core strength of the tool.
+For the first approach, drop a ROM into the window. Without a DB entry, PPUX loads a basic default layout. With one, it opens a tailored workspace. **This is the core feaure**.
 
 For the second approach, use _Sketch Canvas_ windows. From these you can generate pattern tables and map colors through attributes, as with real nametables. You can export CHR and nametable binaries, or a full _Gallery ROM_ with one gallery item per Sketch Canvas.
 
@@ -51,11 +51,11 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 | CHR Banks              | <img src="img/readme_images/windows_system_table/icon_chr_window.png" alt="CHR Banks taskbar icon">                      | Primary source window for CHR                                                                                                                    |
 | ROM Banks              | <img src="img/readme_images/windows_system_table/icon_rom_window.png" alt="ROM Banks taskbar icon">                      | Same as CHR Banks, but loads the whole ROM                                                                                                       |
 | Static Art (tiles)     | <img src="img/readme_images/windows_system_table/icon_static_tile_window.png" alt="Static Art tiles taskbar icon">       | Single-layer, grid-snapped tile assembly                                                                                                         |
-| Animation (tiles)      | <img src="img/readme_images/windows_system_table/icon_animated_tile_window.gif" alt="Animation tiles taskbar icon">      | Multi-layer, grid-snapped tile assembly                                                                                                          |
+| Animation (tiles)      | <img src="img/readme_images/windows_system_table/icon_animated_tile_window.gif" alt="Animation tiles taskbar icon">      | Same, but multi layered.                                                                                                         |
 | Static Art (sprites)   | <img src="img/readme_images/windows_system_table/icon_static_sprite_window.png" alt="Static Art sprites taskbar icon">   | Single-layer sprite composition, items are pixel-snapped                                                                                         |
-| Animation (sprites)    | <img src="img/readme_images/windows_system_table/icon_animated_sprite_window.gif" alt="Animation sprites taskbar icon">  | Multi-layer sprite composition, items are pixel-snapped                                                                                          |
+| Animation (sprites)    | <img src="img/readme_images/windows_system_table/icon_animated_sprite_window.gif" alt="Animation sprites taskbar icon">  | Same, but multi layered.                                                                                          |
 | OAM Animation          | <img src="img/readme_images/windows_system_table/icon_oam_animated_window.gif" alt="OAM Animation taskbar icon">         | ROM-backed sprite animation, **requires a linked Pattern table** window for sprite CHR. Each sprite is created from a real ROM address (OAM)     |
-| Global palette         | <img src="img/readme_images/windows_system_table/icon_palette_window.png" alt="Global palette taskbar icon">             | Global palette window for items without an assigned ROM palette (cycle them with PgUp/PgDown)                                                    |
+| Generic palette        | <img src="img/readme_images/windows_system_table/icon_palette_window.png" alt="Generic palette taskbar icon">            | Generic palette window for items without an assigned ROM palette (cycle them with PgUp/PgDown)                                                   |
 | ROM palette            | <img src="img/readme_images/windows_system_table/icon_rom_palette_window.png" alt="ROM palette taskbar icon">            | ROM palette editor: **ROM** role (addresses) or **Sketch** role (free 4x4 for sketch canvases)                                                   |
 | PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view. It **also** requires pattern table links for rendering                                                     |
 | Pattern table          | <img src="img/readme_images/windows_system_table/icon_pattern_table_window.png" alt="Pattern table taskbar icon">        | Sub-set of CHR/ROM items, intended to mimic the actual pattern tables assembled in game run-time                                                 |
@@ -190,14 +190,14 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 <tr>
 <td>
 
-**Global palette toolbar**
+**Generic palette toolbar**
 
-<img src="img/readme_images/toolbars/global_palette.png" alt="Global palette specialized toolbar">
+<img src="img/readme_images/toolbars/global_palette.png" alt="Generic palette specialized toolbar">
 
 1. **Previous grouped slot** (when Grouped palettes is enabled).
 2. **Next grouped slot** (when Grouped palettes is enabled).
 3. **Compact / normal view** - Changes the window's size, basically.
-4. **Set as active palette** - for painting where no ROM palette applies (when there are multiple global palettes, use PgUp/PgDown to cycle through them).
+4. **Set as active palette** - for painting where no ROM palette applies (when there are multiple generic palettes, use PgUp/PgDown to cycle through them).
 
 </td>
 </tr>
@@ -268,13 +268,13 @@ Logical **ranges** are built by dragging tiles from **CHR Banks** or **ROM Banks
 
 Palette windows are the editors used for colors across the app.
 
-* **Global palette** - the fallback palette when nothing has a ROM palette linked. Handy for mockups and freeform art.
+* **Generic palette** - the fallback palette when nothing has a ROM palette linked. Handy for mockups and freeform art.
 * **ROM palette** (`4x4`) - when you create one, PPUX asks for a **role**: **ROM** (backed by ROM addresses for in-game palette editing) or **Sketch** (free colors, only for Sketch canvas windows).
 
-|                | Normal mode | Compact mode |
-|----------------|-------------|--------------|
-| Global palette | <img src="img/readme_images/palettes_table/global_palette_normal.png" alt="Global palette normal mode"> | <img src="img/readme_images/palettes_table/global_palette_compact.png" alt="Global palette compact mode"> |
-| ROM palette    | <img src="img/readme_images/palettes_table/rom_palette_normal.png" alt="ROM palette normal mode"> | <img src="img/readme_images/palettes_table/rom_palette_compact.png" alt="ROM palette compact mode"> |
+|                 | Normal mode | Compact mode |
+|-----------------|-------------|--------------|
+| Generic palette | <img src="img/readme_images/palettes_table/global_palette_normal.png" alt="Generic palette normal mode"> | <img src="img/readme_images/palettes_table/global_palette_compact.png" alt="Generic palette compact mode"> |
+| ROM palette     | <img src="img/readme_images/palettes_table/rom_palette_normal.png" alt="ROM palette normal mode"> | <img src="img/readme_images/palettes_table/rom_palette_compact.png" alt="ROM palette compact mode"> |
 
 To create a link, right-drag from a connect handle on either the palette or the destination window, or use the left-click menus (**Link To Palette**, **Remove ROM palette link**, **Jump to linked palette**, and so on). Sketch canvases only accept **sketch-mode** palettes. Other layout windows use **ROM**-role palettes.
 
@@ -283,7 +283,7 @@ Linked ROM palette and pattern-table windows also show small squares on the left
 ### Main controls
 
 - `Ctrl + 1/2/3`: set the app window to 1x, 2x, or 3x integer scale of the 640x360 canvas (for example 1280x720 or 1920x1080).
-- `Page Up` / `Page Down`: cycle which **global** (non-ROM) palette is active. ROM palette windows are not part of this cycle.
+- `Page Up` / `Page Down`: cycle which **generic** (non-ROM) palette is active. ROM palette windows are not part of this cycle.
 - `Ctrl + F`: toggle fullscreen.
 - `Ctrl + N`: open New Window.
 - `Ctrl + S`: open save options.

@@ -130,7 +130,7 @@ return {
       selectedCol = 1,
       selectedRow = 0,
       showGrid = "none",
-      title = "Global palette",
+      title = "Generic palette",
       visibleCols = 4,
       visibleRows = 1,
       x = 492,

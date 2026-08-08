@@ -101,6 +101,9 @@ function M.isRomPaletteWindow(win)
   return win and win.kind == "rom_palette"
 end
 
+--- Generic palette window (`kind == "palette"`).
+--- "Global palette" is a legacy product label; the UI/docs name is **Generic palette**.
+--- Identifiers such as `isGlobalPaletteWindow` / `syncToGlobalPalette` keep the old name.
 function M.isGlobalPaletteWindow(win)
   return win and win.kind == "palette"
 end

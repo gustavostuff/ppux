@@ -138,8 +138,8 @@ function M.handleModeSwitch(ctx, key)
   return false
 end
 
---- Page Up / Page Down: cycle active **global** (non-ROM) shader palette only; ROM palette windows excluded.
---- When grouped, updates the visible global slot without focusing palette windows.
+--- Page Up / Page Down: cycle active **generic** (non-ROM) shader palette only; ROM palette windows excluded.
+--- When grouped, updates the visible generic slot without focusing palette windows.
 function M.handleGlobalPaletteCycle(ctx, utils, key)
   if type(key) ~= "string" then
     return false

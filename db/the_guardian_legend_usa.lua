@@ -30,7 +30,7 @@ return {
       scrollCol = 0,
       scrollRow = 0,
       showGrid = "none",
-      title = "Global palette",
+      title = "Generic palette",
       visibleCols = 4,
       visibleRows = 1,
       x = 500,

@@ -777,11 +777,11 @@ function AppCoreController:cycleGroupedPaletteWindow(window, delta)
   return changed
 end
 
---- Keyboard: cycle which **global** (non-ROM) palette window is active — `WindowCaps.isGlobalPaletteWindow`
+--- Keyboard: cycle which **generic** (non-ROM) palette window is active — `WindowCaps.isGlobalPaletteWindow`
 --- only; **ROM palette** windows are never part of this shortcut. Same net effect as "Set as active palette"
---- on a global palette toolbar. Does not focus palette windows. If **Grouped palettes** is enabled,
---- updates the grouped **global** slot (active index / which palette is shown) without `setFocus`.
---- Requires at least two global palette windows.
+--- on a generic palette toolbar. Does not focus palette windows. If **Grouped palettes** is enabled,
+--- updates the grouped **generic** slot (active index / which palette is shown) without `setFocus`.
+--- Requires at least two generic palette windows.
 function AppCoreController:cycleGlobalPaletteFromKeyboard(delta)
   local wm = self.wm
   if not (wm and wm.getWindows) then
@@ -828,14 +828,14 @@ function AppCoreController:cycleGlobalPaletteFromKeyboard(delta)
 
   if #palettes == 0 then
     if self.setStatus then
-      self:setStatus("Open a global palette window to cycle.")
+      self:setStatus("Open a generic palette window to cycle.")
     end
     return true
   end
 
   if #palettes < 2 then
     if self.setStatus then
-      self:setStatus("Need at least two global palettes to cycle.")
+      self:setStatus("Need at least two generic palettes to cycle.")
     end
     return true
   end

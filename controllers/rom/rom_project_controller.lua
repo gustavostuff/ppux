@@ -980,7 +980,7 @@ local function loadFromProject(app, project)
     app.currentColor = project.currentColor
   end
   
-  -- Sync active palette windows to global palette manager
+  -- Sync active palette windows to the shader palette manager
   for _, win in ipairs(app.wm:getWindows()) do
     if win.isPalette and win.activePalette then
       win:syncToGlobalPalette()
@@ -1158,7 +1158,7 @@ local function createDefaultWindows(app)
   app.winBank = winBank
   app.wm:add(winBank)
 
-  -- Unknown ROM fallback should still provide one global palette window so
+  -- Unknown ROM fallback should still provide one generic palette window so
   -- palette-aware rendering/import paths have an explicit UI source.
   local paletteWin = PaletteWindow.new(
     500, 30, 1,
@@ -1166,7 +1166,7 @@ local function createDefaultWindows(app)
     1, 4,
     {
       activePalette = true,
-      title = "Global palette",
+      title = "Generic palette",
     }
   )
   paletteWin._id = "palette_01"
