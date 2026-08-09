@@ -546,23 +546,53 @@ function AppCoreController:contentPointToCanvasPoint(x, y)
 end
 
 
-function AppCoreController:showPaletteLinkSourceContextMenu(win, x, y)
+local function contextMenuShowOpts(app, opts)
+  opts = opts or {}
+  if type(opts.anchorRect) ~= "table" then
+    return nil
+  end
+  local r = opts.anchorRect
+  local ax, ay = app:contentPointToCanvasPoint(
+    math.floor(tonumber(r.x) or 0),
+    math.floor(tonumber(r.y) or 0)
+  )
+  return {
+    anchorRect = {
+      x = ax,
+      y = ay,
+      w = math.floor(tonumber(r.w) or 0),
+      h = math.floor(tonumber(r.h) or 0),
+    },
+  }
+end
+
+function AppCoreController:showPaletteLinkSourceContextMenu(win, x, y, opts)
   if not (self.paletteLinkContextMenu and win and type(x) == "number" and type(y) == "number") then
     return false
   end
   self:_hideAllContextMenus()
   local cx, cy = self:contentPointToCanvasPoint(x, y)
-  self.paletteLinkContextMenu:showAt(cx, cy, self:_buildPaletteLinkSourceContextMenuItems(win))
+  self.paletteLinkContextMenu:showAt(
+    cx,
+    cy,
+    self:_buildPaletteLinkSourceContextMenuItems(win),
+    contextMenuShowOpts(self, opts)
+  )
   return self.paletteLinkContextMenu:isVisible()
 end
 
-function AppCoreController:showPaletteLinkDestinationContextMenu(win, x, y)
+function AppCoreController:showPaletteLinkDestinationContextMenu(win, x, y, opts)
   if not (self.paletteLinkContextMenu and win and type(x) == "number" and type(y) == "number") then
     return false
   end
   self:_hideAllContextMenus()
   local cx, cy = self:contentPointToCanvasPoint(x, y)
-  self.paletteLinkContextMenu:showAt(cx, cy, self:_buildPaletteLinkDestinationContextMenuItems(win))
+  self.paletteLinkContextMenu:showAt(
+    cx,
+    cy,
+    self:_buildPaletteLinkDestinationContextMenuItems(win),
+    contextMenuShowOpts(self, opts)
+  )
   return self.paletteLinkContextMenu:isVisible()
 end
 
@@ -635,13 +665,18 @@ function AppCoreController:_afterPatternTableLinkChange(contentWin, layerIndex)
 end
 
 
-function AppCoreController:showPatternTableLinkSourceContextMenu(win, x, y)
+function AppCoreController:showPatternTableLinkSourceContextMenu(win, x, y, opts)
   if not (self.paletteLinkContextMenu and win and type(x) == "number" and type(y) == "number") then
     return false
   end
   self:_hideAllContextMenus()
   local cx, cy = self:contentPointToCanvasPoint(x, y)
-  self.paletteLinkContextMenu:showAt(cx, cy, self:_buildPatternTableLinkSourceContextMenuItems(win))
+  self.paletteLinkContextMenu:showAt(
+    cx,
+    cy,
+    self:_buildPatternTableLinkSourceContextMenuItems(win),
+    contextMenuShowOpts(self, opts)
+  )
   return self.paletteLinkContextMenu:isVisible()
 end
 

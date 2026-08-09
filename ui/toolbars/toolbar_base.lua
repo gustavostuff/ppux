@@ -931,4 +931,19 @@ function ToolbarBase:updateIcons()
   -- Default implementation does nothing
 end
 
+--- Opts for context menus opened from a toolbar button (keeps the root menu off the button).
+function ToolbarBase.menuOptsFromButton(btn)
+  if not btn then
+    return nil
+  end
+  return {
+    anchorRect = {
+      x = math.floor(tonumber(btn.x) or 0),
+      y = math.floor(tonumber(btn.y) or 0),
+      w = math.floor(tonumber(btn.w) or 0),
+      h = math.floor(tonumber(btn.h) or 0),
+    },
+  }
+end
+
 return ToolbarBase

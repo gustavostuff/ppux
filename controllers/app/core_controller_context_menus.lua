@@ -1239,13 +1239,34 @@ function AppCoreController:_buildPatternTableLinkDestinationContextMenuItems(con
   return items
 end
 
-function AppCoreController:showPatternTableLinkDestinationContextMenu(win, x, y)
+function AppCoreController:showPatternTableLinkDestinationContextMenu(win, x, y, opts)
   if not (self.paletteLinkContextMenu and win and type(x) == "number" and type(y) == "number") then
     return false
   end
   self:_hideAllContextMenus()
   local cx, cy = self:contentPointToCanvasPoint(x, y)
-  self.paletteLinkContextMenu:showAt(cx, cy, self:_buildPatternTableLinkDestinationContextMenuItems(win))
+  local showOpts = nil
+  if type(opts) == "table" and type(opts.anchorRect) == "table" then
+    local r = opts.anchorRect
+    local ax, ay = self:contentPointToCanvasPoint(
+      math.floor(tonumber(r.x) or 0),
+      math.floor(tonumber(r.y) or 0)
+    )
+    showOpts = {
+      anchorRect = {
+        x = ax,
+        y = ay,
+        w = math.floor(tonumber(r.w) or 0),
+        h = math.floor(tonumber(r.h) or 0),
+      },
+    }
+  end
+  self.paletteLinkContextMenu:showAt(
+    cx,
+    cy,
+    self:_buildPatternTableLinkDestinationContextMenuItems(win),
+    showOpts
+  )
   return self.paletteLinkContextMenu:isVisible()
 end
 

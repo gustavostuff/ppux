@@ -240,7 +240,12 @@ function AnimationToolbar:_onPatternTableLinkMenu()
     return
   end
   self:updatePosition()
-  app:showPatternTableLinkDestinationContextMenu(self.window, btn.x + btn.w * 0.5, btn.y + btn.h * 0.5)
+  app:showPatternTableLinkDestinationContextMenu(
+    self.window,
+    btn.x + btn.w * 0.5,
+    btn.y + btn.h * 0.5,
+    ToolbarBase.menuOptsFromButton(btn)
+  )
 end
 
 function AnimationToolbar:_getActiveSpriteLayer()

@@ -53,7 +53,12 @@ function PatternTableToolbar:_onPatternTableLinkMenu()
     return
   end
   self:updatePosition()
-  app:showPatternTableLinkSourceContextMenu(self.window, btn.x + btn.w * 0.5, btn.y + btn.h * 0.5)
+  app:showPatternTableLinkSourceContextMenu(
+    self.window,
+    btn.x + btn.w * 0.5,
+    btn.y + btn.h * 0.5,
+    ToolbarBase.menuOptsFromButton(btn)
+  )
 end
 
 function PatternTableToolbar:_activeTileLayerIndex()

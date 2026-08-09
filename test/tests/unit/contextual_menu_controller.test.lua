@@ -219,4 +219,55 @@ describe("contextual_menu_controller.lua", function()
     menu:mousereleased(midX, gapYBottomShare, 1)
     expect(picked[#picked]).toBe("Bottom")
   end)
+
+  it("places root menus beside an anchorRect instead of covering it", function()
+    local menu = ContextualMenuController.new({
+      getBounds = function()
+        return { w = 400, h = 300 }
+      end,
+      cellH = 15,
+    })
+    local anchor = { x = 40, y = 40, w = 20, h = 16 }
+    menu:showAt(anchor.x + 10, anchor.y + 8, {
+      { text = "One" },
+      { text = "Two" },
+    }, { anchorRect = anchor })
+
+    expect(menu:isVisible()).toBe(true)
+    local gap = ContextualMenuController.PARENT_GAP_PX
+    -- Prefer below the button.
+    expect(menu.y).toBe(anchor.y + anchor.h + gap)
+    expect(menu.x).toBe(anchor.x)
+    -- Menu must not overlap the anchor.
+    local overlaps = menu.x < (anchor.x + anchor.w)
+      and (menu.x + menu.panel.w) > anchor.x
+      and menu.y < (anchor.y + anchor.h)
+      and (menu.y + menu.panel.h) > anchor.y
+    expect(overlaps).toBe(false)
+  end)
+
+  it("flips a root menu above the anchor when there is no room below", function()
+    local menu = ContextualMenuController.new({
+      getBounds = function()
+        return { w = 400, h = 120 }
+      end,
+      cellH = 15,
+    })
+    local anchor = { x = 40, y = 90, w = 20, h = 16 }
+    menu:showAt(0, 0, {
+      { text = "One" },
+      { text = "Two" },
+      { text = "Three" },
+      { text = "Four" },
+    }, { anchorRect = anchor })
+
+    expect(menu:isVisible()).toBe(true)
+    local gap = ContextualMenuController.PARENT_GAP_PX
+    expect(menu.y + menu.panel.h + gap).toBe(anchor.y)
+    local overlaps = menu.x < (anchor.x + anchor.w)
+      and (menu.x + menu.panel.w) > anchor.x
+      and menu.y < (anchor.y + anchor.h)
+      and (menu.y + menu.panel.h) > anchor.y
+    expect(overlaps).toBe(false)
+  end)
 end)

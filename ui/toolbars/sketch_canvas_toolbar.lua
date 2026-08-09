@@ -230,7 +230,12 @@ function SketchCanvasToolbar:_onLinkMenu()
   local btn = self.linkButton
   local x = (btn and btn.x or 0) + ((btn and btn.w) or 0) * 0.5
   local y = (btn and btn.y or 0) + ((btn and btn.h) or 0) * 0.5
-  app:showPatternTableLinkDestinationContextMenu(self.window, x, y)
+  app:showPatternTableLinkDestinationContextMenu(
+    self.window,
+    x,
+    y,
+    ToolbarBase.menuOptsFromButton(btn)
+  )
   self:updateIcons()
 end
 
@@ -251,7 +256,12 @@ function SketchCanvasToolbar:_onPaletteLinkMenu()
   local btn = self.paletteLinkButton
   local x = (btn and btn.x or 0) + ((btn and btn.w) or 0) * 0.5
   local y = (btn and btn.y or 0) + ((btn and btn.h) or 0) * 0.5
-  app:showPaletteLinkDestinationContextMenu(self.window, x, y)
+  app:showPaletteLinkDestinationContextMenu(
+    self.window,
+    x,
+    y,
+    ToolbarBase.menuOptsFromButton(btn)
+  )
   self:updateIcons()
 end
 

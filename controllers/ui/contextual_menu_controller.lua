@@ -46,6 +46,70 @@ local function clampPosition(menu, x, y)
   return clampedX, clampedY
 end
 
+local function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh)
+  return ax < (bx + bw) and (ax + aw) > bx and ay < (by + bh) and (ay + ah) > by
+end
+
+--- Place a root menu flush beside `anchor` (bottom → top → left → right).
+--- Never overlaps the anchor when any side has room; child menus use resolveChildPosition.
+local function resolveRootBesideAnchor(menu, anchor)
+  local panel = menu and menu.panel or nil
+  if not (panel and type(anchor) == "table") then
+    return nil, nil
+  end
+  local gap = tonumber(ContextualMenuController.PARENT_GAP_PX) or 2
+  local inset = gap
+  local bounds = menu.getBounds and menu.getBounds() or nil
+  local mw = math.max(1, math.floor(tonumber(panel.w) or 1))
+  local mh = math.max(1, math.floor(tonumber(panel.h) or 1))
+  local ax = math.floor(tonumber(anchor.x) or 0)
+  local ay = math.floor(tonumber(anchor.y) or 0)
+  local aw = math.max(0, math.floor(tonumber(anchor.w) or 0))
+  local ah = math.max(0, math.floor(tonumber(anchor.h) or 0))
+
+  local candidates = {
+    { x = ax, y = ay + ah + gap },             -- bottom
+    { x = ax + aw - mw, y = ay + ah + gap },   -- bottom, right-aligned
+    { x = ax, y = ay - mh - gap },             -- top
+    { x = ax + aw - mw, y = ay - mh - gap },   -- top, right-aligned
+    { x = ax - mw - gap, y = ay },             -- left
+    { x = ax - mw - gap, y = ay + ah - mh },   -- left, bottom-aligned
+    { x = ax + aw + gap, y = ay },             -- right
+    { x = ax + aw + gap, y = ay + ah - mh },   -- right, bottom-aligned
+  }
+
+  local function fits(x, y)
+    if bounds then
+      local maxW = tonumber(bounds.w) or 0
+      local maxH = tonumber(bounds.h) or 0
+      if x < inset or y < inset then
+        return false
+      end
+      if maxW > 0 and (x + mw) > (maxW - inset) then
+        return false
+      end
+      if maxH > 0 and (y + mh) > (maxH - inset) then
+        return false
+      end
+    end
+    if aw > 0 and ah > 0 and rectsOverlap(x, y, mw, mh, ax, ay, aw, ah) then
+      return false
+    end
+    return true
+  end
+
+  for _, c in ipairs(candidates) do
+    local x = math.floor(c.x)
+    local y = math.floor(c.y)
+    if fits(x, y) then
+      return x, y
+    end
+  end
+
+  -- Last resort: prefer below, then clamp (may sit near the button if the canvas is tiny).
+  return clampPosition(menu, ax, ay + ah + gap)
+end
+
 local function hideChild(menu)
   if menu.childMenu then
     menu.childMenu:hide()
@@ -493,7 +557,8 @@ function ContextualMenuController:setCellSize(cellW, cellH)
   return changed
 end
 
-function ContextualMenuController:showAt(x, y, items)
+function ContextualMenuController:showAt(x, y, items, opts)
+  opts = opts or {}
   self.childHoverGraceUntil = nil
   self.pendingChildRow = nil
   hideChild(self)
@@ -508,6 +573,16 @@ function ContextualMenuController:showAt(x, y, items)
   self.visible = true
   if self.panel then
     self.panel:setVisible(true)
+  end
+  -- Root menus spawned from a toolbar button (or similar) pass anchorRect so the
+  -- panel sits beside the trigger instead of covering it. Child menus keep their
+  -- precomputed positions from resolveChildPosition.
+  if self.parentMenu == nil and type(opts.anchorRect) == "table" then
+    local ax, ay = resolveRootBesideAnchor(self, opts.anchorRect)
+    if ax ~= nil and ay ~= nil then
+      self:setPosition(ax, ay)
+      return true
+    end
   end
   self:setPosition(x, y)
   return true

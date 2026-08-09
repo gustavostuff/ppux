@@ -174,7 +174,12 @@ function PPUFrameToolbar:_onPatternTableLinkMenu()
   self:updatePosition()
   local x = btn.x + btn.w * 0.5
   local y = btn.y + btn.h * 0.5
-  app:showPatternTableLinkDestinationContextMenu(self.window, x, y)
+  app:showPatternTableLinkDestinationContextMenu(
+    self.window,
+    x,
+    y,
+    ToolbarBase.menuOptsFromButton(btn)
+  )
 end
 
 -- Handle previous layer
