@@ -1,8 +1,10 @@
 -- Pattern-table link interactions via toolbar buttons (PPU bg/sprites, pattern table, OAM).
 local P = require("test.e2e_visible.scenarios.prelude")
 local H = require("test.e2e_visible.scenarios.builders.link_helpers")
-local BubbleExample, pause, call, appendClick, keyPress, setFocusedTextFieldValue, setupDeterministicPpuFixture
-  = P.BubbleExample, P.pause, P.call, P.appendClick, P.keyPress, P.setFocusedTextFieldValue, P.setupDeterministicPpuFixture
+local BubbleExample, pause, call, appendClick, keyPress, setFocusedTextFieldValue, setupDeterministicPpuFixture,
+  ensureSpriteLayerReadyForAddSprite
+  = P.BubbleExample, P.pause, P.call, P.appendClick, P.keyPress, P.setFocusedTextFieldValue, P.setupDeterministicPpuFixture,
+  P.ensureSpriteLayerReadyForAddSprite
 
 local function buildPatternTableLinkInteractionsScenario(harness, app, runner)
   harness:loadROM(BubbleExample.getLoadPath())
@@ -61,14 +63,18 @@ local function buildPatternTableLinkInteractionsScenario(harness, app, runner)
       currentHarness:wait(0.14)
     end
   end)
+  steps[#steps + 1] = call("Link stub pattern table for add-sprite gate", function(_, _, currentRunner)
+    local ppu = H.requireRunnerWindow(currentRunner, "ppuFixtureWin")
+    local spriteIdx = H.findFirstLayerIndexByKind(ppu, "sprite")
+    assert(spriteIdx, "expected sprite layer before add sprite modal")
+    ensureSpriteLayerReadyForAddSprite(ppu.layers[spriteIdx])
+  end)
   H.appendClickToolbarButton(steps, "Open add sprite modal", "ppuFixtureWin", function(toolbar)
     return toolbar.addSpriteButton
   end, { moveDuration = 0.1, postPause = 0.2 })
   steps[#steps + 1] = call("Fill add sprite modal and confirm", function(currentHarness, currentApp)
     local modal = assert(currentApp.ppuFrameAddSpriteModal, "expected ppuFrameAddSpriteModal")
     assert(modal:isVisible(), "expected add sprite modal visible")
-    setFocusedTextFieldValue(modal.bankField, "1")
-    setFocusedTextFieldValue(modal.tileField, "6")
     setFocusedTextFieldValue(modal.oamStartField, "0x000020")
     currentHarness:keyPress("return", { wait = false })
     currentHarness:wait(0.18)

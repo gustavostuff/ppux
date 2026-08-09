@@ -29,20 +29,12 @@ local function getLoadingFont(app)
     return nil
   end
 
-  local candidates = {
-    "ui/fonts/AsepriteFont.ttf",
-    "../ui/fonts/AsepriteFont.ttf",
-    "ui/fonts/proggy-tiny.ttf",
-    "../ui/fonts/proggy-tiny.ttf",
-  }
-
-  for _, path in ipairs(candidates) do
-    local ok, font = pcall(love.graphics.newFont, path, LOADING_LABEL_FONT_SIZE)
-    if ok and font then
-      font:setFilter("nearest", "nearest")
-      loadingFont = font
-      return loadingFont
-    end
+  local UiFont = require("ui.ui_font")
+  local font = UiFont.load(LOADING_LABEL_FONT_SIZE)
+  if font then
+    font:setFilter("nearest", "nearest")
+    loadingFont = font
+    return loadingFont
   end
 
   loadingFont = love.graphics.newFont(LOADING_LABEL_FONT_SIZE)

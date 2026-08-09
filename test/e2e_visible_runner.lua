@@ -27,17 +27,11 @@ local function getOverlayFont()
     return cachedOverlayFont
   end
 
-  local paths = {
-    "ui/fonts/proggy-tiny.ttf",
-    "../ui/fonts/proggy-tiny.ttf",
-  }
-
-  for _, path in ipairs(paths) do
-    local ok, font = pcall(love.graphics.newFont, path, 16)
-    if ok and font then
-      cachedOverlayFont = font
-      return cachedOverlayFont
-    end
+  local UiFont = require("ui.ui_font")
+  local font = UiFont.load(16)
+  if font then
+    cachedOverlayFont = font
+    return cachedOverlayFont
   end
 
   cachedOverlayFont = love.graphics.newFont(16)

@@ -15,6 +15,7 @@ local Timer = require("utils.timer_utils")
 local katsudo = require("lib.katsudo")
 local colors = require("app_colors")
 local images = require("images")
+local UiFont = require("ui.ui_font")
 
 local chooseBankTileRefForLabel
 local firstSelectedTargetForWindow
@@ -218,24 +219,7 @@ local function resolveCanvasSize(app)
 end
 
 local function loadAppFont(size)
-  local candidates = {
-    "ui/fonts/AsepriteFont.ttf",
-    "../ui/fonts/AsepriteFont.ttf",
-    "ui/fonts/proggy-tiny.ttf",
-    "../ui/fonts/proggy-tiny.ttf",
-    "ui/fonts/proggy-clean-sz.ttf",
-    "../ui/fonts/proggy-clean-sz.ttf",
-    "ui/fonts/Tiny5-Regular.ttf",
-  }
-
-  for _, candidate in ipairs(candidates) do
-    local ok, font = pcall(love.graphics.newFont, candidate, size)
-    if ok and font then
-      return font
-    end
-  end
-
-  return love.graphics.newFont(size)
+  return UiFont.load(size)
 end
 
 local function initGraphics(self, opts)

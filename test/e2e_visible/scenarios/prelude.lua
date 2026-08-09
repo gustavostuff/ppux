@@ -42,6 +42,7 @@ return {
   menuRowCenterByText = H.menuRowCenterByText,
   setFocusedTextFieldValue = H.setFocusedTextFieldValue,
   setupDeterministicPpuFixture = H.setupDeterministicPpuFixture,
+  ensureSpriteLayerReadyForAddSprite = H.ensureSpriteLayerReadyForAddSprite,
   harnessHoldShiftForGridResize = H.harnessHoldShiftForGridResize,
   assertStatusContainsOccupiedLayout = H.assertStatusContainsOccupiedLayout,
 }

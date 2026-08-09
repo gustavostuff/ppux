@@ -7,7 +7,7 @@ local BubbleExample, PaletteLinkController, ContextualMenuController, images,
   windowHeaderCenter, saveOptionCenter, menuRowCenter, taskbarRootMenu, childMenuRowCenter,
   rootMenuItemCenter, resizeHandleCenter, taskbarMenuGapPoint, assertTaskbarChildState,
   buttonCenter, appQuickButtonCenter, ppuToolbarButtonCenter, menuRowCenterByText, setFocusedTextFieldValue,
-  setupDeterministicPpuFixture, harnessHoldShiftForGridResize, assertStatusContainsOccupiedLayout
+  setupDeterministicPpuFixture, ensureSpriteLayerReadyForAddSprite, harnessHoldShiftForGridResize, assertStatusContainsOccupiedLayout
   = P.BubbleExample, P.PaletteLinkController, P.ContextualMenuController, P.images,
   P.normalizeSpeedMultiplier, P.pause, P.moveTo, P.mouseDown, P.mouseUp, P.keyPress, P.textInput, P.call, P.assertDelay, P.appendClick, P.appendDrag,
   P.newWindowOptionCenter, P.newWindowOptionCenterByText, P.newWindowModeToggleCenter,
@@ -15,7 +15,7 @@ local BubbleExample, PaletteLinkController, ContextualMenuController, images,
   P.windowHeaderCenter, P.saveOptionCenter, P.menuRowCenter, P.taskbarRootMenu, P.childMenuRowCenter,
   P.rootMenuItemCenter, P.resizeHandleCenter, P.taskbarMenuGapPoint, P.assertTaskbarChildState,
   P.buttonCenter, P.appQuickButtonCenter, P.ppuToolbarButtonCenter, P.menuRowCenterByText, P.setFocusedTextFieldValue,
-  P.setupDeterministicPpuFixture, P.harnessHoldShiftForGridResize, P.assertStatusContainsOccupiedLayout
+  P.setupDeterministicPpuFixture, P.ensureSpriteLayerReadyForAddSprite, P.harnessHoldShiftForGridResize, P.assertStatusContainsOccupiedLayout
 
 
 local function buildPpuToolbarRangesSetupScenario(harness, app, runner)
@@ -209,6 +209,14 @@ local function buildPpuToolbarSpriteAndModeControlsScenario(harness, app, runner
     end
   end)
 
+  steps[#steps + 1] = call("Link stub pattern table for add-sprite gate", function(_, currentApp, currentRunner)
+    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture")
+    local spriteLayers = ppu.getSpriteLayers and ppu:getSpriteLayers() or {}
+    local info = spriteLayers[1]
+    assert(info and info.layer, "expected sprite layer before add sprite modal")
+    ensureSpriteLayerReadyForAddSprite(info.layer)
+  end)
+
   appendClick(steps, "Open add sprite modal after layer creation", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
     return toolbar.addSpriteButton
   end), { moveDuration = 0.1, postPause = 0.2 })
@@ -216,8 +224,6 @@ local function buildPpuToolbarSpriteAndModeControlsScenario(harness, app, runner
   steps[#steps + 1] = call("Fill add sprite modal and confirm", function(currentHarness, currentApp)
     local modal = assert(currentApp.ppuFrameAddSpriteModal, "expected ppuFrameAddSpriteModal")
     assert(modal:isVisible(), "expected add sprite modal visible after sprite layer exists")
-    setFocusedTextFieldValue(modal.bankField, "1")
-    setFocusedTextFieldValue(modal.tileField, "6")
     setFocusedTextFieldValue(modal.oamStartField, "0x000020")
     currentHarness:keyPress("return", { wait = false })
     currentHarness:wait(0.18)

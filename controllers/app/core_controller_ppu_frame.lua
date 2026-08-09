@@ -7,6 +7,7 @@ local TableUtils = require("utils.table_utils")
 local WindowCaps = require("controllers.window.window_capabilities")
 local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
+local PatternTableMapping = require("utils.pattern_table_mapping")
 
 return function(AppCoreController)
 
@@ -242,6 +243,18 @@ local function getTargetSpriteLayerForAddSprite(win)
   return nil, nil
 end
 
+--- Add/Edit sprite modal requires a linked, layout-valid sprite pattern table.
+local function spriteLayerHasLinkedValidPatternTable(layer)
+  if not (layer and layer.kind == "sprite") then
+    return false
+  end
+  local linkedId = layer.linkedPatternTableWindowId
+  if type(linkedId) ~= "string" or linkedId == "" then
+    return false
+  end
+  return PatternTableMapping.validate(layer.patternTable) == true
+end
+
 local function getLastOamSpriteStartAddrInWindow(win)
   if not WindowCaps.isOamAnimation(win) then
     return nil
@@ -258,25 +271,6 @@ local function getLastOamSpriteStartAddrInWindow(win)
     end
   end
   return lastAddr
-end
-
-local function getInitialPpuSpriteModalValues(app)
-  local state = app and app.appEditState or {}
-  local bankWindow = app and app.winBank or nil
-  local bankNumber = (bankWindow and bankWindow.currentBank) or state.currentBank or 1
-  local tileNumber = 0
-
-  if bankWindow and bankWindow.getSelected and bankWindow.get then
-    local col, row, layerIndex = bankWindow:getSelected()
-    if type(col) == "number" and type(row) == "number" then
-      local selectedTile = bankWindow:get(col, row, layerIndex)
-      if selectedTile and type(selectedTile.index) == "number" then
-        tileNumber = math.max(0, math.floor(selectedTile.index))
-      end
-    end
-  end
-
-  return tostring(bankNumber), tostring(tileNumber), ""
 end
 
 -- After changing `item.tile` (or bank), drop explicit bottom index so 8x16 hydration
@@ -333,29 +327,15 @@ local function collectSpritesSharingOamStartAddr(app, oldStartAddr)
 end
 
 -- Updates every non-removed sprite item sharing oldStartAddr (PPU frame + OAM windows).
--- OAM-only windows (`oam_animation`): only adjust `oamStart`; ROM-backed tile byte stays `oamTile` after hydrate.
--- When confirming from OAM CHR-hidden modal (`chrHiddenModal`): OAM sprites get `bank=nil`; PPU-frame peers only
--- get `startAddr` updated (preserve their bank/tile modal binding).
-local function patchSharedOamSpriteBinding(app, oldStartAddr, bankNumber, tileNumber, oamStart, chrHiddenModal)
+-- Add/Edit sprite modal is OAM-address-only: set `startAddr`, clear `bank` so hydrate
+-- reads the tile byte from ROM (+ linked pattern table).
+local function patchSharedOamSpriteBinding(app, oldStartAddr, oamStart)
   local layersToHydrate = {}
   for _, e in ipairs(collectSpritesSharingOamStartAddr(app, oldStartAddr)) do
-    local win = e.win
-    if win and WindowCaps.isOamAnimation(win) then
-      if type(oamStart) == "number" then
-        e.sprite.startAddr = oamStart
-      end
-      e.sprite.bank = nil
-    elseif chrHiddenModal then
-      if type(oamStart) == "number" then
-        e.sprite.startAddr = oamStart
-      end
-    else
-      e.sprite.bank = bankNumber
-      e.sprite.tile = tileNumber
-      if type(oamStart) == "number" then
-        e.sprite.startAddr = oamStart
-      end
+    if type(oamStart) == "number" then
+      e.sprite.startAddr = oamStart
     end
+    e.sprite.bank = nil
     reset8x16SpriteTilePairAfterChrEdit(e.layer, e.sprite)
     layersToHydrate[e.layer] = true
   end
@@ -396,44 +376,68 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
     isEdit = true
   end
 
-  local initialBank, initialTile, initialOamStart
+  local spriteLayerForGate, spriteLayerIndexForGate
+  if isEdit then
+    spriteLayerForGate = win.layers and win.layers[editLayerIndex] or nil
+    spriteLayerIndexForGate = editLayerIndex
+  else
+    spriteLayerForGate, spriteLayerIndexForGate = getTargetSpriteLayerForAddSprite(win)
+  end
+  if not spriteLayerForGate then
+    local message = "PPU frame window is missing a sprite layer"
+    if win.kind == "oam_animation" then
+      message = "OAM animation window is missing a sprite layer"
+    end
+    self:setStatus(message)
+    self:showToast("error", message)
+    return false
+  end
+  if not spriteLayerHasLinkedValidPatternTable(spriteLayerForGate) then
+    local message = "Link a sprite pattern table before adding sprites"
+    self:setStatus(message)
+    self:showToast("error", message)
+    return false
+  end
+
+  local initialOamStart = ""
   if isEdit then
     local editLayer = win.layers and win.layers[editLayerIndex] or nil
     local editItem = editLayer and editLayer.items and editLayer.items[editItemIndex] or nil
     if not (editLayer and editLayer.kind == "sprite" and editItem and editItem.removed ~= true) then
       return false
     end
-    initialBank = tostring(tonumber(editItem.bank) or 1)
-    initialTile = tostring(tonumber(editItem.tile) or 0)
     initialOamStart = (type(editItem.startAddr) == "number")
         and string.format("0x%06X", editItem.startAddr) or ""
-    if WindowCaps.isOamAnimation(win) then
-      initialBank = ""
-      initialTile = ""
-    end
-  else
-    initialBank, initialTile, initialOamStart = getInitialPpuSpriteModalValues(self)
-    if WindowCaps.isOamAnimation(win) then
-      local lastAddr = getLastOamSpriteStartAddrInWindow(win)
-      if type(lastAddr) == "number" then
-        initialOamStart = string.format("0x%06X", lastAddr)
-      end
+  elseif WindowCaps.isOamAnimation(win) then
+    local lastAddr = getLastOamSpriteStartAddrInWindow(win)
+    if type(lastAddr) == "number" then
+      initialOamStart = string.format("0x%06X", lastAddr)
     end
   end
 
   local modalTitle = modalOpts.title or (isEdit and "Edit sprite" or "Add sprite")
   local primaryButtonText = modalOpts.primaryButtonText or (isEdit and "Save" or "Add")
+  local state = self.appEditState or {}
+  local appearanceSprite = nil
+  if isEdit then
+    local editLayer = win.layers and win.layers[editLayerIndex] or nil
+    appearanceSprite = editLayer and editLayer.items and editLayer.items[editItemIndex] or nil
+  end
 
   self.ppuFrameAddSpriteModal:show({
     title = modalTitle,
     primaryButtonText = primaryButtonText,
+    isEdit = isEdit,
     window = win,
-    chrFieldsHidden = WindowCaps.isOamAnimation(win) == true,
-    initialBank = initialBank,
-    initialTile = initialTile,
     initialOamStart = initialOamStart,
-    onConfirm = function(bankText, tileText, oamStartText, targetWindow)
-      local chrHidden = targetWindow and WindowCaps.isOamAnimation(targetWindow)
+    romRaw = state.romRaw,
+    spriteLayer = spriteLayerForGate,
+    spriteLayerIndex = spriteLayerIndexForGate,
+    tilesPool = state.tilesPool,
+    appEditState = state,
+    appearanceSprite = appearanceSprite,
+    onConfirm = function(oamStartText, targetWindow, confirmOpts)
+      confirmOpts = confirmOpts or {}
       local spriteLayer, spriteLayerIndex = getTargetSpriteLayerForAddSprite(targetWindow)
       if not spriteLayer then
         local message = "PPU frame window is missing a sprite layer"
@@ -443,31 +447,6 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
         self:setStatus(message)
         self:showToast("error", message)
         return false
-      end
-
-      local bankNumber, tileNumber
-      if chrHidden ~= true then
-        local bn, bankErr = Shared.parseNonNegativeInteger(bankText, "Bank number")
-        if not bn then
-          self:setStatus(bankErr)
-          self:showToast("error", bankErr)
-          return false
-        end
-        bankNumber = bn
-        if bankNumber < 1 then
-          local message = "Bank number must be 1 or greater"
-          self:setStatus(message)
-          self:showToast("error", message)
-          return false
-        end
-
-        local tn, tileErr = Shared.parseNonNegativeInteger(tileText, "Tile number")
-        if not tn then
-          self:setStatus(tileErr)
-          self:showToast("error", tileErr)
-          return false
-        end
-        tileNumber = tn
       end
 
       local trimmedOam = tostring(oamStartText or ""):match("^%s*(.-)%s*$")
@@ -491,21 +470,6 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
         self:setStatus(message)
         self:showToast("error", message)
         return false
-      end
-
-      if chrHidden ~= true then
-        if not (tilesPool and tilesPool[bankNumber]) then
-          local message = string.format("CHR bank %d is not available", bankNumber)
-          self:setStatus(message)
-          self:showToast("error", message)
-          return false
-        end
-        if not tilesPool[bankNumber][tileNumber] then
-          local message = string.format("Tile %d is not available in CHR bank %d", tileNumber, bankNumber)
-          self:setStatus(message)
-          self:showToast("error", message)
-          return false
-        end
       end
 
       if isEdit then
@@ -538,25 +502,12 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
 
         local layersToHydrate = {}
         if type(oldStartAddr) == "number" then
-          layersToHydrate = patchSharedOamSpriteBinding(
-            self,
-            oldStartAddr,
-            bankNumber,
-            tileNumber,
-            oamStart,
-            chrHidden == true
-          )
-        elseif chrHidden then
+          layersToHydrate = patchSharedOamSpriteBinding(self, oldStartAddr, oamStart)
+        else
           if type(oamStart) == "number" then
             sprite.startAddr = oamStart
           end
           sprite.bank = nil
-          reset8x16SpriteTilePairAfterChrEdit(layer, sprite)
-          layersToHydrate[layer] = true
-        else
-          sprite.bank = bankNumber
-          sprite.tile = tileNumber
-          sprite.startAddr = oamStart
           reset8x16SpriteTilePairAfterChrEdit(layer, sprite)
           layersToHydrate[layer] = true
         end
@@ -598,42 +549,64 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
         end
 
         self:markUnsaved("sprite_move")
-        if chrHidden then
-          if type(oamStart) == "number" then
-            self:setStatus(string.format(
-              "Updated OAM-backed sprite binding at 0x%06X (tile from ROM + pattern table)",
-              oamStart
-            ))
-          else
-            self:setStatus("Updated OAM-backed sprite binding")
-          end
-        elseif type(oamStart) == "number" then
+        if type(oamStart) == "number" then
           self:setStatus(string.format(
-            "Updated sprite at OAM 0x%06X (bank %d, tile %d)",
-            oamStart,
-            bankNumber,
-            tileNumber
+            "Updated OAM-backed sprite binding at 0x%06X (tile from ROM + pattern table)",
+            oamStart
           ))
         else
-          self:setStatus(string.format(
-            "Updated sprite (bank %d, tile %d)",
-            bankNumber,
-            tileNumber
-          ))
+          self:setStatus("Updated OAM-backed sprite binding")
         end
         return true
       end
 
+      -- Add mode: insert every selected 4-byte OAM group (field text is the primary).
+      local startsToAdd = {}
+      local seenStart = {}
+      if type(confirmOpts.starts) == "table" then
+        for _, addr in ipairs(confirmOpts.starts) do
+          addr = math.floor(tonumber(addr) or -1)
+          if addr >= 0 and not seenStart[addr] then
+            seenStart[addr] = true
+            startsToAdd[#startsToAdd + 1] = addr
+          end
+        end
+      end
+      if #startsToAdd == 0 and type(oamStart) == "number" then
+        startsToAdd[1] = oamStart
+      end
+      if #startsToAdd == 0 then
+        local message = "Select at least one OAM start address"
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+      if #startsToAdd > 8 then
+        local trimmed = {}
+        for i = 1, 8 do
+          trimmed[i] = startsToAdd[i]
+        end
+        startsToAdd = trimmed
+      end
+
       spriteLayer.items = spriteLayer.items or {}
-      if chrHidden then
+      local existingCount = 0
+      for _, item in ipairs(spriteLayer.items) do
+        if item.removed ~= true then
+          existingCount = existingCount + 1
+        end
+      end
+      if existingCount + #startsToAdd > 64 then
+        local message = "64 sprites allowed (NES limit)"
+        self:setStatus(message)
+        self:showToast("error", message)
+        return false
+      end
+
+      local firstNewIndex = #spriteLayer.items + 1
+      for _, startAddr in ipairs(startsToAdd) do
         table.insert(spriteLayer.items, {
-          startAddr = oamStart,
-        })
-      else
-        table.insert(spriteLayer.items, {
-          bank = bankNumber,
-          startAddr = oamStart,
-          tile = tileNumber,
+          startAddr = startAddr,
         })
       end
 
@@ -644,10 +617,18 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
         keepWorld = false,
       })
 
-      local itemIndex = #spriteLayer.items
-      spriteLayer.selectedSpriteIndex = itemIndex
-      spriteLayer.multiSpriteSelection = nil
-      spriteLayer.multiSpriteSelectionOrder = nil
+      local lastIndex = #spriteLayer.items
+      local newIndices = {}
+      for i = firstNewIndex, lastIndex do
+        newIndices[#newIndices + 1] = i
+      end
+      if #newIndices > 1 then
+        SpriteController.setSpriteSelection(spriteLayer, newIndices)
+      else
+        spriteLayer.selectedSpriteIndex = newIndices[1]
+        spriteLayer.multiSpriteSelection = nil
+        spriteLayer.multiSpriteSelectionOrder = nil
+      end
       spriteLayer.hoverSpriteIndex = nil
 
       if targetWindow.setActiveLayerIndex then
@@ -656,51 +637,53 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
         targetWindow.activeLayer = spriteLayerIndex
       end
 
-      local sprite = spriteLayer.items[itemIndex]
-      if self.undoRedo and self.undoRedo.addDragEvent and sprite then
-        local afterState = SpriteStateSnapshot.captureSpriteState(sprite)
-        if afterState then
-          local beforeState = {
-            worldX = afterState.worldX,
-            worldY = afterState.worldY,
-            x = afterState.x,
-            y = afterState.y,
-            dx = afterState.dx,
-            dy = afterState.dy,
-            hasMoved = afterState.hasMoved,
-            removed = true,
-          }
-          if not SpriteStateSnapshot.statesEqual(beforeState, afterState) then
-            self.undoRedo:addDragEvent({
-              type = "sprite_drag",
-              mode = "copy",
-              actions = {
-                {
-                  win = targetWindow,
-                  layerIndex = spriteLayerIndex,
-                  sprite = sprite,
-                  created = true,
-                  before = beforeState,
-                  after = afterState,
-                },
-              },
-            })
+      if self.undoRedo and self.undoRedo.addDragEvent then
+        local actions = {}
+        for _, itemIndex in ipairs(newIndices) do
+          local sprite = spriteLayer.items[itemIndex]
+          local afterState = sprite and SpriteStateSnapshot.captureSpriteState(sprite) or nil
+          if afterState then
+            local beforeState = {
+              worldX = afterState.worldX,
+              worldY = afterState.worldY,
+              x = afterState.x,
+              y = afterState.y,
+              dx = afterState.dx,
+              dy = afterState.dy,
+              hasMoved = afterState.hasMoved,
+              removed = true,
+            }
+            if not SpriteStateSnapshot.statesEqual(beforeState, afterState) then
+              actions[#actions + 1] = {
+                win = targetWindow,
+                layerIndex = spriteLayerIndex,
+                sprite = sprite,
+                created = true,
+                before = beforeState,
+                after = afterState,
+              }
+            end
           end
+        end
+        if #actions > 0 then
+          self.undoRedo:addDragEvent({
+            type = "sprite_drag",
+            mode = "copy",
+            actions = actions,
+          })
         end
       end
 
       self:markUnsaved("sprite_move")
-      if chrHidden then
+      if #startsToAdd == 1 then
         self:setStatus(string.format(
           "Added OAM-backed sprite at 0x%06X (CHR from ROM tile byte + pattern table)",
-          oamStart
+          startsToAdd[1]
         ))
       else
         self:setStatus(string.format(
-          "Added sprite from OAM 0x%06X on bank %d tile %d",
-          oamStart,
-          bankNumber,
-          tileNumber
+          "Added %d OAM-backed sprites (CHR from ROM tile byte + pattern table)",
+          #startsToAdd
         ))
       end
       return true

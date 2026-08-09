@@ -1,6 +1,6 @@
 ![](img/readme_images/logo_v2.png)
 
-NES/Famicom Graphics Studio. Mod classic games or build new Homebrew assets.
+NES Graphics Studio. Mod classic games or build new Homebrew assets.
 
 <img src="img/readme_images/app_example_new.png" alt="">
 
@@ -38,7 +38,7 @@ PPUX has two main functionalities:
 1. Modify graphics on an existing game.
 2. Create graphics from scratch.
 
-For the first approach, drop a ROM into the window. Without a DB entry, PPUX loads a basic default layout. With one, it opens a tailored workspace. **This is the core feaure**.
+For the first approach, drop a ROM into the window. Without a DB entry, PPUX loads a basic default layout. With one, it opens a tailored workspace. **This is the core feature**.
 
 For the second approach, use _Sketch Canvas_ windows. From these you can generate pattern tables and map colors through attributes, as with real nametables. You can export CHR and nametable binaries, or a full _Gallery ROM_ with one gallery item per Sketch Canvas.
 
@@ -175,7 +175,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 2. **Next layer** - `Shift` + `Up` key.
 3. **Remove layer** - `-` key, refuses when only one frame remains.
 4. **Add layer** - `+` key.
-5. **Add sprite** - visible when the active layer is a sprite layer.
+5. **Add sprite** - visible when the active layer is a sprite layer (OAM start address only).
 6. **Toggle origin guides** - toggles dotted reference lines, this is user defined, not something that comes from ROM data.
 7. **Copy from previous layer** - Copies everything, including palette links to individual items.
 8. **Play / Pause** - `P` key, layer switching is blocked while playing.
@@ -225,7 +225,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 1. **Previous layer** - `Shift` + `Down` key.
 2. **Next layer** - `Shift` + `Up` key.
 3. **Nametable range** - Set compressed nametable **start/end** ROM addresses (the range/stream of bytes used to build a given pattern table).
-4. **Add sprite** - Adds a sprite (creates a sprite layer first, if there is none).
+4. **Add sprite** - Adds a sprite from an OAM start address (creates a sprite layer first, if there is none). Same modal as OAM Animation; CHR comes from ROM + the linked sprite pattern table.
 5. **Pattern table link** - left-click for a menu with separate **background** and **sprites** submenus to link **Pattern table** windows (**required** for nametable and sprite CHR).
 6. **Toggle origin guides** - hidden until a sprite layer exists, it toggles dotted reference lines on sprite layers.
 

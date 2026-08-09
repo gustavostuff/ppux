@@ -142,6 +142,24 @@ function M.setupDeterministicPpuFixture(currentApp, currentRunner)
   return ppuWin
 end
 
+--- Satisfy Add sprite modal gate: linked + layout-valid sprite pattern table.
+function M.ensureSpriteLayerReadyForAddSprite(layer, linkedId)
+  if not layer then
+    return
+  end
+  if type(layer.linkedPatternTableWindowId) ~= "string" or layer.linkedPatternTableWindowId == "" then
+    layer.linkedPatternTableWindowId = linkedId or "e2e_sprite_pt_gate"
+  end
+  local PatternTableMapping = require("utils.pattern_table_mapping")
+  if not PatternTableMapping.validate(layer.patternTable) then
+    layer.patternTable = {
+      ranges = {
+        { bank = 1, from = 0, to = 255 },
+      },
+    }
+  end
+end
+
 function M.harnessHoldShiftForGridResize(harness, down)
   harness._keysDown.lshift = down == true
   if not down then

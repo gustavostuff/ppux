@@ -3,7 +3,7 @@
 -- Changing the matrix keeps the brightness row; changing brightness keeps the matrix cell.
 -- Col 2: non-interactive spacer (no drawing).
 -- Cols 3-10: hue × saturation at fixed L=0.5 (HSL) for preview; the selected cell is drawn at the ladder L.
--- Matrix column hues come from assets/hue_ramp.png via tools/extract_hue_ramp.py (ui/hue_ramp_matrix_columns.lua).
+-- Matrix column hues come from img/hue_ramp.png via tools/extract_hue_ramp.py (ui/hue_ramp_matrix_columns.lua).
 -- onChange / getSelected still report h, s, v as HSV [0,1] derived from the resulting RGB.
 local Panel = require("ui.panel")
 local colors = require("app_colors")

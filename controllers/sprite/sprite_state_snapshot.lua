@@ -28,7 +28,7 @@ function M.captureSpriteState(sprite)
   }
 end
 
--- CHR / OAM slot fields for edit-sprite modal undo (bank, tile, startAddr, tileBelow).
+-- CHR / OAM slot fields for edit-sprite modal undo (startAddr binding; bank/tile/tileBelow after hydrate).
 function M.captureSpriteBindingState(sprite)
   if not sprite then
     return nil

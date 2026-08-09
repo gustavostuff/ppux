@@ -2,9 +2,9 @@
 
 local P = require("test.e2e_visible.scenarios.prelude")
 local BubbleExample, normalizeSpeedMultiplier, pause, keyPress, call, appendClick,
-  ppuToolbarButtonCenter, setFocusedTextFieldValue
+  ppuToolbarButtonCenter, setFocusedTextFieldValue, ensureSpriteLayerReadyForAddSprite
   = P.BubbleExample, P.normalizeSpeedMultiplier, P.pause, P.keyPress, P.call, P.appendClick,
-  P.ppuToolbarButtonCenter, P.setFocusedTextFieldValue
+  P.ppuToolbarButtonCenter, P.setFocusedTextFieldValue, P.ensureSpriteLayerReadyForAddSprite
 
 local function buildOamAnimationWorkflowScenario(harness, app, runner)
   harness:loadROM(BubbleExample.getLoadPath())
@@ -44,6 +44,12 @@ local function buildOamAnimationWorkflowScenario(harness, app, runner)
     keyPress("Pause OAM animation", "p"),
     pause("Observe paused frame", 0.35),
   }
+
+  steps[#steps + 1] = call("Link stub pattern table for add-sprite gate", function(_, _, currentRunner)
+    local oamWin = assert(currentRunner.oamWin, "expected OAM window")
+    local layer = assert(oamWin.layers and oamWin.layers[oamWin.activeLayer or 1], "expected active sprite layer")
+    ensureSpriteLayerReadyForAddSprite(layer)
+  end)
 
   appendClick(steps, "Open add sprite toolbar action", ppuToolbarButtonCenter("oamWin", function(toolbar)
     return toolbar.addSpriteButton

@@ -627,30 +627,20 @@ end
 
 -- F1 debug HUD: 2x app UI font size (16 -> 32), white fill + black outline (Text.print outline).
 local HUD_DEBUG_FONT_PX = 32
-local HUD_DEBUG_FONT_CANDIDATES = {
-  "ui/fonts/AsepriteFont.ttf",
-  "../ui/fonts/AsepriteFont.ttf",
-  "ui/fonts/proggy-tiny.ttf",
-  "../ui/fonts/proggy-tiny.ttf",
-  "ui/fonts/proggy-clean-sz.ttf",
-  "../ui/fonts/proggy-clean-sz.ttf",
-  "ui/fonts/Tiny5-Regular.ttf",
-}
 local hudDebugFontCache
 
 local function getHudDebugFont()
   if hudDebugFontCache then
     return hudDebugFontCache
   end
-  for _, candidate in ipairs(HUD_DEBUG_FONT_CANDIDATES) do
-    local ok, f = pcall(love.graphics.newFont, candidate, HUD_DEBUG_FONT_PX)
-    if ok and f then
-      f:setFilter("nearest", "nearest")
-      hudDebugFontCache = f
-      return f
-    end
+  local UiFont = require("ui.ui_font")
+  local f = UiFont.load(HUD_DEBUG_FONT_PX)
+  if f then
+    f:setFilter("nearest", "nearest")
+    hudDebugFontCache = f
+    return f
   end
-  local f = love.graphics.newFont(HUD_DEBUG_FONT_PX)
+  f = love.graphics.newFont(HUD_DEBUG_FONT_PX)
   f:setFilter("nearest", "nearest")
   hudDebugFontCache = f
   return f
