@@ -686,6 +686,18 @@ function RomPaletteWindow:setCellAddress(col, row, romAddr)
     return false, "ROM palette cell is out of range"
   end
 
+  romAddr = math.floor(romAddr)
+  -- Same binding: keep the current NES code / user override. Re-reading ROM here
+  -- would wipe userDefinedCode and look like a spontaneous color change on Set.
+  local existing = self:getRomByteAddress(col, row)
+  if existing == romAddr then
+    if self.setSelected then
+      self:setSelected(col, row)
+    end
+    local code = self.codes2D and self.codes2D[row] and self.codes2D[row][col]
+    return true, code
+  end
+
   local code = "0F"
   if type(self.romRaw) == "string" and #self.romRaw > 0 then
     local byte, err = chr.readByteFromAddress(self.romRaw, romAddr)
@@ -700,7 +712,7 @@ function RomPaletteWindow:setCellAddress(col, row, romAddr)
   local rowIndex = row + 1
   local colIndex = col + 1
   self.paletteData.romColors[rowIndex] = self.paletteData.romColors[rowIndex] or {}
-  self.paletteData.romColors[rowIndex][colIndex] = math.floor(romAddr)
+  self.paletteData.romColors[rowIndex][colIndex] = romAddr
 
   self:removeUserDefinedCode(row, col)
 

@@ -56,7 +56,6 @@ function AppCoreController:showRomPaletteAddressModal(win, col, row)
     row = row,
     initialAddress = initialAddress,
     onConfirm = function(addressText, targetWindow, targetCol, targetRow)
-      local beforeState = Shared.captureRomPaletteAddressUndoState(targetWindow)
       local addr, parseErr = Shared.parseHexAddress(addressText)
       if not addr then
         self:setStatus(parseErr)
@@ -64,6 +63,15 @@ function AppCoreController:showRomPaletteAddressModal(win, col, row)
         return false
       end
 
+      local prevAddr = targetWindow.getRomByteAddress
+        and targetWindow:getRomByteAddress(targetCol, targetRow)
+        or nil
+      if prevAddr == addr then
+        -- Address unchanged: do not rebind / wipe user color overrides.
+        return true
+      end
+
+      local beforeState = Shared.captureRomPaletteAddressUndoState(targetWindow)
       local ok, err = targetWindow:setCellAddress(targetCol, targetRow, addr)
       if not ok then
         local message = err or "Failed to assign ROM palette address"

@@ -326,6 +326,33 @@ describe("rom_palette_window.lua - locked cells", function()
     expect(row).toBe(0)
   end)
 
+  it("keeps the cell color when Set rebinds the same ROM address", function()
+    local win = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
+      title = "ROM Palette Same Addr",
+      paletteData = makeEditablePaletteData(),
+      romRaw = string.rep(string.char(0x07), 64),
+    })
+    -- Simulate a painted override that differs from the ROM byte at address 1.
+    win:saveUserDefinedCode(0, 1, "2A")
+    win.codes2D[0][1] = "2A"
+    win:set(1, 0, "2A")
+
+    local ok, code = win:setCellAddress(1, 0, 1)
+
+    expect(ok).toBe(true)
+    expect(code).toBe("2A")
+    expect(win.codes2D[0][1]).toBe("2A")
+    expect(win.paletteData.romColors[1][2]).toBe(1)
+    local kept = false
+    for _, item in ipairs(win.paletteData.userDefinedCode or {}) do
+      if item.row == 0 and item.col == 1 and item.code == "2A" then
+        kept = true
+        break
+      end
+    end
+    expect(kept).toBe(true)
+  end)
+
   it("rejects assigning an out-of-range ROM address", function()
     local win = makeWindow()
 
