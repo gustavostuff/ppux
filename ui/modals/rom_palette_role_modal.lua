@@ -3,15 +3,48 @@
 
 local Button = require("ui.button")
 local Panel = require("ui.panel")
+local Text = require("utils.text_utils")
 local ModalPanelUtils = require("ui.modals.panel_modal_utils")
 
 local Dialog = {}
 Dialog.__index = Dialog
 
+--- Keep the single-column panel wide enough for buttons + hint copy.
+local function ensureCellWidth(self)
+  -- Custom width: do not let modal metric refresh overwrite it with DEFAULT_CELL_W.
+  self._uses_modal_default_cellW = false
+  local font = nil
+  if love and love.graphics and love.graphics.getFont then
+    local ok, f = pcall(love.graphics.getFont)
+    if ok then font = f end
+  end
+  local cellH = math.max(1, math.floor(tonumber(self.cellH) or ModalPanelUtils.MODAL_BUTTON_H or 15))
+  -- Panel labels inset by ~cellH/2 on each side.
+  local padX = math.max(12, cellH + 4)
+  local widest = math.max(200, math.floor(tonumber(self.buttonW) or 200))
+  for _, s in ipairs({
+    self.title or "",
+    self.introText or "",
+    self.romHint or "",
+    self.sketchHint or "",
+    "Existing ROM graphics",
+    "Sketch canvas",
+  }) do
+    widest = math.max(widest, Text.getFontWidth(tostring(s), font))
+  end
+  local need = math.ceil(widest + padX)
+  if (self.cellW or 0) < need then
+    self.cellW = need
+  end
+  local btnW = math.max(math.floor(tonumber(self.buttonW) or 200), self.cellW)
+  if self.romButton then self.romButton.w = btnW end
+  if self.sketchButton then self.sketchButton.w = btnW end
+end
+
 local function rebuildPanel(self)
-  local rows = 5 -- intro + 2 option blocks (label+button each condensed) + cancel
+  ensureCellWidth(self)
   -- Layout: intro, rom btn, rom hint, sketch btn, sketch hint, cancel
-  rows = 6
+  local rows = 6
   self.panel = Panel.new({
     cols = 1,
     rows = rows,
@@ -109,10 +142,8 @@ function Dialog.new()
   })
 
   ModalPanelUtils.applyPanelDefaults(self)
-  if (self.cellW or 0) < 320 then
-    self.cellW = 320
-  end
   self.buttonGap = self.colGap
+  ensureCellWidth(self)
   rebuildPanel(self)
   return self
 end
@@ -137,6 +168,7 @@ function Dialog:show(opts)
   self.romButton.hovered = false
   self.sketchButton.hovered = false
   self.cancelButton.hovered = false
+  ensureCellWidth(self)
   rebuildPanel(self)
 end
 
