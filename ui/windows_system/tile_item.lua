@@ -209,6 +209,40 @@ function Tile:refreshImage()
   self._imageDirty = false
 end
 
+--- Swap two palette indices (0..3) across all pixels.
+-- Pixels with value a become b and vice versa; other indices are unchanged.
+-- Returns true if a swap was applied, false if invalid.
+function Tile:swapPaletteIndices(indexA, indexB)
+  if not self.pixels or #self.pixels ~= 64 then return false end
+
+  local a = math.floor(tonumber(indexA) or -1)
+  local b = math.floor(tonumber(indexB) or -1)
+  if a < 0 or a > 3 or b < 0 or b > 3 or a == b then
+    return false
+  end
+
+  local changed = false
+  for i = 1, 64 do
+    local oldValue = self.pixels[i] or 0
+    if oldValue == a then
+      self.pixels[i] = b
+      changed = true
+    elseif oldValue == b then
+      self.pixels[i] = a
+      changed = true
+    end
+  end
+
+  if not changed then
+    return false
+  end
+
+  self:refreshImage()
+  syncVisibleWindowToStorage(self, 0)
+  writePixelsToCHR(self)
+  return true
+end
+
 --- Rotate palette values in all pixels by +1 (right) or -1 (left).
 -- direction: 1 for right (0->1, 1->2, 2->3, 3->0), -1 for left (0->3, 1->0, 2->1, 3->2)
 -- Returns true if rotation was applied, false if no valid tile

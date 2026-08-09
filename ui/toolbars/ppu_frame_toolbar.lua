@@ -359,8 +359,8 @@ function PPUFrameToolbar:_promptRemoveSpriteLayer()
   end
 
   modal:show({
-    title = "Remove sprite layer",
-    message = "Remove the sprite layer entirely from this PPU frame?",
+    title = "Confirm action",
+    message = "Remove the sprite layer entirely?",
     yesText = "Remove",
     noText = "Cancel",
     onYes = function()

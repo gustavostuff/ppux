@@ -598,6 +598,9 @@ local function drawOverlays(app)
   if app.ppuFrameAddSpriteModal then
     app.ppuFrameAddSpriteModal:draw(app.canvas)
   end
+  if app.swapTwoColorsModal then
+    app.swapTwoColorsModal:draw(app.canvas)
+  end
   if app.ppuFrameRangeModal then
     app.ppuFrameRangeModal:draw(app.canvas)
   end

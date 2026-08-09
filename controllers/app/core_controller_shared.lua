@@ -90,6 +90,7 @@ M.APP_MODAL_KEYS_IN_ORDER = {
   "romPaletteAddressModal",
   "ppuFrameSpriteLayerModeModal",
   "ppuFrameAddSpriteModal",
+  "swapTwoColorsModal",
   "ppuFrameRangeModal",
   "ppuFramePatternRangeModal",
   "textFieldDemoModal",

@@ -3,6 +3,7 @@ local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 local BankViewController = require("controllers.chr.bank_view_controller")
 local BrushController = require("controllers.input_support.brush_controller")
 local RevertTilePixelsController = require("controllers.chr.revert_tile_pixels_controller")
+local SwapTwoColorsController = require("controllers.chr.swap_two_colors_controller")
 local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
 local PatternTableMapping = require("utils.pattern_table_mapping")
 local WindowCaps = require("controllers.window.window_capabilities")
@@ -16,6 +17,17 @@ local function wantsPatternTableJumpInsteadOfChr(context)
   if not win then return false end
   if WindowCaps.isPatternTable(win) then return false end
   return WindowCaps.isPpuFrame(win) or WindowCaps.isOamAnimation(win)
+end
+
+local function appendSwapTwoColorsMenuItem(app, items, context, menuGroup)
+  items[#items + 1] = {
+    text = "Swap 2 colors",
+    menuGroup = menuGroup,
+    enabled = SwapTwoColorsController.canSwapContext(app, context),
+    callback = function()
+      app:showSwapTwoColorsModal(context)
+    end,
+  }
 end
 
 --- CHR tile index for a PPU nametable cell: prefer the placed tile ref, else pattern-table slot for the nametable byte.
@@ -556,6 +568,7 @@ function AppCoreController:_buildPpuTileContextMenuItems(context)
       end,
     },
   }
+  appendSwapTwoColorsMenuItem(self, items, context, "ppt_edit_history")
   if context and context.tileIndex ~= nil then
     items[#items + 1] = {
       text = "Select in pattern table window",
@@ -748,6 +761,12 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
       end,
     },
   }
+  appendSwapTwoColorsMenuItem(self, items, context, "sel_chr_undo")
+  -- Keep Swap next to Undo: insert after the first undo item.
+  do
+    local swapItem = table.remove(items)
+    table.insert(items, 2, swapItem)
+  end
   if context and context.layer and context.layer.kind == "sprite"
       and context.win
       and (context.win.kind == "oam_animation" or context.win.kind == "ppu_frame")
@@ -937,6 +956,11 @@ function AppCoreController:_buildChrBankTileContextMenuItems(context)
       end,
     },
   }
+  appendSwapTwoColorsMenuItem(self, items, context, "chr_bank_undo")
+  do
+    local swapItem = table.remove(items)
+    table.insert(items, 2, swapItem)
+  end
   if context and context.win and context.layerIndex then
     self:_appendJumpToLinkedPaletteMenuItem(items, context.win, context.layerIndex)
     self:_appendRemoveRomPaletteLinkMenuItem(items, context.win, context.layerIndex)
@@ -959,6 +983,32 @@ function AppCoreController:showPpuTileContextMenu(win, layerIndex, col, row, x, 
   local cx, cy = self:contentPointToCanvasPoint(x, y)
   self.ppuTileContextMenu:showAt(cx, cy, self:_buildPpuTileContextMenuItems(context))
   return self.ppuTileContextMenu:isVisible()
+end
+
+function AppCoreController:showSwapTwoColorsModal(context)
+  if not self.swapTwoColorsModal then
+    return false
+  end
+  if not SwapTwoColorsController.canSwapContext(self, context) then
+    self:setStatus("No tile pixels to swap")
+    return false
+  end
+  self:_hideAllContextMenus()
+  self.swapTwoColorsModal:show({
+    app = self,
+    context = context,
+    onConfirm = function(indexA, indexB, ctx)
+      local ok, err = SwapTwoColorsController.applySwap(self, ctx or context, indexA, indexB, {
+        ctx = { app = self },
+      })
+      if not ok then
+        self:setStatus(tostring(err or "Could not swap colors"))
+        return false
+      end
+      return true
+    end,
+  })
+  return self.swapTwoColorsModal:isVisible()
 end
 
 function AppCoreController:showSelectInChrContextMenu(win, layerIndex, col, row, itemIndex, x, y)

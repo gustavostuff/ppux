@@ -751,6 +751,19 @@ describe("core_controller.lua - contextual menu helpers", function()
     local chrItems = app:_buildChrBankTileContextMenuItems(context)
     local selectItems = app:_buildSelectInChrContextMenuItems(context)
 
+    local function findMenuText(items, text)
+      for _, item in ipairs(items or {}) do
+        if item.text == text then
+          return item
+        end
+      end
+      return nil
+    end
+
+    expect(findMenuText(ppuItems, "Swap 2 colors")).toBeTruthy()
+    expect(findMenuText(chrItems, "Swap 2 colors")).toBeTruthy()
+    expect(findMenuText(selectItems, "Swap 2 colors")).toBeTruthy()
+
     local function findPaste(items)
       for _, item in ipairs(items or {}) do
         if item.text == "Paste" then

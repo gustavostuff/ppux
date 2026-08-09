@@ -523,4 +523,53 @@ describe("cursors_controller.lua", function()
     CursorsController.update(app)
     expect(setCalls).toBe(0)
   end)
+
+  it("uses hand cursor on Swap 2 colors modal only over ramp swatches", function()
+    local setTo = nil
+    love.mouse.setCursor = function(cursor) setTo = cursor end
+
+    local modal = {
+      isVisible = function() return true end,
+      _containsBox = function() return true end,
+      isHoveringColorRampSwatchAt = function(_, x, y)
+        return x == 20 and y == MY
+      end,
+      panel = {
+        getButtonAt = function(_, x, y)
+          if x == 80 and y == MY then
+            return { text = "Swap" }
+          end
+          return nil
+        end,
+        getComponentAt = function() return { id = "contentRow" } end,
+        isHoveringDisabledButtonAt = function() return false end,
+      },
+    }
+
+    local app = {
+      hardwareCursors = { arrow = "arrow", hand = "hand", unavailable = "unavailable" },
+      swapTwoColorsModal = modal,
+      wm = {
+        windowAt = function() return nil end,
+      },
+    }
+
+    ResolutionController.getScaledMouse = function()
+      return { x = 20, y = MY }
+    end
+    CursorsController.applyModeCursor(app, "tile")
+    expect(setTo).toBe("hand")
+
+    ResolutionController.getScaledMouse = function()
+      return { x = 80, y = MY }
+    end
+    CursorsController.applyModeCursor(app, "tile")
+    expect(setTo).toBe("hand")
+
+    ResolutionController.getScaledMouse = function()
+      return { x = 50, y = MY }
+    end
+    CursorsController.applyModeCursor(app, "tile")
+    expect(setTo).toBe("arrow")
+  end)
 end)

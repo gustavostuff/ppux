@@ -246,7 +246,8 @@ describe("ppu_frame_toolbar.lua - remove layer undo", function()
 
       toolbar:_onAddSprite()
       expect(confirmOpts).toBeTruthy()
-      expect(confirmOpts.title).toBe("Remove sprite layer")
+      expect(confirmOpts.title).toBe("Confirm action")
+      expect(confirmOpts.message).toBe("Remove the sprite layer entirely?")
       expect(confirmOpts.yesText).toBe("Remove")
 
       confirmOpts.onYes()

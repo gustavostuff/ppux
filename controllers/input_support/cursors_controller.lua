@@ -617,6 +617,11 @@ local function resolveTargetCursorName(app, mode)
           return "hand"
         end
       end
+      if app.swapTwoColorsModal == topModal
+          and type(app.swapTwoColorsModal.isHoveringColorRampSwatchAt) == "function"
+          and app.swapTwoColorsModal:isHoveringColorRampSwatchAt(mx, my) then
+        return "hand"
+      end
       if app.settingsModal == topModal then
         if type(app.settingsModal.isHoveringDisabledAppearancePickerAt) == "function"
             and app.settingsModal:isHoveringDisabledAppearancePickerAt(mx, my) then
@@ -626,6 +631,15 @@ local function resolveTargetCursorName(app, mode)
       if modalPanelPointerAt(topModal, mx, my) then
         if modalPanelDisabledAt(topModal, mx, my) then
           return "unavailable"
+        end
+        -- Swap-2-colors: hand on ramp swatches (above) and footer buttons only —
+        -- not on the preview strip / arrows (panel content-row component).
+        if app.swapTwoColorsModal == topModal then
+          local p = topModal.panel
+          if p and type(p.getButtonAt) == "function" and p:getButtonAt(mx, my) then
+            return "hand"
+          end
+          return "arrow"
         end
         if modalPanelHandAt(topModal, mx, my) then
           return "hand"
