@@ -1,4 +1,5 @@
 local RomPaletteAddressModal = require("ui.modals.rom_palette_address_modal")
+local AppCoreController = require("controllers.app.core_controller")
 
 describe("rom_palette_address_modal.lua", function()
   it("confirms trimmed address text on enter", function()
@@ -56,5 +57,67 @@ describe("rom_palette_address_modal.lua", function()
     modal:show({ initialAddress = "3F" })
     expect(modal:textinput("1")).toBe(true)
     expect(modal.textField:getText()).toBe("0x000031")
+  end)
+end)
+
+describe("showRomPaletteAddressModal initial address", function()
+  local function makeApp(capture)
+    return setmetatable({
+      romPaletteAddressModal = {
+        show = function(_, opts)
+          capture.opts = opts
+        end,
+      },
+      setStatus = function() end,
+      showToast = function() end,
+    }, AppCoreController)
+  end
+
+  it("prefills left-neighbor address + 1 when the cell is empty", function()
+    local capture = {}
+    local app = makeApp(capture)
+    local win = {
+      paletteData = {
+        romColors = {
+          { 0x3F00, nil, nil, nil },
+        },
+      },
+    }
+
+    app:showRomPaletteAddressModal(win, 1, 0)
+
+    expect(capture.opts.initialAddress).toBe("0x003F01")
+  end)
+
+  it("keeps the cell's own address when already set", function()
+    local capture = {}
+    local app = makeApp(capture)
+    local win = {
+      paletteData = {
+        romColors = {
+          { 0x3F00, 0x3F10, nil, nil },
+        },
+      },
+    }
+
+    app:showRomPaletteAddressModal(win, 1, 0)
+
+    expect(capture.opts.initialAddress).toBe("0x003F10")
+  end)
+
+  it("leaves the field empty when there is no left neighbor address", function()
+    local capture = {}
+    local app = makeApp(capture)
+    local win = {
+      paletteData = {
+        romColors = {
+          { nil, nil, nil, nil },
+        },
+      },
+    }
+
+    app:showRomPaletteAddressModal(win, 0, 0)
+
+    expect(capture.opts.initialAddress).toBe("")
   end)
 end)

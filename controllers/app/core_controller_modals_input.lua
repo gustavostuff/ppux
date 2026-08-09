@@ -36,9 +36,18 @@ function AppCoreController:showRomPaletteAddressModal(win, col, row)
     return false
   end
 
-  local rowColors = win.paletteData and win.paletteData.romColors and win.paletteData.romColors[(row or 0) + 1] or nil
-  local existingAddr = rowColors and rowColors[(col or 0) + 1] or nil
+  col = math.floor(tonumber(col) or 0)
+  row = math.floor(tonumber(row) or 0)
+  local rowColors = win.paletteData and win.paletteData.romColors and win.paletteData.romColors[row + 1] or nil
+  local existingAddr = rowColors and rowColors[col + 1] or nil
   local initialAddress = type(existingAddr) == "number" and string.format("0x%06X", existingAddr) or ""
+  -- Empty cell: suggest left neighbor + 1 so sequential ROM color rows fill quickly.
+  if initialAddress == "" and col > 0 and type(rowColors) == "table" then
+    local leftAddr = rowColors[col]
+    if type(leftAddr) == "number" then
+      initialAddress = string.format("0x%06X", math.floor(leftAddr) + 1)
+    end
+  end
 
   self.romPaletteAddressModal:show({
     title = "Enter color address",
