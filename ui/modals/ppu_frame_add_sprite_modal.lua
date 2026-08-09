@@ -21,6 +21,7 @@ local FOOTER_ROWS = 3 -- OAM field, buttons, Esc
 Dialog.NES_SPRITE_LIMIT = 64
 Dialog.MSG_MAX_PER_ADD = "8 items allowed per Add event"
 Dialog.MSG_NES_LIMIT = "64 sprites allowed (NES limit)"
+Dialog.MSG_ALREADY_IN_LAYER = "Sprite already in layer"
 
 local function countActiveSprites(layer)
   local n = 0
@@ -30,6 +31,25 @@ local function countActiveSprites(layer)
     end
   end
   return n
+end
+
+--- Exact OAM Y-byte starts already present in the layer (sorted ascending).
+local function collectOccupiedOamStarts(layer, opts)
+  opts = opts or {}
+  local exclude = opts.excludeStartAddr
+  local list = {}
+  local seen = {}
+  for _, item in ipairs((layer and layer.items) or {}) do
+    if item and item.removed ~= true and type(item.startAddr) == "number" then
+      local addr = math.floor(item.startAddr)
+      if addr >= 0 and not seen[addr] and addr ~= exclude then
+        seen[addr] = true
+        list[#list + 1] = addr
+      end
+    end
+  end
+  table.sort(list)
+  return list
 end
 
 --- How many panel rows are needed so spanned cell height >= `height`.
@@ -278,6 +298,14 @@ function Dialog:show(opts)
 
   local romRaw = type(opts.romRaw) == "string" and opts.romRaw or ""
   self.hexGrid:setRomRaw(romRaw)
+
+  local excludeOccupied = nil
+  if self.isEdit and opts.appearanceSprite and type(opts.appearanceSprite.startAddr) == "number" then
+    excludeOccupied = math.floor(opts.appearanceSprite.startAddr)
+  end
+  local occupied = collectOccupiedOamStarts(opts.spriteLayer, { excludeStartAddr = excludeOccupied })
+  self.hexGrid:setOccupiedStarts(occupied)
+
   self.preview:setContext({
     romRaw = romRaw,
     spriteLayer = opts.spriteLayer,
@@ -293,7 +321,27 @@ function Dialog:show(opts)
   if type(initialAddr) ~= "number" then
     initialAddr = 0
   end
-  self.hexGrid:setSelectedAddr(initialAddr, { emit = false })
+  local selectOpts = { emit = false }
+  if self.isEdit then
+    -- Allow keeping the sprite's current OAM start selected while editing.
+    selectOpts.allowOccupied = true
+  end
+  self.hexGrid:setSelectedAddr(initialAddr, selectOpts)
+  -- Add mode: jump to the earliest in-layer sprite page (by ROM offset), if any.
+  if self.isEdit ~= true then
+    if occupied[1] ~= nil then
+      self.hexGrid:scrollToReveal(occupied[1])
+    end
+    -- Prefill may point at an in-layer Y byte; keep the field aligned with a free selection.
+    if self.hexGrid:startOverlapsOccupied(initialAddr) then
+      local starts = self.hexGrid:getSelectedStarts()
+      if #starts > 0 then
+        self.oamStartField:setText(self:_formatOam(starts[1]))
+      else
+        self.oamStartField:setText("")
+      end
+    end
+  end
   self:_syncPreviewFromGrid()
   self._previewPrefH = self.preview:preferredHeight()
   self:_refreshLimitWarning()
@@ -320,6 +368,9 @@ function Dialog:hide()
   self.isEdit = false
   self._hitMax8 = false
   self._limitWarning = nil
+  if self.hexGrid and self.hexGrid.setOccupiedStarts then
+    self.hexGrid:setOccupiedStarts({})
+  end
   if self.preview then
     self.preview.appearanceSprite = nil
   end
@@ -353,6 +404,20 @@ function Dialog:_confirm()
   local targetWindow = self.targetWindow
   if callback then
     local starts = self.hexGrid and self.hexGrid:getSelectedStarts() or {}
+    -- Drop starts whose 4-byte span overlaps an in-layer sprite.
+    if self.isEdit ~= true and self.hexGrid and self.hexGrid.startOverlapsOccupied then
+      local filtered = {}
+      for _, addr in ipairs(starts) do
+        if not self.hexGrid:startOverlapsOccupied(addr) then
+          filtered[#filtered + 1] = addr
+        end
+      end
+      starts = filtered
+      if #starts == 0 then
+        self._limitWarning = Dialog.MSG_ALREADY_IN_LAYER
+        return false
+      end
+    end
     local ok = callback(
       self.oamStartField:getText() or "",
       targetWindow,

@@ -72,14 +72,15 @@ describe("ppu_frame_add_sprite_modal grid/field sync", function()
     modal:show({
       romRaw = string.rep("\0", 512),
       initialOamStart = "0x000000",
+      -- Occupies 0x000..0x0EC; selection must use free starts beyond that.
       spriteLayer = makeLayer(60),
       tilesPool = { [1] = {} },
     })
     local starts = {}
     for i = 0, 8 do
-      starts[#starts + 1] = i * 4
+      starts[#starts + 1] = 0x100 + i * 4
     end
-    modal.hexGrid:_setStarts(starts, 0x20, { emit = true })
+    modal.hexGrid:_setStarts(starts, 0x120, { emit = true })
     -- 60 existing + 8 selected = 68 > 64, and also hit the 8-cap.
     expect(modal._limitWarning).toBe(Dialog.MSG_NES_LIMIT)
     expect(modal:_confirm()).toBe(false)

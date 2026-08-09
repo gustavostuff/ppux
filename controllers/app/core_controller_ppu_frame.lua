@@ -563,20 +563,37 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
       -- Add mode: insert every selected 4-byte OAM group (field text is the primary).
       local startsToAdd = {}
       local seenStart = {}
+      local occupiedList = {}
+      for _, item in ipairs(spriteLayer.items or {}) do
+        if item and item.removed ~= true and type(item.startAddr) == "number" then
+          occupiedList[#occupiedList + 1] = math.floor(item.startAddr)
+        end
+      end
+      local function overlapsOccupied(addr)
+        for _, occ in ipairs(occupiedList) do
+          if addr < occ + 4 and occ < addr + 4 then
+            return true
+          end
+        end
+        return false
+      end
       if type(confirmOpts.starts) == "table" then
         for _, addr in ipairs(confirmOpts.starts) do
           addr = math.floor(tonumber(addr) or -1)
-          if addr >= 0 and not seenStart[addr] then
+          if addr >= 0 and not seenStart[addr] and not overlapsOccupied(addr) then
             seenStart[addr] = true
             startsToAdd[#startsToAdd + 1] = addr
           end
         end
       end
-      if #startsToAdd == 0 and type(oamStart) == "number" then
+      if #startsToAdd == 0 and type(oamStart) == "number" and not overlapsOccupied(oamStart) then
         startsToAdd[1] = oamStart
       end
       if #startsToAdd == 0 then
         local message = "Select at least one OAM start address"
+        if type(oamStart) == "number" and overlapsOccupied(oamStart) then
+          message = "Sprite already in layer"
+        end
         self:setStatus(message)
         self:showToast("error", message)
         return false

@@ -37,6 +37,23 @@ local TEXT_NUDGE_Y = -2
 -- Cycle these app_colors for successive 4-byte OAM groups.
 local HIGHLIGHT_KEYS = { "red", "green", "blue", "yellow", "brown" }
 
+-- Sprites already in the layer: same 4-byte rounded rect, muted gray + brighter text.
+local function occupiedHighlightColor()
+  local g = colors.gray50
+  if type(g) == "table" and type(g[1]) == "number" then
+    return { g[1], g[2] or 0, g[3] or 0, 0.9 }
+  end
+  return { 0.5, 0.5, 0.5, 0.9 }
+end
+
+local function occupiedTextColor()
+  local g = colors.gray75
+  if type(g) == "table" and type(g[1]) == "number" then
+    return { g[1], g[2] or 0, g[3] or 0, 1 }
+  end
+  return { 0.75, 0.75, 0.75, 1 }
+end
+
 local function buildHighlightColors()
   local out = {}
   for i, key in ipairs(HIGHLIGHT_KEYS) do
@@ -111,6 +128,8 @@ function M.new(opts)
     -- Color index (into HIGHLIGHT_KEYS) assigned when each start was first selected.
     _startColorIndex = { [0] = 1 },
     _nextColorSeq = 2,
+    occupiedStarts = {},
+    _occupiedSet = {},
     onSelect = opts.onSelect,
     _hoverX = nil,
     _hoverY = nil,
@@ -120,6 +139,105 @@ function M.new(opts)
     _dragBaseStarts = nil,
   }, M)
   return self
+end
+
+--- OAM start addresses already present in the target sprite layer (exact Y-byte starts).
+function M:setOccupiedStarts(starts)
+  local list = {}
+  local set = {}
+  for _, addr in ipairs(starts or {}) do
+    addr = math.floor(tonumber(addr) or -1)
+    if addr >= 0 and not set[addr] then
+      set[addr] = true
+      list[#list + 1] = addr
+    end
+  end
+  table.sort(list)
+  self.occupiedStarts = list
+  self._occupiedSet = set
+end
+
+function M:getOccupiedStarts()
+  return copyStarts(self.occupiedStarts)
+end
+
+function M:isOccupiedStart(addr)
+  addr = math.floor(tonumber(addr) or -1)
+  return self._occupiedSet and self._occupiedSet[addr] == true
+end
+
+--- True when a candidate OAM group's 4-byte span overlaps any in-layer sprite span.
+function M.oamSpansOverlap(a, b)
+  a = math.floor(tonumber(a) or 0)
+  b = math.floor(tonumber(b) or 0)
+  local span = M.OAM_SPAN
+  return a < b + span and b < a + span
+end
+
+function M:startOverlapsOccupied(startAddr)
+  startAddr = math.floor(tonumber(startAddr) or -1)
+  if startAddr < 0 then
+    return false
+  end
+  for _, occ in ipairs(self.occupiedStarts or {}) do
+    if M.oamSpansOverlap(startAddr, occ) then
+      return true
+    end
+  end
+  return false
+end
+
+--- True when `addr` lies inside any in-layer sprite's 4-byte OAM span.
+function M:addrInOccupiedSpan(addr)
+  addr = math.floor(tonumber(addr) or -1)
+  if addr < 0 then
+    return false
+  end
+  local span = M.OAM_SPAN
+  for _, occ in ipairs(self.occupiedStarts or {}) do
+    if addr >= occ and addr < occ + span then
+      return true
+    end
+  end
+  return false
+end
+
+--- Map a click/typed address to a selectable OAM start that does not overlap
+--- in-layer sprites. Clicks in the 4 bytes immediately before/after a gray
+--- group snap to that neighboring full group (e.g. 2 bytes before gray → start
+--- at gray-4). Clicks on gray itself return nil.
+function M:resolveSelectableStart(addr)
+  addr = self:_clampAddr(addr)
+  if self:addrInOccupiedSpan(addr) then
+    return nil
+  end
+  if not self:startOverlapsOccupied(addr) then
+    return addr
+  end
+
+  local span = M.OAM_SPAN
+  local best, bestDist = nil, nil
+  for _, occ in ipairs(self.occupiedStarts or {}) do
+    for _, cand in ipairs({ occ - span, occ + span }) do
+      if cand >= 0 and not self:startOverlapsOccupied(cand) then
+        if addr >= cand and addr < cand + span then
+          local dist = math.abs(addr - cand)
+          if best == nil or dist < bestDist then
+            best, bestDist = cand, dist
+          end
+        end
+      end
+    end
+  end
+  return best
+end
+
+local function selectionStartAllowed(self, addr, opts)
+  opts = opts or {}
+  if opts.allowOccupied == true then
+    return true
+  end
+  return not self:startOverlapsOccupied(addr)
 end
 
 function M:setPosition(x, y)
@@ -287,19 +405,29 @@ function M:_setStarts(starts, primary, opts)
   local seen = {}
   for _, addr in ipairs(starts or {}) do
     addr = self:_clampAddr(addr)
-    if not seen[addr] then
+    if not seen[addr] and selectionStartAllowed(self, addr, opts) then
       seen[addr] = true
       cleaned[#cleaned + 1] = addr
     end
   end
+  local previousStarts = self.selectedStarts
   if #cleaned == 0 then
+    -- Keep a prior free selection rather than forcing an overlapping start.
+    for _, addr in ipairs(previousStarts or {}) do
+      addr = self:_clampAddr(addr)
+      if not seen[addr] and selectionStartAllowed(self, addr, opts) then
+        seen[addr] = true
+        cleaned[#cleaned + 1] = addr
+      end
+    end
+  end
+  if #cleaned == 0 and opts.allowOccupied == true then
     cleaned[1] = self:_clampAddr(primary or 0)
     seen[cleaned[1]] = true
   end
-  local previousStarts = self.selectedStarts
   local capHit = false
   local maxN = math.max(1, math.floor(tonumber(opts.maxSelectedStarts) or M.MAX_SELECTED_STARTS))
-  if opts.enforceMax ~= false then
+  if opts.enforceMax ~= false and #cleaned > 0 then
     cleaned, capHit = clampStartsToMax(cleaned, previousStarts, maxN)
     seen = {}
     for _, addr in ipairs(cleaned) do
@@ -308,12 +436,15 @@ function M:_setStarts(starts, primary, opts)
   end
   self:_syncStartColors(cleaned, opts)
   self.selectedStarts = cleaned
-  primary = self:_clampAddr(primary or cleaned[#cleaned])
-  if not seen[primary] then
+  primary = self:_clampAddr(primary or (cleaned[#cleaned] or 0))
+  if #cleaned > 0 and not seen[primary] then
     primary = cleaned[#cleaned]
+  elseif #cleaned == 0 then
+    -- No free selection: keep primary for field sync / scroll, but starts stay empty.
+    primary = self:_clampAddr(primary)
   end
   self.selectedAddr = primary
-  if opts.scrollToReveal ~= false then
+  if opts.scrollToReveal ~= false and #cleaned > 0 then
     self:scrollToReveal(primary)
   end
   self._selectionCapHit = capHit
@@ -331,6 +462,20 @@ function M:setSelectedAddr(addr, opts)
   addr = self:_clampAddr(addr)
   if opts.resetColors == nil then
     opts.resetColors = true
+  end
+  if opts.allowOccupied ~= true then
+    local resolved = self:resolveSelectableStart(addr)
+    if resolved == nil then
+      -- Keep current selection when the address sits on / only overlaps occupied.
+      if opts.emit then
+        self:_emitSelect({
+          dragging = false,
+          selectionCapHit = self._selectionCapHit == true,
+        })
+      end
+      return
+    end
+    addr = resolved
   end
   self:_setStarts({ addr }, addr, opts)
 end
@@ -492,7 +637,11 @@ function M:_applyDragRange(anchor, current)
   current = self:_clampAddrToPage(current)
   if self._dragAdditive and self._dragBaseStarts then
     -- Ctrl+drag: paint individual groups under the cursor (no range fill).
-    local merged, primary = M.addStartGroup(self.selectedStarts, current)
+    local resolved = self:resolveSelectableStart(current)
+    if resolved == nil then
+      return
+    end
+    local merged, primary = M.addStartGroup(self.selectedStarts, resolved)
     self:_setStarts(merged, primary, { scrollToReveal = false, emit = true, dragging = true })
   else
     -- Plain drag: contiguous OAM groups on the anchor's phase covering the drag span.
@@ -532,16 +681,42 @@ function M:mousepressed(px, py, button, opts)
       self._dragBaseStarts = nil
       return true
     end
-    local nextStarts, primary = M.addStartGroup(self.selectedStarts, addr)
+    local resolved = self:resolveSelectableStart(addr)
+    if resolved == nil then
+      self._dragSelecting = false
+      self._dragAnchor = nil
+      self._dragAdditive = false
+      self._dragBaseStarts = nil
+      return true
+    end
+    local nextStarts, primary = M.addStartGroup(self.selectedStarts, resolved)
+    if self:startOverlapsOccupied(primary) then
+      self._dragSelecting = false
+      self._dragAnchor = nil
+      self._dragAdditive = false
+      self._dragBaseStarts = nil
+      return true
+    end
     self:_setStarts(nextStarts, primary, { scrollToReveal = false, emit = false })
     self._dragBaseStarts = copyStarts(self.selectedStarts)
+    self._dragAnchor = primary
   else
-    self:_setStarts({ addr }, addr, {
+    local start = self:resolveSelectableStart(addr)
+    if start == nil then
+      -- Click on gray (or no free neighboring group): keep current selection.
+      self._dragSelecting = false
+      self._dragAnchor = nil
+      self._dragAdditive = false
+      self._dragBaseStarts = nil
+      return true
+    end
+    self:_setStarts({ start }, start, {
       scrollToReveal = false,
       emit = false,
       resetColors = true,
     })
-    self._dragBaseStarts = { addr }
+    self._dragAnchor = start
+    self._dragBaseStarts = copyStarts(self.selectedStarts)
   end
   -- Mark dragging so consumers can defer layout rebuilds (Panel drops pressedComponent).
   self:_emitSelect({
@@ -669,11 +844,20 @@ function M:_drawScrollbar(gridX, gridY)
 end
 
 --- One rounded rect per contiguous same-row run of a 4-byte group (splits on row wrap).
-function M:_drawGroupHighlights(gridX, gridY, starts)
+--- `colorForStart(start)` optional; defaults to selection highlight colors.
+function M:_drawGroupHighlights(gridX, gridY, starts, colorForStart)
   local pageStart = self.scrollOffset
   local pageEnd = pageStart + M.BYTES_PER_PAGE - 1
-  for _, start in ipairs(starts) do
-    local c = self:highlightColorForStart(start)
+  for _, start in ipairs(starts or {}) do
+    local c
+    if type(colorForStart) == "function" then
+      c = colorForStart(start)
+    else
+      c = self:highlightColorForStart(start)
+    end
+    if type(c) ~= "table" then
+      c = { 0.5, 0.5, 0.5, 0.9 }
+    end
     love.graphics.setColor(c[1], c[2], c[3], c[4] or 0.9)
 
     local runCol, runRow, runLen = nil, nil, 0
@@ -738,13 +922,20 @@ function M:draw()
   love.graphics.line(gridX - 1, gridY, gridX - 1, gridY + M.ROWS * CELL_H)
 
   local len = romLen(self.romRaw)
+  local occupied = self.occupiedStarts or {}
   local starts = self.selectedStarts or {}
+  -- Selection first; in-layer gray on top so overlaps never hide occupied sprites.
   self:_drawGroupHighlights(gridX, gridY, starts)
+  self:_drawGroupHighlights(gridX, gridY, occupied, function()
+    return occupiedHighlightColor()
+  end)
 
   local hoverAddr = nil
   if self._hoverX ~= nil and self._hoverY ~= nil then
     hoverAddr = self:addrAtPixel(self._hoverX, self._hoverY)
   end
+
+  local occText = occupiedTextColor()
 
   for row = 0, M.ROWS - 1 do
     local rowAddr = self.scrollOffset + row * M.COLS
@@ -755,8 +946,11 @@ function M:draw()
       local addr = rowAddr + col
       local cellX = gridX + col * CELL_W
       local covering = startsCoveringAddr(starts, addr)
+      local coveringOcc = startsCoveringAddr(occupied, addr)
       local base = colors.white
-      if #covering > 0 then
+      if #coveringOcc > 0 then
+        base = occText
+      elseif #covering > 0 then
         base = self:textColorForStart(starts[covering[#covering]])
       end
       local alpha = (hoverAddr ~= nil and addr == hoverAddr) and 1 or 0.6
