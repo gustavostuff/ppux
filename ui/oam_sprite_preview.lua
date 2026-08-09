@@ -82,6 +82,7 @@ function M.new(opts)
     selectedAddr = 0,
     selectedStarts = { 0 },
     groupColors = {},
+    hoveredStart = nil,
     _slots = {},
   }, M)
   return self
@@ -138,6 +139,15 @@ function M:setSelectedStarts(starts, groupColors)
   self.selectedAddr = list[#list]
   self.groupColors = type(groupColors) == "table" and groupColors or {}
   self:refresh()
+end
+
+--- Highlight the preview whose OAM start matches a hovered hex selection group.
+function M:setHoveredStart(addr)
+  if addr == nil then
+    self.hoveredStart = nil
+    return
+  end
+  self.hoveredStart = math.floor(tonumber(addr) or 0)
 end
 
 function M:canDrawSprite()
@@ -238,7 +248,7 @@ function M:preferredHeight()
   return rows * (ph + PREVIEW_GAP) - PREVIEW_GAP + 8
 end
 
-function M:_drawOne(slot, boxX, boxY, pw, ph)
+function M:_drawOne(slot, boxX, boxY, pw, ph, hovered)
   love.graphics.setColor(0, 0, 0, 0.45)
   love.graphics.rectangle("fill", boxX - 2, boxY - 2, pw + 4, ph + 4)
 
@@ -287,6 +297,12 @@ function M:_drawOne(slot, boxX, boxY, pw, ph)
   else
     love.graphics.rectangle("line", boxX, boxY, pw, ph)
   end
+
+  if hovered then
+    -- Small underline linking this preview to the hovered hex selection group.
+    love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], 1)
+    love.graphics.rectangle("fill", boxX, boxY + ph + 2, pw, 1)
+  end
 end
 
 function M:draw()
@@ -295,6 +311,7 @@ function M:draw()
   local totalH = rows * ph + math.max(0, rows - 1) * PREVIEW_GAP
   local originX = self.x + math.floor((self.w - totalW) * 0.5)
   local originY = self.y + math.floor((self.h - totalH) * 0.5)
+  local hoveredStart = self.hoveredStart
 
   for i = 1, n do
     local slot = self._slots[i]
@@ -302,7 +319,8 @@ function M:draw()
     local row = math.floor((i - 1) / cols)
     local boxX = originX + col * (pw + PREVIEW_GAP)
     local boxY = originY + row * (ph + PREVIEW_GAP)
-    self:_drawOne(slot, boxX, boxY, pw, ph)
+    local hovered = hoveredStart ~= nil and slot and slot.addr == hoveredStart
+    self:_drawOne(slot, boxX, boxY, pw, ph, hovered)
   end
 
   love.graphics.setColor(colors.white)

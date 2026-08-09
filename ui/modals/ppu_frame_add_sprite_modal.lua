@@ -438,6 +438,13 @@ function Dialog:mousereleased(x, y, button)
   return ok
 end
 
+function Dialog:_syncPreviewHoverFromGrid()
+  if not (self.preview and self.hexGrid) then
+    return
+  end
+  self.preview:setHoveredStart(self.hexGrid:getHoveredSelectedStart())
+end
+
 function Dialog:mousemoved(x, y)
   if not self.visible then return false end
   if self.panel then
@@ -450,6 +457,7 @@ function Dialog:mousemoved(x, y)
   if self.hexGrid and not self.hexGrid:isDragSelecting() then
     self:_flushPreviewLayoutIfDirty()
   end
+  self:_syncPreviewHoverFromGrid()
   return true
 end
 
@@ -491,6 +499,7 @@ function Dialog:draw(canvas)
   end
   ModalPanelUtils.drawBackdrop(canvas)
   self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)
+  self:_syncPreviewHoverFromGrid()
   self.panel:draw()
   self:_drawLimitWarning()
 end

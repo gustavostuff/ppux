@@ -409,6 +409,23 @@ local function startsCoveringAddr(starts, addr)
   return covering
 end
 
+--- Selected OAM start under the pointer, or nil when not over a selected span.
+function M:getHoveredSelectedStart()
+  if self._hoverX == nil or self._hoverY == nil then
+    return nil
+  end
+  local addr = self:addrAtPixel(self._hoverX, self._hoverY)
+  if addr == nil then
+    return nil
+  end
+  local starts = self.selectedStarts or {}
+  local covering = startsCoveringAddr(starts, addr)
+  if #covering == 0 then
+    return nil
+  end
+  return starts[covering[#covering]]
+end
+
 --- Group start on `phase` that contains `addr` (Lua floor handles addresses before phase).
 local function groupStartOnPhase(addr, phase)
   local span = M.OAM_SPAN
@@ -742,7 +759,7 @@ function M:draw()
       if #covering > 0 then
         base = self:textColorForStart(starts[covering[#covering]])
       end
-      local alpha = (hoverAddr ~= nil and addr == hoverAddr) and 1 or 0.5
+      local alpha = (hoverAddr ~= nil and addr == hoverAddr) and 1 or 0.6
       local textColor = { base[1], base[2], base[3], alpha }
       local byteText = "  "
       if addr < len then
