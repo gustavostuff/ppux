@@ -327,6 +327,73 @@ describe("game_art_layout_io_controller.lua", function()
     expect(restoreError.windowSpec.title).toBe("PTB Hash")
   end)
 
+  it("persists only ROM palette cell overrides that differ from the base ROM", function()
+    local wm = require("controllers.window.window_controller").new()
+    local romRaw = string.rep(string.char(0x07), 64)
+    local win = wm:createRomPaletteWindow({
+      title = "ROM Palette Sparse",
+      romRaw = romRaw,
+      paletteData = {
+        romColors = {
+          [1] = { [1] = 0, [2] = 1, [3] = 2, [4] = 3 },
+          [2] = { [1] = 4, [2] = 5, [3] = 6, [4] = 7 },
+          [3] = { [1] = 8, [2] = 9, [3] = 10, [4] = 11 },
+          [4] = { [1] = 12, [2] = 13, [3] = 14, [4] = 15 },
+        },
+        userDefinedCode = {},
+      },
+    })
+    win._id = "rom_palette_sparse"
+
+    -- Paint one cell (also mutates in-memory romRaw, which must not wipe the override).
+    win.codes2D[0][1] = "2A"
+    win:set(1, 0, "2A")
+    win:writeColorToROM(0, 1, "2A")
+    win:saveUserDefinedCode(0, 1, "2A")
+
+    local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1)
+    local entry = snapshot.windows[1]
+    expect(entry.kind).toBe("rom_palette")
+    expect(entry.paletteData.userDefinedCode).toBe("2A,1,0")
+
+    local built = GameArtWindowBuilderController.buildWindowsFromLayout(snapshot, {
+      wm = require("controllers.window.window_controller").new(),
+      tilesPool = {},
+      ensureTiles = function() end,
+      -- Reload from pristine base ROM; override must re-apply.
+      romRaw = string.rep(string.char(0x07), 64),
+      decodeUserDefinedCodes = GameArtLayoutIOController.decodeUserDefinedCodes,
+    })
+    local restored = built.windowsById["rom_palette_sparse"]
+    expect(restored).toBeTruthy()
+    expect(restored.codes2D[0][1]).toBe("2A")
+    expect(restored.codes2D[0][0]).toBe("07")
+    expect(#restored.paletteData.userDefinedCode).toBe(1)
+  end)
+
+  it("omits userDefinedCode when ROM palette colors match the base ROM", function()
+    local wm = require("controllers.window.window_controller").new()
+    local win = wm:createRomPaletteWindow({
+      title = "ROM Palette Unchanged",
+      romRaw = string.rep(string.char(0x07), 64),
+      paletteData = {
+        romColors = {
+          [1] = { [1] = 0, [2] = 1, [3] = 2, [4] = 3 },
+          [2] = { [1] = 4, [2] = 5, [3] = 6, [4] = 7 },
+          [3] = { [1] = 8, [2] = 9, [3] = 10, [4] = 11 },
+          [4] = { [1] = 12, [2] = 13, [3] = 14, [4] = 15 },
+        },
+        userDefinedCode = {},
+      },
+    })
+    win._id = "rom_palette_unchanged"
+
+    local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1)
+    local entry = snapshot.windows[1]
+    expect(entry.kind).toBe("rom_palette")
+    expect(entry.paletteData.userDefinedCode).toBeNil()
+  end)
+
   it("persists ROM palette compact mode through layout snapshot and rebuild", function()
     local wm = require("controllers.window.window_controller").new()
     local win = wm:createRomPaletteWindow({ title = "ROM Palette Compact", compactView = true })

@@ -787,27 +787,35 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
           userDefinedCode = {}
         }
 
-        if w.codes2D then
+        -- Persist only per-cell overrides that differ from the ROM/sketch base.
+        -- (Do not dump every editable codes2D cell — live romRaw writes would make
+        -- a "compare to current ROM" pass look empty and lose project-only paints.)
+        local overrides = nil
+        if w.collectUserDefinedOverridesForSave then
+          overrides = w:collectUserDefinedOverridesForSave()
+        elseif w.codes2D then
+          overrides = {}
           for row = 0, (w.rows or 4) - 1 do
             for col = 0, (w.cols or 4) - 1 do
               local code = w.codes2D[row] and w.codes2D[row][col]
               if code and w.isCellEditable and w:isCellEditable(col, row) then
-                code = normalizeInvalidBlack(code)
-                table.insert(entry.paletteData.userDefinedCode, {
-                  code = code,
+                overrides[#overrides + 1] = {
+                  code = normalizeInvalidBlack(code),
                   col = col,
                   row = row,
-                })
+                }
               end
             end
           end
-
-          normalizeInvalidBlacksInTable(entry.paletteData)
-          table.sort(entry.paletteData.userDefinedCode, function(a, b)
+          table.sort(overrides, function(a, b)
             if a.row == b.row then return a.col < b.col end
             return a.row < b.row
           end)
-          entry.paletteData.userDefinedCode = encodeUserDefinedCodes(entry.paletteData.userDefinedCode)
+        end
+
+        if overrides then
+          normalizeInvalidBlacksInTable({ userDefinedCode = overrides })
+          entry.paletteData.userDefinedCode = encodeUserDefinedCodes(overrides)
         end
       end
 

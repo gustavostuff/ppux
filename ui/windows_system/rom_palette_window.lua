@@ -87,6 +87,49 @@ local function parseUserDefinedCodeList(paletteData)
   return type(userCodes) == "table" and userCodes or {}
 end
 
+local function ensureBaseCodesGrid(win)
+  win.baseCodes2D = win.baseCodes2D or {}
+  return win.baseCodes2D
+end
+
+local function setBaseCode(win, col, row, code)
+  if type(col) ~= "number" or type(row) ~= "number" then
+    return
+  end
+  local grid = ensureBaseCodesGrid(win)
+  grid[row] = grid[row] or {}
+  if code == nil then
+    grid[row][col] = nil
+    return
+  end
+  grid[row][col] = normalizeInvalidBlack(tostring(code):upper())
+end
+
+local function getBaseCode(win, col, row)
+  local grid = win and win.baseCodes2D
+  local code = grid and grid[row] and grid[row][col]
+  if type(code) == "string" then
+    return normalizeInvalidBlack(code)
+  end
+  if win and win.isSketchPalette and win:isSketchPalette() then
+    local def = SKETCH_PALETTE_DEFAULTS[(row or 0) + 1]
+    local sketchCode = def and def[(col or 0) + 1]
+    if type(sketchCode) == "string" then
+      return normalizeInvalidBlack(sketchCode)
+    end
+  end
+  return nil
+end
+
+local function captureBaseCodeIfNeeded(win, col, row, code)
+  if getBaseCode(win, col, row) ~= nil then
+    return
+  end
+  if type(code) == "string" then
+    setBaseCode(win, col, row, code)
+  end
+end
+
 function RomPaletteWindow:applyPaletteRole(role)
   role = (role == "sketch") and "sketch" or "rom"
   self.paletteRole = role
@@ -104,6 +147,8 @@ function RomPaletteWindow:applyPaletteRole(role)
   if type(self.title) == "string" and (self.title == "" or self.title == "ROM Palette") then
     self.title = "Sketch palette"
   end
+  -- Role change establishes a new baseline (sketch defaults, not prior ROM bytes).
+  self.baseCodes2D = nil
   -- Rebuild colors from defaults + any saved userDefinedCode.
   self:initializeFromROMOrUserCodes()
 end
@@ -196,6 +241,7 @@ function RomPaletteWindow:clearRomCellBinding(col, row)
   self.paletteData.romColors[ri] = self.paletteData.romColors[ri] or {}
   self.paletteData.romColors[ri][ci] = false
   self:removeUserDefinedCode(row, col)
+  setBaseCode(self, col, row, nil)
   self.codes2D[row] = self.codes2D[row] or {}
   self.codes2D[row][col] = "0F"
   self:set(col, row, "0F")
@@ -255,6 +301,30 @@ function RomPaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
   return self
 end
 
+local function pruneUserDefinedCodeToBaseDiffs(win)
+  if not (win and win.paletteData) then
+    return
+  end
+  local userCodes = parseUserDefinedCodeList(win.paletteData)
+  local pruned = {}
+  for _, item in ipairs(userCodes) do
+    if type(item.row) == "number" and type(item.col) == "number" and item.code then
+      if win:isCellEditable(item.col, item.row) then
+        local code = normalizeInvalidBlack(tostring(item.code):upper())
+        local base = getBaseCode(win, item.col, item.row)
+        if base == nil or code ~= base then
+          pruned[#pruned + 1] = { code = code, col = item.col, row = item.row }
+        end
+      end
+    end
+  end
+  table.sort(pruned, function(a, b)
+    if a.row == b.row then return a.col < b.col end
+    return a.row < b.row
+  end)
+  win.paletteData.userDefinedCode = pruned
+end
+
 -- Initialize codes2D from ROM bytes (if available) or userDefinedCode
 function RomPaletteWindow:initializeFromROMOrUserCodes()
   -- Sketch-mode: free colors. Rebuild from defaults + userDefinedCode (undo/redo relies on this).
@@ -264,6 +334,7 @@ function RomPaletteWindow:initializeFromROMOrUserCodes()
       self.codes2D[row] = {}
       for col = 0, 3 do
         local code = SKETCH_PALETTE_DEFAULTS[row + 1][col + 1]
+        captureBaseCodeIfNeeded(self, col, row, code)
         self.codes2D[row][col] = code
         if self.set then
           self:set(col, row, code)
@@ -282,6 +353,7 @@ function RomPaletteWindow:initializeFromROMOrUserCodes()
       end
     end
     self:normalizeSketchUniversalColor0()
+    pruneUserDefinedCodeToBaseDiffs(self)
     return
   end
 
@@ -328,28 +400,37 @@ function RomPaletteWindow:initializeFromROMOrUserCodes()
 
       if not isEditable then
         -- Locked / non-ROM backed slots are displayed as disabled gray cells.
+        setBaseCode(self, colIndex, rowIndex, nil)
         self.codes2D[rowIndex][colIndex] = "0F"
       else
-        -- Prefer user-defined code if available, otherwise read from ROM.
-        if rowUserCodes[colIndex] then
-          self.codes2D[rowIndex][colIndex] = rowUserCodes[colIndex]
-          DebugController.log("debug", "ROM_PAL", "Row %d, Col %d: Using user code %s", rowIndex, colIndex, rowUserCodes[colIndex])
-        elseif type(romAddr) == "number" and type(self.romRaw) == "string" and #self.romRaw > 0 then
-          local byte, err = chr.readByteFromAddress(self.romRaw, romAddr)
-          if byte then
-            local hexCode = hex2(byte)
-            self.codes2D[rowIndex][colIndex] = hexCode
-            DebugController.log("debug", "ROM_PAL", "Row %d, Col %d: Read from ROM 0x%X = %s (byte 0x%02X)", 
-              rowIndex, colIndex, romAddr, hexCode, byte)
+        -- Capture the ROM/base color once so live romRaw writes don't erase the baseline.
+        local baseCode = getBaseCode(self, colIndex, rowIndex)
+        if baseCode == nil then
+          if type(romAddr) == "number" and type(self.romRaw) == "string" and #self.romRaw > 0 then
+            local byte, err = chr.readByteFromAddress(self.romRaw, romAddr)
+            if byte then
+              baseCode = hex2(byte)
+            else
+              baseCode = "0F"
+              DebugController.log("warning", "ROM_PAL", "Row %d, Col %d: Failed to read ROM at 0x%X: %s", 
+                rowIndex, colIndex, romAddr, tostring(err))
+            end
           else
-            self.codes2D[rowIndex][colIndex] = "0F"  -- Default
-            DebugController.log("warning", "ROM_PAL", "Row %d, Col %d: Failed to read ROM at 0x%X: %s", 
-              rowIndex, colIndex, romAddr, tostring(err))
+            baseCode = "0F"
+            DebugController.log("warning", "ROM_PAL", "Row %d, Col %d: ROM data unavailable for address 0x%X", 
+              rowIndex, colIndex, romAddr)
           end
+          setBaseCode(self, colIndex, rowIndex, baseCode)
+        end
+
+        -- Prefer user-defined code if available, otherwise use the captured ROM base.
+        if rowUserCodes[colIndex] then
+          local userCode = normalizeInvalidBlack(tostring(rowUserCodes[colIndex]):upper())
+          self.codes2D[rowIndex][colIndex] = userCode
+          DebugController.log("debug", "ROM_PAL", "Row %d, Col %d: Using user code %s", rowIndex, colIndex, userCode)
         else
-          self.codes2D[rowIndex][colIndex] = "0F"  -- Default
-          DebugController.log("warning", "ROM_PAL", "Row %d, Col %d: ROM data unavailable for address 0x%X", 
-            rowIndex, colIndex, romAddr)
+          self.codes2D[rowIndex][colIndex] = baseCode
+          DebugController.log("debug", "ROM_PAL", "Row %d, Col %d: Using base/ROM code %s", rowIndex, colIndex, baseCode)
         end
       end
       
@@ -364,6 +445,34 @@ function RomPaletteWindow:initializeFromROMOrUserCodes()
         self.codes2D[0][2] or "nil", self.codes2D[0][3] or "nil")
     end
   end
+
+  pruneUserDefinedCodeToBaseDiffs(self)
+end
+
+-- Cells whose current UI color differs from the captured ROM/sketch base.
+function RomPaletteWindow:collectUserDefinedOverridesForSave()
+  local out = {}
+  local rows = self.rows or 4
+  local cols = self.cols or 4
+  for row = 0, rows - 1 do
+    for col = 0, cols - 1 do
+      if self:isCellEditable(col, row) then
+        local code = self.codes2D and self.codes2D[row] and self.codes2D[row][col]
+        if type(code) == "string" then
+          code = normalizeInvalidBlack(code)
+          local base = getBaseCode(self, col, row)
+          if base == nil or code ~= base then
+            out[#out + 1] = { code = code, col = col, row = row }
+          end
+        end
+      end
+    end
+  end
+  table.sort(out, function(a, b)
+    if a.row == b.row then return a.col < b.col end
+    return a.row < b.row
+  end)
+  return out
 end
 
 -- Override setSelected to add debug logging for ROM palette selection
@@ -622,11 +731,17 @@ function RomPaletteWindow:writeColorToROM(row, col, hexCode)
   return true
 end
 
--- Save color code to userDefinedCode structure
+-- Save color code to userDefinedCode structure (sparse: only diffs vs captured base).
 function RomPaletteWindow:saveUserDefinedCode(row, col, hexCode)
   hexCode = normalizeInvalidBlack(hexCode)
   if not self.paletteData then
     self.paletteData = {}
+  end
+
+  local base = getBaseCode(self, col, row)
+  if base ~= nil and hexCode == base then
+    self:removeUserDefinedCode(row, col)
+    return
   end
   
   if not self.paletteData.userDefinedCode then
@@ -714,6 +829,8 @@ function RomPaletteWindow:setCellAddress(col, row, romAddr)
   self.paletteData.romColors[rowIndex] = self.paletteData.romColors[rowIndex] or {}
   self.paletteData.romColors[rowIndex][colIndex] = romAddr
 
+  -- Rebinding establishes a new ROM baseline for this cell.
+  setBaseCode(self, col, row, code)
   self:removeUserDefinedCode(row, col)
 
   self.codes2D = self.codes2D or {}

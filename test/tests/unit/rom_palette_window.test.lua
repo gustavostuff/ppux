@@ -286,6 +286,25 @@ describe("rom_palette_window.lua - locked cells", function()
     expect(win.paletteData.userDefinedCode[3].col).toBe(2)
   end)
 
+  it("drops userDefinedCode entries that match the captured ROM base color", function()
+    local win = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
+      title = "ROM Palette Base Diff",
+      paletteData = makeEditablePaletteData(),
+      romRaw = string.rep(string.char(0x07), 64),
+    })
+
+    win:saveUserDefinedCode(0, 1, "2A")
+    expect(#win.paletteData.userDefinedCode).toBe(1)
+    expect(win.paletteData.userDefinedCode[1].code).toBe("2A")
+
+    -- Revert to the original ROM byte for this cell.
+    win:saveUserDefinedCode(0, 1, "07")
+    expect(#win.paletteData.userDefinedCode).toBe(0)
+
+    local overrides = win:collectUserDefinedOverridesForSave()
+    expect(#overrides).toBe(0)
+  end)
+
   it("clearRomCellBinding locks the cell and drops user-defined overrides", function()
     local win = makeWindow()
     win:setSelected(1, 0)
