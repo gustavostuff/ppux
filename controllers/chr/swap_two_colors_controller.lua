@@ -7,6 +7,7 @@ local RevertTilePixelsController = require("controllers.chr.revert_tile_pixels_c
 local SpriteController = require("controllers.sprite.sprite_controller")
 local StatusHelpers = require("utils.status_helpers")
 local WindowCaps = require("controllers.window.window_capabilities")
+local PatternTableMapping = require("utils.pattern_table_mapping")
 
 local M = {}
 
@@ -172,12 +173,59 @@ local function addTarget(out, seen, bank, tileIndex)
   out[#out + 1] = { bank = bank, tileIndex = tileIndex }
 end
 
-local function appendSpriteItemTargets(item, layer, contextSourceBank, out, seen)
+local function appendSpriteItemTargets(item, layer, contextSourceBank, out, seen, tilesPool)
   if not item or item.removed == true then
     return
   end
-  local bank = bankForSpriteItem(item, layer, contextSourceBank)
   local mode = (layer and layer.mode) or "8x8"
+
+  local function addFromRef(ref, fallbackBank)
+    if not (ref and type(ref.index) == "number") then
+      return false
+    end
+    local bank = tonumber(ref._bankIndex) or fallbackBank
+    addTarget(out, seen, bank, ref.index)
+    return true
+  end
+
+  -- Prefer hydrated CHR refs. OAM/PPU sprites with a pattern table keep a *logical*
+  -- 0..255 index in `item.tile`; the real bank/CHR index live on topRef/botRef.
+  if addFromRef(item.topRef, bankForSpriteItem(item, layer, contextSourceBank)) then
+    if mode == "8x16" then
+      if not addFromRef(item.botRef, tonumber(item.topRef and item.topRef._bankIndex) or contextSourceBank) then
+        local topBank = tonumber(item.topRef._bankIndex)
+          or bankForSpriteItem(item, layer, contextSourceBank)
+        local _, botIndex = resolve8x16Pair(item.topRef.index, nil)
+        if botIndex ~= nil then
+          addTarget(out, seen, topBank, botIndex)
+        end
+      end
+    end
+    return
+  end
+
+  -- Resolve logical pattern-table slots to CHR when refs are not hydrated yet.
+  if tilesPool and PatternTableMapping.validate(layer and layer.patternTable) and type(item.tile) == "number" then
+    local topLogical, botLogical
+    if mode == "8x16" then
+      topLogical, botLogical = resolve8x16Pair(item.tile, item.tileBelow)
+    else
+      topLogical = math.floor(tonumber(item.tile) % 256)
+    end
+    if topLogical ~= nil then
+      local topRef = select(1, PatternTableMapping.resolveTile(tilesPool, layer, topLogical))
+      if addFromRef(topRef, contextSourceBank) then
+        if mode == "8x16" and botLogical ~= nil then
+          local botRef = select(1, PatternTableMapping.resolveTile(tilesPool, layer, botLogical))
+          addFromRef(botRef, tonumber(topRef and topRef._bankIndex) or contextSourceBank)
+        end
+        return
+      end
+    end
+  end
+
+  -- Fallback: direct bank + CHR tile (sprites without pattern-table mapping).
+  local bank = bankForSpriteItem(item, layer, contextSourceBank)
   if mode == "8x16" then
     local top, bot = resolve8x16Pair(item.tile, item.tileBelow)
     if top == nil then
@@ -199,7 +247,7 @@ local function appendSpriteItemTargets(item, layer, contextSourceBank, out, seen
   end
 end
 
-local function collectSpriteSwapTargets(context)
+local function collectSpriteSwapTargets(context, tilesPool)
   local layer = context.layer
   local out = {}
   local seen = {}
@@ -219,7 +267,7 @@ local function collectSpriteSwapTargets(context)
     if type(context.itemIndex) == "number" then
       indices = { context.itemIndex }
     elseif context.item then
-      appendSpriteItemTargets(context.item, layer, defaultBank, out, seen)
+      appendSpriteItemTargets(context.item, layer, defaultBank, out, seen, tilesPool)
       return (#out > 0) and out or nil
     else
       return nil
@@ -228,7 +276,7 @@ local function collectSpriteSwapTargets(context)
 
   for _, idx in ipairs(indices) do
     local item = layer.items and layer.items[idx]
-    appendSpriteItemTargets(item, layer, defaultBank, out, seen)
+    appendSpriteItemTargets(item, layer, defaultBank, out, seen, tilesPool)
   end
   if #out == 0 then
     return nil
@@ -238,12 +286,13 @@ end
 
 --- Bank/tileIndex pairs to mutate. Tile layers reuse revert multi-select rules;
 --- sprite layers expand multi-sprite selection when the context item is included.
-function M.collectSwapTargets(context)
+function M.collectSwapTargets(context, app)
   if not (context and context.layer) then
     return nil
   end
+  local tilesPool = app and app.appEditState and app.appEditState.tilesPool or nil
   if context.layer.kind == "sprite" then
-    return collectSpriteSwapTargets(context)
+    return collectSpriteSwapTargets(context, tilesPool)
   end
   return RevertTilePixelsController.collectTileRevertPairs(context)
 end
@@ -296,13 +345,38 @@ function M.resolvePreviewTiles(app, context)
         if item.botRef and item.botRef.pixels then
           out.bot = item.botRef
         else
-          local topIndex, botIndex = resolve8x16Pair(item.tile, item.tileBelow)
+          -- Pair from the hydrated CHR index, not the logical OAM/PT tile byte.
+          local topChr = tonumber(item.topRef.index)
+          local botBank = tonumber(item.topRef._bankIndex) or bank
+          local _, botIndex = resolve8x16Pair(topChr, nil)
           if botIndex ~= nil and state then
-            out.bot = BankViewController.getTileRef(state, bank, botIndex)
+            out.bot = BankViewController.getTileRef(state, botBank, botIndex)
           end
         end
       end
       return out
+    end
+
+    -- Pattern-table sprites: map logical tile → CHR before pooling.
+    if item and state and state.tilesPool
+        and PatternTableMapping.validate(layer.patternTable)
+        and type(item.tile) == "number" then
+      local topLogical, botLogical
+      if mode == "8x16" then
+        topLogical, botLogical = resolve8x16Pair(item.tile, item.tileBelow)
+      else
+        topLogical = math.floor(tonumber(item.tile) % 256)
+      end
+      if topLogical ~= nil then
+        local top = select(1, PatternTableMapping.resolveTile(state.tilesPool, layer, topLogical))
+        local bot = nil
+        if mode == "8x16" and botLogical ~= nil then
+          bot = select(1, PatternTableMapping.resolveTile(state.tilesPool, layer, botLogical))
+        end
+        if top then
+          return { top = top, bot = bot, mode = mode }
+        end
+      end
     end
 
     local topIndex, botIndex
@@ -439,7 +513,7 @@ local function swapTileWithSync(tile, indexA, indexB, app, state, tilesPool, sou
 end
 
 function M.canSwapContext(app, context)
-  local pairs = M.collectSwapTargets(context)
+  local pairs = M.collectSwapTargets(context, app)
   if not pairs or #pairs == 0 then
     return false
   end
@@ -457,7 +531,7 @@ function M.applySwap(app, context, indexA, indexB, opts)
     return false, "Pick two different colors to swap"
   end
 
-  local pairs = M.collectSwapTargets(context)
+  local pairs = M.collectSwapTargets(context, app)
   if not pairs or #pairs == 0 then
     return false, "No tiles to swap"
   end

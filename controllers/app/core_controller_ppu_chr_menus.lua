@@ -59,6 +59,28 @@ local function findWindowByStableId(wm, id)
   return nil
 end
 
+--- Restore minimized / hidden / collapsed state so WM:setFocus actually runs; then bring to front
+--- (setFocus is a no-op for minimized windows; it also skips bringToFront when focus is unchanged).
+local function activateWindowForJump(wm, win)
+  if not (wm and win) or win._closed then
+    return
+  end
+  if win._collapsed == true then
+    win._collapsed = false
+  end
+  if win._groupHidden == true then
+    win._groupHidden = false
+  end
+  if win._minimized == true and wm.restoreMinimizedWindow then
+    wm:restoreMinimizedWindow(win, { recordUndo = false })
+  elseif wm.setFocus then
+    wm:setFocus(win)
+  end
+  if wm.bringToFront and win._closed ~= true and win._minimized ~= true and win._groupHidden ~= true then
+    wm:bringToFront(win)
+  end
+end
+
 --- Layer that owns linkedPatternTableWindowId / patternTable (not the transient PPU ref overlay).
 local function consumerLayerForPatternLink(context)
   local layer = context and context.layer
@@ -228,9 +250,7 @@ function AppCoreController:_selectInLinkedPatternTableWindow(context)
   local lm = ptLayerResolved and ptLayerResolved.mode or "8x8"
   local selOpts = (lm == "8x16" or lm == "oddEven") and { exactChrTile = true } or nil
   ptWin:setSelected(col, row, ptLayerIndex, selOpts)
-  if self.wm and self.wm.setFocus then
-    self.wm:setFocus(ptWin)
-  end
+  activateWindowForJump(self.wm, ptWin)
   self:setStatus(string.format("Pattern table logical slot %d", logical))
   return true
 end

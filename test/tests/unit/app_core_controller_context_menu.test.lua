@@ -1145,4 +1145,92 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(app:_patternLogicalSlotForJump(context)).toBe(160)
     expect(app:_nametablePatternTableNavigateEnabled(context)).toBe(true)
   end)
+
+  it("un-minimizes linked pattern table when selecting in pattern table window", function()
+    local ptWin = {
+      kind = "pattern_table",
+      _id = "pt_min",
+      _minimized = true,
+      _closed = false,
+      cols = 16,
+      rows = 16,
+      activeLayer = 1,
+      layers = {
+        { kind = "tile", mode = "8x8" },
+      },
+      getActiveLayerIndex = function()
+        return 1
+      end,
+      getLayer = function(self, i)
+        return self.layers[i]
+      end,
+      setSelected = function() end,
+    }
+    local restored = false
+    local broughtFront = false
+    local app = setmetatable({
+      appEditState = { tilesPool = {}, chrBanksBytes = {} },
+      setStatus = function() end,
+      wm = {
+        getWindows = function()
+          return { ptWin }
+        end,
+        restoreMinimizedWindow = function(_, win, opts)
+          restored = true
+          expect(win).toBe(ptWin)
+          expect(opts and opts.recordUndo).toBe(false)
+          win._minimized = false
+          return true
+        end,
+        setFocus = function()
+          error("setFocus should not be used while minimized; restore first")
+        end,
+        bringToFront = function(_, win)
+          broughtFront = true
+          expect(win).toBe(ptWin)
+        end,
+      },
+    }, AppCoreController)
+
+    app._patternTableJumpNavigateEnabled = function()
+      return true
+    end
+    app._resolveLinkedPatternTableWindow = function()
+      return ptWin
+    end
+    app._patternLogicalSlotForJump = function()
+      return 5
+    end
+    app._gridCellForPatternLogicalIndex = function()
+      return 5, 0
+    end
+
+    local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
+    local origResolve = PatternTableDisplayController.resolveLinkedPatternTableLayers
+    local origPopulate = PatternTableDisplayController.populateTileLayerItemsFromPatternTable
+    PatternTableDisplayController.resolveLinkedPatternTableLayers = function() end
+    PatternTableDisplayController.populateTileLayerItemsFromPatternTable = function() end
+
+    local ok, err = pcall(function()
+      local result = app:_selectInLinkedPatternTableWindow({
+        win = { kind = "oam_animation" },
+        layer = {
+          kind = "sprite",
+          linkedPatternTableWindowId = "pt_min",
+          patternTable = { ranges = { { bank = 1, from = 0, to = 255 } } },
+        },
+        item = { tile = 5 },
+      })
+      expect(result).toBe(true)
+      expect(restored).toBe(true)
+      expect(ptWin._minimized).toBe(false)
+      expect(broughtFront).toBe(true)
+    end)
+
+    PatternTableDisplayController.resolveLinkedPatternTableLayers = origResolve
+    PatternTableDisplayController.populateTileLayerItemsFromPatternTable = origPopulate
+    if not ok then
+      error(err)
+    end
+  end)
 end)

@@ -99,9 +99,9 @@ describe("swap_two_colors_controller.lua", function()
       mode = "8x8",
       bank = 1,
       items = {
-        { tile = 10, _bankIndex = 1 },
-        { tile = 20, _bankIndex = 1 },
-        { tile = 30, _bankIndex = 1 },
+        { tile = 10, _bankIndex = 1, topRef = { index = 10, _bankIndex = 1 } },
+        { tile = 20, _bankIndex = 1, topRef = { index = 20, _bankIndex = 1 } },
+        { tile = 30, _bankIndex = 1, topRef = { index = 30, _bankIndex = 1 } },
       },
       multiSpriteSelection = { [1] = true, [3] = true },
     }
@@ -127,8 +127,8 @@ describe("swap_two_colors_controller.lua", function()
       mode = "8x8",
       bank = 1,
       items = {
-        { tile = 10, _bankIndex = 1 },
-        { tile = 20, _bankIndex = 1 },
+        { tile = 10, _bankIndex = 1, topRef = { index = 10, _bankIndex = 1 } },
+        { tile = 20, _bankIndex = 1, topRef = { index = 20, _bankIndex = 1 } },
       },
       multiSpriteSelection = { [1] = true },
     }
@@ -141,6 +141,35 @@ describe("swap_two_colors_controller.lua", function()
     })
     expect(#pairs).toBe(1)
     expect(pairs[1].tileIndex).toBe(20)
+  end)
+
+  it("collectSwapTargets uses CHR refs for pattern-table OAM sprites, not logical tile bytes", function()
+    local layer = {
+      kind = "sprite",
+      mode = "8x16",
+      patternTable = { ranges = { { bank = 2, from = 0, to = 255 } } },
+      items = {
+        {
+          startAddr = 0x100,
+          tile = 16, -- logical PT slot
+          tileBelow = 17,
+          topRef = { index = 272, _bankIndex = 2 }, -- mapped CHR
+          botRef = { index = 273, _bankIndex = 2 },
+        },
+      },
+    }
+
+    local pairs = SwapTwoColorsController.collectSwapTargets({
+      layer = layer,
+      itemIndex = 1,
+      item = layer.items[1],
+      sourceBank = 1, -- wrong on purpose; refs must win
+    })
+    expect(#pairs).toBe(2)
+    expect(pairs[1].bank).toBe(2)
+    expect(pairs[1].tileIndex).toBe(272)
+    expect(pairs[2].bank).toBe(2)
+    expect(pairs[2].tileIndex).toBe(273)
   end)
 
   it("applySwap records one paint event and mutates both selected tiles", function()
