@@ -396,6 +396,8 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(items[1].enabled).toBe(true)
     expect(items[2].text).toBe("Reset position")
     expect(items[2].enabled).toBe(false)
+    expect(items[3].text).toBe("Revert all")
+    expect(items[3].enabled).toBe(true)
     items[1].callback()
     expect(editCalls).toBe(1)
   end)
@@ -466,6 +468,104 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(marked).toBe("sprite_move")
   end)
 
+  it("Revert all clears OAM sprite editor overlays and rehydrates from romRaw", function()
+    local undoEv = nil
+    local status = nil
+    local rom = string.rep("\0", 0x210)
+    -- OAM at 0x200: Y=11, tile=7, attr=0xC2 (pal 3, both mirrors), X=22
+    rom = rom:sub(1, 0x200) .. string.char(11, 7, 0xC2, 22) .. rom:sub(0x205)
+
+    local app = setmetatable({
+      appEditState = {
+        romRaw = rom,
+        tilesPool = {
+          [1] = {
+            [7] = { _bankIndex = 1, index = 7, pixels = {} },
+          },
+        },
+      },
+      undoRedo = {
+        addDragEvent = function(_, ev)
+          undoEv = ev
+        end,
+      },
+      markUnsaved = function() end,
+      setStatus = function(_, msg)
+        status = msg
+      end,
+    }, AppCoreController)
+
+    local layer = {
+      kind = "sprite",
+      mode = "8x8",
+      selectedSpriteIndex = 1,
+      items = {
+        {
+          startAddr = 0x200,
+          baseX = 10,
+          baseY = 20,
+          worldX = 50,
+          worldY = 60,
+          x = 50,
+          y = 60,
+          dx = 40,
+          dy = 40,
+          hasMoved = true,
+          paletteNumber = 1,
+          _paletteNumberOverrideSet = true,
+          mirrorX = false,
+          mirrorY = false,
+          _mirrorXOverrideSet = true,
+          _mirrorYOverrideSet = true,
+          attr = 0x00,
+          tile = 0,
+          bank = 1,
+        },
+      },
+    }
+    local win = { kind = "ppu_frame", layers = { layer } }
+    local context = {
+      win = win,
+      layerIndex = 1,
+      layer = layer,
+      itemIndex = 1,
+      item = layer.items[1],
+      tileIndex = 0,
+    }
+
+    local items = app:_buildSelectInChrContextMenuItems(context)
+    local revertItem
+    for _, it in ipairs(items) do
+      if it.text == "Revert all" then
+        revertItem = it
+        break
+      end
+    end
+    expect(revertItem ~= nil).toBe(true)
+    expect(revertItem.enabled).toBe(true)
+    revertItem.callback()
+
+    local s = layer.items[1]
+    expect(s.dx).toBe(0)
+    expect(s.dy).toBe(0)
+    expect(s.hasMoved).toBe(false)
+    expect(s.worldX).toBe(22)
+    expect(s.worldY).toBe(11)
+    expect(s.baseX).toBe(22)
+    expect(s.baseY).toBe(11)
+    expect(s.paletteNumber).toBe(3)
+    expect(s._paletteNumberOverrideSet).toBe(false)
+    expect(s.mirrorX).toBe(true)
+    expect(s.mirrorY).toBe(true)
+    expect(s._mirrorXOverrideSet).toBe(false)
+    expect(s._mirrorYOverrideSet).toBe(false)
+    expect(s.attr).toBe(0xC2)
+    expect(s.tile).toBe(7)
+    expect(undoEv).toBeTruthy()
+    expect(undoEv.sync.syncVisual).toBe(true)
+    expect(status).toBe("Reverted sprite to ROM OAM")
+  end)
+
   it("puts Edit sprite first on PPU frame sprite select-in-CHR context menu", function()
     local editCalls = 0
     local app = setmetatable({
@@ -501,6 +601,7 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(editCalls).toBe(1)
     expect(items[2].text).toBe("Reset position")
     expect(items[2].enabled).toBe(false)
+    expect(items[3].text).toBe("Revert all")
   end)
 
   it("builds tile-layer empty-space context menu with palette link actions when linked", function()

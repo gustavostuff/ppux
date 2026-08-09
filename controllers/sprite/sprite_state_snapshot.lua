@@ -25,6 +25,7 @@ function M.captureSpriteState(sprite)
     attr = sprite.attr,
     paletteNumberSet = (sprite.paletteNumber ~= nil),
     paletteNumber = sprite.paletteNumber,
+    paletteNumberOverrideSet = (sprite._paletteNumberOverrideSet == true),
   }
 end
 
@@ -75,6 +76,7 @@ function M.statesEqual(a, b)
     and a.attr == b.attr
     and (a.paletteNumberSet == true) == (b.paletteNumberSet == true)
     and a.paletteNumber == b.paletteNumber
+    and (a.paletteNumberOverrideSet == true) == (b.paletteNumberOverrideSet == true)
 end
 
 return M

@@ -163,6 +163,9 @@ function M.hydrateSpriteLayer(layer, opts)
       if s._mirrorYOverrideSet == nil then
         s._mirrorYOverrideSet = false
       end
+      if s._paletteNumberOverrideSet == nil then
+        s._paletteNumberOverrideSet = false
+      end
 
       local bytes = chr.readBytesFromRange(romRaw, s.startAddr, s.startAddr + 3)
       if bytes and #bytes >= 4 then
@@ -171,9 +174,19 @@ function M.hydrateSpriteLayer(layer, opts)
         local attr = bytes[3] or 0
         local baseX = bytes[4] or 0
 
-        local palNumFromLayout = s.paletteNumber
         local palNumFromAttr = (attr % 4) + 1
-        local palNum = palNumFromLayout or palNumFromAttr
+        local palNumFromLayout = s.paletteNumber
+        local palNum = palNumFromAttr
+        -- Explicit project palette overrides win over ROM attr (like mirrors).
+        -- Legacy layouts that stored a paletteNumber differing from attr also count.
+        if s._paletteNumberOverrideSet == true and type(palNumFromLayout) == "number" then
+          palNum = palNumFromLayout
+        elseif type(palNumFromLayout) == "number" and palNumFromLayout ~= palNumFromAttr then
+          palNum = palNumFromLayout
+          s._paletteNumberOverrideSet = true
+        else
+          s._paletteNumberOverrideSet = false
+        end
         local mirrorXFromAttr = (math.floor(attr / 64) % 2) == 1
         local mirrorYFromAttr = (math.floor(attr / 128) % 2) == 1
         local mirrorX = mirrorXFromAttr
@@ -212,6 +225,11 @@ function M.hydrateSpriteLayer(layer, opts)
           elseif s.tile == nil then
             s.tile = baseTile
           end
+        end
+        -- Keep attr low bits aligned with the palette row we will draw.
+        if s._paletteNumberOverrideSet == true then
+          local palBits = (math.floor(palNum) - 1) % 4
+          attr = (attr - (attr % 4)) + palBits
         end
         s.attr = attr
         s.paletteNumber = palNum
@@ -286,10 +304,10 @@ function M.snapshotSpriteLayer(layer)
 
     local entry
     if s.startAddr then
-      -- ROM OAM slots: startAddr, palette, optional editor displacement vs ROM bytes,
-      -- and mirror overrides (ROM attr bits otherwise).
+      -- ROM OAM slots: startAddr, optional editor displacement vs ROM bytes,
+      -- and explicit palette/mirror overrides (ROM attr bits otherwise).
       entry = { startAddr = s.startAddr }
-      if s.paletteNumber ~= nil then
+      if s._paletteNumberOverrideSet == true and s.paletteNumber ~= nil then
         entry.paletteNumber = s.paletteNumber
       end
       local dx = s.dx or 0
@@ -388,10 +406,14 @@ function M.applySnapshotToSpriteLayer(layer, snapshot, opts)
         dx = dx,
         dy = dy,
       }
+      if entry.paletteNumber ~= nil then
+        oam._paletteNumberOverrideSet = true
+      end
       applyMirrorsFromLayoutEntry(entry, oam)
       if s then
         s.startAddr = oam.startAddr
         s.paletteNumber = oam.paletteNumber
+        s._paletteNumberOverrideSet = (entry.paletteNumber ~= nil)
         s.bank = nil
         s.tile = nil
         s.tileBelow = nil

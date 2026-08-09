@@ -489,6 +489,9 @@ local function applySpriteState(sprite, state)
   elseif state.paletteNumber ~= nil then
     sprite.paletteNumber = state.paletteNumber
   end
+  if state.paletteNumberOverrideSet ~= nil then
+    sprite._paletteNumberOverrideSet = state.paletteNumberOverrideSet == true
+  end
   return true
 end
 

@@ -358,6 +358,8 @@ local PALETTE_ROW_DEFAULT = 1
 
 local function mergeSpritePaletteAttr(sprite, paletteNum)
   sprite.paletteNumber = paletteNum
+  -- Explicit UI / link assignment: sticky across hydrate like mirror overrides.
+  sprite._paletteNumberOverrideSet = true
   local curAttr = tonumber(sprite.attr) or 0
   curAttr = math.floor(curAttr)
   local palBits = (paletteNum - 1) % 4
@@ -444,7 +446,11 @@ local function ppuNametableSnapshotsDiffer(before, after)
     or arrDiff(before.nametableBytes, after.nametableBytes)
 end
 
-local function buildSpritePaletteAssignmentUndoEvent(win, layerIndex, paletteNum)
+local function buildSpritePaletteAssignmentUndoEvent(win, layerIndex, paletteNum, opts)
+  opts = opts or {}
+  -- Linking a palette window should not rewrite OAM attr palette bits; those
+  -- already select the correct sprite palette row in ROM / FCEUX.
+  local skipOamBacked = opts.skipOamBacked == true
   local layer = win.layers and win.layers[layerIndex]
   if not (layer and layer.kind == "sprite") then
     return nil
@@ -453,7 +459,11 @@ local function buildSpritePaletteAssignmentUndoEvent(win, layerIndex, paletteNum
   local indices = {}
   for i, spr in ipairs(items) do
     if spr and spr.removed ~= true then
-      indices[#indices + 1] = i
+      if skipOamBacked and type(spr.startAddr) == "number" then
+        -- keep ROM-derived palette row
+      else
+        indices[#indices + 1] = i
+      end
     end
   end
 
@@ -604,7 +614,9 @@ local function buildItemPaletteAssignmentUndoEventsForLink(win, layerIndex)
   end
   local out = {}
   if layer.kind == "sprite" then
-    local ev = buildSpritePaletteAssignmentUndoEvent(win, layerIndex, PALETTE_ROW_DEFAULT)
+    local ev = buildSpritePaletteAssignmentUndoEvent(win, layerIndex, PALETTE_ROW_DEFAULT, {
+      skipOamBacked = true,
+    })
     if ev then
       out[#out + 1] = ev
     end

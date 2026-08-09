@@ -169,6 +169,8 @@ end)
 
 describe("ppu_frame_toolbar.lua - remove layer undo", function()
   local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
+  local LoveCompat = require("utils.love_compat")
+  local colors = require("app_colors")
 
   it("records animation_window_state when removing a layer", function()
     local events = {}
@@ -198,5 +200,90 @@ describe("ppu_frame_toolbar.lua - remove layer undo", function()
     AnimationWindowUndo.apply(win, events[1].beforeState)
     expect(#win.layers).toBe(2)
     expect(win.activeLayer).toBe(2)
+  end)
+
+  it("Shift+Add sprite prompts confirm then removes the sprite layer with undo", function()
+    local events = {}
+    local confirmOpts = nil
+    local toastMsg = nil
+    local originalIsShiftDown = LoveCompat.isShiftDown
+    LoveCompat.isShiftDown = function()
+      return true
+    end
+
+    local win = makeWindow({
+      { kind = "tile", items = {}, opacity = 1.0 },
+      { kind = "sprite", items = { { startAddr = 1 } }, opacity = 1.0 },
+    }, 1)
+    win.title = "Cutscene"
+    win.selectedByLayer = {}
+    win.showSpriteOriginGuides = true
+
+    local ctx = {
+      app = {
+        confirmModal = {
+          show = function(_, opts)
+            confirmOpts = opts
+          end,
+        },
+        undoRedo = {
+          addAnimationWindowStateEvent = function(_, ev)
+            events[#events + 1] = ev
+          end,
+        },
+      },
+      showToast = function(kind, msg)
+        expect(kind).toBe("warning")
+        toastMsg = msg
+      end,
+    }
+
+    local ok, err = pcall(function()
+      local toolbar = PPUFrameToolbar.new(win, ctx, { getFocus = function() return win end })
+      toolbar:updateSpriteButton()
+      expect(toolbar.addSpriteButton.tooltip).toBe("Remove sprite layer entirely")
+      expect(toolbar.addSpriteButton.bgColor).toBe(colors.red)
+
+      toolbar:_onAddSprite()
+      expect(confirmOpts).toBeTruthy()
+      expect(confirmOpts.title).toBe("Remove sprite layer")
+      expect(confirmOpts.yesText).toBe("Remove")
+
+      confirmOpts.onYes()
+      expect(#win.layers).toBe(1)
+      expect(win.layers[1].kind).toBe("tile")
+      expect(win.showSpriteOriginGuides).toBe(false)
+      expect(#events).toBe(1)
+      expect(events[1].type).toBe("animation_window_state")
+      expect(toastMsg).toBe("Removed sprite layer from Cutscene")
+
+      AnimationWindowUndo.apply(win, events[1].beforeState)
+      expect(#win.layers).toBe(2)
+      expect(win.layers[2].kind).toBe("sprite")
+    end)
+    LoveCompat.isShiftDown = originalIsShiftDown
+    if not ok then
+      error(err)
+    end
+  end)
+
+  it("does not enter remove mode when Shift is held but no sprite layer exists", function()
+    local originalIsShiftDown = LoveCompat.isShiftDown
+    LoveCompat.isShiftDown = function()
+      return true
+    end
+    local ok, err = pcall(function()
+      local win = makeWindow({
+        { kind = "tile", items = {}, opacity = 1.0 },
+      }, 1)
+      local toolbar = PPUFrameToolbar.new(win, { app = {} }, { getFocus = function() return win end })
+      toolbar:updateSpriteButton()
+      expect(toolbar.addSpriteButton.tooltip).toBe("Create sprite layer")
+      expect(toolbar.addSpriteButton.bgColor).toBeNil()
+    end)
+    LoveCompat.isShiftDown = originalIsShiftDown
+    if not ok then
+      error(err)
+    end
   end)
 end)

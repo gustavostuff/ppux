@@ -230,6 +230,7 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appCoreRef)
         beforeBySprite[sprite] = SpriteStateSnapshot.captureSpriteState(sprite)
 
         sprite.paletteNumber = paletteNum
+        sprite._paletteNumberOverrideSet = true
 
         local curAttr = tonumber(sprite.attr) or 0
         curAttr = math.floor(curAttr)

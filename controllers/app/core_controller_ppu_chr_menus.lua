@@ -778,6 +778,35 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
         end
       end,
     })
+    table.insert(items, 3, {
+      text = "Revert all",
+      menuGroup = "sel_chr_sprite_reset",
+      enabled = true,
+      callback = function()
+        local SpriteController = require("controllers.sprite.sprite_controller")
+        local layer = context.layer
+        local indices = SpriteController.getSelectedSpriteIndices(layer)
+        if #indices == 0 and layer.selectedSpriteIndex then
+          indices = { layer.selectedSpriteIndex }
+        end
+        local hasContext = false
+        for _, idx in ipairs(indices) do
+          if idx == context.itemIndex then
+            hasContext = true
+            break
+          end
+        end
+        if not hasContext then
+          indices = { context.itemIndex }
+        end
+        local n = self:_revertOamLinkedSprites(context.win, context.layerIndex, { indices = indices })
+        if n <= 0 then
+          self:setStatus("Sprites already match current ROM OAM")
+        else
+          self:setStatus((n == 1) and "Reverted sprite to ROM OAM" or string.format("Reverted %d sprites to ROM OAM", n))
+        end
+      end,
+    })
   end
   if context and context.layer and context.layer._runtimePatternTableRefLayer == true then
     items[#items + 1] = {

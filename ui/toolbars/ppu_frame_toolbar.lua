@@ -6,6 +6,7 @@ local images = require("images")
 local colors = require("app_colors")
 local AnimationWindowUndo = require("controllers.input_support.animation_window_undo")
 local StatusHelpers = require("utils.status_helpers")
+local LoveCompat = require("utils.love_compat")
 
 local PPUFrameToolbar = {}
 PPUFrameToolbar.__index = PPUFrameToolbar
@@ -292,6 +293,13 @@ end
 function PPUFrameToolbar:_onAddSprite()
   if not self.window then return end
 
+  -- Shift+click: remove the sprite layer entirely (after confirm).
+  local _, spriteLayerIndex = getFirstSpriteLayer(self.window)
+  if LoveCompat.isShiftDown() and spriteLayerIndex then
+    self:_promptRemoveSpriteLayer()
+    return
+  end
+
   local spriteLayer = self:_ensureSpriteLayer(nil, false)
   local app = self.ctx and self.ctx.app or nil
   if not spriteLayer then
@@ -329,6 +337,139 @@ function PPUFrameToolbar:_onAddSprite()
   end
 end
 
+function PPUFrameToolbar:_promptRemoveSpriteLayer()
+  if not self.window then
+    return
+  end
+  local _, spriteLayerIndex = getFirstSpriteLayer(self.window)
+  if not spriteLayerIndex then
+    StatusHelpers.setStatus(self.ctx, "No sprite layer to remove")
+    return
+  end
+  if (self.window:getLayerCount() or 0) <= 1 then
+    StatusHelpers.setStatus(self.ctx, "Cannot remove the last layer")
+    return
+  end
+
+  local app = self.ctx and self.ctx.app
+  local modal = app and app.confirmModal
+  if not (modal and modal.show) then
+    self:_onRemoveSpriteLayer()
+    return
+  end
+
+  modal:show({
+    title = "Remove sprite layer",
+    message = "Remove the sprite layer entirely from this PPU frame?",
+    yesText = "Remove",
+    noText = "Cancel",
+    onYes = function()
+      self:_onRemoveSpriteLayer()
+    end,
+  })
+end
+
+--- Remove the PPU frame's sprite layer (first sprite layer), with undo support.
+function PPUFrameToolbar:_onRemoveSpriteLayer()
+  if not self.window then
+    return
+  end
+
+  local _, spriteIndex = getFirstSpriteLayer(self.window)
+  if not spriteIndex then
+    StatusHelpers.setStatus(self.ctx, "No sprite layer to remove")
+    return
+  end
+
+  local numLayers = self.window:getLayerCount()
+  if numLayers <= 1 then
+    StatusHelpers.setStatus(self.ctx, "Cannot remove the last layer")
+    return
+  end
+
+  self:_removeLayerAtIndex(spriteIndex, { toastLabel = "sprite layer" })
+end
+
+function PPUFrameToolbar:_removeLayerAtIndex(layerIndex, opts)
+  opts = opts or {}
+  if not self.window or type(layerIndex) ~= "number" then
+    return false
+  end
+
+  local numLayers = self.window:getLayerCount() or 0
+  if numLayers <= 1 then
+    StatusHelpers.setStatus(self.ctx, "Cannot remove the last layer")
+    return false
+  end
+  if layerIndex < 1 or layerIndex > numLayers then
+    return false
+  end
+
+  local removedLayer = self.window.layers[layerIndex]
+  local removedKind = removedLayer and removedLayer.kind or nil
+
+  local app = self.ctx and self.ctx.app
+  local undoRedo = app and app.undoRedo
+  local snapBefore = AnimationWindowUndo.snapshot(self.window)
+
+  local activeIdx = self.window:getActiveLayerIndex() or self.window.activeLayer or 1
+  table.remove(self.window.layers, layerIndex)
+  if self.window.selectedByLayer then
+    self.window.selectedByLayer[layerIndex] = nil
+    for li = layerIndex, #self.window.layers do
+      self.window.selectedByLayer[li] = self.window.selectedByLayer[li + 1]
+    end
+    self.window.selectedByLayer[#self.window.layers + 1] = nil
+  end
+
+  if activeIdx == layerIndex then
+    -- Prefer another remaining layer (usually the nametable).
+    if activeIdx > #self.window.layers then
+      self.window.activeLayer = #self.window.layers
+    else
+      self.window.activeLayer = math.max(1, activeIdx - 1)
+    end
+  elseif activeIdx > layerIndex then
+    self.window.activeLayer = activeIdx - 1
+  end
+  if self.window.activeLayer > #self.window.layers then
+    self.window.activeLayer = #self.window.layers
+  end
+  if self.window.activeLayer < 1 then
+    self.window.activeLayer = 1
+  end
+  self.window.selected = self.window.selectedByLayer and self.window.selectedByLayer[self.window.activeLayer] or nil
+  if self.window.updateLayerOpacities then
+    self.window:updateLayerOpacities()
+  end
+
+  if not getFirstSpriteLayer(self.window) then
+    self.window.showSpriteOriginGuides = false
+  end
+
+  local snapAfter = AnimationWindowUndo.snapshot(self.window)
+  if undoRedo and undoRedo.addAnimationWindowStateEvent and not AnimationWindowUndo.snapshotsEqual(snapBefore, snapAfter) then
+    undoRedo:addAnimationWindowStateEvent({
+      type = "animation_window_state",
+      win = self.window,
+      beforeState = snapBefore,
+      afterState = snapAfter,
+    })
+  end
+
+  if self.ctx and self.ctx.showToast then
+    local title = tostring((self.window and self.window.title) or "Untitled")
+    local label = (opts.toastLabel)
+      or ((removedKind == "sprite") and "sprite layer" or "layer")
+    self.ctx.showToast("warning", string.format("Removed %s from %s", label, title))
+  end
+
+  self:updateSpriteButton()
+  self:updateOriginButtons()
+  self:updatePatternTableLinkButton()
+  return true
+end
+
 function PPUFrameToolbar:_onToggleOriginGuides()
   if not self.window then return end
   local _, spriteIdx = getFirstSpriteLayer(self.window)
@@ -349,7 +490,7 @@ function PPUFrameToolbar:_onAddLayer()
   
 end
 
--- Handle remove layer
+-- Handle remove active layer (legacy / tests). Prefer _onRemoveSpriteLayer for Shift+Add sprite.
 function PPUFrameToolbar:_onRemoveLayer()
   if not self.window then return end
 
@@ -359,53 +500,8 @@ function PPUFrameToolbar:_onRemoveLayer()
     return
   end
 
-  local app = self.ctx and self.ctx.app
-  local undoRedo = app and app.undoRedo
-  local snapBefore = AnimationWindowUndo.snapshot(self.window)
-
   local activeIdx = self.window:getActiveLayerIndex()
-  table.remove(self.window.layers, activeIdx)
-  if self.window.selectedByLayer then
-    self.window.selectedByLayer[activeIdx] = nil
-    for li = activeIdx, #self.window.layers do
-      self.window.selectedByLayer[li] = self.window.selectedByLayer[li + 1]
-    end
-    self.window.selectedByLayer[#self.window.layers + 1] = nil
-  end
-
-  -- Adjust active layer index (mirror AnimationWindow:removeActiveLayer)
-  if activeIdx > numLayers then
-    self.window.activeLayer = numLayers - 1
-  elseif activeIdx > 1 then
-    self.window.activeLayer = activeIdx - 1
-  else
-    self.window.activeLayer = 1
-  end
-  if self.window.activeLayer > #self.window.layers then
-    self.window.activeLayer = #self.window.layers
-  end
-  if self.window.activeLayer < 1 then
-    self.window.activeLayer = 1
-  end
-  self.window.selected = self.window.selectedByLayer and self.window.selectedByLayer[self.window.activeLayer] or nil
-  if self.window.updateLayerOpacities then
-    self.window:updateLayerOpacities()
-  end
-
-  local snapAfter = AnimationWindowUndo.snapshot(self.window)
-  if undoRedo and undoRedo.addAnimationWindowStateEvent and not AnimationWindowUndo.snapshotsEqual(snapBefore, snapAfter) then
-    undoRedo:addAnimationWindowStateEvent({
-      type = "animation_window_state",
-      win = self.window,
-      beforeState = snapBefore,
-      afterState = snapAfter,
-    })
-  end
-
-  if self.ctx and self.ctx.showToast then
-    local title = tostring((self.window and self.window.title) or "Untitled")
-    self.ctx.showToast("warning", string.format("Removed layer from %s", title))
-  end
+  self:_removeLayerAtIndex(activeIdx)
 end
 
 -- Empty updateIcons method
@@ -459,10 +555,19 @@ function PPUFrameToolbar:updateSpriteButton()
   if not self.addSpriteButton then return end
   self.addSpriteButton.icon = images.icons.actions.icon_add_sprite or self.addSpriteButton.icon
   local _, spriteLayerIndex = getFirstSpriteLayer(self.window)
-  if spriteLayerIndex then
-    self.addSpriteButton.tooltip = "Add a sprite on sprite layer"
+  local removeMode = LoveCompat.isShiftDown() and spriteLayerIndex ~= nil
+  if removeMode then
+    self.addSpriteButton.bgColor = colors.red
+    self.addSpriteButton.contentColor = colors.white
+    self.addSpriteButton.tooltip = "Remove sprite layer entirely"
   else
-    self.addSpriteButton.tooltip = "Create sprite layer"
+    self.addSpriteButton.bgColor = nil
+    self.addSpriteButton.contentColor = nil
+    if spriteLayerIndex then
+      self.addSpriteButton.tooltip = "Add a sprite on sprite layer"
+    else
+      self.addSpriteButton.tooltip = "Create sprite layer"
+    end
   end
 end
 

@@ -57,6 +57,7 @@ local function shouldUseChromeTextTint(button)
   -- Semantic fills keep default icon color (white); skip Appearance chrome tint.
   if button.bgColor == colors.yellow
     or button.bgColor == colors.green
+    or button.bgColor == colors.red
     or button.bgColor == colors.gray20
   then
     return false

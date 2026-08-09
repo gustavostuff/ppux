@@ -119,7 +119,9 @@ describe("game_art_controller.lua - oam_animation hydration", function()
     expect(s.y).toBe(50)
     expect(s.hasMoved).toBe(false)
     expect(s.paletteNumber).toBe(4)
-    expect(s.attr).toBe(0x41)
+    -- Override keeps draw palette in sync with attr low bits (0x41 → 0x43).
+    expect(s.attr).toBe(0x43)
+    expect(s._paletteNumberOverrideSet).toBe(true)
     expect(s.mirrorX).toBe(true)
     expect(s.mirrorY).toBe(false)
     expect(s.topRef).toBe(tilesPool[1][42])
@@ -282,6 +284,7 @@ describe("game_art_controller.lua - oam_animation hydration", function()
         dx = 2,
         dy = -1,
         paletteNumber = 3,
+        _paletteNumberOverrideSet = true,
         mirrorX = true,
         mirrorY = true,
         _mirrorXOverrideSet = true,
@@ -332,6 +335,7 @@ describe("game_art_controller.lua - oam_animation hydration", function()
         bank = 1,
         tile = 42,
         paletteNumber = 3,
+        _paletteNumberOverrideSet = false,
         mirrorX = true,
         mirrorY = false,
         _mirrorXOverrideSet = false,
@@ -343,6 +347,7 @@ describe("game_art_controller.lua - oam_animation hydration", function()
     local item = layout.windows[1].layers[1].items[1]
     expect(item.mirrorX).toBeNil()
     expect(item.mirrorY).toBeNil()
+    expect(item.paletteNumber).toBeNil()
     expect(item.bank).toBeNil()
     expect(item.tile).toBeNil()
     expect(item.dx).toBeNil()

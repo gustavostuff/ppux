@@ -48,6 +48,37 @@ local function spriteNeedsPositionReset(s)
   return wx ~= math.floor(tonumber(bx) + 0.5) or wy ~= math.floor(tonumber(by) + 0.5)
 end
 
+local function collectSelectedSpriteIndices(layer, opts)
+  opts = opts or {}
+  local indices = opts.indices
+  if not indices then
+    indices = SpriteController.getSelectedSpriteIndices(layer)
+    if #indices == 0 and layer.selectedSpriteIndex then
+      indices = { layer.selectedSpriteIndex }
+    end
+  end
+  return indices or {}
+end
+
+local function clearOamSpriteEditorOverrides(s)
+  s._mirrorXOverrideSet = false
+  s._mirrorYOverrideSet = false
+  s._paletteNumberOverrideSet = false
+  s.mirrorX = nil
+  s.mirrorY = nil
+  s.paletteNumber = nil
+  s.dx = 0
+  s.dy = 0
+  s.hasMoved = false
+  s.worldX = nil
+  s.worldY = nil
+  s.x = nil
+  s.y = nil
+  s.bank = nil
+  s.tile = nil
+  s.tileBelow = nil
+end
+
 local function hydrateNametableLayerIfReady(app, win, layer, layerIndex)
   local ready, reason = isNametableLayerRenderReady(layer)
   if not ready then
@@ -721,13 +752,29 @@ function AppCoreController:_oamSpriteSelectionNeedsPositionReset(win, layerIndex
   if not (layer and layer.kind == "sprite") then
     return false
   end
-  local indices = SpriteController.getSelectedSpriteIndices(layer)
-  if #indices == 0 and layer.selectedSpriteIndex then
-    indices = { layer.selectedSpriteIndex }
-  end
-  for _, idx in ipairs(indices) do
+  for _, idx in ipairs(collectSelectedSpriteIndices(layer)) do
     local s = layer.items and layer.items[idx]
     if s and spriteNeedsPositionReset(s) then
+      return true
+    end
+  end
+  return false
+end
+
+function AppCoreController:_oamSpriteSelectionCanRevertAll(win, layerIndex)
+  if not (win and type(layerIndex) == "number") then
+    return false
+  end
+  if win.kind ~= "oam_animation" and win.kind ~= "ppu_frame" then
+    return false
+  end
+  local layer = win.getLayer and win:getLayer(layerIndex) or (win.layers and win.layers[layerIndex])
+  if not (layer and layer.kind == "sprite") then
+    return false
+  end
+  for _, idx in ipairs(collectSelectedSpriteIndices(layer)) do
+    local s = layer.items and layer.items[idx]
+    if s and s.removed ~= true and type(s.startAddr) == "number" then
       return true
     end
   end
@@ -752,13 +799,7 @@ function AppCoreController:_resetOamLinkedSpritePositions(win, layerIndex, opts)
   local capture = SpriteStateSnapshot.captureSpriteState
   local statesEqual = SpriteStateSnapshot.statesEqual
 
-  local indices = opts.indices
-  if not indices then
-    indices = SpriteController.getSelectedSpriteIndices(layer)
-    if #indices == 0 and layer.selectedSpriteIndex then
-      indices = { layer.selectedSpriteIndex }
-    end
-  end
+  local indices = collectSelectedSpriteIndices(layer, opts)
 
   local tracked = {}
   for _, idx in ipairs(indices) do
@@ -827,6 +868,101 @@ function AppCoreController:_resetOamLinkedSpritePositions(win, layerIndex, opts)
         syncPosition = true,
         syncVisual = false,
         syncAttr = false,
+      },
+      actions = actions,
+    })
+  end
+
+  if self.markUnsaved then
+    self:markUnsaved("sprite_move")
+  end
+
+  return #actions
+end
+
+--- Clear editor overlays (position / flip / palette) and re-read OAM bytes from romRaw.
+--- Does not restore original ROM file bytes — only drops PPUX sticky state.
+function AppCoreController:_revertOamLinkedSprites(win, layerIndex, opts)
+  opts = opts or {}
+  if not (win and type(layerIndex) == "number") then
+    return 0
+  end
+  if win.kind ~= "oam_animation" and win.kind ~= "ppu_frame" then
+    return 0
+  end
+
+  local layer = win.getLayer and win:getLayer(layerIndex) or (win.layers and win.layers[layerIndex])
+  if not (layer and layer.kind == "sprite") then
+    return 0
+  end
+
+  local capture = SpriteStateSnapshot.captureSpriteState
+  local statesEqual = SpriteStateSnapshot.statesEqual
+  local indices = collectSelectedSpriteIndices(layer, opts)
+
+  local tracked = {}
+  for _, idx in ipairs(indices) do
+    local s = layer.items and layer.items[idx]
+    if s and s.removed ~= true and type(s.startAddr) == "number" then
+      tracked[#tracked + 1] = { idx = idx, sprite = s }
+    end
+  end
+  if #tracked == 0 then
+    return 0
+  end
+
+  local beforeBySprite = {}
+  for _, entry in ipairs(tracked) do
+    beforeBySprite[entry.sprite] = capture(entry.sprite)
+  end
+
+  for _, entry in ipairs(tracked) do
+    clearOamSpriteEditorOverrides(entry.sprite)
+  end
+
+  local state = self.appEditState or {}
+  SpriteController.hydrateSpriteLayer(layer, {
+    romRaw = state.romRaw or "",
+    tilesPool = state.tilesPool,
+    appEditState = state,
+    keepWorld = true,
+  })
+
+  for _, entry in ipairs(tracked) do
+    SpriteController.syncSharedOAMSpriteState(win, entry.sprite, {
+      syncPosition = true,
+      syncVisual = true,
+      syncAttr = true,
+    })
+  end
+
+  local actions = {}
+  for _, entry in ipairs(tracked) do
+    local s = entry.sprite
+    local beforeState = beforeBySprite[s]
+    local afterState = capture(s)
+    if beforeState and afterState and not statesEqual(beforeState, afterState) then
+      actions[#actions + 1] = {
+        win = win,
+        layerIndex = layerIndex,
+        sprite = s,
+        before = beforeState,
+        after = afterState,
+      }
+    end
+  end
+  if #actions == 0 then
+    return 0
+  end
+
+  if self.undoRedo and self.undoRedo.addDragEvent then
+    self.undoRedo:addDragEvent({
+      type = "sprite_drag",
+      mode = "move",
+      sync = {
+        syncPosition = true,
+        syncVisual = true,
+        syncAttr = true,
       },
       actions = actions,
     })
@@ -921,6 +1057,23 @@ function AppCoreController:_buildOamSpriteEmptySpaceContextMenuItems(context)
           self:setStatus("Sprites already at ROM positions")
         else
           self:setStatus((n == 1) and "Reset sprite position" or string.format("Reset %d sprite positions", n))
+        end
+      end,
+    }
+  end
+  if win and layer and layer.kind == "sprite" and type(li) == "number"
+      and (win.kind == "oam_animation" or win.kind == "ppu_frame")
+      and self:_oamSpriteSelectionCanRevertAll(win, li) then
+    items[#items + 1] = {
+      text = "Revert all",
+      menuGroup = "spr_sheet_reset",
+      enabled = true,
+      callback = function()
+        local n = self:_revertOamLinkedSprites(win, li)
+        if n <= 0 then
+          self:setStatus("Sprites already match current ROM OAM")
+        else
+          self:setStatus((n == 1) and "Reverted sprite to ROM OAM" or string.format("Reverted %d sprites to ROM OAM", n))
         end
       end,
     }
