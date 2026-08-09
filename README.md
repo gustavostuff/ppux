@@ -87,12 +87,12 @@ Click a colored handle to bring the linked window forward and focus it (this wor
 
 The App toolbar sits at the top and has global quick actions.
 
-<img src="img/readme_images/toolbars/app_toolbar.png" alt="App toolbar">
+<img src="img/readme_images/toolbars/2x/app_toolbar.png" alt="App toolbar">
 
 1. **New window** - opens the new window creation flow (`Ctrl + N`).
 2. **Open project** - `Ctrl + O`.
 3. **Save options** - `Ctrl + S` (save / export flows).
-4. **Copy** - copies the current selection.
+4. **Copy** - Copies the current selection: `Ctrl + C`
 5. **Cut** - `Ctrl + X`
 6. **Paste** - `Ctrl + V`
 7. **Zoom out** - zooms out the focused window.
@@ -113,7 +113,7 @@ The App toolbar sits at the top and has global quick actions.
 
 **CHR Banks toolbar**
 
-<img src="img/readme_images/toolbars/chr_banks_toolbar.png" alt="CHR Banks specialized toolbar">
+<img src="img/readme_images/toolbars/2x/chr_banks_toolbar.png" alt="CHR Banks specialized toolbar">
 
 1. **Previous bank** - `Left` key.
 2. **Next bank** - `Right` key.
@@ -129,7 +129,7 @@ The App toolbar sits at the top and has global quick actions.
 
 **ROM Banks toolbar**
 
-<img src="img/readme_images/toolbars/rom_banks_toolbar.png" alt="ROM Banks specialized toolbar">
+<img src="img/readme_images/toolbars/2x/rom_banks_toolbar.png" alt="ROM Banks specialized toolbar">
 
 Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface makes that unsafe).
 
@@ -140,7 +140,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 <a id="static-art-tiles-and-sprites-toolbar"></a>**Static Art (tiles and sprites) toolbar**
 
-<img src="img/readme_images/toolbars/static_tiles_toolbar.png" alt="Static Art tiles/sprites specialized toolbar">
+<img src="img/readme_images/toolbars/2x/static_tiles_toolbar.png" alt="Static Art tiles/sprites specialized toolbar">
 
 1. **Palette link handle** - right-drag onto a **ROM palette** window, or from the ROM palette's handle onto this one. Left-click to link via a menu.
 
@@ -151,7 +151,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 **Animation toolbar (for both sprites and tiles)**
 
-<img src="img/readme_images/toolbars/animation_tile_toolbar.png" alt="Animation tiles specialized toolbar">
+<img src="img/readme_images/toolbars/2x/animation_tile_toolbar.png" alt="Animation tiles specialized toolbar">
 
 1. **Previous layer** - `Shift` + `Down` key.
 2. **Next layer** - `Shift` + `Up` key.
@@ -169,7 +169,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 **OAM Animation toolbar**
 
-<img src="img/readme_images/toolbars/oam_animation.png" alt="OAM Animation specialized toolbar">
+<img src="img/readme_images/toolbars/2x/oam_animation.png" alt="OAM Animation specialized toolbar">
 
 1. **Previous layer** - `Shift` + `Down` key.
 2. **Next layer** - `Shift` + `Up` key.
@@ -192,7 +192,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 **Generic palette toolbar**
 
-<img src="img/readme_images/toolbars/global_palette.png" alt="Generic palette specialized toolbar">
+<img src="img/readme_images/toolbars/2x/global_palette.png" alt="Generic palette specialized toolbar">
 
 1. **Previous grouped slot** (when Grouped palettes is enabled).
 2. **Next grouped slot** (when Grouped palettes is enabled).
@@ -206,7 +206,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 **ROM palette toolbar**
 
-<img src="img/readme_images/toolbars/rom_palette.png" alt="ROM palette specialized toolbar">
+<img src="img/readme_images/toolbars/2x/rom_palette.png" alt="ROM palette specialized toolbar">
 
 1. **Previous grouped slot** (when Grouped palettes is enabled).
 2. **Next grouped slot** (when Grouped palettes is enabled).
@@ -220,7 +220,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 **PPU Frame toolbar**
 
-<img src="img/readme_images/toolbars/ppu_frame_sprite_layer_toolbar.png" alt="PPU Frame toolbar">
+<img src="img/readme_images/toolbars/2x/ppu_frame_sprite_layer_toolbar.png" alt="PPU Frame toolbar">
 
 1. **Previous layer** - `Shift` + `Down` key.
 2. **Next layer** - `Shift` + `Up` key.
@@ -236,7 +236,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 **Pattern table toolbar**
 
-<img src="img/readme_images/toolbars/pattern_table_toolbar.png" alt="Pattern table specialized toolbar">
+<img src="img/readme_images/toolbars/2x/pattern_table_toolbar.png" alt="Pattern table specialized toolbar">
 
 1. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - **`Ctrl + M`**.
 2. **Pattern table link (source)** - left-click for a menu: jump to linked consumer layer(s), or remove all links from this pattern table.
@@ -250,7 +250,7 @@ Note: Logical **ranges** are built by dragging tiles (multi selections, ideally)
 
 **Sketch canvas toolbar**
 
-<img src="img/readme_images/toolbars/sketch_canvas_toolbar.png" alt="Sketch canvas specialized toolbar">
+<img src="img/readme_images/toolbars/2x/sketch_canvas_toolbar.png" alt="Sketch canvas specialized toolbar">
 
 1. **Tolerance (- / value / +)** - pixel-diff grouping for Generate (0-32). When linked, changing tolerance live-regenerates the pattern table.
 2. **Generate** - packs the paint canvas into up to 256 unique patterns and applies them to the linked pattern table. Highlights when pixels changed since the last pack.
