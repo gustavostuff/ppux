@@ -82,10 +82,13 @@ describe("sketch canvas - link + pattern table apply", function()
     pt.layers[1].items[1] = SketchCanvasPackController.makeScratchTileFromPixels(uniquePattern(9))
     local sentinel = pt.layers[1].items[1]
 
-    sketch.layers[1].canvas.extractTilePixels = function(_self, ox, oy)
-      local col = math.floor(ox / 8)
-      local row = math.floor(oy / 8)
-      return uniquePattern(row * 32 + col)
+    -- Paint real unique tiles into the canvas buffer (native pack reads .pixels,
+    -- so stubbing extractTilePixels alone is not enough).
+    local canvas = sketch.layers[1].canvas
+    for id = 0, 256 do
+      local col = id % 32
+      local row = math.floor(id / 32)
+      canvas:loadTilePixels(col * 8, row * 8, uniquePattern(id), 8)
     end
 
     local ok, err = SketchCanvasPackController.generateAndApply(sketch, wm)

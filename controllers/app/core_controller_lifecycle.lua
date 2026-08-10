@@ -570,6 +570,12 @@ function AppCoreController:update(dt)
     self.taskbar:updateLayout(self.canvas:getWidth(), self.canvas:getHeight())
   end
 
+  if self.galleryRomConfirmModal and self.galleryRomConfirmModal.update
+    and self.galleryRomConfirmModal:isVisible()
+  then
+    self.galleryRomConfirmModal:update(dt)
+  end
+
   if self.toastController and self.canvas then
     self.toastController:updateLayout(self.canvas:getWidth(), self.canvas:getHeight())
     local toastDt = dt

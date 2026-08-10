@@ -175,6 +175,8 @@ function SketchCanvasWindow:setNametableByteAt(col, row, byteVal, _tilesPool, _l
   local Pack = require("controllers.game_art.sketch_canvas_pack_controller")
   Pack.markReflectLayoutDirty(self)
   Pack.invalidateReflectDisplay(self)
+  local Thumb = require("controllers.game_art.sketch_canvas_gallery_thumb_controller")
+  Thumb.refreshTileAt(self, col, row, nil)
   return true
 end
 
@@ -193,6 +195,8 @@ function SketchCanvasWindow:swapNametableBytesAt(col1, row1, col2, row2)
   local Pack = require("controllers.game_art.sketch_canvas_pack_controller")
   Pack.markReflectLayoutDirty(self)
   Pack.invalidateReflectDisplay(self)
+  local Thumb = require("controllers.game_art.sketch_canvas_gallery_thumb_controller")
+  Thumb.swapTileAverages(self, col1, row1, col2, row2)
   return true
 end
 

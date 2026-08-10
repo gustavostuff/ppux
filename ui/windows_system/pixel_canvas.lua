@@ -161,11 +161,25 @@ function PixelCanvas:loadTilePixels(tileX, tileY, pixels, tileH)
   tileY = math.floor(tonumber(tileY) or 0)
   tileH = math.max(1, math.floor(tonumber(tileH) or 8))
   local idx = 1
+  local any = false
   for y = 0, tileH - 1 do
     for x = 0, 7 do
-      self:edit(tileX + x, tileY + y, pixels[idx] or self.fillValue)
+      local px = tileX + x
+      local py = tileY + y
+      if px >= 0 and py >= 0 and px < self.width and py < self.height then
+        local value = math.max(0, math.min(3, math.floor(tonumber(pixels[idx]) or self.fillValue or 0)))
+        local pidx = py * self.width + px + 1
+        if self.pixels[pidx] ~= value then
+          self.pixels[pidx] = value
+          any = true
+        end
+      end
       idx = idx + 1
     end
+  end
+  -- Defer ImageData upload to refreshImage/draw (avoid per-pixel replacePixels).
+  if any then
+    self._imageDirty = true
   end
 end
 

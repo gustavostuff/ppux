@@ -116,6 +116,8 @@ function M.onLinkedToPalette(sketchWin, paletteWin)
     return false, "Sketch canvases need a sketch-mode ROM palette"
   end
   M.resetAttrsToPaletteRow0(sketchWin)
+  local Thumb = require("controllers.game_art.sketch_canvas_gallery_thumb_controller")
+  Thumb.refreshForSketch(sketchWin, nil)
   return true
 end
 
@@ -126,6 +128,8 @@ function M.onUnlinkedFromPalette(sketchWin)
   end
   local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
   SketchCanvasPackController.invalidateReflectDisplay(sketchWin)
+  local Thumb = require("controllers.game_art.sketch_canvas_gallery_thumb_controller")
+  Thumb.refreshForSketch(sketchWin, nil)
   return true
 end
 

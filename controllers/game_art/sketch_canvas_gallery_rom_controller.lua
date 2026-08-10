@@ -344,7 +344,63 @@ function M.sortSketchesForGallery(list)
   return list
 end
 
-function M.collectPackedSketches(wm, sketchWindows)
+--- Reorder exportable sketches by persisted window ids; unknown ids skipped;
+--- sketches not in slideOrder are appended at the end (stable input order).
+--- When slideOrder is empty/nil, falls back to sortSketchesForGallery.
+function M.applyPersistedSlideOrder(sketches, slideOrder)
+  if type(sketches) ~= "table" then
+    return {}
+  end
+  if type(slideOrder) ~= "table" or #slideOrder < 1 then
+    local copy = {}
+    for i = 1, #sketches do
+      copy[i] = sketches[i]
+    end
+    return M.sortSketchesForGallery(copy)
+  end
+
+  local byId = {}
+  local used = {}
+  for _, win in ipairs(sketches) do
+    local id = win and win._id
+    if type(id) == "string" and id ~= "" then
+      byId[id] = win
+    end
+  end
+
+  local out = {}
+  for _, id in ipairs(slideOrder) do
+    if type(id) == "string" and id ~= "" and byId[id] and not used[id] then
+      out[#out + 1] = byId[id]
+      used[id] = true
+    end
+  end
+
+  -- Append newly packed sketches that were not in the saved order.
+  for _, win in ipairs(sketches) do
+    local id = win and win._id
+    if type(id) == "string" and id ~= "" then
+      if not used[id] then
+        out[#out + 1] = win
+        used[id] = true
+      end
+    else
+      out[#out + 1] = win
+    end
+  end
+  return out
+end
+
+local function loadPersistedSlideOrder()
+  local AppSettingsController = require("controllers.app.settings_controller")
+  local prefs = AppSettingsController.normalizeGalleryRomPrefs(
+    (AppSettingsController.load() or {}).galleryRom
+  )
+  return prefs and prefs.slideOrder or {}
+end
+
+function M.collectPackedSketches(wm, sketchWindows, opts)
+  opts = opts or {}
   local list = {}
   local Pack = SketchCanvasPackController
 
@@ -355,13 +411,17 @@ function M.collectPackedSketches(wm, sketchWindows)
       and Pack.resolveLinkedPatternTable(win, wm) ~= nil
   end
 
+  -- Explicit caller order (e.g. modal strip): filter only, do not re-sort.
   if type(sketchWindows) == "table" and #sketchWindows > 0 then
     for _, win in ipairs(sketchWindows) do
       if isExportable(win) then
         list[#list + 1] = win
       end
     end
-    return M.sortSketchesForGallery(list)
+    if opts.preserveOrder == false then
+      return M.applyPersistedSlideOrder(list, opts.slideOrder or loadPersistedSlideOrder())
+    end
+    return list
   end
 
   if not wm then
@@ -376,7 +436,7 @@ function M.collectPackedSketches(wm, sketchWindows)
       list[#list + 1] = win
     end
   end
-  return M.sortSketchesForGallery(list)
+  return M.applyPersistedSlideOrder(list, opts.slideOrder or loadPersistedSlideOrder())
 end
 
 --- True when at least one sketch is packed and still linked to an open pattern table.
@@ -701,7 +761,7 @@ function M.buildGalleryRom(app, sketchWindows, opts)
     wm = wm()
   end
 
-  local sketches = M.collectPackedSketches(wm, sketchWindows)
+  local sketches = M.collectPackedSketches(wm, sketchWindows, { preserveOrder = true })
   if #sketches < 1 then
     return false, "no packed sketch canvases to export"
   end

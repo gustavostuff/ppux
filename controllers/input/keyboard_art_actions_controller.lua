@@ -377,6 +377,10 @@ function M.handlePaletteNumberAssignment(ctx, key, focus, appCoreRef)
       local success = NametableTilesController.setPaletteNumberForTile(w, layer, cell.col, cell.row, paletteNum)
       if success then
         updated = updated + 1
+        if WindowCaps.isSketchReflectNametable(w) then
+          local Thumb = require("controllers.game_art.sketch_canvas_gallery_thumb_controller")
+          Thumb.refreshTileAt(w, cell.col, cell.row, nil)
+        end
       end
     end
   end

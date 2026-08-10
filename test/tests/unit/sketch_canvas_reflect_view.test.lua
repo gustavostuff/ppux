@@ -137,6 +137,30 @@ describe("sketch canvas - tile-mode mirror view", function()
     expect(paint:getPixel(8, 0)).toBe(1)
   end)
 
+  it("bakes pending NT rearrange into paint before Generate (without leaving tile mode)", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow()
+    local paint = sketch.layers[1].canvas
+    paintTile(paint, 0, 0, 1)
+    paintTile(paint, 1, 0, 2)
+    assert(SketchCanvasPackController.generate(sketch))
+
+    sketch:swapNametableBytesAt(0, 0, 1, 0)
+    expect(SketchCanvasPackController.isReflectLayoutDirty(sketch)).toBe(true)
+    -- Paint still has the pre-swap layout until bake/generate.
+    expect(paint:getPixel(0, 0)).toBe(1)
+    expect(paint:getPixel(8, 0)).toBe(2)
+
+    assert(SketchCanvasPackController.generate(sketch))
+    expect(SketchCanvasPackController.isReflectLayoutDirty(sketch)).toBe(false)
+    -- Generate must pack the rearranged layout, not the pre-swap paint.
+    expect(paint:getPixel(0, 0)).toBe(2)
+    expect(paint:getPixel(8, 0)).toBe(1)
+    local nt0 = sketch.nametableBytes[1]
+    local nt1 = sketch.nametableBytes[2]
+    expect(nt0 ~= nt1).toBe(true)
+  end)
+
   it("does not bake paint away when toggling tile/edit without nametable edits", function()
     local wm = WM.new()
     local sketch = wm:createSketchCanvasWindow()

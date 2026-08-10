@@ -348,8 +348,15 @@ function SketchCanvasToolbar:_onToleranceDelta(delta)
   self.window.tolerance = nextTol
   self:updateIcons()
 
+  -- Tile-average thumbs track paint; refresh immediately so gallery modal stays cheap.
+  do
+    local Thumb = require("controllers.game_art.sketch_canvas_gallery_thumb_controller")
+    Thumb.refreshForSketch(self.window, getApp(self))
+  end
+
   if self:_isLinked() then
     -- Live regen sets the final status (avoid a flash of "updating…" then generate).
+    -- applyPackToWindow will refresh averages again after the new pack.
     self:_scheduleToleranceRegen()
   else
     StatusHelpers.setStatus(self.ctx, string.format("Sketch tolerance: %d", nextTol))

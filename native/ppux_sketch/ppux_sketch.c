@@ -269,13 +269,29 @@ static int solid_diff_count(const uint8_t pixels[64], int shade, int threshold) 
   return differences;
 }
 
-static int canonical_solid_shade(const uint8_t pixels[64]) {
+static int pixel_diff_count(
+  const uint8_t a[64],
+  const uint8_t b[64],
+  int threshold
+) {
+  int i, differences = 0;
+  for (i = 0; i < 64; i++) {
+    if (a[i] != b[i]) {
+      differences++;
+      if (differences > threshold) return differences;
+    }
+  }
+  return differences;
+}
+
+/* Prefer closest shade within tolerance; ties keep lower shade index. */
+static int canonical_solid_shade_tol(const uint8_t pixels[64], int tolerance) {
   int shade;
   int best_shade = -1;
   int best_diff = 999;
   for (shade = 0; shade <= 3; shade++) {
-    int diff = solid_diff_count(pixels, shade, 0);
-    if (diff <= 0 && diff < best_diff) {
+    int diff = solid_diff_count(pixels, shade, tolerance);
+    if (diff <= tolerance && diff < best_diff) {
       best_shade = shade;
       best_diff = diff;
     }
@@ -301,6 +317,7 @@ typedef struct {
 } ExactSlot;
 
 #define EXACT_CAP 512
+#define PPUX_MAX_TOLERANCE 32
 
 static uint32_t hash_key16(const uint8_t key[16]) {
   uint32_t h = 2166136261u;
@@ -336,18 +353,21 @@ static void exact_insert(ExactSlot *table, const uint8_t key[16], int32_t index)
   }
 }
 
-int ppux_pack_flat_tol0(
+int ppux_pack_flat(
   const uint8_t *flat,
   int w,
   int h,
+  int tolerance,
   PpuxPoolEntry *out_pool,
   int32_t *out_unique_count,
   uint16_t *out_nametable
 ) {
   ExactSlot exact_table[EXACT_CAP];
+  uint8_t unique_pixels[PPUX_MAX_UNIQUE][64];
   int32_t solid_pool_index[4] = {0, 0, 0, 0}; /* 1-based */
   int32_t unique = 0;
   int row, col, nt = 0;
+  int use_exact;
 
   set_error("");
   if (!flat || !out_pool || !out_unique_count || !out_nametable) {
@@ -358,6 +378,9 @@ int ppux_pack_flat_tol0(
     set_error("expected 256x240");
     return PPUX_SKETCH_ERR_DIMS;
   }
+  if (tolerance < 0) tolerance = 0;
+  if (tolerance > PPUX_MAX_TOLERANCE) tolerance = PPUX_MAX_TOLERANCE;
+  use_exact = (tolerance == 0) ? 1 : 0;
 
   memset(exact_table, 0, sizeof(exact_table));
 
@@ -372,7 +395,8 @@ int ppux_pack_flat_tol0(
       int is_exact_solid;
 
       extract_tile(flat, w, ox, oy, pixels);
-      solid_shade = canonical_solid_shade(pixels);
+      solid_shade = canonical_solid_shade_tol(pixels, tolerance);
+      /* Shade 0 only collapses on exact blank (Lua packFromCanvas). */
       if (solid_shade == 0 && solid_diff_count(pixels, 0, 0) > 0) {
         solid_shade = -1;
       }
@@ -395,8 +419,11 @@ int ppux_pack_flat_tol0(
           out_pool[unique - 1].exact_solid = is_exact_solid;
           match_index = unique;
           solid_pool_index[solid_shade] = match_index;
-          pattern_exact_key(solid_pixels, key);
-          exact_insert(exact_table, key, match_index);
+          memcpy(unique_pixels[unique - 1], solid_pixels, 64);
+          if (use_exact) {
+            pattern_exact_key(solid_pixels, key);
+            exact_insert(exact_table, key, match_index);
+          }
         } else {
           PpuxPoolEntry *entry = &out_pool[match_index - 1];
           if (entry->solid_shade == solid_shade && !entry->exact_solid && is_exact_solid) {
@@ -405,7 +432,7 @@ int ppux_pack_flat_tol0(
             entry->exact_solid = 1;
           }
         }
-      } else {
+      } else if (use_exact) {
         pattern_exact_key(pixels, key);
         match_index = exact_lookup(exact_table, key);
         if (match_index == 0) {
@@ -419,7 +446,36 @@ int ppux_pack_flat_tol0(
           out_pool[unique - 1].solid_shade = -1;
           out_pool[unique - 1].exact_solid = 0;
           match_index = unique;
+          memcpy(unique_pixels[unique - 1], pixels, 64);
           exact_insert(exact_table, key, match_index);
+        }
+      } else {
+        int i;
+        for (i = 0; i < unique; i++) {
+          PpuxPoolEntry *entry = &out_pool[i];
+          if (entry->solid_shade >= 0) {
+            /* Never absorb freehand into a canonical solid via greedy. */
+            if (pixel_diff_count(pixels, unique_pixels[i], 0) == 0) {
+              match_index = i + 1;
+              break;
+            }
+          } else if (pixel_diff_count(pixels, unique_pixels[i], tolerance) <= tolerance) {
+            match_index = i + 1;
+            break;
+          }
+        }
+        if (match_index == 0) {
+          if (unique >= PPUX_MAX_UNIQUE) {
+            set_error("too many unique patterns");
+            return PPUX_SKETCH_ERR_TOO_MANY_UNIQUE;
+          }
+          unique++;
+          out_pool[unique - 1].x = ox;
+          out_pool[unique - 1].y = oy;
+          out_pool[unique - 1].solid_shade = -1;
+          out_pool[unique - 1].exact_solid = 0;
+          match_index = unique;
+          memcpy(unique_pixels[unique - 1], pixels, 64);
         }
       }
 
@@ -429,4 +485,15 @@ int ppux_pack_flat_tol0(
 
   *out_unique_count = unique;
   return PPUX_SKETCH_OK;
+}
+
+int ppux_pack_flat_tol0(
+  const uint8_t *flat,
+  int w,
+  int h,
+  PpuxPoolEntry *out_pool,
+  int32_t *out_unique_count,
+  uint16_t *out_nametable
+) {
+  return ppux_pack_flat(flat, w, h, 0, out_pool, out_unique_count, out_nametable);
 }

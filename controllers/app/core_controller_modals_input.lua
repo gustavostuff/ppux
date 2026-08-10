@@ -166,6 +166,7 @@ function AppCoreController:showGalleryRomConfirmModal()
   end
   self.galleryRomConfirmModal:show({
     sketches = sketches,
+    app = self,
     onConfirm = function(selected, buildOpts)
       local ok, pathOrErr = SketchCanvasGalleryRomController.buildGalleryRom(
         self,

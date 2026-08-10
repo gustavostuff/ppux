@@ -33,6 +33,7 @@ describe("settings_controller.lua - defaults", function()
         useTransitions = true,
         fadeHold = 6,
         showFirstOnce = false,
+        slideOrder = {},
       },
     })
   end)

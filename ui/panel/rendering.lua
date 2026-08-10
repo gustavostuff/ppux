@@ -505,7 +505,12 @@ local function install(Panel, utils)
           or utils.colors.white
         love.graphics.setColor(textColor[1], textColor[2], textColor[3], 1)
         local font = utils.getFont()
-        local labelMarginX = math.floor(cell.h / 2)
+        local labelMarginX = cell.marginX
+        if labelMarginX == nil then
+          labelMarginX = math.floor(cell.h / 2)
+        else
+          labelMarginX = math.floor(tonumber(labelMarginX) or 0)
+        end
         local textX = cell.x + labelMarginX
         local textY = cell.y + math.floor((cell.h - (font and font:getHeight() or 0)) * 0.5)
         if cell.align == "center" then

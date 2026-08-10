@@ -50,6 +50,7 @@ local DEFAULT_SETTINGS = {
     useTransitions = true,
     fadeHold = 6,
     showFirstOnce = false,
+    slideOrder = {},
   },
 }
 
@@ -313,10 +314,21 @@ local function normalizeGalleryRomPrefs(raw)
   elseif fadeHold > 30 then
     fadeHold = 30
   end
+  local slideOrder = {}
+  if type(src.slideOrder) == "table" then
+    local seen = {}
+    for _, id in ipairs(src.slideOrder) do
+      if type(id) == "string" and id ~= "" and not seen[id] then
+        seen[id] = true
+        slideOrder[#slideOrder + 1] = id
+      end
+    end
+  end
   return {
     useTransitions = src.useTransitions ~= false,
     fadeHold = fadeHold,
     showFirstOnce = src.showFirstOnce == true,
+    slideOrder = slideOrder,
   }
 end
 

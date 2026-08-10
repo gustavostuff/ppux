@@ -25,6 +25,16 @@ int ppux_rgba_u8_to_indexed(
   uint8_t *out_flat
 );
 
+int ppux_pack_flat(
+  const uint8_t *flat,
+  int w,
+  int h,
+  int tolerance,
+  PpuxPoolEntry *out_pool,
+  int32_t *out_unique_count,
+  uint16_t *out_nametable
+);
+
 int ppux_pack_flat_tol0(
   const uint8_t *flat,
   int w,
@@ -128,7 +138,7 @@ local function tryLoad()
 
   for _, path in ipairs(candidatePaths()) do
     local ok, lib = pcall(ffi.load, path)
-    if ok and lib and lib.ppux_pack_flat_tol0 then
+    if ok and lib and (lib.ppux_pack_flat or lib.ppux_pack_flat_tol0) then
       C = lib
       loadState = "ok"
       loadError = nil
@@ -165,6 +175,144 @@ local function paletteToFloat12(paletteColors)
     buf[i * 3 + 2] = tonumber(rgb[3]) or 0
   end
   return buf
+end
+
+local function packResultFromNative(pool, uniqueCount, nametable, tolerance)
+  local n = tonumber(uniqueCount[0]) or 0
+  local tilesPool = {}
+  for i = 0, n - 1 do
+    local e = pool[i]
+    local entry = {
+      x = tonumber(e.x) or 0,
+      y = tonumber(e.y) or 0,
+    }
+    if e.solid_shade >= 0 then
+      entry.solidShade = tonumber(e.solid_shade)
+      if e.exact_solid ~= 0 then
+        entry.exactSolid = true
+      end
+    end
+    tilesPool[i + 1] = entry
+  end
+
+  local nametableBytes = {}
+  for i = 0, 959 do
+    nametableBytes[i + 1] = tonumber(nametable[i]) or 0
+  end
+
+  return {
+    tilesPool = tilesPool,
+    nametableBytes = nametableBytes,
+    uniqueCount = n,
+    tolerance = math.floor(tonumber(tolerance) or 0),
+  }
+end
+
+--- Pack a flat 1-based indexed buffer (256x240, values 0-3) at the given tolerance.
+--- @return pack table or nil, err
+function M.packFlat(flat, width, height, tolerance)
+  if not tryLoad() then
+    return nil, loadError or "native_unavailable"
+  end
+  width = math.floor(tonumber(width) or 0)
+  height = math.floor(tonumber(height) or 0)
+  if width ~= 256 or height ~= 240 then
+    return nil, "bad_dimensions"
+  end
+  if type(flat) ~= "table" then
+    return nil, "no_flat"
+  end
+  tolerance = math.floor(tonumber(tolerance) or 0)
+  if tolerance < 0 then
+    tolerance = 0
+  elseif tolerance > 32 then
+    tolerance = 32
+  end
+
+  local flatBuf = ffi.new("uint8_t[?]", width * height)
+  for i = 0, width * height - 1 do
+    local v = math.floor(tonumber(flat[i + 1]) or 0)
+    if v < 0 then
+      v = 0
+    elseif v > 3 then
+      v = 3
+    end
+    flatBuf[i] = v
+  end
+
+  local pool = ffi.new("PpuxPoolEntry[256]")
+  local uniqueCount = ffi.new("int32_t[1]")
+  local nametable = ffi.new("uint16_t[960]")
+  local rc
+  if C.ppux_pack_flat then
+    rc = C.ppux_pack_flat(flatBuf, width, height, tolerance, pool, uniqueCount, nametable)
+  elseif tolerance == 0 and C.ppux_pack_flat_tol0 then
+    rc = C.ppux_pack_flat_tol0(flatBuf, width, height, pool, uniqueCount, nametable)
+  else
+    return nil, "native_pack_unsupported"
+  end
+  if rc ~= 0 then
+    local err = ffi.string(C.ppux_sketch_last_error())
+    if err == "" then
+      err = "native_pack_failed_" .. tostring(rc)
+    end
+    return nil, err
+  end
+  return packResultFromNative(pool, uniqueCount, nametable, tolerance)
+end
+
+--- Pack a PixelCanvas (or any table with .pixels/.width/.height) via native helper.
+--- @return pack table or nil, err
+function M.packPixelCanvas(canvas, tolerance)
+  if not tryLoad() then
+    return nil, loadError or "native_unavailable"
+  end
+  if type(canvas) ~= "table" or type(canvas.pixels) ~= "table" then
+    return nil, "no_canvas_pixels"
+  end
+  local w = math.floor(tonumber(canvas.width) or 0)
+  local h = math.floor(tonumber(canvas.height) or 0)
+  if w ~= 256 or h ~= 240 then
+    return nil, "bad_dimensions"
+  end
+  tolerance = math.floor(tonumber(tolerance) or 0)
+  if tolerance < 0 then
+    tolerance = 0
+  elseif tolerance > 32 then
+    tolerance = 32
+  end
+
+  local flatBuf = ffi.new("uint8_t[?]", w * h)
+  local pixels = canvas.pixels
+  for i = 0, w * h - 1 do
+    local v = math.floor(tonumber(pixels[i + 1]) or 0)
+    if v < 0 then
+      v = 0
+    elseif v > 3 then
+      v = 3
+    end
+    flatBuf[i] = v
+  end
+
+  local pool = ffi.new("PpuxPoolEntry[256]")
+  local uniqueCount = ffi.new("int32_t[1]")
+  local nametable = ffi.new("uint16_t[960]")
+  local rc
+  if C.ppux_pack_flat then
+    rc = C.ppux_pack_flat(flatBuf, w, h, tolerance, pool, uniqueCount, nametable)
+  elseif tolerance == 0 and C.ppux_pack_flat_tol0 then
+    rc = C.ppux_pack_flat_tol0(flatBuf, w, h, pool, uniqueCount, nametable)
+  else
+    return nil, "native_pack_unsupported"
+  end
+  if rc ~= 0 then
+    local err = ffi.string(C.ppux_sketch_last_error())
+    if err == "" then
+      err = "native_pack_failed_" .. tostring(rc)
+    end
+    return nil, err
+  end
+  return packResultFromNative(pool, uniqueCount, nametable, tolerance)
 end
 
 --- Decode LOVE ImageData (rgba8) + pack at tolerance 0.
@@ -206,7 +354,11 @@ function M.imageDataToIndexedAndPack(imgData, paletteColors)
   local pool = ffi.new("PpuxPoolEntry[256]")
   local uniqueCount = ffi.new("int32_t[1]")
   local nametable = ffi.new("uint16_t[960]")
-  rc = C.ppux_pack_flat_tol0(flatBuf, w, h, pool, uniqueCount, nametable)
+  if C.ppux_pack_flat then
+    rc = C.ppux_pack_flat(flatBuf, w, h, 0, pool, uniqueCount, nametable)
+  else
+    rc = C.ppux_pack_flat_tol0(flatBuf, w, h, pool, uniqueCount, nametable)
+  end
   if rc ~= 0 then
     local err = ffi.string(C.ppux_sketch_last_error())
     if err == "" then
@@ -221,33 +373,7 @@ function M.imageDataToIndexedAndPack(imgData, paletteColors)
     flat[i + 1] = flatBuf[i]
   end
 
-  local tilesPool = {}
-  for i = 0, n - 1 do
-    local e = pool[i]
-    local entry = {
-      x = tonumber(e.x) or 0,
-      y = tonumber(e.y) or 0,
-    }
-    if e.solid_shade >= 0 then
-      entry.solidShade = tonumber(e.solid_shade)
-      if e.exact_solid ~= 0 then
-        entry.exactSolid = true
-      end
-    end
-    tilesPool[i + 1] = entry
-  end
-
-  local nametableBytes = {}
-  for i = 0, 959 do
-    nametableBytes[i + 1] = tonumber(nametable[i]) or 0
-  end
-
-  return flat, {
-    tilesPool = tilesPool,
-    nametableBytes = nametableBytes,
-    uniqueCount = n,
-    tolerance = 0,
-  }, w, h
+  return flat, packResultFromNative(pool, uniqueCount, nametable, 0), w, h
 end
 
 return M

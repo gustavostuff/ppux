@@ -47,7 +47,19 @@ int ppux_rgba_u8_to_indexed(
 /* flat: 256x240 indexed 0..3 row-major.
  * out_pool: capacity 256.
  * out_nametable: 960 entries, 0-based pool indices.
+ * tolerance: 0 = exact match; 1..32 = greedy pixel-diff match (Lua packFromCanvas).
  */
+int ppux_pack_flat(
+  const uint8_t *flat,
+  int w,
+  int h,
+  int tolerance,
+  PpuxPoolEntry *out_pool,
+  int32_t *out_unique_count,
+  uint16_t *out_nametable
+);
+
+/* Convenience wrapper: ppux_pack_flat(..., 0, ...). */
 int ppux_pack_flat_tol0(
   const uint8_t *flat,
   int w,

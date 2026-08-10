@@ -338,29 +338,31 @@ describe("sketch_canvas_gallery_rom_controller.lua", function()
     return pt
   end
 
-  it("collects only packed sketches that still have a linked pattern table", function()
+  it("buildGalleryRom preserves explicit sketch order from the modal", function()
     local wm = WM.new()
-    local empty = wm:createSketchCanvasWindow({ title = "Empty" })
-    local packedOnly = wm:createSketchCanvasWindow({ title = "PackedNoLink" })
-    local canvas = packedOnly:getActiveCanvas()
-    for y = 0, 7 do
-      for x = 0, 7 do
-        canvas:edit(x, y, 1)
-      end
-    end
-    expect(SketchCanvasPackController.generate(packedOnly)).toBe(true)
-    expect(SketchCanvasGalleryRomController.canBuildGalleryRom(wm)).toBe(false)
-    expect(#SketchCanvasGalleryRomController.collectPackedSketches(wm)).toBe(0)
+    local a = wm:createSketchCanvasWindow({ title = "Alpha" })
+    local b = wm:createSketchCanvasWindow({ title = "Bravo" })
+    paintAndLinkGenerate(wm, a)
+    paintAndLinkGenerate(wm, b)
+    -- Alphabetical default would be Alpha then Bravo; pass reverse order.
+    local ordered = SketchCanvasGalleryRomController.collectPackedSketches(wm, { b, a })
+    expect(#ordered).toBe(2)
+    expect(ordered[1]).toBe(b)
+    expect(ordered[2]).toBe(a)
+  end)
 
-    local packed = wm:createSketchCanvasWindow({ title = "Packed" })
-    paintAndLinkGenerate(wm, packed)
-
-    local list = SketchCanvasGalleryRomController.collectPackedSketches(wm)
-    expect(#list).toBe(1)
-    expect(list[1]).toBe(packed)
-    expect(SketchCanvasGalleryRomController.canBuildGalleryRom(wm)).toBe(true)
-    expect(empty).toBeTruthy()
-    expect(packedOnly).toBeTruthy()
+  it("applyPersistedSlideOrder keeps saved ids then appends newcomers", function()
+    local a = { _id = "a", title = "A" }
+    local b = { _id = "b", title = "B" }
+    local c = { _id = "c", title = "C" }
+    local ordered = SketchCanvasGalleryRomController.applyPersistedSlideOrder(
+      { a, b, c },
+      { "c", "a" }
+    )
+    expect(#ordered).toBe(3)
+    expect(ordered[1]).toBe(c)
+    expect(ordered[2]).toBe(a)
+    expect(ordered[3]).toBe(b)
   end)
 
   it("writes slide assets and meta without make", function()

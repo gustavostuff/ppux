@@ -123,6 +123,7 @@ local function install(Panel, utils)
       bgColor = cell.bgColor,
       bgAlpha = cell.bgAlpha,
       textColor = cell.textColor,
+      marginX = cell.marginX,
       component = cell.component,
       draw = cell.draw,
     }

@@ -515,6 +515,25 @@ function M.packFromCanvas(canvas, tolerance)
   end
 
   tolerance = clampTolerance(tolerance)
+
+  -- Prefer native pack when the canvas exposes a flat pixels buffer (PixelCanvas).
+  if PpuxSketchNative.isAvailable()
+    and type(canvas.pixels) == "table"
+    and width == M.PNG_IMPORT_WIDTH
+    and height == M.PNG_IMPORT_HEIGHT
+  then
+    local packNative, nativeErr = PpuxSketchNative.packPixelCanvas(canvas, tolerance)
+    if packNative and type(packNative) == "table" then
+      return packNative
+    end
+    -- Hard unique-cap errors should not fall through (Lua would also fail).
+    local errStr = tostring(nativeErr or "")
+    if errStr:find("too many unique", 1, true) then
+      return nil, "too_many_unique"
+    end
+    -- Otherwise fall through to Lua (missing .so symbol, bad dims, etc.).
+  end
+
   local tilesPool = {}
   local uniquePatterns = {}
   -- One pool slot per flat shade (0-3) when any tile collapses to that solid.
@@ -626,6 +645,9 @@ function M.applyPackToWindow(win, pack)
   win.nametableBytes = pack.nametableBytes
   M.clearReflectLayoutDirty(win)
   M.invalidateReflectDisplay(win)
+  -- Gallery ROM thumbs: refresh cached per-tile average colors with the paint buffer.
+  local Thumb = require("controllers.game_art.sketch_canvas_gallery_thumb_controller")
+  Thumb.refreshForSketch(win, nil)
   return true
 end
 
@@ -654,6 +676,10 @@ function M.clearPackData(win, opts)
   win.nametableBytes = nil
   win.reflectPatternTable = false
   win._reflectDisplayCanvas = nil
+  do
+    local Thumb = require("controllers.game_art.sketch_canvas_gallery_thumb_controller")
+    Thumb.clearTileAverages(win)
+  end
   M.clearReflectLayoutDirty(win)
   M.invalidateReflectDisplay(win)
   M.markGenerateDirty(win)
@@ -1448,6 +1474,9 @@ function M.generate(win)
   if not WindowCaps.isSketchCanvas(win) then
     return false, "not_sketch_canvas"
   end
+  -- Tile-mode NT rearrange (swap/move) updates nametableBytes + reflect preview only.
+  -- Commit that layout into paint before packing, same as leaving tile mode.
+  M.bakeReflectIntoPaint(win)
   local canvas = resolveCanvas(win)
   if not canvas then
     return false, "no_canvas"
@@ -1587,6 +1616,14 @@ function M.restorePackFields(win, snap)
   M.invalidateReflectDisplay(win)
   if win.reflectPatternTable and not M.hasPackData(win) then
     win.reflectPatternTable = false
+  end
+  do
+    local Thumb = require("controllers.game_art.sketch_canvas_gallery_thumb_controller")
+    if M.hasPackData(win) then
+      Thumb.refreshForSketch(win, nil)
+    else
+      Thumb.clearTileAverages(win)
+    end
   end
   if win.specializedToolbar and win.specializedToolbar.updateIcons then
     win.specializedToolbar:updateIcons()

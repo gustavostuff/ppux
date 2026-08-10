@@ -173,4 +173,158 @@ describe("ppux_sketch native helper", function()
       expect(flatNative[i]).toBe(flatLua[i])
     end
   end)
+
+  -- Lua-only canvas stub (no .pixels) so packFromCanvas cannot take the native shortcut.
+  local function luaPackCanvasFromFlat(flat)
+    return {
+      width = 256,
+      height = 240,
+      extractTilePixels = function(_, ox, oy, cell)
+        cell = cell or 8
+        local pixels = {}
+        local i = 1
+        for py = 0, cell - 1 do
+          for px = 0, cell - 1 do
+            pixels[i] = flat[(oy + py) * 256 + (ox + px) + 1] or 0
+            i = i + 1
+          end
+        end
+        return pixels
+      end,
+    }
+  end
+
+  local function assertPackParity(packNative, packLua)
+    expect(packNative).toBeTruthy()
+    expect(packLua).toBeTruthy()
+    expect(packNative.uniqueCount).toBe(packLua.uniqueCount)
+    expect(#packNative.nametableBytes).toBe(960)
+    expect(#packLua.nametableBytes).toBe(960)
+    for i = 1, 960 do
+      expect(packNative.nametableBytes[i]).toBe(packLua.nametableBytes[i])
+    end
+    for i = 1, packLua.uniqueCount do
+      expect(packNative.tilesPool[i].x).toBe(packLua.tilesPool[i].x)
+      expect(packNative.tilesPool[i].y).toBe(packLua.tilesPool[i].y)
+      expect(packNative.tilesPool[i].solidShade).toBe(packLua.tilesPool[i].solidShade)
+      expect(packNative.tilesPool[i].exactSolid == true).toBe(packLua.tilesPool[i].exactSolid == true)
+    end
+  end
+
+  local function makeToleranceStressFlat()
+    local flat = {}
+    for i = 1, 256 * 240 do
+      flat[i] = 0
+    end
+    local function fillTile(col, row, shade)
+      local ox, oy = col * 8, row * 8
+      for py = 0, 7 do
+        for px = 0, 7 do
+          flat[(oy + py) * 256 + (ox + px) + 1] = shade
+        end
+      end
+    end
+    -- Exact solids for shades 1-3.
+    fillTile(0, 0, 1)
+    fillTile(1, 0, 2)
+    fillTile(2, 0, 3)
+    -- Near-solid shade 2 with 3 outlier pixels (collapses at tol>=3).
+    fillTile(3, 0, 2)
+    do
+      local ox, oy = 3 * 8, 0
+      flat[oy * 256 + ox + 1] = 0
+      flat[oy * 256 + ox + 2] = 1
+      flat[oy * 256 + ox + 3] = 3
+    end
+    -- Near-empty shade 0 with one freehand pixel (must NOT collapse to blank).
+    fillTile(4, 0, 0)
+    flat[0 * 256 + 4 * 8 + 1] = 2
+    -- Freehand checker that must stay unique (not absorb into solids via greedy).
+    do
+      local ox, oy = 5 * 8, 0
+      for py = 0, 7 do
+        for px = 0, 7 do
+          flat[(oy + py) * 256 + (ox + px) + 1] = ((px + py) % 2 == 0) and 1 or 2
+        end
+      end
+    end
+    -- Duplicate freehand at another cell (tol>0 greedy should match first unique).
+    do
+      local ox, oy = 6 * 8, 0
+      for py = 0, 7 do
+        for px = 0, 7 do
+          local v = ((px + py) % 2 == 0) and 1 or 2
+          -- Flip two pixels so exact match fails but tol>=2 matches.
+          if px == 0 and py == 0 then
+            v = 3
+          elseif px == 1 and py == 0 then
+            v = 0
+          end
+          flat[(oy + py) * 256 + (ox + px) + 1] = v
+        end
+      end
+    end
+    return flat
+  end
+
+  it("packFlat matches Lua packFromCanvas at tolerance 0", function()
+    if not PpuxSketchNative.isAvailable() then
+      expect(true).toBe(true)
+      return
+    end
+
+    local flat = makeToleranceStressFlat()
+    local packNative, nErr = PpuxSketchNative.packFlat(flat, 256, 240, 0)
+    expect(nErr).toBeNil()
+    local packLua, lErr = SketchCanvasPackController.packFromCanvas(luaPackCanvasFromFlat(flat), 0)
+    expect(lErr).toBeNil()
+    assertPackParity(packNative, packLua)
+  end)
+
+  it("packFlat matches Lua packFromCanvas at tolerance 3", function()
+    if not PpuxSketchNative.isAvailable() then
+      expect(true).toBe(true)
+      return
+    end
+
+    local flat = makeToleranceStressFlat()
+    local packNative, nErr = PpuxSketchNative.packFlat(flat, 256, 240, 3)
+    expect(nErr).toBeNil()
+    local packLua, lErr = SketchCanvasPackController.packFromCanvas(luaPackCanvasFromFlat(flat), 3)
+    expect(lErr).toBeNil()
+    assertPackParity(packNative, packLua)
+    -- Near-solid tile at (3,0) should collapse into shade-2 solid pool.
+    expect(packLua.uniqueCount).toBeLessThan(10)
+  end)
+
+  it("packFromCanvas prefers native when canvas.pixels is present", function()
+    if not PpuxSketchNative.isAvailable() then
+      expect(true).toBe(true)
+      return
+    end
+
+    local flat = makeToleranceStressFlat()
+    local canvas = {
+      width = 256,
+      height = 240,
+      pixels = flat,
+      extractTilePixels = function(_, ox, oy, cell)
+        cell = cell or 8
+        local pixels = {}
+        local i = 1
+        for py = 0, cell - 1 do
+          for px = 0, cell - 1 do
+            pixels[i] = flat[(oy + py) * 256 + (ox + px) + 1] or 0
+            i = i + 1
+          end
+        end
+        return pixels
+      end,
+    }
+    local pack, err = SketchCanvasPackController.packFromCanvas(canvas, 2)
+    expect(err).toBeNil()
+    expect(pack).toBeTruthy()
+    local packNative = PpuxSketchNative.packFlat(flat, 256, 240, 2)
+    assertPackParity(pack, packNative)
+  end)
 end)

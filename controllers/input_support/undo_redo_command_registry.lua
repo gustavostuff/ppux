@@ -1294,6 +1294,8 @@ M.COMMANDS = {
       if SketchCanvasPackController.invalidateReflectDisplay then
         SketchCanvasPackController.invalidateReflectDisplay(event.win)
       end
+      local Thumb = require("controllers.game_art.sketch_canvas_gallery_thumb_controller")
+      Thumb.refreshForSketch(event.win, nil)
       return true
     end,
   },
