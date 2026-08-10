@@ -295,24 +295,22 @@ end)
 describe("gallery_rom_confirm_modal thumb strip", function()
   it("confirm callback receives strip order after reorder", function()
     local modal = GalleryRomConfirmModal.new()
-    local a = {
-      _id = "sketch_a",
-      title = "A",
-      getActiveCanvas = function()
-        return PixelCanvas.new(256, 240, 1)
-      end,
-      layers = { { kind = "canvas" } },
-    }
-    a.layers[1].canvas = a:getActiveCanvas()
-    local b = {
-      _id = "sketch_b",
-      title = "B",
-      getActiveCanvas = function()
-        return PixelCanvas.new(256, 240, 2)
-      end,
-      layers = { { kind = "canvas" } },
-    }
-    b.layers[1].canvas = b:getActiveCanvas()
+    -- Order-only: skip full-canvas thumb averaging (960 tiles × 8×8).
+    local a = { _id = "sketch_a", title = "A" }
+    local b = { _id = "sketch_b", title = "B" }
+
+    local buildStripEntries = GalleryThumb.buildStripEntries
+    GalleryThumb.buildStripEntries = function(sketches)
+      local entries = {}
+      for i, s in ipairs(sketches or {}) do
+        entries[i] = {
+          sketch = s,
+          title = (s and s.title) or ("S" .. i),
+          image = nil,
+        }
+      end
+      return entries
+    end
 
     local got = nil
     local savedOrder = nil
@@ -325,18 +323,21 @@ describe("gallery_rom_confirm_modal thumb strip", function()
       return true
     end
 
-    modal:show({
-      sketches = { a, b },
-      onConfirm = function(selected)
-        got = selected
-      end,
-    })
-    expect(#modal.thumbStrip.entries).toBe(2)
+    local ok, err = pcall(function()
+      modal:show({
+        sketches = { a, b },
+        onConfirm = function(selected)
+          got = selected
+        end,
+      })
+      expect(#modal.thumbStrip.entries).toBe(2)
 
-    -- Swap A and B via strip API.
-    modal.thumbStrip:_moveEntry(1, 2)
-    modal:_confirm()
+      modal.thumbStrip:_moveEntry(1, 2)
+      modal:_confirm()
+    end)
     AppSettingsController.save = originalSave
+    GalleryThumb.buildStripEntries = buildStripEntries
+    assert(ok, err)
 
     expect(got).toBeTruthy()
     expect(#got).toBe(2)
