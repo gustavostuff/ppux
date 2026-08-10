@@ -326,7 +326,7 @@ You can drag and drop a PNG onto the window under the mouse (or the focused wind
 
 **OAM sprite layers** (**OAM Animation**, or a **PPU Frame** with the **sprite** layer active):
 
-* At most 4 colors, and one may be fully transparent. Transparent pixels become NES palette index 0 (BG). BG stand-in defaults to black. If that black is already an opaque color, BG falls back to brown so opaque black stays visible. With no alpha, the darkest opaque color is BG instead.
+* At most 4 colors, and one may be fully transparent. Transparent pixels become NES palette index 0 and render as black. If black is already an opaque color, then index 0 renders as brown, so opaque black stays visible. With no alpha, the darkest opaque color is BG instead.
 * Dimensions must match the sprite mode: multiples of `8x8` or `8x16`.
 * Frames are read left to right, top to bottom. Fully transparent frames are skipped.
 * Selected sprites are filled in selection order. With no selection, sprites are filled from first to last.
