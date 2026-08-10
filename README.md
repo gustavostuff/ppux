@@ -73,7 +73,7 @@ When colored, they indicate the window has a link to another one. In order they 
 3. ROM palette (blue)
 4. Pattern table linked to both BG and sprite layers (brown)
 
-Click a colored badge to bring the linked window forward and focus it (this works for both ends of the connection). Badges aren’t drag targets tho, to add/change/remove links, use the toolbars _Pattern table link_ and _ROM Palette link_ buttons.
+Click a colored badge to bring the linked window forward and focus it (this works for both ends of the connection). Badges aren't drag targets tho, to add/change/remove links, use the toolbars _Pattern table link_ and _ROM Palette link_ buttons.
 
 <img src="img/readme_images/pt_and_palette_buttons.png" alt="App toolbar">
 
@@ -379,7 +379,7 @@ When a compressed nametable may grow past its original ROM range, set **`relocat
 
 In other words: if there is empty space that can hold the nametable (with room to spare), you can move the stream there and retarget the game to read it. This is advanced and may be clearer in a video tutorial.
 
-If relocation is not really an options, then use `noOverflowSupported = true` for the layer. This tells PPUX that the compressed stream should stay within its original ROM range. Some games leave safe free space after a stream, some don't.
+If relocation is not really an option, then use `noOverflowSupported = true` for the layer. This tells PPUX that the compressed stream should stay within its original ROM range. Some games leave safe free space after a stream, some don't.
 
 Here's an example of the former, plenty of space to play around with nametable bytes, no need to set `noOverflowSupported = true`:
 
@@ -393,7 +393,7 @@ PPUX warns when the compressed stream goes over budget, and clears the warning i
 
 Nametable codecs today cover Konami-style streams (`konami.lua`) and Zelda II streams (`zelda2.lua`). More codecs and DB entries will land as development continues.
 
-Note: the zelda2 codec has only been tested with the Game Over screen. The konami codec has been tested with mutiple screens on Contra and also nametable s for other games like TMNT.
+Note: the zelda2 codec has only been tested with the Game Over screen. The konami codec has been tested with multiple screens on Contra and also nametables for other games like TMNT.
 
 `oam_animation` windows are ROM-backed sprite animations where **each layer is one hardware frame** of sprites tied to real OAM bytes. Like PPU frames, they need a linked **Pattern table** for sprite CHR. Multiple animation or PPU windows can share the same pattern table.
 
