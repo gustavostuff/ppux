@@ -195,6 +195,7 @@ function AppCoreController.new()
     palette_color_change = true,
     rom_palette_address_change = true,
     sprite_remove = true,
+    tile_remove = true,
     window_create = true,
     window_close = true,
     window_rename = true,

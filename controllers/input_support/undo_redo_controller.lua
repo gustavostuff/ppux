@@ -200,8 +200,12 @@ end
 function UndoRedoController:addRemovalEvent(event)
   if not event or event.type ~= "remove_tile" then return false end
   local pushed = self:_pushEvent(event)
-  if pushed and event.subtype == "sprite" then
-    self:_notifyUnsaved("sprite_remove")
+  if pushed then
+    if event.subtype == "sprite" then
+      self:_notifyUnsaved("sprite_remove")
+    else
+      self:_notifyUnsaved("tile_remove")
+    end
   end
   return pushed
 end

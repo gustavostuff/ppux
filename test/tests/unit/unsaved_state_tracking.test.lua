@@ -71,6 +71,44 @@ describe("undo_redo_controller.lua - unsaved tracking", function()
     expect(events[#events]).toBe("sprite_remove")
   end)
 
+  it("marks PPU tile clear as unsaved", function()
+    local undo = UndoRedoController.new(10)
+    local events = {}
+    undo:setUnsavedTracker(function(eventType)
+      events[#events + 1] = eventType
+    end)
+
+    local ok = undo:addRemovalEvent({
+      type = "remove_tile",
+      subtype = "ppu",
+      actions = {
+        { col = 0, row = 0, prevByte = 0x12, newByte = 0x00 },
+      },
+    })
+
+    expect(ok).toBe(true)
+    expect(events[#events]).toBe("tile_remove")
+  end)
+
+  it("marks static tile removal as unsaved", function()
+    local undo = UndoRedoController.new(10)
+    local events = {}
+    undo:setUnsavedTracker(function(eventType)
+      events[#events + 1] = eventType
+    end)
+
+    local ok = undo:addRemovalEvent({
+      type = "remove_tile",
+      subtype = "static",
+      actions = {
+        { col = 1, row = 2, prevRemoved = false },
+      },
+    })
+
+    expect(ok).toBe(true)
+    expect(events[#events]).toBe("tile_remove")
+  end)
+
   it("marks tile palette drag as unsaved", function()
     local undo = UndoRedoController.new(10)
     local events = {}
