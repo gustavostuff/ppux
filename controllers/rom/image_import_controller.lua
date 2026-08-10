@@ -116,34 +116,42 @@ local function convertToIndexedByBrightness(imgData)
 end
 
 local function convertToIndexedByPaletteBrightness(imgData, paletteColors)
-  local indexedData, brightnessToIndex, uniqueCount = convertToIndexedByBrightness(imgData)
   local width, height = imgData:getWidth(), imgData:getHeight()
-
   local hasTransparency = PngPaletteMappingController.imageHasTransparency(imgData)
+  local colorEntries, uniqueCount = PngPaletteMappingController.collectUniqueOpaqueColors(imgData)
+  uniqueCount = math.floor(tonumber(uniqueCount) or 0)
 
-  -- If the PNG uses transparency, map opaque colors through visible palette slots (1..3)
-  -- to match what the shader actually renders. Otherwise use all 4 slots.
-  local remap = hasTransparency
-    and buildVisiblePaletteBrightnessRemapForTiles(paletteColors)
-    or buildPaletteBrightnessRemapForTiles(paletteColors)
-  if not remap then
-    return nil, "Could not resolve palette brightness mapping"
+  local pixelValues = hasTransparency and { 1, 2, 3 } or { 0, 1, 2, 3 }
+  if uniqueCount > #pixelValues then
+    return nil, string.format("Image has more than %d colors (%d found)", #pixelValues, uniqueCount)
   end
 
-  for y = 1, height do
-    for x = 1, width do
-      local _, _, _, a = imgData:getPixel(x - 1, y - 1)
+  -- Prefer nearest palette RGB (keeps authored slot colors) over luminance-rank remap,
+  -- which swaps mid slots when palette index order != brightness order (common NES layout).
+  local keyToIndex = PngPaletteMappingController.assignNearestPaletteIndices(
+    colorEntries,
+    paletteColors,
+    pixelValues
+  )
+  if not keyToIndex then
+    return nil, "Could not resolve palette nearest-color mapping"
+  end
+
+  local indexedData = {}
+  for y = 0, height - 1 do
+    indexedData[y + 1] = {}
+    for x = 0, width - 1 do
+      local r, g, b, a = imgData:getPixel(x, y)
       if a == 0 then
-        indexedData[y][x] = 0
-        goto continue
+        indexedData[y + 1][x + 1] = 0
+      else
+        local key = PngPaletteMappingController.rgbKeyFromFloats(r, g, b)
+        indexedData[y + 1][x + 1] = keyToIndex[key] or 0
       end
-      local rank = indexedData[y][x] or 0
-      indexedData[y][x] = remap[rank] or 0
-      ::continue::
     end
   end
 
-  return indexedData, brightnessToIndex, remap, uniqueCount or 0
+  return indexedData, keyToIndex, keyToIndex, uniqueCount
 end
 
 ----------------------------------------------------------------------

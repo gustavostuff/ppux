@@ -145,9 +145,27 @@ describe("png_palette_mapping_controller.lua", function()
     expect(PngPaletteMappingController.imageHasTransparency(opaqueImg)).toBeFalsy()
   end)
 
-  it("rounds RGB float values to nearest 8-bit key", function()
-    expect(PngPaletteMappingController.rgbKeyFromFloats(0.0, 0.5, 1.0)).toBe("0_128_255")
-    expect(PngPaletteMappingController.rgbKeyFromFloats(0.499, 0, 0)).toBe("127_0_0")
-    expect(PngPaletteMappingController.rgbKeyFromFloats(0.501, 0, 0)).toBe("128_0_0")
+  it("assigns unique colors to nearest palette slots (no luminance 1/2 swap)", function()
+    local paletteColors = {
+      { 0.0, 0.0, 0.0 },
+      { 1.0, 1.0, 1.0 }, -- bright slot 1
+      { 0.4, 0.2, 0.2 }, -- darker slot 2
+      { 0.7, 0.5, 0.3 },
+    }
+    local entries = {
+      { key = "0_0_0", r = 0, g = 0, b = 0 },
+      { key = "255_255_255", r = 1, g = 1, b = 1 },
+      { key = "102_51_51", r = 0.4, g = 0.2, b = 0.2 },
+      { key = "178_128_77", r = 0.7, g = 0.5, b = 0.3 },
+    }
+    local map = PngPaletteMappingController.assignNearestPaletteIndices(
+      entries,
+      paletteColors,
+      { 0, 1, 2, 3 }
+    )
+    expect(map["0_0_0"]).toBe(0)
+    expect(map["255_255_255"]).toBe(1)
+    expect(map["102_51_51"]).toBe(2)
+    expect(map["178_128_77"]).toBe(3)
   end)
 end)

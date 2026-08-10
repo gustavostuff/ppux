@@ -130,11 +130,20 @@ for %%F in (
   mpg123.dll
   msvcp120.dll
   msvcr120.dll
-  license.txt
 ) do (
   if exist "%WIN_RUNTIME_DIR%\%%F" (
     copy "%WIN_RUNTIME_DIR%\%%F" "%PACKAGE_STAGE_DIR%\" >nul
   )
+)
+
+copy "%ROOT_DIR%\LICENSE" "%PACKAGE_STAGE_DIR%\LICENSE" >nul
+if errorlevel 1 (
+  echo Failed to copy LICENSE into the Windows package.
+  exit /b 1
+)
+
+if exist "%ROOT_DIR%\native\ppux_sketch\ppux_sketch.dll" (
+  copy "%ROOT_DIR%\native\ppux_sketch\ppux_sketch.dll" "%PACKAGE_STAGE_DIR%\" >nul
 )
 
 if exist "%WIN_RUNTIME_DIR%\game.ico" (

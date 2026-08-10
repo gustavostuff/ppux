@@ -79,8 +79,15 @@ for dll in OpenAL32.dll SDL2.dll love.dll lua51.dll mpg123.dll msvcp120.dll msvc
   cp "$WIN_RUNTIME_DIR/$dll" "$PACKAGE_STAGE_DIR/"
 done
 
-if [[ -f "$WIN_RUNTIME_DIR/license.txt" ]]; then
-  cp "$WIN_RUNTIME_DIR/license.txt" "$PACKAGE_STAGE_DIR/"
+cp "$ROOT_DIR/LICENSE" "$PACKAGE_STAGE_DIR/LICENSE"
+
+# Optional sketch PNG helper. Build on Windows (or with a MinGW cross compiler) when available.
+if make -C "$ROOT_DIR/native/ppux_sketch" all >/dev/null 2>&1; then
+  if [[ -f "$ROOT_DIR/native/ppux_sketch/ppux_sketch.dll" ]]; then
+    cp "$ROOT_DIR/native/ppux_sketch/ppux_sketch.dll" "$PACKAGE_STAGE_DIR/"
+  elif [[ -f "$ROOT_DIR/native/ppux_sketch/libppux_sketch.so" ]]; then
+    echo "warning: built libppux_sketch.so on this host; Windows zip needs ppux_sketch.dll from a Windows/MinGW build" >&2
+  fi
 fi
 
 rm -f "$OUT_ZIP"

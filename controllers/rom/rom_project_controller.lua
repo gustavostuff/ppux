@@ -1633,7 +1633,7 @@ function M.handleFileDropped(app, file)
           end
           modal:show({
             title = "Replace pattern table?",
-            message = "This will replace all Pattern table items",
+            message = "This will replace all items",
             onYes = function()
               startImportJob()
             end,
@@ -1662,7 +1662,7 @@ function M.handleFileDropped(app, file)
         end
         modal:show({
           title = "Replace pattern table?",
-          message = "This will replace all Pattern table items and the sketch pack.",
+          message = "This will replace all items",
           onYes = function()
             local ok2, packOrErr2 = SketchCanvasPackController.importPngToSketchCanvas(
               targetWin,

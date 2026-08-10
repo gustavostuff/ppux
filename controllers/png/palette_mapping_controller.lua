@@ -129,4 +129,90 @@ function M.imageHasTransparency(imgData)
   return false
 end
 
+local function rgbDist2(r, g, b, rgb)
+  local dr = (r or 0) - (rgb[1] or 0)
+  local dg = (g or 0) - (rgb[2] or 0)
+  local db = (b or 0) - (rgb[3] or 0)
+  return dr * dr + dg * dg + db * db
+end
+
+--- Assign each unique image color to a distinct palette slot by minimum RGB distance.
+--  colorEntries: array of { key=, r=, g=, b= }
+--  pixelValues: palette slot indices to use (e.g. {0,1,2,3} or {1,2,3})
+--  Returns map[key]=pixelValue, or nil on failure.
+function M.assignNearestPaletteIndices(colorEntries, paletteColors, pixelValues)
+  if type(colorEntries) ~= "table" or type(paletteColors) ~= "table" or type(pixelValues) ~= "table" then
+    return nil
+  end
+  local n = #colorEntries
+  local m = #pixelValues
+  if n == 0 then
+    return {}
+  end
+  if n > m then
+    return nil
+  end
+  for _, pv in ipairs(pixelValues) do
+    if type(paletteColors[pv + 1]) ~= "table" then
+      return nil
+    end
+  end
+
+  local bestCost = math.huge
+  local bestAssign = nil
+  local used = {}
+
+  local function search(ci, cost, assign)
+    if cost >= bestCost then
+      return
+    end
+    if ci > n then
+      bestCost = cost
+      bestAssign = {}
+      for k, v in pairs(assign) do
+        bestAssign[k] = v
+      end
+      return
+    end
+    local color = colorEntries[ci]
+    for si = 1, m do
+      if not used[si] then
+        local pv = pixelValues[si]
+        local d = rgbDist2(color.r, color.g, color.b, paletteColors[pv + 1])
+        used[si] = true
+        assign[color.key] = pv
+        search(ci + 1, cost + d, assign)
+        assign[color.key] = nil
+        used[si] = nil
+      end
+    end
+  end
+
+  search(1, 0, {})
+  return bestAssign
+end
+
+--- Collect unique opaque colors from ImageData as {key,r,g,b} entries (first-seen order).
+function M.collectUniqueOpaqueColors(imgData)
+  if not imgData then
+    return {}, 0
+  end
+  local width, height = imgData:getWidth(), imgData:getHeight()
+  local seen = {}
+  local entries = {}
+  for y = 0, height - 1 do
+    for x = 0, width - 1 do
+      local r, g, b, a = imgData:getPixel(x, y)
+      if a > 0 then
+        local key = M.rgbKeyFromFloats(r, g, b)
+        if not seen[key] then
+          seen[key] = true
+          entries[#entries + 1] = { key = key, r = r, g = g, b = b }
+        end
+      end
+    end
+  end
+  return entries, #entries
+end
+
 return M

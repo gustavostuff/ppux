@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Linux AppImage build notes:
+# - Alternate Linux package. Default release path is build_linux_portable.sh
+#   (folder with fused native binary + lib/). Keep this script for AppImage users.
 # - Required tool: appimagetool
 # - Required tool: zip (used by scripts/unix/build_love_archive.sh)
 # - Required core utils: cat, cp, chmod, dd, mv, rm, sed
@@ -9,6 +11,7 @@
 # - To run the final AppImage on some Linux distros, FUSE/AppImage runtime
 #   support may still be needed. If direct launch fails, try:
 #     ./PPUX-x86_64.AppImage --appimage-extract-and-run
+# - From build_all.sh: BUILD_LINUX_APPIMAGE=1 ./scripts/unix/build_all.sh
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

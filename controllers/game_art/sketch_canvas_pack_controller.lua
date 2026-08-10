@@ -9,6 +9,7 @@ local TileInvalidationIndex = require("controllers.app.tile_invalidation_index")
 local ImageImportController = require("controllers.rom.image_import_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 local LoveCompat = require("utils.love_compat")
+local PpuxSketchNative = require("utils.ppux_sketch_native")
 
 local M = {}
 
@@ -1820,6 +1821,45 @@ local function buildPendingFromFile(sketchWin, file, wm, app)
   end
 
   local paletteColors = resolveSketchPaletteColors(sketchWin, app)
+
+  -- Prefer native index+pack when libppux_sketch is available.
+  if PpuxSketchNative.isAvailable() then
+    local imgData, imgErr = ImageImportController.loadImageDataFromFile(file)
+    if imgData then
+      local flat, packOrErr, width, height =
+        PpuxSketchNative.imageDataToIndexedAndPack(imgData, paletteColors)
+      if flat and type(packOrErr) == "table" then
+        if width ~= M.PNG_IMPORT_WIDTH or height ~= M.PNG_IMPORT_HEIGHT then
+          return nil, "bad_dimensions"
+        end
+        return {
+          flat = flat,
+          width = width,
+          height = height,
+          pack = packOrErr,
+          needsConfirm = M.needsPngImportReplaceConfirm(sketchWin, wm),
+        }
+      end
+      -- Fall through to Lua on native failure (except hard dimension/color errors
+      -- that Lua would also reject).
+      local nativeErr = tostring(packOrErr or "")
+      if nativeErr == "bad_dimensions"
+        or nativeErr:find("more than 4 colors", 1, true)
+        or nativeErr:find("too many unique", 1, true)
+      then
+        if nativeErr:find("more than 4 colors", 1, true) then
+          return nil, nativeErr
+        end
+        if nativeErr:find("too many unique", 1, true) then
+          return nil, "too_many_unique"
+        end
+        return nil, nativeErr
+      end
+    elseif imgErr then
+      return nil, imgErr
+    end
+  end
+
   local flat, width, height = ImageImportController.decodePngFileToIndexedPixels(file, paletteColors)
   if not flat then
     return nil, width -- width holds err when flat is nil
@@ -2050,9 +2090,53 @@ function M.tickPngImportJob(app, _dt)
   end
 
   if job.phase == "decode" then
+    local paletteColors = resolveSketchPaletteColors(job.sketchWin, job.appRef)
+    if PpuxSketchNative.isAvailable() then
+      local imgData, imgErr = ImageImportController.loadImageDataFromFile(job.file)
+      if not imgData then
+        finishJob(app, job, false, imgErr or "decode_failed")
+        return
+      end
+      local flat, packOrErr, width, height =
+        PpuxSketchNative.imageDataToIndexedAndPack(imgData, paletteColors)
+      if flat and type(packOrErr) == "table" then
+        if width ~= M.PNG_IMPORT_WIDTH or height ~= M.PNG_IMPORT_HEIGHT then
+          finishJob(app, job, false, "bad_dimensions")
+          return
+        end
+        job.flat = flat
+        job.width = width
+        job.height = height
+        job.pending = {
+          flat = flat,
+          width = width,
+          height = height,
+          pack = packOrErr,
+          needsConfirm = false,
+        }
+        job.resultPack = packOrErr
+        job.phase = "hold"
+        return
+      end
+      local nativeErr = tostring(packOrErr or "native_failed")
+      if nativeErr:find("more than 4 colors", 1, true)
+        or nativeErr == "bad_dimensions"
+        or nativeErr:find("too many unique", 1, true)
+      then
+        finishJob(
+          app,
+          job,
+          false,
+          nativeErr:find("too many unique", 1, true) and "too_many_unique" or nativeErr
+        )
+        return
+      end
+      -- Fall through to Lua decode below.
+    end
+
     local flat, width, height = ImageImportController.decodePngFileToIndexedPixels(
       job.file,
-      resolveSketchPaletteColors(job.sketchWin, job.appRef)
+      paletteColors
     )
     if not flat then
       finishJob(app, job, false, width or "decode_failed")

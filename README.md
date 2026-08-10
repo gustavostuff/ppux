@@ -460,16 +460,41 @@ Patches live on the project as a `romPatches` array. Every entry needs a non-emp
 
 ## Development
 
+Local run (LÖVE 11.5): `love .` from the repo root. Sketch PNG import uses the optional C helper when present; otherwise it falls back to Lua.
+
+```bash
+make -C native/ppux_sketch   # Linux: libppux_sketch.so (also found under native/ppux_sketch/ by love .)
+```
+
 ```bat
-scripts\windows\build_windows.bat      :: zip + PPUX.love under build\<version>\
+:: Windows (Visual Studio / MinGW make, with OS=Windows_NT):
+make -C native\ppux_sketch
+:: produces native\ppux_sketch\ppux_sketch.dll
+```
+
+Packaging scripts **copy** the helper into the release folder when the matching binary already exists; they do not cross-compile it for you.
+
+```bat
+scripts\windows\build_windows.bat      :: win64 zip under build\<version>\
+                                       :: includes ppux_sketch.dll if you built it first
 scripts\windows\run_e2e_tests.bat      :: visible E2E scenarios
 ```
 
 ```bash
-./scripts/unix/build_linux_appimage.sh # AppImage under build/<version>/
+./scripts/unix/build_linux_portable.sh # folder + zip under build/<version>/
+                                       # builds/copies libppux_sketch.so when cc is available
+./scripts/unix/build_linux_appimage.sh # optional AppImage under build/<version>/
+./scripts/unix/build_windows.sh        # win64 zip from Linux (DLLs from love runtime;
+                                       # needs a prebuilt ppux_sketch.dll for the helper)
+./scripts/unix/build_macos_app.sh      # macOS .app zip; builds .dylib only on Darwin
+./scripts/unix/build_all.sh            # windows + linux portable + macos
 ./scripts/unix/run_unit_tests.sh       # unit tests (Linux)
 ./scripts/unix/run_e2e_tests.sh        # visible E2E scenarios
 ```
+
+Linux portable output is `PPUX-<version>-linux-x86_64/` with fused `PPUX`, LOVE's `lib/` (including `libppux_sketch.so` when the helper build succeeds), and `LICENSE`. Run `./PPUX`. Requires `patchelf`. `build_all.sh` uses that portable package by default; set `BUILD_LINUX_APPIMAGE=1` to also build the AppImage.
+
+On Windows, build `ppux_sketch.dll` on a Windows (or MinGW) host first, then run `build_windows.bat` / `build_windows.sh` so the zip can bundle it. Shipping without the DLL is fine; PNG import then uses the Lua path.
 
 ## Notes
 
