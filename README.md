@@ -25,6 +25,7 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
   - [Lua project mapping](#lua-project-mapping)
   - [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom)
   - [PPU frame & OAM](#ppu-frame--oam)
+  - [Add sprite modal](#add-sprite-modal)
   - [ROM palette & patches](#rom-palette--patches)
 - [Development](#development)
 - [Notes](#notes)
@@ -174,7 +175,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 2. **Next layer** - `Shift` + `Up` key.
 3. **Remove layer** - `-` key.
 4. **Add layer** - `+` key.
-5. **Add sprite** - Opens the interactive OAM-grid selection UI.
+5. **Add sprite** - Opens the [Add sprite modal](#add-sprite-modal) (OAM hex grid).
 6. **Toggle origin guides** - toggles dotted reference lines, this is user defined, not something that comes from ROM data.
 7. **Copy from previous layer** - Copies everything, including palette links and pattern table links.
 8. **Play / Pause** - `P` key.
@@ -224,7 +225,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 1. **Previous layer** - `Shift` + `Down` key.
 2. **Next layer** - `Shift` + `Up` key.
 3. **Nametable range** - Set compressed nametable **start/end** ROM addresses (the range/stream of bytes used to build a given pattern table).
-4. **Add sprite** - Opens the interactive OAM-grid selection UI.
+4. **Add sprite** - Opens the [Add sprite modal](#add-sprite-modal) (OAM hex grid).
 5. **Pattern table link** - left-click for a menu with separate **background** and **sprites** submenus to link **Pattern table** windows.
 6. **Toggle origin guides** - hidden until a sprite layer exists, it toggles dotted reference lines on sprite layers.
 
@@ -396,7 +397,19 @@ Note: the zelda2 codec has only been tested with the Game Over screen. The konam
 
 `oam_animation` windows are ROM-backed sprite animations where **each layer is one hardware frame** of sprites tied to real OAM bytes. Like PPU frames, they need a linked **Pattern table** for sprite CHR. Multiple animation or PPU windows can share the same pattern table.
 
-From the UI: open **New Window > OAM Animation**, link a Pattern table, then use **Add sprite**, get it from the hex data grid, and use the frame controls to build each frame. Items that share a `startAddr` stay in sync with PPU Frame sprite layers (and other OAM windows). Origin and origin guides behave the same way as on PPU Frame sprite layers.
+From the UI: open **New Window > OAM Animation**, link a Pattern table, then use **Add sprite**, and use the frame controls to build each frame. Items that share a `startAddr` stay in sync with PPU Frame sprite layers (and other OAM windows). Origin and origin guides behave the same way as on PPU Frame sprite layers.
+
+### Add sprite modal
+
+On **PPU Frame** and **OAM Animation**, **Add sprite** picks sprites from real ROM OAM bytes. Link a sprite **Pattern table** first (toolbar PT button).
+
+The modal has three synced pieces:
+
+1. **ROM hex grid** - debugger-style 16x8 byte view. Each pick is a 4-byte OAM group (Y, tile, attr, X). Click one group or drag for a contiguous on-phase range. **Ctrl+click** to add more. The cap is **8** groups per Add event. Gray = already on the layer; red -> green -> blue -> yellow -> brown = current selection. Wheel scrolls 8 rows (**Shift+wheel**: 80) rows.
+2. **preview** - live draw of the selected groups (ants tint matches the grid colors).
+3. **OAM start** field - hex address stays in sync with the grid.
+
+**Add** commits the selection. Double-click an OAM sprite (or **Edit sprite**) reopens the same UI to rebind `startAddr`. Colors come from a linked **ROM palette** afterward (toolbar RP button), not from this modal.
 
 ### ROM palette & patches
 
