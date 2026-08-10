@@ -403,7 +403,7 @@ From the UI: open **New Window > OAM Animation**, link a Pattern table, then use
 
 ### Add sprite modal
 
-On **PPU Frame** and **OAM Animation**, **Add sprite** picks sprites from real ROM OAM bytes. Link a sprite **Pattern table** first (toolbar PT button).
+On **PPU Frame** and **OAM Animation** windows, **Add sprite** picks sprites from real ROM OAM bytes. Link a sprite **Pattern table** first (toolbar PT button).
 
 <img src="img/readme_images/add_oam_sprite.png" alt="Add sprite modal">
 
