@@ -407,7 +407,7 @@ On **PPU Frame** and **OAM Animation**, **Add sprite** picks sprites from real R
 
 The modal has three synced pieces:
 
-1. **ROM hex grid** - debugger-style 16x8 byte view. Each pick is a 4-byte OAM group (Y, tile, attr, X). Click one group or drag for a contiguous on-phase range. **Ctrl+click** to add more. The cap is **8** groups per Add event. Gray = already on the layer; red -> green -> blue -> yellow -> brown = current selection. Wheel scrolls 8 rows (**Shift+wheel**: 80) rows.
+1. **ROM hex grid** - debugger-style 16x8 byte view. Each pick is a 4-byte OAM group (Y, tile, attr, X). Click one group or drag for a contiguous on-phase range. **Ctrl+click** to add more. The cap is **8** groups per Add event. Gray = already on the layer; red -> green -> blue -> yellow -> brown = current selection. Wheel scrolls 8 rows (**Shift+wheel**: 64 / 1KB).
 2. **preview** - live draw of the selected groups (ants tint matches the grid colors).
 3. **OAM start** field - hex address stays in sync with the grid.
 

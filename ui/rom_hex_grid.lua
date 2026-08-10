@@ -1,5 +1,5 @@
 -- FCEUX-style read-only ROM hex grid: 16 columns x 8 rows, absolute offset gutter,
--- 00-0F column headers. Wheel scrolls 8 rows (Shift+wheel: 80 rows).
+-- 00-0F column headers. Wheel scrolls 8 rows (Shift+wheel: 64 rows / 1KB).
 -- Selection is always a 4-byte OAM span from each selected start address.
 -- Ctrl+click adds one 4-byte group; plain drag fills a contiguous range on-phase.
 
@@ -14,7 +14,7 @@ M.COLS = 16
 M.ROWS = 8
 M.BYTES_PER_PAGE = M.COLS * M.ROWS
 M.WHEEL_ROWS = 8
-M.WHEEL_ROWS_SHIFT = 80
+M.WHEEL_ROWS_SHIFT = 64
 M.OAM_SPAN = 4
 --- Max 4-byte OAM groups selectable in one Add-sprite gesture.
 M.MAX_SELECTED_STARTS = 8

@@ -225,7 +225,7 @@ describe("RomHexGrid", function()
     expect(selected[8]).toBe(0x1C)
   end)
 
-  it("wheel steps 8 rows; Shift+wheel steps 80 rows", function()
+  it("wheel steps 8 rows; Shift+wheel steps 64 rows", function()
     local grid = RomHexGrid.new()
     grid:setRomRaw(makeRom(4096))
     grid:setPosition(0, 0)
@@ -236,7 +236,7 @@ describe("RomHexGrid", function()
 
     grid.scrollOffset = 0
     grid:wheelmovedAt(0, -1, 10, 10, { shift = true })
-    expect(grid.scrollOffset).toBe(80 * 16)
+    expect(grid.scrollOffset).toBe(64 * 16)
   end)
 
   it("clamps scroll at ROM ends", function()
