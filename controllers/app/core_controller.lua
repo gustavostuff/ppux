@@ -199,6 +199,7 @@ function AppCoreController.new()
     window_create = true,
     window_close = true,
     window_rename = true,
+    gallery_title_screen = true,
     palette_link_change = true,
     pattern_table_link_change = true,
     ppu_frame_range_change = true,

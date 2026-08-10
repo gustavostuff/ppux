@@ -81,6 +81,7 @@ describe("sketch canvas - New Window + toolbar shell", function()
     expect(toolbar.toleranceDownButton).toBeTruthy()
     expect(toolbar.toleranceUpButton).toBeTruthy()
     expect(toolbar.generateButton).toBeTruthy()
+    expect(toolbar.titleScreenButton).toBeTruthy()
     expect(toolbar.reflectButton).toBeNil()
 
     expect(toolbar.linkButton.enabled).toBe(true)
@@ -88,6 +89,8 @@ describe("sketch canvas - New Window + toolbar shell", function()
     expect(toolbar.toleranceDownButton.enabled).toBe(false) -- tolerance starts at 0
     expect(toolbar.toleranceUpButton.enabled).toBe(true)
     expect(toolbar.generateButton.enabled).toBe(true) -- enabled; prompts to create PT if unlinked
+    expect(toolbar.titleScreenButton.enabled).toBe(true)
+    expect(toolbar.titleScreenButton.tooltip:find("title screen", 1, true)).toBeTruthy()
 
     expect(toolbar.linkButton.tooltip:find("Link", 1, true)).toBeTruthy()
     expect(toolbar.generateButton.tooltip:find("create a pattern table", 1, true)).toBeTruthy()

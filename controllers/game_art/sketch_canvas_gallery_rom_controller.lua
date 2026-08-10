@@ -275,6 +275,75 @@ function M.prepareWritableGalleryDir(opts)
   return dest
 end
 
+function M.isGalleryTitleScreen(win)
+  return win and win.galleryTitleScreen == true
+end
+
+--- Mark `target` as the gallery title slide (exclusive). Pass nil/false to clear all.
+function M.setGalleryTitleScreen(target, wm)
+  local windows = nil
+  if wm then
+    windows = wm.windows or wm._windows
+  end
+  if type(windows) == "table" then
+    for _, win in ipairs(windows) do
+      if WindowCaps.isSketchCanvas(win) then
+        win.galleryTitleScreen = false
+        if win.specializedToolbar and win.specializedToolbar.updateIcons then
+          win.specializedToolbar:updateIcons()
+        end
+      end
+    end
+  end
+  if target and WindowCaps.isSketchCanvas(target) then
+    target.galleryTitleScreen = true
+    if target.specializedToolbar and target.specializedToolbar.updateIcons then
+      target.specializedToolbar:updateIcons()
+    end
+  end
+  return true
+end
+
+function M.toggleGalleryTitleScreen(target, wm)
+  if not target or not WindowCaps.isSketchCanvas(target) then
+    return false
+  end
+  if M.isGalleryTitleScreen(target) then
+    target.galleryTitleScreen = false
+    if target.specializedToolbar and target.specializedToolbar.updateIcons then
+      target.specializedToolbar:updateIcons()
+    end
+    return false
+  end
+  M.setGalleryTitleScreen(target, wm)
+  return true
+end
+
+local function sketchSortName(win)
+  return string.lower(tostring(win and win.title or ""))
+end
+
+--- Title-screen sketch first (if any), then alphabetical by window title.
+function M.sortSketchesForGallery(list)
+  if type(list) ~= "table" then
+    return list
+  end
+  table.sort(list, function(a, b)
+    local aTitle = M.isGalleryTitleScreen(a)
+    local bTitle = M.isGalleryTitleScreen(b)
+    if aTitle ~= bTitle then
+      return aTitle
+    end
+    local an = sketchSortName(a)
+    local bn = sketchSortName(b)
+    if an ~= bn then
+      return an < bn
+    end
+    return tostring(a and a._id or "") < tostring(b and b._id or "")
+  end)
+  return list
+end
+
 function M.collectPackedSketches(wm, sketchWindows)
   local list = {}
   local Pack = SketchCanvasPackController
@@ -292,7 +361,7 @@ function M.collectPackedSketches(wm, sketchWindows)
         list[#list + 1] = win
       end
     end
-    return list
+    return M.sortSketchesForGallery(list)
   end
 
   if not wm then
@@ -307,7 +376,7 @@ function M.collectPackedSketches(wm, sketchWindows)
       list[#list + 1] = win
     end
   end
-  return list
+  return M.sortSketchesForGallery(list)
 end
 
 --- True when at least one sketch is packed and still linked to an open pattern table.

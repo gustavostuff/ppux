@@ -6,6 +6,7 @@ local Panel = require("ui.panel")
 local Checkbox = require("ui.checkbox")
 local NumericSpinner = require("ui.numeric_spinner")
 local ModalPanelUtils = require("ui.modals.panel_modal_utils")
+local AppSettingsController = require("controllers.app.settings_controller")
 local colors = require("app_colors")
 
 local Dialog = {}
@@ -25,8 +26,8 @@ end
 
 local function rebuildPanel(self)
   local noteRows = (self.note and self.note ~= "") and 1 or 0
-  -- summary+useTransitions, optional note, hold frames, showFirstOnce, buttons
-  local rows = 4 + noteRows
+  -- summary, useTransitions, optional note, hold frames, showFirstOnce, buttons
+  local rows = 5 + noteRows
 
   self.panel = Panel.new({
     cols = 2,
@@ -46,16 +47,21 @@ local function rebuildPanel(self)
     _modalChromeOverBlue = self._modalChromeOverBlue == true,
   })
 
-  self.panel:setCell(1, 1, {
+  local row = 1
+  self.panel:setCell(1, row, {
     kind = "label",
     text = self.summaryText,
+    colspan = 2,
   })
-  self.panel:setCell(2, 1, {
+  row = row + 1
+
+  self.panel:setCell(1, row, {
     kind = "component",
     component = self.useTransitionsCheckbox,
+    colspan = 2,
   })
+  row = row + 1
 
-  local row = 2
   if noteRows == 1 then
     self.panel:setCell(1, row, {
       kind = "label",
@@ -151,10 +157,20 @@ function Dialog.new()
   })
 
   ModalPanelUtils.applyPanelDefaults(self)
-  if (self.cellW or 0) < 160 then
-    self.cellW = 160
-  end
+  -- Wider + airier than default modal chrome so the summary line and checkboxes don't collide.
+  self.cellW = math.max(tonumber(self.cellW) or 0, 168)
+  self.padding = math.max(tonumber(self.padding) or 0, 8)
+  self.rowGap = math.max(tonumber(self.rowGap) or 0, 6)
+  self.colGap = math.max(tonumber(self.colGap) or 0, 8)
   self.buttonGap = self.colGap
+  self.buttonW = math.max(tonumber(self.buttonW) or 0, 96)
+  self.confirmButton.w = self.buttonW
+  self.cancelButton.w = self.buttonW
+  -- Keep these custom metrics across refreshTargetMetrics on draw.
+  self._uses_modal_default_cellW = false
+  self._uses_modal_default_padding = false
+  self._uses_modal_default_rowGap = false
+  self._uses_modal_default_colGap = false
   rebuildPanel(self)
   return self
 end
@@ -196,12 +212,15 @@ function Dialog:show(opts)
   end
 
   local ink = chromeInk(self)
-  self.useTransitionsCheckbox:setChecked(true, { silent = true })
+  local prefs = AppSettingsController.normalizeGalleryRomPrefs(
+    (AppSettingsController.load() or {}).galleryRom
+  )
+  self.useTransitionsCheckbox:setChecked(prefs.useTransitions == true, { silent = true })
   self.useTransitionsCheckbox.contentColor = ink
-  self.showFirstOnceCheckbox:setChecked(false, { silent = true })
+  self.showFirstOnceCheckbox:setChecked(prefs.showFirstOnce == true, { silent = true })
   self.showFirstOnceCheckbox.contentColor = ink
-  self.holdSpinner:setValue(DEFAULT_FADE_HOLD)
-  self:_syncHoldSpinnerEnabled(true)
+  self.holdSpinner:setValue(prefs.fadeHold or DEFAULT_FADE_HOLD)
+  self:_syncHoldSpinnerEnabled(prefs.useTransitions == true)
 
   self.visible = true
   self.focusedButton = "confirm"
@@ -272,6 +291,16 @@ function Dialog:_buildOpts()
   }
 end
 
+function Dialog:_persistOpts(buildOpts)
+  AppSettingsController.save({
+    galleryRom = {
+      useTransitions = buildOpts and buildOpts.useTransitions == true,
+      fadeHold = buildOpts and buildOpts.fadeHold or DEFAULT_FADE_HOLD,
+      showFirstOnce = buildOpts and buildOpts.showFirstOnce == true,
+    },
+  })
+end
+
 function Dialog:_confirm()
   local sketches = self.sketches or {}
   local used = {}
@@ -280,6 +309,7 @@ function Dialog:_confirm()
     used[#used + 1] = sketches[i]
   end
   local buildOpts = self:_buildOpts()
+  self:_persistOpts(buildOpts)
   local callback = self.onConfirm
   self:hide()
   if callback then

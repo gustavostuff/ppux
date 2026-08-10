@@ -74,6 +74,13 @@ function ToolbarController.createToolbarsForWindow(window, ctx, windowController
     window.headerToolbar = ToolbarController.createHeaderToolbar(window, ctx, windowController)
   end
   
+  -- Sketch toolbar gained Mark-as-title; rebuild stale instances that predate that button.
+  if window.specializedToolbar
+    and WindowCaps.isSketchCanvas(window)
+    and window.specializedToolbar.titleScreenButton == nil then
+    window.specializedToolbar = nil
+  end
+
   -- Create specialized toolbar if it doesn't exist
   if not window.specializedToolbar then
     window.specializedToolbar = ToolbarController.createSpecializedToolbar(window, ctx, windowController)

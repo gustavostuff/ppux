@@ -45,6 +45,12 @@ local DEFAULT_SETTINGS = {
   --- Used when pngImportTransparentRgb is already an opaque color in the PNG
   --- (e.g. art uses pure black + alpha). Default brown keeps opaque black visible.
   pngImportTransparentFallbackRgb = { 0.40, 0.20, 0.10 },
+  --- Last-used Generate gallery ROM modal options (app-wide across sessions).
+  galleryRom = {
+    useTransitions = true,
+    fadeHold = 6,
+    showFirstOnce = false,
+  },
 }
 
 local MAX_RECENT_PROJECTS = 4
@@ -299,6 +305,21 @@ local function normalizeAppearanceChrome(data)
   return out
 end
 
+local function normalizeGalleryRomPrefs(raw)
+  local src = type(raw) == "table" and raw or {}
+  local fadeHold = math.floor(tonumber(src.fadeHold) or 6)
+  if fadeHold < 1 then
+    fadeHold = 1
+  elseif fadeHold > 30 then
+    fadeHold = 30
+  end
+  return {
+    useTransitions = src.useTransitions ~= false,
+    fadeHold = fadeHold,
+    showFirstOnce = src.showFirstOnce == true,
+  }
+end
+
 local function withDefaults(data)
   local out = TableUtils.deepcopy(DEFAULT_SETTINGS)
   out.skipSplash = (data and data.skipSplash == true)
@@ -320,6 +341,7 @@ local function withDefaults(data)
   out.crtLayerViz = normalizeCrtLayerViz(data and data.crtLayerViz)
   out.recentProjects = normalizeRecentProjects(data and data.recentProjects)
   out.appearanceChrome = normalizeAppearanceChrome(data and data.appearanceChrome)
+  out.galleryRom = normalizeGalleryRomPrefs(data and data.galleryRom)
   return out
 end
 
@@ -394,6 +416,7 @@ function AppSettingsController.save(opts)
   if opts.crtCanvasResolution ~= nil then data.crtCanvasResolution = normalizeCrtCanvasResolutionKey(opts.crtCanvasResolution) end
   if opts.crtLayerViz ~= nil then data.crtLayerViz = normalizeCrtLayerViz(opts.crtLayerViz) end
   if opts.recentProjects ~= nil then data.recentProjects = normalizeRecentProjects(opts.recentProjects) end
+  if opts.galleryRom ~= nil then data.galleryRom = normalizeGalleryRomPrefs(opts.galleryRom) end
   -- appearanceChrome: merge into existing file data by default (partial updates from UI).
   -- mergeAppearanceChrome = false: replace chrome from opts.appearanceChrome only (e.g. reset with {}).
   if opts.appearanceChrome ~= nil then
@@ -449,6 +472,10 @@ function AppSettingsController.addRecentProject(path, currentList, maxCount)
     end
   end
   return out
+end
+
+function AppSettingsController.normalizeGalleryRomPrefs(raw)
+  return normalizeGalleryRomPrefs(raw)
 end
 
 function AppSettingsController.loadDisplaySettings()

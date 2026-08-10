@@ -748,6 +748,9 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
       if w._generateDirty == true then
         entry.generateDirty = true
       end
+      if w.galleryTitleScreen == true then
+        entry.galleryTitleScreen = true
+      end
     end
 
     if not isPalette then

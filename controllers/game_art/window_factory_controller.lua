@@ -649,6 +649,7 @@ function M.createSketchCanvasWindow(w, decodePatternCanvasSnapshot, onPatternCan
       linkedPatternTableWindowId = w.linkedPatternTableWindowId,
       paddingTileIndex = w.paddingTileIndex,
       generateDirty = w.generateDirty,
+      galleryTitleScreen = w.galleryTitleScreen,
     }
   )
 

@@ -1168,6 +1168,12 @@ function WM:setFocus(win)
       win.title or "untitled",
       win.kind or "normal"
     )
+    -- Refresh specialized toolbar so new buttons (e.g. gallery title) appear on older windows.
+    local ctxRefresh = rawget(_G, "ctx")
+    if ctxRefresh and WindowCaps.isSketchCanvas(win) then
+      local ToolbarController = require("controllers.window.toolbar_controller")
+      ToolbarController.createToolbarsForWindow(win, ctxRefresh, self)
+    end
   end
 
   -- Only refresh the status strip when focus actually changes. Toolbar clicks

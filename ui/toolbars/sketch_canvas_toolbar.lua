@@ -1,10 +1,11 @@
 -- sketch_canvas_toolbar.lua
--- Sketch canvas toolbar: tolerance, Generate, Export CHR/NT, then pattern table + palette links.
+-- Sketch canvas toolbar: tolerance, Generate, title screen, Export CHR/NT, then pattern table + palette links.
 -- Tile/edit global mode drives packed mirror view (no dedicated Reflect button).
 
 local ToolbarBase = require("ui.toolbars.toolbar_base")
 local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
 local SketchCanvasExportController = require("controllers.game_art.sketch_canvas_export_controller")
+local SketchCanvasGalleryRomController = require("controllers.game_art.sketch_canvas_gallery_rom_controller")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local images = require("images")
 local colors = require("app_colors")
@@ -148,6 +149,16 @@ function SketchCanvasToolbar.new(window, ctx, windowController)
     end,
     "Generate pattern table catalog from sketch"
   )
+
+  self.titleScreenButton = self:addButton(
+    (images.icons and images.icons.chrome and images.icons.chrome.icon_not_selected)
+      or chrome.icon_circle,
+    function()
+      self:_onToggleTitleScreen()
+    end,
+    "Mark as gallery title screen"
+  )
+  self._schema = "sketch_toolbar_v2"
 
   self.exportChrButton = self:addButton(
     actions.save or actions.icon_img or chrome.icon_circle,
@@ -390,6 +401,33 @@ function SketchCanvasToolbar:_onGenerate()
   self:_runGenerate()
 end
 
+function SketchCanvasToolbar:_onToggleTitleScreen()
+  if not self.window then
+    return
+  end
+  local app = getApp(self)
+  local wm = (app and app.wm) or self.windowController
+  local marked = SketchCanvasGalleryRomController.toggleGalleryTitleScreen(self.window, wm)
+  if marked then
+    StatusHelpers.setStatus(
+      self.ctx,
+      string.format(
+        "Gallery title screen: %s",
+        tostring(self.window.title or "Sketch")
+      )
+    )
+    if app and app.markUnsaved then
+      app:markUnsaved("gallery_title_screen")
+    end
+  else
+    StatusHelpers.setStatus(self.ctx, "Gallery title screen cleared")
+    if app and app.markUnsaved then
+      app:markUnsaved("gallery_title_screen")
+    end
+  end
+  self:updateIcons()
+end
+
 function SketchCanvasToolbar:_onExportChr()
   if not self.window then
     return
@@ -502,6 +540,18 @@ function SketchCanvasToolbar:updateIcons()
         tol
       )
     end
+  end
+  if self.titleScreenButton then
+    local chromeIcons = images.icons and images.icons.chrome or {}
+    local isTitle = SketchCanvasGalleryRomController.isGalleryTitleScreen(self.window)
+    self.titleScreenButton.enabled = true
+    self.titleScreenButton.icon = isTitle
+      and (chromeIcons.icon_selected or chromeIcons.icon_circle)
+      or (chromeIcons.icon_not_selected or chromeIcons.icon_circle)
+    self.titleScreenButton.bgColor = isTitle and colors.green or colors.gray20
+    self.titleScreenButton.tooltip = isTitle
+      and "Gallery title screen (click to clear)"
+      or "Mark as gallery title screen (only one sketch)"
   end
   if self.exportChrButton then
     self.exportChrButton.enabled = hasPack

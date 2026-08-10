@@ -101,6 +101,7 @@ function SketchCanvasWindow.new(x, y, cellW, cellH, cols, rows, zoom, data)
   if data.generateDirty == true then
     self._generateDirty = true
   end
+  self.galleryTitleScreen = data.galleryTitleScreen == true
 
   addCanvasLayer(self, "Sketch", CANVAS_W, CANVAS_H, 0)
   self.activeLayer = 1
