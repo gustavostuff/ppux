@@ -256,8 +256,8 @@ describe("sketch canvas - pixel copy PT -> CHR/ROM", function()
     local toolbar = ToolbarController.createSpecializedToolbar(sketch, {}, wm)
     expect(toolbar.toleranceValueButton).toBeTruthy()
     expect(toolbar.toleranceValueButton.text).toBe("0")
-    expect(toolbar.toleranceValueButton._digitSlotW).toBeGreaterThan(0)
-    expect(toolbar.toleranceValueButton.w).toBe(toolbar.toleranceValueButton._digitSlotW * 2)
+    expect(toolbar.toleranceValueButton.w).toBe(15)
+    expect(toolbar.toleranceValueButton._digitSlotW).toBe(7.5)
 
     sketch.tolerance = 12
     toolbar:updateIcons()

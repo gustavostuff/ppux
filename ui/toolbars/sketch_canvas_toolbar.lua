@@ -113,13 +113,14 @@ function SketchCanvasToolbar.new(window, ctx, windowController)
     "Decrease pack tolerance"
   )
 
-  local digitSlotW = maxDigitWidth()
+  -- Fixed width so +/- stay put across 0–32 (two digits).
+  local TOLERANCE_LABEL_W = 15
   self.toleranceValueButton = self:addTextButton(
     "0",
     nil,
     "Pack tolerance",
     {
-      w = digitSlotW * 2,
+      w = TOLERANCE_LABEL_W,
       transparent = true,
       contentPaddingX = 0,
       contentPaddingRight = 0,
@@ -129,7 +130,7 @@ function SketchCanvasToolbar.new(window, ctx, windowController)
   -- Display-only: keep enabled so Aseprite font ink stays full opacity.
   self.toleranceValueButton.enabled = true
   self.toleranceValueButton.skipHoverFocusUnderlay = true
-  self.toleranceValueButton._digitSlotW = digitSlotW
+  self.toleranceValueButton._digitSlotW = TOLERANCE_LABEL_W / 2
   self.toleranceValueButton.draw = function(btn)
     drawFixedDigitLabel(btn)
   end
