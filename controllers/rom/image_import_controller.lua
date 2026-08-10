@@ -7,7 +7,6 @@ local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
 local Tile = require("ui.windows_system.tile_item")
 local DebugController = require("controllers.dev.debug_controller")
 local ChrDuplicateSync = require("controllers.chr.duplicate_sync_controller")
-local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 local PngPaletteMappingController = require("controllers.png.palette_mapping_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 
@@ -68,30 +67,13 @@ local function buildBrightnessIndexMap(imgData)
   return PngPaletteMappingController.buildBrightnessRankMap(imgData, {
     rankStart = 0,
     maxRank = 3,
+    treatTransparentAsBlack = true,
   })
 end
 
--- Build a remap from brightness rank (0..3) to tile pixel value (0..3)
--- based on the luminance ordering of the target palette colors.
-local function buildPaletteBrightnessRemapForTiles(paletteColors)
-  return PngPaletteMappingController.buildPaletteBrightnessRemap(paletteColors, {
-    pixelValues = { 0, 1, 2, 3 },
-    rankStart = 0,
-  })
-end
-
--- Build a remap from opaque brightness rank (0..2) to visible tile pixel values (1..3),
--- ignoring palette slot 0 because the shader renders it transparent.
-local function buildVisiblePaletteBrightnessRemapForTiles(paletteColors)
-  return PngPaletteMappingController.buildPaletteBrightnessRemap(paletteColors, {
-    pixelValues = { 1, 2, 3 },
-    rankStart = 0,
-  })
-end
-
---- Convert image pixels to indexed color values (0-3) based on PNG brightness,
--- then remap those brightness ranks through the target palette's luminance order.
--- This keeps PNG import aligned with palette shader colors instead of raw grayscale.
+--- Convert image pixels to indexed 0-3 by brightness rank ((R+G+B)/3).
+-- Transparent counts as black. Does NOT remap through palette slot order:
+-- palette colors are for display only; PNG grey/brightness levels are the indices.
 local function convertToIndexedByBrightness(imgData)
   local width, height = imgData:getWidth(), imgData:getHeight()
   local brightnessToIndex, uniqueCount = buildBrightnessIndexMap(imgData)
@@ -101,57 +83,15 @@ local function convertToIndexedByBrightness(imgData)
     indexedData[y + 1] = {}
     for x = 0, width - 1 do
       local r, g, b, a = imgData:getPixel(x, y)
-
       if a == 0 then
-        -- Transparent pixels map to color 0
-        indexedData[y + 1][x + 1] = 0
-      else
-        local key = PngPaletteMappingController.rgbKeyFromFloats(r, g, b)
-        indexedData[y + 1][x + 1] = brightnessToIndex[key] or 0
+        r, g, b = 0, 0, 0
       end
+      local key = PngPaletteMappingController.rgbKeyFromFloats(r, g, b)
+      indexedData[y + 1][x + 1] = brightnessToIndex[key] or 0
     end
   end
 
   return indexedData, brightnessToIndex, uniqueCount or 0
-end
-
-local function convertToIndexedByPaletteBrightness(imgData, paletteColors)
-  local width, height = imgData:getWidth(), imgData:getHeight()
-  local hasTransparency = PngPaletteMappingController.imageHasTransparency(imgData)
-  local colorEntries, uniqueCount = PngPaletteMappingController.collectUniqueOpaqueColors(imgData)
-  uniqueCount = math.floor(tonumber(uniqueCount) or 0)
-
-  local pixelValues = hasTransparency and { 1, 2, 3 } or { 0, 1, 2, 3 }
-  if uniqueCount > #pixelValues then
-    return nil, string.format("Image has more than %d colors (%d found)", #pixelValues, uniqueCount)
-  end
-
-  -- Prefer nearest palette RGB (keeps authored slot colors) over luminance-rank remap,
-  -- which swaps mid slots when palette index order != brightness order (common NES layout).
-  local keyToIndex = PngPaletteMappingController.assignNearestPaletteIndices(
-    colorEntries,
-    paletteColors,
-    pixelValues
-  )
-  if not keyToIndex then
-    return nil, "Could not resolve palette nearest-color mapping"
-  end
-
-  local indexedData = {}
-  for y = 0, height - 1 do
-    indexedData[y + 1] = {}
-    for x = 0, width - 1 do
-      local r, g, b, a = imgData:getPixel(x, y)
-      if a == 0 then
-        indexedData[y + 1][x + 1] = 0
-      else
-        local key = PngPaletteMappingController.rgbKeyFromFloats(r, g, b)
-        indexedData[y + 1][x + 1] = keyToIndex[key] or 0
-      end
-    end
-  end
-
-  return indexedData, keyToIndex, keyToIndex, uniqueCount
 end
 
 ----------------------------------------------------------------------
@@ -288,21 +228,16 @@ function M.importImageToCHRWindow(file, win, startCol, startRow, appEditState, e
     return false, colorError
   end
   
-  -- Convert to indexed color data using the same palette-color luminance ordering
-  -- used by shader rendering. CHR windows default to generic palette #1.
-  local chrLayer = win.layers and win.layers[1] or nil
-  local paletteColors = ShaderPaletteController.getPaletteColors(
-    chrLayer,
-    1,
-    appEditState.romRaw
-  )
-  if not paletteColors then
-    return false, "No palette context available for PNG color mapping"
-  end
-
-  local indexedData, mapErr = convertToIndexedByPaletteBrightness(imgData, paletteColors)
+  -- Convert to indexed color data by PNG brightness rank ((R+G+B)/3).
+  -- Palette is used for display only; do not remap ranks through palette slot order
+  -- (that swaps mid indices when e.g. slot 1 is white and slot 2 is darker).
+  local indexedData, _, uniqueCount = convertToIndexedByBrightness(imgData)
   if not indexedData then
-    return false, tostring(mapErr or "Could not map PNG colors through palette")
+    return false, "Could not map PNG colors"
+  end
+  uniqueCount = math.floor(tonumber(uniqueCount) or 0)
+  if uniqueCount > 4 then
+    return false, string.format("Image has more than 4 colors (%d found)", uniqueCount)
   end
   
   -- Calculate how many tiles we need
@@ -575,18 +510,13 @@ function M.importImageToPatternTableWindow(file, win, startCol, startRow, appEdi
     return false, colorError
   end
 
-  local paletteColors = ShaderPaletteController.getPaletteColors(
-    layer,
-    1,
-    appEditState.romRaw
-  )
-  if not paletteColors then
-    return false, "No palette context available for PNG color mapping"
-  end
-
-  local indexedData, mapColorErr = convertToIndexedByPaletteBrightness(imgData, paletteColors)
+  local indexedData, _, uniqueCount = convertToIndexedByBrightness(imgData)
   if not indexedData then
-    return false, tostring(mapColorErr or "Could not map PNG colors through palette")
+    return false, "Could not map PNG colors"
+  end
+  uniqueCount = math.floor(tonumber(uniqueCount) or 0)
+  if uniqueCount > 4 then
+    return false, string.format("Image has more than 4 colors (%d found)", uniqueCount)
   end
 
   local tilesWide = math.floor(width / 8)
@@ -813,7 +743,8 @@ function M.loadImageDataFromFile(file)
 end
 
 --- Decode a PNG file to a flat 1-based indexed pixel array (0-3).
---  When paletteColors is provided, remaps through palette luminance like CHR import.
+--  Indices are brightness ranks ((R+G+B)/3, transparent as black).
+--  paletteColors is accepted for API compat but not used for remapping.
 --  Returns: flatPixels, width, height or nil, err
 function M.decodePngFileToIndexedPixels(file, paletteColors)
   local imgData, err = M.loadImageDataFromFile(file)
@@ -822,19 +753,9 @@ function M.decodePngFileToIndexedPixels(file, paletteColors)
   end
 
   local width, height = imgData:getWidth(), imgData:getHeight()
-
-  local indexedData
-  local uniqueCount = 0
-  if type(paletteColors) == "table" then
-    local brightnessToIndex, remap
-    indexedData, brightnessToIndex, remap, uniqueCount =
-      convertToIndexedByPaletteBrightness(imgData, paletteColors)
-    if not indexedData then
-      return nil, tostring(brightnessToIndex or "Could not map PNG colors through palette")
-    end
-  else
-    local brightnessToIndex
-    indexedData, brightnessToIndex, uniqueCount = convertToIndexedByBrightness(imgData)
+  local indexedData, _, uniqueCount = convertToIndexedByBrightness(imgData)
+  if not indexedData then
+    return nil, "Could not map PNG colors"
   end
 
   uniqueCount = math.floor(tonumber(uniqueCount) or 0)

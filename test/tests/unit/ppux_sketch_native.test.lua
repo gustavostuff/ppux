@@ -132,33 +132,26 @@ describe("ppux_sketch native helper", function()
     end
   end)
 
-  it("keeps palette slots when mid colors are not luminance-ordered (no 1/2 swap)", function()
+  it("keeps grey brightness ranks as indices (no palette-slot remap)", function()
     if not PpuxSketchNative.isAvailable() then
       expect(true).toBe(true)
       return
     end
 
-    -- Slot 1 brighter than slot 2 (common NES: white then mid).
+    -- Palette with white in slot 1 and darker in slot 2 would scramble mid greys
+    -- if we remapped ranks through palette luminance order.
     local palette = {
       { 0.0, 0.0, 0.0 },
       { 1.0, 1.0, 1.0 },
       { 0.4, 0.25, 0.2 },
       { 0.7, 0.55, 0.35 },
     }
+    local greys = { 0.0, 0.33, 0.66, 1.0 }
     local img = love.image.newImageData(256, 240)
     for y = 0, 239 do
       for x = 0, 255 do
-        local c
-        if y < 60 then
-          c = palette[1]
-        elseif y < 120 then
-          c = palette[2]
-        elseif y < 180 then
-          c = palette[3]
-        else
-          c = palette[4]
-        end
-        img:setPixel(x, y, c[1], c[2], c[3], 1)
+        local g = greys[(y < 60 and 1) or (y < 120 and 2) or (y < 180 and 3) or 4]
+        img:setPixel(x, y, g, g, g, 1)
       end
     end
 
@@ -172,7 +165,6 @@ describe("ppux_sketch native helper", function()
 
     expect(flatNative).toBeTruthy()
     expect(flatLua).toBeTruthy()
-    -- Band centers should round-trip to authored palette indices.
     expect(flatNative[30 * 256 + 10 + 1]).toBe(0)
     expect(flatNative[90 * 256 + 10 + 1]).toBe(1)
     expect(flatNative[150 * 256 + 10 + 1]).toBe(2)

@@ -1,7 +1,8 @@
 local M = {}
 
 function M.calculateLuminance(r, g, b)
-  return 0.299 * (r or 0) + 0.587 * (g or 0) + 0.114 * (b or 0)
+  -- Simple channel average (not Rec.601). Matches sketch/CHR PNG brightness ranking.
+  return ((r or 0) + (g or 0) + (b or 0)) / 3
 end
 
 function M.rgbKeyFromFloats(r, g, b)
@@ -55,6 +56,8 @@ function M.buildBrightnessRankMap(imgData, opts)
       local r, g, b, a = imgData:getPixel(x, y)
       if a > 0 then
         addEntry(M.rgbKeyFromFloats(r, g, b), M.calculateLuminance(r, g, b))
+      elseif opts.treatTransparentAsBlack then
+        addEntry(M.rgbKeyFromFloats(0, 0, 0), M.calculateLuminance(0, 0, 0))
       elseif transparentKey then
         -- already seeded; still mark that transparency was observed
       end

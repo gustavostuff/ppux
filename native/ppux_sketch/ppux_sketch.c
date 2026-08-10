@@ -47,9 +47,9 @@ static int rgb_key(double r, double g, double b, int *out_r8, int *out_g8, int *
   return (r8 << 16) | (g8 << 8) | b8;
 }
 
-/* Match Lua: 0.299*r + 0.587*g + 0.114*b with double math. */
+/* Match Lua calculateLuminance: simple (R+G+B)/3. */
 static double luminance(double r, double g, double b) {
-  return 0.299 * r + 0.587 * g + 0.114 * b;
+  return (r + g + b) / 3.0;
 }
 
 /* Lua table.sort tie-break uses string keys from string.format("%d_%d_%d", ...).
@@ -85,55 +85,6 @@ static int find_color(const ColorEntry *entries, int n, int key) {
   return -1;
 }
 
-static double color_dist2_entry(const ColorEntry *e, const float *palette_rgb_12, int slot) {
-  double cr = (double)e->r8 / 255.0;
-  double cg = (double)e->g8 / 255.0;
-  double cb = (double)e->b8 / 255.0;
-  double pr = (double)palette_rgb_12[slot * 3 + 0];
-  double pg = (double)palette_rgb_12[slot * 3 + 1];
-  double pb = (double)palette_rgb_12[slot * 3 + 2];
-  double dr = cr - pr, dg = cg - pg, db = cb - pb;
-  return dr * dr + dg * dg + db * db;
-}
-
-typedef struct {
-  const ColorEntry *entries;
-  int unique;
-  const float *palette_rgb_12;
-  const int *slots;
-  int nslots;
-  int *used_slot;
-  int *choice; /* color index -> slot index in slots[] */
-  int *best_choice;
-  double best_cost;
-} AssignCtx;
-
-static void assign_search(AssignCtx *ctx, int depth, double cost) {
-  int s;
-  if (cost >= ctx->best_cost) {
-    return;
-  }
-  if (depth == ctx->unique) {
-    int i;
-    ctx->best_cost = cost;
-    for (i = 0; i < ctx->unique; i++) {
-      ctx->best_choice[i] = ctx->choice[i];
-    }
-    return;
-  }
-  for (s = 0; s < ctx->nslots; s++) {
-    if (ctx->used_slot[s]) continue;
-    ctx->used_slot[s] = 1;
-    ctx->choice[depth] = s;
-    assign_search(
-      ctx,
-      depth + 1,
-      cost + color_dist2_entry(&ctx->entries[depth], ctx->palette_rgb_12, ctx->slots[s])
-    );
-    ctx->used_slot[s] = 0;
-  }
-}
-
 static int rgba_to_indexed_impl(
   int w,
   int h,
@@ -144,9 +95,8 @@ static int rgba_to_indexed_impl(
 ) {
   ColorEntry entries[PPUX_MAX_COLORS];
   int unique = 0;
-  int has_transparency = 0;
   int x, y, i;
-  int index_of_entry[PPUX_MAX_COLORS];
+  int rank_of_entry[PPUX_MAX_COLORS];
 
   set_error("");
   if (!out_flat || !sample || w <= 0 || h <= 0) {
@@ -157,23 +107,25 @@ static int rgba_to_indexed_impl(
   for (y = 0; y < h; y++) {
     for (x = 0; x < w; x++) {
       double rgba[4];
+      double r, g, b;
       int r8, g8, b8, key;
       sample(ctx, x, y, rgba);
-      /* Match Lua: unique colors only when a > 0; transparency when a == 0. */
-      if (!(rgba[3] > 0.0)) {
-        if (rgba[3] == 0.0) {
-          has_transparency = 1;
-        }
-        continue;
+      /* Transparent counts as black (matches Lua treatTransparentAsBlack). */
+      if (rgba[3] == 0.0) {
+        r = g = b = 0.0;
+      } else {
+        r = rgba[0];
+        g = rgba[1];
+        b = rgba[2];
       }
-      key = rgb_key(rgba[0], rgba[1], rgba[2], &r8, &g8, &b8);
+      key = rgb_key(r, g, b, &r8, &g8, &b8);
       if (find_color(entries, unique, key) >= 0) continue;
       if (unique >= PPUX_MAX_COLORS) {
         set_error("too many unique colors");
         return PPUX_SKETCH_ERR_TOO_MANY_COLORS;
       }
       entries[unique].key = key;
-      entries[unique].lum = luminance(rgba[0], rgba[1], rgba[2]);
+      entries[unique].lum = luminance(r, g, b);
       entries[unique].r8 = r8;
       entries[unique].g8 = g8;
       entries[unique].b8 = b8;
@@ -186,74 +138,37 @@ static int rgba_to_indexed_impl(
     return PPUX_SKETCH_ERR_TOO_MANY_COLORS;
   }
 
-  /* Brightness ranks when no palette (Lua convertToIndexedByBrightness). */
   qsort(entries, (size_t)unique, sizeof(ColorEntry), cmp_color_entry);
   for (i = 0; i < unique; i++) {
     int rank = i;
     if (rank > 3) rank = 3;
-    index_of_entry[i] = rank;
+    rank_of_entry[i] = rank;
   }
 
-  if (palette_rgb_12) {
-    int slots[4];
-    int nslots;
-    int used_slot[4];
-    int choice[4];
-    int best_choice[4];
-    AssignCtx actx;
-    if (has_transparency) {
-      nslots = 3;
-      slots[0] = 1;
-      slots[1] = 2;
-      slots[2] = 3;
-    } else {
-      nslots = 4;
-      slots[0] = 0;
-      slots[1] = 1;
-      slots[2] = 2;
-      slots[3] = 3;
-    }
-    if (unique > nslots) {
-      set_error("image has more than 4 colors");
-      return PPUX_SKETCH_ERR_TOO_MANY_COLORS;
-    }
-    for (i = 0; i < 4; i++) {
-      used_slot[i] = 0;
-      choice[i] = -1;
-      best_choice[i] = -1;
-    }
-    actx.entries = entries;
-    actx.unique = unique;
-    actx.palette_rgb_12 = palette_rgb_12;
-    actx.slots = slots;
-    actx.nslots = nslots;
-    actx.used_slot = used_slot;
-    actx.choice = choice;
-    actx.best_choice = best_choice;
-    actx.best_cost = 1e300;
-    assign_search(&actx, 0, 0.0);
-    for (i = 0; i < unique; i++) {
-      int si = best_choice[i];
-      index_of_entry[i] = (si >= 0) ? slots[si] : 0;
-    }
-  }
+  /* palette_rgb_12 is ignored: indices are brightness ranks only.
+   * Remapping through palette slot luminance swaps mid greys when e.g. slot 1
+   * is white and slot 2 is darker (common NES layouts). */
+  (void)palette_rgb_12;
 
   for (y = 0; y < h; y++) {
     for (x = 0; x < w; x++) {
       double rgba[4];
+      double r, g, b;
       int idx = 0;
       size_t out_i = (size_t)(y * w + x);
       sample(ctx, x, y, rgba);
       if (rgba[3] == 0.0) {
-        out_flat[out_i] = 0;
-        continue;
+        r = g = b = 0.0;
+      } else {
+        r = rgba[0];
+        g = rgba[1];
+        b = rgba[2];
       }
       {
-        int key = rgb_key(rgba[0], rgba[1], rgba[2], NULL, NULL, NULL);
+        int key = rgb_key(r, g, b, NULL, NULL, NULL);
         int ei = find_color(entries, unique, key);
-        if (ei >= 0) {
-          idx = index_of_entry[ei];
-        }
+        int rank = (ei >= 0) ? rank_of_entry[ei] : 0;
+        idx = rank;
       }
       if (idx < 0) idx = 0;
       if (idx > 3) idx = 3;

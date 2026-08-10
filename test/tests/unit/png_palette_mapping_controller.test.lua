@@ -145,6 +145,30 @@ describe("png_palette_mapping_controller.lua", function()
     expect(PngPaletteMappingController.imageHasTransparency(opaqueImg)).toBeFalsy()
   end)
 
+  it("uses (R+G+B)/3 for brightness (not Rec.601)", function()
+    -- Rec.601 would rank pure green above pure red; average ranks them equal then
+    -- falls back to string key ("0_255_0" < "255_0_0").
+    expect(PngPaletteMappingController.calculateLuminance(1, 0, 0)).toBe(1 / 3)
+    expect(PngPaletteMappingController.calculateLuminance(0, 1, 0)).toBe(1 / 3)
+    expect(PngPaletteMappingController.calculateLuminance(0, 0, 1)).toBe(1 / 3)
+    expect(PngPaletteMappingController.calculateLuminance(1, 1, 1)).toBe(1)
+  end)
+
+  it("treats transparent pixels as black when asked", function()
+    local img = makeImage({
+      {
+        { 1.0, 1.0, 1.0, 1.0 },
+        { 0.2, 0.3, 0.4, 0.0 }, -- transparent -> black
+      },
+    })
+    local map, count = PngPaletteMappingController.buildBrightnessRankMap(img, {
+      treatTransparentAsBlack = true,
+    })
+    expect(count).toBe(2)
+    expect(map["0_0_0"]).toBe(0)
+    expect(map["255_255_255"]).toBe(1)
+  end)
+
   it("assigns unique colors to nearest palette slots (no luminance 1/2 swap)", function()
     local paletteColors = {
       { 0.0, 0.0, 0.0 },

@@ -141,13 +141,13 @@ describe("image_import_controller.lua - undo support for PNG import", function()
     expect(hasChangedPixel).toBe(true)
   end)
 
-  it("maps CHR PNG colors through generic palette brightness order", function()
+  it("maps CHR PNG colors by brightness rank (not palette slot order)", function()
     ShaderPaletteController.getPaletteColors = function()
       return {
-        { 0.80, 0.80, 0.80 }, -- pixel value 0 (bright)
-        { 0.95, 0.95, 0.95 }, -- pixel value 1 (brightest)
-        { 0.10, 0.10, 0.10 }, -- pixel value 2 (darkest)
-        { 0.50, 0.50, 0.50 }, -- pixel value 3 (mid)
+        { 0.80, 0.80, 0.80 },
+        { 0.95, 0.95, 0.95 },
+        { 0.10, 0.10, 0.10 },
+        { 0.50, 0.50, 0.50 },
       }
     end
 
@@ -174,21 +174,22 @@ describe("image_import_controller.lua - undo support for PNG import", function()
 
     expect(ok).toBe(true)
     local decoded = chr.decodeTile(bankBytes, 0)
-    expect(decoded[1]).toBe(2) -- darkest PNG color -> darkest palette slot (pixel value 2)
-    expect(decoded[8]).toBe(3) -- brighter PNG color -> next brightness slot (pixel value 3)
+    -- PNG: left dark (0.1), right bright (0.9) -> ranks 0 and 1
+    expect(decoded[1]).toBe(0)
+    expect(decoded[8]).toBe(1)
   end)
 
-  it("preserves transparency and maps opaque CHR PNG colors through visible palette slots", function()
+  it("treats transparent as black and ranks opaque greys by brightness", function()
     love.image.newImageData = function()
       return makeImageData8x8TransparentThreeColors()
     end
 
     ShaderPaletteController.getPaletteColors = function()
       return {
-        { 0.99, 0.99, 0.99 }, -- slot 0 (transparent in shader): should not be used for opaque colors
-        { 0.95, 0.95, 0.95 }, -- slot 1 brightest visible
-        { 0.10, 0.10, 0.10 }, -- slot 2 darkest visible
-        { 0.50, 0.50, 0.50 }, -- slot 3 mid visible
+        { 0.99, 0.99, 0.99 },
+        { 0.95, 0.95, 0.95 },
+        { 0.10, 0.10, 0.10 },
+        { 0.50, 0.50, 0.50 },
       }
     end
 
@@ -214,10 +215,10 @@ describe("image_import_controller.lua - undo support for PNG import", function()
 
     expect(ok).toBe(true)
     local decoded = chr.decodeTile(bankBytes, 0)
-    expect(decoded[1]).toBe(0) -- transparent stays transparent
-    expect(decoded[3]).toBe(2) -- darkest opaque -> darkest visible slot
-    expect(decoded[5]).toBe(3) -- mid opaque -> mid visible slot
-    expect(decoded[7]).toBe(1) -- brightest opaque -> brightest visible slot
+    expect(decoded[1]).toBe(0) -- transparent -> black -> rank 0
+    expect(decoded[3]).toBe(1) -- dark opaque
+    expect(decoded[5]).toBe(2) -- mid
+    expect(decoded[7]).toBe(3) -- bright
   end)
 
   it("syncs duplicate tiles during CHR PNG import when syncDuplicateTiles is enabled", function()

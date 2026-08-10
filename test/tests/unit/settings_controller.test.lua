@@ -29,6 +29,11 @@ describe("settings_controller.lua - defaults", function()
       recentProjects = {},
       pngImportTransparentRgb = { 0, 0, 0 },
       pngImportTransparentFallbackRgb = { 0.40, 0.20, 0.10 },
+      galleryRom = {
+        useTransitions = true,
+        fadeHold = 6,
+        showFirstOnce = false,
+      },
     })
   end)
 end)
