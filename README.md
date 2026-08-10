@@ -159,8 +159,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 4. **Add layer** - `+` key.
 5. **Copy from previous layer** - Copies everything, including palette links and pattern table links.
 6. **Play / Pause** - `P` key.
-7. **Frame delay** - `Shift` + `Left` or `Shift` + `Right` adjusts delay for all frames. Status bar shows the current value.
-8. **Palette link button** - Same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
+7. **Palette link button** - Same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
 
 </td>
 </tr>
