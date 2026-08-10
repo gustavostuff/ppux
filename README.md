@@ -178,10 +178,9 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 5. **Add sprite** - Opens the [Add sprite modal](#add-sprite-modal) (OAM hex grid).
 6. **Toggle origin guides** - toggles dotted reference lines, this is user defined, not something that comes from ROM data.
 7. **Copy from previous layer** - Copies everything, including palette links and pattern table links.
-8. **Play / Pause** - `P` key.
-9. **Frame delay** - `Shift` + `Left` / `Shift` + `Right` adjusts delay for all frames.
-10. **Pattern table link** - left-click for a menu to link or unlink a **Pattern table** window for **all frames** at once (**required** for sprite CHR).
-11. **Palette link button** - Same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
+8. **Play / Pause** - `P` key. While focused, **`Shift` + `Left` / `Shift` + `Right`** adjusts frame delay for all frames.
+9. **Pattern table link** - left-click for a menu to link or unlink a **Pattern table** window for **all frames** at once (**required** for sprite CHR).
+10. **Palette link button** - Same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
 
 **Shift + right-drag** on the canvas moves sprite `originX` / `originY` (same as PPU Frame sprite layers).
 
@@ -224,7 +223,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 1. **Previous layer** - `Shift` + `Down` key.
 2. **Next layer** - `Shift` + `Up` key.
-3. **Nametable range** - Set compressed nametable **start/end** ROM addresses (the range/stream of bytes used to build a given pattern table).
+3. **Nametable range** - Set compressed nametable **start/end** ROM addresses for the tile layer stream.
 4. **Add sprite** - Opens the [Add sprite modal](#add-sprite-modal) (OAM hex grid).
 5. **Pattern table link** - left-click for a menu with separate **background** and **sprites** submenus to link **Pattern table** windows.
 6. **Toggle origin guides** - hidden until a sprite layer exists, it toggles dotted reference lines on sprite layers.
@@ -252,12 +251,15 @@ Note: Logical **ranges** are built by dragging tiles (multi selections, ideally)
 
 <img src="img/readme_images/toolbars/2x/sketch_canvas_toolbar.png" alt="Sketch canvas specialized toolbar">
 
-1. **Tolerance (- / value / +)** - pixel-diff grouping for Generate (0-32). When linked, changing tolerance live-regenerates the pattern table.
-2. **Generate** - packs the paint canvas into up to 256 unique patterns and applies them to the linked pattern table. Highlights when pixels changed since the last pack.
-3. **Export CHR** - writes a 4KB CHR bank (256 tiles) beside the project/ROM folder (needs a successful Generate).
-4. **Export nametable** - writes a 1024-byte `.nam` (960 tiles + 64 attribute bytes).
-5. **Pattern table link** - left-click to link, jump to, or unlink a **Pattern table**.
-6. **Palette link button** - right-drag onto a **sketch-mode** ROM palette (or left-click for a menu). Needed for live multi-palette preview and Gallery ROM colors.
+1. **Tolerance -** - decreases pixel-diff grouping for Generate (0-32). When linked, changing tolerance live-regenerates the pattern table.
+2. **Tolerance value** - shows the current tolerance (0-32).
+3. **Tolerance +** - increases pixel-diff grouping for Generate (0-32). When linked, changing tolerance live-regenerates the pattern table.
+4. **Generate** - packs the paint canvas into up to 256 unique patterns and applies them to the linked pattern table (offers to create one if none is linked). Highlights when pixels changed since the last pack.
+5. **Gallery title screen** - marks this sketch as the one-shot gallery title slide (only one at a time; click again to clear).
+6. **Export CHR** - writes a 4KB CHR bank (256 tiles) beside the project/ROM folder (needs a successful Generate).
+7. **Export nametable** - writes a 1024-byte `.nam` (960 tiles + 64 attribute bytes).
+8. **Pattern table link** - left-click to link, jump to, or unlink a **Pattern table**.
+9. **Palette link button** - right-drag onto a **sketch-mode** ROM palette (or left-click for a menu). Needed for live multi-palette preview and Gallery ROM colors.
 
 </td>
 </tr>
@@ -367,7 +369,7 @@ Note: some of the pixel tools available on Sketch canvas are not fully available
 
 After Generating patterns, the sketch toolbar can export a 4KB CHR bank and a 1024-byte nametable (`.nam`) next to the project or ROM folder.
 
-**Generate gallery ROM** on the app toolbar (NES cartridge icon) builds a CNROM gallery `.nes` from every packed sketch canvas in window order (up to 16 slides). PPUX writes the graphics binaries, assembles everything with **ca65/ld65** (cc65), and saves `<rom>_gallery.nes` beside your project or ROM. Each slide uses its linked ROM (sketch) palette (or a default brown ramp) plus the sketch attribute table. The confirm dialog sets optional palette fades (and hold frames), plus whether the first slide is a one-shot title (boot only, skipped when wrapping).
+**Generate gallery ROM** on the app toolbar (NES cartridge icon) builds a CNROM gallery `.nes` from packed sketch canvases (up to 16 slides). Slide order prefers a marked **Gallery title screen** sketch first, then alphabetical titles (or a persisted order from the confirm dialog). PPUX writes the graphics binaries, assembles everything with **ca65/ld65** (cc65), and saves `<rom>_gallery.nes` beside your project or ROM. Each slide uses its linked ROM (sketch) palette (or a default brown ramp) plus the sketch attribute table. The confirm dialog sets optional palette fades (and hold frames), plus **Show first slide once** (boot only, skipped when wrapping).
 
 ### PPU frame & OAM
 
