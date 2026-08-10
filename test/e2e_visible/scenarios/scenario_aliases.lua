@@ -33,6 +33,9 @@ local SCENARIO_ALIASES = {
   open_project_invalid_file_demo = "open_project_invalid_file",
   oam_animation_workflow_demo = "oam_animation_workflow",
   mirror_x_chr_group_drop_demo = "mirror_x_chr_group_drop",
+  sketch_canvas_and_gallery_demo = "sketch_canvas_and_gallery",
+  swap_two_colors_modal_demo = "swap_two_colors_modal",
+  relocation_and_attr_mode_demo = "relocation_and_attr_mode",
 }
 
 return SCENARIO_ALIASES

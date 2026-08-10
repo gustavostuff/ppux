@@ -42,6 +42,9 @@ SCENARIOS=(
   "open_project_invalid_file"
   "oam_animation_workflow"
   "mirror_x_chr_group_drop"
+  "sketch_canvas_and_gallery"
+  "swap_two_colors_modal"
+  "relocation_and_attr_mode"
 )
 
 pass_count=0
