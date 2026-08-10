@@ -285,6 +285,29 @@ function M.refreshForSketch(sketchWin, app)
     return false, "no_canvas"
   end
   local palette = M.resolvePaletteRows(sketchWin, app)
+
+  local Native = require("utils.ppux_sketch_native")
+  if Native.isAvailable() and type(canvas.pixels) == "table" then
+    local attrRows = {}
+    for ty = 0, M.THUMB_H - 1 do
+      for tx = 0, M.THUMB_W - 1 do
+        local palNum = SketchPalette.getTilePaletteNumber(sketchWin, tx, ty) or 1
+        if palNum < 1 then
+          palNum = 1
+        elseif palNum > 4 then
+          palNum = 4
+        end
+        attrRows[ty * M.THUMB_W + tx + 1] = palNum - 1
+      end
+    end
+    local averages = select(1, Native.averageTilesRgb(canvas, sketchWin, palette, attrRows))
+    if averages then
+      sketchWin.tileAverageRgb = averages
+      sketchWin._tileAveragePaletteKey = paletteCacheKey(sketchWin, app)
+      return true
+    end
+  end
+
   local averages = {}
   for ty = 0, M.THUMB_H - 1 do
     for tx = 0, M.THUMB_W - 1 do

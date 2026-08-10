@@ -497,3 +497,462 @@ int ppux_pack_flat_tol0(
 ) {
   return ppux_pack_flat(flat, w, h, 0, out_pool, out_unique_count, out_nametable);
 }
+
+static uint8_t clamp_shade(int v) {
+  if (v < 0) return 0;
+  if (v > 3) return 3;
+  return (uint8_t)v;
+}
+
+int ppux_copy_flat(const uint8_t *src, uint8_t *dst, int n) {
+  int i;
+  set_error("");
+  if (!src || !dst || n < 0) {
+    set_error("null args");
+    return PPUX_SKETCH_ERR_NULL;
+  }
+  for (i = 0; i < n; i++) {
+    dst[i] = clamp_shade(src[i]);
+  }
+  return PPUX_SKETCH_OK;
+}
+
+int ppux_blit_flat(
+  const uint8_t *src,
+  int src_w,
+  int src_h,
+  uint8_t *dst,
+  int dst_w,
+  int dst_h,
+  int dx,
+  int dy
+) {
+  int sy, sx;
+  set_error("");
+  if (!src || !dst || src_w < 1 || src_h < 1 || dst_w < 1 || dst_h < 1) {
+    set_error("null args or bad size");
+    return PPUX_SKETCH_ERR_NULL;
+  }
+  for (sy = 0; sy < src_h; sy++) {
+    int dy2 = dy + sy;
+    if (dy2 < 0 || dy2 >= dst_h) continue;
+    for (sx = 0; sx < src_w; sx++) {
+      int dx2 = dx + sx;
+      if (dx2 < 0 || dx2 >= dst_w) continue;
+      dst[dy2 * dst_w + dx2] = clamp_shade(src[sy * src_w + sx]);
+    }
+  }
+  return PPUX_SKETCH_OK;
+}
+
+int ppux_fill_flat_rect(
+  uint8_t *flat,
+  int w,
+  int h,
+  int x,
+  int y,
+  int rw,
+  int rh,
+  uint8_t value
+) {
+  int py, px;
+  int x0, y0, x1, y1;
+  set_error("");
+  if (!flat || w < 1 || h < 1) {
+    set_error("null args or bad size");
+    return PPUX_SKETCH_ERR_NULL;
+  }
+  value = clamp_shade(value);
+  x0 = x < 0 ? 0 : x;
+  y0 = y < 0 ? 0 : y;
+  x1 = x + rw;
+  y1 = y + rh;
+  if (x1 > w) x1 = w;
+  if (y1 > h) y1 = h;
+  for (py = y0; py < y1; py++) {
+    for (px = x0; px < x1; px++) {
+      flat[py * w + px] = value;
+    }
+  }
+  return PPUX_SKETCH_OK;
+}
+
+static int tile_is_solid(
+  const uint8_t *paint,
+  int w,
+  int h,
+  int ox,
+  int oy,
+  int shade
+) {
+  int py, px;
+  for (py = 0; py < PPUX_CELL; py++) {
+    int yy = oy + py;
+    if (yy < 0 || yy >= h) return 0;
+    for (px = 0; px < PPUX_CELL; px++) {
+      int xx = ox + px;
+      if (xx < 0 || xx >= w) return 0;
+      if (paint[yy * w + xx] != (uint8_t)shade) return 0;
+    }
+  }
+  return 1;
+}
+
+static void sample_tile_into(
+  const uint8_t *paint,
+  int w,
+  int h,
+  int ox,
+  int oy,
+  uint8_t out[64]
+) {
+  int py, px, i = 0;
+  for (py = 0; py < PPUX_CELL; py++) {
+    int yy = oy + py;
+    for (px = 0; px < PPUX_CELL; px++) {
+      int xx = ox + px;
+      uint8_t v = 0;
+      if (xx >= 0 && yy >= 0 && xx < w && yy < h) {
+        v = clamp_shade(paint[yy * w + xx]);
+      }
+      out[i++] = v;
+    }
+  }
+}
+
+static void resolve_pool_tile(
+  const uint8_t *paint,
+  int w,
+  int h,
+  int ox,
+  int oy,
+  int solid_shade,
+  uint8_t out[64]
+) {
+  int i;
+  if (solid_shade >= 0 && solid_shade <= 3
+      && tile_is_solid(paint, w, h, ox, oy, solid_shade)) {
+    for (i = 0; i < 64; i++) out[i] = (uint8_t)solid_shade;
+    return;
+  }
+  sample_tile_into(paint, w, h, ox, oy, out);
+}
+
+int ppux_compose_nametable(
+  const uint8_t *paint,
+  int w,
+  int h,
+  const int32_t *pool_x,
+  const int32_t *pool_y,
+  const int32_t *solid_shade,
+  int pool_count,
+  const uint16_t *nametable,
+  uint8_t *out_flat
+) {
+  int row, col, nt = 0;
+  set_error("");
+  if (!paint || !pool_x || !pool_y || !solid_shade || !nametable || !out_flat) {
+    set_error("null args");
+    return PPUX_SKETCH_ERR_NULL;
+  }
+  if (w != PPUX_EXPECT_W || h != PPUX_EXPECT_H || pool_count < 1) {
+    set_error("expected 256x240 and pool_count>=1");
+    return PPUX_SKETCH_ERR_DIMS;
+  }
+
+  for (row = 0; row < PPUX_GRID_ROWS; row++) {
+    for (col = 0; col < PPUX_GRID_COLS; col++) {
+      uint8_t tile[64];
+      int pool_index = (int)nametable[nt++];
+      int ox, oy, shade;
+      int py, px, ti = 0;
+      if (pool_index < 0 || pool_index >= pool_count) {
+        pool_index = 0;
+      }
+      ox = (int)pool_x[pool_index];
+      oy = (int)pool_y[pool_index];
+      shade = (int)solid_shade[pool_index];
+      resolve_pool_tile(paint, w, h, ox, oy, shade, tile);
+      for (py = 0; py < PPUX_CELL; py++) {
+        int dy = row * PPUX_CELL + py;
+        for (px = 0; px < PPUX_CELL; px++) {
+          int dx = col * PPUX_CELL + px;
+          out_flat[dy * w + dx] = tile[ti++];
+        }
+      }
+    }
+  }
+  return PPUX_SKETCH_OK;
+}
+
+static void average_tile_rgb(
+  const uint8_t tile[64],
+  const double *palette_row_rgb12,
+  double *out_rgb
+) {
+  double sr = 0.0, sg = 0.0, sb = 0.0;
+  int i;
+  for (i = 0; i < 64; i++) {
+    int shade = tile[i] & 3;
+    const double *rgb = palette_row_rgb12 + shade * 3;
+    sr += rgb[0];
+    sg += rgb[1];
+    sb += rgb[2];
+  }
+  out_rgb[0] = sr / 64.0;
+  out_rgb[1] = sg / 64.0;
+  out_rgb[2] = sb / 64.0;
+}
+
+int ppux_average_nametable_rgb(
+  const uint8_t *paint,
+  int w,
+  int h,
+  const int32_t *pool_x,
+  const int32_t *pool_y,
+  const int32_t *solid_shade,
+  int pool_count,
+  const uint16_t *nametable,
+  const uint8_t *attr_row,
+  const double *palette_rgb_48,
+  double *out_rgb
+) {
+  int row, col, nt = 0;
+  set_error("");
+  if (!paint || !pool_x || !pool_y || !solid_shade || !nametable
+      || !palette_rgb_48 || !out_rgb) {
+    set_error("null args");
+    return PPUX_SKETCH_ERR_NULL;
+  }
+  if (w != PPUX_EXPECT_W || h != PPUX_EXPECT_H || pool_count < 1) {
+    set_error("expected 256x240 and pool_count>=1");
+    return PPUX_SKETCH_ERR_DIMS;
+  }
+
+  for (row = 0; row < PPUX_GRID_ROWS; row++) {
+    for (col = 0; col < PPUX_GRID_COLS; col++) {
+      uint8_t tile[64];
+      int pool_index = (int)nametable[nt];
+      int pal_row = attr_row ? (int)(attr_row[nt] & 3) : 0;
+      int ox, oy, shade;
+      if (pool_index < 0 || pool_index >= pool_count) {
+        pool_index = 0;
+      }
+      ox = (int)pool_x[pool_index];
+      oy = (int)pool_y[pool_index];
+      shade = (int)solid_shade[pool_index];
+      resolve_pool_tile(paint, w, h, ox, oy, shade, tile);
+      average_tile_rgb(tile, palette_rgb_48 + pal_row * 12, out_rgb + nt * 3);
+      nt++;
+    }
+  }
+  return PPUX_SKETCH_OK;
+}
+
+int ppux_average_flat_rgb(
+  const uint8_t *flat,
+  int w,
+  int h,
+  const uint8_t *attr_row,
+  const double *palette_rgb_48,
+  double *out_rgb
+) {
+  int row, col, nt = 0;
+  set_error("");
+  if (!flat || !palette_rgb_48 || !out_rgb) {
+    set_error("null args");
+    return PPUX_SKETCH_ERR_NULL;
+  }
+  if (w != PPUX_EXPECT_W || h != PPUX_EXPECT_H) {
+    set_error("expected 256x240");
+    return PPUX_SKETCH_ERR_DIMS;
+  }
+
+  for (row = 0; row < PPUX_GRID_ROWS; row++) {
+    for (col = 0; col < PPUX_GRID_COLS; col++) {
+      uint8_t tile[64];
+      int pal_row = attr_row ? (int)(attr_row[nt] & 3) : 0;
+      sample_tile_into(flat, w, h, col * PPUX_CELL, row * PPUX_CELL, tile);
+      average_tile_rgb(tile, palette_rgb_48 + pal_row * 12, out_rgb + nt * 3);
+      nt++;
+    }
+  }
+  return PPUX_SKETCH_OK;
+}
+
+int ppux_flood_fill(
+  uint8_t *flat,
+  int w,
+  int h,
+  int sx,
+  int sy,
+  uint8_t fill,
+  const uint8_t *allow_mask,
+  int32_t *out_indices,
+  int32_t *out_count
+) {
+  int n;
+  uint8_t target;
+  uint8_t *visited = NULL;
+  int32_t *queue = NULL;
+  int qh = 0, qt = 0;
+  int32_t painted = 0;
+
+  set_error("");
+  if (out_count) *out_count = 0;
+  if (!flat || w < 1 || h < 1) {
+    set_error("null args or bad size");
+    return PPUX_SKETCH_ERR_NULL;
+  }
+  if (sx < 0 || sy < 0 || sx >= w || sy >= h) {
+    set_error("start out of bounds");
+    return PPUX_SKETCH_ERR_BOUNDS;
+  }
+
+  fill = clamp_shade(fill);
+  target = flat[sy * w + sx];
+  if (target == fill) {
+    return PPUX_SKETCH_OK;
+  }
+
+  n = w * h;
+  visited = (uint8_t *)calloc((size_t)n, 1);
+  queue = (int32_t *)malloc((size_t)n * sizeof(int32_t));
+  if (!visited || !queue) {
+    free(visited);
+    free(queue);
+    set_error("oom");
+    return PPUX_SKETCH_ERR_NULL;
+  }
+
+  queue[qt++] = sy * w + sx;
+  visited[sy * w + sx] = 1;
+  while (qh < qt) {
+    int idx = queue[qh++];
+    int x, y;
+    if (flat[idx] != target) continue;
+    if (allow_mask && allow_mask[idx] == 0) continue;
+
+    flat[idx] = fill;
+    if (out_indices) {
+      out_indices[painted] = idx;
+    }
+    painted++;
+
+    x = idx % w;
+    y = idx / w;
+    if (x > 0 && !visited[idx - 1]) {
+      visited[idx - 1] = 1;
+      queue[qt++] = idx - 1;
+    }
+    if (x + 1 < w && !visited[idx + 1]) {
+      visited[idx + 1] = 1;
+      queue[qt++] = idx + 1;
+    }
+    if (y > 0 && !visited[idx - w]) {
+      visited[idx - w] = 1;
+      queue[qt++] = idx - w;
+    }
+    if (y + 1 < h && !visited[idx + w]) {
+      visited[idx + w] = 1;
+      queue[qt++] = idx + w;
+    }
+  }
+
+  free(visited);
+  free(queue);
+  if (out_count) *out_count = painted;
+  return PPUX_SKETCH_OK;
+}
+
+int ppux_build_shade_mask(
+  const uint8_t *flat,
+  int w,
+  int h,
+  uint8_t shade,
+  uint8_t *out_mask,
+  int32_t *out_count
+) {
+  int i, n;
+  int32_t count = 0;
+  set_error("");
+  if (out_count) *out_count = 0;
+  if (!flat || !out_mask || w < 1 || h < 1) {
+    set_error("null args or bad size");
+    return PPUX_SKETCH_ERR_NULL;
+  }
+  shade = clamp_shade(shade);
+  n = w * h;
+  for (i = 0; i < n; i++) {
+    uint8_t m = (clamp_shade(flat[i]) == shade) ? 1 : 0;
+    out_mask[i] = m;
+    if (m) count++;
+  }
+  if (out_count) *out_count = count;
+  return PPUX_SKETCH_OK;
+}
+
+static void decode_chr_tile(const uint8_t *tile16, uint8_t out[64]) {
+  int row, col;
+  for (row = 0; row < 8; row++) {
+    uint8_t p0 = tile16[row];
+    uint8_t p1 = tile16[8 + row];
+    for (col = 0; col < 8; col++) {
+      int bit = 7 - col;
+      int lo = (p0 >> bit) & 1;
+      int hi = (p1 >> bit) & 1;
+      out[row * 8 + col] = (uint8_t)(lo + hi * 2);
+    }
+  }
+}
+
+int ppux_chr_tiles_to_rgba8(
+  const uint8_t *chr,
+  int tile_count,
+  const int32_t *tile_order,
+  int cols,
+  int rows,
+  uint8_t *out_rgba
+) {
+  int pos;
+  int img_w;
+  set_error("");
+  if (!chr || !out_rgba || tile_count < 1 || cols < 1 || rows < 1) {
+    set_error("null args or bad size");
+    return PPUX_SKETCH_ERR_NULL;
+  }
+  if (cols * rows > tile_count && !tile_order) {
+    /* Allow tile_order to remap; without it grid must fit bank. */
+  }
+  img_w = cols * 8;
+
+  for (pos = 0; pos < cols * rows; pos++) {
+    int tile_index = tile_order ? (int)tile_order[pos] : pos;
+    uint8_t pixels[64];
+    int tile_col, tile_row, py, px;
+    const uint8_t *tile16;
+    if (tile_index < 0 || tile_index >= tile_count) {
+      memset(pixels, 0, sizeof(pixels));
+    } else {
+      tile16 = chr + (size_t)tile_index * 16;
+      decode_chr_tile(tile16, pixels);
+    }
+    tile_col = pos % cols;
+    tile_row = pos / cols;
+    for (py = 0; py < 8; py++) {
+      for (px = 0; px < 8; px++) {
+        int shade = pixels[py * 8 + px] & 3;
+        /* Match Lua idxToGray: value/3 as float channel, then *255 for rgba8. */
+        int gray = (int)floor(((double)shade / 3.0) * 255.0 + 0.5);
+        size_t out_i = ((size_t)(tile_row * 8 + py) * (size_t)img_w + (size_t)(tile_col * 8 + px)) * 4;
+        if (gray < 0) gray = 0;
+        if (gray > 255) gray = 255;
+        out_rgba[out_i + 0] = (uint8_t)gray;
+        out_rgba[out_i + 1] = (uint8_t)gray;
+        out_rgba[out_i + 2] = (uint8_t)gray;
+        out_rgba[out_i + 3] = 255;
+      }
+    }
+  }
+  return PPUX_SKETCH_OK;
+}

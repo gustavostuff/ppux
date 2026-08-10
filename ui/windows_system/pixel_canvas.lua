@@ -228,6 +228,11 @@ end
 function PixelCanvas:loadRect(destX, destY, source, sourceW, sourceH)
   destX = math.floor(tonumber(destX) or 0)
   destY = math.floor(tonumber(destY) or 0)
+  local Native = require("utils.ppux_sketch_native")
+  if Native.isAvailable() and Native.blitIntoCanvas(self, source, destX, destY, sourceW, sourceH) then
+    return true
+  end
+
   local sw, sh, get
   if type(source) == "table" and source.pixels and source.width and source.height then
     sw = source.width
@@ -248,10 +253,20 @@ function PixelCanvas:loadRect(destX, destY, source, sourceW, sourceH)
   local any = false
   for py = 0, sh - 1 do
     for px = 0, sw - 1 do
-      if self:edit(destX + px, destY + py, get(px, py) or self.fillValue) then
-        any = true
+      local dx = destX + px
+      local dy = destY + py
+      if dx >= 0 and dy >= 0 and dx < self.width and dy < self.height then
+        local value = math.max(0, math.min(3, math.floor(tonumber(get(px, py)) or self.fillValue or 0)))
+        local pidx = dy * self.width + dx + 1
+        if self.pixels[pidx] ~= value then
+          self.pixels[pidx] = value
+          any = true
+        end
       end
     end
+  end
+  if any then
+    self._imageDirty = true
   end
   return any
 end
@@ -266,13 +281,26 @@ function PixelCanvas:fillRect(x, y, w, h, value)
   if w < 1 or h < 1 then
     return false
   end
+  local Native = require("utils.ppux_sketch_native")
+  if Native.isAvailable() and Native.fillCanvasRect(self, x, y, w, h, value) then
+    return true
+  end
   local any = false
-  for py = y, y + h - 1 do
-    for px = x, x + w - 1 do
-      if self:edit(px, py, value) then
+  local x0 = math.max(0, x)
+  local y0 = math.max(0, y)
+  local x1 = math.min(self.width, x + w)
+  local y1 = math.min(self.height, y + h)
+  for py = y0, y1 - 1 do
+    for px = x0, x1 - 1 do
+      local pidx = py * self.width + px + 1
+      if self.pixels[pidx] ~= value then
+        self.pixels[pidx] = value
         any = true
       end
     end
+  end
+  if any then
+    self._imageDirty = true
   end
   return any
 end

@@ -753,6 +753,15 @@ function M.decodePngFileToIndexedPixels(file, paletteColors)
   end
 
   local width, height = imgData:getWidth(), imgData:getHeight()
+  local Native = require("utils.ppux_sketch_native")
+  if Native.isAvailable() then
+    local flat, w, h = Native.imageDataToIndexed(imgData, paletteColors)
+    if flat then
+      return flat, w, h
+    end
+    -- Fall through on native failure (e.g. >4 colors still reported via Lua).
+  end
+
   local indexedData, _, uniqueCount = convertToIndexedByBrightness(imgData)
   if not indexedData then
     return nil, "Could not map PNG colors"

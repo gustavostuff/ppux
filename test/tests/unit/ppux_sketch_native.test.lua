@@ -327,4 +327,92 @@ describe("ppux_sketch native helper", function()
     local packNative = PpuxSketchNative.packFlat(flat, 256, 240, 2)
     assertPackParity(pack, packNative)
   end)
+
+  it("copyCanvasPixels and floodFillCanvas work on PixelCanvas", function()
+    if not PpuxSketchNative.isAvailable() then
+      expect(true).toBe(true)
+      return
+    end
+    local PixelCanvas = require("ui.windows_system.pixel_canvas")
+    local src = PixelCanvas.new(256, 240, 0)
+    local dst = PixelCanvas.new(256, 240, 3)
+    for y = 0, 7 do
+      for x = 0, 7 do
+        src.pixels[y * 256 + x + 1] = 2
+      end
+    end
+    expect(PpuxSketchNative.copyCanvasPixels(dst, src)).toBe(true)
+    expect(dst.pixels[1]).toBe(2)
+    expect(dst.pixels[9]).toBe(0)
+
+    local indices, n = PpuxSketchNative.floodFillCanvas(dst, 0, 0, 1, nil)
+    expect(n).toBe(64)
+    expect(#indices).toBe(64)
+    expect(dst.pixels[1]).toBe(1)
+  end)
+
+  it("buildShadeMask counts matching pixels", function()
+    if not PpuxSketchNative.isAvailable() then
+      expect(true).toBe(true)
+      return
+    end
+    local PixelCanvas = require("ui.windows_system.pixel_canvas")
+    local canvas = PixelCanvas.new(256, 240, 0)
+    canvas.pixels[1] = 2
+    canvas.pixels[2] = 2
+    local mask, count = PpuxSketchNative.buildShadeMask(canvas, 2)
+    expect(mask).toBeTruthy()
+    expect(count).toBe(2)
+    expect(mask.dense[1]).toBe(1)
+    expect(mask.bits[1]).toBe(true)
+  end)
+
+  it("composeNametableInto matches loadTilePixels path for solids", function()
+    if not PpuxSketchNative.isAvailable() then
+      expect(true).toBe(true)
+      return
+    end
+    local PixelCanvas = require("ui.windows_system.pixel_canvas")
+    local paint = PixelCanvas.new(256, 240, 0)
+    for py = 0, 7 do
+      for px = 0, 7 do
+        paint.pixels[py * 256 + px + 1] = 1
+        paint.pixels[py * 256 + (8 + px) + 1] = 2
+      end
+    end
+    local pack = assert(select(1, SketchCanvasPackController.packFromCanvas(paint, 0)))
+    local sketch = {
+      tilesPool = pack.tilesPool,
+      nametableBytes = {},
+    }
+    for i = 1, 960 do
+      sketch.nametableBytes[i] = pack.nametableBytes[i]
+    end
+    sketch.nametableBytes[1], sketch.nametableBytes[2] =
+      sketch.nametableBytes[2], sketch.nametableBytes[1]
+
+    local display = PixelCanvas.new(256, 240, 0)
+    expect(PpuxSketchNative.composeNametableInto(display, paint, sketch)).toBe(true)
+    expect(display.pixels[1]).toBe(2)
+    expect(display.pixels[9]).toBe(1)
+  end)
+
+  it("averageTilesRgb returns 960 entries", function()
+    if not PpuxSketchNative.isAvailable() then
+      expect(true).toBe(true)
+      return
+    end
+    local PixelCanvas = require("ui.windows_system.pixel_canvas")
+    local paint = PixelCanvas.new(256, 240, 3)
+    local rows = {
+      { { 0, 0, 0 }, { 0.25, 0.25, 0.25 }, { 0.5, 0.5, 0.5 }, { 1, 1, 1 } },
+      { { 0, 0, 0 }, { 0.25, 0.25, 0.25 }, { 0.5, 0.5, 0.5 }, { 1, 1, 1 } },
+      { { 0, 0, 0 }, { 0.25, 0.25, 0.25 }, { 0.5, 0.5, 0.5 }, { 1, 1, 1 } },
+      { { 0, 0, 0 }, { 0.25, 0.25, 0.25 }, { 0.5, 0.5, 0.5 }, { 1, 1, 1 } },
+    }
+    local averages = PpuxSketchNative.averageTilesRgb(paint, nil, rows, nil)
+    expect(averages).toBeTruthy()
+    expect(#averages).toBe(960)
+    expect(averages[1][1]).toBe(1)
+  end)
 end)

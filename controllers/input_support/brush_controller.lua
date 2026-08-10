@@ -1043,6 +1043,40 @@ local function floodFillCanvas(app, win, canvas, px, py, targetColor, fillColor)
     return false
   end
 
+  local Native = require("utils.ppux_sketch_native")
+  if Native.isAvailable() and type(canvas.pixels) == "table" then
+    local allowBits = nil
+    if WindowCaps.isSketchCanvas(win) then
+      local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
+      local mask = PixelSel.getColorPaintMask and PixelSel.getColorPaintMask(win)
+      if mask then
+        allowBits = mask.dense or mask.bits
+      end
+    end
+    local indices, painted = Native.floodFillCanvas(canvas, px, py, fill, allowBits)
+    if indices and (painted or #indices) > 0 then
+      local n = painted or #indices
+      for i = 1, n do
+        local idx = indices[i]
+        local x = idx % canvas.width
+        local y = math.floor(idx / canvas.width)
+        recordDirectPaint(app, canvas, x, y, target, fill)
+      end
+      if WindowCaps.isSketchCanvas(win) then
+        local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+        SketchCanvasPackController.markGenerateDirty(win)
+        if win.specializedToolbar and win.specializedToolbar.updateIcons then
+          win.specializedToolbar:updateIcons()
+        end
+      end
+      return true
+    end
+    if indices then
+      return false
+    end
+    -- Fall through to Lua on native failure.
+  end
+
   local visited = {}
   local queue = {{px, py}}
   local queueHead = 1

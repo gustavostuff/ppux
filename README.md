@@ -460,7 +460,7 @@ Patches live on the project as a `romPatches` array. Every entry needs a non-emp
 
 ## Development
 
-Local run (LÖVE 11.5): `love .` from the repo root. Sketch PNG import uses the optional C helper when present; otherwise it falls back to Lua.
+Local run (LÖVE 11.5): `love .` from the repo root. The optional `ppux_sketch` C helper accelerates sketch pack, reflect compose/bake, gallery thumbs, flood fill, color masks, PNG→indexed import, and CHR bank full repaints; missing the `.so`/`.dll` falls back to Lua.
 
 ```bash
 make -C native/ppux_sketch   # Linux: libppux_sketch.so (also found under native/ppux_sketch/ by love .)
@@ -494,7 +494,7 @@ scripts\windows\run_e2e_tests.bat      :: visible E2E scenarios
 
 Linux portable output is `PPUX-<version>-linux-x86_64/` with fused `PPUX`, LOVE's `lib/` (including `libppux_sketch.so` when the helper build succeeds), and `LICENSE`. Run `./PPUX`. Requires `patchelf`. `build_all.sh` uses that portable package by default; set `BUILD_LINUX_APPIMAGE=1` to also build the AppImage.
 
-On Windows, build `ppux_sketch.dll` on a Windows (or MinGW) host first, then run `build_windows.bat` / `build_windows.sh` so the zip can bundle it. Shipping without the DLL is fine; PNG import then uses the Lua path.
+On Windows, build `ppux_sketch.dll` on a Windows (or MinGW) host first, then run `build_windows.bat` / `build_windows.sh` so the zip can bundle it. Shipping without the DLL is fine; those paths then use Lua.
 
 ## Notes
 

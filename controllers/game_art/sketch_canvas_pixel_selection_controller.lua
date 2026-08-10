@@ -467,15 +467,29 @@ function M.buildColorPaintMask(win, color)
   if color < 0 then color = 0 end
   if color > 3 then color = 3 end
 
+  local Native = require("utils.ppux_sketch_native")
+  if Native.isAvailable() and type(paint.pixels) == "table" then
+    local mask, count = Native.buildShadeMask(paint, color)
+    if mask then
+      mask.color = color
+      return mask, count
+    end
+  end
+
   local w = paint.width
   local h = paint.height
   local bits = {}
+  local dense = {}
   local count = 0
   for y = 0, h - 1 do
     for x = 0, w - 1 do
+      local idx = colorMaskIndex(w, x, y)
       if (paint:getPixel(x, y) or 0) == color then
-        bits[colorMaskIndex(w, x, y)] = true
+        bits[idx] = true
+        dense[idx] = 1
         count = count + 1
+      else
+        dense[idx] = 0
       end
     end
   end
@@ -485,6 +499,7 @@ function M.buildColorPaintMask(win, color)
     width = w,
     height = h,
     bits = bits,
+    dense = dense,
     count = count,
   }
   return mask, count
@@ -524,7 +539,11 @@ function M.allowsColorPaintAt(win, px, py)
   if px < 0 or py < 0 or px >= mask.width or py >= mask.height then
     return false
   end
-  return mask.bits[colorMaskIndex(mask.width, px, py)] == true
+  local idx = colorMaskIndex(mask.width, px, py)
+  if type(mask.dense) == "table" then
+    return mask.dense[idx] == 1 or mask.dense[idx] == true
+  end
+  return mask.bits[idx] == true
 end
 
 function M.clearSelection(win, opts)

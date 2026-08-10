@@ -164,10 +164,27 @@ function M:repaint(state)
   end
   DebugController.perfSet("chr_canvas_dirty_tile_count", fullRepaint and BANK_TILE_COUNT or dirtyCount)
 
+  local Native = require("utils.ppux_sketch_native")
+  local usedNative = false
   if fullRepaint or dirtyTiles == nil then
-    for pos = 0, BANK_TILE_COUNT - 1 do
-      local tileIndex = mapIndexForOrder(self.currentOrderMode, pos)
-      writeTilePixelsToImage(self.imageData, bankBytes, tileIndex, pos)
+    if Native.isAvailable() then
+      local order = {}
+      for pos = 0, BANK_TILE_COUNT - 1 do
+        order[pos + 1] = mapIndexForOrder(self.currentOrderMode, pos)
+      end
+      usedNative = Native.chrTilesToImageData(
+        self.imageData,
+        bankBytes,
+        order,
+        BANK_TILE_COLS,
+        BANK_TILE_ROWS
+      ) == true
+    end
+    if not usedNative then
+      for pos = 0, BANK_TILE_COUNT - 1 do
+        local tileIndex = mapIndexForOrder(self.currentOrderMode, pos)
+        writeTilePixelsToImage(self.imageData, bankBytes, tileIndex, pos)
+      end
     end
   else
     for tileIndex in pairs(dirtyTiles) do

@@ -827,6 +827,12 @@ function M.getReflectDisplayCanvas(sketchWin)
     return display
   end
 
+  local Native = require("utils.ppux_sketch_native")
+  if Native.composeNametableInto(display, paint, sketchWin) then
+    sketchWin._reflectDisplayDirty = false
+    return display
+  end
+
   local pool = sketchWin.tilesPool
   local nt = sketchWin.nametableBytes
   local fallback = pool[1]
@@ -878,10 +884,16 @@ function M.bakeReflectIntoPaint(sketchWin)
 
   local w = math.min(paint.width or 0, display.width or 0)
   local h = math.min(paint.height or 0, display.height or 0)
-  for y = 0, h - 1 do
-    for x = 0, w - 1 do
-      paint:edit(x, y, display:getPixel(x, y) or 0)
+  local Native = require("utils.ppux_sketch_native")
+  if not Native.copyCanvasPixels(paint, display) then
+    -- Bulk write without per-pixel edit/replacePixels.
+    for y = 0, h - 1 do
+      local row = y * (paint.width or w)
+      for x = 0, w - 1 do
+        paint.pixels[row + x + 1] = display.pixels[y * (display.width or w) + x + 1] or 0
+      end
     end
+    paint._imageDirty = true
   end
 
   local pool = sketchWin.tilesPool
