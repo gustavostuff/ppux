@@ -138,8 +138,8 @@ describe("mouse_input.lua - ROM palette link handle left click", function()
       },
     }
     local menuCalls = {}
-    ctx.app.showPaletteLinkSourceContextMenu = function(_, win, x, y)
-      menuCalls[#menuCalls + 1] = { win = win, x = x, y = y }
+    ctx.app.showPaletteLinkSourceContextMenu = function(_, win, x, y, opts)
+      menuCalls[#menuCalls + 1] = { win = win, x = x, y = y, opts = opts }
     end
     ToolbarController.createToolbarsForWindow(pal, ctx, wm)
     local toolbar = pal.specializedToolbar
@@ -172,5 +172,11 @@ describe("mouse_input.lua - ROM palette link handle left click", function()
     MouseInput.mousereleased(cx, cy, 1)
     expect(#menuCalls).toBe(1)
     expect(menuCalls[1].win).toBe(pal)
+    local anchor = menuCalls[1].opts and menuCalls[1].opts.anchorRect
+    expect(anchor).toBeTruthy()
+    expect(anchor.x).toBe(hx)
+    expect(anchor.y).toBe(hy)
+    expect(anchor.w).toBe(hw)
+    expect(anchor.h).toBe(hh)
   end)
 end)

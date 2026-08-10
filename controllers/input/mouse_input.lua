@@ -15,8 +15,25 @@ local MouseClickController = require("controllers.input.mouse_click_controller")
 local MouseMoveController = require("controllers.input.mouse_move_controller")
 local SpriteOriginDrag = require("controllers.sprite.sprite_origin_drag_controller")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
+local ToolbarBase = require("ui.toolbars.toolbar_base")
 
 local M = {}
+
+--- Match Pattern table link menus: anchor the root panel to the handle, not the click point.
+local function menuOptsFromPaletteLinkHandle(win)
+  local toolbar = win and win.specializedToolbar
+  if not (toolbar and toolbar.getLinkHandleRect) then
+    return nil
+  end
+  if toolbar.updatePosition then
+    toolbar:updatePosition()
+  end
+  local x, y, w, h = toolbar:getLinkHandleRect()
+  if not (x and y and w and h) then
+    return nil
+  end
+  return ToolbarBase.menuOptsFromButton({ x = x, y = y, w = w, h = h })
+end
 
 local ctx
 local drag
@@ -361,7 +378,12 @@ local function handleContextMenuRelease(button, x, y)
 
   if pending.kind == "palette_link_source" then
     if app.showPaletteLinkSourceContextMenu and pending.win then
-      app:showPaletteLinkSourceContextMenu(pending.win, x, y)
+      app:showPaletteLinkSourceContextMenu(
+        pending.win,
+        x,
+        y,
+        menuOptsFromPaletteLinkHandle(pending.win)
+      )
       return true
     end
     return false
@@ -369,7 +391,12 @@ local function handleContextMenuRelease(button, x, y)
 
   if pending.kind == "palette_link_destination" then
     if app.showPaletteLinkDestinationContextMenu and pending.win then
-      app:showPaletteLinkDestinationContextMenu(pending.win, x, y)
+      app:showPaletteLinkDestinationContextMenu(
+        pending.win,
+        x,
+        y,
+        menuOptsFromPaletteLinkHandle(pending.win)
+      )
       return true
     end
     return false
