@@ -79,6 +79,16 @@ local function buildPatternTableLinkInteractionsScenario(harness, app, runner)
     currentHarness:keyPress("return", { wait = false })
     currentHarness:wait(0.18)
   end)
+  steps[#steps + 1] = call("Clear stub sprite pattern-table gate link", function(_, _, currentRunner)
+    -- ensureSpriteLayerReadyForAddSprite only stubs a fake link id so Add sprite opens.
+    -- Drop it before pattern-table menu asserts so Unlink/Jump match real link state.
+    local ppu = H.requireRunnerWindow(currentRunner, "ppuFixtureWin")
+    local spriteIdx = assert(H.findFirstLayerIndexByKind(ppu, "sprite"), "expected sprite layer")
+    local layer = ppu.layers[spriteIdx]
+    if layer and layer.linkedPatternTableWindowId == "e2e_sprite_pt_gate" then
+      layer.linkedPatternTableWindowId = nil
+    end
+  end)
   steps[#steps + 1] = call("Record PPU background/sprite layer indexes", function(_, _, currentRunner)
     local ppu = H.requireRunnerWindow(currentRunner, "ppuFixtureWin")
     currentRunner.ppuBgLayerIndex = assert(H.findFirstLayerIndexByKind(ppu, "tile"), "expected PPU background tile layer")
