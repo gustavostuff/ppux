@@ -61,7 +61,7 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 | Pattern table          | <img src="img/readme_images/windows_system_table/icon_pattern_table_window.png" alt="Pattern table taskbar icon">        | Sub-set of CHR/ROM items, intended to mimic the actual pattern tables assembled in game run-time                                                 |
 | Sketch canvas          | <img src="img/readme_images/windows_system_table/sketch_canvas_window.png" alt="Sketch canvas taskbar icon">             | Free 256x240 background paint canvas. It packs into its own **Pattern table**. See [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom)    |
 
-You'll also notice these little "handles" on windows:
+You'll also notice these little "badges" on windows:
 
 <img src="img/readme_images/window_links.png" alt="App toolbar">
 
@@ -72,7 +72,7 @@ When colored, they indicate the window has a link to another one. In order they 
 3. ROM palette (blue)
 4. Pattern table linked to both BG and sprite layers (brown)
 
-Click a colored handle to bring the linked window forward and focus it (this works for both ends of the connection). Handles aren’t drag targets tho, to add/change/remove links, use the toolbars _Pattern table link_ and _ROM Palette link_ buttons.
+Click a colored badge to bring the linked window forward and focus it (this works for both ends of the connection). Badges aren’t drag targets tho, to add/change/remove links, use the toolbars _Pattern table link_ and _ROM Palette link_ buttons.
 
 <img src="img/readme_images/pt_and_palette_buttons.png" alt="App toolbar">
 
@@ -142,7 +142,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 <img src="img/readme_images/toolbars/2x/static_tiles_toolbar.png" alt="Static Art tiles/sprites specialized toolbar">
 
-1. **Palette link handle** - right-drag onto a **ROM palette** window, or from the ROM palette's handle onto this one. Left-click to link via a menu.
+1. **Palette link button** - right-drag onto a **ROM palette** window, or from the ROM palette's link button onto this one. Left-click to link via a menu.
 
 </td>
 </tr>
@@ -160,7 +160,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 5. **Copy from previous layer** - Copies everything, including palette links and pattern table links.
 6. **Play / Pause** - `P` key.
 7. **Frame delay** - `Shift` + `Left` or `Shift` + `Right` adjusts delay for all frames. Status bar shows the current value.
-8. **Palette link handle** - Same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
+8. **Palette link button** - Same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
 
 </td>
 </tr>
@@ -181,7 +181,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 8. **Play / Pause** - `P` key.
 9. **Frame delay** - `Shift` + `Left` / `Shift` + `Right` adjusts delay for all frames.
 10. **Pattern table link** - left-click for a menu to link or unlink a **Pattern table** window for **all frames** at once (**required** for sprite CHR).
-11. **Palette link handle** - Same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
+11. **Palette link button** - Same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
 
 **Shift + right-drag** on the canvas moves sprite `originX` / `originY` (same as PPU Frame sprite layers).
 
@@ -211,7 +211,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 1. **Previous grouped slot** (when Grouped palettes is enabled).
 2. **Next grouped slot** (when Grouped palettes is enabled).
 3. **Compact / normal view** - Changes the window's size, basically.
-4. **Palette link handle (source)** - right-drag to link other windows/layers, or left-click for a menu.
+4. **Palette link button (source)** - right-drag to link other windows/layers, or left-click for a menu.
 
 </td>
 </tr>
@@ -257,7 +257,7 @@ Note: Logical **ranges** are built by dragging tiles (multi selections, ideally)
 3. **Export CHR** - writes a 4KB CHR bank (256 tiles) beside the project/ROM folder (needs a successful Generate).
 4. **Export nametable** - writes a 1024-byte `.nam` (960 tiles + 64 attribute bytes).
 5. **Pattern table link** - left-click to link, jump to, or unlink a **Pattern table**.
-6. **Palette link handle** - right-drag onto a **sketch-mode** ROM palette (or left-click for a menu). Needed for live multi-palette preview and Gallery ROM colors.
+6. **Palette link button** - right-drag onto a **sketch-mode** ROM palette (or left-click for a menu). Needed for live multi-palette preview and Gallery ROM colors.
 
 </td>
 </tr>
