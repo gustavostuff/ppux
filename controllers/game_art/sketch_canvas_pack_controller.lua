@@ -8,6 +8,7 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local TileInvalidationIndex = require("controllers.app.tile_invalidation_index")
 local ImageImportController = require("controllers.rom.image_import_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
+local LoveCompat = require("utils.love_compat")
 
 local M = {}
 
@@ -25,6 +26,15 @@ M.PNG_IMPORT_HEIGHT = M.GRID_ROWS * M.CELL
 M.PNG_DROP_USE_SKETCH_MSG =
   "Drop PNG on a Sketch canvas to pack into its linked Pattern table"
 M.PNG_IMPORT_NEEDS_CONFIRM = "needs_confirm"
+--- When true, sketch PNG drops use the async job + window loading bar.
+--- Kept false for now: sync import (no loading overlay). Async code remains below.
+M.PNG_IMPORT_USE_ASYNC_LOADING = false
+--- Minimum time the window loading overlay stays visible during async PNG import.
+M.PNG_IMPORT_MIN_LOADING_SECONDS = 1.25
+--- Idle update ticks before heavy work so the overlay can draw and the bar can move.
+M.PNG_IMPORT_PRIME_FRAMES = 2
+--- Forced present frames at job start so the bar is on-screen before the first hitch.
+M.PNG_IMPORT_PRESENT_PRIME_FRAMES = 2
 
 local function pixelDiffCount(pattern1, pattern2, threshold)
   threshold = threshold or 0
@@ -66,6 +76,33 @@ local function makeSolidPattern(shade)
   local pixels = {}
   for i = 1, 64 do
     pixels[i] = shade
+  end
+  return pixels
+end
+
+--- Exact-match key for tolerance-0 packing (4 pixels packed per byte -> 16-char string).
+local function patternExactKey(pixels)
+  local bytes = {}
+  for i = 1, 64, 4 do
+    local a = pixels[i] or 0
+    local b = pixels[i + 1] or 0
+    local c = pixels[i + 2] or 0
+    local d = pixels[i + 3] or 0
+    bytes[#bytes + 1] = string.char(a + b * 4 + c * 16 + d * 64)
+  end
+  return table.concat(bytes)
+end
+
+--- Extract one 8x8 tile from a flat 1-based indexed buffer (row-major).
+local function extractTileFromFlat(flat, width, ox, oy, cell)
+  local pixels = {}
+  local i = 1
+  for py = 0, cell - 1 do
+    local rowBase = (oy + py) * width
+    for px = 0, cell - 1 do
+      pixels[i] = math.floor(tonumber(flat[rowBase + ox + px + 1]) or 0)
+      i = i + 1
+    end
   end
   return pixels
 end
@@ -482,6 +519,8 @@ function M.packFromCanvas(canvas, tolerance)
   -- One pool slot per flat shade (0-3) when any tile collapses to that solid.
   local solidPoolIndex = { nil, nil, nil, nil } -- 1-based keyed by shade+1
   local nametableBytes = {}
+  -- Exact-match map for tolerance 0 (avoids O(uniques) scans per tile).
+  local exactKeyToIndex = (tolerance == 0) and {} or nil
 
   for row = 0, M.GRID_ROWS - 1 do
     for col = 0, M.GRID_COLS - 1 do
@@ -516,6 +555,9 @@ function M.packFromCanvas(canvas, tolerance)
           uniquePatterns[#uniquePatterns + 1] = makeSolidPattern(solidShade)
           matchIndex = #tilesPool
           solidPoolIndex[slot] = matchIndex
+          if exactKeyToIndex then
+            exactKeyToIndex[patternExactKey(uniquePatterns[matchIndex])] = matchIndex
+          end
         else
           -- Upgrade sample point once from a near-flat to a true flat.
           local entry = tilesPool[matchIndex]
@@ -524,6 +566,18 @@ function M.packFromCanvas(canvas, tolerance)
             entry.y = oy
             entry.exactSolid = true
           end
+        end
+      elseif exactKeyToIndex then
+        local key = patternExactKey(pixels)
+        matchIndex = exactKeyToIndex[key]
+        if not matchIndex then
+          if #tilesPool >= M.MAX_UNIQUE then
+            return nil, "too_many_unique"
+          end
+          tilesPool[#tilesPool + 1] = { x = ox, y = oy }
+          uniquePatterns[#uniquePatterns + 1] = pixels
+          matchIndex = #tilesPool
+          exactKeyToIndex[key] = matchIndex
         end
       else
         for i = 1, #uniquePatterns do
@@ -1774,9 +1828,15 @@ local function buildPendingFromFile(sketchWin, file, wm, app)
     return nil, "bad_dimensions"
   end
 
-  local temp = PixelCanvas.new(width, height, 0)
-  temp:loadRect(0, 0, flat, width, height)
-  local pack, packErr = M.packFromCanvas(temp, M.PNG_IMPORT_TOLERANCE)
+  -- Pack directly from the flat buffer (no temporary PixelCanvas round-trip).
+  local flatCanvas = {
+    width = width,
+    height = height,
+    extractTilePixels = function(_, ox, oy, cell)
+      return extractTileFromFlat(flat, width, ox, oy, cell or M.CELL)
+    end,
+  }
+  local pack, packErr = M.packFromCanvas(flatCanvas, M.PNG_IMPORT_TOLERANCE)
   if not pack then
     return nil, packErr or "pack_failed"
   end
@@ -1865,7 +1925,182 @@ function M.formatPngImportStatus(ok, packOrErr)
   if err == "not_sketch_canvas" then
     return "Sketch PNG import failed: not a Sketch canvas"
   end
+  if err == "import_busy" then
+    return "Sketch PNG import already in progress"
+  end
   return "Sketch PNG import failed: " .. err
+end
+
+function M.setWindowContentLoading(win, enabled, message)
+  if type(win) ~= "table" then
+    return
+  end
+  if enabled then
+    win._contentLoading = true
+    win._contentLoadingMessage = message or "Loading..."
+  else
+    win._contentLoading = false
+    win._contentLoadingMessage = nil
+  end
+end
+
+local function clearJobLoading(job)
+  if not job then
+    return
+  end
+  M.setWindowContentLoading(job.sketchWin, false)
+  M.setWindowContentLoading(job.ptWin, false)
+end
+
+local function finishJob(app, job, ok, packOrErr)
+  -- Apply only when dismissing the overlay so sketch/PT never show the result
+  -- under a frozen hitch (image first, bar moving later).
+  if ok and job and job.pending and job.applied ~= true then
+    local applyOk, applyPackOrErr = applyPendingToSketch(job.sketchWin, job.pending, job.wm)
+    if not applyOk then
+      ok = false
+      packOrErr = applyPackOrErr
+    else
+      packOrErr = applyPackOrErr
+      job.applied = true
+    end
+  end
+  clearJobLoading(job)
+  if app then
+    app._sketchPngImportJob = nil
+  end
+  if type(job.onFinish) == "function" then
+    job.onFinish(ok, packOrErr)
+  end
+end
+
+--- Start a non-blocking PNG import. Heavy work runs one phase per update tick while
+--- sketch + linked pattern table show a sliding loading bar.
+--- @return ok, err
+function M.startPngImportJob(app, sketchWin, file, wm, opts)
+  opts = opts or {}
+  if not app then
+    return false, "no_app"
+  end
+  if app._sketchPngImportJob then
+    return false, "import_busy"
+  end
+  if not WindowCaps.isSketchCanvas(sketchWin) then
+    return false, "not_sketch_canvas"
+  end
+  local ptWin = M.resolveLinkedPatternTable(sketchWin, wm)
+  if not ptWin then
+    return false, "no_linked_pattern_table"
+  end
+
+  local message = "Importing..."
+  M.setWindowContentLoading(sketchWin, true, message)
+  M.setWindowContentLoading(ptWin, true, message)
+
+  -- Paint the bar onto the screen before the next update can hitch on decode/pack.
+  if opts.skipPresentPrime ~= true then
+    local SimpleLoadingScreen = require("controllers.app.simple_loading_screen")
+    SimpleLoadingScreen.pumpContentLoadingFrames(opts.app or app, { sketchWin, ptWin }, {
+      frames = math.max(
+        1,
+        math.floor(tonumber(opts.presentPrimeFrames) or M.PNG_IMPORT_PRESENT_PRIME_FRAMES)
+      ),
+    })
+  end
+
+  app._sketchPngImportJob = {
+    sketchWin = sketchWin,
+    ptWin = ptWin,
+    file = file,
+    wm = wm,
+    appRef = opts.app or app,
+    confirmed = opts.confirmed == true,
+    pending = opts.pending,
+    onFinish = opts.onFinish,
+    -- Prime first so draw shows an opaque moving bar before decode/pack hitch.
+    -- Apply is deferred until hold completes (see finishJob).
+    phase = "prime",
+    primeLeft = math.max(1, math.floor(tonumber(opts.primeFrames) or M.PNG_IMPORT_PRIME_FRAMES)),
+    nextPhase = opts.pending and "hold" or "decode",
+    startedAt = LoveCompat.getTime(),
+    minSeconds = tonumber(opts.minSeconds) or M.PNG_IMPORT_MIN_LOADING_SECONDS,
+  }
+  return true
+end
+
+function M.isPngImportJobActive(app)
+  return app and app._sketchPngImportJob ~= nil
+end
+
+--- Advance one step of the async PNG import job. Call from AppCoreController:update.
+function M.tickPngImportJob(app, _dt)
+  local job = app and app._sketchPngImportJob
+  if not job then
+    return
+  end
+
+  if job.phase == "prime" then
+    local left = math.floor(tonumber(job.primeLeft) or 0)
+    if left > 0 then
+      job.primeLeft = left - 1
+      return
+    end
+    job.phase = job.nextPhase or "decode"
+    return
+  end
+
+  if job.phase == "decode" then
+    local flat, width, height = ImageImportController.decodePngFileToIndexedPixels(
+      job.file,
+      resolveSketchPaletteColors(job.sketchWin, job.appRef)
+    )
+    if not flat then
+      finishJob(app, job, false, width or "decode_failed")
+      return
+    end
+    if width ~= M.PNG_IMPORT_WIDTH or height ~= M.PNG_IMPORT_HEIGHT then
+      finishJob(app, job, false, "bad_dimensions")
+      return
+    end
+    job.flat = flat
+    job.width = width
+    job.height = height
+    job.phase = "pack"
+    return
+  end
+
+  if job.phase == "pack" then
+    local flatCanvas = {
+      width = job.width,
+      height = job.height,
+      extractTilePixels = function(_, ox, oy, cell)
+        return extractTileFromFlat(job.flat, job.width, ox, oy, cell or M.CELL)
+      end,
+    }
+    local pack, packErr = M.packFromCanvas(flatCanvas, M.PNG_IMPORT_TOLERANCE)
+    if not pack then
+      finishJob(app, job, false, packErr or "pack_failed")
+      return
+    end
+    job.pending = {
+      flat = job.flat,
+      width = job.width,
+      height = job.height,
+      pack = pack,
+      needsConfirm = false,
+    }
+    job.resultPack = pack
+    job.phase = "hold"
+    return
+  end
+
+  if job.phase == "hold" then
+    local elapsed = LoveCompat.getTime() - (job.startedAt or 0)
+    local minSeconds = tonumber(job.minSeconds) or M.PNG_IMPORT_MIN_LOADING_SECONDS
+    if elapsed >= minSeconds then
+      finishJob(app, job, true, job.resultPack or (job.pending and job.pending.pack))
+    end
+  end
 end
 
 return M

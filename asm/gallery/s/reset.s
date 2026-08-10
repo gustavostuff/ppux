@@ -2,6 +2,7 @@
 .export reset
 .importzp nmi_ready, soft2000, soft2001, scroll_x, scroll_y
 .importzp pad_state, pad_prev, slide_index, need_rebuild
+.importzp fade_mode, fade_step, fade_timer, fade_target, fade_apply
 .import wait_nmi
 .import rebuild_slide
 .import main
@@ -48,6 +49,11 @@ reset:
   sta pad_prev
   sta scroll_x
   sta scroll_y
+  sta fade_mode
+  sta fade_step
+  sta fade_timer
+  sta fade_target
+  sta fade_apply
   lda #%10000000
   sta soft2000
   sta $2000          ; enable NMI for wait_nmi

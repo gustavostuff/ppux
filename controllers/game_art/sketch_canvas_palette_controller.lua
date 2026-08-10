@@ -182,4 +182,95 @@ function M.encodePaletteBlob32String(paletteWin)
   return table.concat(chars)
 end
 
+--- Gallery fade: fixed darken steps after main.pal (d1, d2, d3, all-0F).
+M.FADE_OUT_STEPS = 4
+M.FADE_OUT_BYTES = M.FADE_OUT_STEPS * 32
+
+--- One NES brightness step toward black ($0F). Hue = low nibble, brightness = high.
+function M.darkenNesColor(code)
+  local c = math.floor(tonumber(code) or 0x0F) % 64
+  local hue = c % 16
+  local bright = math.floor(c / 16) % 4
+  if hue >= 0x0E then
+    return 0x0F
+  end
+  if hue == 0x0D then
+    if bright >= 3 then
+      return 0x2D
+    end
+    return 0x0F
+  end
+  if bright <= 0 then
+    return 0x0F
+  end
+  return ((bright - 1) * 16) + hue
+end
+
+local function remirrorSpriteColor0(bytes)
+  local bg0 = bytes[1] or 0x0F
+  for row = 0, 3 do
+    bytes[16 + row * 4 + 1] = bg0
+    bytes[16 + row * 4 + 2] = 0x0F
+    bytes[16 + row * 4 + 3] = 0x0F
+    bytes[16 + row * 4 + 4] = 0x0F
+  end
+  return bytes
+end
+
+--- Darken every entry in a 32-byte palette table one step; re-mirror sprite color-0.
+function M.darkenPaletteBlob32(bytes)
+  local out = {}
+  for i = 1, 32 do
+    out[i] = M.darkenNesColor(bytes and bytes[i])
+  end
+  return remirrorSpriteColor0(out)
+end
+
+local function allBlackPalette32()
+  local out = {}
+  for i = 1, 32 do
+    out[i] = 0x0F
+  end
+  return out
+end
+
+--- Build fade_out.pal payload: FADE_OUT_STEPS * 32 bytes (d1..d3 + all-0F).
+--  Accepts a 32-byte number table or a 32-char binary string (main.pal).
+function M.buildFadeOutPaletteBlob(mainBytes)
+  local cur = {}
+  if type(mainBytes) == "string" and #mainBytes >= 32 then
+    for i = 1, 32 do
+      cur[i] = string.byte(mainBytes, i) or 0x0F
+    end
+  elseif type(mainBytes) == "table" then
+    for i = 1, 32 do
+      cur[i] = math.floor(tonumber(mainBytes[i]) or 0x0F) % 256
+    end
+  else
+    cur = M.encodePaletteBlob32(nil)
+  end
+
+  local steps = {}
+  for step = 1, M.FADE_OUT_STEPS do
+    if step == M.FADE_OUT_STEPS then
+      cur = allBlackPalette32()
+    else
+      cur = M.darkenPaletteBlob32(cur)
+    end
+    for i = 1, 32 do
+      steps[#steps + 1] = cur[i]
+    end
+  end
+  return steps
+end
+
+function M.buildFadeOutPaletteBlobString(mainBytes)
+  local bytes = M.buildFadeOutPaletteBlob(mainBytes)
+  local chars = {}
+  for i = 1, #bytes do
+    chars[i] = string.char(bytes[i] % 256)
+  end
+  return table.concat(chars)
+end
+
 return M

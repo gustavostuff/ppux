@@ -1600,6 +1600,54 @@ function M.handleFileDropped(app, file)
         end
       end
 
+      -- Async loading path (window bar overlay). Off by default; set
+      -- PNG_IMPORT_USE_ASYNC_LOADING to re-enable without restoring this block.
+      if SketchCanvasPackController.PNG_IMPORT_USE_ASYNC_LOADING == true then
+        local function startImportJob()
+          local okStart, startErr = SketchCanvasPackController.startPngImportJob(
+            app,
+            targetWin,
+            file,
+            wm,
+            {
+              app = app,
+              confirmed = true,
+              onFinish = finishSketchImport,
+            }
+          )
+          if not okStart then
+            finishSketchImport(false, startErr)
+          end
+        end
+
+        if SketchCanvasPackController.isPngImportJobActive(app) then
+          finishSketchImport(false, "import_busy")
+          return
+        end
+
+        if SketchCanvasPackController.needsPngImportReplaceConfirm(targetWin, wm) then
+          local modal = app.confirmModal
+          if not (modal and modal.show) then
+            app:setStatus("Sketch PNG import needs confirm, but no confirm modal is available")
+            return
+          end
+          modal:show({
+            title = "Replace pattern table?",
+            message = "This will replace all Pattern table items",
+            onYes = function()
+              startImportJob()
+            end,
+            onNo = function()
+              app:setStatus("Sketch PNG import cancelled")
+            end,
+          })
+          return
+        end
+
+        startImportJob()
+        return
+      end
+
       local ok, packOrErr, pending = SketchCanvasPackController.importPngToSketchCanvas(
         targetWin,
         file,

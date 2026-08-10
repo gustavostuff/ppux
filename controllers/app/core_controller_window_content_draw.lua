@@ -1500,6 +1500,12 @@ drawNormalWindow = function(app, w, wm)
     love.graphics.pop()
   end
 
+  if w._contentLoading == true then
+    local SimpleLoadingScreen = require("controllers.app.simple_loading_screen")
+    local cx, cy, cw, ch = w:getInsetContentScreenRect()
+    SimpleLoadingScreen.drawContentOverlay(cx, cy, cw, ch, w._contentLoadingMessage or "Loading...")
+  end
+
   -- Border, scrollbars, and resize handle use 1px line math tied to screen axes; drawing them inside a
   -- horizontal flip duplicates/skews edge pixels. Chrome stays unmirrored like the window header.
   w:drawResizeHandle(isFocused, ResolutionController:getScaledMouse(true), app.neverShowResizeHandle == true)

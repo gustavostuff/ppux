@@ -191,4 +191,50 @@ describe("sketch_canvas_pack_controller.lua - PNG import", function()
     expect(ok).toBe(false)
     expect(canvas:getPixel(0, 0)).toBe(before)
   end)
+
+  it("async PNG import job applies across ticks and clears loading overlays", function()
+    local LoveCompat = require("utils.love_compat")
+    local originalGetTime = LoveCompat.getTime
+    local now = 100
+    LoveCompat.getTime = function()
+      return now
+    end
+
+    local wm, sketch, pt = linkSketchAndPt()
+    local app = { wm = wm }
+    local finished = nil
+    local okStart = SketchCanvasPackController.startPngImportJob(app, sketch, makeFile(), wm, {
+      confirmed = true,
+      minSeconds = 0.5,
+      skipPresentPrime = true,
+      onFinish = function(ok, pack)
+        finished = { ok = ok, pack = pack }
+      end,
+    })
+    expect(okStart).toBe(true)
+    expect(sketch._contentLoading).toBe(true)
+    expect(pt._contentLoading).toBe(true)
+
+    -- PNG_IMPORT_PRIME_FRAMES idle ticks, then one tick to leave prime.
+    SketchCanvasPackController.tickPngImportJob(app, 0)
+    SketchCanvasPackController.tickPngImportJob(app, 0)
+    SketchCanvasPackController.tickPngImportJob(app, 0) -- prime -> decode
+    SketchCanvasPackController.tickPngImportJob(app, 0) -- decode
+    SketchCanvasPackController.tickPngImportJob(app, 0) -- pack -> hold
+    -- Apply is deferred until hold completes so the result never flashes under the bar.
+    expect(finished).toBeNil()
+    expect(SketchCanvasPackController.hasPackData(sketch)).toBe(false)
+    expect(sketch._contentLoading).toBe(true)
+
+    now = now + 0.6
+    SketchCanvasPackController.tickPngImportJob(app, 0) -- hold done -> apply + clear
+    expect(finished).toBeTruthy()
+    expect(finished.ok).toBe(true)
+    expect(SketchCanvasPackController.hasPackData(sketch)).toBe(true)
+    expect(sketch._contentLoading).toBe(false)
+    expect(pt._contentLoading).toBe(false)
+    expect(app._sketchPngImportJob).toBeNil()
+
+    LoveCompat.getTime = originalGetTime
+  end)
 end)

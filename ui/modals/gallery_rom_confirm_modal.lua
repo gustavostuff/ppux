@@ -1,32 +1,32 @@
 -- gallery_rom_confirm_modal.lua
--- Confirm which packed sketch canvases will become gallery ROM slides.
+-- Confirm gallery ROM build options for packed sketch canvases.
 
 local Button = require("ui.button")
 local Panel = require("ui.panel")
+local Checkbox = require("ui.checkbox")
+local NumericSpinner = require("ui.numeric_spinner")
 local ModalPanelUtils = require("ui.modals.panel_modal_utils")
+local colors = require("app_colors")
 
 local Dialog = {}
 Dialog.__index = Dialog
 
 local MAX_VISIBLE_SLIDES = 16
+local DEFAULT_FADE_HOLD = 6
+local MIN_FADE_HOLD = 1
+local MAX_FADE_HOLD = 30
 
-local function windowLabel(win, index)
-  local title = nil
-  if type(win) == "table" then
-    title = win.title or win.name
+local function chromeInk(self)
+  if self._modalChromeOverBlue == true then
+    return colors:chromeTextIconsColorNonFocused()
   end
-  if type(title) ~= "string" or title == "" then
-    title = string.format("Sketch canvas %d", index)
-  end
-  return title
+  return nil
 end
 
 local function rebuildPanel(self)
-  local entries = self.entries or {}
   local noteRows = (self.note and self.note ~= "") and 1 or 0
-  -- summary + optional note + list + buttons
-  local rows = 1 + noteRows + math.max(1, #entries) + 1
-  local listStartRow = 2 + noteRows
+  -- summary+useTransitions, optional note, hold frames, showFirstOnce, buttons
+  local rows = 4 + noteRows
 
   self.panel = Panel.new({
     cols = 2,
@@ -49,39 +49,43 @@ local function rebuildPanel(self)
   self.panel:setCell(1, 1, {
     kind = "label",
     text = self.summaryText,
-    colspan = 2,
+  })
+  self.panel:setCell(2, 1, {
+    kind = "component",
+    component = self.useTransitionsCheckbox,
   })
 
+  local row = 2
   if noteRows == 1 then
-    self.panel:setCell(1, 2, {
+    self.panel:setCell(1, row, {
       kind = "label",
       text = self.note,
       colspan = 2,
     })
+    row = row + 1
   end
 
-  if #entries == 0 then
-    self.panel:setCell(1, listStartRow, {
-      kind = "label",
-      text = "(none)",
-      colspan = 2,
-    })
-  else
-    for i, entry in ipairs(entries) do
-      self.panel:setCell(1, listStartRow + i - 1, {
-        kind = "label",
-        text = string.format("%d. %s", entry.index, entry.label),
-        colspan = 2,
-        align = "left",
-      })
-    end
-  end
+  self.panel:setCell(1, row, {
+    kind = "label",
+    text = "Transition frames:",
+  })
+  self.panel:setCell(2, row, {
+    kind = "component",
+    component = self.holdSpinner,
+  })
+  row = row + 1
 
-  local buttonRow = rows
-  self.panel:setCell(1, buttonRow, {
+  self.panel:setCell(1, row, {
+    kind = "component",
+    component = self.showFirstOnceCheckbox,
+    colspan = 2,
+  })
+  row = row + 1
+
+  self.panel:setCell(1, row, {
     component = self.confirmButton,
   })
-  self.panel:setCell(2, buttonRow, {
+  self.panel:setCell(2, row, {
     component = self.cancelButton,
   })
 end
@@ -92,7 +96,6 @@ function Dialog.new()
     title = "Generate gallery ROM",
     summaryText = "",
     note = nil,
-    entries = {},
     padding = nil,
     rowGap = nil,
     buttonGap = nil,
@@ -103,7 +106,6 @@ function Dialog.new()
     bgColor = nil,
     cellPaddingX = nil,
     cellPaddingY = nil,
-    pressedButton = nil,
     focusedButton = "confirm",
     onConfirm = nil,
     onCancel = nil,
@@ -130,8 +132,25 @@ function Dialog.new()
     end,
   })
 
+  self.useTransitionsCheckbox = Checkbox.new({
+    text = "Use transitions",
+    checked = true,
+    onChange = function(checked)
+      self:_syncHoldSpinnerEnabled(checked == true)
+    end,
+  })
+  self.showFirstOnceCheckbox = Checkbox.new({
+    text = "Show first slide once",
+    checked = false,
+  })
+  self.holdSpinner = NumericSpinner.new({
+    value = DEFAULT_FADE_HOLD,
+    min = MIN_FADE_HOLD,
+    max = MAX_FADE_HOLD,
+    minValueWidth = 20,
+  })
+
   ModalPanelUtils.applyPanelDefaults(self)
-  -- Wider cells so window titles fit.
   if (self.cellW or 0) < 160 then
     self.cellW = 160
   end
@@ -140,12 +159,17 @@ function Dialog.new()
   return self
 end
 
+function Dialog:_syncHoldSpinnerEnabled(enabled)
+  -- Spinner has no enabled flag; keep value and let build ignore it when off.
+  self._transitionsEnabled = enabled == true
+end
+
 function Dialog:isVisible()
   return self.visible
 end
 
 --- opts.sketches: packed sketch windows in slide order
---- opts.onConfirm(sketchesForBuild), opts.onCancel()
+--- opts.onConfirm(sketchesForBuild, buildOpts), opts.onCancel()
 function Dialog:show(opts)
   opts = opts or {}
   local sketches = opts.sketches or {}
@@ -157,7 +181,7 @@ function Dialog:show(opts)
   local total = #sketches
   local used = math.min(total, MAX_VISIBLE_SLIDES)
   self.summaryText = string.format(
-    "%d packed sketch canvas%s will be inserted:",
+    "%d packed sketch canvas%s will be inserted",
     used,
     used == 1 and "" or "es"
   )
@@ -171,17 +195,15 @@ function Dialog:show(opts)
     self.note = nil
   end
 
-  local entries = {}
-  for i = 1, used do
-    entries[#entries + 1] = {
-      index = i,
-      label = windowLabel(sketches[i], i),
-    }
-  end
-  self.entries = entries
+  local ink = chromeInk(self)
+  self.useTransitionsCheckbox:setChecked(true, { silent = true })
+  self.useTransitionsCheckbox.contentColor = ink
+  self.showFirstOnceCheckbox:setChecked(false, { silent = true })
+  self.showFirstOnceCheckbox.contentColor = ink
+  self.holdSpinner:setValue(DEFAULT_FADE_HOLD)
+  self:_syncHoldSpinnerEnabled(true)
 
   self.visible = true
-  self.pressedButton = nil
   self.focusedButton = "confirm"
   self.confirmButton.pressed = false
   self.cancelButton.pressed = false
@@ -189,12 +211,12 @@ function Dialog:show(opts)
   self.cancelButton.hovered = false
   self.confirmButton.enabled = used > 0
   self:_setFocusedButton("confirm")
+  self.panel = nil
   rebuildPanel(self)
 end
 
 function Dialog:hide()
   self.visible = false
-  self.pressedButton = nil
   self.focusedButton = "confirm"
   self.confirmButton.pressed = false
   self.cancelButton.pressed = false
@@ -242,6 +264,14 @@ function Dialog:_toggleFocusedButton()
   end
 end
 
+function Dialog:_buildOpts()
+  return {
+    fadeHold = math.floor(tonumber(self.holdSpinner and self.holdSpinner.value) or DEFAULT_FADE_HOLD),
+    useTransitions = self.useTransitionsCheckbox:isChecked(),
+    showFirstOnce = self.showFirstOnceCheckbox:isChecked(),
+  }
+end
+
 function Dialog:_confirm()
   local sketches = self.sketches or {}
   local used = {}
@@ -249,10 +279,11 @@ function Dialog:_confirm()
   for i = 1, n do
     used[#used + 1] = sketches[i]
   end
+  local buildOpts = self:_buildOpts()
   local callback = self.onConfirm
   self:hide()
   if callback then
-    callback(used)
+    callback(used, buildOpts)
   end
 end
 
@@ -270,6 +301,18 @@ function Dialog:handleKey(key)
   end
   if key == "escape" then
     self:_cancel()
+    return true
+  end
+  if key == "up" then
+    if self.useTransitionsCheckbox:isChecked() then
+      self.holdSpinner:adjust(1)
+    end
+    return true
+  end
+  if key == "down" then
+    if self.useTransitionsCheckbox:isChecked() then
+      self.holdSpinner:adjust(-1)
+    end
     return true
   end
   if key == "left" or key == "right" or key == "tab" then
@@ -298,45 +341,23 @@ function Dialog:mousepressed(x, y, button)
     self:_cancel()
     return true
   end
-
-  self.pressedButton = nil
-  if self.confirmButton.enabled ~= false and self.confirmButton:contains(x, y) then
-    self.confirmButton.pressed = true
-    self:_setFocusedButton("confirm")
-    self.pressedButton = self.confirmButton
-  elseif self.cancelButton:contains(x, y) then
-    self.cancelButton.pressed = true
-    self:_setFocusedButton("cancel")
-    self.pressedButton = self.cancelButton
-  end
-  return true
+  return self.panel and self.panel:mousepressed(x, y, button) or true
 end
 
 function Dialog:mousereleased(x, y, button)
   if not self.visible then
     return false
   end
-  if button ~= 1 then
-    return true
-  end
-
-  local pressedButton = self.pressedButton
-  self.pressedButton = nil
-  self.confirmButton.pressed = false
-  self.cancelButton.pressed = false
-
-  if pressedButton and pressedButton:contains(x, y) and pressedButton.action then
-    pressedButton.action()
-  end
-  return true
+  return self.panel and self.panel:mousereleased(x, y, button) or true
 end
 
 function Dialog:mousemoved(x, y)
   if not self.visible then
     return false
   end
-  self.confirmButton.hovered = self.confirmButton:contains(x, y)
-  self.cancelButton.hovered = self.cancelButton:contains(x, y)
+  if self.panel then
+    self.panel:mousemoved(x, y)
+  end
   return true
 end
 
@@ -344,7 +365,18 @@ function Dialog:draw(canvas)
   if not self.visible then
     return
   end
-  rebuildPanel(self)
+  ModalPanelUtils.refreshTargetMetrics(self)
+  if not self.panel then
+    rebuildPanel(self)
+  else
+    self.panel.cellW = self.cellW
+    self.panel.cellH = self.cellH
+    self.panel.padding = self.padding
+    self.panel.spacingX = self.buttonGap
+    self.panel.spacingY = self.rowGap
+    self.panel.cellPaddingX = self.cellPaddingX
+    self.panel.cellPaddingY = self.cellPaddingY
+  end
   self.panel:setVisible(true)
   ModalPanelUtils.drawBackdrop(canvas)
   self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)

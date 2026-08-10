@@ -281,6 +281,15 @@ describe("sketch_canvas_palette_link (B5)", function()
     expect(#blob).toBe(32)
     expect(string.byte(blob, 2)).toBe(0x22)
 
+    local fadePath = asmDir .. "/data/pal/slide00/fade_out.pal"
+    local ff = assert(io.open(fadePath, "rb"))
+    local fadeBlob = ff:read("*a")
+    ff:close()
+    expect(#fadeBlob).toBe(128)
+    for i = 97, 128 do
+      expect(string.byte(fadeBlob, i)).toBe(0x0F)
+    end
+
     -- Cleanup
     os.execute("rm -rf '" .. asmDir .. "'")
   end)
@@ -331,5 +340,36 @@ describe("sketch_canvas_palette_link (B5)", function()
     expect(blob[2]).toBe(0x17)
     expect(blob[3]).toBe(0x27)
     expect(blob[4]).toBe(0x36)
+  end)
+
+  it("darkenNesColor steps brightness and handles special columns", function()
+    expect(SketchPalette.darkenNesColor(0x30)).toBe(0x20)
+    expect(SketchPalette.darkenNesColor(0x22)).toBe(0x12)
+    expect(SketchPalette.darkenNesColor(0x0A)).toBe(0x0F)
+    expect(SketchPalette.darkenNesColor(0x3D)).toBe(0x2D)
+    expect(SketchPalette.darkenNesColor(0x2D)).toBe(0x0F)
+    expect(SketchPalette.darkenNesColor(0x0D)).toBe(0x0F)
+    expect(SketchPalette.darkenNesColor(0x0E)).toBe(0x0F)
+    expect(SketchPalette.darkenNesColor(0x0F)).toBe(0x0F)
+    expect(SketchPalette.darkenNesColor(0x1E)).toBe(0x0F)
+  end)
+
+  it("buildFadeOutPaletteBlob is 128 bytes ending in all 0F with sprite BG0 mirror", function()
+    local main = SketchPalette.encodePaletteBlob32(nil)
+    local fade = SketchPalette.buildFadeOutPaletteBlob(main)
+    expect(#fade).toBe(SketchPalette.FADE_OUT_BYTES)
+    expect(SketchPalette.FADE_OUT_BYTES).toBe(128)
+
+    -- First step: brown ramp darkened once.
+    expect(fade[1]).toBe(0x0F) -- 07 -> 0F
+    expect(fade[2]).toBe(0x07) -- 17 -> 07
+    expect(fade[3]).toBe(0x17) -- 27 -> 17
+    expect(fade[4]).toBe(0x26) -- 36 -> 26
+    expect(fade[17]).toBe(fade[1]) -- sprite color-0 mirrors BG0
+
+    -- Last step: all black.
+    for i = 97, 128 do
+      expect(fade[i]).toBe(0x0F)
+    end
   end)
 end)

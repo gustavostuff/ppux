@@ -1,6 +1,7 @@
 ; NMI + wait_nmi
 .export nmi, irq, wait_nmi
 .importzp nmi_ready, soft2000, soft2001, scroll_x, scroll_y
+.import apply_pending_palette
 
 .segment "CODE"
 nmi:
@@ -9,6 +10,9 @@ nmi:
   pha
   tya
   pha
+
+  ; Palette uploads first (still early vblank), then scroll / $2000 / $2001.
+  jsr apply_pending_palette
 
   ; Scroll / $2000 before $2001 so enabling rendering never races a stale scroll.
   lda soft2000

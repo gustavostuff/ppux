@@ -367,7 +367,7 @@ Note: some of the pixel tools available on Sketch canvas are not fully available
 
 After Generating patterns, the sketch toolbar can export a 4KB CHR bank and a 1024-byte nametable (`.nam`) next to the project or ROM folder.
 
-**Generate gallery ROM** on the app toolbar (NES cartridge icon) builds a CNROM gallery `.nes` from every packed sketch canvas in window order (up to 16 slides). PPUX writes the graphics binaries, assembles everything with **ca65/ld65** (cc65), and saves `<rom>_gallery.nes` beside your project or ROM. Each slide uses its linked ROM (sketch) palette (or a default brown ramp) plus the sketch attribute table.
+**Generate gallery ROM** on the app toolbar (NES cartridge icon) builds a CNROM gallery `.nes` from every packed sketch canvas in window order (up to 16 slides). PPUX writes the graphics binaries, assembles everything with **ca65/ld65** (cc65), and saves `<rom>_gallery.nes` beside your project or ROM. Each slide uses its linked ROM (sketch) palette (or a default brown ramp) plus the sketch attribute table. The confirm dialog sets optional palette fades (and hold frames), plus whether the first slide is a one-shot title (boot only, skipped when wrapping).
 
 ### PPU frame & OAM
 

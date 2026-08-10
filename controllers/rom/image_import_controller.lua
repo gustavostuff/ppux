@@ -94,14 +94,14 @@ end
 -- This keeps PNG import aligned with palette shader colors instead of raw grayscale.
 local function convertToIndexedByBrightness(imgData)
   local width, height = imgData:getWidth(), imgData:getHeight()
+  local brightnessToIndex, uniqueCount = buildBrightnessIndexMap(imgData)
   local indexedData = {}
-  local brightnessToIndex = buildBrightnessIndexMap(imgData)
-  
+
   for y = 0, height - 1 do
     indexedData[y + 1] = {}
     for x = 0, width - 1 do
       local r, g, b, a = imgData:getPixel(x, y)
-      
+
       if a == 0 then
         -- Transparent pixels map to color 0
         indexedData[y + 1][x + 1] = 0
@@ -111,12 +111,12 @@ local function convertToIndexedByBrightness(imgData)
       end
     end
   end
-  
-  return indexedData, brightnessToIndex
+
+  return indexedData, brightnessToIndex, uniqueCount or 0
 end
 
 local function convertToIndexedByPaletteBrightness(imgData, paletteColors)
-  local indexedData, brightnessToIndex = convertToIndexedByBrightness(imgData)
+  local indexedData, brightnessToIndex, uniqueCount = convertToIndexedByBrightness(imgData)
   local width, height = imgData:getWidth(), imgData:getHeight()
 
   local hasTransparency = PngPaletteMappingController.imageHasTransparency(imgData)
@@ -143,7 +143,7 @@ local function convertToIndexedByPaletteBrightness(imgData, paletteColors)
     end
   end
 
-  return indexedData, brightnessToIndex, remap
+  return indexedData, brightnessToIndex, remap, uniqueCount or 0
 end
 
 ----------------------------------------------------------------------
@@ -815,19 +815,23 @@ function M.decodePngFileToIndexedPixels(file, paletteColors)
 
   local width, height = imgData:getWidth(), imgData:getHeight()
 
-  local validColors, colorError = validateImageColors(imgData)
-  if not validColors then
-    return nil, colorError
-  end
-
   local indexedData
+  local uniqueCount = 0
   if type(paletteColors) == "table" then
-    indexedData, err = convertToIndexedByPaletteBrightness(imgData, paletteColors)
+    local brightnessToIndex, remap
+    indexedData, brightnessToIndex, remap, uniqueCount =
+      convertToIndexedByPaletteBrightness(imgData, paletteColors)
     if not indexedData then
-      return nil, tostring(err or "Could not map PNG colors through palette")
+      return nil, tostring(brightnessToIndex or "Could not map PNG colors through palette")
     end
   else
-    indexedData = convertToIndexedByBrightness(imgData)
+    local brightnessToIndex
+    indexedData, brightnessToIndex, uniqueCount = convertToIndexedByBrightness(imgData)
+  end
+
+  uniqueCount = math.floor(tonumber(uniqueCount) or 0)
+  if uniqueCount > 4 then
+    return nil, string.format("Image has more than 4 colors (%d found)", uniqueCount)
   end
 
   local flat = {}

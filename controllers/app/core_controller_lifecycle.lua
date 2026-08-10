@@ -546,6 +546,11 @@ function AppCoreController:update(dt)
     ResolutionController:updateCrtViewportPan(dt)
   end
 
+  do
+    local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+    SketchCanvasPackController.tickPngImportJob(self, dt)
+  end
+
   -- Update window manager (skip closed windows)
   for _, w in ipairs(self.wm:getWindows()) do
     if not w._closed and not w._minimized then

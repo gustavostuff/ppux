@@ -229,15 +229,13 @@ describe("rom_project_controller.lua - PNG drop routing", function()
   it("opens confirm modal when Sketch PNG import needs replace confirmation", function()
     local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
     local originalImport = SketchCanvasPackController.importPngToSketchCanvas
-    local pending = { needsConfirm = true, pack = { uniqueCount = 1 } }
     local importCalls = 0
     SketchCanvasPackController.importPngToSketchCanvas = function(_, _, _, opts)
       importCalls = importCalls + 1
-      opts = opts or {}
-      if opts.confirmed then
-        return true, { uniqueCount = 1, appliedToPatternTable = true }
+      if not (opts and opts.confirmed) then
+        return false, SketchCanvasPackController.PNG_IMPORT_NEEDS_CONFIRM, { needsConfirm = true }
       end
-      return false, SketchCanvasPackController.PNG_IMPORT_NEEDS_CONFIRM, pending
+      return true, { uniqueCount = 1, appliedToPatternTable = true }
     end
 
     local sketchWin = makeWin("sketch_canvas", "sketch01", {

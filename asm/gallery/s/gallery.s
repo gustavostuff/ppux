@@ -1,12 +1,14 @@
 ; Nametable pointers + slide rebuild helpers.
 .export copy_nametable_1024
 .export rebuild_slide
+.export rebuild_slide_keep_black
 .import nametable_ptrs
 .import slide_count
 .importzp slide_index, need_rebuild, soft2000, soft2001, scroll_x, scroll_y
 .importzp ptr_lo, ptr_hi, tmp0, tmp1
 .import cnrom_set_chr_bank
 .import copy_palette_32
+.import copy_palette_black
 .import wait_nmi
 
 .segment "CODE"
@@ -48,6 +50,16 @@ rebuild_slide:
 
   ; Still early vblank: palette first, then leave $3Fxx immediately.
   jsr copy_palette_32
+  jmp finish_rebuild
+
+; Same as rebuild_slide but keeps universal black ($0F) for mid-fade swaps.
+rebuild_slide_keep_black:
+  lda #0
+  sta soft2001
+  jsr wait_nmi
+  jsr copy_palette_black
+  ; fall through
+finish_rebuild:
   lda #$20
   sta $2006
   lda #$00
