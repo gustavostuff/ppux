@@ -76,6 +76,8 @@ function Button.new(opts)
     skipIconContrastAdapt = opts.skipIconContrastAdapt == true,
     -- When true, hover/focus underlay only draws for hover/press (not keyboard/window "focused" alone).
     underlayOnHoverOnly = opts.underlayOnHoverOnly == true,
+    -- Corner radius for the dark hover/focus underlay (0 = sharp square). Default 2 for menus/modals.
+    underlayCornerRadius = (opts.underlayCornerRadius ~= nil) and opts.underlayCornerRadius or 2,
     -- When true, skip the dark rounded hover/focus fill (e.g. parent draws one rect across split cells).
     skipHoverFocusUnderlay = opts.skipHoverFocusUnderlay == true,
     -- When true, modal panel chrome does not replace contentColor with chrome ink (file rows, etc.).
@@ -198,7 +200,13 @@ function Button:draw(opts)
     if not show then return end
 
     love.graphics.setColor(0, 0, 0, 0.10)
-    love.graphics.rectangle("fill", self.x, self.y, self.w, self.h, 2)
+    local rx = tonumber(self.underlayCornerRadius) or 2
+    if rx > 0 then
+      love.graphics.rectangle("fill", self.x, self.y, self.w, self.h, rx, rx)
+    else
+      -- Sharp square; window toolbars clip this via their rounded stencil/scissor.
+      love.graphics.rectangle("fill", self.x, self.y, self.w, self.h)
+    end
     love.graphics.setColor(colors.white)
   end
 

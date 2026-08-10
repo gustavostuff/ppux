@@ -415,6 +415,8 @@ function ToolbarBase:addButton(icon, action, tooltip, opts)
     bgColor = opts.bgColor,
     bgAlpha = opts.bgAlpha,
     transparent = opts.transparent,
+    -- Square hover fill; ToolbarBase:draw clips with rounded stencil + scissor.
+    underlayCornerRadius = 0,
   })
   button.toolbarRow = tonumber(opts.row) or nil
   if opts.paletteLinkHandle then
@@ -444,6 +446,8 @@ function ToolbarBase:addTextButton(text, action, tooltip, opts)
     textAlign = opts.textAlign,
     contentPaddingX = opts.contentPaddingX,
     contentPaddingRight = opts.contentPaddingRight,
+    -- Square hover fill; ToolbarBase:draw clips with rounded stencil + scissor.
+    underlayCornerRadius = 0,
   })
   button.toolbarRow = tonumber(opts.row) or nil
 
