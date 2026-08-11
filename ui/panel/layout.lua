@@ -67,11 +67,18 @@ local function install(Panel, utils)
       end
       if cell.component then
         local componentX = x
+        local componentY = y
         local componentW = w
+        local componentH = h
         if utils.isTextFieldComponent(cell.component) then
-          -- reserved for text-field specific margins if needed later
+          -- 1px inset on all sides so fields sit slightly inside the cell (extra modal margin).
+          local inset = 1
+          componentX = x + inset
+          componentY = y + inset
+          componentW = math.max(1, w - inset * 2)
+          componentH = math.max(1, h - inset * 2)
         end
-        utils.applyGeometry(cell.component, componentX, y, componentW, h)
+        utils.applyGeometry(cell.component, componentX, componentY, componentW, componentH)
       end
     end
   end
