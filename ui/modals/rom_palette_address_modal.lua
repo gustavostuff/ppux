@@ -18,6 +18,7 @@ local Dialog = {}
 Dialog.__index = Dialog
 
 local FOOTER_ROWS = 4 -- Selected, address field, buttons, Esc
+local PANEL_COLS = 3
 local SWATCH_PX = 11
 local SELECTION_RECT_ANIM = {
   stepPx = 1,
@@ -67,7 +68,7 @@ end
 
 local function nesCodeFromByte(byte)
   byte = math.floor(tonumber(byte) or 0x0F) % 256
-  -- Out-of-bounds codes mirror $00–$3F for display.
+  -- Out-of-bounds codes mirror $00-$3F for display.
   if byte > 0x3F then
     byte = byte % 0x40
   end
@@ -91,10 +92,12 @@ local function rowspanForHeight(height, cellH, spacingY)
   return math.max(1, math.ceil((math.max(1, height) + spacingY) / step))
 end
 
-local function cellWForHexGrid(spacingX, cols)
+local function cellWForHexGrid(spacingX, cols, panelCols)
   local gridW = RomHexGrid.contentWidth(cols)
   spacingX = math.max(0, math.floor(tonumber(spacingX) or 0))
-  return math.max(1, math.ceil((gridW - spacingX) / 2))
+  panelCols = math.max(1, math.floor(tonumber(panelCols) or 2))
+  local gaps = spacingX * math.max(0, panelCols - 1)
+  return math.max(1, math.ceil((gridW - gaps) / panelCols))
 end
 
 ----------------------------------------------------------------
@@ -181,7 +184,7 @@ function SelectedPreview:draw()
     })
     self.w = math.max(72, SWATCH_PX + 4 + tw + 2)
   else
-    Text.print("—", sx, self.y + 2, {
+    Text.print("-", sx, self.y + 2, {
       color = colors.gray75,
       font = font,
       literalColor = true,
@@ -197,7 +200,7 @@ end
 local function syncModalGridMetrics(self)
   local spacingX = self.buttonGap or self.colGap or 0
   local cols = (self.hexGrid and self.hexGrid.getCols and self.hexGrid:getCols()) or 16
-  self.cellW = cellWForHexGrid(spacingX, cols)
+  self.cellW = cellWForHexGrid(spacingX, cols, PANEL_COLS)
 end
 
 local function rebuildPanel(self)
@@ -208,7 +211,7 @@ local function rebuildPanel(self)
   local totalRows = hexRows + FOOTER_ROWS
 
   self.panel = Panel.new({
-    cols = 2,
+    cols = PANEL_COLS,
     rows = totalRows,
     cellW = self.cellW,
     cellH = cellH,
@@ -232,15 +235,16 @@ local function rebuildPanel(self)
 
   self.panel:setCell(1, 1, {
     component = self.hexGrid,
-    colspan = 2,
+    colspan = PANEL_COLS,
     rowspan = hexRows,
   })
+  -- Labels + values in columns 1-2; Cancel in col 2, Set in col 3.
   self.panel:setCell(1, selectedRow, { text = "Selected:" })
   self.panel:setCell(2, selectedRow, { component = self.selectedPreview })
   self.panel:setCell(1, addrRow, { text = "Address:" })
   self.panel:setCell(2, addrRow, { component = self.textField })
-  self.panel:setCell(1, buttonRow, { component = self.setButton })
   self.panel:setCell(2, buttonRow, { component = self.cancelButton })
+  self.panel:setCell(3, buttonRow, { component = self.setButton })
   self.panel:setCell(1, escRow, { text = "Esc) Close", colspan = 2 })
 end
 
@@ -267,18 +271,29 @@ function Dialog.new()
     romRaw = "",
     panel = nil,
     _syncingFromGrid = false,
+    _invalidColorWarning = nil,
   }, Dialog)
 
   self.hexGrid = RomHexGrid.new({
     cols = 16,
     groupSize = 1,
     maxSelectedStarts = 1,
-    -- Fill each valid NES color byte in its actual palette RGB at 50% alpha.
+    selectionAnts = true,
     semiColorForAddr = function(addr)
-      return self:_semiColorForAddr(addr)
+      return self:_nesFillColorForAddr(addr, 1)
+    end,
+    selectedColorForAddr = function(addr)
+      return self:_nesFillColorForAddr(addr, 0.9)
+    end,
+    canSelectAddr = function(addr)
+      return self:_isValidColorAddr(addr)
+    end,
+    onRejectSelect = function()
+      self._invalidColorWarning = "Not a valid color"
     end,
     onSelect = function(addr, selectOpts)
       selectOpts = selectOpts or {}
+      self._invalidColorWarning = nil
       self:_onGridSelect(addr, {
         fromGrid = true,
         selectionCapHit = selectOpts.selectionCapHit == true,
@@ -341,13 +356,21 @@ function Dialog:_byteAt(addr)
   return string.byte(self.romRaw, addr + 1)
 end
 
-function Dialog:_semiColorForAddr(addr)
+function Dialog:_isValidColorAddr(addr)
   local byte = self:_byteAt(addr)
   if byte == nil then
-    return { 1, 1, 1, 0.55 }
+    return false
+  end
+  return Dialog.isValidNesPaletteByte(byte)
+end
+
+function Dialog:_nesFillColorForAddr(addr, alpha)
+  local byte = self:_byteAt(addr)
+  if byte == nil then
+    return { 1, 1, 1, alpha or 0.5 }
   end
   local rgb = rgbForNesCode(nesCodeFromByte(byte))
-  return { rgb[1], rgb[2], rgb[3], 0.5 }
+  return { rgb[1], rgb[2], rgb[3], alpha or 0.5 }
 end
 
 function Dialog:_refreshSemiSelected()
@@ -359,7 +382,7 @@ function Dialog:_refreshSemiSelected()
   self.hexGrid:setSemiSelectedStarts(starts)
 end
 
---- Recompute page semi-outlines only when the visible hex page moved.
+--- Recompute page semi fills only when the visible hex page moved.
 function Dialog:_refreshSemiSelectedIfScrolled(prevScroll)
   if self.hexGrid.scrollOffset ~= prevScroll then
     self:_refreshSemiSelected()
@@ -370,7 +393,7 @@ end
 
 function Dialog:_refreshSelectedPreview(addr)
   local byte = self:_byteAt(addr)
-  if byte == nil then
+  if byte == nil or not Dialog.isValidNesPaletteByte(byte) then
     self.selectedPreview:setColorCode(nil)
     return
   end
@@ -403,9 +426,46 @@ function Dialog:_syncFromAddressField()
     return
   end
   local prevScroll = self.hexGrid.scrollOffset
-  self.hexGrid:setSelectedAddr(addr, { emit = false })
-  self:_refreshSelectedPreview(addr)
+  if self:_isValidColorAddr(addr) then
+    self._invalidColorWarning = nil
+    self.hexGrid:setSelectedAddr(addr, { emit = false })
+    self:_refreshSelectedPreview(addr)
+  else
+    self._invalidColorWarning = "Not a valid color"
+    self.hexGrid:_setStarts({}, addr, {
+      emit = false,
+      allowEmpty = true,
+      resetColors = true,
+      scrollToReveal = true,
+    })
+    self:_refreshSelectedPreview(nil)
+  end
   self:_refreshSemiSelectedIfScrolled(prevScroll)
+end
+
+--- Cursor over this modal: hand on buttons / valid color cells / scrollbar; arrow otherwise.
+function Dialog:cursorNameAt(mx, my)
+  if not self.visible then
+    return nil
+  end
+  if self.panel and type(self.panel.getButtonAt) == "function" and self.panel:getButtonAt(mx, my) then
+    return "hand"
+  end
+  if self.textField and self.textField.contains and self.textField:contains(mx, my) then
+    return "hand"
+  end
+  local grid = self.hexGrid
+  if grid and grid.contains and grid:contains(mx, my) then
+    if grid.maxScroll and grid:maxScroll() > 0 and grid._scrollbarHitTest and grid:_scrollbarHitTest(mx, my) then
+      return "hand"
+    end
+    local addr = grid:addrAtPixel(mx, my)
+    if addr ~= nil and self:_isValidColorAddr(addr) then
+      return "hand"
+    end
+    return "arrow"
+  end
+  return "arrow"
 end
 
 function Dialog:show(opts)
@@ -418,6 +478,7 @@ function Dialog:show(opts)
   self.onCancel = opts.onCancel
   self.visible = true
   self.romRaw = type(opts.romRaw) == "string" and opts.romRaw or ""
+  self._invalidColorWarning = nil
 
   self.hexGrid:setRomRaw(self.romRaw)
   self.hexGrid:setDisabledStarts({})
@@ -429,11 +490,21 @@ function Dialog:show(opts)
   if type(initialAddr) ~= "number" then
     initialAddr = 0
   end
-  if initialText ~= "" then
+  if initialText ~= "" and self:_isValidColorAddr(initialAddr) then
     self.hexGrid:setSelectedAddr(initialAddr, { emit = false })
     self:_refreshSelectedPreview(initialAddr)
   else
-    self.hexGrid:_setStarts({}, 0, { emit = false, allowEmpty = true, resetColors = true })
+    if initialText ~= "" then
+      self._invalidColorWarning = "Not a valid color"
+      self.hexGrid:_setStarts({}, initialAddr, {
+        emit = false,
+        allowEmpty = true,
+        resetColors = true,
+        scrollToReveal = true,
+      })
+    else
+      self.hexGrid:_setStarts({}, 0, { emit = false, allowEmpty = true, resetColors = true })
+    end
     self:_refreshSelectedPreview(nil)
   end
   self:_refreshSemiSelected()
@@ -459,6 +530,7 @@ function Dialog:hide()
   self.targetCol = nil
   self.targetRow = nil
   self.romRaw = ""
+  self._invalidColorWarning = nil
   if self.hexGrid then
     self.hexGrid:setSemiSelectedStarts({})
     self.hexGrid:setMinimapMarkers({})
@@ -626,6 +698,32 @@ function Dialog:draw(canvas)
   ModalPanelUtils.drawBackdrop(canvas)
   self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)
   self.panel:draw()
+  self:_drawInvalidColorWarning()
+end
+
+function Dialog:_drawInvalidColorWarning()
+  local msg = self._invalidColorWarning
+  if type(msg) ~= "string" or msg == "" then
+    return
+  end
+  if not (self._boxX and self._boxY and self._boxW and self._boxH) then
+    return
+  end
+  local font = nil
+  if love and love.graphics and love.graphics.getFont then
+    local ok, f = pcall(love.graphics.getFont)
+    if ok then font = f end
+  end
+  local tw = Text.getFontWidth(msg, font)
+  local th = font and font.getHeight and font:getHeight() or 10
+  local pad = math.max(2, math.floor(tonumber(self.padding) or 2))
+  local x = self._boxX + self._boxW - pad - tw
+  local y = self._boxY + self._boxH - pad - th
+  Text.print(msg, x, y, {
+    color = colors.yellow,
+    font = font,
+    literalColor = true,
+  })
 end
 
 return Dialog

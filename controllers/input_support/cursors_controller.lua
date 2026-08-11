@@ -622,6 +622,13 @@ local function resolveTargetCursorName(app, mode)
           and app.swapTwoColorsModal:isHoveringColorRampSwatchAt(mx, my) then
         return "hand"
       end
+      if app.romPaletteAddressModal == topModal
+          and type(app.romPaletteAddressModal.cursorNameAt) == "function" then
+        local name = app.romPaletteAddressModal:cursorNameAt(mx, my)
+        if type(name) == "string" then
+          return name
+        end
+      end
       if app.settingsModal == topModal then
         if type(app.settingsModal.isHoveringDisabledAppearancePickerAt) == "function"
             and app.settingsModal:isHoveringDisabledAppearancePickerAt(mx, my) then

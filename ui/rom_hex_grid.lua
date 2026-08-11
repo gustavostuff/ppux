@@ -3,12 +3,13 @@
 -- Selection is groups of `groupSize` bytes from each selected start address.
 -- Click toggles a group Selected; click again restores Semi-selected or Normal.
 -- Disabled groups are non-interactive. Optional scrollbar minimap markers
--- ({ offset, color, groupCount=N, groupSize=M }; span = N×M bytes, overlaps OK).
+-- ({ offset, color, groupCount=N, groupSize=M }; span = N*M bytes, overlaps OK).
 -- Scrollbar track is click/drag scrubbable.
 
 local colors = require("app_colors")
 local Text = require("utils.text_utils")
 local LoveCompat = require("utils.love_compat")
+local PaletteEdit = require("utils.palette_edit_helpers")
 
 local M = {}
 M.__index = M
@@ -25,7 +26,7 @@ M.MAX_SELECTED_STARTS = 8
 M.CELL_W = 15
 M.CELL_H = 10
 
--- Fixed-pitch gutter: 6 hex digits × OFFSET_DIGIT_W (Aseprite is not fully mono).
+-- Fixed-pitch gutter: 6 hex digits x OFFSET_DIGIT_W (Aseprite is not fully mono).
 local OFFSET_DIGITS = 6
 local OFFSET_DIGIT_W = 6
 local GUTTER_W = OFFSET_DIGITS * OFFSET_DIGIT_W + 2
@@ -67,6 +68,16 @@ local function disabledTextColor()
     return { g[1], g[2] or 0, g[3] or 0, 1 }
   end
   return { 0.75, 0.75, 0.75, 1 }
+end
+
+--- Black/white ink over a fill; same luminance threshold as ROM/generic palette hex labels.
+--- Alpha is ignored — callers apply hover / invalid-cell opacity separately.
+local function inkForFill(fill)
+  if type(fill) ~= "table" then
+    return colors.white
+  end
+  local c = PaletteEdit.getLabelTextColor(fill)
+  return { c[1], c[2], c[3], 1 }
 end
 
 local function buildHighlightColors()
@@ -175,8 +186,16 @@ function M.new(opts)
     onScroll = opts.onScroll,
     -- When set, all semi-selected outlines share this RGBA instead of cycling.
     uniformSemiColor = opts.uniformSemiColor,
-    -- Optional: function(addr) -> {r,g,b,a} for per-address semi outline colors.
+    -- Optional: function(addr) -> {r,g,b,a} for per-address semi fill colors.
     semiColorForAddr = opts.semiColorForAddr,
+    -- Optional: function(addr) -> {r,g,b,a} for selected fills (else highlight cycle).
+    selectedColorForAddr = opts.selectedColorForAddr,
+    -- When true, draw marching-ants borders on selected groups (ROM palette modal).
+    selectionAnts = opts.selectionAnts == true,
+    -- Optional: function(addr) -> bool; when false, click does not select.
+    canSelectAddr = opts.canSelectAddr,
+    -- Optional: function(addr) when canSelectAddr rejects a click.
+    onRejectSelect = opts.onRejectSelect,
     _hoverX = nil,
     _hoverY = nil,
     _selectionCapHit = false,
@@ -267,7 +286,7 @@ local function normalizeMinimapMarker(m)
   if offset < 0 or type(color) ~= "string" or not MINIMAP_COLORS[color] then
     return nil
   end
-  -- Contiguous range: N groups × M bytes each (defaults = single byte).
+  -- Contiguous range: N groups x M bytes each (defaults = single byte).
   local groupCount = math.max(1, math.floor(tonumber(m.groupCount) or 1))
   local groupSize = math.max(1, math.floor(tonumber(m.groupSize) or 1))
   return {
@@ -302,7 +321,7 @@ function M:getMinimapMarkers()
   return out
 end
 
---- Byte length covered by a minimap marker (groupCount × groupSize).
+--- Byte length covered by a minimap marker (groupCount x groupSize).
 function M.minimapMarkerByteLength(marker)
   if type(marker) ~= "table" then
     return 1
@@ -837,6 +856,13 @@ function M:mousepressed(px, py, button, _opts)
     return true
   end
 
+  if type(self.canSelectAddr) == "function" and not self.canSelectAddr(resolved) then
+    if type(self.onRejectSelect) == "function" then
+      self.onRejectSelect(resolved)
+    end
+    return true
+  end
+
   local nextStarts, primary
   if #(self.selectedStarts or {}) == 0 or self.maxSelectedStarts == 1 then
     -- Empty or single-select: replace with the clicked group.
@@ -1009,35 +1035,20 @@ end
 
 --- One rounded rect per contiguous same-row run of a group (splits on row wrap).
 --- mode: "fill" (default) or "line".
-function M:_drawGroupHighlights(gridX, gridY, starts, colorForStart, mode)
-  mode = mode or "fill"
+--- Invokes onRun(x, y, w, h) for each visible run when provided (after setColor).
+function M:_forEachGroupRun(gridX, gridY, starts, onRun)
   local span = self:getGroupSize()
   local cols = self:getCols()
   local pageStart = self.scrollOffset
   local pageEnd = pageStart + self:bytesPerPage() - 1
   for _, start in ipairs(starts or {}) do
-    local c
-    if type(colorForStart) == "function" then
-      c = colorForStart(start)
-    else
-      c = self:highlightColorForStart(start)
-    end
-    if type(c) ~= "table" then
-      c = { 0.5, 0.5, 0.5, 0.9 }
-    end
-    love.graphics.setColor(c[1], c[2], c[3], c[4] or 0.9)
-
     local runCol, runRow, runLen = nil, nil, 0
     local function flush()
-      if runLen > 0 and runCol ~= nil then
+      if runLen > 0 and runCol ~= nil and type(onRun) == "function" then
         local x = gridX + runCol * CELL_W
         local y = gridY + runRow * CELL_H
         local w = runLen * CELL_W - 1
-        if mode == "line" then
-          love.graphics.rectangle("line", x, y, w, CELL_H, HIGHLIGHT_RADIUS, HIGHLIGHT_RADIUS)
-        else
-          love.graphics.rectangle("fill", x, y, w, CELL_H, HIGHLIGHT_RADIUS, HIGHLIGHT_RADIUS)
-        end
+        onRun(x, y, w, CELL_H)
       end
       runCol, runRow, runLen = nil, nil, 0
     end
@@ -1062,6 +1073,47 @@ function M:_drawGroupHighlights(gridX, gridY, starts, colorForStart, mode)
     end
     flush()
   end
+end
+
+function M:_drawGroupHighlights(gridX, gridY, starts, colorForStart, mode)
+  mode = mode or "fill"
+  for _, start in ipairs(starts or {}) do
+    local c
+    if type(colorForStart) == "function" then
+      c = colorForStart(start)
+    else
+      c = self:highlightColorForStart(start)
+    end
+    if type(c) ~= "table" then
+      c = { 0.5, 0.5, 0.5, 0.9 }
+    end
+    love.graphics.setColor(c[1], c[2], c[3], c[4] or 0.9)
+    self:_forEachGroupRun(gridX, gridY, { start }, function(x, y, w, h)
+      if mode == "line" then
+        love.graphics.rectangle("line", x, y, w, h, HIGHLIGHT_RADIUS, HIGHLIGHT_RADIUS)
+      else
+        love.graphics.rectangle("fill", x, y, w, h, HIGHLIGHT_RADIUS, HIGHLIGHT_RADIUS)
+      end
+    end)
+  end
+end
+
+-- Matches ui/windows_system/window_rendering_selection.lua / color picker swatch.
+local SELECTION_ANTS_ANIM = {
+  stepPx = 1,
+  intervalSeconds = 0.1,
+}
+
+function M:_drawSelectionAnts(gridX, gridY, starts)
+  local okImg, images = pcall(require, "images")
+  local okDraw, Draw = pcall(require, "utils.draw_utils")
+  if not (okImg and okDraw and images and images.pattern_a and Draw and Draw.drawRepeatingImageAnimated) then
+    return
+  end
+  love.graphics.setColor(1, 1, 1, 1)
+  self:_forEachGroupRun(gridX, gridY, starts, function(x, y, w, h)
+    Draw.drawRepeatingImageAnimated(images.pattern_a, x, y, w, h, SELECTION_ANTS_ANIM)
+  end)
 end
 
 function M:draw()
@@ -1108,8 +1160,15 @@ function M:draw()
       return c
     end
   end
+  local selectedColorFn = nil
+  if type(self.selectedColorForAddr) == "function" then
+    selectedColorFn = self.selectedColorForAddr
+  end
   self:_drawGroupHighlights(gridX, gridY, semi, semiColorFn, "fill")
-  self:_drawGroupHighlights(gridX, gridY, starts, nil, "fill")
+  self:_drawGroupHighlights(gridX, gridY, starts, selectedColorFn, "fill")
+  if self.selectionAnts == true then
+    self:_drawSelectionAnts(gridX, gridY, starts)
+  end
   self:_drawGroupHighlights(gridX, gridY, disabled, function()
     return disabledHighlightColor()
   end, "fill")
@@ -1120,6 +1179,7 @@ function M:draw()
   end
 
   local disText = disabledTextColor()
+  local useCustomSelectedText = type(self.selectedColorForAddr) == "function"
 
   for row = 0, M.ROWS - 1 do
     local rowAddr = self.scrollOffset + row * cols
@@ -1136,12 +1196,30 @@ function M:draw()
       if #coveringDis > 0 then
         base = disText
       elseif #covering > 0 then
-        base = self:textColorForStart(starts[covering[#covering]])
+        local start = starts[covering[#covering]]
+        local fill
+        if useCustomSelectedText then
+          fill = self.selectedColorForAddr(start)
+        else
+          fill = self:highlightColorForStart(start)
+        end
+        base = inkForFill(fill)
       elseif #coveringSemi > 0 then
-        -- Keep glyphs readable over colored outlines.
-        base = colors.white
+        local start = semi[coveringSemi[#coveringSemi]]
+        local fill
+        if type(self.semiColorForAddr) == "function" then
+          fill = self.semiColorForAddr(start)
+        elseif type(self.uniformSemiColor) == "table" then
+          fill = self.uniformSemiColor
+        else
+          fill = self:highlightColorForStart(start)
+        end
+        base = inkForFill(fill)
       end
       local alpha = (hoverAddr ~= nil and addr == hoverAddr) and 1 or 0.6
+      if type(self.canSelectAddr) == "function" and addr < len and not self.canSelectAddr(addr) then
+        alpha = 0.15
+      end
       local textColor = { base[1], base[2], base[3], alpha }
       local byteText = "  "
       if addr < len then

@@ -71,7 +71,7 @@ describe("rom_palette_address_modal.lua", function()
 
   it("semi-selects valid NES color bytes on the current hex page", function()
     local modal = RomPaletteAddressModal.new()
-    -- Page 0 (16 cols × 8 rows): mix of valid and invalid.
+    -- Page 0 (16 cols x 8 rows): mix of valid and invalid.
     local bytes = {}
     for i = 0, 127 do
       bytes[i + 1] = string.char(i)
@@ -111,6 +111,29 @@ describe("rom_palette_address_modal.lua", function()
     modal:_onGridSelect(0x20, { fromGrid = true })
     expect(modal.textField:getText()).toBe("0x000020")
     expect(modal.selectedPreview.code).toBe("30")
+    modal:hide()
+  end)
+
+  it("rejects clicks on invalid NES color bytes and shows a warning", function()
+    local modal = RomPaletteAddressModal.new()
+    local bytes = {}
+    for i = 0, 127 do
+      bytes[i + 1] = string.char(i)
+    end
+    modal:show({
+      romRaw = table.concat(bytes),
+      initialAddress = "0x00000F",
+    })
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({ 0x0F })
+    -- Click $0D (forbidden) - PAD+gutter+header cell layout matches default 16-col grid.
+    local hx = 2 + 38 + 0x0D * 15 + 2
+    local hy = 2 + 12 + 0 * 10 + 2
+    modal.hexGrid:setPosition(0, 0)
+    modal.hexGrid:mousepressed(hx, hy, 1)
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({ 0x0F })
+    expect(modal._invalidColorWarning).toBe("Not a valid color")
+    expect(modal:cursorNameAt(hx, hy)).toBe("arrow")
+    expect(modal:cursorNameAt(2 + 38 + 0x0F * 15 + 2, hy)).toBe("hand")
     modal:hide()
   end)
 end)
