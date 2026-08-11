@@ -546,18 +546,18 @@ describe("rom_palette_window.lua - locked cells", function()
     expect(win:isCellEditable(0, 0)).toBe(false)
   end)
 
-  it("forces compact 20x14 and ignores toggle-off / normal size", function()
+  it("forces compact 20x15 and ignores toggle-off / normal size", function()
     local win = makeWindow()
 
     expect(win:supportsCompactMode()).toBe(false)
     expect(win.compactView).toBe(true)
     expect(win.cellW).toBe(20)
-    expect(win.cellH).toBe(14)
+    expect(win.cellH).toBe(15)
 
     win:setCompactMode(false)
     expect(win.compactView).toBe(true)
     expect(win.cellW).toBe(20)
-    expect(win.cellH).toBe(14)
+    expect(win.cellH).toBe(15)
   end)
 
   it("builds row and column strip codes from the selected ROM-backed color", function()
@@ -663,9 +663,99 @@ describe("rom_palette_window.lua - cell tooltips", function()
     expect(win.codes2D[0][1]).toBe("2A")
     expect(win:getOverriddenBaseCode(1, 0)).toBe("07")
     expect(win:getOverriddenBaseCode(0, 0)).toBeNil()
+    expect(win:cellHasUserOverride(1, 0)).toBe(true)
+    expect(win:cellHasUserOverride(0, 0)).toBe(false)
+    expect(win:hasAnyUserOverride()).toBe(true)
 
     win:setCompactMode(true)
     expect(win:getOverriddenBaseCode(1, 0)).toBe("07")
     win:drawGrid()
+  end)
+end)
+
+describe("rom_palette_window.lua - reset to base", function()
+  local function makeEditableWindow(opts)
+    opts = opts or {}
+    local romBytes = {}
+    for i = 1, 16 do
+      romBytes[i] = string.char(opts.romByte or 0x07)
+    end
+    return RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
+      title = "ROM Palette Reset",
+      paletteData = {
+        romColors = {
+          [1] = { [1] = 0, [2] = 1, [3] = 2, [4] = 3 },
+          [2] = { [1] = 4, [2] = 5, [3] = 6, [4] = 7 },
+          [3] = { [1] = 8, [2] = 9, [3] = 10, [4] = 11 },
+          [4] = { [1] = 12, [2] = 13, [3] = 14, [4] = 15 },
+        },
+        userDefinedCode = opts.userDefinedCode or {},
+      },
+      romRaw = table.concat(romBytes),
+    })
+  end
+
+  it("resetCellToBase restores the captured ROM color and drops userDefinedCode", function()
+    local previousCtx = rawget(_G, "ctx")
+    local win = makeEditableWindow({
+      userDefinedCode = { { row = 0, col = 1, code = "2A" } },
+    })
+    win.romRaw = string.char(0x07, 0x2A) .. win.romRaw:sub(3)
+    _G.ctx = {
+      app = {
+        wm = {
+          getWindowsOfKind = function()
+            return { win }
+          end,
+        },
+      },
+    }
+
+    expect(win.codes2D[0][1]).toBe("2A")
+    expect(win:getCapturedBaseCode(1, 0)).toBe("07")
+    expect(#win.paletteData.userDefinedCode).toBe(1)
+
+    local changed = win:resetCellToBase(1, 0)
+    _G.ctx = previousCtx
+
+    expect(changed).toBe(true)
+    expect(win.codes2D[0][1]).toBe("07")
+    expect(#(win.paletteData.userDefinedCode or {})).toBe(0)
+    expect(chr.readByteFromAddress(win.romRaw, 1)).toBe(0x07)
+    expect(win:hasAnyUserOverride()).toBe(false)
+  end)
+
+  it("resetAllCellsToBase clears every override on the window", function()
+    local previousCtx = rawget(_G, "ctx")
+    local win = makeEditableWindow({
+      userDefinedCode = {
+        { row = 0, col = 1, code = "2A" },
+        { row = 1, col = 2, code = "16" },
+      },
+    })
+    _G.ctx = {
+      app = {
+        wm = {
+          getWindowsOfKind = function()
+            return { win }
+          end,
+        },
+      },
+    }
+
+    expect(win:hasAnyUserOverride()).toBe(true)
+    expect(win:resetAllCellsToBase()).toBe(true)
+    _G.ctx = previousCtx
+
+    expect(win.codes2D[0][1]).toBe("07")
+    expect(win.codes2D[1][2]).toBe("07")
+    expect(#(win.paletteData.userDefinedCode or {})).toBe(0)
+    expect(win:hasAnyUserOverride()).toBe(false)
+  end)
+
+  it("resetCellToBase is a no-op for cells that already match the ROM base", function()
+    local win = makeEditableWindow()
+    expect(win:resetCellToBase(0, 0)).toBe(false)
+    expect(win.codes2D[0][0]).toBe("07")
   end)
 end)

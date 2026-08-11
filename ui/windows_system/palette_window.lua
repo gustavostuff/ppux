@@ -4,7 +4,6 @@
 local Window = require("ui.windows_system.window")
 local Palettes = require("palettes")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
-local Text = require("utils.text_utils")
 local colors = require("app_colors")
 local UiScale = require("ui.ui_scale")
 local images = require("images")
@@ -14,11 +13,29 @@ local CanvasSpace = require("utils.canvas_space")
 local PaletteEdit = require("utils.palette_edit_helpers")
 
 local NORMAL_CELL_W, NORMAL_CELL_H = 32, 24
-local COMPACT_CELL_W, COMPACT_CELL_H = 20, 14
+local COMPACT_CELL_W, COMPACT_CELL_H = 20, 15
 -- Compact is the only active size; normal metrics / toggle paths stay for reference.
 local FORCE_COMPACT_ONLY = true
-local LABEL_OFFSET_X = 3 + 4 + 1
-local LABEL_OFFSET_Y = 2 - 1
+local LABEL_MARGIN_RIGHT = 2
+local LABEL_MARGIN_BOTTOM = 2
+
+--- Bottom-right label: font box has `right`/`bottom` margins inside the cell.
+local function drawCellLabel(text, cellX, cellY, cellW, cellH, color)
+  text = tostring(text or "")
+  local font = love.graphics.getFont()
+  if not (font and font.getWidth and font.getHeight) then
+    return
+  end
+  local tw = font:getWidth(text)
+  -- Hex digits have no descenders; getHeight() includes empty descent space, so
+  -- nudge 1px down so the ink sits on the intended bottom margin.
+  local th = font:getHeight()
+  local lx = math.floor(cellX + cellW - LABEL_MARGIN_RIGHT - tw)
+  local ly = math.floor(cellY + cellH - LABEL_MARGIN_BOTTOM - th) + 1
+  love.graphics.setColor(color[1], color[2], color[3], color[4] or 1)
+  -- Use love.graphics.print directly so Text.print's EXTRA_Y nudge cannot shift margins.
+  love.graphics.print(text, lx, ly)
+end
 
 local function buildSelectionAnim()
   if images and images.palette_selection then
@@ -421,11 +438,7 @@ function PaletteWindow:drawGrid()
       love.graphics.setColor(rgb[1], rgb[2], rgb[3], 1)
       love.graphics.rectangle("fill", x, y, cw, ch)
 
-      Text.print(code, x + LABEL_OFFSET_X, y + LABEL_OFFSET_Y, {
-        color = getLabelTextColor(rgb),
-        shadowColor = colors.transparent,
-        literalColor = true,
-      })
+      drawCellLabel(code, x, y, cw, ch, getLabelTextColor(rgb))
 
       love.graphics.setColor(colors.white)
     end

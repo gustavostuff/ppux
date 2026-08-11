@@ -1,5 +1,5 @@
 -- rom_palette_toolbar.lua
--- Toolbar for ROM palette windows: compact/full toggle only
+-- Toolbar for ROM palette windows: nav, reset overrides, palette link
 
 local ToolbarBase = require("ui.toolbars.toolbar_base")
 local images = require("images")
@@ -35,11 +35,28 @@ function RomPaletteToolbar.new(window, ctx, windowController)
   self.compactButton.visible = false
   self.compactButton.enabled = false
 
+  self.resetCellButton = self:addButton(
+    images.icons.actions.icon_reset_cell,
+    function()
+      self:_onResetCell()
+    end,
+    "Reset selected cell to ROM base color"
+  )
+
+  self.resetAllButton = self:addButton(
+    images.icons.actions.icon_reset_all,
+    function()
+      self:_onResetAll()
+    end,
+    "Reset all cells to ROM base colors"
+  )
+
   self.linkButton = self:addButton(images.icons.actions.icon_connect or images.icons.chrome.icon_pivot or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty, nil, "Palette link handle; right-drag to link layers; left-click for menu", {
     paletteLinkHandle = true,
   })
 
   self:updateCompactIcon()
+  self:updateResetButtons()
   self:updatePosition()
 
   return self
@@ -69,7 +86,14 @@ function RomPaletteToolbar:updateIcons()
       self.linkButton.tooltip = "No linked layers; right-drag to link; left-click for menu"
     end
   end
+  if self.resetCellButton then
+    self.resetCellButton.icon = images.icons.actions.icon_reset_cell or self.resetCellButton.icon
+  end
+  if self.resetAllButton then
+    self.resetAllButton.icon = images.icons.actions.icon_reset_all or self.resetAllButton.icon
+  end
   self:updateCompactIcon()
+  self:updateResetButtons()
 end
 
 function RomPaletteToolbar:isGroupedPaletteMode()
@@ -106,6 +130,35 @@ function RomPaletteToolbar:updateCompactIcon()
   end
 end
 
+function RomPaletteToolbar:updateResetButtons()
+  local win = self.window
+  local canResetCell = false
+  local canResetAll = false
+  if win then
+    if win.hasAnyUserOverride then
+      canResetAll = win:hasAnyUserOverride() == true
+    end
+    if win.getSelected and win.cellHasUserOverride then
+      local col, row = win:getSelected()
+      if col ~= nil and row ~= nil then
+        canResetCell = win:cellHasUserOverride(col, row) == true
+      end
+    end
+  end
+  if self.resetCellButton then
+    self.resetCellButton.enabled = canResetCell
+    self.resetCellButton.tooltip = canResetCell
+      and "Reset selected cell to ROM base color"
+      or "Select an overridden cell to reset"
+  end
+  if self.resetAllButton then
+    self.resetAllButton.enabled = canResetAll
+    self.resetAllButton.tooltip = canResetAll
+      and "Reset all cells to ROM base colors"
+      or "No overridden cells to reset"
+  end
+end
+
 function RomPaletteToolbar:_onToggleCompact()
   -- Deactivated while FORCE_COMPACT_ONLY: no-op if compact toggle unsupported.
   if not self.window or not self.window.setCompactMode then return end
@@ -123,6 +176,28 @@ function RomPaletteToolbar:_onNavigate(delta)
   if app.cycleGroupedPaletteWindow then
     app:cycleGroupedPaletteWindow(self.window, delta or 0)
   end
+end
+
+function RomPaletteToolbar:_onResetCell()
+  local win = self.window
+  if not win or not win.resetCellToBase or not win.getSelected then
+    return
+  end
+  local col, row = win:getSelected()
+  if col == nil or row == nil then
+    return
+  end
+  win:resetCellToBase(col, row)
+  self:updateResetButtons()
+end
+
+function RomPaletteToolbar:_onResetAll()
+  local win = self.window
+  if not win or not win.resetAllCellsToBase then
+    return
+  end
+  win:resetAllCellsToBase()
+  self:updateResetButtons()
 end
 
 return RomPaletteToolbar

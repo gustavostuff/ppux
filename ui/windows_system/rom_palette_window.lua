@@ -979,17 +979,35 @@ function RomPaletteWindow:setCellAddress(col, row, romAddr)
 end
 
 -- Override drawGrid to show codes even when not active (ROM palettes always show codes)
-local OVERRIDE_SWATCH_PX = 2
-local OVERRIDE_SWATCH_MARGIN_LEFT = 3
-local OVERRIDE_SWATCH_MARGIN_TOP = 3
-local OVERRIDE_ANTS_PX = 4
+local OVERRIDE_SWATCH_PX = 3
+local OVERRIDE_SWATCH_MARGIN_LEFT = 2
+local OVERRIDE_SWATCH_MARGIN_TOP = 2
+local OVERRIDE_ANTS_PX = 5
 local OVERRIDE_ANTS_ALPHA = 1
 local OVERRIDE_ANTS_ANIM = {
   stepPx = 1,
   intervalSeconds = 0.1,
 }
-local LABEL_OFFSET_X = 3 + 4 + 1
-local LABEL_OFFSET_Y = 2 - 1
+local LABEL_MARGIN_RIGHT = 2
+local LABEL_MARGIN_BOTTOM = 2
+
+--- Bottom-right label: font box has `right`/`bottom` margins inside the cell.
+local function drawCellLabel(text, cellX, cellY, cellW, cellH, color)
+  text = tostring(text or "")
+  local font = love.graphics.getFont()
+  if not (font and font.getWidth and font.getHeight) then
+    return
+  end
+  local tw = font:getWidth(text)
+  -- Hex digits have no descenders; getHeight() includes empty descent space, so
+  -- nudge 1px down so the ink sits on the intended bottom margin.
+  local th = font:getHeight()
+  local lx = math.floor(cellX + cellW - LABEL_MARGIN_RIGHT - tw)
+  local ly = math.floor(cellY + cellH - LABEL_MARGIN_BOTTOM - th) + 1
+  love.graphics.setColor(color[1], color[2], color[3], color[4] or 1)
+  -- Use love.graphics.print directly so Text.print's EXTRA_Y nudge cannot shift margins.
+  love.graphics.print(text, lx, ly)
+end
 
 --- Base NES code being overridden by the cell's current color, or nil.
 function RomPaletteWindow:getOverriddenBaseCode(col, row)
@@ -1010,6 +1028,239 @@ function RomPaletteWindow:getOverriddenBaseCode(col, row)
   return base
 end
 
+--- True when this cell's displayed color differs from the captured ROM/base.
+function RomPaletteWindow:cellHasUserOverride(col, row)
+  return self:getOverriddenBaseCode(col, row) ~= nil
+end
+
+--- True when any editable cell differs from its captured base.
+function RomPaletteWindow:hasAnyUserOverride()
+  local rows = self.rows or 4
+  local cols = self.cols or 4
+  for r = 0, rows - 1 do
+    for c = 0, cols - 1 do
+      if self:cellHasUserOverride(c, r) then
+        return true
+      end
+    end
+  end
+  return false
+end
+
+-- Apply base code to one sketch cell (or all col-0 rows when col == 0). Returns undo actions.
+local function applySketchCellToBase(win, col, row, baseCode)
+  local undoActions = {}
+  local cells
+  if col == 0 then
+    cells = collectSketchUniversalColor0Cells(win)
+  else
+    cells = { { win = win, col = col, row = row } }
+  end
+  for _, cell in ipairs(cells) do
+    local w, c, r = cell.win, cell.col, cell.row
+    w.codes2D = w.codes2D or {}
+    w.codes2D[r] = w.codes2D[r] or {}
+    local prevCode = w.codes2D[r][c]
+    if prevCode ~= baseCode then
+      w.codes2D[r][c] = baseCode
+      if w.set then
+        w:set(c, r, baseCode)
+      end
+      if w.writeColorToROM then
+        w:writeColorToROM(r, c, baseCode)
+      end
+      if w.saveUserDefinedCode then
+        w:saveUserDefinedCode(r, c, baseCode)
+      end
+      undoActions[#undoActions + 1] = {
+        win = w,
+        row = r,
+        col = c,
+        beforeCode = prevCode,
+        afterCode = baseCode,
+      }
+    else
+      if w.removeUserDefinedCode then
+        w:removeUserDefinedCode(r, c)
+      end
+    end
+  end
+  return undoActions
+end
+
+--- Restore one cell to its captured ROM/base color and drop its userDefinedCode entry.
+--- Returns true when something changed.
+function RomPaletteWindow:resetCellToBase(col, row)
+  col = math.floor(tonumber(col) or -1)
+  row = math.floor(tonumber(row) or -1)
+  if col < 0 or row < 0 or not self:isCellEditable(col, row) then
+    return false
+  end
+  local base = self:getCapturedBaseCode(col, row)
+  if type(base) ~= "string" or base == "" then
+    return false
+  end
+  base = normalizeInvalidBlack(base)
+
+  local current = self.codes2D and self.codes2D[row] and self.codes2D[row][col]
+  if current == base and not self:cellHasUserOverride(col, row) then
+    if self:removeUserDefinedCode(row, col) then
+      markPaletteUnsaved()
+      return true
+    end
+    return false
+  end
+
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app
+  local undoActions = {}
+  local paletteStates = {}
+
+  if self:isSketchPalette() then
+    local beforePaletteData = TableUtils.deepcopy(self.paletteData or {})
+    undoActions = applySketchCellToBase(self, col, row, base)
+    if #undoActions == 0 then
+      if self:removeUserDefinedCode(row, col) then
+        markPaletteUnsaved()
+        return true
+      end
+      return false
+    end
+    paletteStates[1] = {
+      win = self,
+      beforePaletteData = beforePaletteData,
+      afterPaletteData = TableUtils.deepcopy(self.paletteData or {}),
+    }
+  else
+    local romAddr = self:getRomByteAddress(col, row)
+    if type(romAddr) ~= "number" then
+      return false
+    end
+    local cells = collectEditableCellsForRomAddress(self, app, romAddr)
+    local paletteWinOrder = {}
+    local paletteWinSeen = {}
+    local beforeByWin = {}
+    for _, cell in ipairs(cells) do
+      local w = cell.win
+      if w and not paletteWinSeen[w] then
+        paletteWinSeen[w] = true
+        paletteWinOrder[#paletteWinOrder + 1] = w
+        beforeByWin[w] = TableUtils.deepcopy(w.paletteData or {})
+      end
+    end
+
+    undoActions = select(1, applyColorToSharedRomAddress(self, app, romAddr, base)) or {}
+    if #undoActions == 0 then
+      if self:removeUserDefinedCode(row, col) then
+        markPaletteUnsaved()
+        return true
+      end
+      return false
+    end
+
+    for _, w in ipairs(paletteWinOrder) do
+      paletteStates[#paletteStates + 1] = {
+        win = w,
+        beforePaletteData = beforeByWin[w] or {},
+        afterPaletteData = TableUtils.deepcopy(w.paletteData or {}),
+      }
+    end
+  end
+
+  recordPaletteColorUndo(undoActions, paletteStates)
+  for _, st in ipairs(paletteStates) do
+    invalidateLinkedPpuFrames(st.win)
+  end
+  markPaletteUnsaved()
+  return true
+end
+
+--- Restore every overridden cell on this window to its captured base.
+function RomPaletteWindow:resetAllCellsToBase()
+  if not self:hasAnyUserOverride() then
+    return false
+  end
+
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app
+  local rows = self.rows or 4
+  local cols = self.cols or 4
+
+  local paletteWinOrder = { self }
+  local paletteWinSeen = { [self] = true }
+  local beforeByWin = { [self] = TableUtils.deepcopy(self.paletteData or {}) }
+
+  if not self:isSketchPalette() and app and app.wm and app.wm.getWindowsOfKind then
+    for _, w in ipairs(app.wm:getWindowsOfKind("rom_palette") or {}) do
+      if w and not paletteWinSeen[w] then
+        paletteWinSeen[w] = true
+        paletteWinOrder[#paletteWinOrder + 1] = w
+        beforeByWin[w] = TableUtils.deepcopy(w.paletteData or {})
+      end
+    end
+  end
+
+  local undoActions = {}
+  local seenRomAddr = {}
+
+  for r = 0, rows - 1 do
+    for c = 0, cols - 1 do
+      if self:cellHasUserOverride(c, r) then
+        local base = self:getCapturedBaseCode(c, r)
+        if type(base) == "string" and base ~= "" then
+          base = normalizeInvalidBlack(base)
+          if self:isSketchPalette() then
+            local actions = applySketchCellToBase(self, c, r, base)
+            for _, a in ipairs(actions) do
+              undoActions[#undoActions + 1] = a
+            end
+          else
+            local romAddr = self:getRomByteAddress(c, r)
+            if type(romAddr) == "number" and not seenRomAddr[romAddr] then
+              seenRomAddr[romAddr] = true
+              local actions = select(1, applyColorToSharedRomAddress(self, app, romAddr, base))
+              for _, a in ipairs(actions or {}) do
+                undoActions[#undoActions + 1] = a
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+
+  if #undoActions == 0 then
+    return false
+  end
+
+  local paletteStates = {}
+  for _, w in ipairs(paletteWinOrder) do
+    local touched = (w == self)
+    if not touched then
+      for _, a in ipairs(undoActions) do
+        if a.win == w then
+          touched = true
+          break
+        end
+      end
+    end
+    if touched then
+      paletteStates[#paletteStates + 1] = {
+        win = w,
+        beforePaletteData = beforeByWin[w] or TableUtils.deepcopy(w.paletteData or {}),
+        afterPaletteData = TableUtils.deepcopy(w.paletteData or {}),
+      }
+    end
+  end
+
+  recordPaletteColorUndo(undoActions, paletteStates)
+  for _, st in ipairs(paletteStates) do
+    invalidateLinkedPpuFrames(st.win)
+  end
+  markPaletteUnsaved()
+  return true
+end
+
 function RomPaletteWindow:drawGrid()
   local sx, sy, sw, sh = self:getInsetContentScreenRect()
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
@@ -1018,7 +1269,6 @@ function RomPaletteWindow:drawGrid()
   local z = (self.getZoomLevel and self:getZoomLevel()) or self.zoom or 1
   love.graphics.scale(z, z)
 
-  local Text = require("utils.text_utils")
   local cw, ch = self.cellW, self.cellH
 
   for r=0, self.rows-1 do
@@ -1035,14 +1285,9 @@ function RomPaletteWindow:drawGrid()
       end
       love.graphics.rectangle("fill", x, y, cw, ch)
 
-      -- Always show codes for ROM palettes
       if editable then
-        Text.print(code, x + LABEL_OFFSET_X, y + LABEL_OFFSET_Y, {
-          color = getLabelTextColor(fillColor),
-          shadowColor = colors.transparent,
-          literalColor = true,
-        })
-        -- Bottom-left was previous; now top-left 2x2 swatch of captured ROM/base when overridden.
+        drawCellLabel(code, x, y, cw, ch, getLabelTextColor(fillColor))
+        -- Top-left 3x3 swatch of captured ROM/base when overridden.
         local baseCode = self:getOverriddenBaseCode(c, r)
         if baseCode then
           local swatchX = x + OVERRIDE_SWATCH_MARGIN_LEFT
@@ -1051,7 +1296,7 @@ function RomPaletteWindow:drawGrid()
           love.graphics.setColor(baseRgb[1], baseRgb[2], baseRgb[3], 1)
           love.graphics.rectangle("fill", swatchX, swatchY, OVERRIDE_SWATCH_PX, OVERRIDE_SWATCH_PX)
 
-          -- 4x4 ants frame (1px ring around the 2x2); always draw, including when selected.
+          -- 5x5 ants frame (1px ring around the 3x3); always draw, including when selected.
           if images.pattern_a and Draw.drawRepeatingImageAnimated then
             local antsX = swatchX - math.floor((OVERRIDE_ANTS_PX - OVERRIDE_SWATCH_PX) * 0.5)
             local antsY = swatchY - math.floor((OVERRIDE_ANTS_PX - OVERRIDE_SWATCH_PX) * 0.5)
@@ -1066,6 +1311,9 @@ function RomPaletteWindow:drawGrid()
             )
           end
         end
+      else
+        -- Empty / unbound cells: dash placeholder (no NES code).
+        drawCellLabel("-", x, y, cw, ch, getLabelTextColor(fillColor))
       end
 
       love.graphics.setColor(colors.white)
