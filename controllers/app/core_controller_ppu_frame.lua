@@ -658,11 +658,14 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
         })
       end
 
+      -- keepWorld=true: existing sprites may still carry dx/dy after ROM write-back
+      -- already baked those displacements into romRaw; rewriting from base+dx would
+      -- double-apply and scatter them. New items have no worldX and still land at ROM base.
       SpriteController.hydrateSpriteLayer(spriteLayer, {
         romRaw = romRaw,
         tilesPool = tilesPool,
         appEditState = state,
-        keepWorld = false,
+        keepWorld = true,
       })
 
       local lastIndex = #spriteLayer.items
