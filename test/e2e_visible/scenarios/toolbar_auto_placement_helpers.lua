@@ -3,7 +3,7 @@
 local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 
 -- Match ui/toolbars/toolbar_base.lua TOOLBAR_OUTSIDE_GAP.
-local GAP = 4
+local GAP = 1
 
 local M = {}
 

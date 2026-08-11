@@ -1,5 +1,5 @@
 -- E2E: moving a focused window keeps the attached specialized toolbar on top,
--- clamping Y to (app top bar height + 4) and X inside the canvas (±4) when needed.
+-- clamping Y to (app top bar height + TOOLBAR_OUTSIDE_GAP) and X inside the canvas (±gap) when needed.
 
 local E2EHarness = require("test.e2e_harness")
 local ToolbarAuto = require("test.e2e_visible.scenarios.toolbar_auto_placement_helpers")
@@ -47,7 +47,7 @@ describe("e2e - window toolbar viewport clamp after window drag", function()
         local hx, hy, hw = win:getHeaderRect()
         local preferredY = math.floor(hy - tb.h - 1)
         local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
-        local minY = AppTopToolbarController.getContentOffsetY(app) + 4
+        local minY = AppTopToolbarController.getContentOffsetY(app) + 1
         if preferredY < minY then
           sawYClamp = true
         end
