@@ -27,13 +27,13 @@ function RomPaletteToolbar.new(window, ctx, windowController)
     self:_onNavigate(1)
   end, "Next ROM palette")
 
+  --[[ Toggle compact view — commented out while compact is the only size (FORCE_COMPACT_ONLY).
   self.compactButton = self:addButton(images.icons.chrome.icon_minus or images.icons.chrome.icon_down, function()
-    -- Deactivated: compact is the only palette size (see FORCE_COMPACT_ONLY).
     self:_onToggleCompact()
   end, "Toggle compact palette view")
-  -- Keep button in the toolbar list but hide it while compact-only is forced.
   self.compactButton.visible = false
   self.compactButton.enabled = false
+  --]]
 
   self.resetCellButton = self:addButton(
     images.icons.actions.icon_reset_cell,
@@ -55,7 +55,6 @@ function RomPaletteToolbar.new(window, ctx, windowController)
     paletteLinkHandle = true,
   })
 
-  self:updateCompactIcon()
   self:updateResetButtons()
   self:updatePosition()
 
@@ -92,7 +91,6 @@ function RomPaletteToolbar:updateIcons()
   if self.resetAllButton then
     self.resetAllButton.icon = images.icons.actions.icon_reset_all or self.resetAllButton.icon
   end
-  self:updateCompactIcon()
   self:updateResetButtons()
 end
 
@@ -113,6 +111,7 @@ function RomPaletteToolbar:updateGroupedNavigationButtons()
   end
 end
 
+--[[ Toggle compact view — commented out while compact is the only size (FORCE_COMPACT_ONLY).
 function RomPaletteToolbar:updateCompactIcon()
   if not self.compactButton or not self.window then return end
   local supported = self.window.supportsCompactMode and self.window:supportsCompactMode()
@@ -120,7 +119,6 @@ function RomPaletteToolbar:updateCompactIcon()
   self.compactButton.enabled = supported
   if not supported then return end
 
-  -- Inactive while supportsCompactMode() is false.
   if self.window.compactView then
     self.compactButton.icon = images.icons.chrome.icon_normal_mode or self.compactButton.icon
     self.compactButton.tooltip = "Switch to normal view"
@@ -129,6 +127,17 @@ function RomPaletteToolbar:updateCompactIcon()
     self.compactButton.tooltip = "Switch to compact view"
   end
 end
+
+function RomPaletteToolbar:_onToggleCompact()
+  if not self.window or not self.window.setCompactMode then return end
+  if self.window.supportsCompactMode and not self.window:supportsCompactMode() then
+    return
+  end
+  local newVal = not self.window.compactView
+  self.window:setCompactMode(newVal)
+  self:updateCompactIcon()
+end
+--]]
 
 function RomPaletteToolbar:updateResetButtons()
   local win = self.window
@@ -157,17 +166,6 @@ function RomPaletteToolbar:updateResetButtons()
       and "Reset all cells to ROM base colors"
       or "No overridden cells to reset"
   end
-end
-
-function RomPaletteToolbar:_onToggleCompact()
-  -- Deactivated while FORCE_COMPACT_ONLY: no-op if compact toggle unsupported.
-  if not self.window or not self.window.setCompactMode then return end
-  if self.window.supportsCompactMode and not self.window:supportsCompactMode() then
-    return
-  end
-  local newVal = not self.window.compactView
-  self.window:setCompactMode(newVal)
-  self:updateCompactIcon()
 end
 
 function RomPaletteToolbar:_onNavigate(delta)

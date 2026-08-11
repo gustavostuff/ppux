@@ -1009,6 +1009,21 @@ local function drawCellLabel(text, cellX, cellY, cellW, cellH, color)
   love.graphics.print(text, lx, ly)
 end
 
+--- Centered label (empty / unbound cells).
+local function drawCenteredCellLabel(text, cellX, cellY, cellW, cellH, color)
+  text = tostring(text or "")
+  local font = love.graphics.getFont()
+  if not (font and font.getWidth and font.getHeight) then
+    return
+  end
+  local tw = font:getWidth(text)
+  local th = font:getHeight()
+  local lx = math.floor(cellX + (cellW - tw) * 0.5)
+  local ly = math.floor(cellY + (cellH - th) * 0.5) + 1
+  love.graphics.setColor(color[1], color[2], color[3], color[4] or 1)
+  love.graphics.print(text, lx, ly)
+end
+
 --- Base NES code being overridden by the cell's current color, or nil.
 function RomPaletteWindow:getOverriddenBaseCode(col, row)
   if not self:isCellEditable(col, row) then
@@ -1312,8 +1327,8 @@ function RomPaletteWindow:drawGrid()
           end
         end
       else
-        -- Empty / unbound cells: dash placeholder (no NES code).
-        drawCellLabel("-", x, y, cw, ch, getLabelTextColor(fillColor))
+        -- Empty / unbound cells: centered dash placeholder (no NES code).
+        drawCenteredCellLabel("-", x, y, cw, ch, getLabelTextColor(fillColor))
       end
 
       love.graphics.setColor(colors.white)

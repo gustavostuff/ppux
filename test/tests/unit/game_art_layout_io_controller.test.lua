@@ -399,8 +399,8 @@ describe("game_art_layout_io_controller.lua", function()
     local win = wm:createRomPaletteWindow({ title = "ROM Palette Compact", compactView = false })
     win._id = "rom_palette_compact"
     expect(win.compactView).toBe(true)
-    expect(win.cellW).toBe(20)
-    expect(win.cellH).toBe(14)
+    expect(win.cellW).toBe(24)
+    expect(win.cellH).toBe(15)
 
     local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1)
     local entry = snapshot.windows[1]
@@ -418,8 +418,8 @@ describe("game_art_layout_io_controller.lua", function()
     local restored = built.windowsById["rom_palette_compact"]
     expect(restored).toBeTruthy()
     expect(restored.compactView).toBe(true)
-    expect(restored.cellW).toBe(20)
-    expect(restored.cellH).toBe(14)
+    expect(restored.cellW).toBe(24)
+    expect(restored.cellH).toBe(15)
   end)
 
   it("persists mirror X preview through layout snapshot and rebuild", function()
