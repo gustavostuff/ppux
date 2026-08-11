@@ -3,15 +3,6 @@ local Text = require("utils.text_utils")
 -- Match filled control chrome (same idea as button underlays / rounded controls).
 local CORNER_RADIUS = 4
 
-local function cornerRadiusForSize(w, h)
-  local ww = tonumber(w) or 0
-  local hh = tonumber(h) or 0
-  if ww <= 0 or hh <= 0 then
-    return 0
-  end
-  return math.min(CORNER_RADIUS, math.floor(math.min(ww, hh) / 2))
-end
-
 local function install(TextField, utils)
   function TextField:_getVisualCursorPos()
     return self.cursorPos
@@ -85,7 +76,7 @@ local function install(TextField, utils)
     -- Fixed field chrome in both themes: white background, dark text.
     local bgColor = utils.colors.white
     local fgColor = utils.colors.black
-    local rx = cornerRadiusForSize(self.w, self.h)
+    local rx = 2
     love.graphics.setColor(bgColor)
     love.graphics.rectangle("fill", self.x, self.y, self.w, self.h, rx, rx)
 

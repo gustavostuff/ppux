@@ -87,7 +87,7 @@ local function rebuildPanel(self)
 
   self.panel:setCell(1, row, {
     kind = "label",
-    text = "Transition frames:",
+    text = "Transition frame delay:",
     marginX = 0,
   })
   self.panel:setCell(2, row, {

@@ -18,7 +18,7 @@ local ToolbarBase = {}
 ToolbarBase.__index = ToolbarBase
 
 -- Outside gap (screen px) used as viewport inset when clamping attached toolbars.
-local TOOLBAR_OUTSIDE_GAP = 4
+local TOOLBAR_OUTSIDE_GAP = 1
 
 local function resolveCanvasWidth(app)
   if app and app.canvas and type(app.canvas.getWidth) == "function" then
