@@ -28,8 +28,12 @@ function RomPaletteToolbar.new(window, ctx, windowController)
   end, "Next ROM palette")
 
   self.compactButton = self:addButton(images.icons.chrome.icon_minus or images.icons.chrome.icon_down, function()
+    -- Deactivated: compact is the only palette size (see FORCE_COMPACT_ONLY).
     self:_onToggleCompact()
   end, "Toggle compact palette view")
+  -- Keep button in the toolbar list but hide it while compact-only is forced.
+  self.compactButton.visible = false
+  self.compactButton.enabled = false
 
   self.linkButton = self:addButton(images.icons.actions.icon_connect or images.icons.chrome.icon_pivot or images.icons.chrome.icon_empty or images.icons.chrome.icon_scroll_toolbar_empty, nil, "Palette link handle; right-drag to link layers; left-click for menu", {
     paletteLinkHandle = true,
@@ -92,6 +96,7 @@ function RomPaletteToolbar:updateCompactIcon()
   self.compactButton.enabled = supported
   if not supported then return end
 
+  -- Inactive while supportsCompactMode() is false.
   if self.window.compactView then
     self.compactButton.icon = images.icons.chrome.icon_normal_mode or self.compactButton.icon
     self.compactButton.tooltip = "Switch to normal view"
@@ -102,7 +107,11 @@ function RomPaletteToolbar:updateCompactIcon()
 end
 
 function RomPaletteToolbar:_onToggleCompact()
+  -- Deactivated while FORCE_COMPACT_ONLY: no-op if compact toggle unsupported.
   if not self.window or not self.window.setCompactMode then return end
+  if self.window.supportsCompactMode and not self.window:supportsCompactMode() then
+    return
+  end
   local newVal = not self.window.compactView
   self.window:setCompactMode(newVal)
   self:updateCompactIcon()

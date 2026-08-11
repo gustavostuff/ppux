@@ -29,8 +29,11 @@ function PaletteToolbar.new(window, ctx, windowController)
   end, "Next palette")
 
   self.compactButton = self:addButton(images.icons.chrome.icon_minus or images.icons.chrome.icon_down, function()
+    -- Deactivated: compact is the only palette size (see FORCE_COMPACT_ONLY).
     self:_onToggleCompact()
   end, "Toggle compact palette view")
+  self.compactButton.visible = false
+  self.compactButton.enabled = false
   
   -- Active palette toggle button
   local activeBtn = self:addButton(images.icons.chrome.icon_not_selected, function()
@@ -81,6 +84,7 @@ function PaletteToolbar:updateCompactIcon()
   self.compactButton.enabled = supported
   if not supported then return end
 
+  -- Inactive while supportsCompactMode() is false.
   if self.window.compactView then
     self.compactButton.icon = images.icons.chrome.icon_normal_mode or self.compactButton.icon
     self.compactButton.tooltip = "Switch to normal view"
@@ -119,7 +123,11 @@ function PaletteToolbar:_onToggleActive()
 end
 
 function PaletteToolbar:_onToggleCompact()
+  -- Deactivated while FORCE_COMPACT_ONLY: no-op if compact toggle unsupported.
   if not self.window or not self.window.setCompactMode then return end
+  if self.window.supportsCompactMode and not self.window:supportsCompactMode() then
+    return
+  end
   local newVal = not self.window.compactView
   self.window:setCompactMode(newVal)
   self:updateCompactIcon()

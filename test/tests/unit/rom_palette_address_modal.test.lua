@@ -110,6 +110,8 @@ describe("rom_palette_address_modal.lua", function()
     modal:show({
       romRaw = rom,
       initialAddress = "0x00000F",
+      boundAddr = 0x0F,
+      baseRomCode = "0F",
       userOverrideCode = "2A",
     })
 
@@ -121,6 +123,27 @@ describe("rom_palette_address_modal.lua", function()
     plain:show({ romRaw = rom, initialAddress = "0x00000F" })
     expect(modal.panel.rows).toBe(plain.panel.rows + 1)
     plain:hide()
+    modal:hide()
+  end)
+
+  it("restores captured base at the bound address when live romRaw holds the override", function()
+    local modal = RomPaletteAddressModal.new()
+    -- Live ROM already has the user override ($2A) written through at the bound address.
+    local rom = string.rep("\x07", 0x10) .. string.char(0x2A) .. string.rep("\x07", 0x6F)
+    modal:show({
+      romRaw = rom,
+      initialAddress = "0x000010",
+      boundAddr = 0x10,
+      baseRomCode = "07",
+      userOverrideCode = "2A",
+    })
+
+    expect(modal._showUserOverride).toBe(true)
+    expect(modal.overridePreview.code).toBe("2A")
+    expect(modal.selectedPreview.code).toBe("07")
+    expect(string.byte(modal.romRaw, 0x10 + 1)).toBe(0x07)
+    expect(modal:_displayCodeAt(0x10)).toBe("07")
+    expect(modal:_nesFillColorForAddr(0x10, 1)[1]).toBeTruthy()
     modal:hide()
   end)
 
@@ -219,12 +242,46 @@ describe("showRomPaletteAddressModal initial address", function()
       codes2D = {
         [0] = { [0] = "07", [1] = "2A" },
       },
+      getCapturedBaseCode = function()
+        return "07"
+      end,
     }
 
     app:showRomPaletteAddressModal(win, 1, 0)
 
     expect(capture.opts.initialAddress).toBe("0x003F10")
+    expect(capture.opts.boundAddr).toBe(0x3F10)
     expect(capture.opts.userOverrideCode).toBe("2A")
+    expect(capture.opts.baseRomCode).toBe("07")
+  end)
+
+  it("prefers codes2D for override and captured base over live romRaw", function()
+    local capture = {}
+    local app = makeApp(capture)
+    local win = {
+      paletteData = {
+        romColors = {
+          { 0x3F00, 0x3F10, nil, nil },
+        },
+        userDefinedCode = {
+          { row = 0, col = 1, code = "29" },
+        },
+      },
+      codes2D = {
+        [0] = { [0] = "07", [1] = "1A" },
+      },
+      getCapturedBaseCode = function(_, col, row)
+        expect(col).toBe(1)
+        expect(row).toBe(0)
+        return "29"
+      end,
+    }
+
+    app:showRomPaletteAddressModal(win, 1, 0)
+
+    expect(capture.opts.userOverrideCode).toBe("1A")
+    expect(capture.opts.baseRomCode).toBe("29")
+    expect(capture.opts.boundAddr).toBe(0x3F10)
   end)
 
   it("omits userOverrideCode when the cell matches ROM base (no userDefinedCode entry)", function()

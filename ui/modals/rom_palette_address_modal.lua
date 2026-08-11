@@ -11,6 +11,7 @@ local Palettes = require("palettes")
 local Draw = require("utils.draw_utils")
 local images = require("images")
 local colors = require("app_colors")
+local chr = require("chr")
 
 -- Enter color address: ROM hex grid + color preview(s) + address field.
 -- New cells: "Selected". Already-bound cells: "Base ROM color" + "User override".
@@ -370,7 +371,36 @@ function Dialog:_byteAt(addr)
   return string.byte(self.romRaw, addr + 1)
 end
 
+--- Effective NES code for Base ROM preview / hex paints at `addr`.
+--- At the cell's bound address, prefer the captured base (romRaw may already hold the override).
+function Dialog:_displayCodeAt(addr)
+  addr = math.floor(tonumber(addr) or -1)
+  if self._boundAddr ~= nil
+      and addr == self._boundAddr
+      and type(self._baseRomCode) == "string"
+      and self._baseRomCode ~= "" then
+    return self._baseRomCode
+  end
+  local byte = self:_byteAt(addr)
+  if byte == nil then
+    return nil
+  end
+  if not Dialog.isValidNesPaletteByte(byte) then
+    return nil
+  end
+  return nesCodeFromByte(byte)
+end
+
 function Dialog:_isValidColorAddr(addr)
+  -- Bound address stays selectable even when live romRaw holds an invalid override byte.
+  if self._boundAddr ~= nil and math.floor(tonumber(addr) or -1) == self._boundAddr then
+    if type(self._baseRomCode) == "string" and self._baseRomCode ~= "" then
+      local b = tonumber(self._baseRomCode, 16)
+      if b ~= nil and Dialog.isValidNesPaletteByte(b) then
+        return true
+      end
+    end
+  end
   local byte = self:_byteAt(addr)
   if byte == nil then
     return false
@@ -379,11 +409,11 @@ function Dialog:_isValidColorAddr(addr)
 end
 
 function Dialog:_nesFillColorForAddr(addr, alpha)
-  local byte = self:_byteAt(addr)
-  if byte == nil then
+  local code = self:_displayCodeAt(addr)
+  if code == nil then
     return { 1, 1, 1, alpha or 0.5 }
   end
-  local rgb = rgbForNesCode(nesCodeFromByte(byte))
+  local rgb = rgbForNesCode(code)
   return { rgb[1], rgb[2], rgb[3], alpha or 0.5 }
 end
 
@@ -393,6 +423,23 @@ function Dialog:_refreshSemiSelected()
     self.hexGrid.scrollOffset,
     self.hexGrid:bytesPerPage()
   )
+  -- Ensure the bound address stays semi-selectable when we restored its base for display.
+  if self._boundAddr ~= nil and self:_isValidColorAddr(self._boundAddr) then
+    local pageStart = math.max(0, math.floor(tonumber(self.hexGrid.scrollOffset) or 0))
+    local pageEnd = pageStart + self.hexGrid:bytesPerPage() - 1
+    if self._boundAddr >= pageStart and self._boundAddr <= pageEnd then
+      local found = false
+      for _, a in ipairs(starts) do
+        if a == self._boundAddr then
+          found = true
+          break
+        end
+      end
+      if not found then
+        starts[#starts + 1] = self._boundAddr
+      end
+    end
+  end
   self.hexGrid:setSemiSelectedStarts(starts)
 end
 
@@ -406,12 +453,31 @@ function Dialog:_refreshSemiSelectedIfScrolled(prevScroll)
 end
 
 function Dialog:_refreshSelectedPreview(addr)
-  local byte = self:_byteAt(addr)
-  if byte == nil or not Dialog.isValidNesPaletteByte(byte) then
+  local code = self:_displayCodeAt(addr)
+  if code == nil then
     self.selectedPreview:setColorCode(nil)
     return
   end
-  self.selectedPreview:setColorCode(nesCodeFromByte(byte))
+  self.selectedPreview:setColorCode(code)
+end
+
+--- Snapshot romRaw with the bound address restored to the captured base for hex display.
+local function romRawWithBaseRestored(romRaw, boundAddr, baseRomCode)
+  if type(romRaw) ~= "string" or type(boundAddr) ~= "number" then
+    return romRaw
+  end
+  if type(baseRomCode) ~= "string" or baseRomCode == "" then
+    return romRaw
+  end
+  local byte = tonumber(baseRomCode, 16)
+  if byte == nil then
+    return romRaw
+  end
+  local newRom, err = chr.writeByteToAddress(romRaw, boundAddr, byte)
+  if not newRom or err then
+    return romRaw
+  end
+  return newRom
 end
 
 function Dialog:_onGridSelect(addr, opts)
@@ -491,8 +557,13 @@ function Dialog:show(opts)
   self.onConfirm = opts.onConfirm
   self.onCancel = opts.onCancel
   self.visible = true
-  self.romRaw = type(opts.romRaw) == "string" and opts.romRaw or ""
+  local sourceRom = type(opts.romRaw) == "string" and opts.romRaw or ""
   self._invalidColorWarning = nil
+  self._boundAddr = type(opts.boundAddr) == "number" and math.floor(opts.boundAddr) or nil
+  self._baseRomCode = nil
+  if type(opts.baseRomCode) == "string" and opts.baseRomCode ~= "" then
+    self._baseRomCode = tostring(opts.baseRomCode):upper()
+  end
 
   local overrideCode = opts.userOverrideCode
   if type(overrideCode) == "string" and overrideCode ~= "" then
@@ -501,8 +572,12 @@ function Dialog:show(opts)
   else
     self._showUserOverride = false
     self.overridePreview:setColorCode(nil)
+    self._boundAddr = nil
+    self._baseRomCode = nil
   end
 
+  -- Hex grid must show the captured base at the bound address (live romRaw holds the override).
+  self.romRaw = romRawWithBaseRestored(sourceRom, self._boundAddr, self._baseRomCode)
   self.hexGrid:setRomRaw(self.romRaw)
   self.hexGrid:setDisabledStarts({})
   self.hexGrid:setMinimapMarkers({})
@@ -555,6 +630,8 @@ function Dialog:hide()
   self.romRaw = ""
   self._invalidColorWarning = nil
   self._showUserOverride = false
+  self._boundAddr = nil
+  self._baseRomCode = nil
   if self.overridePreview then
     self.overridePreview:setColorCode(nil)
   end

@@ -492,23 +492,18 @@ describe("rom_palette_window.lua - locked cells", function()
     expect(win:isCellEditable(0, 0)).toBe(false)
   end)
 
-  it("supports compact mode and switches cell size to 20x14", function()
+  it("forces compact 20x14 and ignores toggle-off / normal size", function()
     local win = makeWindow()
 
-    expect(win:supportsCompactMode()).toBe(true)
-    expect(win.compactView).toBe(false)
-    expect(win.cellW).toBe(32)
-    expect(win.cellH).toBe(24)
-
-    win:setCompactMode(true)
+    expect(win:supportsCompactMode()).toBe(false)
     expect(win.compactView).toBe(true)
     expect(win.cellW).toBe(20)
     expect(win.cellH).toBe(14)
 
     win:setCompactMode(false)
-    expect(win.compactView).toBe(false)
-    expect(win.cellW).toBe(32)
-    expect(win.cellH).toBe(24)
+    expect(win.compactView).toBe(true)
+    expect(win.cellW).toBe(20)
+    expect(win.cellH).toBe(14)
   end)
 
   it("builds row and column strip codes from the selected ROM-backed color", function()

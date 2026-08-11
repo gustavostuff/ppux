@@ -396,8 +396,11 @@ describe("game_art_layout_io_controller.lua", function()
 
   it("persists ROM palette compact mode through layout snapshot and rebuild", function()
     local wm = require("controllers.window.window_controller").new()
-    local win = wm:createRomPaletteWindow({ title = "ROM Palette Compact", compactView = true })
+    local win = wm:createRomPaletteWindow({ title = "ROM Palette Compact", compactView = false })
     win._id = "rom_palette_compact"
+    expect(win.compactView).toBe(true)
+    expect(win.cellW).toBe(20)
+    expect(win.cellH).toBe(14)
 
     local snapshot = GameArtLayoutIOController.snapshotLayout(wm, nil, 1)
     local entry = snapshot.windows[1]

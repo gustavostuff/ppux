@@ -15,6 +15,10 @@ local PaletteEdit = require("utils.palette_edit_helpers")
 
 local NORMAL_CELL_W, NORMAL_CELL_H = 32, 24
 local COMPACT_CELL_W, COMPACT_CELL_H = 20, 14
+-- Compact is the only active size; normal metrics / toggle paths stay for reference.
+local FORCE_COMPACT_ONLY = true
+local LABEL_OFFSET_X = 3 + 4 + 1
+local LABEL_OFFSET_Y = 2 - 1
 
 local function buildSelectionAnim()
   if images and images.palette_selection then
@@ -64,7 +68,8 @@ function PaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
   self.paletteName = paletteName or "smooth_fbx"
   self.palette     = Palettes[self.paletteName] or Palettes.smooth_fbx
   self.kind        = "palette"
-  self.compactView = (data.compactView == true)
+  -- Load-time migration: older projects may store normal view; force compact.
+  self.compactView = FORCE_COMPACT_ONLY or (data.compactView == true)
   self.normalCellW = NORMAL_CELL_W
   self.normalCellH = NORMAL_CELL_H
   self.compactCellW = COMPACT_CELL_W
@@ -97,15 +102,23 @@ function PaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
 end
 
 function PaletteWindow:supportsCompactMode()
+  -- Toggle deactivated; compact is always on (see FORCE_COMPACT_ONLY).
+  if FORCE_COMPACT_ONLY then
+    return false
+  end
   return true
 end
 
 function PaletteWindow:setCompactMode(enabled)
+  if FORCE_COMPACT_ONLY then
+    enabled = true
+  end
   self.compactView = (enabled == true)
   if self.compactView then
     self.cellW = self.compactCellW
     self.cellH = self.compactCellH
   else
+    -- Inactive while FORCE_COMPACT_ONLY: previous normal (32x24) size.
     self.cellW = self.normalCellW
     self.cellH = self.normalCellH
   end
@@ -407,7 +420,7 @@ function PaletteWindow:drawGrid()
       love.graphics.setColor(rgb[1], rgb[2], rgb[3], 1)
       love.graphics.rectangle("fill", x, y, cw, ch)
 
-      Text.print(code, x + 3, y, {
+      Text.print(code, x + LABEL_OFFSET_X, y + LABEL_OFFSET_Y, {
         color = getLabelTextColor(rgb),
         shadowColor = colors.transparent,
         literalColor = true,

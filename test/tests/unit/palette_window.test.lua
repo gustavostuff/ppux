@@ -1,31 +1,26 @@
 local PaletteWindow = require("ui.windows_system.palette_window")
 
 describe("palette_window.lua - compact mode", function()
-  it("supports compact mode and switches between normal and compact cell sizes", function()
+  it("forces compact 20x14 and ignores toggle-off / normal size", function()
     local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 1, 4, {
       title = "Generic Palette Compact",
     })
 
-    expect(win:supportsCompactMode()).toBe(true)
-    expect(win.compactView).toBe(false)
-    expect(win.cellW).toBe(32)
-    expect(win.cellH).toBe(24)
-
-    win:setCompactMode(true)
+    expect(win:supportsCompactMode()).toBe(false)
     expect(win.compactView).toBe(true)
     expect(win.cellW).toBe(20)
     expect(win.cellH).toBe(14)
 
     win:setCompactMode(false)
-    expect(win.compactView).toBe(false)
-    expect(win.cellW).toBe(32)
-    expect(win.cellH).toBe(24)
+    expect(win.compactView).toBe(true)
+    expect(win.cellW).toBe(20)
+    expect(win.cellH).toBe(14)
   end)
 
-  it("applies compact mode from constructor data", function()
+  it("migrates constructor compactView=false to compact-only size", function()
     local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 1, 4, {
       title = "Generic Palette Compact Init",
-      compactView = true,
+      compactView = false,
     })
 
     expect(win.compactView).toBe(true)
@@ -52,7 +47,7 @@ describe("palette_window.lua - compact mode", function()
     expect(strips.colCodes[4]).toBe("3B")
   end)
 
-  it("uses quarter-cell strip sizes in normal mode and hides strips in compact mode", function()
+  it("hides nibble selection strips while compact-only is forced", function()
     local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
       title = "Generic Palette Strip Metrics",
       initCodes = {
@@ -64,19 +59,10 @@ describe("palette_window.lua - compact mode", function()
     })
 
     win:setSelected(2, 1)
-    local metrics = win:getStripMetrics()
-    expect(metrics).toBeTruthy()
-    expect(metrics.horizontalCellW).toBe(8)
-    expect(metrics.horizontalCellH).toBe(6)
-    expect(metrics.verticalCellW).toBe(8)
-    expect(metrics.verticalCellH).toBe(6)
-    expect(metrics.verticalY).toBe(24)
-
-    win:setCompactMode(true)
     expect(win:getStripMetrics()).toBe(nil)
   end)
 
-  it("shows selection strips for focused palettes even when not shader-active", function()
+  it("keeps selection usable when not shader-active (compact has no strip shadows)", function()
     local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 1, 4, {
       title = "Inactive Global",
       activePalette = false,
@@ -89,20 +75,14 @@ describe("palette_window.lua - compact mode", function()
         return win
       end,
     }
-    local rects = win:getSelectionStripShadowRectsCanvas(wm)
-    expect(rects).toBeTruthy()
-    expect(#rects).toBe(2)
+    expect(win:getSelectionStripShadowRectsCanvas(wm)).toBe(nil)
 
-    -- Hex labels and cell selection highlight are drawn for inactive globals too
-    -- (drawGrid no longer gates on activePalette). Selection and codes remain usable.
     expect(win.selected).toBeTruthy()
     expect(win.selected.col).toBe(0)
     expect(win.codes2D[0][0]).toBe("0C")
 
     win.activePalette = true
-    expect(win:getSelectionStripShadowRectsCanvas(wm)).toBeTruthy()
-
-    win:setCompactMode(true)
+    -- Compact-only: nibble strips stay hidden even when shader-active.
     expect(win:getSelectionStripShadowRectsCanvas(wm)).toBe(nil)
   end)
 

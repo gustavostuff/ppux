@@ -50,9 +50,12 @@ function AppCoreController:showRomPaletteAddressModal(win, col, row)
   end
 
   local userOverrideCode = nil
+  local baseRomCode = nil
+  local boundAddr = type(existingAddr) == "number" and math.floor(existingAddr) or nil
   -- Sparse userDefinedCode entries are the diffs vs captured ROM base; only those get a row.
-  if type(existingAddr) == "number" then
+  if boundAddr ~= nil then
     local list = win.paletteData and win.paletteData.userDefinedCode
+    local sparseOverrideCode = nil
     if type(list) == "table" then
       for _, item in ipairs(list) do
         if type(item) == "table"
@@ -60,9 +63,26 @@ function AppCoreController:showRomPaletteAddressModal(win, col, row)
             and math.floor(tonumber(item.row) or -1) == row
             and type(item.code) == "string"
             and item.code ~= "" then
-          userOverrideCode = tostring(item.code):upper()
+          sparseOverrideCode = tostring(item.code):upper()
           break
         end
+      end
+    end
+    if sparseOverrideCode ~= nil then
+      -- Prefer the drawn cell color; fall back to the sparse entry.
+      local cellCode = win.codes2D and win.codes2D[row] and win.codes2D[row][col]
+      if type(cellCode) == "string" and cellCode ~= "" then
+        userOverrideCode = tostring(cellCode):upper()
+      else
+        userOverrideCode = sparseOverrideCode
+      end
+      if win.getCapturedBaseCode then
+        baseRomCode = win:getCapturedBaseCode(col, row)
+      end
+      if type(baseRomCode) == "string" then
+        baseRomCode = tostring(baseRomCode):upper()
+      else
+        baseRomCode = nil
       end
     end
   end
@@ -73,6 +93,8 @@ function AppCoreController:showRomPaletteAddressModal(win, col, row)
     col = col,
     row = row,
     initialAddress = initialAddress,
+    boundAddr = boundAddr,
+    baseRomCode = baseRomCode,
     userOverrideCode = userOverrideCode,
     romRaw = (self.appEditState and self.appEditState.romRaw) or "",
     onConfirm = function(addressText, targetWindow, targetCol, targetRow)

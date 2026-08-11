@@ -420,7 +420,8 @@ function RomPaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
   self.kind = "rom_palette"
   self.isPalette = true  -- Inherit palette behavior
   self.romRaw = data.romRaw  -- Store ROM reference
-  self.compactView = (data.compactView == true)
+  -- Load-time migration: always compact (PaletteWindow also forces this).
+  self.compactView = true
 
   -- Store paletteData structure (contains romColors addresses and userDefinedCode)
   self.paletteData = data.paletteData or {}
@@ -440,7 +441,7 @@ function RomPaletteWindow.new(x, y, zoom, paletteName, rows, cols, data)
     DebugController.log("error", "ROM_PAL", "codes2D not properly initialized after initializeFromROMOrUserCodes")
   end
 
-  self:setCompactMode(self.compactView)
+  self:setCompactMode(true)
   
   return self
 end
@@ -993,13 +994,16 @@ end
 
 -- Override drawGrid to show codes even when not active (ROM palettes always show codes)
 local OVERRIDE_SWATCH_PX = 2
-local OVERRIDE_SWATCH_MARGIN = 1
+local OVERRIDE_SWATCH_MARGIN_LEFT = 3
+local OVERRIDE_SWATCH_MARGIN_TOP = 3
 local OVERRIDE_ANTS_PX = 4
-local OVERRIDE_ANTS_ALPHA = 0.5
+local OVERRIDE_ANTS_ALPHA = 1
 local OVERRIDE_ANTS_ANIM = {
   stepPx = 1,
   intervalSeconds = 0.1,
 }
+local LABEL_OFFSET_X = 3 + 4 + 1
+local LABEL_OFFSET_Y = 2 - 1
 
 --- Base NES code being overridden by the cell's current color, or nil.
 function RomPaletteWindow:getOverriddenBaseCode(col, row)
@@ -1030,9 +1034,7 @@ function RomPaletteWindow:drawGrid()
 
   local Text = require("utils.text_utils")
   local cw, ch = self.cellW, self.cellH
-  local selCol = self.selected and self.selected.col
-  local selRow = self.selected and self.selected.row
-  
+
   for r=0, self.rows-1 do
     for c=0, self.cols-1 do
       local x, y = c*cw, r*ch
@@ -1049,23 +1051,22 @@ function RomPaletteWindow:drawGrid()
 
       -- Always show codes for ROM palettes
       if editable then
-        Text.print(code, x + 3, y, {
+        Text.print(code, x + LABEL_OFFSET_X, y + LABEL_OFFSET_Y, {
           color = getLabelTextColor(fillColor),
           shadowColor = colors.transparent,
           literalColor = true,
         })
-        -- Bottom-left 2x2 swatch of the captured ROM/base color when overridden.
+        -- Bottom-left was previous; now top-left 2x2 swatch of captured ROM/base when overridden.
         local baseCode = self:getOverriddenBaseCode(c, r)
         if baseCode then
-          local swatchX = x + OVERRIDE_SWATCH_MARGIN
-          local swatchY = y + ch - OVERRIDE_SWATCH_MARGIN - OVERRIDE_SWATCH_PX
+          local swatchX = x + OVERRIDE_SWATCH_MARGIN_LEFT
+          local swatchY = y + OVERRIDE_SWATCH_MARGIN_TOP
           local baseRgb = self.palette[baseCode] or colors.black
           love.graphics.setColor(baseRgb[1], baseRgb[2], baseRgb[3], 1)
           love.graphics.rectangle("fill", swatchX, swatchY, OVERRIDE_SWATCH_PX, OVERRIDE_SWATCH_PX)
 
-          -- 4x4 ants frame (1px ring around the 2x2); skip when this cell is selected.
-          local cellSelected = selCol == c and selRow == r
-          if not cellSelected and images.pattern_a and Draw.drawRepeatingImageAnimated then
+          -- 4x4 ants frame (1px ring around the 2x2); always draw, including when selected.
+          if images.pattern_a and Draw.drawRepeatingImageAnimated then
             local antsX = swatchX - math.floor((OVERRIDE_ANTS_PX - OVERRIDE_SWATCH_PX) * 0.5)
             local antsY = swatchY - math.floor((OVERRIDE_ANTS_PX - OVERRIDE_SWATCH_PX) * 0.5)
             love.graphics.setColor(1, 1, 1, OVERRIDE_ANTS_ALPHA)
