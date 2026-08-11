@@ -4,7 +4,7 @@
 -- Click toggles a group Selected; click again restores Semi-selected or Normal.
 -- Disabled groups are non-interactive. Optional scrollbar minimap markers
 -- ({ offset, color, groupCount=N, groupSize=M }; span = N*M bytes, overlaps OK).
--- Scrollbar track is click/drag scrubbable.
+-- Dual scroll tracks: full-ROM overview (click/drag) + informative zoom (1px per hex row).
 
 local colors = require("app_colors")
 local Text = require("utils.text_utils")
@@ -35,9 +35,8 @@ local CELL_W = M.CELL_W
 local CELL_H = M.CELL_H
 local PAD = 2
 local HIGHLIGHT_RADIUS = 2
--- Scrollbar (right of the byte grid); hit box is wider than the draw width.
+-- Scrollbars (right of the byte grid): interactive full-ROM overview + informative zoom.
 local SCROLLBAR_W = 5
-local SCROLLBAR_HIT_W = 10
 local SCROLLBAR_GAP = 2
 -- Optical nudge: Text.print baseline sits a bit low in these short cells.
 local TEXT_NUDGE_Y = -2
@@ -104,7 +103,12 @@ M.HIGHLIGHT_COLORS = buildHighlightColors()
 
 function M.contentWidth(cols)
   cols = math.max(1, math.floor(tonumber(cols) or M.COLS))
-  return GUTTER_W + cols * CELL_W + SCROLLBAR_GAP + SCROLLBAR_W + PAD * 2
+  -- Byte grid + full overview track + zoom detail track.
+  return GUTTER_W
+    + cols * CELL_W
+    + SCROLLBAR_GAP + SCROLLBAR_W
+    + SCROLLBAR_GAP + SCROLLBAR_W
+    + PAD * 2
 end
 
 function M.contentHeight()
@@ -707,30 +711,76 @@ function M:_scrollbarTrackRect()
   return trackX, trackY, SCROLLBAR_W, trackH
 end
 
+--- Informative zoom track immediately to the right of the full-ROM overview (not interactive).
+function M:_zoomScrollbarTrackRect()
+  local trackX, trackY, trackW, trackH = self:_scrollbarTrackRect()
+  return trackX + SCROLLBAR_W + SCROLLBAR_GAP, trackY, trackW, trackH
+end
+
 function M:_scrollbarHitTest(px, py)
-  local trackX, trackY, _, trackH = self:_scrollbarTrackRect()
+  local trackX, trackY, trackW, trackH = self:_scrollbarTrackRect()
+  -- Overview-only hit box; do not extend into the informative zoom strip.
   local hitX = trackX - 1
-  local hitW = SCROLLBAR_HIT_W
-  return px >= hitX and px < hitX + hitW
+  local hitRight = trackX + trackW + 1
+  local zoomX = trackX + trackW + SCROLLBAR_GAP
+  if hitRight > zoomX then
+    hitRight = zoomX
+  end
+  return px >= hitX and px < hitRight
     and py >= trackY and py < trackY + trackH
 end
 
---- Map a Y coordinate on the scrollbar track to a row-aligned scroll offset.
+--- Byte window shown on the zoom track.
+--- 1:1 with track pixels: trackH px ⇒ trackH hex rows (one pixel per row).
+function M:_computeZoomWindow()
+  local cols = self:getCols()
+  local page = self:bytesPerPage()
+  local len = romLen(self.romRaw)
+  if len <= 0 then
+    return 0, 0
+  end
+  local _, _, _, trackH = self:_scrollbarTrackRect()
+  local zoomRows = math.max(M.ROWS, math.floor(tonumber(trackH) or (M.ROWS * CELL_H)))
+  local zoomLen = math.min(len, zoomRows * cols)
+  zoomLen = zoomLen - (zoomLen % cols)
+  if zoomLen < page then
+    zoomLen = math.min(len, page)
+    zoomLen = zoomLen - (zoomLen % cols)
+    if zoomLen < cols then
+      zoomLen = math.min(len, cols)
+    end
+  end
+  local maxStart = math.max(0, len - zoomLen)
+  maxStart = M.alignRow(maxStart, cols)
+  local center = (self.scrollOffset or 0) + math.floor(page * 0.5)
+  local start = M.alignRow(center - math.floor(zoomLen * 0.5), cols)
+  if start < 0 then start = 0 end
+  if start > maxStart then start = maxStart end
+  return start, zoomLen
+end
+
+--- Map a Y coordinate on the full-ROM scrollbar track to a row-aligned scroll offset.
 function M:_scrollOffsetFromTrackY(py)
   local _, trackY, _, trackH = self:_scrollbarTrackRect()
   local maxS = self:maxScroll()
+  local page = self:bytesPerPage()
+  local cols = self:getCols()
   if maxS <= 0 or trackH <= 1 then
     return 0
   end
-  local page = self:bytesPerPage()
-  local visibleFrac = page / (maxS + page)
+  local rangeLen = maxS + page
+  local travelRange = math.max(0, rangeLen - page)
+  local visibleFrac = page / math.max(page, rangeLen)
   local thumbH = math.max(4, math.floor(trackH * visibleFrac))
   local travel = math.max(1, trackH - thumbH)
   local rel = (py - trackY) - thumbH * 0.5
   local frac = rel / travel
   if frac < 0 then frac = 0 end
   if frac > 1 then frac = 1 end
-  return M.alignRow(maxS * frac, self:getCols())
+  local offset = travelRange * frac
+  if offset > maxS then offset = maxS end
+  if offset < 0 then offset = 0 end
+  return M.alignRow(offset, cols)
 end
 
 function M:_beginScrollDrag(py)
@@ -986,51 +1036,152 @@ local function colorFromKey(key)
   return { 0.2, 0.35, 0.85, 0.9 }
 end
 
---- Vertical scrollbar: track, optional minimap markers, then thumb.
+local function drawFillRect(x, y, w, h)
+  love.graphics.rectangle(
+    "fill",
+    math.floor(x),
+    math.floor(y),
+    math.max(1, math.floor(w)),
+    math.max(1, math.floor(h))
+  )
+end
+
+local function drawMinimapMarkersOnTrack(markers, len, trackX, trackY, trackH, rangeStart, rangeLen)
+  if len <= 0 or rangeLen <= 0 then
+    return
+  end
+  trackX = math.floor(trackX)
+  trackY = math.floor(trackY)
+  trackH = math.floor(trackH)
+  local rangeEnd = rangeStart + rangeLen
+  for _, marker in ipairs(markers or {}) do
+    local offset = marker.offset
+    if type(offset) == "number" and offset >= 0 and offset < len then
+      local byteLen = M.minimapMarkerByteLength(marker)
+      local endOffset = math.min(len, offset + byteLen)
+      -- Clip to the visible byte window for this track.
+      local drawStart = math.max(offset, rangeStart)
+      local drawEnd = math.min(endOffset, rangeEnd)
+      if drawStart < drawEnd then
+        local y0 = math.floor(trackY + (trackH - 1) * ((drawStart - rangeStart) / rangeLen))
+        local y1 = math.floor(trackY + (trackH - 1) * ((math.min(drawEnd, rangeEnd) - 1 - rangeStart) / rangeLen))
+        if y1 < y0 then y1 = y0 end
+        local h = math.max(1, y1 - y0 + 1)
+        local c = colorFromKey(marker.color)
+        love.graphics.setColor(c[1], c[2], c[3], c[4] or 0.9)
+        drawFillRect(trackX, y0, SCROLLBAR_W, h)
+      end
+    end
+  end
+end
+
+--- Zoom track: exactly one pixel per hex row (rangeLen / cols == trackH when possible).
+local function drawMinimapMarkersOnZoomTrack(markers, len, trackX, trackY, trackH, rangeStart, rangeLen, cols)
+  if len <= 0 or rangeLen <= 0 or cols < 1 then
+    return
+  end
+  trackX = math.floor(trackX)
+  trackY = math.floor(trackY)
+  trackH = math.floor(trackH)
+  local rangeEnd = rangeStart + rangeLen
+  local zoomRows = math.max(1, math.floor(rangeLen / cols))
+  for _, marker in ipairs(markers or {}) do
+    local offset = marker.offset
+    if type(offset) == "number" and offset >= 0 and offset < len then
+      local byteLen = M.minimapMarkerByteLength(marker)
+      local endOffset = math.min(len, offset + byteLen)
+      local drawStart = math.max(offset, rangeStart)
+      local drawEnd = math.min(endOffset, rangeEnd)
+      if drawStart < drawEnd then
+        local row0 = math.floor((drawStart - rangeStart) / cols)
+        local row1 = math.floor((drawEnd - 1 - rangeStart) / cols)
+        if row0 < 0 then row0 = 0 end
+        if row1 >= zoomRows then row1 = zoomRows - 1 end
+        if row1 >= row0 and row0 < trackH then
+          local y0 = trackY + row0
+          local h = math.min(trackH - row0, row1 - row0 + 1)
+          if h > 0 then
+            local c = colorFromKey(marker.color)
+            love.graphics.setColor(c[1], c[2], c[3], c[4] or 0.9)
+            drawFillRect(trackX, y0, SCROLLBAR_W, h)
+          end
+        end
+      end
+    end
+  end
+end
+
+local function drawScrollThumb(trackX, trackY, trackH, scrollOffset, rangeStart, rangeLen, page)
+  trackX = math.floor(trackX)
+  trackY = math.floor(trackY)
+  trackH = math.floor(trackH)
+  local travelRange = math.max(0, rangeLen - page)
+  local visibleFrac = page / math.max(page, rangeLen)
+  local thumbH = math.max(4, math.floor(trackH * visibleFrac))
+  local offsetFrac = 0
+  if travelRange > 0 then
+    offsetFrac = (scrollOffset - rangeStart) / travelRange
+    if offsetFrac < 0 then offsetFrac = 0 end
+    if offsetFrac > 1 then offsetFrac = 1 end
+  end
+  local thumbY = math.floor(trackY + (trackH - thumbH) * offsetFrac)
+  love.graphics.setColor(1, 1, 1, 0.65)
+  drawFillRect(trackX, thumbY, SCROLLBAR_W, thumbH)
+end
+
+--- Zoom thumb: page is exactly M.ROWS pixels (1px per visible hex row).
+local function drawZoomScrollThumb(trackX, trackY, trackH, scrollOffset, rangeStart, rangeLen, cols)
+  trackX = math.floor(trackX)
+  trackY = math.floor(trackY)
+  trackH = math.floor(trackH)
+  local zoomRows = math.max(1, math.floor(rangeLen / cols))
+  local pageRows = M.ROWS
+  local thumbH = math.min(trackH, pageRows)
+  local travelRows = math.max(0, zoomRows - pageRows)
+  local rowOff = math.floor(((scrollOffset or 0) - rangeStart) / cols)
+  if rowOff < 0 then rowOff = 0 end
+  if rowOff > travelRows then rowOff = travelRows end
+  local thumbY = trackY + rowOff
+  love.graphics.setColor(1, 1, 1, 0.65)
+  drawFillRect(trackX, thumbY, SCROLLBAR_W, thumbH)
+end
+
+--- Dual vertical tracks: interactive full-ROM overview + informative 1px-per-row zoom.
 function M:_drawScrollbar(gridX, gridY)
   local cols = self:getCols()
   local page = self:bytesPerPage()
   local maxS = self:maxScroll()
   local trackH = M.ROWS * CELL_H
-  local trackX = gridX + cols * CELL_W + SCROLLBAR_GAP
-  local trackY = gridY
+  local fullX = math.floor(gridX + cols * CELL_W + SCROLLBAR_GAP)
+  local zoomX = math.floor(fullX + SCROLLBAR_W + SCROLLBAR_GAP)
+  local trackY = math.floor(gridY)
   local len = romLen(self.romRaw)
-
+  local markers = self.minimapMarkers or {}
   local showScroll = maxS > 0
-  if showScroll or (#(self.minimapMarkers or {}) > 0 and len > 0) then
+  local showTracks = showScroll or (#markers > 0 and len > 0)
+
+  if showTracks then
     love.graphics.setColor(1, 1, 1, 0.18)
-    love.graphics.rectangle("fill", trackX, trackY, SCROLLBAR_W, trackH)
+    drawFillRect(fullX, trackY, SCROLLBAR_W, trackH)
+    drawFillRect(zoomX, trackY, SCROLLBAR_W, trackH)
   end
 
   if len > 0 then
-    for _, marker in ipairs(self.minimapMarkers or {}) do
-      local offset = marker.offset
-      if type(offset) == "number" and offset >= 0 and offset < len then
-        local byteLen = M.minimapMarkerByteLength(marker)
-        local endOffset = math.min(len, offset + byteLen)
-        local y0 = math.floor(trackY + (trackH - 1) * (offset / len))
-        local y1 = math.floor(trackY + (trackH - 1) * ((endOffset - 1) / len))
-        if y1 < y0 then y1 = y0 end
-        local h = math.max(1, y1 - y0 + 1)
-        local c = colorFromKey(marker.color)
-        love.graphics.setColor(c[1], c[2], c[3], c[4] or 0.9)
-        love.graphics.rectangle("fill", trackX, y0, SCROLLBAR_W, h)
-      end
+    drawMinimapMarkersOnTrack(markers, len, fullX, trackY, trackH, 0, len)
+    local zoomStart, zoomLen = self:_computeZoomWindow()
+    if zoomLen > 0 then
+      drawMinimapMarkersOnZoomTrack(markers, len, zoomX, trackY, trackH, zoomStart, zoomLen, cols)
     end
   end
 
   if not showScroll then
     return
   end
-  local visibleFrac = page / (maxS + page)
-  local thumbH = math.max(4, math.floor(trackH * visibleFrac))
-  local offsetFrac = (self.scrollOffset or 0) / maxS
-  if offsetFrac < 0 then offsetFrac = 0 end
-  if offsetFrac > 1 then offsetFrac = 1 end
-  local thumbY = math.floor(trackY + (trackH - thumbH) * offsetFrac)
-
-  love.graphics.setColor(1, 1, 1, 0.65)
-  love.graphics.rectangle("fill", trackX, thumbY, SCROLLBAR_W, thumbH)
+  drawScrollThumb(fullX, trackY, trackH, self.scrollOffset or 0, 0, maxS + page, page)
+  local zoomStart, zoomLen = self:_computeZoomWindow()
+  if zoomLen > 0 then
+    drawZoomScrollThumb(zoomX, trackY, trackH, self.scrollOffset or 0, zoomStart, zoomLen, cols)
+  end
 end
 
 --- One rounded rect per contiguous same-row run of a group (splits on row wrap).

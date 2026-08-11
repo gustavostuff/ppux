@@ -213,7 +213,7 @@ describe("RomHexGrid", function()
     expect(grid:bytesPerPage()).toBe(256)
     expect(grid:getWidth()).toBe(RomHexGrid.contentWidth(32))
 
-    -- Click in scrollbar track (right of byte grid).
+    -- Click in full-ROM overview track (right of byte grid).
     local trackX = 2 + 38 + 32 * 15 + 2 + 1
     local trackY = 2 + 12 + 40
     expect(grid:mousepressed(trackX, trackY, 1)).toBe(true)
@@ -224,6 +224,28 @@ describe("RomHexGrid", function()
     expect(scrolls).toBeGreaterThanOrEqual(1)
     grid:mousereleased(trackX, trackY + 20, 1)
     expect(grid:isScrollDragging()).toBe(false)
+  end)
+
+  it("zoomed detail track is informative only (1px per hex row, not scrubbable)", function()
+    local grid = RomHexGrid.new({ cols = 16, groupSize = 1 })
+    grid:setRomRaw(makeRom(8192))
+    grid:setPosition(0, 0)
+    grid.scrollOffset = 2048
+    local trackH = RomHexGrid.ROWS * RomHexGrid.CELL_H
+    local zoomStart, zoomLen = grid:_computeZoomWindow()
+    -- Track pixels == hex rows spanned (1:1).
+    expect(zoomLen / 16).toBe(trackH)
+    expect(zoomStart <= 2048).toBe(true)
+    expect(zoomStart + zoomLen > 2048).toBe(true)
+
+    local zoomX = 2 + 38 + 16 * 15 + 2 + 5 + 2 + 1
+    local trackY = 2 + 12
+    local before = grid.scrollOffset
+    -- Zoom track clicks do not start a scroll drag.
+    expect(grid:_scrollbarHitTest(zoomX, trackY + 10)).toBe(false)
+    expect(grid:mousepressed(zoomX, trackY + 10, 1)).toBe(true)
+    expect(grid:isScrollDragging()).toBe(false)
+    expect(grid.scrollOffset).toBe(before)
   end)
 
   it("wheel steps 8 rows; Shift+wheel steps 64 rows", function()
