@@ -195,8 +195,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 1. **Previous grouped slot** (when Grouped palettes is enabled).
 2. **Next grouped slot** (when Grouped palettes is enabled).
-3. **Compact / normal view** - Changes the window's size, basically.
-4. **Set as active palette** - for painting where no ROM palette applies (when there are multiple generic palettes, use PgUp/PgDown to cycle through them).
+3. **Set as active palette** - for painting where no ROM palette applies (when there are multiple generic palettes, use PgUp/PgDown to cycle through them).
 
 </td>
 </tr>
@@ -209,8 +208,9 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 1. **Previous grouped slot** (when Grouped palettes is enabled).
 2. **Next grouped slot** (when Grouped palettes is enabled).
-3. **Compact / normal view** - Changes the window's size, basically.
-4. **Palette link button (source)** - right-drag to link other windows/layers, or left-click for a menu.
+3. **Reset cell** - restores the selected cell to its captured ROM base color (clears that cell's user override).
+4. **Reset all** - restores every overridden cell on this palette to ROM base colors.
+5. **Palette link button (source)** - right-drag to link other windows/layers, or left-click for a menu.
 
 </td>
 </tr>
@@ -270,13 +270,14 @@ Note: Logical **ranges** are built by dragging tiles (multi selections, ideally)
 
 Palette windows are the editors used for colors across the app (NES colors).
 
+<img src="img/readme_images/palettes.png" alt="Palettes example">
+
 * **Generic palette** - the fallback palette when nothing has a ROM palette linked. Handy for mockups and freeform art.
 * **ROM palette** (`4x4`) - when you create one, PPUX asks for a **role**: **ROM** (backed by ROM addresses for in-game palette editing) or **Sketch** (free colors, only for Sketch canvas windows).
 
-|                 | Normal mode | Compact mode |
-|-----------------|-------------|--------------|
-| Generic palette | <img src="img/readme_images/palettes_table/global_palette_normal.png" alt="Generic palette normal mode"> | <img src="img/readme_images/palettes_table/global_palette_compact.png" alt="Generic palette compact mode"> |
-| ROM palette     | <img src="img/readme_images/palettes_table/rom_palette_normal.png" alt="ROM palette normal mode"> | <img src="img/readme_images/palettes_table/rom_palette_compact.png" alt="ROM palette compact mode"> |
+On ROM palettes, unbound cells show as empty (`-`). Cells you have recolored keep a small swatch of the original ROM color so you can tell overrides apart at a glance. Use the toolbar **Reset cell** / **Reset all** actions (or edit the color again with double click) to go back to the ROM base.
+
+See [ROM palette & patches](#rom-palette--patches) for assigning addresses and the shared hex grid picker.
 
 ### Main controls
 
@@ -409,19 +410,27 @@ On **PPU Frame** and **OAM Animation** windows, **Add sprite** picks sprites fro
 
 The modal has three synced pieces:
 
-1. **ROM hex grid** - debugger-style 16x8 byte view. Each pick is a 4-byte OAM group (Y, tile, attr, X). Click one group or drag for a contiguous on-phase range. **Ctrl+click** to add more. The cap is **8** groups per Add event. Gray = already on the layer; red -> green -> blue -> yellow -> brown = current selection. Wheel scrolls 8 rows (**Shift+wheel**: 64 / 1KB).
-2. **preview** - live draw of the selected groups (ants tint matches the grid colors).
+1. **ROM hex grid** - debugger-style byte view of the ROM. Each pick is a 4-byte OAM group (Y, tile, attr, X). Click a group to select it, click again to deselect. Further clicks add more groups on the same phase. The cap is **8** groups per Add event. Gray = already on the layer. Wheel scrolls the page (**Shift+wheel**: larger jumps).
+2. **Preview** - live draw of the selected groups (ants tint matches the OAM group color).
 3. **OAM start** field - hex address stays in sync with the grid.
 
 **Add** commits the selection. Double-click an OAM sprite (or **Edit sprite**) reopens the same UI to rebind `startAddr`. Colors come from a linked **ROM palette** afterward (toolbar RP button), not from this modal.
+
+Note: a 4-byte pick is only a candidate OAM group. It is not guaranteed to be real sprite data in the game. Confirm with trial and error and/or an emulator debugger.
 
 ### ROM palette & patches
 
 `rom_palette` windows are `4x4` palette editors. **ROM**-role windows are backed by ROM addresses. **Sketch**-role windows hold free colors for Sketch canvas windows.
 
-On the ROM palette toolbar, use the connect button to right-drag links onto layers, or left-click it for source-side management.
+On the ROM palette toolbar, use **Reset cell** / **Reset all** to restore overridden colors to the captured ROM base, and the connect button to right-drag links onto layers (or left-click for source-side management).
 
-Double-click a cell to open the ROM address assignment/edit flow. Sketch-role palette windows skip that double-click, since their colors are not tied to ROM addresses.
+Double-click a ROM-role cell to open the **Enter color address** modal.
+
+-- img
+
+It uses the same style of interactive **ROM hex grid** as Add sprite: valid NES palette bytes are highlighted, you pick an address (or type it), and the selected color preview stays in sync. Sketch-role palette windows skip that double-click, since their colors are not tied to ROM addresses.
+
+Note: a highlighted byte can be a _valid_ NES color value without being a palette entry the game actually uses. Again, confirm thjis outside PPUX if unsure.
 
 Other windows can point at a palette by `winId` instead of repeating hex addresses:
 
