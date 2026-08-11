@@ -161,7 +161,7 @@ function Dialog:draw(canvas)
   -- generic_actions_modal draw). rebuildPanel runs from new() and show() only.
   self.panel:setVisible(true)
   ModalPanelUtils.drawBackdrop(canvas)
-  self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)
+  self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas, self)
   self.panel:draw()
 end
 

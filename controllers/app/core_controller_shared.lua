@@ -257,7 +257,17 @@ end
 
 function M.dispatchTopModalMousePressed(app, x, y, button)
   local modalKey, modal = M.getTopModal(app)
-  if not (modal and modal.mousepressed) then
+  if not modal then
+    return false
+  end
+  -- Right-drag moves the whole modal (including over buttons / hex grids).
+  -- No modal currently uses right-click for its own drag/gesture.
+  if button == 2 then
+    local ModalPanelUtils = require("ui.modals.panel_modal_utils")
+    ModalPanelUtils.beginRightDrag(modal, x, y)
+    return true, modalKey
+  end
+  if not modal.mousepressed then
     return false
   end
   modal:mousepressed(x, y, button)
@@ -265,6 +275,18 @@ function M.dispatchTopModalMousePressed(app, x, y, button)
 end
 
 function M.dispatchTopModalMouseReleased(app, x, y, button)
+  if button == 2 then
+    local ModalPanelUtils = require("ui.modals.panel_modal_utils")
+    local modalKey, modal = M.getTopModal(app)
+    if modal then
+      ModalPanelUtils.endRightDrag(modal)
+      return true, modalKey
+    end
+    for _, key in ipairs(M.APP_MODAL_KEYS_IN_ORDER) do
+      ModalPanelUtils.endRightDrag(app and app[key])
+    end
+    return false
+  end
   local modalKey, modal = M.getTopModal(app)
   if not (modal and modal.mousereleased) then
     return false

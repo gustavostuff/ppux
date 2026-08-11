@@ -254,7 +254,7 @@ function Dialog:draw(canvas)
   rebuildPanel(self)
   self.panel:setVisible(true)
   ModalPanelUtils.drawBackdrop(canvas)
-  self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)
+  self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas, self)
   self.panel:draw()
 end
 

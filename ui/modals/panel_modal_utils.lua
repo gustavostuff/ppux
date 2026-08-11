@@ -53,13 +53,143 @@ function M.refreshMetrics()
   M.DEFAULT_PANEL_STYLE.menuOutline = false
 end
 
-function M.centerPanel(panel, canvas)
+--- Place the modal panel. With no remembered position, re-centers every call.
+--- After a right-drag, `_panelPosX/Y` pin the panel for the rest of the app
+--- session (survives hide/show). Never written to settings.lua or project files.
+function M.centerPanel(panel, canvas, modal)
   local cw = canvas:getWidth()
   local ch = canvas:getHeight()
-  local x = math.floor((cw - panel.w) / 2)
-  local y = math.floor((ch - panel.h) / 2)
+  local pw = panel.w or 0
+  local ph = panel.h or 0
+  local x, y
+  local pinned = modal
+    and type(modal._panelPosX) == "number"
+    and type(modal._panelPosY) == "number"
+  if pinned then
+    x = math.floor(modal._panelPosX)
+    y = math.floor(modal._panelPosY)
+  else
+    x = math.floor((cw - pw) / 2)
+    y = math.floor((ch - ph) / 2)
+  end
+  -- Keep a sliver of the panel on-screen so it cannot be dragged away entirely.
+  local margin = 16
+  if cw > margin then
+    x = math.max(margin - pw, math.min(x, cw - margin))
+  end
+  if ch > margin then
+    y = math.max(margin - ph, math.min(y, ch - margin))
+  end
+  if pinned then
+    modal._panelPosX = x
+    modal._panelPosY = y
+  end
   panel:setPosition(x, y)
-  return x, y, panel.w, panel.h
+  return x, y, pw, ph
+end
+
+--- True when (x,y) is over the modal panel box (uses last draw bounds when available).
+function M.containsModalBox(modal, x, y)
+  if not modal then
+    return false
+  end
+  x = tonumber(x) or 0
+  y = tonumber(y) or 0
+  if type(modal._boxX) == "number" and type(modal._boxY) == "number"
+      and type(modal._boxW) == "number" and type(modal._boxH) == "number" then
+    return x >= modal._boxX and x < modal._boxX + modal._boxW
+      and y >= modal._boxY and y < modal._boxY + modal._boxH
+  end
+  local panel = modal.panel
+  if panel and type(panel.x) == "number" and type(panel.y) == "number" then
+    local w = panel.w or 0
+    local h = panel.h or 0
+    return x >= panel.x and x < panel.x + w and y >= panel.y and y < panel.y + h
+  end
+  return false
+end
+
+function M.clearPanelDrag(modal)
+  if not modal then
+    return
+  end
+  modal._modalDragging = false
+  modal._dragGrabX = nil
+  modal._dragGrabY = nil
+end
+
+function M.resetPanelPosition(modal)
+  M.clearPanelDrag(modal)
+  if modal then
+    modal._panelPosX = nil
+    modal._panelPosY = nil
+  end
+end
+
+--- Call from hide paths if needed: drop an in-progress drag, keep session position.
+function M.onModalHidden(modal)
+  M.clearPanelDrag(modal)
+end
+
+--- Start right-button drag of the whole modal. Returns true when a drag began.
+function M.beginRightDrag(modal, x, y)
+  if not modal or not M.containsModalBox(modal, x, y) then
+    return false
+  end
+  local boxX = modal._boxX
+  local boxY = modal._boxY
+  if type(boxX) ~= "number" or type(boxY) ~= "number" then
+    local panel = modal.panel
+    if not panel then
+      return false
+    end
+    boxX = panel.x or 0
+    boxY = panel.y or 0
+  end
+  modal._modalDragging = true
+  modal._dragGrabX = (tonumber(x) or 0) - boxX
+  modal._dragGrabY = (tonumber(y) or 0) - boxY
+  modal._panelPosX = boxX
+  modal._panelPosY = boxY
+  return true
+end
+
+--- Update an in-progress right-drag. `canvas` optional for clamping.
+function M.updateRightDrag(modal, x, y, canvas)
+  if not (modal and modal._modalDragging == true) then
+    return false
+  end
+  local grabX = tonumber(modal._dragGrabX) or 0
+  local grabY = tonumber(modal._dragGrabY) or 0
+  modal._panelPosX = (tonumber(x) or 0) - grabX
+  modal._panelPosY = (tonumber(y) or 0) - grabY
+  local panel = modal.panel
+  if panel and canvas then
+    local bx, by, bw, bh = M.centerPanel(panel, canvas, modal)
+    modal._boxX, modal._boxY, modal._boxW, modal._boxH = bx, by, bw, bh
+  elseif panel then
+    panel:setPosition(math.floor(modal._panelPosX), math.floor(modal._panelPosY))
+    modal._boxX = modal._panelPosX
+    modal._boxY = modal._panelPosY
+    modal._boxW = panel.w
+    modal._boxH = panel.h
+  end
+  return true
+end
+
+function M.endRightDrag(modal)
+  if not modal then
+    return false
+  end
+  local was = modal._modalDragging == true
+  modal._modalDragging = false
+  modal._dragGrabX = nil
+  modal._dragGrabY = nil
+  return was
+end
+
+function M.isRightDragging(modal)
+  return modal ~= nil and modal._modalDragging == true
 end
 
 --- Sync an existing modal panel from modal fields without rebuilding (safe for shadow-mask layout).
@@ -97,7 +227,7 @@ function M.modalPanelShadowRect(modal, canvas)
     return nil
   end
   M.syncLivePanelLayoutFromModal(modal)
-  M.centerPanel(panel, canvas)
+  M.centerPanel(panel, canvas, modal)
   local x, y, w, h = panel:chromeEnvelopeRectPx()
   if (w or 0) <= 0 or (h or 0) <= 0 then
     return nil

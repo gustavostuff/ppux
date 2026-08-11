@@ -2,7 +2,7 @@
 
 NES Graphics Studio. Mod classic games or build new Homebrew assets.
 
-<img src="img/readme_images/app_example_new.png" alt="">
+<img src="img/readme_images/app_example.png" alt="">
 
 ![Version](https://img.shields.io/badge/version-0.2.0_(beta)-6366F1?style=flat)
 [![Donate](https://img.shields.io/badge/Donate-ff69b4?style=flat&logo=githubsponsors&logoColor=white)](https://ko-fi.com/tavuntu)

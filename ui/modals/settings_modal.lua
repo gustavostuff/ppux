@@ -1083,7 +1083,7 @@ function Dialog:draw(canvas)
   self:_rebuildPanelGrid()
   self.panel:setVisible(true)
   ModalPanelUtils.drawBackdrop(canvas)
-  self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)
+  self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas, self)
   self.panel:draw()
   if self._activeTabId == "colors" then
     for _, slotId in ipairs(chromePickerSlotIdsForTheme(self.getTheme and self.getTheme() or nil)) do

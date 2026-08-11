@@ -577,7 +577,7 @@ function Dialog:draw(canvas)
     self.panel:setVisible(true)
   end
   ModalPanelUtils.drawBackdrop(canvas)
-  self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)
+  self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas, self)
   self:_syncPreviewHoverFromGrid()
   self.panel:draw()
   self:_drawLimitWarning()

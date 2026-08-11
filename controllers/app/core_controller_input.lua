@@ -403,6 +403,11 @@ function AppCoreController:mousemoved(x, y, dx, dy)
   if topModal then
     Shared.clearNonModalUiHover(self)
     Shared.clearNonTopModalHovers(self, topModal)
+    local ModalPanelUtils = require("ui.modals.panel_modal_utils")
+    if ModalPanelUtils.updateRightDrag(topModal, mouse.x, mouse.y, self.canvas) then
+      refreshCursor(self)
+      return
+    end
     topModal:mousemoved(mouse.x, mouse.y)
     refreshCursor(self)
     return
