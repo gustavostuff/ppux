@@ -193,6 +193,73 @@ local function collectEditableCellsForRomAddress(primaryWin, app, romAddr)
   return out
 end
 
+-- Apply a NES code to every editable cell that shares romAddr (intra + inter window).
+-- Returns undo cell actions and the ordered list of touched palette windows.
+local function applyColorToSharedRomAddress(primaryWin, app, romAddr, newCode)
+  newCode = normalizeInvalidBlack(tostring(newCode or "0F"):upper())
+  local cells = collectEditableCellsForRomAddress(primaryWin, app, romAddr)
+  local undoActions = {}
+  local paletteWinOrder = {}
+  local paletteWinSeen = {}
+
+  for _, cell in ipairs(cells) do
+    local w = cell.win
+    if w and not paletteWinSeen[w] then
+      paletteWinSeen[w] = true
+      paletteWinOrder[#paletteWinOrder + 1] = w
+    end
+  end
+
+  for _, cell in ipairs(cells) do
+    local w, c, r = cell.win, cell.col, cell.row
+    w.codes2D = w.codes2D or {}
+    w.codes2D[r] = w.codes2D[r] or {}
+    local prevCode = w.codes2D[r][c]
+    if prevCode ~= newCode then
+      w.codes2D[r][c] = newCode
+      if w.set then
+        w:set(c, r, newCode)
+      end
+      if w.writeColorToROM then
+        w:writeColorToROM(r, c, newCode)
+      end
+      if w.saveUserDefinedCode then
+        w:saveUserDefinedCode(r, c, newCode)
+      end
+      undoActions[#undoActions + 1] = {
+        win = w,
+        row = r,
+        col = c,
+        beforeCode = prevCode,
+        afterCode = newCode,
+      }
+    end
+  end
+
+  return undoActions, paletteWinOrder, cells
+end
+
+-- Agreed color among peer cells for romAddr, excluding one cell. Nil if none or conflict.
+local function agreedPeerCodeForRomAddress(primaryWin, app, romAddr, excludeCol, excludeRow)
+  local agreed = nil
+  for _, cell in ipairs(collectEditableCellsForRomAddress(primaryWin, app, romAddr)) do
+    if not (cell.win == primaryWin and cell.col == excludeCol and cell.row == excludeRow) then
+      local code = cell.win.codes2D
+        and cell.win.codes2D[cell.row]
+        and cell.win.codes2D[cell.row][cell.col]
+      if type(code) == "string" then
+        code = normalizeInvalidBlack(code)
+        if agreed == nil then
+          agreed = code
+        elseif agreed ~= code then
+          return nil
+        end
+      end
+    end
+  end
+  return agreed
+end
+
 -- Sketch-mode universal backdrop: color column 0 on every row of *this* sketch palette only.
 local function collectSketchUniversalColor0Cells(primaryWin)
   local out = {}
@@ -540,16 +607,67 @@ function RomPaletteWindow:adjustSelectedByArrows(dx, dy)
   
   local old = self.codes2D[sr][sc]
   local new = nibbleAdjust(old, dx, dy)
-  if new == old then
-    return
-  end
   local undoActions = {}
-
-  DebugController.log("info", "ROM_PAL", "ROM Palette '%s' color adjusted at (%d,%d): %s -> %s", 
-    self.title or "untitled", sc, sr, old, new)
 
   local gctx = rawget(_G, "ctx")
   local app = gctx and gctx.app
+
+  local function commitSharedRomColor(code)
+    local romAddr = self:getRomByteAddress(sc, sr)
+    if type(romAddr) ~= "number" then
+      return false
+    end
+    local cells = collectEditableCellsForRomAddress(self, app, romAddr)
+    if #cells == 0 then
+      return false
+    end
+
+    local paletteWinOrder = {}
+    local paletteWinSeen = {}
+    for _, cell in ipairs(cells) do
+      local w = cell.win
+      if w and not paletteWinSeen[w] then
+        paletteWinSeen[w] = true
+        paletteWinOrder[#paletteWinOrder + 1] = w
+      end
+    end
+
+    local paletteStates = {}
+    for _, w in ipairs(paletteWinOrder) do
+      paletteStates[#paletteStates + 1] = {
+        win = w,
+        beforePaletteData = TableUtils.deepcopy(w.paletteData or {}),
+        afterPaletteData = nil,
+      }
+    end
+
+    local actions = select(1, applyColorToSharedRomAddress(self, app, romAddr, code))
+    if #actions == 0 then
+      return false
+    end
+
+    for _, st in ipairs(paletteStates) do
+      st.afterPaletteData = TableUtils.deepcopy(st.win.paletteData or {})
+    end
+    recordPaletteColorUndo(actions, paletteStates)
+    for _, w in ipairs(paletteWinOrder) do
+      invalidateLinkedPpuFrames(w)
+    end
+    markPaletteUnsaved()
+    return true
+  end
+
+  -- Nibble hit a limit: still push this cell's color to shared-address peers so
+  -- stale per-window userDefinedCode cannot linger until load/save reconcile.
+  if new == old then
+    if not self:isSketchPalette() then
+      commitSharedRomColor(old)
+    end
+    return
+  end
+
+  DebugController.log("info", "ROM_PAL", "ROM Palette '%s' color adjusted at (%d,%d): %s -> %s", 
+    self.title or "untitled", sc, sr, old, new)
 
   -- Sketch-mode: free colors. Column 0 is the per-window universal backdrop (synced across rows).
   if self:isSketchPalette() then
@@ -617,61 +735,7 @@ function RomPaletteWindow:adjustSelectedByArrows(dx, dy)
     return
   end
 
-  local romAddr = self:getRomByteAddress(sc, sr)
-  local cells = collectEditableCellsForRomAddress(self, app, romAddr)
-  if #cells == 0 then
-    return
-  end
-
-  local paletteWinOrder = {}
-  local paletteWinSeen = {}
-  for _, cell in ipairs(cells) do
-    local w = cell.win
-    if w and not paletteWinSeen[w] then
-      paletteWinSeen[w] = true
-      paletteWinOrder[#paletteWinOrder + 1] = w
-    end
-  end
-
-  local paletteStates = {}
-  for _, w in ipairs(paletteWinOrder) do
-    paletteStates[#paletteStates + 1] = {
-      win = w,
-      beforePaletteData = TableUtils.deepcopy(w.paletteData or {}),
-      afterPaletteData = nil,
-    }
-  end
-
-  for _, cell in ipairs(cells) do
-    local w, c, r = cell.win, cell.col, cell.row
-    w.codes2D = w.codes2D or {}
-    w.codes2D[r] = w.codes2D[r] or {}
-    local prevCode = w.codes2D[r][c]
-    if prevCode ~= new then
-      w.codes2D[r][c] = new
-      w:set(c, r, new)
-      w:writeColorToROM(r, c, new)
-      w:saveUserDefinedCode(r, c, new)
-      undoActions[#undoActions + 1] = {
-        win = w,
-        row = r,
-        col = c,
-        beforeCode = prevCode,
-        afterCode = new,
-      }
-    end
-  end
-
-  for _, st in ipairs(paletteStates) do
-    st.afterPaletteData = TableUtils.deepcopy(st.win.paletteData or {})
-  end
-
-  recordPaletteColorUndo(undoActions, paletteStates)
-
-  for _, w in ipairs(paletteWinOrder) do
-    invalidateLinkedPpuFrames(w)
-  end
-  markPaletteUnsaved()
+  commitSharedRomColor(new)
 end
 
 -- Write a color code to ROM at the specified address
@@ -833,10 +897,16 @@ function RomPaletteWindow:setCellAddress(col, row, romAddr)
   setBaseCode(self, col, row, code)
   self:removeUserDefinedCode(row, col)
 
-  self.codes2D = self.codes2D or {}
-  self.codes2D[row] = self.codes2D[row] or {}
-  self.codes2D[row][col] = code
-  self:set(col, row, code)
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app
+  -- If peers already share this address and agree on a color, adopt it (edit-time sync).
+  -- If they disagree or there are no peers, keep the ROM byte and push it to everyone.
+  local peerCode = agreedPeerCodeForRomAddress(self, app, romAddr, col, row)
+  if peerCode then
+    code = peerCode
+  end
+
+  applyColorToSharedRomAddress(self, app, romAddr, code)
   self:setSelected(col, row)
 
   invalidateLinkedPpuFrames(self)

@@ -339,6 +339,39 @@ describe("save_controller.lua", function()
     expect(state.romRaw).toBe(baseRom .. string.char(0x0F) .. string.char(0x30))
   end)
 
+  it("writes a shared palette ROM address only once when windows agree", function()
+    local state = makeChrRomState()
+    local writes = {}
+
+    NametableTilesController.writeBackToROM = function(_, _, rom)
+      return rom, nil
+    end
+    SpriteController.applyDisplacementsToROMForWindows = function(_, rom)
+      return rom, nil
+    end
+    chr.writeByteToAddress = function(rom, addr, value)
+      writes[#writes + 1] = { addr = addr, value = value }
+      local a = math.floor(addr) + 1
+      return rom:sub(1, a - 1) .. string.char(value) .. rom:sub(a + 1)
+    end
+    RomSave.saveEditedROM = function()
+      return true, "/tmp/out.nes"
+    end
+
+    local app = makeApp(state, {
+      romPalettes = {
+        makeRomPaletteWindow("Cutscene 2 bella", 0x20, "10"),
+        makeRomPaletteWindow("Cutscene 1 sprites", 0x20, "10"),
+      },
+    })
+    local ok = SaveController.saveEdited(app)
+
+    expect(ok).toBeTruthy()
+    expect(#writes).toBe(1)
+    expect(writes[1]).toEqual({ addr = 0x20, value = 0x10 })
+    expect(app.statusText).toBe("Saved ROM & edits: /tmp/out.nes")
+  end)
+
   it("uses saveEditedROM for chr_rom backing mode", function()
     local state = makeChrRomState()
     local calls = { raw = 0, edited = 0 }

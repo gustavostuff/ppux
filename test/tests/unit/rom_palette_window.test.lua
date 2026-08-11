@@ -247,6 +247,115 @@ describe("rom_palette_window.lua - locked cells", function()
     expect(chr.readByteFromAddress(winA.romRaw, sharedAddr)).toBe(0x12)
   end)
 
+  it("pushes the selected cell color to shared-address peers even when the nibble does not change", function()
+    local previousCtx = rawget(_G, "ctx")
+    local sharedAddr = 2
+    local romRaw = string.rep(string.char(0x10), 64)
+    local winA = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
+      title = "ROM A",
+      paletteData = {
+        romColors = {
+          [1] = { [1] = false, [2] = sharedAddr, [3] = 3, [4] = 4 },
+          [2] = { [1] = false, [2] = 5, [3] = 6, [4] = 7 },
+          [3] = { [1] = false, [2] = 8, [3] = 9, [4] = 10 },
+          [4] = { [1] = false, [2] = 11, [3] = 12, [4] = 13 },
+        },
+        userDefinedCode = {},
+      },
+      romRaw = romRaw,
+    })
+    local winB = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
+      title = "ROM B",
+      paletteData = {
+        romColors = {
+          [1] = { [1] = false, [2] = 20, [3] = 21, [4] = 22 },
+          [2] = { [1] = false, [2] = sharedAddr, [3] = 24, [4] = 25 },
+          [3] = { [1] = false, [2] = 26, [3] = 27, [4] = 28 },
+          [4] = { [1] = false, [2] = 29, [3] = 30, [4] = 31 },
+        },
+        -- Stale project override: same ROM addr as winA, different color.
+        userDefinedCode = { { row = 1, col = 1, code = "29" } },
+      },
+      romRaw = romRaw,
+    })
+    _G.ctx = {
+      app = {
+        wm = {
+          getWindowsOfKind = function()
+            return { winA, winB }
+          end,
+        },
+      },
+    }
+
+    expect(winA.codes2D[0][1]).toBe("10")
+    expect(winB.codes2D[1][1]).toBe("29")
+
+    local ok, err = pcall(function()
+      winA:setSelected(1, 0)
+      -- 10 is already at the low nibble floor for this direction in some cases;
+      -- force a no-op by adjusting with zero deltas via nibble limit: try dy that
+      -- keeps the same code after sync path (use adjust that yields same when peer
+      -- repair is the goal). Hit the no-op path with dx=0,dy=0 by calling with
+      -- values that nibbleAdjust leaves unchanged: from "10", dx=-1 stays "10".
+      winA:adjustSelectedByArrows(-1, 0)
+    end)
+    _G.ctx = previousCtx
+    if not ok then error(err) end
+
+    expect(winA.codes2D[0][1]).toBe("10")
+    expect(winB.codes2D[1][1]).toBe("10")
+  end)
+
+  it("setCellAddress adopts an agreed peer color for a newly shared ROM address", function()
+    local previousCtx = rawget(_G, "ctx")
+    local sharedAddr = 4
+    local romRaw = string.rep(string.char(0x07), 64)
+    local winA = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
+      title = "ROM A",
+      paletteData = {
+        romColors = {
+          [1] = { [1] = false, [2] = sharedAddr, [3] = 3, [4] = 5 },
+          [2] = { [1] = false, [2] = 6, [3] = 7, [4] = 8 },
+          [3] = { [1] = false, [2] = 9, [3] = 10, [4] = 11 },
+          [4] = { [1] = false, [2] = 12, [3] = 13, [4] = 14 },
+        },
+        userDefinedCode = { { row = 0, col = 1, code = "2A" } },
+      },
+      romRaw = romRaw,
+    })
+    local winB = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
+      title = "ROM B",
+      paletteData = {
+        romColors = {
+          [1] = { [1] = false, [2] = false, [3] = 20, [4] = 21 },
+          [2] = { [1] = false, [2] = 22, [3] = 23, [4] = 24 },
+          [3] = { [1] = false, [2] = 25, [3] = 26, [4] = 27 },
+          [4] = { [1] = false, [2] = 28, [3] = 29, [4] = 30 },
+        },
+        userDefinedCode = {},
+      },
+      romRaw = romRaw,
+    })
+    _G.ctx = {
+      app = {
+        wm = {
+          getWindowsOfKind = function()
+            return { winA, winB }
+          end,
+        },
+      },
+    }
+
+    expect(winA.codes2D[0][1]).toBe("2A")
+    local ok, codeOrErr = winB:setCellAddress(1, 0, sharedAddr)
+    _G.ctx = previousCtx
+    expect(ok).toBe(true)
+    expect(codeOrErr).toBe("2A")
+    expect(winB.codes2D[0][1]).toBe("2A")
+    expect(winA.codes2D[0][1]).toBe("2A")
+  end)
+
   it("normalizes invalid black codes when writing to ROM and triggers update callback", function()
     local win = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
       title = "ROM Palette Write",

@@ -70,47 +70,76 @@ local function applyPaletteEditsToROM(app, romAfterSpr)
     return romWithPalettes
   end
 
-  -- Apply palette edits from all ROM palette windows
-  -- Write all current colors from codes2D (which reflects current state including modifications)
+  -- Live edit sync keeps shared addresses consistent across windows. Write each
+  -- address once (first window in WM order) so aliasing never multi-writes.
+  local written = {}
+  local writeCount = 0
+
   for _, win in ipairs(romPaletteWindows) do
-    -- Sketch-mode palettes are free colors with no ROM addresses.
     if win.paletteRole ~= "sketch"
       and win.paletteData and win.paletteData.romColors and win.codes2D
     then
       local romColors = win.paletteData.romColors
       local codes2D = win.codes2D
       local editCount = 0
-      
-      -- Write all current colors from codes2D to ROM
-      for row = 0, 3 do  -- 0-indexed rows
-        local rowIndex = row + 1  -- 1-indexed for romColors
+
+      for row = 0, 3 do
+        local rowIndex = row + 1
         if codes2D[row] and romColors[rowIndex] then
-          for col = 0, 3 do  -- 0-indexed cols
-            local colIndex = col + 1  -- 1-indexed for romColors
+          for col = 0, 3 do
+            local colIndex = col + 1
             local romAddr = romColors[rowIndex][colIndex]
             local hexCode = codes2D[row][col]
             if type(romAddr) == "number" and type(hexCode) == "string" then
               local byteValue = tonumber(hexCode, 16) or 0
-              
-              local newRom, err = chr.writeByteToAddress(romWithPalettes, romAddr, byteValue)
-              if newRom then
-                romWithPalettes = newRom
-                editCount = editCount + 1
-                DebugController.log("debug", "ROM_SAVE", "Applied palette color: row %d, col %d = %s (0x%02X) at 0x%X", 
-                  row, col, hexCode, byteValue, romAddr)
+              if written[romAddr] ~= nil then
+                if written[romAddr] ~= byteValue then
+                  DebugController.log(
+                    "warning",
+                    "ROM_SAVE",
+                    "Shared palette addr 0x%X disagrees during save (%s vs %02X from '%s'); live sync should prevent this",
+                    romAddr,
+                    hexCode,
+                    written[romAddr],
+                    tostring(win.title or win._id or "palette")
+                  )
+                end
               else
-                DebugController.log("warning", "ROM_SAVE", "Failed to write palette color at 0x%X: %s", romAddr, tostring(err))
+                local newRom, err = chr.writeByteToAddress(romWithPalettes, romAddr, byteValue)
+                if newRom then
+                  romWithPalettes = newRom
+                  written[romAddr] = byteValue
+                  writeCount = writeCount + 1
+                  editCount = editCount + 1
+                else
+                  DebugController.log(
+                    "warning",
+                    "ROM_SAVE",
+                    "Failed to write palette color at 0x%X: %s",
+                    romAddr,
+                    tostring(err)
+                  )
+                end
               end
             end
           end
         end
       end
-      
+
       if editCount > 0 then
-        DebugController.log("info", "ROM_SAVE", "Applied %d palette colors from ROM palette window '%s'", 
-          editCount, win.title or "untitled")
+        DebugController.log(
+          "info",
+          "ROM_SAVE",
+          "Applied %d palette colors from ROM palette window '%s'",
+          editCount,
+          win.title or "untitled"
+        )
       end
     end
+  end
+
+  if writeCount > 0 then
+    DebugController.log("info", "ROM_SAVE", "Applied %d palette color byte(s) to ROM", writeCount)
   end
 
   return romWithPalettes
