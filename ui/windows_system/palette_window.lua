@@ -46,6 +46,7 @@ local clamp = PaletteEdit.clamp
 local hex2 = PaletteEdit.hex2
 local getLabelTextColor = PaletteEdit.getLabelTextColor
 local nibbleAdjust = PaletteEdit.nibbleAdjust
+local normalizeInvalidBlack = PaletteEdit.normalizeInvalidBlack
 local markPaletteUnsaved = PaletteEdit.markPaletteUnsaved
 local recordPaletteColorUndo = PaletteEdit.recordPaletteColorUndo
 local invalidateLinkedPpuFrames = PaletteEdit.invalidateLinkedPpuFrames
@@ -158,7 +159,7 @@ function PaletteWindow:adjustSelectedByArrows(dx,dy)
   local sc, sr = self:getSelected()
   if not sc or not sr then return end
   local old = self.codes2D[sr][sc]
-  local new = nibbleAdjust(old, dx, dy)
+  local new = normalizeInvalidBlack(nibbleAdjust(old, dx, dy))
   if new == old then return end
   self.codes2D[sr][sc] = new
   self:set(sc, sr, new)

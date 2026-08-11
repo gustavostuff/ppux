@@ -1,12 +1,34 @@
 -- Shared helpers for palette_window and rom_palette_window.
 local colors = require("app_colors")
 
+-- Known-problematic blacks when written to ROM / project → force to 0F.
+local INVALID_BLACK_CODES = {
+  ["0D"] = true, ["0E"] = true,
+  ["1E"] = true, ["2E"] = true, ["3E"] = true,
+  ["1F"] = true, ["2F"] = true, ["3F"] = true,
+}
+
 local function clamp(n, a, b)
   if n < a then return a elseif n > b then return b else return n end
 end
 
 local function hex2(n)
   return string.format("%02X", n)
+end
+
+local function isInvalidBlack(code)
+  if type(code) ~= "string" then return false end
+  return INVALID_BLACK_CODES[code:upper()] == true
+end
+
+--- Map invalid NES "black" codes to the canonical project black $0F.
+local function normalizeInvalidBlack(code)
+  if type(code) ~= "string" then return code end
+  local upper = code:upper()
+  if INVALID_BLACK_CODES[upper] then
+    return "0F"
+  end
+  return upper
 end
 
 local function getLabelTextColor(rgb)
@@ -17,13 +39,33 @@ local function getLabelTextColor(rgb)
   return { base[1], base[2], base[3], 0.5 }
 end
 
+--- Step one nibble axis (dx/dy), skipping invalid blacks so navigation can leave $0F.
+--- Selecting an invalid black elsewhere still normalizes to $0F on write/save.
 local function nibbleAdjust(code, dx, dy)
-  local v = tonumber(code, 16) or 0
+  dx = math.floor(tonumber(dx) or 0)
+  dy = math.floor(tonumber(dy) or 0)
+  local start = type(code) == "string" and code:upper() or "0F"
+  if dx == 0 and dy == 0 then
+    return start
+  end
+
+  local v = tonumber(start, 16) or 0
   local hi = math.floor(v / 16)
   local lo = v % 16
-  hi = clamp(hi + (dy or 0), 0, 3)
-  lo = clamp(lo + (dx or 0), 0, 15)
-  return hex2(hi * 16 + lo)
+
+  while true do
+    local nhi = clamp(hi + dy, 0, 3)
+    local nlo = clamp(lo + dx, 0, 15)
+    if nhi == hi and nlo == lo then
+      -- Hit the edge without a valid landing code — stay put.
+      return start
+    end
+    hi, lo = nhi, nlo
+    local candidate = hex2(hi * 16 + lo)
+    if not isInvalidBlack(candidate) then
+      return candidate
+    end
+  end
 end
 
 local function markPaletteUnsaved()
@@ -60,6 +102,9 @@ end
 return {
   clamp = clamp,
   hex2 = hex2,
+  INVALID_BLACK_CODES = INVALID_BLACK_CODES,
+  isInvalidBlack = isInvalidBlack,
+  normalizeInvalidBlack = normalizeInvalidBlack,
   getLabelTextColor = getLabelTextColor,
   nibbleAdjust = nibbleAdjust,
   markPaletteUnsaved = markPaletteUnsaved,

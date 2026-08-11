@@ -374,6 +374,60 @@ describe("rom_palette_window.lua - locked cells", function()
     expect(callbackRom).toBe(win.romRaw)
   end)
 
+  it("can leave 0F via nibble adjust without getting stuck on invalid blacks", function()
+    local previousCtx = rawget(_G, "ctx")
+    local romRaw = string.char(0x0F) .. string.rep(string.char(0x07), 63)
+    local win = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
+      title = "ROM Leave 0F",
+      paletteData = makeEditablePaletteData(),
+      romRaw = romRaw,
+    })
+    _G.ctx = {
+      app = {
+        wm = {
+          getWindowsOfKind = function()
+            return { win }
+          end,
+        },
+      },
+    }
+
+    expect(win.codes2D[0][0]).toBe("0F")
+    win:setSelected(0, 0)
+    win:adjustSelectedByArrows(-1, 0)
+    _G.ctx = previousCtx
+
+    expect(win.codes2D[0][0]).toBe("0C")
+    expect(chr.readByteFromAddress(win.romRaw, 0)).toBe(0x0C)
+  end)
+
+  it("writes 0F when adjusting onto the black column from 0C", function()
+    local previousCtx = rawget(_G, "ctx")
+    local romRaw = string.char(0x0C) .. string.rep(string.char(0x07), 63)
+    local win = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
+      title = "ROM To 0F",
+      paletteData = makeEditablePaletteData(),
+      romRaw = romRaw,
+    })
+    _G.ctx = {
+      app = {
+        wm = {
+          getWindowsOfKind = function()
+            return { win }
+          end,
+        },
+      },
+    }
+
+    expect(win.codes2D[0][0]).toBe("0C")
+    win:setSelected(0, 0)
+    win:adjustSelectedByArrows(1, 0)
+    _G.ctx = previousCtx
+
+    expect(win.codes2D[0][0]).toBe("0F")
+    expect(chr.readByteFromAddress(win.romRaw, 0)).toBe(0x0F)
+  end)
+
   it("updates existing user-defined entries and keeps them sorted", function()
     local win = makeWindow()
     win.paletteData.userDefinedCode = {

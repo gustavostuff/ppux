@@ -22,24 +22,10 @@ setmetatable(RomPaletteWindow, { __index = PaletteWindow })
 local hex2 = PaletteEdit.hex2
 local getLabelTextColor = PaletteEdit.getLabelTextColor
 local nibbleAdjust = PaletteEdit.nibbleAdjust
+local normalizeInvalidBlack = PaletteEdit.normalizeInvalidBlack
 local markPaletteUnsaved = PaletteEdit.markPaletteUnsaved
 local recordPaletteColorUndo = PaletteEdit.recordPaletteColorUndo
 local invalidateLinkedPpuFrames = PaletteEdit.invalidateLinkedPpuFrames
-
-local INVALID_BLACK_CODES = {
-  ["0D"] = true, ["0E"] = true,
-  ["1E"] = true, ["2E"] = true, ["3E"] = true,
-  ["1F"] = true, ["2F"] = true, ["3F"] = true,
-}
-
-local function normalizeInvalidBlack(code)
-  if type(code) ~= "string" then return code end
-  local upper = code:upper()
-  if INVALID_BLACK_CODES[upper] then
-    return "0F"
-  end
-  return upper
-end
 
 -- Convert hex code string to byte value (0-255)
 local function hexCodeToByte(hexCode)
@@ -684,7 +670,7 @@ function RomPaletteWindow:adjustSelectedByArrows(dx, dy)
   end
   
   local old = self.codes2D[sr][sc]
-  local new = nibbleAdjust(old, dx, dy)
+  local new = normalizeInvalidBlack(nibbleAdjust(old, dx, dy))
   local undoActions = {}
 
   local gctx = rawget(_G, "ctx")

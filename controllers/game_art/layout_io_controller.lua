@@ -7,6 +7,7 @@ local DebugController = require("controllers.dev.debug_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 
 local TableUtils = require("utils.table_utils")
+local PaletteEdit = require("utils.palette_edit_helpers")
 local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 local GridModeUtils = require("controllers.grid_mode_utils")
 
@@ -336,20 +337,7 @@ end
 -- Known-problematic blacks when written to ROM / project:
 --   0D, 0E, 1E, 2E, 3E, 1F, 2F, 3F  -> force to 0F
 -- -------------------------------------------------------------------
-local INVALID_BLACK_CODES = {
-  ["0D"] = true, ["0E"] = true,
-  ["1E"] = true, ["2E"] = true, ["3E"] = true,
-  ["1F"] = true, ["2F"] = true, ["3F"] = true,
-}
-
-local function normalizeInvalidBlack(code)
-  if type(code) ~= "string" then return code end
-  local upper = code:upper()
-  if INVALID_BLACK_CODES[upper] then
-    return "0F"
-  end
-  return upper
-end
+local normalizeInvalidBlack = PaletteEdit.normalizeInvalidBlack
 
 -- Recursively walk a table and normalize any 2-digit hex strings
 local function normalizeInvalidBlacksInTable(t)

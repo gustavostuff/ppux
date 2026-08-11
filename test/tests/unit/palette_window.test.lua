@@ -106,6 +106,32 @@ describe("palette_window.lua - compact mode", function()
     expect(after[4]).toBe(before[4])
   end)
 
+  it("can leave 0F via nibble adjust (skips invalid blacks)", function()
+    local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 1, 4, {
+      title = "Leave 0F",
+      activePalette = false,
+      initCodes = { "0F", "30", "37", "2B" },
+    })
+    win:setSelected(0, 0)
+    win:adjustSelectedByArrows(-1, 0)
+    expect(win.codes2D[0][0]).toBe("0C")
+
+    win:adjustSelectedByArrows(1, 0)
+    expect(win.codes2D[0][0]).toBe("0F")
+  end)
+
+  it("stores 0F when nibble adjust would land on an invalid black", function()
+    local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 1, 4, {
+      title = "Normalize black",
+      activePalette = false,
+      initCodes = { "0C", "30", "37", "2B" },
+    })
+    win:setSelected(0, 0)
+    -- 0C +1 skips 0D/0E and lands on canonical 0F.
+    win:adjustSelectedByArrows(1, 0)
+    expect(win.codes2D[0][0]).toBe("0F")
+  end)
+
   it("bypasses the shared minimum window size constraint", function()
     local win = PaletteWindow.new(0, 0, 2, "smooth_fbx", 1, 4, {
       title = "Generic Palette Small Compact",

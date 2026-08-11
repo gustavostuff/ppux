@@ -1196,10 +1196,12 @@ function M:_forEachGroupRun(gridX, gridY, starts, onRun)
     local runCol, runRow, runLen = nil, nil, 0
     local function flush()
       if runLen > 0 and runCol ~= nil and type(onRun) == "function" then
+        -- 1px gaps between adjacent cells (horizontal via w-1; vertical via y/h inset).
         local x = gridX + runCol * CELL_W
-        local y = gridY + runRow * CELL_H
+        local y = gridY + runRow * CELL_H + 1
         local w = runLen * CELL_W - 1
-        onRun(x, y, w, CELL_H)
+        local h = CELL_H - 2
+        onRun(x, y, w, h)
       end
       runCol, runRow, runLen = nil, nil, 0
     end
