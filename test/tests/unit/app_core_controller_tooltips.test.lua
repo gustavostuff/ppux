@@ -125,6 +125,28 @@ describe("app_core_controller.lua - tooltip hit testing", function()
     expect(candidate).toEqual({ text = "Upper tooltip" })
   end)
 
+  it("returns window content tooltips from the topmost window body", function()
+    local oldGetTooltipCandidate = UserInput.getTooltipCandidate
+    UserInput.getTooltipCandidate = function() return nil end
+
+    local win = {
+      _closed = false,
+      _minimized = false,
+      _collapsed = false,
+      contains = function() return true end,
+      getTooltipAt = function()
+        return { text = "Color matches ROM address 0x000001 ($07)" }
+      end,
+    }
+
+    local app = buildApp({ win })
+    local candidate = app:getTooltipCandidateAt(40, 20)
+
+    UserInput.getTooltipCandidate = oldGetTooltipCandidate
+
+    expect(candidate).toEqual({ text = "Color matches ROM address 0x000001 ($07)" })
+  end)
+
   it("returns no tooltip candidate when tooltips are disabled", function()
     local oldGetTooltipCandidate = UserInput.getTooltipCandidate
     UserInput.getTooltipCandidate = function()

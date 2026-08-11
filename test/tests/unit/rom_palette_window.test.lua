@@ -527,3 +527,70 @@ describe("rom_palette_window.lua - locked cells", function()
     expect(strips.colCodes[4]).toBe("39")
   end)
 end)
+
+describe("rom_palette_window.lua - cell tooltips", function()
+  local function makeEditableWindow(opts)
+    opts = opts or {}
+    local romBytes = {}
+    for i = 1, 16 do
+      romBytes[i] = string.char(opts.romByte or 0x07)
+    end
+    return RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
+      title = "ROM Palette Tooltip",
+      paletteData = {
+        romColors = {
+          [1] = { [1] = 0, [2] = 1, [3] = 2, [4] = 3 },
+          [2] = { [1] = 4, [2] = 5, [3] = 6, [4] = 7 },
+          [3] = { [1] = 8, [2] = 9, [3] = 10, [4] = 11 },
+          [4] = { [1] = 12, [2] = 13, [3] = 14, [4] = 15 },
+        },
+        userDefinedCode = opts.userDefinedCode or {},
+      },
+      romRaw = table.concat(romBytes),
+    })
+  end
+
+  it("reports a match when the cell color equals the captured ROM base", function()
+    local win = makeEditableWindow()
+    expect(win:getCapturedBaseCode(0, 0)).toBe("07")
+    expect(win.codes2D[0][0]).toBe("07")
+    expect(win:formatCellTooltip(0, 0)).toBe("Color matches ROM address 0x000000 ($07)")
+  end)
+
+  it("reports the overridden ROM color when the cell differs from base", function()
+    local win = makeEditableWindow({
+      userDefinedCode = { { row = 0, col = 1, code = "2A" } },
+    })
+    expect(win:getCapturedBaseCode(1, 0)).toBe("07")
+    expect(win.codes2D[0][1]).toBe("2A")
+    expect(win:formatCellTooltip(1, 0)).toBe("$2A overrides ROM $07 at 0x000001")
+  end)
+
+  it("reports locked cells as having no ROM address", function()
+    local win = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
+      title = "ROM Palette Locked Tip",
+      paletteData = {
+        romColors = {
+          [1] = { [1] = false, [2] = 1, [3] = 2, [4] = 3 },
+          [2] = { [1] = 4, [2] = 5, [3] = 6, [4] = 7 },
+          [3] = { [1] = 8, [2] = 9, [3] = 10, [4] = 11 },
+          [4] = { [1] = 12, [2] = 13, [3] = 14, [4] = 15 },
+        },
+        userDefinedCode = {},
+      },
+      romRaw = string.rep(string.char(0x07), 16),
+    })
+    expect(win:formatCellTooltip(0, 0)).toBe("No ROM address")
+  end)
+
+  it("returns a tooltip candidate from content hover coordinates", function()
+    local win = makeEditableWindow()
+    win.isInContentArea = function() return true end
+    win.toGridCoords = function() return true, 0, 0 end
+    local tip = win:getTooltipAt(10, 10)
+    expect(tip).toBeTruthy()
+    expect(tip.text).toBe("Color matches ROM address 0x000000 ($07)")
+    expect(tip.immediate).toBe(false)
+    expect(type(tip.key)).toBe("string")
+  end)
+end)

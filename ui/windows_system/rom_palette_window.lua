@@ -163,6 +163,81 @@ function RomPaletteWindow:getRomByteAddress(col, row)
   return type(addr) == "number" and addr or nil
 end
 
+--- Captured ROM/base NES code for a cell (before user override), or nil.
+function RomPaletteWindow:getCapturedBaseCode(col, row)
+  return getBaseCode(self, col, row)
+end
+
+--- Hover tooltip copy for one palette cell.
+function RomPaletteWindow:formatCellTooltip(col, row)
+  col = math.floor(tonumber(col) or -1)
+  row = math.floor(tonumber(row) or -1)
+  if col < 0 or row < 0 then
+    return nil
+  end
+  if not self:isCellEditable(col, row) then
+    return "No ROM address"
+  end
+
+  local code = self.codes2D and self.codes2D[row] and self.codes2D[row][col]
+  if type(code) ~= "string" or code == "" then
+    return nil
+  end
+  code = normalizeInvalidBlack(code)
+
+  if self:isSketchPalette() then
+    local base = getBaseCode(self, col, row)
+    if type(base) == "string" and base ~= code then
+      return string.format("$%s overrides sketch default $%s", code, base)
+    end
+    return string.format("Sketch color $%s", code)
+  end
+
+  local addr = self:getRomByteAddress(col, row)
+  if type(addr) ~= "number" then
+    return "No ROM address"
+  end
+  local base = getBaseCode(self, col, row)
+  if type(base) == "string" and base ~= code then
+    return string.format("$%s overrides ROM $%s at 0x%06X", code, base, addr)
+  end
+  return string.format("Color matches ROM address 0x%06X ($%s)", addr, code)
+end
+
+function RomPaletteWindow:getTooltipAt(px, py)
+  if self._closed or self._minimized or self._collapsed then
+    return nil
+  end
+  if self.isInContentArea and not self:isInContentArea(px, py) then
+    return nil
+  end
+  if not self.toGridCoords then
+    return nil
+  end
+  local ok, col, row = self:toGridCoords(px, py)
+  if not ok then
+    return nil
+  end
+  local text = self:formatCellTooltip(col, row)
+  if type(text) ~= "string" or text == "" then
+    return nil
+  end
+  local code = self.codes2D and self.codes2D[row] and self.codes2D[row][col] or ""
+  local base = getBaseCode(self, col, row) or ""
+  return {
+    text = text,
+    immediate = false,
+    key = table.concat({
+      "rom_pal_cell",
+      tostring(self._id or self.title or ""),
+      tostring(col),
+      tostring(row),
+      tostring(code),
+      tostring(base),
+    }, ":"),
+  }
+end
+
 local function getRomPaletteWindowsFromApp(app, primaryWin)
   if app and app.wm and app.wm.getWindowsOfKind then
     local list = app.wm:getWindowsOfKind("rom_palette")

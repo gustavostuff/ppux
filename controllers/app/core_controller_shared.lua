@@ -335,6 +335,9 @@ function M.getTopWindowTooltipCandidate(app, x, y)
       end
 
       if w.contains and w:contains(x, y) then
+        if w.getTooltipAt then
+          return w:getTooltipAt(x, y)
+        end
         return nil
       end
     end
