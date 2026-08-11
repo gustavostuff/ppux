@@ -12,6 +12,8 @@ local colors = require("app_colors")
 local TableUtils = require("utils.table_utils")
 local CanvasSpace = require("utils.canvas_space")
 local PaletteEdit = require("utils.palette_edit_helpers")
+local Draw = require("utils.draw_utils")
+local images = require("images")
 
 local RomPaletteWindow = {}
 RomPaletteWindow.__index = RomPaletteWindow
@@ -990,6 +992,34 @@ function RomPaletteWindow:setCellAddress(col, row, romAddr)
 end
 
 -- Override drawGrid to show codes even when not active (ROM palettes always show codes)
+local OVERRIDE_SWATCH_PX = 2
+local OVERRIDE_SWATCH_MARGIN = 1
+local OVERRIDE_ANTS_PX = 4
+local OVERRIDE_ANTS_ALPHA = 0.5
+local OVERRIDE_ANTS_ANIM = {
+  stepPx = 1,
+  intervalSeconds = 0.1,
+}
+
+--- Base NES code being overridden by the cell's current color, or nil.
+function RomPaletteWindow:getOverriddenBaseCode(col, row)
+  if not self:isCellEditable(col, row) then
+    return nil
+  end
+  local code = self.codes2D and self.codes2D[row] and self.codes2D[row][col]
+  if type(code) ~= "string" then
+    return nil
+  end
+  local base = getBaseCode(self, col, row)
+  if type(base) ~= "string" then
+    return nil
+  end
+  if base == normalizeInvalidBlack(code) then
+    return nil
+  end
+  return base
+end
+
 function RomPaletteWindow:drawGrid()
   local sx, sy, sw, sh = self:getInsetContentScreenRect()
   CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
@@ -1000,6 +1030,8 @@ function RomPaletteWindow:drawGrid()
 
   local Text = require("utils.text_utils")
   local cw, ch = self.cellW, self.cellH
+  local selCol = self.selected and self.selected.col
+  local selRow = self.selected and self.selected.row
   
   for r=0, self.rows-1 do
     for c=0, self.cols-1 do
@@ -1022,6 +1054,31 @@ function RomPaletteWindow:drawGrid()
           shadowColor = colors.transparent,
           literalColor = true,
         })
+        -- Bottom-left 2x2 swatch of the captured ROM/base color when overridden.
+        local baseCode = self:getOverriddenBaseCode(c, r)
+        if baseCode then
+          local swatchX = x + OVERRIDE_SWATCH_MARGIN
+          local swatchY = y + ch - OVERRIDE_SWATCH_MARGIN - OVERRIDE_SWATCH_PX
+          local baseRgb = self.palette[baseCode] or colors.black
+          love.graphics.setColor(baseRgb[1], baseRgb[2], baseRgb[3], 1)
+          love.graphics.rectangle("fill", swatchX, swatchY, OVERRIDE_SWATCH_PX, OVERRIDE_SWATCH_PX)
+
+          -- 4x4 ants frame (1px ring around the 2x2); skip when this cell is selected.
+          local cellSelected = selCol == c and selRow == r
+          if not cellSelected and images.pattern_a and Draw.drawRepeatingImageAnimated then
+            local antsX = swatchX - math.floor((OVERRIDE_ANTS_PX - OVERRIDE_SWATCH_PX) * 0.5)
+            local antsY = swatchY - math.floor((OVERRIDE_ANTS_PX - OVERRIDE_SWATCH_PX) * 0.5)
+            love.graphics.setColor(1, 1, 1, OVERRIDE_ANTS_ALPHA)
+            Draw.drawRepeatingImageAnimated(
+              images.pattern_a,
+              antsX,
+              antsY,
+              OVERRIDE_ANTS_PX,
+              OVERRIDE_ANTS_PX,
+              OVERRIDE_ANTS_ANIM
+            )
+          end
+        end
       end
 
       love.graphics.setColor(colors.white)

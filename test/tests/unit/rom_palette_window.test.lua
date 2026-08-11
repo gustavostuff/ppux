@@ -593,4 +593,30 @@ describe("rom_palette_window.lua - cell tooltips", function()
     expect(tip.immediate).toBe(false)
     expect(type(tip.key)).toBe("string")
   end)
+
+  it("reports overridden base codes for cells that differ from captured ROM", function()
+    local win = RomPaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
+      title = "ROM Palette Override Swatch",
+      paletteData = {
+        romColors = {
+          [1] = { [1] = 0, [2] = 1, [3] = 2, [4] = 3 },
+          [2] = { [1] = 4, [2] = 5, [3] = 6, [4] = 7 },
+          [3] = { [1] = 8, [2] = 9, [3] = 10, [4] = 11 },
+          [4] = { [1] = 12, [2] = 13, [3] = 14, [4] = 15 },
+        },
+        userDefinedCode = {
+          { row = 0, col = 1, code = "2A" },
+        },
+      },
+      romRaw = string.rep(string.char(0x07), 16),
+    })
+    expect(win:getCapturedBaseCode(1, 0)).toBe("07")
+    expect(win.codes2D[0][1]).toBe("2A")
+    expect(win:getOverriddenBaseCode(1, 0)).toBe("07")
+    expect(win:getOverriddenBaseCode(0, 0)).toBeNil()
+
+    win:setCompactMode(true)
+    expect(win:getOverriddenBaseCode(1, 0)).toBe("07")
+    win:drawGrid()
+  end)
 end)

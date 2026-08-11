@@ -49,12 +49,31 @@ function AppCoreController:showRomPaletteAddressModal(win, col, row)
     end
   end
 
+  local userOverrideCode = nil
+  -- Sparse userDefinedCode entries are the diffs vs captured ROM base; only those get a row.
+  if type(existingAddr) == "number" then
+    local list = win.paletteData and win.paletteData.userDefinedCode
+    if type(list) == "table" then
+      for _, item in ipairs(list) do
+        if type(item) == "table"
+            and math.floor(tonumber(item.col) or -1) == col
+            and math.floor(tonumber(item.row) or -1) == row
+            and type(item.code) == "string"
+            and item.code ~= "" then
+          userOverrideCode = tostring(item.code):upper()
+          break
+        end
+      end
+    end
+  end
+
   self.romPaletteAddressModal:show({
     title = "Enter color address",
     window = win,
     col = col,
     row = row,
     initialAddress = initialAddress,
+    userOverrideCode = userOverrideCode,
     romRaw = (self.appEditState and self.appEditState.romRaw) or "",
     onConfirm = function(addressText, targetWindow, targetCol, targetRow)
       local addr, parseErr = Shared.parseHexAddress(addressText)

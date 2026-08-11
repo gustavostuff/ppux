@@ -100,6 +100,41 @@ describe("rom_palette_address_modal.lua", function()
     modal:hide()
   end)
 
+  it("shows Base ROM color + User override when editing an already-bound cell", function()
+    local modal = RomPaletteAddressModal.new()
+    local bytes = {}
+    for i = 0, 127 do
+      bytes[i + 1] = string.char(i)
+    end
+    local rom = table.concat(bytes)
+    modal:show({
+      romRaw = rom,
+      initialAddress = "0x00000F",
+      userOverrideCode = "2A",
+    })
+
+    expect(modal._showUserOverride).toBe(true)
+    expect(modal.overridePreview.code).toBe("2A")
+    expect(modal.selectedPreview.code).toBe("0F")
+
+    local plain = RomPaletteAddressModal.new()
+    plain:show({ romRaw = rom, initialAddress = "0x00000F" })
+    expect(modal.panel.rows).toBe(plain.panel.rows + 1)
+    plain:hide()
+    modal:hide()
+  end)
+
+  it("keeps Selected label layout when no user override is provided", function()
+    local modal = RomPaletteAddressModal.new()
+    modal:show({
+      romRaw = string.rep(string.char(0x0F), 128),
+      initialAddress = "0x00000F",
+    })
+    expect(modal._showUserOverride).toBe(false)
+    expect(modal.overridePreview.code).toBeNil()
+    modal:hide()
+  end)
+
   it("keeps the address field in sync when the grid selection changes", function()
     local modal = RomPaletteAddressModal.new()
     local rom = string.rep("\x30", 256)
@@ -177,12 +212,63 @@ describe("showRomPaletteAddressModal initial address", function()
         romColors = {
           { 0x3F00, 0x3F10, nil, nil },
         },
+        userDefinedCode = {
+          { row = 0, col = 1, code = "2A" },
+        },
+      },
+      codes2D = {
+        [0] = { [0] = "07", [1] = "2A" },
       },
     }
 
     app:showRomPaletteAddressModal(win, 1, 0)
 
     expect(capture.opts.initialAddress).toBe("0x003F10")
+    expect(capture.opts.userOverrideCode).toBe("2A")
+  end)
+
+  it("omits userOverrideCode when the cell matches ROM base (no userDefinedCode entry)", function()
+    local capture = {}
+    local app = makeApp(capture)
+    local win = {
+      paletteData = {
+        romColors = {
+          { 0x3F00, 0x3F10, nil, nil },
+        },
+        userDefinedCode = {},
+      },
+      codes2D = {
+        [0] = { [0] = "07", [1] = "07" },
+      },
+    }
+
+    app:showRomPaletteAddressModal(win, 1, 0)
+
+    expect(capture.opts.initialAddress).toBe("0x003F10")
+    expect(capture.opts.userOverrideCode).toBeNil()
+  end)
+
+  it("omits userOverrideCode when the cell has no ROM address yet", function()
+    local capture = {}
+    local app = makeApp(capture)
+    local win = {
+      paletteData = {
+        romColors = {
+          { 0x3F00, nil, nil, nil },
+        },
+        userDefinedCode = {
+          { row = 0, col = 1, code = "2A" },
+        },
+      },
+      codes2D = {
+        [0] = { [0] = "07", [1] = "2A" },
+      },
+    }
+
+    app:showRomPaletteAddressModal(win, 1, 0)
+
+    expect(capture.opts.initialAddress).toBe("0x003F01")
+    expect(capture.opts.userOverrideCode).toBeNil()
   end)
 
   it("leaves the field empty when there is no left neighbor address", function()

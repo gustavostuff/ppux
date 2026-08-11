@@ -12,12 +12,14 @@ local Draw = require("utils.draw_utils")
 local images = require("images")
 local colors = require("app_colors")
 
--- Enter color address: ROM hex grid (1-byte groups) + Selected swatch + address field.
+-- Enter color address: ROM hex grid + color preview(s) + address field.
+-- New cells: "Selected". Already-bound cells: "Base ROM color" + "User override".
 
 local Dialog = {}
 Dialog.__index = Dialog
 
-local FOOTER_ROWS = 4 -- Selected, address field, buttons, Esc
+local FOOTER_ROWS_DEFAULT = 4 -- Selected, address, buttons, Esc
+local FOOTER_ROWS_WITH_OVERRIDE = 5 -- Base ROM color, User override, address, buttons, Esc
 local PANEL_COLS = 3
 local SWATCH_PX = 11
 local SELECTION_RECT_ANIM = {
@@ -107,7 +109,8 @@ end
 local SelectedPreview = {}
 SelectedPreview.__index = SelectedPreview
 
-function SelectedPreview.new()
+function SelectedPreview.new(opts)
+  opts = opts or {}
   return setmetatable({
     x = 0,
     y = 0,
@@ -115,6 +118,7 @@ function SelectedPreview.new()
     h = ModalPanelUtils.MODAL_BUTTON_H,
     code = nil,
     rgb = { 0, 0, 0, 1 },
+    showAnts = opts.showAnts ~= false,
   }, SelectedPreview)
 end
 
@@ -163,7 +167,7 @@ function SelectedPreview:draw()
     local rgb = self.rgb
     love.graphics.setColor(rgb[1], rgb[2], rgb[3], rgb[4] or 1)
     love.graphics.rectangle("fill", sx, cy, SWATCH_PX, SWATCH_PX)
-    if images.pattern_a then
+    if self.showAnts and images.pattern_a then
       love.graphics.setColor(1, 1, 1, 1)
       Draw.drawRepeatingImageAnimated(
         images.pattern_a,
@@ -208,7 +212,9 @@ local function rebuildPanel(self)
   local cellH = self.cellH
   local spacingY = self.rowGap or 0
   local hexRows = rowspanForHeight(RomHexGrid.contentHeight(), cellH, spacingY)
-  local totalRows = hexRows + FOOTER_ROWS
+  local showOverride = self._showUserOverride == true
+  local footerRows = showOverride and FOOTER_ROWS_WITH_OVERRIDE or FOOTER_ROWS_DEFAULT
+  local totalRows = hexRows + footerRows
 
   self.panel = Panel.new({
     cols = PANEL_COLS,
@@ -228,8 +234,9 @@ local function rebuildPanel(self)
     _modalChromeOverBlue = self._modalChromeOverBlue == true,
   })
 
-  local selectedRow = hexRows + 1
-  local addrRow = selectedRow + 1
+  local colorRow = hexRows + 1
+  local overrideRow = showOverride and (colorRow + 1) or nil
+  local addrRow = (overrideRow or colorRow) + 1
   local buttonRow = addrRow + 1
   local escRow = buttonRow + 1
 
@@ -239,8 +246,13 @@ local function rebuildPanel(self)
     rowspan = hexRows,
   })
   -- Labels + values in columns 1-2; Cancel in col 2, Set in col 3.
-  self.panel:setCell(1, selectedRow, { text = "Selected:" })
-  self.panel:setCell(2, selectedRow, { component = self.selectedPreview })
+  local colorLabel = showOverride and "Base ROM color:" or "Selected:"
+  self.panel:setCell(1, colorRow, { text = colorLabel })
+  self.panel:setCell(2, colorRow, { component = self.selectedPreview })
+  if showOverride then
+    self.panel:setCell(1, overrideRow, { text = "User override:" })
+    self.panel:setCell(2, overrideRow, { component = self.overridePreview })
+  end
   self.panel:setCell(1, addrRow, { text = "Address:" })
   self.panel:setCell(2, addrRow, { component = self.textField })
   self.panel:setCell(2, buttonRow, { component = self.cancelButton })
@@ -272,6 +284,7 @@ function Dialog.new()
     panel = nil,
     _syncingFromGrid = false,
     _invalidColorWarning = nil,
+    _showUserOverride = false,
   }, Dialog)
 
   self.hexGrid = RomHexGrid.new({
@@ -303,7 +316,8 @@ function Dialog.new()
       self:_refreshSemiSelected()
     end,
   })
-  self.selectedPreview = SelectedPreview.new()
+  self.selectedPreview = SelectedPreview.new({ showAnts = true })
+  self.overridePreview = SelectedPreview.new({ showAnts = false })
   self.textField = TextField.new({
     width = 104,
     height = self.fieldH,
@@ -480,6 +494,15 @@ function Dialog:show(opts)
   self.romRaw = type(opts.romRaw) == "string" and opts.romRaw or ""
   self._invalidColorWarning = nil
 
+  local overrideCode = opts.userOverrideCode
+  if type(overrideCode) == "string" and overrideCode ~= "" then
+    self._showUserOverride = true
+    self.overridePreview:setColorCode(overrideCode)
+  else
+    self._showUserOverride = false
+    self.overridePreview:setColorCode(nil)
+  end
+
   self.hexGrid:setRomRaw(self.romRaw)
   self.hexGrid:setDisabledStarts({})
   self.hexGrid:setMinimapMarkers({})
@@ -531,6 +554,10 @@ function Dialog:hide()
   self.targetRow = nil
   self.romRaw = ""
   self._invalidColorWarning = nil
+  self._showUserOverride = false
+  if self.overridePreview then
+    self.overridePreview:setColorCode(nil)
+  end
   if self.hexGrid then
     self.hexGrid:setSemiSelectedStarts({})
     self.hexGrid:setMinimapMarkers({})
