@@ -125,6 +125,7 @@ function M:setSelectedAddr(addr)
 end
 
 --- starts: list of OAM start addresses; groupColors[i] optional tint for ants.
+--- Empty list clears the preview (modal still reserves one-slot height).
 function M:setSelectedStarts(starts, groupColors)
   local list = {}
   if type(starts) == "table" then
@@ -132,11 +133,10 @@ function M:setSelectedStarts(starts, groupColors)
       list[#list + 1] = math.floor(tonumber(starts[i]) or 0)
     end
   end
-  if #list == 0 then
-    list[1] = math.floor(tonumber(self.selectedAddr) or 0)
-  end
   self.selectedStarts = list
-  self.selectedAddr = list[#list]
+  if #list > 0 then
+    self.selectedAddr = list[#list]
+  end
   self.groupColors = type(groupColors) == "table" and groupColors or {}
   self:refresh()
 end
@@ -231,14 +231,16 @@ end
 
 function M:_layoutMetrics()
   local pw, ph = self:_previewPixelSize()
-  local n = math.max(1, #(self._slots or {}))
+  local n = #(self._slots or {})
+  -- Keep at least one slot of vertical space when empty so the modal does not shrink.
+  local layoutN = math.max(1, n)
   local availW = math.max(pw, self.w - 4)
   local per = pw + PREVIEW_GAP
   local cols = math.max(1, math.floor((availW + PREVIEW_GAP) / per))
-  if cols > n then
-    cols = n
+  if cols > layoutN then
+    cols = layoutN
   end
-  local rows = math.ceil(n / cols)
+  local rows = math.ceil(layoutN / cols)
   return pw, ph, cols, rows, n
 end
 
@@ -306,9 +308,14 @@ function M:_drawOne(slot, boxX, boxY, pw, ph, hovered)
 end
 
 function M:draw()
-  local pw, ph, cols, rows, n = self:_layoutMetrics()
+  local pw, ph, cols, _rows, n = self:_layoutMetrics()
+  if n == 0 then
+    love.graphics.setColor(colors.white)
+    return
+  end
+  local contentRows = math.ceil(n / cols)
   local totalW = cols * pw + math.max(0, cols - 1) * PREVIEW_GAP
-  local totalH = rows * ph + math.max(0, rows - 1) * PREVIEW_GAP
+  local totalH = contentRows * ph + math.max(0, contentRows - 1) * PREVIEW_GAP
   local originX = self.x + math.floor((self.w - totalW) * 0.5)
   local originY = self.y + math.floor((self.h - totalH) * 0.5)
   local hoveredStart = self.hoveredStart

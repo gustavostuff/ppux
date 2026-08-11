@@ -17,6 +17,7 @@ local Dialog = {}
 Dialog.__index = Dialog
 
 local FOOTER_ROWS = 3 -- OAM field, buttons, Esc
+local PANEL_COLS = 3
 Dialog.NES_SPRITE_LIMIT = 64
 Dialog.MSG_MAX_PER_ADD = "8 items allowed per Add event"
 Dialog.MSG_NES_LIMIT = "64 sprites allowed (NES limit)"
@@ -89,11 +90,12 @@ local function rowspanForHeight(height, cellH, spacingY)
   return math.max(1, math.ceil((math.max(1, height) + spacingY) / step))
 end
 
---- Panel cell width so two columns (+ spacing) match the hex grid content width.
+--- Panel cell width so PANEL_COLS (+ spacing) match the hex grid content width.
 local function cellWForHexGrid(spacingX)
   local gridW = RomHexGrid.contentWidth()
   spacingX = math.max(0, math.floor(tonumber(spacingX) or 0))
-  return math.max(1, math.ceil((gridW - spacingX) / 2))
+  local gaps = spacingX * math.max(0, PANEL_COLS - 1)
+  return math.max(1, math.ceil((gridW - gaps) / PANEL_COLS))
 end
 
 local function syncModalGridMetrics(self)
@@ -110,7 +112,7 @@ local function rebuildPanel(self)
   local totalRows = hexRows + previewRows + FOOTER_ROWS
 
   self.panel = Panel.new({
-    cols = 2,
+    cols = PANEL_COLS,
     rows = totalRows,
     cellW = self.cellW,
     cellH = cellH,
@@ -134,18 +136,19 @@ local function rebuildPanel(self)
 
   self.panel:setCell(1, 1, {
     component = self.hexGrid,
-    colspan = 2,
+    colspan = PANEL_COLS,
     rowspan = hexRows,
   })
   self.panel:setCell(1, previewRow, {
     component = self.preview,
-    colspan = 2,
+    colspan = PANEL_COLS,
     rowspan = previewRows,
   })
+  -- Labels + values in columns 1-2; Cancel in col 2, Add in col 3.
   self.panel:setCell(1, oamRow, { text = "OAM start:" })
   self.panel:setCell(2, oamRow, { component = self.oamStartField })
-  self.panel:setCell(1, buttonRow, { component = self.addButton })
   self.panel:setCell(2, buttonRow, { component = self.cancelButton })
+  self.panel:setCell(3, buttonRow, { component = self.addButton })
   self.panel:setCell(1, escRow, { text = "Esc) Close", colspan = 2 })
 end
 
@@ -242,6 +245,12 @@ function Dialog:_syncPreviewFromGrid()
   if self.visible and prevH ~= nil and newH ~= prevH and self.panel then
     rebuildPanel(self)
   end
+  self:_refreshAddEnabled()
+end
+
+function Dialog:_refreshAddEnabled()
+  local starts = self.hexGrid and self.hexGrid:getSelectedStarts() or {}
+  self.addButton.enabled = #starts > 0
 end
 
 function Dialog:_refreshLimitWarning()
@@ -410,6 +419,10 @@ function Dialog:getTooltipAt(x, y)
 end
 
 function Dialog:_confirm()
+  local starts = self.hexGrid and self.hexGrid:getSelectedStarts() or {}
+  if #starts == 0 then
+    return false
+  end
   self:_refreshLimitWarning()
   -- Block Add when the selection would push the sprite layer past the NES OAM cap.
   if self.isEdit ~= true and self._limitWarning == Dialog.MSG_NES_LIMIT then
@@ -418,7 +431,6 @@ function Dialog:_confirm()
   local callback = self.onConfirm
   local targetWindow = self.targetWindow
   if callback then
-    local starts = self.hexGrid and self.hexGrid:getSelectedStarts() or {}
     -- Drop starts whose 4-byte span overlaps an in-layer sprite.
     if self.isEdit ~= true and self.hexGrid and self.hexGrid.startOverlapsOccupied then
       local filtered = {}

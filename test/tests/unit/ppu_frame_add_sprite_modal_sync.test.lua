@@ -87,4 +87,27 @@ describe("ppu_frame_add_sprite_modal grid/field sync", function()
     expect(modal.visible).toBe(true)
     modal:hide()
   end)
+
+  it("disables Add and clears preview when the grid has no selection", function()
+    local modal = Dialog.new()
+    modal:show({
+      romRaw = string.rep("\0", 256),
+      spriteLayer = makeLayer(0),
+      tilesPool = { [1] = {} },
+    })
+    expect(modal.addButton.enabled).toBe(true)
+    local reservedH = modal.preview:preferredHeight()
+
+    modal.hexGrid:_setStarts({}, 0, { emit = true, allowEmpty = true })
+    expect(#modal.hexGrid:getSelectedStarts()).toBe(0)
+    expect(modal.addButton.enabled).toBe(false)
+    expect(#(modal.preview.selectedStarts or {})).toBe(0)
+    expect(#(modal.preview._slots or {})).toBe(0)
+    expect(modal.preview:preferredHeight()).toBe(reservedH)
+    expect(modal:_confirm()).toBe(false)
+    expect(modal.visible).toBe(true)
+
+    expect(modal.panel.cols).toBe(3)
+    modal:hide()
+  end)
 end)
