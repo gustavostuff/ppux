@@ -90,7 +90,7 @@ end
 
 -- When true, Enter-color minimap marks every bound address from all ROM palette
 -- windows (not only the one being edited). Dev/config flag; not user-facing.
-Dialog.MINIMAP_MARK_ALL_ROM_PALETTES = true
+Dialog.MINIMAP_MARK_ALL_ROM_PALETTES = false
 
 --- Collect bound ROM addresses and their palette UI cell colors.
 local function collectBoundAddrColors(win)
@@ -390,9 +390,10 @@ function Dialog.new()
     groupSize = 1,
     maxSelectedStarts = 1,
     selectionAnts = true,
-    -- Bound palette addresses: same ants + colors as the zoom strip, at half opacity.
+    -- Bound palette addresses: white marching ants at half opacity.
     boundMarkerAnts = true,
     boundMarkerAntsAlpha = 0.5,
+    selectionCrosshair = true,
     semiColorForAddr = function(addr)
       return self:_nesFillColorForAddr(addr, 1)
     end,

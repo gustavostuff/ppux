@@ -24,7 +24,7 @@ M.OAM_SPAN = 4
 --- Convenience cap for Add-sprite; grid only enforces when maxSelectedStarts is set.
 M.MAX_SELECTED_STARTS = 8
 M.CELL_W = 15
-M.CELL_H = 12
+M.CELL_H = 11
 
 -- Fixed-pitch gutter: 6 hex digits x OFFSET_DIGIT_W (Aseprite is not fully mono).
 local OFFSET_DIGITS = 6
@@ -117,7 +117,8 @@ function M.contentWidth(cols)
 end
 
 function M.contentHeight()
-  return HEADER_H + M.ROWS * CELL_H + PAD * 2
+  -- Top pad only: bottom flush with the last hex row (no empty chrome under the grid).
+  return PAD + HEADER_H + M.ROWS * CELL_H
 end
 
 local function romLen(romRaw)
@@ -202,9 +203,11 @@ function M.new(opts)
     -- When true, draw marching-ants borders on selected groups (ROM palette modal).
     selectionAnts = opts.selectionAnts == true,
     -- When true, draw marching ants on minimap-marker offsets in the byte grid
-    -- (ROM palette: bound addresses, same colors as the zoom strip).
+    -- (ROM palette: bound addresses).
     boundMarkerAnts = opts.boundMarkerAnts == true,
     boundMarkerAntsAlpha = tonumber(opts.boundMarkerAntsAlpha) or 0.5,
+    -- When true, tint the selected address's row + column (ROM palette modal).
+    selectionCrosshair = opts.selectionCrosshair == true,
     -- Optional: function(addr) -> bool; when false, click does not select.
     canSelectAddr = opts.canSelectAddr,
     -- Optional: function(addr) when canSelectAddr rejects a click.
@@ -472,9 +475,8 @@ function M:setSize(w, h)
   if type(w) == "number" then
     self.w = math.floor(w)
   end
-  if type(h) == "number" then
-    self.h = math.floor(h)
-  end
+  -- Height is intrinsic. Panel rowspan may round up; do not stretch the dark chrome.
+  self.h = M.contentHeight()
 end
 
 function M:getWidth()
@@ -872,25 +874,8 @@ function M:getHoveredSelectedStart()
   return starts[covering[#covering]]
 end
 
---- Group start on `phase` that contains `addr`.
-local function groupStartOnPhase(addr, phase, span)
-  span = math.max(1, math.floor(tonumber(span) or 1))
-  local k = math.floor((addr - phase) / span)
-  return phase + k * span
-end
-
-local function phaseRefOfStarts(starts)
-  local phase = starts[1]
-  for i = 2, #starts do
-    if starts[i] < phase then
-      phase = starts[i]
-    end
-  end
-  return phase
-end
-
---- Add a single group for `addr` on the existing selection's phase.
---- `groupSize` defaults to OAM_SPAN for module-level callers/tests.
+--- Append a group starting at `addr` (no phase lock — each click is its own start).
+--- `groupSize` is kept for callers/tests; span overlap is allowed.
 function M.addStartGroup(existingStarts, addr, groupSize)
   addr = math.floor(tonumber(addr) or 0)
   groupSize = math.max(1, math.floor(tonumber(groupSize) or M.OAM_SPAN))
@@ -898,14 +883,13 @@ function M.addStartGroup(existingStarts, addr, groupSize)
   if #existing == 0 then
     return { addr }, addr
   end
-  local newG = groupStartOnPhase(addr, phaseRefOfStarts(existing), groupSize)
   for _, s in ipairs(existing) do
-    if s == newG then
-      return existing, newG
+    if s == addr then
+      return existing, addr
     end
   end
-  existing[#existing + 1] = newG
-  return existing, newG
+  existing[#existing + 1] = addr
+  return existing, addr
 end
 
 function M:mousepressed(px, py, button, _opts)
@@ -1051,13 +1035,14 @@ function M:textColorForStartIndex(index)
   return self:textColorForStart(addr)
 end
 
-local function printOffsetDigits(x, y, addr, font)
+local function printOffsetDigits(x, y, addr, font, textColor)
   local label = string.format("%0" .. OFFSET_DIGITS .. "X", addr)
+  local color = textColor or { 0.75, 0.75, 0.75, 1 }
   for i = 1, OFFSET_DIGITS do
     local ch = label:sub(i, i)
     local tw = Text.getFontWidth(ch, font)
     Text.print(ch, x + (i - 1) * OFFSET_DIGIT_W + math.floor((OFFSET_DIGIT_W - tw) * 0.5), y, {
-      color = { 0.75, 0.75, 0.75, 1 },
+      color = color,
       font = font,
       literalColor = true,
     })
@@ -1090,6 +1075,44 @@ local function drawFillRect(x, y, w, h)
     math.max(1, math.floor(w)),
     math.max(1, math.floor(h))
   )
+end
+
+--- Row/column of selectedAddr on the current page, or nil if none / off-screen.
+function M:_selectionCrosshairCell()
+  if #(self.selectedStarts or {}) == 0 then
+    return nil
+  end
+  local addr = self.selectedAddr
+  if type(addr) ~= "number" then
+    return nil
+  end
+  addr = math.floor(addr)
+  local cols = self:getCols()
+  local pageStart = self.scrollOffset or 0
+  local pageEnd = pageStart + self:bytesPerPage() - 1
+  if addr < pageStart or addr > pageEnd then
+    return nil
+  end
+  local rel = addr - pageStart
+  return math.floor(rel / cols), rel % cols
+end
+
+--- Soft row + column bands for the selected byte (drawn right after the grid BG).
+function M:_drawSelectionCrosshair(gridX, gridY, x0, y0)
+  local row, col = self:_selectionCrosshairCell()
+  if row == nil then
+    return
+  end
+  local cols = self:getCols()
+  x0 = x0 or (gridX - GUTTER_W)
+  y0 = y0 or (gridY - HEADER_H)
+  love.graphics.setColor(1, 1, 1, 0.14)
+  drawFillRect(gridX, gridY + row * CELL_H, cols * CELL_W - 1, CELL_H - 1)
+  drawFillRect(gridX + col * CELL_W, gridY, CELL_W - 1, M.ROWS * CELL_H - 1)
+  -- Header / gutter markers (same pass, still under labels).
+  love.graphics.setColor(1, 1, 1, 0.2)
+  drawFillRect(gridX + col * CELL_W, y0, CELL_W - 1, HEADER_H)
+  drawFillRect(x0, gridY + row * CELL_H, GUTTER_W - 1, CELL_H - 1)
 end
 
 local function drawMinimapMarkersOnTrack(markers, len, trackX, trackY, trackH, rangeStart, rangeLen)
@@ -1244,11 +1267,11 @@ function M:_forEachGroupRun(gridX, gridY, starts, onRun)
     local runCol, runRow, runLen = nil, nil, 0
     local function flush()
       if runLen > 0 and runCol ~= nil and type(onRun) == "function" then
-        -- 1px gaps between adjacent cells (horizontal via w-1; vertical via y/h inset).
+        -- 1px gaps between adjacent cells (right edge and bottom edge of each slot).
         local x = gridX + runCol * CELL_W
-        local y = gridY + runRow * CELL_H + 1
+        local y = gridY + runRow * CELL_H
         local w = runLen * CELL_W - 1
-        local h = CELL_H - 2
+        local h = CELL_H - 1
         onRun(x, y, w, h)
       end
       runCol, runRow, runLen = nil, nil, 0
@@ -1336,19 +1359,17 @@ function M:_drawSelectionAnts(gridX, gridY, starts, opts)
   end
 end
 
---- Ants on minimap-marker bytes (bound ROM palette colors), matching zoom-strip tints.
+--- Ants on minimap-marker bytes (bound ROM palette addresses); white at half opacity.
 function M:_drawBoundMarkerAnts(gridX, gridY)
   local markers = self.minimapMarkers or {}
   if #markers == 0 then
     return
   end
   local starts = {}
-  local colorByAddr = {}
   for _, m in ipairs(markers) do
     local offset = m.offset
     if type(offset) == "number" then
       starts[#starts + 1] = offset
-      colorByAddr[offset] = m.color
     end
   end
   if #starts == 0 then
@@ -1357,8 +1378,8 @@ function M:_drawBoundMarkerAnts(gridX, gridY)
   local alpha = tonumber(self.boundMarkerAntsAlpha) or 0.5
   self:_drawSelectionAnts(gridX, gridY, starts, {
     alpha = alpha,
-    colorForStart = function(addr)
-      return colorFromKey(colorByAddr[addr])
+    colorForStart = function()
+      return { 1, 1, 1, 1 }
     end,
   })
 end
@@ -1377,6 +1398,13 @@ function M:draw()
 
   love.graphics.setColor(colors.black[1], colors.black[2], colors.black[3], 0.55)
   love.graphics.rectangle("fill", self.x, self.y, self.w, self.h)
+
+  local crossRow, crossCol = nil, nil
+  if self.selectionCrosshair == true then
+    crossRow, crossCol = self:_selectionCrosshairCell()
+    -- Crosshair sits on the BG, under fills / ants / text.
+    self:_drawSelectionCrosshair(gridX, gridY, x0, y0)
+  end
 
   for col = 0, cols - 1 do
     local label = string.format("%02X", col)
@@ -1430,11 +1458,16 @@ function M:draw()
 
   local disText = disabledTextColor()
   local useCustomSelectedText = type(self.selectedColorForAddr) == "function"
+  local gutterHi = { 1, 1, 1, 1 }
 
   for row = 0, M.ROWS - 1 do
     local rowAddr = self.scrollOffset + row * cols
     local rowY = gridY + row * CELL_H
-    printOffsetDigits(x0, rowY + TEXT_NUDGE_Y, rowAddr, font)
+    if crossRow ~= nil and row == crossRow then
+      printOffsetDigits(x0, rowY + TEXT_NUDGE_Y, rowAddr, font, gutterHi)
+    else
+      printOffsetDigits(x0, rowY + TEXT_NUDGE_Y, rowAddr, font)
+    end
 
     for col = 0, cols - 1 do
       local addr = rowAddr + col
@@ -1476,7 +1509,7 @@ function M:draw()
         byteText = string.format("%02X", string.byte(self.romRaw, addr + 1) or 0)
       end
       local tw = Text.getFontWidth(byteText, font)
-      Text.print(byteText, cellX + math.floor((CELL_W - tw) * 0.5), rowY + TEXT_NUDGE_Y + 1, {
+      Text.print(byteText, cellX + math.floor((CELL_W - tw) * 0.5), rowY + TEXT_NUDGE_Y, {
         color = textColor,
         font = font,
         literalColor = true,

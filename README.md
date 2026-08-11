@@ -410,7 +410,7 @@ On **PPU Frame** and **OAM Animation** windows, **Add sprite** picks sprites fro
 
 The modal has three synced pieces:
 
-1. **ROM hex grid** - debugger-style byte view of the ROM. Each pick is a 4-byte OAM group (Y, tile, attr, X). Click a group to select it, click again to deselect. Further clicks add more groups on the same phase. The cap is **8** groups per Add event. Gray = already on the layer. Wheel scrolls the page (**Shift+wheel**: larger jumps). Beside the grid: a narrow full-ROM overview scrubber, then a **cols-wide zoom miniature** (1px = one hex byte) so OAM markers show as 4×1 strips and palette binds as individual color pixels.
+1. **ROM hex grid** - debugger-style byte view of the ROM. Each pick is a 4-byte OAM group (Y, tile, attr, X) starting at the clicked byte. Click a group to select it, click again to deselect. Further clicks add more groups (any alignment). The cap is **8** groups per Add event. Gray = already on the layer. Wheel scrolls the page (**Shift+wheel**: larger jumps). Beside the grid: a narrow full-ROM overview scrubber, then a **cols-wide zoom miniature** (1px = one hex byte) so OAM markers show as 4×1 strips and palette binds as individual color pixels.
 2. **Preview** - live draw of the selected groups (ants tint matches the OAM group color).
 3. **OAM start** field - hex address stays in sync with the grid.
 
