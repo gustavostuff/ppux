@@ -58,6 +58,61 @@ describe("rom_palette_address_modal.lua", function()
     expect(modal:textinput("1")).toBe(true)
     expect(modal.textField:getText()).toBe("0x000031")
   end)
+
+  it("treats $0D and $40+ as invalid NES palette bytes", function()
+    expect(RomPaletteAddressModal.isValidNesPaletteByte(0x0C)).toBe(true)
+    expect(RomPaletteAddressModal.isValidNesPaletteByte(0x0F)).toBe(true)
+    expect(RomPaletteAddressModal.isValidNesPaletteByte(0x0D)).toBe(false)
+    expect(RomPaletteAddressModal.isValidNesPaletteByte(0x1E)).toBe(false)
+    expect(RomPaletteAddressModal.isValidNesPaletteByte(0x3F)).toBe(false)
+    expect(RomPaletteAddressModal.isValidNesPaletteByte(0x40)).toBe(false)
+    expect(RomPaletteAddressModal.isValidNesPaletteByte(0xFF)).toBe(false)
+  end)
+
+  it("semi-selects valid NES color bytes on the current hex page", function()
+    local modal = RomPaletteAddressModal.new()
+    -- Page 0 (16 cols × 8 rows): mix of valid and invalid.
+    local bytes = {}
+    for i = 0, 127 do
+      bytes[i + 1] = string.char(i)
+    end
+    local rom = table.concat(bytes)
+    modal:show({
+      romRaw = rom,
+      initialAddress = "0x00000F",
+    })
+
+    expect(modal.hexGrid:getCols()).toBe(16)
+    expect(modal.hexGrid:bytesPerPage()).toBe(128)
+    local semi = modal.hexGrid:getSemiSelectedStarts()
+    local semiSet = {}
+    for _, addr in ipairs(semi) do
+      semiSet[addr] = true
+    end
+    expect(semiSet[0x0C]).toBe(true)
+    expect(semiSet[0x0F]).toBe(true)
+    expect(semiSet[0x0D]).toBeNil()
+    expect(semiSet[0x1E]).toBeNil()
+    expect(semiSet[0x40]).toBeNil()
+    expect(modal.hexGrid:getGroupSize()).toBe(1)
+    expect(modal.selectedPreview.code).toBe("0F")
+    expect(modal.textField:getText()).toBe("0x00000F")
+    modal:hide()
+  end)
+
+  it("keeps the address field in sync when the grid selection changes", function()
+    local modal = RomPaletteAddressModal.new()
+    local rom = string.rep("\x30", 256)
+    modal:show({
+      romRaw = rom,
+      initialAddress = "0x000000",
+    })
+    modal.hexGrid:setSelectedAddr(0x20, { emit = false })
+    modal:_onGridSelect(0x20, { fromGrid = true })
+    expect(modal.textField:getText()).toBe("0x000020")
+    expect(modal.selectedPreview.code).toBe("30")
+    modal:hide()
+  end)
 end)
 
 describe("showRomPaletteAddressModal initial address", function()
@@ -68,6 +123,7 @@ describe("showRomPaletteAddressModal initial address", function()
           capture.opts = opts
         end,
       },
+      appEditState = { romRaw = string.rep("\0", 64) },
       setStatus = function() end,
       showToast = function() end,
     }, AppCoreController)
@@ -87,6 +143,7 @@ describe("showRomPaletteAddressModal initial address", function()
     app:showRomPaletteAddressModal(win, 1, 0)
 
     expect(capture.opts.initialAddress).toBe("0x003F01")
+    expect(capture.opts.romRaw).toBe(app.appEditState.romRaw)
   end)
 
   it("keeps the cell's own address when already set", function()

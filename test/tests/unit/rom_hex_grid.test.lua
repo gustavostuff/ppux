@@ -186,6 +186,46 @@ describe("RomHexGrid", function()
     expect(selected[8]).toBe(0x1C)
   end)
 
+  it("maxSelectedStarts 1 replaces selection on a new click", function()
+    local grid = RomHexGrid.new({ groupSize = 1, maxSelectedStarts = 1 })
+    grid:setRomRaw(makeRom(256))
+    grid:setPosition(0, 0)
+    local x0, y0 = cellPixel(0, 0)
+    local x5, y5 = cellPixel(5, 0)
+    grid:mousepressed(x0, y0, 1)
+    expect(grid:getSelectedStarts()).toEqual({ 0 })
+    grid:mousepressed(x5, y5, 1)
+    expect(grid:getSelectedStarts()).toEqual({ 5 })
+  end)
+
+  it("supports 32-column layout and scrollbar drag scrolling", function()
+    local scrolls = 0
+    local grid = RomHexGrid.new({
+      cols = 32,
+      groupSize = 1,
+      onScroll = function()
+        scrolls = scrolls + 1
+      end,
+    })
+    grid:setRomRaw(makeRom(4096))
+    grid:setPosition(0, 0)
+    expect(grid:getCols()).toBe(32)
+    expect(grid:bytesPerPage()).toBe(256)
+    expect(grid:getWidth()).toBe(RomHexGrid.contentWidth(32))
+
+    -- Click in scrollbar track (right of byte grid).
+    local trackX = 2 + 38 + 32 * 15 + 2 + 1
+    local trackY = 2 + 12 + 40
+    expect(grid:mousepressed(trackX, trackY, 1)).toBe(true)
+    expect(grid:isScrollDragging()).toBe(true)
+    local before = grid.scrollOffset
+    grid:mousemoved(trackX, trackY + 20)
+    expect(grid.scrollOffset).toBeGreaterThanOrEqual(before)
+    expect(scrolls).toBeGreaterThanOrEqual(1)
+    grid:mousereleased(trackX, trackY + 20, 1)
+    expect(grid:isScrollDragging()).toBe(false)
+  end)
+
   it("wheel steps 8 rows; Shift+wheel steps 64 rows", function()
     local grid = oamGrid()
     grid:setRomRaw(makeRom(4096))

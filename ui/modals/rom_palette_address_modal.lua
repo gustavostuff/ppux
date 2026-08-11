@@ -1,25 +1,220 @@
 local Button = require("ui.button")
 local Panel = require("ui.panel")
 local TextField = require("ui.text_field")
+local Text = require("utils.text_utils")
 local ModalPanelUtils = require("ui.modals.panel_modal_utils")
+local RomHexGrid = require("ui.rom_hex_grid")
+local Shared = require("controllers.app.core_controller_shared")
+local ResolutionController = require("controllers.app.resolution_controller")
+local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
+local Palettes = require("palettes")
+local Draw = require("utils.draw_utils")
+local images = require("images")
+local colors = require("app_colors")
+
+-- Enter color address: ROM hex grid (1-byte groups) + Selected swatch + address field.
 
 local Dialog = {}
 Dialog.__index = Dialog
+
+local FOOTER_ROWS = 4 -- Selected, address field, buttons, Esc
+local SWATCH_PX = 11
+local SELECTION_RECT_ANIM = {
+  stepPx = 1,
+  intervalSeconds = 0.1,
+}
+
+-- Forbidden / redundant / out-of-bounds NES palette indices (not valid color codes).
+local INVALID_NES_COLOR = {
+  [0x0D] = true,
+  [0x0E] = true, [0x1E] = true, [0x2E] = true, [0x3E] = true,
+  [0x1F] = true, [0x2F] = true, [0x3F] = true,
+}
 
 local function trim(text)
   text = tostring(text or "")
   return text:match("^%s*(.-)%s*$")
 end
 
+function Dialog.isValidNesPaletteByte(byte)
+  byte = math.floor(tonumber(byte) or -1)
+  if byte < 0 or byte > 0x3F then
+    return false
+  end
+  return INVALID_NES_COLOR[byte] ~= true
+end
+
+--- Addresses on the visible hex page whose ROM byte is a valid NES palette color.
+function Dialog.collectValidColorAddrsOnPage(romRaw, scrollOffset, bytesPerPage)
+  local starts = {}
+  if type(romRaw) ~= "string" then
+    return starts
+  end
+  local len = #romRaw
+  local pageStart = math.max(0, math.floor(tonumber(scrollOffset) or 0))
+  local pageBytes = math.max(1, math.floor(tonumber(bytesPerPage) or RomHexGrid.BYTES_PER_PAGE))
+  local pageEnd = pageStart + pageBytes - 1
+  for addr = pageStart, pageEnd do
+    if addr >= 0 and addr < len then
+      local byte = string.byte(romRaw, addr + 1) or 0
+      if Dialog.isValidNesPaletteByte(byte) then
+        starts[#starts + 1] = addr
+      end
+    end
+  end
+  return starts
+end
+
+local function nesCodeFromByte(byte)
+  byte = math.floor(tonumber(byte) or 0x0F) % 256
+  -- Out-of-bounds codes mirror $00–$3F for display.
+  if byte > 0x3F then
+    byte = byte % 0x40
+  end
+  return string.format("%02X", byte)
+end
+
+local function rgbForNesCode(code)
+  local paletteName = ShaderPaletteController.paletteName or "smooth_fbx"
+  local p = Palettes[paletteName] or Palettes.smooth_fbx
+  local rgb = p and p[code]
+  if type(rgb) == "table" and type(rgb[1]) == "number" then
+    return { rgb[1], rgb[2] or 0, rgb[3] or 0, rgb[4] or 1 }
+  end
+  return { 0, 0, 0, 1 }
+end
+
+local function rowspanForHeight(height, cellH, spacingY)
+  cellH = math.max(1, math.floor(tonumber(cellH) or 15))
+  spacingY = math.max(0, math.floor(tonumber(spacingY) or 0))
+  local step = cellH + spacingY
+  return math.max(1, math.ceil((math.max(1, height) + spacingY) / step))
+end
+
+local function cellWForHexGrid(spacingX, cols)
+  local gridW = RomHexGrid.contentWidth(cols)
+  spacingX = math.max(0, math.floor(tonumber(spacingX) or 0))
+  return math.max(1, math.ceil((gridW - spacingX) / 2))
+end
+
+----------------------------------------------------------------
+-- Selected color preview (label handled by panel; this is swatch + $HH)
+----------------------------------------------------------------
+
+local SelectedPreview = {}
+SelectedPreview.__index = SelectedPreview
+
+function SelectedPreview.new()
+  return setmetatable({
+    x = 0,
+    y = 0,
+    w = 72,
+    h = ModalPanelUtils.MODAL_BUTTON_H,
+    code = nil,
+    rgb = { 0, 0, 0, 1 },
+  }, SelectedPreview)
+end
+
+function SelectedPreview:setColorCode(code)
+  if type(code) ~= "string" or code == "" then
+    self.code = nil
+    self.rgb = { 0, 0, 0, 1 }
+    return
+  end
+  self.code = code:upper()
+  self.rgb = rgbForNesCode(self.code)
+end
+
+function SelectedPreview:setPosition(x, y)
+  self.x = math.floor(tonumber(x) or 0)
+  self.y = math.floor(tonumber(y) or 0)
+end
+
+function SelectedPreview:setSize(w, h)
+  if type(w) == "number" then self.w = math.floor(w) end
+  if type(h) == "number" then self.h = math.floor(h) end
+end
+
+function SelectedPreview:getWidth()
+  return self.w
+end
+
+function SelectedPreview:getHeight()
+  return self.h
+end
+
+function SelectedPreview:contains(px, py)
+  return px >= self.x and px < self.x + self.w
+    and py >= self.y and py < self.y + self.h
+end
+
+function SelectedPreview:draw()
+  local font = nil
+  if love and love.graphics and love.graphics.getFont then
+    local ok, f = pcall(love.graphics.getFont)
+    if ok then font = f end
+  end
+  local cy = self.y + math.floor((self.h - SWATCH_PX) * 0.5)
+  local sx = self.x
+  if self.code then
+    local rgb = self.rgb
+    love.graphics.setColor(rgb[1], rgb[2], rgb[3], rgb[4] or 1)
+    love.graphics.rectangle("fill", sx, cy, SWATCH_PX, SWATCH_PX)
+    if images.pattern_a then
+      love.graphics.setColor(1, 1, 1, 1)
+      Draw.drawRepeatingImageAnimated(
+        images.pattern_a,
+        sx,
+        cy,
+        SWATCH_PX,
+        SWATCH_PX,
+        SELECTION_RECT_ANIM
+      )
+    end
+    local label = "$" .. self.code
+    local tw = Text.getFontWidth(label, font)
+    local ty = self.y + math.floor((self.h - (font and font.getHeight and font:getHeight() or 10)) * 0.5)
+    Text.print(label, sx + SWATCH_PX + 4, ty, {
+      color = colors.white,
+      font = font,
+      literalColor = true,
+    })
+    self.w = math.max(72, SWATCH_PX + 4 + tw + 2)
+  else
+    Text.print("—", sx, self.y + 2, {
+      color = colors.gray75,
+      font = font,
+      literalColor = true,
+    })
+  end
+  love.graphics.setColor(1, 1, 1, 1)
+end
+
+----------------------------------------------------------------
+-- Modal
+----------------------------------------------------------------
+
+local function syncModalGridMetrics(self)
+  local spacingX = self.buttonGap or self.colGap or 0
+  local cols = (self.hexGrid and self.hexGrid.getCols and self.hexGrid:getCols()) or 16
+  self.cellW = cellWForHexGrid(spacingX, cols)
+end
+
 local function rebuildPanel(self)
+  syncModalGridMetrics(self)
+  local cellH = self.cellH
+  local spacingY = self.rowGap or 0
+  local hexRows = rowspanForHeight(RomHexGrid.contentHeight(), cellH, spacingY)
+  local totalRows = hexRows + FOOTER_ROWS
+
   self.panel = Panel.new({
     cols = 2,
-    rows = 2,
+    rows = totalRows,
     cellW = self.cellW,
-    cellH = self.cellH,
+    cellH = cellH,
     padding = self.padding,
     spacingX = self.buttonGap,
-    spacingY = self.rowGap,
+    spacingY = spacingY,
     cellPaddingX = self.cellPaddingX,
     cellPaddingY = self.cellPaddingY,
     visible = self.visible,
@@ -30,16 +225,23 @@ local function rebuildPanel(self)
     _modalChromeOverBlue = self._modalChromeOverBlue == true,
   })
 
+  local selectedRow = hexRows + 1
+  local addrRow = selectedRow + 1
+  local buttonRow = addrRow + 1
+  local escRow = buttonRow + 1
+
   self.panel:setCell(1, 1, {
-    component = self.textField,
+    component = self.hexGrid,
     colspan = 2,
+    rowspan = hexRows,
   })
-  self.panel:setCell(1, 2, {
-    component = self.setButton,
-  })
-  self.panel:setCell(2, 2, {
-    component = self.cancelButton,
-  })
+  self.panel:setCell(1, selectedRow, { text = "Selected:" })
+  self.panel:setCell(2, selectedRow, { component = self.selectedPreview })
+  self.panel:setCell(1, addrRow, { text = "Address:" })
+  self.panel:setCell(2, addrRow, { component = self.textField })
+  self.panel:setCell(1, buttonRow, { component = self.setButton })
+  self.panel:setCell(2, buttonRow, { component = self.cancelButton })
+  self.panel:setCell(1, escRow, { text = "Esc) Close", colspan = 2 })
 end
 
 function Dialog.new()
@@ -57,17 +259,38 @@ function Dialog.new()
     bgColor = nil,
     cellPaddingX = nil,
     cellPaddingY = nil,
-    pressedButton = nil,
     onConfirm = nil,
     onCancel = nil,
     targetWindow = nil,
     targetCol = nil,
     targetRow = nil,
+    romRaw = "",
     panel = nil,
+    _syncingFromGrid = false,
   }, Dialog)
 
+  self.hexGrid = RomHexGrid.new({
+    cols = 16,
+    groupSize = 1,
+    maxSelectedStarts = 1,
+    -- Fill each valid NES color byte in its actual palette RGB at 50% alpha.
+    semiColorForAddr = function(addr)
+      return self:_semiColorForAddr(addr)
+    end,
+    onSelect = function(addr, selectOpts)
+      selectOpts = selectOpts or {}
+      self:_onGridSelect(addr, {
+        fromGrid = true,
+        selectionCapHit = selectOpts.selectionCapHit == true,
+      })
+    end,
+    onScroll = function()
+      self:_refreshSemiSelected()
+    end,
+  })
+  self.selectedPreview = SelectedPreview.new()
   self.textField = TextField.new({
-    width = 140,
+    width = 104,
     height = self.fieldH,
     mask = "0x000000",
   })
@@ -92,12 +315,97 @@ function Dialog.new()
 
   ModalPanelUtils.applyPanelDefaults(self)
   self.buttonGap = self.colGap
+  self._uses_modal_default_cellW = false
+  syncModalGridMetrics(self)
   rebuildPanel(self)
   return self
 end
 
 function Dialog:isVisible()
   return self.visible
+end
+
+function Dialog:_focusAddressField()
+  self.textField:setFocused(true)
+end
+
+function Dialog:_formatAddr(addr)
+  return string.format("0x%06X", math.floor(tonumber(addr) or 0))
+end
+
+function Dialog:_byteAt(addr)
+  addr = math.floor(tonumber(addr) or -1)
+  if addr < 0 or type(self.romRaw) ~= "string" or addr >= #self.romRaw then
+    return nil
+  end
+  return string.byte(self.romRaw, addr + 1)
+end
+
+function Dialog:_semiColorForAddr(addr)
+  local byte = self:_byteAt(addr)
+  if byte == nil then
+    return { 1, 1, 1, 0.55 }
+  end
+  local rgb = rgbForNesCode(nesCodeFromByte(byte))
+  return { rgb[1], rgb[2], rgb[3], 0.5 }
+end
+
+function Dialog:_refreshSemiSelected()
+  local starts = Dialog.collectValidColorAddrsOnPage(
+    self.romRaw,
+    self.hexGrid.scrollOffset,
+    self.hexGrid:bytesPerPage()
+  )
+  self.hexGrid:setSemiSelectedStarts(starts)
+end
+
+--- Recompute page semi-outlines only when the visible hex page moved.
+function Dialog:_refreshSemiSelectedIfScrolled(prevScroll)
+  if self.hexGrid.scrollOffset ~= prevScroll then
+    self:_refreshSemiSelected()
+    return true
+  end
+  return false
+end
+
+function Dialog:_refreshSelectedPreview(addr)
+  local byte = self:_byteAt(addr)
+  if byte == nil then
+    self.selectedPreview:setColorCode(nil)
+    return
+  end
+  self.selectedPreview:setColorCode(nesCodeFromByte(byte))
+end
+
+function Dialog:_onGridSelect(addr, opts)
+  opts = opts or {}
+  addr = math.floor(tonumber(addr) or 0)
+  if opts.fromGrid ~= true then
+    self.hexGrid:setSelectedAddr(addr, { emit = false })
+  end
+  local starts = self.hexGrid:getSelectedStarts()
+  self._syncingFromGrid = true
+  if #starts > 0 then
+    self.textField:setText(self:_formatAddr(starts[1]))
+    self:_refreshSelectedPreview(starts[1])
+  else
+    self:_refreshSelectedPreview(nil)
+  end
+  self._syncingFromGrid = false
+end
+
+function Dialog:_syncFromAddressField()
+  if self._syncingFromGrid then
+    return
+  end
+  local addr = select(1, Shared.parseHexAddress(self.textField:getText() or ""))
+  if type(addr) ~= "number" then
+    return
+  end
+  local prevScroll = self.hexGrid.scrollOffset
+  self.hexGrid:setSelectedAddr(addr, { emit = false })
+  self:_refreshSelectedPreview(addr)
+  self:_refreshSemiSelectedIfScrolled(prevScroll)
 end
 
 function Dialog:show(opts)
@@ -109,10 +417,28 @@ function Dialog:show(opts)
   self.onConfirm = opts.onConfirm
   self.onCancel = opts.onCancel
   self.visible = true
+  self.romRaw = type(opts.romRaw) == "string" and opts.romRaw or ""
 
-  self.textField:setText(opts.initialAddress or "")
-  self.textField:setFocused(true)
-  self.pressedButton = nil
+  self.hexGrid:setRomRaw(self.romRaw)
+  self.hexGrid:setDisabledStarts({})
+  self.hexGrid:setMinimapMarkers({})
+
+  local initialText = opts.initialAddress or ""
+  self.textField:setText(initialText)
+  local initialAddr = select(1, Shared.parseHexAddress(initialText))
+  if type(initialAddr) ~= "number" then
+    initialAddr = 0
+  end
+  if initialText ~= "" then
+    self.hexGrid:setSelectedAddr(initialAddr, { emit = false })
+    self:_refreshSelectedPreview(initialAddr)
+  else
+    self.hexGrid:_setStarts({}, 0, { emit = false, allowEmpty = true, resetColors = true })
+    self:_refreshSelectedPreview(nil)
+  end
+  self:_refreshSemiSelected()
+
+  self:_focusAddressField()
   self.setButton.pressed = false
   self.cancelButton.pressed = false
   self.setButton.hovered = false
@@ -123,7 +449,6 @@ end
 function Dialog:hide()
   self.visible = false
   self.textField:setFocused(false)
-  self.pressedButton = nil
   self.setButton.pressed = false
   self.cancelButton.pressed = false
   self.setButton.hovered = false
@@ -133,6 +458,12 @@ function Dialog:hide()
   self.targetWindow = nil
   self.targetCol = nil
   self.targetRow = nil
+  self.romRaw = ""
+  if self.hexGrid then
+    self.hexGrid:setSemiSelectedStarts({})
+    self.hexGrid:setMinimapMarkers({})
+    self.hexGrid:setRomRaw("")
+  end
   if self.panel then
     self.panel:setVisible(false)
   end
@@ -199,10 +530,13 @@ function Dialog:handleKey(key)
     return true
   end
   if key == "tab" then
-    self.textField:setFocused(not self.textField.focused)
+    self:_focusAddressField()
     return true
   end
-  if self.textField:onKeyPressed(key) then
+  if self.textField.focused and self.textField:onKeyPressed(key) then
+    if key ~= "left" and key ~= "right" and key ~= "home" and key ~= "end" then
+      self:_syncFromAddressField()
+    end
     return true
   end
   return false
@@ -210,7 +544,14 @@ end
 
 function Dialog:textinput(text)
   if not self.visible then return false end
-  return self.textField:onTextInput(text)
+  if self.textField.focused then
+    local ok = self.textField:onTextInput(text)
+    if ok then
+      self:_syncFromAddressField()
+    end
+    return ok
+  end
+  return false
 end
 
 function Dialog:mousepressed(x, y, button)
@@ -221,50 +562,67 @@ function Dialog:mousepressed(x, y, button)
     return true
   end
 
-  self.pressedButton = nil
-  self.setButton.pressed = false
-  self.cancelButton.pressed = false
-
-  local fieldFocused = self.textField:contains(x, y)
-  self.textField:setFocused(fieldFocused)
-
-  if self.setButton:contains(x, y) then
-    self.setButton.pressed = true
-    self.pressedButton = self.setButton
-  elseif self.cancelButton:contains(x, y) then
-    self.cancelButton.pressed = true
-    self.pressedButton = self.cancelButton
+  if self.textField:contains(x, y) then
+    self:_focusAddressField()
   end
 
-  return true
+  return self.panel and self.panel:mousepressed(x, y, button) or true
 end
 
 function Dialog:mousereleased(x, y, button)
   if not self.visible then return false end
-  if button ~= 1 then return true end
-
-  local pressed = self.pressedButton
-  self.pressedButton = nil
-  self.setButton.pressed = false
-  self.cancelButton.pressed = false
-
-  if pressed and pressed:contains(x, y) and pressed.action then
-    pressed.action()
+  if self.hexGrid then
+    self.hexGrid:mousereleased(x, y, button)
   end
-  return true
+  return self.panel and self.panel:mousereleased(x, y, button) or true
 end
 
 function Dialog:mousemoved(x, y)
   if not self.visible then return false end
-  self.setButton.hovered = self.setButton:contains(x, y)
-  self.cancelButton.hovered = self.cancelButton:contains(x, y)
+  if self.hexGrid then
+    self.hexGrid:mousemoved(x, y)
+  end
+  if self.panel and not (self.hexGrid and self.hexGrid:isScrollDragging()) then
+    self.panel:mousemoved(x, y)
+  end
   return true
+end
+
+function Dialog:wheelmoved(dx, dy)
+  if not self.visible then return false end
+  local mx, my = 0, 0
+  if ResolutionController and ResolutionController.getScaledMouse then
+    local mouse = ResolutionController:getScaledMouse(true)
+    mx = mouse and mouse.x or 0
+    my = mouse and mouse.y or 0
+  elseif love and love.mouse and love.mouse.getPosition then
+    mx, my = love.mouse.getPosition()
+  end
+  -- onScroll callback refreshes semi-select when the page moves.
+  return self.hexGrid:wheelmovedAt(dx, dy, mx, my)
 end
 
 function Dialog:draw(canvas)
   if not self.visible then return end
-  rebuildPanel(self)
-  self.panel:setVisible(true)
+  ModalPanelUtils.refreshTargetMetrics(self)
+  syncModalGridMetrics(self)
+  if not self.panel then
+    rebuildPanel(self)
+  else
+    self.panel.cellW = self.cellW
+    self.panel.cellH = self.cellH
+    self.panel.padding = self.padding
+    self.panel.spacingX = self.buttonGap
+    self.panel.spacingY = self.rowGap
+    self.panel.cellPaddingX = self.cellPaddingX
+    self.panel.cellPaddingY = self.cellPaddingY
+    self.panel.title = self.title
+    self.panel.titleH = self.titleH
+    self.panel.bgColor = self.bgColor
+    self.panel.titleBgColor = self.titleBgColor
+    ModalPanelUtils.syncPanelChrome(self.panel, self)
+    self.panel:setVisible(true)
+  end
   ModalPanelUtils.drawBackdrop(canvas)
   self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas)
   self.panel:draw()

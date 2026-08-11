@@ -1,9 +1,10 @@
--- FCEUX-style read-only ROM hex grid: 16 columns x 8 rows, absolute offset gutter,
--- 00-0F column headers. Wheel scrolls 8 rows (Shift+wheel: 64 rows / 1KB).
+-- FCEUX-style read-only ROM hex grid: N columns x 8 rows (default 16), absolute offset
+-- gutter, column headers. Wheel scrolls 8 rows (Shift+wheel: 64 rows / 1KB).
 -- Selection is groups of `groupSize` bytes from each selected start address.
 -- Click toggles a group Selected; click again restores Semi-selected or Normal.
 -- Disabled groups are non-interactive. Optional scrollbar minimap markers
 -- ({ offset, color, groupCount=N, groupSize=M }; span = N×M bytes, overlaps OK).
+-- Scrollbar track is click/drag scrubbable.
 
 local colors = require("app_colors")
 local Text = require("utils.text_utils")
@@ -21,18 +22,21 @@ M.WHEEL_ROWS_SHIFT = 64
 M.OAM_SPAN = 4
 --- Convenience cap for Add-sprite; grid only enforces when maxSelectedStarts is set.
 M.MAX_SELECTED_STARTS = 8
+M.CELL_W = 15
+M.CELL_H = 10
 
 -- Fixed-pitch gutter: 6 hex digits × OFFSET_DIGIT_W (Aseprite is not fully mono).
 local OFFSET_DIGITS = 6
 local OFFSET_DIGIT_W = 6
 local GUTTER_W = OFFSET_DIGITS * OFFSET_DIGIT_W + 2
 local HEADER_H = 12
-local CELL_W = 15
-local CELL_H = 10
+local CELL_W = M.CELL_W
+local CELL_H = M.CELL_H
 local PAD = 2
 local HIGHLIGHT_RADIUS = 2
--- Non-interactive position indicator (right of the byte grid).
-local SCROLLBAR_W = 3
+-- Scrollbar (right of the byte grid); hit box is wider than the draw width.
+local SCROLLBAR_W = 5
+local SCROLLBAR_HIT_W = 10
 local SCROLLBAR_GAP = 2
 -- Optical nudge: Text.print baseline sits a bit low in these short cells.
 local TEXT_NUDGE_Y = -2
@@ -87,8 +91,9 @@ end
 
 M.HIGHLIGHT_COLORS = buildHighlightColors()
 
-function M.contentWidth()
-  return GUTTER_W + M.COLS * CELL_W + SCROLLBAR_GAP + SCROLLBAR_W + PAD * 2
+function M.contentWidth(cols)
+  cols = math.max(1, math.floor(tonumber(cols) or M.COLS))
+  return GUTTER_W + cols * CELL_W + SCROLLBAR_GAP + SCROLLBAR_W + PAD * 2
 end
 
 function M.contentHeight()
@@ -102,10 +107,11 @@ local function romLen(romRaw)
   return #romRaw
 end
 
-function M.alignRow(addr)
+function M.alignRow(addr, cols)
+  cols = math.max(1, math.floor(tonumber(cols) or M.COLS))
   addr = math.floor(tonumber(addr) or 0)
   if addr < 0 then addr = 0 end
-  return addr - (addr % M.COLS)
+  return addr - (addr % cols)
 end
 
 local function copyStarts(starts)
@@ -134,6 +140,8 @@ function M.new(opts)
   opts = opts or {}
   local groupSize = math.floor(tonumber(opts.groupSize) or 1)
   if groupSize < 1 then groupSize = 1 end
+  local cols = math.floor(tonumber(opts.cols) or M.COLS)
+  if cols < 1 then cols = M.COLS end
   local maxSelected = opts.maxSelectedStarts
   if maxSelected ~= nil then
     maxSelected = math.max(1, math.floor(tonumber(maxSelected) or 1))
@@ -141,8 +149,9 @@ function M.new(opts)
   local self = setmetatable({
     x = 0,
     y = 0,
-    w = M.contentWidth(),
+    w = M.contentWidth(cols),
     h = M.contentHeight(),
+    cols = cols,
     romRaw = "",
     scrollOffset = 0,
     groupSize = groupSize,
@@ -162,15 +171,47 @@ function M.new(opts)
     _semiSet = {},
     minimapMarkers = {},
     onSelect = opts.onSelect,
+    -- Fired when scrollOffset changes (wheel, scrollbar drag, scrollToReveal).
+    onScroll = opts.onScroll,
+    -- When set, all semi-selected outlines share this RGBA instead of cycling.
+    uniformSemiColor = opts.uniformSemiColor,
+    -- Optional: function(addr) -> {r,g,b,a} for per-address semi outline colors.
+    semiColorForAddr = opts.semiColorForAddr,
     _hoverX = nil,
     _hoverY = nil,
     _selectionCapHit = false,
+    _scrollDragging = false,
   }, M)
   return self
 end
 
+function M:getCols()
+  return math.max(1, math.floor(tonumber(self.cols) or M.COLS))
+end
+
+function M:bytesPerPage()
+  return self:getCols() * M.ROWS
+end
+
 function M:getGroupSize()
   return math.max(1, math.floor(tonumber(self.groupSize) or 1))
+end
+
+function M:_emitScroll(prevScroll)
+  if self.scrollOffset ~= prevScroll and self.onScroll then
+    self.onScroll(self.scrollOffset, prevScroll)
+  end
+end
+
+function M:_setScrollOffset(nextOffset, opts)
+  opts = opts or {}
+  local prev = self.scrollOffset
+  self.scrollOffset = M.alignRow(nextOffset, self:getCols())
+  self:clampScroll()
+  if opts.emitScroll ~= false then
+    self:_emitScroll(prev)
+  end
+  return self.scrollOffset ~= prev
 end
 
 --- Disabled (non-interactive) group starts.
@@ -392,15 +433,17 @@ end
 
 function M:maxScroll()
   local len = romLen(self.romRaw)
-  if len <= M.BYTES_PER_PAGE then
+  local page = self:bytesPerPage()
+  local cols = self:getCols()
+  if len <= page then
     return 0
   end
-  return M.alignRow(len - M.BYTES_PER_PAGE)
+  return M.alignRow(len - page, cols)
 end
 
 function M:clampScroll()
   local maxS = self:maxScroll()
-  local s = M.alignRow(self.scrollOffset)
+  local s = M.alignRow(self.scrollOffset, self:getCols())
   if s < 0 then s = 0 end
   if s > maxS then s = maxS end
   self.scrollOffset = s
@@ -570,17 +613,21 @@ end
 
 function M:scrollToReveal(addr)
   addr = math.floor(tonumber(addr) or 0)
+  local cols = self:getCols()
+  local page = self:bytesPerPage()
   local pageStart = self.scrollOffset
-  local pageEnd = pageStart + M.BYTES_PER_PAGE - 1
+  local pageEnd = pageStart + page - 1
   if addr >= pageStart and addr <= pageEnd then
     return
   end
+  local prev = self.scrollOffset
   if addr < pageStart then
-    self.scrollOffset = M.alignRow(addr)
+    self.scrollOffset = M.alignRow(addr, cols)
   else
-    self.scrollOffset = M.alignRow(addr - M.BYTES_PER_PAGE + M.COLS)
+    self.scrollOffset = M.alignRow(addr - page + cols, cols)
   end
   self:clampScroll()
+  self:_emitScroll(prev)
 end
 
 function M:scrollByRows(deltaRows)
@@ -588,10 +635,8 @@ function M:scrollByRows(deltaRows)
   if deltaRows == 0 then
     return false
   end
-  local before = self.scrollOffset
-  self.scrollOffset = M.alignRow(self.scrollOffset + deltaRows * M.COLS)
-  self:clampScroll()
-  return self.scrollOffset ~= before
+  local cols = self:getCols()
+  return self:_setScrollOffset(self.scrollOffset + deltaRows * cols)
 end
 
 --- Wheel with canvas pointer. opts.shift forces Shift+wheel step size (tests).
@@ -614,6 +659,7 @@ function M:wheelmovedAt(dx, dy, px, py, opts)
 end
 
 function M:addrAtPixel(px, py)
+  local cols = self:getCols()
   local gridX = self.x + PAD + GUTTER_W
   local gridY = self.y + PAD + HEADER_H
   if px < gridX or py < gridY then
@@ -621,15 +667,69 @@ function M:addrAtPixel(px, py)
   end
   local col = math.floor((px - gridX) / CELL_W)
   local row = math.floor((py - gridY) / CELL_H)
-  if col < 0 or col >= M.COLS or row < 0 or row >= M.ROWS then
+  if col < 0 or col >= cols or row < 0 or row >= M.ROWS then
     return nil
   end
-  local addr = self.scrollOffset + row * M.COLS + col
+  local addr = self.scrollOffset + row * cols + col
   local len = romLen(self.romRaw)
   if addr < 0 or addr >= len then
     return nil
   end
   return addr
+end
+
+function M:_scrollbarTrackRect()
+  local cols = self:getCols()
+  local gridX = self.x + PAD + GUTTER_W
+  local gridY = self.y + PAD + HEADER_H
+  local trackH = M.ROWS * CELL_H
+  local trackX = gridX + cols * CELL_W + SCROLLBAR_GAP
+  local trackY = gridY
+  return trackX, trackY, SCROLLBAR_W, trackH
+end
+
+function M:_scrollbarHitTest(px, py)
+  local trackX, trackY, _, trackH = self:_scrollbarTrackRect()
+  local hitX = trackX - 1
+  local hitW = SCROLLBAR_HIT_W
+  return px >= hitX and px < hitX + hitW
+    and py >= trackY and py < trackY + trackH
+end
+
+--- Map a Y coordinate on the scrollbar track to a row-aligned scroll offset.
+function M:_scrollOffsetFromTrackY(py)
+  local _, trackY, _, trackH = self:_scrollbarTrackRect()
+  local maxS = self:maxScroll()
+  if maxS <= 0 or trackH <= 1 then
+    return 0
+  end
+  local page = self:bytesPerPage()
+  local visibleFrac = page / (maxS + page)
+  local thumbH = math.max(4, math.floor(trackH * visibleFrac))
+  local travel = math.max(1, trackH - thumbH)
+  local rel = (py - trackY) - thumbH * 0.5
+  local frac = rel / travel
+  if frac < 0 then frac = 0 end
+  if frac > 1 then frac = 1 end
+  return M.alignRow(maxS * frac, self:getCols())
+end
+
+function M:_beginScrollDrag(py)
+  self._scrollDragging = true
+  self:_setScrollOffset(self:_scrollOffsetFromTrackY(py))
+  return true
+end
+
+function M:endScrollDrag()
+  if not self._scrollDragging then
+    return false
+  end
+  self._scrollDragging = false
+  return true
+end
+
+function M:isScrollDragging()
+  return self._scrollDragging == true
 end
 
 local function startsCoveringAddr(starts, addr, span)
@@ -700,6 +800,11 @@ function M:mousepressed(px, py, button, _opts)
   if button ~= 1 or not self:contains(px, py) then
     return false
   end
+
+  if self:maxScroll() > 0 and self:_scrollbarHitTest(px, py) then
+    return self:_beginScrollDrag(py)
+  end
+
   local addr = self:addrAtPixel(px, py)
   if addr == nil then
     return true
@@ -733,7 +838,8 @@ function M:mousepressed(px, py, button, _opts)
   end
 
   local nextStarts, primary
-  if #(self.selectedStarts or {}) == 0 then
+  if #(self.selectedStarts or {}) == 0 or self.maxSelectedStarts == 1 then
+    -- Empty or single-select: replace with the clicked group.
     nextStarts, primary = { resolved }, resolved
   else
     nextStarts, primary = M.addStartGroup(self.selectedStarts, resolved, span)
@@ -745,20 +851,23 @@ function M:mousepressed(px, py, button, _opts)
   self:_setStarts(nextStarts, primary, {
     scrollToReveal = false,
     emit = true,
-    resetColors = false,
+    resetColors = self.maxSelectedStarts == 1,
   })
   return true
 end
 
 function M:mousemoved(px, py)
   self._hoverX, self._hoverY = px, py
+  if self._scrollDragging then
+    self:_setScrollOffset(self:_scrollOffsetFromTrackY(py))
+  end
 end
 
 function M:mousereleased(_px, _py, button)
   if button ~= 1 then
     return false
   end
-  return false
+  return self:endScrollDrag()
 end
 
 function M:_colorSeqForStart(addr)
@@ -851,15 +960,16 @@ local function colorFromKey(key)
   return { 0.2, 0.35, 0.85, 0.9 }
 end
 
---- Read-only vertical scrollbar: track, optional minimap markers, then thumb.
+--- Vertical scrollbar: track, optional minimap markers, then thumb.
 function M:_drawScrollbar(gridX, gridY)
+  local cols = self:getCols()
+  local page = self:bytesPerPage()
   local maxS = self:maxScroll()
   local trackH = M.ROWS * CELL_H
-  local trackX = gridX + M.COLS * CELL_W + SCROLLBAR_GAP
+  local trackX = gridX + cols * CELL_W + SCROLLBAR_GAP
   local trackY = gridY
   local len = romLen(self.romRaw)
 
-  -- Always draw track when there is ROM (minimap useful even if no scroll).
   local showScroll = maxS > 0
   if showScroll or (#(self.minimapMarkers or {}) > 0 and len > 0) then
     love.graphics.setColor(1, 1, 1, 0.18)
@@ -875,7 +985,6 @@ function M:_drawScrollbar(gridX, gridY)
         local y0 = math.floor(trackY + (trackH - 1) * (offset / len))
         local y1 = math.floor(trackY + (trackH - 1) * ((endOffset - 1) / len))
         if y1 < y0 then y1 = y0 end
-        -- At least 1px; larger ranges stretch on the track. Overlaps are fine.
         local h = math.max(1, y1 - y0 + 1)
         local c = colorFromKey(marker.color)
         love.graphics.setColor(c[1], c[2], c[3], c[4] or 0.9)
@@ -887,7 +996,7 @@ function M:_drawScrollbar(gridX, gridY)
   if not showScroll then
     return
   end
-  local visibleFrac = M.BYTES_PER_PAGE / (maxS + M.BYTES_PER_PAGE)
+  local visibleFrac = page / (maxS + page)
   local thumbH = math.max(4, math.floor(trackH * visibleFrac))
   local offsetFrac = (self.scrollOffset or 0) / maxS
   if offsetFrac < 0 then offsetFrac = 0 end
@@ -903,8 +1012,9 @@ end
 function M:_drawGroupHighlights(gridX, gridY, starts, colorForStart, mode)
   mode = mode or "fill"
   local span = self:getGroupSize()
+  local cols = self:getCols()
   local pageStart = self.scrollOffset
-  local pageEnd = pageStart + M.BYTES_PER_PAGE - 1
+  local pageEnd = pageStart + self:bytesPerPage() - 1
   for _, start in ipairs(starts or {}) do
     local c
     if type(colorForStart) == "function" then
@@ -936,8 +1046,8 @@ function M:_drawGroupHighlights(gridX, gridY, starts, colorForStart, mode)
       local a = start + off
       if a >= pageStart and a <= pageEnd then
         local rel = a - pageStart
-        local row = math.floor(rel / M.COLS)
-        local col = rel % M.COLS
+        local row = math.floor(rel / cols)
+        local col = rel % cols
         if runLen == 0 then
           runCol, runRow, runLen = col, row, 1
         elseif row == runRow and col == runCol + runLen then
@@ -960,6 +1070,7 @@ function M:draw()
     local ok, f = pcall(love.graphics.getFont)
     if ok then font = f end
   end
+  local cols = self:getCols()
   local x0 = self.x + PAD
   local y0 = self.y + PAD
   local gridX = x0 + GUTTER_W
@@ -968,7 +1079,7 @@ function M:draw()
   love.graphics.setColor(colors.black[1], colors.black[2], colors.black[3], 0.55)
   love.graphics.rectangle("fill", self.x, self.y, self.w, self.h)
 
-  for col = 0, M.COLS - 1 do
+  for col = 0, cols - 1 do
     local label = string.format("%02X", col)
     local tw = Text.getFontWidth(label, font)
     Text.print(label, gridX + col * CELL_W + math.floor((CELL_W - tw) * 0.5), y0 + TEXT_NUDGE_Y, {
@@ -979,7 +1090,7 @@ function M:draw()
   end
 
   love.graphics.setColor(0.7, 0.7, 0.7, 1)
-  love.graphics.line(gridX, gridY - 1, gridX + M.COLS * CELL_W, gridY - 1)
+  love.graphics.line(gridX, gridY - 1, gridX + cols * CELL_W, gridY - 1)
   love.graphics.line(gridX - 1, gridY, gridX - 1, gridY + M.ROWS * CELL_H)
 
   local len = romLen(self.romRaw)
@@ -987,8 +1098,17 @@ function M:draw()
   local semi = self.semiSelectedStarts or {}
   local starts = self.selectedStarts or {}
   local span = self:getGroupSize()
-  -- Semi outline under selection fill; disabled gray on top.
-  self:_drawGroupHighlights(gridX, gridY, semi, nil, "line")
+  -- Semi fill under selection fill; disabled gray on top.
+  local semiColorFn = nil
+  if type(self.semiColorForAddr) == "function" then
+    semiColorFn = self.semiColorForAddr
+  elseif type(self.uniformSemiColor) == "table" then
+    local c = self.uniformSemiColor
+    semiColorFn = function()
+      return c
+    end
+  end
+  self:_drawGroupHighlights(gridX, gridY, semi, semiColorFn, "fill")
   self:_drawGroupHighlights(gridX, gridY, starts, nil, "fill")
   self:_drawGroupHighlights(gridX, gridY, disabled, function()
     return disabledHighlightColor()
@@ -1002,11 +1122,11 @@ function M:draw()
   local disText = disabledTextColor()
 
   for row = 0, M.ROWS - 1 do
-    local rowAddr = self.scrollOffset + row * M.COLS
+    local rowAddr = self.scrollOffset + row * cols
     local rowY = gridY + row * CELL_H
     printOffsetDigits(x0, rowY + TEXT_NUDGE_Y, rowAddr, font)
 
-    for col = 0, M.COLS - 1 do
+    for col = 0, cols - 1 do
       local addr = rowAddr + col
       local cellX = gridX + col * CELL_W
       local covering = startsCoveringAddr(starts, addr, span)
@@ -1018,7 +1138,8 @@ function M:draw()
       elseif #covering > 0 then
         base = self:textColorForStart(starts[covering[#covering]])
       elseif #coveringSemi > 0 then
-        base = self:textColorForStart(semi[coveringSemi[#coveringSemi]])
+        -- Keep glyphs readable over colored outlines.
+        base = colors.white
       end
       local alpha = (hoverAddr ~= nil and addr == hoverAddr) and 1 or 0.6
       local textColor = { base[1], base[2], base[3], alpha }

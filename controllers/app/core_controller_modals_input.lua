@@ -55,6 +55,7 @@ function AppCoreController:showRomPaletteAddressModal(win, col, row)
     col = col,
     row = row,
     initialAddress = initialAddress,
+    romRaw = (self.appEditState and self.appEditState.romRaw) or "",
     onConfirm = function(addressText, targetWindow, targetCol, targetRow)
       local addr, parseErr = Shared.parseHexAddress(addressText)
       if not addr then

@@ -123,6 +123,7 @@ M.MODAL_WHEEL_HANDLER_KEYS = {
   openProjectModal = true,
   saveProjectFolderModal = true,
   ppuFrameAddSpriteModal = true,
+  romPaletteAddressModal = true,
   galleryRomConfirmModal = true,
 }
 
