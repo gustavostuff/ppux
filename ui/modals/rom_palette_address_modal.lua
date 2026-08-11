@@ -88,6 +88,103 @@ local function rgbForNesCode(code)
   return { 0, 0, 0, 1 }
 end
 
+-- When true, Enter-color minimap marks every bound address from all ROM palette
+-- windows (not only the one being edited). Dev/config flag; not user-facing.
+Dialog.MINIMAP_MARK_ALL_ROM_PALETTES = true
+
+--- Collect bound ROM addresses and their palette UI cell colors.
+local function collectBoundAddrColors(win)
+  local byAddr = {}
+  if type(win) ~= "table" then
+    return byAddr
+  end
+  local romColors = win.paletteData and win.paletteData.romColors
+  if type(romColors) ~= "table" then
+    return byAddr
+  end
+  local rows = math.max(0, math.floor(tonumber(win.rows) or 4))
+  local cols = math.max(0, math.floor(tonumber(win.cols) or 4))
+  for r = 0, rows - 1 do
+    local rowLine = romColors[r + 1]
+    if type(rowLine) == "table" then
+      for c = 0, cols - 1 do
+        local addr = rowLine[c + 1]
+        if type(addr) == "number" then
+          local offset = math.floor(addr)
+          local code = win.codes2D and win.codes2D[r] and win.codes2D[r][c]
+          if type(code) == "string" and code ~= "" then
+            byAddr[offset] = tostring(code):upper()
+          else
+            byAddr[offset] = "0F"
+          end
+        end
+      end
+    end
+  end
+  return byAddr
+end
+
+local function mergeBoundAddrColors(dst, src, overwrite)
+  for addr, code in pairs(src or {}) do
+    if overwrite or dst[addr] == nil then
+      dst[addr] = code
+    end
+  end
+end
+
+--- Resolve the ROM palette window list used for minimap marks.
+local function resolveRomPaletteWindowsForMinimap(primaryWin, opts)
+  opts = opts or {}
+  if not Dialog.MINIMAP_MARK_ALL_ROM_PALETTES then
+    return { primaryWin }
+  end
+  local list = opts.romPaletteWindows
+  if type(list) ~= "table" or #list == 0 then
+    local gctx = rawget(_G, "ctx")
+    local app = gctx and gctx.app
+    if app and app.wm and app.wm.getWindowsOfKind then
+      list = app.wm:getWindowsOfKind("rom_palette")
+    end
+  end
+  if type(list) ~= "table" or #list == 0 then
+    return { primaryWin }
+  end
+  return list
+end
+
+--- Minimap marks for ROM addresses bound to palette UI cells.
+--- One 1px marker per bound byte, tinted with that cell's NES UI color (zoom track is cols-wide).
+--- When MINIMAP_MARK_ALL_ROM_PALETTES is true, includes every ROM palette window.
+function Dialog.collectBoundRomColorMinimapMarkers(win, _romRaw, opts)
+  local markers = {}
+  local windows = resolveRomPaletteWindowsForMinimap(win, opts)
+  local boundAddrColors = {}
+  for _, w in ipairs(windows) do
+    if w ~= nil and w ~= win then
+      mergeBoundAddrColors(boundAddrColors, collectBoundAddrColors(w), false)
+    end
+  end
+  -- Prefer the palette currently being edited when addresses collide.
+  mergeBoundAddrColors(boundAddrColors, collectBoundAddrColors(win), true)
+
+  local addrs = {}
+  for addr in pairs(boundAddrColors) do
+    addrs[#addrs + 1] = addr
+  end
+  table.sort(addrs)
+  for _, addr in ipairs(addrs) do
+    local code = boundAddrColors[addr] or "0F"
+    local rgb = rgbForNesCode(code)
+    markers[#markers + 1] = {
+      offset = addr,
+      color = { rgb[1], rgb[2], rgb[3], 0.9 },
+      groupCount = 1,
+      groupSize = 1,
+    }
+  end
+  return markers
+end
+
 local function rowspanForHeight(height, cellH, spacingY)
   cellH = math.max(1, math.floor(tonumber(cellH) or 15))
   spacingY = math.max(0, math.floor(tonumber(spacingY) or 0))
@@ -293,6 +390,9 @@ function Dialog.new()
     groupSize = 1,
     maxSelectedStarts = 1,
     selectionAnts = true,
+    -- Bound palette addresses: same ants + colors as the zoom strip, at half opacity.
+    boundMarkerAnts = true,
+    boundMarkerAntsAlpha = 0.5,
     semiColorForAddr = function(addr)
       return self:_nesFillColorForAddr(addr, 1)
     end,
@@ -580,7 +680,11 @@ function Dialog:show(opts)
   self.romRaw = romRawWithBaseRestored(sourceRom, self._boundAddr, self._baseRomCode)
   self.hexGrid:setRomRaw(self.romRaw)
   self.hexGrid:setDisabledStarts({})
-  self.hexGrid:setMinimapMarkers({})
+  self.hexGrid:setMinimapMarkers(
+    Dialog.collectBoundRomColorMinimapMarkers(self.targetWindow, self.romRaw, {
+      romPaletteWindows = opts.romPaletteWindows,
+    })
+  )
 
   local initialText = opts.initialAddress or ""
   self.textField:setText(initialText)

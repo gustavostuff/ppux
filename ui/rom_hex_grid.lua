@@ -24,7 +24,7 @@ M.OAM_SPAN = 4
 --- Convenience cap for Add-sprite; grid only enforces when maxSelectedStarts is set.
 M.MAX_SELECTED_STARTS = 8
 M.CELL_W = 15
-M.CELL_H = 10
+M.CELL_H = 12
 
 -- Fixed-pitch gutter: 6 hex digits x OFFSET_DIGIT_W (Aseprite is not fully mono).
 local OFFSET_DIGITS = 6
@@ -101,13 +101,18 @@ end
 
 M.HIGHLIGHT_COLORS = buildHighlightColors()
 
+--- Zoom detail track width: 1px per hex column (true miniature of the byte grid).
+function M.zoomTrackWidth(cols)
+  return math.max(1, math.floor(tonumber(cols) or M.COLS))
+end
+
 function M.contentWidth(cols)
   cols = math.max(1, math.floor(tonumber(cols) or M.COLS))
-  -- Byte grid + full overview track + zoom detail track.
+  -- Byte grid + full overview track + zoom detail track (cols px wide).
   return GUTTER_W
     + cols * CELL_W
     + SCROLLBAR_GAP + SCROLLBAR_W
-    + SCROLLBAR_GAP + SCROLLBAR_W
+    + SCROLLBAR_GAP + M.zoomTrackWidth(cols)
     + PAD * 2
 end
 
@@ -196,6 +201,10 @@ function M.new(opts)
     selectedColorForAddr = opts.selectedColorForAddr,
     -- When true, draw marching-ants borders on selected groups (ROM palette modal).
     selectionAnts = opts.selectionAnts == true,
+    -- When true, draw marching ants on minimap-marker offsets in the byte grid
+    -- (ROM palette: bound addresses, same colors as the zoom strip).
+    boundMarkerAnts = opts.boundMarkerAnts == true,
+    boundMarkerAntsAlpha = tonumber(opts.boundMarkerAntsAlpha) or 0.5,
     -- Optional: function(addr) -> bool; when false, click does not select.
     canSelectAddr = opts.canSelectAddr,
     -- Optional: function(addr) when canSelectAddr rejects a click.
@@ -286,8 +295,21 @@ local function normalizeMinimapMarker(m)
     return nil
   end
   local offset = math.floor(tonumber(m.offset) or -1)
+  if offset < 0 then
+    return nil
+  end
   local color = m.color
-  if offset < 0 or type(color) ~= "string" or not MINIMAP_COLORS[color] then
+  local normalizedColor = nil
+  if type(color) == "table" and type(color[1]) == "number" then
+    normalizedColor = {
+      color[1],
+      color[2] or 0,
+      color[3] or 0,
+      color[4] or 0.9,
+    }
+  elseif type(color) == "string" and MINIMAP_COLORS[color] then
+    normalizedColor = color
+  else
     return nil
   end
   -- Contiguous range: N groups x M bytes each (defaults = single byte).
@@ -295,7 +317,7 @@ local function normalizeMinimapMarker(m)
   local groupSize = math.max(1, math.floor(tonumber(m.groupSize) or 1))
   return {
     offset = offset,
-    color = color,
+    color = normalizedColor,
     groupCount = groupCount,
     groupSize = groupSize,
   }
@@ -333,6 +355,25 @@ function M.minimapMarkerByteLength(marker)
   local n = math.max(1, math.floor(tonumber(marker.groupCount) or 1))
   local size = math.max(1, math.floor(tonumber(marker.groupSize) or 1))
   return n * size
+end
+
+--- Static markers plus live selection tints (selection last so it paints on top).
+function M:_combinedMinimapMarkers()
+  local out = {}
+  for _, m in ipairs(self.minimapMarkers or {}) do
+    out[#out + 1] = m
+  end
+  local span = self:getGroupSize()
+  for _, addr in ipairs(self.selectedStarts or {}) do
+    local c = self:highlightColorForStart(addr)
+    out[#out + 1] = {
+      offset = math.floor(addr),
+      color = { c[1], c[2], c[3], c[4] or 0.9 },
+      groupCount = 1,
+      groupSize = span,
+    }
+  end
+  return out
 end
 
 --- True when two group starts' spans overlap for this grid's groupSize.
@@ -712,9 +753,11 @@ function M:_scrollbarTrackRect()
 end
 
 --- Informative zoom track immediately to the right of the full-ROM overview (not interactive).
+--- Width equals hex columns so each marker pixel maps to one byte (col, row).
 function M:_zoomScrollbarTrackRect()
-  local trackX, trackY, trackW, trackH = self:_scrollbarTrackRect()
-  return trackX + SCROLLBAR_W + SCROLLBAR_GAP, trackY, trackW, trackH
+  local trackX, trackY, _, trackH = self:_scrollbarTrackRect()
+  local cols = self:getCols()
+  return trackX + SCROLLBAR_W + SCROLLBAR_GAP, trackY, M.zoomTrackWidth(cols), trackH
 end
 
 function M:_scrollbarHitTest(px, py)
@@ -731,7 +774,7 @@ function M:_scrollbarHitTest(px, py)
 end
 
 --- Byte window shown on the zoom track.
---- 1:1 with track pixels: trackH px ⇒ trackH hex rows (one pixel per row).
+--- 1:1 with track pixels: trackH px ⇒ trackH hex rows; each row is `cols` pixels wide.
 function M:_computeZoomWindow()
   local cols = self:getCols()
   local page = self:bytesPerPage()
@@ -1022,6 +1065,9 @@ local function printOffsetDigits(x, y, addr, font)
 end
 
 local function colorFromKey(key)
+  if type(key) == "table" and type(key[1]) == "number" then
+    return { key[1], key[2] or 0, key[3] or 0, key[4] or 0.9 }
+  end
   if key == "gray" then
     local g = colors.gray50
     if type(g) == "table" and type(g[1]) == "number" then
@@ -1075,7 +1121,8 @@ local function drawMinimapMarkersOnTrack(markers, len, trackX, trackY, trackH, r
   end
 end
 
---- Zoom track: exactly one pixel per hex row (rangeLen / cols == trackH when possible).
+--- Zoom track: 1px × 1px per byte (width = cols). OAM groups are typically 4×1 strips;
+--- palette binds are single pixels. Spans that cross a row wrap to the next row.
 local function drawMinimapMarkersOnZoomTrack(markers, len, trackX, trackY, trackH, rangeStart, rangeLen, cols)
   if len <= 0 or rangeLen <= 0 or cols < 1 then
     return
@@ -1085,6 +1132,7 @@ local function drawMinimapMarkersOnZoomTrack(markers, len, trackX, trackY, track
   trackH = math.floor(trackH)
   local rangeEnd = rangeStart + rangeLen
   local zoomRows = math.max(1, math.floor(rangeLen / cols))
+  local maxRows = math.min(trackH, zoomRows)
   for _, marker in ipairs(markers or {}) do
     local offset = marker.offset
     if type(offset) == "number" and offset >= 0 and offset < len then
@@ -1093,17 +1141,14 @@ local function drawMinimapMarkersOnZoomTrack(markers, len, trackX, trackY, track
       local drawStart = math.max(offset, rangeStart)
       local drawEnd = math.min(endOffset, rangeEnd)
       if drawStart < drawEnd then
-        local row0 = math.floor((drawStart - rangeStart) / cols)
-        local row1 = math.floor((drawEnd - 1 - rangeStart) / cols)
-        if row0 < 0 then row0 = 0 end
-        if row1 >= zoomRows then row1 = zoomRows - 1 end
-        if row1 >= row0 and row0 < trackH then
-          local y0 = trackY + row0
-          local h = math.min(trackH - row0, row1 - row0 + 1)
-          if h > 0 then
-            local c = colorFromKey(marker.color)
-            love.graphics.setColor(c[1], c[2], c[3], c[4] or 0.9)
-            drawFillRect(trackX, y0, SCROLLBAR_W, h)
+        local c = colorFromKey(marker.color)
+        love.graphics.setColor(c[1], c[2], c[3], c[4] or 0.9)
+        for addr = drawStart, drawEnd - 1 do
+          local rel = addr - rangeStart
+          local row = math.floor(rel / cols)
+          local col = rel % cols
+          if row >= 0 and row < maxRows then
+            drawFillRect(trackX + col, trackY + row, 1, 1)
           end
         end
       end
@@ -1129,11 +1174,13 @@ local function drawScrollThumb(trackX, trackY, trackH, scrollOffset, rangeStart,
   drawFillRect(trackX, thumbY, SCROLLBAR_W, thumbH)
 end
 
---- Zoom thumb: page is exactly M.ROWS pixels (1px per visible hex row).
+--- Zoom thumb: page is exactly M.ROWS pixels (1px per visible hex row); width = cols.
+--- Soft overlay so per-byte marker pixels stay readable underneath (no outline).
 local function drawZoomScrollThumb(trackX, trackY, trackH, scrollOffset, rangeStart, rangeLen, cols)
   trackX = math.floor(trackX)
   trackY = math.floor(trackY)
   trackH = math.floor(trackH)
+  local zoomW = M.zoomTrackWidth(cols)
   local zoomRows = math.max(1, math.floor(rangeLen / cols))
   local pageRows = M.ROWS
   local thumbH = math.min(trackH, pageRows)
@@ -1142,28 +1189,29 @@ local function drawZoomScrollThumb(trackX, trackY, trackH, scrollOffset, rangeSt
   if rowOff < 0 then rowOff = 0 end
   if rowOff > travelRows then rowOff = travelRows end
   local thumbY = trackY + rowOff
-  love.graphics.setColor(1, 1, 1, 0.65)
-  drawFillRect(trackX, thumbY, SCROLLBAR_W, thumbH)
+  love.graphics.setColor(1, 1, 1, 0.22)
+  drawFillRect(trackX, thumbY, zoomW, thumbH)
 end
 
---- Dual vertical tracks: interactive full-ROM overview + informative 1px-per-row zoom.
+--- Dual vertical tracks: interactive full-ROM overview + informative 1px-per-byte zoom.
 function M:_drawScrollbar(gridX, gridY)
   local cols = self:getCols()
   local page = self:bytesPerPage()
   local maxS = self:maxScroll()
   local trackH = M.ROWS * CELL_H
+  local zoomW = M.zoomTrackWidth(cols)
   local fullX = math.floor(gridX + cols * CELL_W + SCROLLBAR_GAP)
   local zoomX = math.floor(fullX + SCROLLBAR_W + SCROLLBAR_GAP)
   local trackY = math.floor(gridY)
   local len = romLen(self.romRaw)
-  local markers = self.minimapMarkers or {}
+  local markers = self:_combinedMinimapMarkers()
   local showScroll = maxS > 0
   local showTracks = showScroll or (#markers > 0 and len > 0)
 
   if showTracks then
     love.graphics.setColor(1, 1, 1, 0.18)
     drawFillRect(fullX, trackY, SCROLLBAR_W, trackH)
-    drawFillRect(zoomX, trackY, SCROLLBAR_W, trackH)
+    drawFillRect(zoomX, trackY, zoomW, trackH)
   end
 
   if len > 0 then
@@ -1257,16 +1305,62 @@ local SELECTION_ANTS_ANIM = {
   intervalSeconds = 0.1,
 }
 
-function M:_drawSelectionAnts(gridX, gridY, starts)
+--- Marching ants around group runs. opts.colorForStart(addr) and opts.alpha optional.
+function M:_drawSelectionAnts(gridX, gridY, starts, opts)
+  opts = opts or {}
   local okImg, images = pcall(require, "images")
   local okDraw, Draw = pcall(require, "utils.draw_utils")
   if not (okImg and okDraw and images and images.pattern_a and Draw and Draw.drawRepeatingImageAnimated) then
     return
   end
-  love.graphics.setColor(1, 1, 1, 1)
-  self:_forEachGroupRun(gridX, gridY, starts, function(x, y, w, h)
-    Draw.drawRepeatingImageAnimated(images.pattern_a, x, y, w, h, SELECTION_ANTS_ANIM)
-  end)
+  local colorFn = opts.colorForStart
+  local alpha = opts.alpha
+  for _, start in ipairs(starts or {}) do
+    local c = { 1, 1, 1, 1 }
+    if type(colorFn) == "function" then
+      local got = colorFn(start)
+      if type(got) == "table" and type(got[1]) == "number" then
+        c = got
+      elseif type(got) == "string" then
+        c = colorFromKey(got)
+      end
+    end
+    local a = alpha
+    if a == nil then
+      a = c[4] or 1
+    end
+    love.graphics.setColor(c[1], c[2], c[3], a)
+    self:_forEachGroupRun(gridX, gridY, { start }, function(x, y, w, h)
+      Draw.drawRepeatingImageAnimated(images.pattern_a, x, y, w, h, SELECTION_ANTS_ANIM)
+    end)
+  end
+end
+
+--- Ants on minimap-marker bytes (bound ROM palette colors), matching zoom-strip tints.
+function M:_drawBoundMarkerAnts(gridX, gridY)
+  local markers = self.minimapMarkers or {}
+  if #markers == 0 then
+    return
+  end
+  local starts = {}
+  local colorByAddr = {}
+  for _, m in ipairs(markers) do
+    local offset = m.offset
+    if type(offset) == "number" then
+      starts[#starts + 1] = offset
+      colorByAddr[offset] = m.color
+    end
+  end
+  if #starts == 0 then
+    return
+  end
+  local alpha = tonumber(self.boundMarkerAntsAlpha) or 0.5
+  self:_drawSelectionAnts(gridX, gridY, starts, {
+    alpha = alpha,
+    colorForStart = function(addr)
+      return colorFromKey(colorByAddr[addr])
+    end,
+  })
 end
 
 function M:draw()
@@ -1319,6 +1413,9 @@ function M:draw()
   end
   self:_drawGroupHighlights(gridX, gridY, semi, semiColorFn, "fill")
   self:_drawGroupHighlights(gridX, gridY, starts, selectedColorFn, "fill")
+  if self.boundMarkerAnts == true then
+    self:_drawBoundMarkerAnts(gridX, gridY)
+  end
   if self.selectionAnts == true then
     self:_drawSelectionAnts(gridX, gridY, starts)
   end
@@ -1379,7 +1476,7 @@ function M:draw()
         byteText = string.format("%02X", string.byte(self.romRaw, addr + 1) or 0)
       end
       local tw = Text.getFontWidth(byteText, font)
-      Text.print(byteText, cellX + math.floor((CELL_W - tw) * 0.5), rowY + TEXT_NUDGE_Y, {
+      Text.print(byteText, cellX + math.floor((CELL_W - tw) * 0.5), rowY + TEXT_NUDGE_Y + 1, {
         color = textColor,
         font = font,
         literalColor = true,

@@ -147,6 +147,102 @@ describe("rom_palette_address_modal.lua", function()
     modal:hide()
   end)
 
+  it("marks bound ROM palette addresses on the hex minimap with each cell's own color", function()
+    local modal = RomPaletteAddressModal.new()
+    local rom = string.rep(string.char(0x07), 256)
+    -- Same hex dump row (0x10..0x1F): each bound addr keeps its UI cell tint.
+    local win = {
+      rows = 4,
+      cols = 4,
+      codes2D = {
+        [0] = { [0] = "0F", [1] = "0C", [2] = "2A", [3] = "07" },
+      },
+      paletteData = {
+        romColors = {
+          { false, 0x11, 0x15, false },
+          { false, false, false, false },
+          { false, false, false, false },
+          { false, false, false, false },
+        },
+      },
+    }
+
+    local markers = RomPaletteAddressModal.collectBoundRomColorMinimapMarkers(win, rom, {
+      romPaletteWindows = { win },
+    })
+    expect(#markers).toBe(2)
+    expect(markers[1].offset).toBe(0x11)
+    expect(markers[2].offset).toBe(0x15)
+
+    local rgb0C = require("palettes").smooth_fbx["0C"]
+    local rgb2A = require("palettes").smooth_fbx["2A"]
+    expect(markers[1].color[1]).toBe(rgb0C[1])
+    expect(markers[1].color[2]).toBe(rgb0C[2])
+    expect(markers[1].color[3]).toBe(rgb0C[3])
+    expect(markers[2].color[1]).toBe(rgb2A[1])
+    expect(markers[2].color[2]).toBe(rgb2A[2])
+    expect(markers[2].color[3]).toBe(rgb2A[3])
+
+    modal:show({
+      window = win,
+      romRaw = rom,
+      initialAddress = "0x000011",
+      romPaletteWindows = { win },
+    })
+    local gridMarkers = modal.hexGrid:getMinimapMarkers()
+    expect(#gridMarkers).toBe(2)
+    expect(gridMarkers[1].offset).toBe(0x11)
+    expect(gridMarkers[2].offset).toBe(0x15)
+    modal:hide()
+  end)
+
+  it("can mark bound addresses from all ROM palettes when the flag is on", function()
+    local previous = RomPaletteAddressModal.MINIMAP_MARK_ALL_ROM_PALETTES
+    RomPaletteAddressModal.MINIMAP_MARK_ALL_ROM_PALETTES = true
+    local winA = {
+      rows = 1,
+      cols = 4,
+      codes2D = { [0] = { [1] = "0C" } },
+      paletteData = { romColors = { { false, 0x11, false, false } } },
+    }
+    local winB = {
+      rows = 1,
+      cols = 4,
+      codes2D = { [0] = { [1] = "2A" } },
+      paletteData = { romColors = { { false, 0x40, false, false } } },
+    }
+    local markers = RomPaletteAddressModal.collectBoundRomColorMinimapMarkers(winA, "", {
+      romPaletteWindows = { winA, winB },
+    })
+    RomPaletteAddressModal.MINIMAP_MARK_ALL_ROM_PALETTES = previous
+    expect(#markers).toBe(2)
+    expect(markers[1].offset).toBe(0x11)
+    expect(markers[2].offset).toBe(0x40)
+  end)
+
+  it("marks only the edited palette when MINIMAP_MARK_ALL_ROM_PALETTES is false", function()
+    local previous = RomPaletteAddressModal.MINIMAP_MARK_ALL_ROM_PALETTES
+    RomPaletteAddressModal.MINIMAP_MARK_ALL_ROM_PALETTES = false
+    local winA = {
+      rows = 1,
+      cols = 4,
+      codes2D = { [0] = { [1] = "0C" } },
+      paletteData = { romColors = { { false, 0x11, false, false } } },
+    }
+    local winB = {
+      rows = 1,
+      cols = 4,
+      codes2D = { [0] = { [1] = "2A" } },
+      paletteData = { romColors = { { false, 0x40, false, false } } },
+    }
+    local markers = RomPaletteAddressModal.collectBoundRomColorMinimapMarkers(winA, "", {
+      romPaletteWindows = { winA, winB },
+    })
+    RomPaletteAddressModal.MINIMAP_MARK_ALL_ROM_PALETTES = previous
+    expect(#markers).toBe(1)
+    expect(markers[1].offset).toBe(0x11)
+  end)
+
   it("keeps Selected label layout when no user override is provided", function()
     local modal = RomPaletteAddressModal.new()
     modal:show({
@@ -185,7 +281,7 @@ describe("rom_palette_address_modal.lua", function()
     expect(modal.hexGrid:getSelectedStarts()).toEqual({ 0x0F })
     -- Click $0D (forbidden) - PAD+gutter+header cell layout matches default 16-col grid.
     local hx = 2 + 38 + 0x0D * 15 + 2
-    local hy = 2 + 12 + 0 * 10 + 2
+    local hy = 2 + 12 + 0 * 12 + 2
     modal.hexGrid:setPosition(0, 0)
     modal.hexGrid:mousepressed(hx, hy, 1)
     expect(modal.hexGrid:getSelectedStarts()).toEqual({ 0x0F })

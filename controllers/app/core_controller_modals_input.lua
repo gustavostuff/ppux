@@ -97,6 +97,9 @@ function AppCoreController:showRomPaletteAddressModal(win, col, row)
     baseRomCode = baseRomCode,
     userOverrideCode = userOverrideCode,
     romRaw = (self.appEditState and self.appEditState.romRaw) or "",
+    romPaletteWindows = (self.wm and self.wm.getWindowsOfKind)
+      and self.wm:getWindowsOfKind("rom_palette")
+      or nil,
     onConfirm = function(addressText, targetWindow, targetCol, targetRow)
       local addr, parseErr = Shared.parseHexAddress(addressText)
       if not addr then

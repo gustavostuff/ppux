@@ -7,8 +7,8 @@ describe("RomHexGrid", function()
   end
 
   local function cellPixel(col, row)
-    -- PAD + gutter/header + center of cell (GUTTER_W=38, CELL_W=15, CELL_H=10, HEADER_H=12)
-    return 2 + 38 + col * 15 + 2, 2 + 12 + row * 10 + 2
+    -- PAD + gutter/header + center of cell (GUTTER_W=38, CELL_W=15, CELL_H=12, HEADER_H=12)
+    return 2 + 38 + col * 15 + 2, 2 + 12 + row * 12 + 2
   end
 
   local function oamGrid(opts)
@@ -226,19 +226,23 @@ describe("RomHexGrid", function()
     expect(grid:isScrollDragging()).toBe(false)
   end)
 
-  it("zoomed detail track is informative only (1px per hex row, not scrubbable)", function()
+  it("zoomed detail track is cols-wide (1px per byte) and not scrubbable", function()
     local grid = RomHexGrid.new({ cols = 16, groupSize = 1 })
     grid:setRomRaw(makeRom(8192))
     grid:setPosition(0, 0)
     grid.scrollOffset = 2048
     local trackH = RomHexGrid.ROWS * RomHexGrid.CELL_H
     local zoomStart, zoomLen = grid:_computeZoomWindow()
-    -- Track pixels == hex rows spanned (1:1).
+    -- Track height pixels == hex rows spanned (1:1); width == cols.
     expect(zoomLen / 16).toBe(trackH)
+    expect(RomHexGrid.zoomTrackWidth(16)).toBe(16)
+    local zx, _, zw, zh = grid:_zoomScrollbarTrackRect()
+    expect(zw).toBe(16)
+    expect(zh).toBe(trackH)
     expect(zoomStart <= 2048).toBe(true)
     expect(zoomStart + zoomLen > 2048).toBe(true)
 
-    local zoomX = 2 + 38 + 16 * 15 + 2 + 5 + 2 + 1
+    local zoomX = zx + 1
     local trackY = 2 + 12
     local before = grid.scrollOffset
     -- Zoom track clicks do not start a scroll drag.
@@ -246,6 +250,14 @@ describe("RomHexGrid", function()
     expect(grid:mousepressed(zoomX, trackY + 10, 1)).toBe(true)
     expect(grid:isScrollDragging()).toBe(false)
     expect(grid.scrollOffset).toBe(before)
+  end)
+
+  it("contentWidth accounts for cols-wide zoom track", function()
+    expect(RomHexGrid.contentWidth(16)).toBeGreaterThan(RomHexGrid.contentWidth(8))
+    -- Wider col count grows both the byte grid and the zoom miniature.
+    local w16 = RomHexGrid.contentWidth(16)
+    local w32 = RomHexGrid.contentWidth(32)
+    expect(w32 - w16).toBe((32 - 16) * RomHexGrid.CELL_W + (32 - 16))
   end)
 
   it("wheel steps 8 rows; Shift+wheel steps 64 rows", function()
@@ -312,10 +324,11 @@ describe("RomHexGrid", function()
       { offset = 0x200, color = "purple" },
       { offset = 0x300, color = "blue" },
       { offset = 0x400, color = "gray" },
+      { offset = 0x500, color = { 0.1, 0.2, 0.3, 0.9 } },
       "nope",
     })
     local markers = grid:getMinimapMarkers()
-    expect(#markers).toBe(3)
+    expect(#markers).toBe(4)
     expect(markers[1].offset).toBe(0x100)
     expect(markers[1].color).toBe("red")
     expect(markers[1].groupCount).toBe(1)
@@ -324,6 +337,10 @@ describe("RomHexGrid", function()
     expect(markers[2].color).toBe("blue")
     expect(markers[3].offset).toBe(0x400)
     expect(markers[3].color).toBe("gray")
+    expect(markers[4].offset).toBe(0x500)
+    expect(markers[4].color[1]).toBe(0.1)
+    expect(markers[4].color[2]).toBe(0.2)
+    expect(markers[4].color[3]).toBe(0.3)
   end)
 
   it("setMinimapMarkers stores groupCount × groupSize ranges", function()
@@ -338,5 +355,30 @@ describe("RomHexGrid", function()
     expect(markers[1].groupSize).toBe(16)
     expect(RomHexGrid.minimapMarkerByteLength(markers[1])).toBe(256)
     expect(RomHexGrid.minimapMarkerByteLength(markers[2])).toBe(4)
+  end)
+
+  it("combined minimap markers append live selection colors after static marks", function()
+    local grid = oamGrid()
+    grid:setRomRaw(makeRom(512))
+    grid:setMinimapMarkers({
+      { offset = 0x100, color = "gray", groupCount = 1, groupSize = 4 },
+    })
+    grid:setSelectedAddr(0x20, { emit = false })
+    local combined = grid:_combinedMinimapMarkers()
+    expect(#combined).toBe(2)
+    expect(combined[1].offset).toBe(0x100)
+    expect(combined[1].color).toBe("gray")
+    expect(combined[2].offset).toBe(0x20)
+    expect(combined[2].groupSize).toBe(4)
+    expect(type(combined[2].color)).toBe("table")
+    expect(RomHexGrid.minimapMarkerByteLength(combined[2])).toBe(4)
+    -- Static list stays occupied-only; selection is live at draw time.
+    expect(#grid:getMinimapMarkers()).toBe(1)
+
+    grid:_setStarts({ 0x20, 0x40 }, 0x40, { emit = false })
+    combined = grid:_combinedMinimapMarkers()
+    expect(#combined).toBe(3)
+    expect(combined[2].offset).toBe(0x20)
+    expect(combined[3].offset).toBe(0x40)
   end)
 end)
