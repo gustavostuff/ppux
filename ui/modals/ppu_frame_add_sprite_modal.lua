@@ -7,7 +7,6 @@ local RomHexGrid = require("ui.rom_hex_grid")
 local OamSpritePreview = require("ui.oam_sprite_preview")
 local Shared = require("controllers.app.core_controller_shared")
 local ResolutionController = require("controllers.app.resolution_controller")
-local LoveCompat = require("utils.love_compat")
 local colors = require("app_colors")
 
 -- Shared Add/Edit sprite modal for PPU Frame and OAM Animation windows.
@@ -51,6 +50,36 @@ local function collectOccupiedOamStarts(layer, opts)
   table.sort(list)
   return list
 end
+
+--- Add mode default: first free group after the last disabled start, or 0 when none.
+local function defaultAddOamStart(occupiedStarts, groupSize)
+  groupSize = math.max(1, math.floor(tonumber(groupSize) or 4))
+  local occupied = occupiedStarts or {}
+  if #occupied == 0 then
+    return 0
+  end
+  return math.floor(occupied[#occupied]) + groupSize
+end
+
+--- Gray scrollbar markers: one OAM group (4 bytes) per in-layer start.
+local function occupiedMinimapMarkers(starts, groupSize)
+  groupSize = math.max(1, math.floor(tonumber(groupSize) or 4))
+  local markers = {}
+  for _, addr in ipairs(starts or {}) do
+    markers[#markers + 1] = {
+      offset = math.floor(addr),
+      color = "gray",
+      groupCount = 1,
+      groupSize = groupSize,
+    }
+  end
+  return markers
+end
+
+-- Exported for unit tests.
+Dialog._collectOccupiedOamStarts = collectOccupiedOamStarts
+Dialog._defaultAddOamStart = defaultAddOamStart
+Dialog._occupiedMinimapMarkers = occupiedMinimapMarkers
 
 --- How many panel rows are needed so spanned cell height >= `height`.
 local function rowspanForHeight(height, cellH, spacingY)
@@ -144,11 +173,12 @@ function Dialog.new()
   }, Dialog)
 
   self.hexGrid = RomHexGrid.new({
+    groupSize = 4,
+    maxSelectedStarts = RomHexGrid.MAX_SELECTED_STARTS,
     onSelect = function(addr, selectOpts)
       selectOpts = selectOpts or {}
       self:_onGridSelect(addr, {
         fromGrid = true,
-        dragging = selectOpts.dragging == true,
         selectionCapHit = selectOpts.selectionCapHit == true,
       })
     end,
@@ -199,8 +229,7 @@ function Dialog:_formatOam(addr)
   return string.format("0x%06X", math.floor(tonumber(addr) or 0))
 end
 
-function Dialog:_syncPreviewFromGrid(opts)
-  opts = opts or {}
+function Dialog:_syncPreviewFromGrid()
   local starts = self.hexGrid:getSelectedStarts()
   local groupColors = {}
   for i = 1, #starts do
@@ -210,22 +239,7 @@ function Dialog:_syncPreviewFromGrid(opts)
   self.preview:setSelectedStarts(starts, groupColors)
   local newH = self.preview:preferredHeight()
   self._previewPrefH = newH
-  local needsRebuild = self.visible and prevH ~= nil and newH ~= prevH and self.panel
-  -- Never rebuild while dragging: a new Panel drops pressedComponent and leaves
-  -- the hex grid stuck in drag mode.
-  if needsRebuild then
-    if opts.deferRebuild == true or self.hexGrid:isDragSelecting() then
-      self._previewLayoutDirty = true
-    else
-      self._previewLayoutDirty = false
-      rebuildPanel(self)
-    end
-  end
-end
-
-function Dialog:_flushPreviewLayoutIfDirty()
-  if self._previewLayoutDirty and self.visible then
-    self._previewLayoutDirty = false
+  if self.visible and prevH ~= nil and newH ~= prevH and self.panel then
     rebuildPanel(self)
   end
 end
@@ -257,11 +271,11 @@ function Dialog:_onGridSelect(addr, opts)
     self._hitMax8 = false
   end
   self._syncingFromGrid = true
-  self.oamStartField:setText(self:_formatOam(addr))
+  if #(self.hexGrid:getSelectedStarts()) > 0 then
+    self.oamStartField:setText(self:_formatOam(addr))
+  end
   self._syncingFromGrid = false
-  self:_syncPreviewFromGrid({
-    deferRebuild = opts.dragging == true,
-  })
+  self:_syncPreviewFromGrid()
   self:_refreshLimitWarning()
 end
 
@@ -303,8 +317,12 @@ function Dialog:show(opts)
   if self.isEdit and opts.appearanceSprite and type(opts.appearanceSprite.startAddr) == "number" then
     excludeOccupied = math.floor(opts.appearanceSprite.startAddr)
   end
+  -- Disabled = starts already in *this* layer only (other OAM-anim layers stay selectable).
   local occupied = collectOccupiedOamStarts(opts.spriteLayer, { excludeStartAddr = excludeOccupied })
   self.hexGrid:setOccupiedStarts(occupied)
+  -- Minimap: all in-layer starts (including the sprite being edited) so users can find them after scrolling.
+  local minimapStarts = collectOccupiedOamStarts(opts.spriteLayer)
+  self.hexGrid:setMinimapMarkers(occupiedMinimapMarkers(minimapStarts, self.hexGrid:getGroupSize()))
 
   self.preview:setContext({
     romRaw = romRaw,
@@ -315,32 +333,26 @@ function Dialog:show(opts)
     appearanceSprite = opts.appearanceSprite,
   })
 
-  local initialText = opts.initialOamStart or ""
-  self.oamStartField:setText(initialText)
-  local initialAddr = select(1, Shared.parseHexAddress(initialText))
-  if type(initialAddr) ~= "number" then
-    initialAddr = 0
-  end
+  local groupSize = self.hexGrid:getGroupSize()
+  local initialAddr
   local selectOpts = { emit = false }
   if self.isEdit then
+    local initialText = opts.initialOamStart or ""
+    self.oamStartField:setText(initialText)
+    initialAddr = select(1, Shared.parseHexAddress(initialText))
+    if type(initialAddr) ~= "number" then
+      initialAddr = 0
+    end
     -- Allow keeping the sprite's current OAM start selected while editing.
     selectOpts.allowOccupied = true
+  else
+    -- After last disabled group in this layer; 0x00 when the layer has none.
+    initialAddr = defaultAddOamStart(occupied, groupSize)
+    self.oamStartField:setText(self:_formatOam(initialAddr))
   end
   self.hexGrid:setSelectedAddr(initialAddr, selectOpts)
-  -- Add mode: jump to the earliest in-layer sprite page (by ROM offset), if any.
   if self.isEdit ~= true then
-    if occupied[1] ~= nil then
-      self.hexGrid:scrollToReveal(occupied[1])
-    end
-    -- Prefill may point at an in-layer Y byte; keep the field aligned with a free selection.
-    if self.hexGrid:startOverlapsOccupied(initialAddr) then
-      local starts = self.hexGrid:getSelectedStarts()
-      if #starts > 0 then
-        self.oamStartField:setText(self:_formatOam(starts[1]))
-      else
-        self.oamStartField:setText("")
-      end
-    end
+    self.hexGrid:scrollToReveal(initialAddr)
   end
   self:_syncPreviewFromGrid()
   self._previewPrefH = self.preview:preferredHeight()
@@ -370,6 +382,9 @@ function Dialog:hide()
   self._limitWarning = nil
   if self.hexGrid and self.hexGrid.setOccupiedStarts then
     self.hexGrid:setOccupiedStarts({})
+  end
+  if self.hexGrid and self.hexGrid.setMinimapMarkers then
+    self.hexGrid:setMinimapMarkers({})
   end
   if self.preview then
     self.preview.appearanceSprite = nil
@@ -494,13 +509,7 @@ end
 
 function Dialog:mousereleased(x, y, button)
   if not self.visible then return false end
-  -- Always end hex drag even if Panel lost pressedComponent (rebuild mid-drag).
-  if button == 1 and self.hexGrid then
-    self.hexGrid:endDragSelect()
-  end
-  local ok = self.panel and self.panel:mousereleased(x, y, button) or true
-  self:_flushPreviewLayoutIfDirty()
-  return ok
+  return self.panel and self.panel:mousereleased(x, y, button) or true
 end
 
 function Dialog:_syncPreviewHoverFromGrid()
@@ -514,13 +523,6 @@ function Dialog:mousemoved(x, y)
   if not self.visible then return false end
   if self.panel then
     self.panel:mousemoved(x, y)
-  end
-  -- Recover if mouseup never reached the grid (Panel rebuilt and dropped pressedComponent).
-  if self.hexGrid and self.hexGrid:isDragSelecting() and not LoveCompat.isMouseDown(1) then
-    self.hexGrid:endDragSelect()
-  end
-  if self.hexGrid and not self.hexGrid:isDragSelecting() then
-    self:_flushPreviewLayoutIfDirty()
   end
   self:_syncPreviewHoverFromGrid()
   return true

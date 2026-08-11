@@ -286,24 +286,6 @@ local function spriteLayerHasLinkedValidPatternTable(layer)
   return PatternTableMapping.validate(layer.patternTable) == true
 end
 
-local function getLastOamSpriteStartAddrInWindow(win)
-  if not WindowCaps.isOamAnimation(win) then
-    return nil
-  end
-
-  local lastAddr = nil
-  for _, layer in ipairs(win.layers or {}) do
-    if layer and layer.kind == "sprite" then
-      for _, item in ipairs(layer.items or {}) do
-        if item and item.removed ~= true and type(item.startAddr) == "number" then
-          lastAddr = item.startAddr
-        end
-      end
-    end
-  end
-  return lastAddr
-end
-
 -- After changing `item.tile` (or bank), drop explicit bottom index so 8x16 hydration
 -- recomputes the NES pair (even top + top+1) instead of keeping a stale tileBelow.
 local function reset8x16SpriteTilePairAfterChrEdit(layer, item)
@@ -439,12 +421,8 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
     end
     initialOamStart = (type(editItem.startAddr) == "number")
         and string.format("0x%06X", editItem.startAddr) or ""
-  elseif WindowCaps.isOamAnimation(win) then
-    local lastAddr = getLastOamSpriteStartAddrInWindow(win)
-    if type(lastAddr) == "number" then
-      initialOamStart = string.format("0x%06X", lastAddr)
-    end
   end
+  -- Add mode: modal picks the group after the last disabled start in the target layer.
 
   local modalTitle = modalOpts.title or (isEdit and "Edit sprite" or "Add sprite")
   local primaryButtonText = modalOpts.primaryButtonText or (isEdit and "Save" or "Add")

@@ -1,4 +1,5 @@
 local AppCoreController = require("controllers.app.core_controller")
+local Dialog = require("ui.modals.ppu_frame_add_sprite_modal")
 
 local function validSpriteLayer(extra)
   local layer = {
@@ -33,7 +34,7 @@ describe("showPpuFrameAddSpriteModal initial OAM address", function()
     }, AppCoreController)
   end
 
-  it("prefills OAM start from the last added sprite in an OAM animation window", function()
+  it("does not prefill initialOamStart for Add on OAM animation (modal derives it)", function()
     local capture = {}
     local app = makeApp(capture)
     local win = {
@@ -57,10 +58,11 @@ describe("showPpuFrameAddSpriteModal initial OAM address", function()
 
     app:showPpuFrameAddSpriteModal(win)
 
-    expect(capture.opts.initialOamStart).toBe("0x000200")
+    expect(capture.opts.initialOamStart).toBe("")
+    expect(capture.opts.spriteLayer).toBe(win.layers[2])
   end)
 
-  it("leaves OAM start empty when the OAM animation window has no sprites yet", function()
+  it("leaves initialOamStart empty when the OAM animation window has no sprites yet", function()
     local capture = {}
     local app = makeApp(capture)
     local win = {
@@ -75,28 +77,6 @@ describe("showPpuFrameAddSpriteModal initial OAM address", function()
     app:showPpuFrameAddSpriteModal(win)
 
     expect(capture.opts.initialOamStart).toBe("")
-  end)
-
-  it("ignores removed sprites when choosing the last OAM address", function()
-    local capture = {}
-    local app = makeApp(capture)
-    local win = {
-      kind = "oam_animation",
-      activeLayer = 1,
-      getActiveLayerIndex = function() return 1 end,
-      layers = {
-        validSpriteLayer({
-          items = {
-            { startAddr = 0x100, removed = true },
-            { startAddr = 0x108 },
-          },
-        }),
-      },
-    }
-
-    app:showPpuFrameAddSpriteModal(win)
-
-    expect(capture.opts.initialOamStart).toBe("0x000108")
   end)
 
   it("does not prefill OAM start for PPU frame windows", function()
@@ -119,6 +99,105 @@ describe("showPpuFrameAddSpriteModal initial OAM address", function()
     app:showPpuFrameAddSpriteModal(win)
 
     expect(capture.opts.initialOamStart).toBe("")
+  end)
+end)
+
+describe("Add sprite modal default selection and disabled layer scope", function()
+  it("defaults to 0x00 when the target layer has no sprites", function()
+    expect(Dialog._defaultAddOamStart({}, 4)).toBe(0)
+  end)
+
+  it("defaults to the group after the last disabled start", function()
+    expect(Dialog._defaultAddOamStart({ 0x100, 0x108, 0x200 }, 4)).toBe(0x204)
+  end)
+
+  it("disables only current-layer starts; other OAM-anim layer starts stay free", function()
+    local modal = Dialog.new()
+    local activeLayer = validSpriteLayer({
+      items = {
+        { startAddr = 0x200 },
+        { startAddr = 0x204 },
+      },
+    })
+    local otherLayer = validSpriteLayer({
+      items = {
+        { startAddr = 0x100 },
+        { startAddr = 0x104 },
+      },
+    })
+    modal:show({
+      romRaw = string.rep("\0", 1024),
+      spriteLayer = activeLayer,
+      tilesPool = { [1] = {} },
+    })
+
+    local occupied = modal.hexGrid:getOccupiedStarts()
+    expect(occupied).toEqual({ 0x200, 0x204 })
+    expect(modal.hexGrid:startOverlapsOccupied(0x100)).toBe(false)
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({ 0x208 })
+    expect(modal.oamStartField:getText()).toBe("0x000208")
+    -- otherLayer exists only to document cross-layer intent in this test.
+    expect(#otherLayer.items).toBe(2)
+    modal:hide()
+  end)
+
+  it("selects 0x00 and leaves disabled empty when adding to an empty layer", function()
+    local modal = Dialog.new()
+    modal:show({
+      romRaw = string.rep("\0", 256),
+      spriteLayer = validSpriteLayer({ items = {} }),
+      tilesPool = { [1] = {} },
+    })
+    expect(modal.hexGrid:getOccupiedStarts()).toEqual({})
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({ 0 })
+    expect(modal.oamStartField:getText()).toBe("0x000000")
+    expect(modal.hexGrid:getMinimapMarkers()).toEqual({})
+    modal:hide()
+  end)
+
+  it("injects gray minimap markers for in-layer occupied starts", function()
+    local modal = Dialog.new()
+    modal:show({
+      romRaw = string.rep("\0", 1024),
+      spriteLayer = validSpriteLayer({
+        items = {
+          { startAddr = 0x100 },
+          { startAddr = 0x200 },
+        },
+      }),
+      tilesPool = { [1] = {} },
+    })
+    expect(modal.hexGrid:getMinimapMarkers()).toEqual({
+      { offset = 0x100, color = "gray", groupCount = 1, groupSize = 4 },
+      { offset = 0x200, color = "gray", groupCount = 1, groupSize = 4 },
+    })
+    modal:hide()
+    expect(modal.hexGrid:getMinimapMarkers()).toEqual({})
+  end)
+
+  it("Edit mode keeps the sprite address selected even when it is in-layer", function()
+    local modal = Dialog.new()
+    local layer = validSpriteLayer({
+      items = {
+        { startAddr = 0x2A0 },
+        { startAddr = 0x2A4 },
+      },
+    })
+    modal:show({
+      title = "Edit sprite",
+      primaryButtonText = "Save",
+      isEdit = true,
+      romRaw = string.rep("\0", 2048),
+      spriteLayer = layer,
+      initialOamStart = "0x0002A0",
+      appearanceSprite = layer.items[1],
+      tilesPool = { [1] = {} },
+    })
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({ 0x2A0 })
+    expect(modal.oamStartField:getText()).toBe("0x0002A0")
+    -- Editing sprite's start is excluded from disabled so the group is selectable.
+    expect(modal.hexGrid:getOccupiedStarts()).toEqual({ 0x2A4 })
+    modal:hide()
   end)
 end)
 
