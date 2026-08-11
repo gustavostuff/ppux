@@ -458,6 +458,66 @@ describe("game_art_controller.lua - oam_animation hydration", function()
     expect(out[3]).toBe(0x00) -- mirrorX cleared from attr bit 6
   end)
 
+  it("does not bake contested X/Y when shared startAddr windows disagree on displacement", function()
+    -- Cutscene-style: two PPU frames share OAM slots; one keeps ROM position,
+    -- the other has editor-only dx/dy. Save must not move the ROM sprite.
+    local startAddr = 80
+    local romRaw = makeRom(128, {
+      [startAddr + 0] = 40, -- Y
+      [startAddr + 1] = 7,  -- tile
+      [startAddr + 2] = 0,  -- attr
+      [startAddr + 3] = 100, -- X
+    })
+
+    local unmoved = {
+      startAddr = startAddr,
+      baseX = 100,
+      baseY = 40,
+      dx = 0,
+      dy = 0,
+      oamTile = 7,
+      attr = 0,
+    }
+    local editorOnlyMove = {
+      startAddr = startAddr,
+      baseX = 100,
+      baseY = 40,
+      dx = 8,
+      dy = -4,
+      oamTile = 7,
+      attr = 0,
+      hasMoved = true,
+    }
+
+    local winFrame1 = {
+      kind = "ppu_frame",
+      layers = { { kind = "sprite", items = { unmoved } } },
+      getSpriteLayers = function(self)
+        return { { index = 1, layer = self.layers[1] } }
+      end,
+    }
+    local winFrame2 = {
+      kind = "ppu_frame",
+      layers = { { kind = "sprite", items = { editorOnlyMove } } },
+      getSpriteLayers = function(self)
+        return { { index = 1, layer = self.layers[1] } }
+      end,
+    }
+
+    local updated, err = SpriteController.applyDisplacementsToROMForWindows(
+      { winFrame1, winFrame2 },
+      romRaw
+    )
+    expect(err).toBeNil()
+    expect(updated).toBeTruthy()
+
+    local out, readErr = chr.readBytesFromRange(updated, startAddr, startAddr + 3)
+    expect(readErr).toBeNil()
+    expect(out[1]).toBe(40)
+    expect(out[2]).toBe(7)
+    expect(out[4]).toBe(100)
+  end)
+
   it("drops stale Lua bank/tile CHR binding when ROM OAM resolves through valid patternTable", function()
     local startAddr = 10
     local romRaw = makeRom(128, {

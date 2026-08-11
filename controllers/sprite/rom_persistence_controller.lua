@@ -68,13 +68,47 @@ local function buildSpriteBytes(s)
   return { newY, tileByte, attr, newX }, attr
 end
 
-local function writeSpriteToROM(s, romRaw)
+--- Desired wrapped OAM X/Y for a sprite (editor displacement vs ROM base).
+local function desiredWrappedPosition(s)
+  local bytes = buildSpriteBytes(s)
+  return bytes[4], bytes[1]
+end
+
+--- True when every candidate wants the same wrapped X/Y.
+local function candidatesAgreeOnPosition(candidates)
+  local firstX, firstY = nil, nil
+  for _, s in ipairs(candidates or {}) do
+    if type(s.startAddr) == "number" then
+      local x, y = desiredWrappedPosition(s)
+      if firstX == nil then
+        firstX, firstY = x, y
+      elseif x ~= firstX or y ~= firstY then
+        return false
+      end
+    end
+  end
+  return true
+end
+
+local function writeSpriteToROM(s, romRaw, opts)
   if type(s.startAddr) ~= "number" then
     return romRaw, nil
   end
 
+  opts = opts or {}
   local bytes, attr = buildSpriteBytes(s)
   s.attr = attr
+
+  -- Shared startAddr across windows (e.g. two cutscene frames) can disagree on
+  -- editor dx/dy. Never bake a contested position into ROM; keep existing X/Y.
+  if opts.preservePosition == true then
+    local existing, readErr = chr.readBytesFromRange(romRaw, s.startAddr, s.startAddr + 3)
+    if not existing then
+      return nil, "[SpriteController] readBytesFromRange failed: " .. tostring(readErr)
+    end
+    bytes[1] = existing[1]
+    bytes[4] = existing[4]
+  end
 
   local written, err = chr.writeBytesToRange(romRaw, s.startAddr, 4, bytes)
   if not written then
@@ -184,9 +218,13 @@ function M.applyDisplacementsToROMForWindows(windows, romRaw)
   end
 
   for _, addr in ipairs(orderedAddrs) do
-    local sprite = chooseBestSpriteCandidate(byAddr[addr])
+    local candidates = byAddr[addr]
+    local sprite = chooseBestSpriteCandidate(candidates)
     if sprite then
-      local updated, err = writeSpriteToROM(sprite, newRom)
+      local preservePosition = not candidatesAgreeOnPosition(candidates)
+      local updated, err = writeSpriteToROM(sprite, newRom, {
+        preservePosition = preservePosition,
+      })
       if not updated then
         return nil, err
       end

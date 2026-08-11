@@ -127,10 +127,8 @@ local function syncSharedOAMFieldsIntoTarget(target, source, opts)
     if source.paletteNumber ~= nil then
       target.paletteNumber = source.paletteNumber
     end
-    if source._paletteNumberOverrideSet == true then
-      target._paletteNumberOverrideSet = true
-    elseif source._paletteNumberOverrideSet == false then
-      target._paletteNumberOverrideSet = false
+    if source._paletteNumberOverrideSet ~= nil then
+      target._paletteNumberOverrideSet = source._paletteNumberOverrideSet == true
     end
     if source.mirrorX ~= nil then
       target.mirrorX = source.mirrorX and true or false
@@ -138,11 +136,11 @@ local function syncSharedOAMFieldsIntoTarget(target, source, opts)
     if source.mirrorY ~= nil then
       target.mirrorY = source.mirrorY and true or false
     end
-    if source._mirrorXOverrideSet == true then
-      target._mirrorXOverrideSet = true
+    if source._mirrorXOverrideSet ~= nil then
+      target._mirrorXOverrideSet = source._mirrorXOverrideSet == true
     end
-    if source._mirrorYOverrideSet == true then
-      target._mirrorYOverrideSet = true
+    if source._mirrorYOverrideSet ~= nil then
+      target._mirrorYOverrideSet = source._mirrorYOverrideSet == true
     end
   end
 

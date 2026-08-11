@@ -673,6 +673,26 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
       for i = firstNewIndex, lastIndex do
         newIndices[#newIndices + 1] = i
       end
+
+      -- If this OAM slot already exists on another PPU/OAM window, pull that
+      -- peer's dx/dy/mirror/palette onto the new item (do not push ROM-fresh zeros out).
+      for _, itemIndex in ipairs(newIndices) do
+        local newSprite = spriteLayer.items[itemIndex]
+        local addr = newSprite and newSprite.startAddr
+        if type(addr) == "number" then
+          for _, e in ipairs(collectSpritesSharingOamStartAddr(self, addr)) do
+            if e.sprite and e.sprite ~= newSprite and e.win then
+              SpriteController.syncSharedOAMSpriteState(e.win, e.sprite, {
+                syncPosition = true,
+                syncVisual = true,
+                syncAttr = true,
+              })
+              break
+            end
+          end
+        end
+      end
+
       if #newIndices > 1 then
         SpriteController.setSpriteSelection(spriteLayer, newIndices)
       else

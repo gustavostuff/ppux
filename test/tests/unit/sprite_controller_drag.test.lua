@@ -542,6 +542,58 @@ describe("sprite_controller.lua - shared OAM item sync", function()
     expect(sB.attr).toBe(sA.attr)
   end)
 
+  it("syncs shared OAM state across ppu_frame windows by startAddr", function()
+    local sFrame1 = {
+      startAddr = 0x00A32E,
+      baseX = 100, baseY = 40,
+      worldX = 108, worldY = 41, x = 108, y = 41,
+      dx = 8, dy = 1,
+      hasMoved = true,
+      paletteNumber = 4,
+      _paletteNumberOverrideSet = true,
+      mirrorX = true,
+      _mirrorXOverrideSet = true,
+      attr = 0x43,
+    }
+    local sFrame2 = {
+      startAddr = 0x00A32E,
+      baseX = 100, baseY = 40,
+      worldX = 100, worldY = 40, x = 100, y = 40,
+      dx = 0, dy = 0,
+      paletteNumber = 1,
+    }
+    local win1 = {
+      kind = "ppu_frame",
+      layers = { { kind = "sprite", items = { sFrame1 } } },
+      _closed = false,
+    }
+    local win2 = {
+      kind = "ppu_frame",
+      layers = { { kind = "sprite", items = { sFrame2 } } },
+      _closed = false,
+    }
+    local wm = {
+      getWindows = function()
+        return { win1, win2 }
+      end,
+    }
+    win1._wm = wm
+    win2._wm = wm
+
+    local count = SpriteController.syncSharedOAMSpriteState(win1, sFrame1, {
+      syncPosition = true,
+      syncVisual = true,
+      syncAttr = true,
+    })
+    expect(count).toBe(2)
+    expect(sFrame2.dx).toBe(8)
+    expect(sFrame2.dy).toBe(1)
+    expect(sFrame2.paletteNumber).toBe(4)
+    expect(sFrame2.mirrorX).toBe(true)
+    expect(sFrame2._mirrorXOverrideSet).toBe(true)
+    expect(sFrame2._paletteNumberOverrideSet).toBe(true)
+  end)
+
   it("syncs shared OAM state to minimized oam_animation windows too", function()
     local winA, _, _, sA = makeOAMWinWithSharedSprite()
     local sB = {
