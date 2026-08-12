@@ -170,7 +170,7 @@ Palette and pattern-table links use on-canvas [badges](#windows-system) (drag / 
 
 **OAM Animation toolbar**
 
-<img src="img/readme_images/toolbars/2x/oam_animation.png" alt="OAM Animation specialized toolbar">
+<img src="img/readme_images/toolbars/2x/oam_animation_toolbar.png" alt="OAM Animation specialized toolbar">
 
 1. **Previous layer** - `Shift` + `Down` key.
 2. **Next layer** - `Shift` + `Up` key.
@@ -192,7 +192,7 @@ Palette and pattern-table links use on-canvas [badges](#windows-system) (drag / 
 
 **Generic palette toolbar**
 
-<img src="img/readme_images/toolbars/2x/global_palette.png" alt="Generic palette specialized toolbar">
+<img src="img/readme_images/toolbars/2x/global_palette_toolbar.png" alt="Generic palette specialized toolbar">
 
 1. **Previous grouped slot** (when Grouped palettes is enabled).
 2. **Next grouped slot** (when Grouped palettes is enabled).
@@ -205,7 +205,7 @@ Palette and pattern-table links use on-canvas [badges](#windows-system) (drag / 
 
 **ROM palette toolbar**
 
-<img src="img/readme_images/toolbars/2x/rom_palette.png" alt="ROM palette specialized toolbar">
+<img src="img/readme_images/toolbars/2x/rom_palette_toolbar.png" alt="ROM palette specialized toolbar">
 
 1. **Previous grouped slot** (when Grouped palettes is enabled).
 2. **Next grouped slot** (when Grouped palettes is enabled).
