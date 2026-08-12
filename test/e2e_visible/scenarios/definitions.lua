@@ -16,6 +16,7 @@ merge(scenarios, require("test.e2e_visible.scenarios.builders.workspace_minimize
 merge(scenarios, require("test.e2e_visible.scenarios.builders.save_modal_nav"))
 merge(scenarios, require("test.e2e_visible.scenarios.builders.clipboard_matrix"))
 merge(scenarios, require("test.e2e_visible.scenarios.builders.ppu_toolbar"))
+merge(scenarios, require("test.e2e_visible.scenarios.builders.rom_hex_grid_flows"))
 merge(scenarios, require("test.e2e_visible.scenarios.builders.clipboard_paths"))
 merge(scenarios, require("test.e2e_visible.scenarios.builders.grid_resize"))
 merge(scenarios, require("test.e2e_visible.scenarios.builders.toolbar_auto_placement_drag"))

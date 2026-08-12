@@ -1178,16 +1178,6 @@ function AppCoreController:showPpuFrameRangeModal(win)
     codec = codec,
     initialStartAddress = initialStart,
     initialEndAddress = initialEnd,
-    onBeforeScan = function()
-      if self.beginSimpleLoading then
-        self:beginSimpleLoading("Scanning nametable streams...")
-      end
-    end,
-    onAfterScan = function()
-      if self.endSimpleLoading then
-        self:endSimpleLoading()
-      end
-    end,
     onConfirm = function(startText, endText, targetWindow)
       local startAddr, startErr = Shared.parseHexAddress(startText)
       if not startAddr then

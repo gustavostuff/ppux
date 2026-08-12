@@ -18,47 +18,6 @@ local BubbleExample, PaletteLinkController, ContextualMenuController, images,
   P.setupDeterministicPpuFixture, P.ensureSpriteLayerReadyForAddSprite, P.harnessHoldShiftForGridResize, P.assertStatusContainsOccupiedLayout
 
 
-local function buildPpuToolbarRangesSetupScenario(harness, app, runner)
-  harness:loadROM(BubbleExample.getLoadPath())
-  local steps = {
-    pause("Start", 0.35),
-    call("Create deterministic PPU fixture", function(_, currentApp, currentRunner)
-      setupDeterministicPpuFixture(currentApp, currentRunner)
-    end),
-    pause("Observe PPU fixture", 0.45),
-    call("Focus PPU fixture window", function(_, currentApp, currentRunner)
-      currentApp.wm:setFocus(currentRunner.ppuFixtureWin)
-      if currentRunner.ppuFixtureWin.setActiveLayerIndex then
-        currentRunner.ppuFixtureWin:setActiveLayerIndex(1)
-      end
-    end),
-  }
-
-  appendClick(steps, "Open PPU nametable range modal", ppuToolbarButtonCenter("ppuFixtureWin", function(toolbar)
-    return toolbar.rangeButton
-  end), { moveDuration = 0.1, postPause = 0.2 })
-
-  steps[#steps + 1] = call("Fill range modal and confirm", function(currentHarness, currentApp, currentRunner)
-    local modal = assert(currentApp.ppuFrameRangeModal, "expected ppuFrameRangeModal")
-    assert(modal:isVisible(), "expected PPU range modal visible")
-    setFocusedTextFieldValue(modal.startField, string.format("0x%06X", currentRunner.ppuFixtureRangeStart))
-    setFocusedTextFieldValue(modal.endField, string.format("0x%06X", currentRunner.ppuFixtureRangeEnd))
-    currentHarness:keyPress("return", { wait = false })
-    currentHarness:wait(0.16)
-  end)
-
-  steps[#steps + 1] = call("Assert nametable range applied and hydrated", function(_, _, currentRunner)
-    local ppu = assert(currentRunner.ppuFixtureWin, "expected PPU fixture window")
-    local layer = assert(ppu.layers and ppu.layers[1], "expected PPU tile layer")
-    assert(layer.nametableStartAddr == currentRunner.ppuFixtureRangeStart, "expected PPU nametable start address to match fixture")
-    assert(layer.nametableEndAddr == currentRunner.ppuFixtureRangeEnd, "expected PPU nametable end address to match fixture")
-    local tile = ppu:get(4, 4, 1)
-    assert(tile ~= nil, "expected hydrated tile after range setup")
-  end)
-  steps[#steps + 1] = pause("Observe hydrated range setup", 0.7)
-  return steps
-end
-
 local function buildPpuToolbarPatternRangesScenario(harness, app, runner)
   harness:loadROM(BubbleExample.getLoadPath())
   local steps = {
@@ -297,7 +256,6 @@ end
 
 
 return {
-  ppu_toolbar_ranges_setup = { title = "PPU Toolbar Ranges Setup", build = buildPpuToolbarRangesSetupScenario },
   ppu_toolbar_pattern_ranges = { title = "PPU Toolbar Pattern Ranges", build = buildPpuToolbarPatternRangesScenario },
   ppu_toolbar_sprite_and_mode_controls = {
     title = "PPU Toolbar Sprite + Mode Controls",

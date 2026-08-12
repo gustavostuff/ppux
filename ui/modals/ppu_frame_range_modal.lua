@@ -9,18 +9,15 @@ local NametableStreamScanner = require("utils.nametable_stream_scanner")
 local NametableShapePreview = require("ui.nametable_shape_preview")
 
 -- Set nametable address range: ROM hex grid + Start/End + Scan/Set/Cancel.
--- On open: no stream markers. Scan runs on-demand trial decompress and marks
--- complete streams (960 NT + 64 attr). Selecting a mark fills Start/End and
--- shows a 32x30 frequency-ranked shape preview above Set.
+-- On open: no stream markers. Scan marks complete streams (960 NT + 64 attr).
+-- Grid uses two-click range pick (start, then end; same cell clears).
+-- Shape preview shows when Start/End match a scanned hit.
 
 local Dialog = {}
 Dialog.__index = Dialog
 
 local FOOTER_ROWS = 5 -- Start, End, buttons, Esc, status
 local PANEL_COLS = 3
-
---- Soft green markers for complete stream hits (minimap + bound ants).
-local STREAM_MARKER_COLOR = { 0.22, 0.72, 0.48, 0.9 }
 
 local function rowspanForHeight(height, cellH, spacingY)
   cellH = math.max(1, math.floor(tonumber(cellH) or 15))
@@ -99,19 +96,53 @@ end
 
 local function hitsToMinimapMarkers(hits)
   local markers = {}
-  for _, hit in ipairs(hits or {}) do
+  for i, hit in ipairs(hits or {}) do
     local startAddr = math.floor(tonumber(hit.start) or -1)
     local endAddr = math.floor(tonumber(hit["end"]) or -1)
     if startAddr >= 0 and endAddr >= startAddr then
       markers[#markers + 1] = {
         offset = startAddr,
-        color = STREAM_MARKER_COLOR,
+        color = RomHexGrid.highlightKeyForIndex(i),
         groupCount = 1,
         groupSize = endAddr - startAddr + 1,
       }
     end
   end
   return markers
+end
+
+local function hitsToSemiSelection(hits)
+  local starts = {}
+  local groupSizeByStart = {}
+  for _, hit in ipairs(hits or {}) do
+    local startAddr = math.floor(tonumber(hit.start) or -1)
+    local endAddr = math.floor(tonumber(hit["end"]) or -1)
+    if startAddr >= 0 and endAddr >= startAddr then
+      starts[#starts + 1] = startAddr
+      groupSizeByStart[startAddr] = endAddr - startAddr + 1
+    end
+  end
+  return starts, groupSizeByStart
+end
+
+local function applyScanMarks(hexGrid, hits)
+  if not hexGrid then
+    return
+  end
+  local starts, groupSizeByStart = hitsToSemiSelection(hits)
+  hexGrid:setMinimapMarkers(hitsToMinimapMarkers(hits))
+  hexGrid:setSemiSelectedStarts(starts, {
+    groupSizeByStart = groupSizeByStart,
+    resetColors = true,
+  })
+end
+
+local function clearScanMarks(hexGrid)
+  if not hexGrid then
+    return
+  end
+  hexGrid:setMinimapMarkers({})
+  hexGrid:setSemiSelectedStarts({}, { resetColors = true })
 end
 
 function Dialog.new()
@@ -131,8 +162,6 @@ function Dialog.new()
     cellPaddingY = nil,
     onConfirm = nil,
     onCancel = nil,
-    onBeforeScan = nil,
-    onAfterScan = nil,
     targetWindow = nil,
     romRaw = "",
     codec = "konami",
@@ -140,15 +169,19 @@ function Dialog.new()
     panel = nil,
     _syncingFromGrid = false,
     _statusText = nil,
+    -- Two-click range: first click anchors start; second sets end (same cell clears).
+    -- Committed range: click inside = no-op; click outside = clear.
+    _rangeAnchor = nil,
+    _rangeStart = nil,
+    _rangeEnd = nil,
   }, Dialog)
 
   self.hexGrid = RomHexGrid.new({
     cols = 16,
     groupSize = 1,
     maxSelectedStarts = 1,
+    replaceSelect = true,
     selectionAnts = true,
-    boundMarkerAnts = true,
-    boundMarkerAntsAlpha = 0.45,
     selectionCrosshair = true,
     onSelect = function(addr, selectOpts)
       selectOpts = selectOpts or {}
@@ -228,16 +261,18 @@ function Dialog:_applyRangeSelection(startAddr, endAddr, opts)
     endAddr = startAddr
   end
   local span = endAddr - startAddr + 1
-  self.hexGrid.groupSize = math.max(1, span)
+  -- Keep grid groupSize at 1 (byte). Variable stream length uses selectedGroupSizes
+  -- so OAM-style fixed groups stay intact and spans do not bleed into each other.
+  self.hexGrid.groupSize = 1
   self.hexGrid:setSelectedAddr(startAddr, {
     emit = false,
     allowOccupied = true,
     allowDisabled = true,
-    resetColors = true,
+    resetColors = false,
+    -- Never jump the viewport on nametable select (click or typed range).
+    scrollToReveal = false,
   })
-  if opts.scroll ~= false then
-    self.hexGrid:scrollToReveal(startAddr)
-  end
+  self.hexGrid:setSelectedGroupSizes({ [startAddr] = span })
 end
 
 function Dialog:_syncFieldsFromRange(startAddr, endAddr)
@@ -264,18 +299,87 @@ function Dialog:_refreshShapePreview(startAddr, endAddr, hit)
   self.shapePreview:setFromStream(self.romRaw, s, e, self.codec or "konami")
 end
 
+function Dialog:_clearRangeSelection()
+  self._rangeAnchor = nil
+  self._rangeStart = nil
+  self._rangeEnd = nil
+  self.hexGrid.groupSize = 1
+  self.hexGrid:setSelectedGroupSizes({})
+  self.hexGrid:_setStarts({}, 0, {
+    emit = false,
+    allowEmpty = true,
+    resetColors = false,
+    scrollToReveal = false,
+  })
+  self._syncingFromGrid = true
+  self.startField:setText("")
+  self.endField:setText("")
+  self._syncingFromGrid = false
+  if self.shapePreview then
+    self.shapePreview:clear()
+  end
+end
+
+function Dialog:_commitRange(startAddr, endAddr)
+  if endAddr < startAddr then
+    startAddr, endAddr = endAddr, startAddr
+  end
+  self._rangeAnchor = nil
+  self._rangeStart = startAddr
+  self._rangeEnd = endAddr
+  self:_applyRangeSelection(startAddr, endAddr)
+  self:_syncFieldsFromRange(startAddr, endAddr)
+  self:_refreshShapePreview(startAddr, endAddr, self:_hitMatchingRange(startAddr, endAddr))
+end
+
+function Dialog:_hitMatchingRange(startAddr, endAddr)
+  local hit = NametableStreamScanner.hitAt(self.scanHits, startAddr)
+  if not hit then
+    return nil
+  end
+  if math.floor(tonumber(hit.start) or -1) == startAddr
+    and math.floor(tonumber(hit["end"]) or -1) == endAddr
+  then
+    return hit
+  end
+  return nil
+end
+
 function Dialog:_onGridSelect(addr, _opts)
   addr = math.floor(tonumber(addr) or 0)
-  local hit = NametableStreamScanner.hitAt(self.scanHits, addr)
-  local startAddr = addr
-  local endAddr = addr
-  if hit then
-    startAddr = math.floor(tonumber(hit.start) or addr)
-    endAddr = math.floor(tonumber(hit["end"]) or addr)
+  local anchor = self._rangeAnchor
+
+  -- Mid two-click: waiting for end.
+  if type(anchor) == "number" then
+    if addr == anchor then
+      self:_clearRangeSelection()
+      return
+    end
+    self:_commitRange(anchor, addr)
+    return
   end
-  self:_applyRangeSelection(startAddr, endAddr, { scroll = false })
-  self:_syncFieldsFromRange(startAddr, endAddr)
-  self:_refreshShapePreview(startAddr, endAddr, hit)
+
+  -- Committed range: inside = no-op (re-apply so the grid click does not stick);
+  -- outside = clear and re-anchor at the clicked cell in one step.
+  local rs, re = self._rangeStart, self._rangeEnd
+  if type(rs) == "number" and type(re) == "number" then
+    if addr >= rs and addr <= re then
+      self:_applyRangeSelection(rs, re)
+      self:_syncFieldsFromRange(rs, re)
+      return
+    end
+    self:_clearRangeSelection()
+    -- Fall through to re-anchor.
+  end
+
+  -- No range yet (or just cleared): first click anchors start
+  -- (works on/inside/overlapping scan semis).
+  self._rangeAnchor = addr
+  self._rangeStart = nil
+  self._rangeEnd = nil
+  self:_applyRangeSelection(addr, addr)
+  self:_syncFieldsFromRange(addr, addr)
+  self:_refreshShapePreview(addr, addr, self:_hitMatchingRange(addr, addr))
 end
 
 function Dialog:_syncFromAddressFields()
@@ -293,16 +397,7 @@ function Dialog:_syncFromAddressFields()
   if endAddr < startAddr then
     endAddr = startAddr
   end
-  self:_applyRangeSelection(startAddr, endAddr, { scroll = true })
-  local hit = NametableStreamScanner.hitAt(self.scanHits, startAddr)
-  if hit
-    and math.floor(tonumber(hit.start) or -1) == startAddr
-    and math.floor(tonumber(hit["end"]) or -1) == endAddr
-  then
-    self:_refreshShapePreview(startAddr, endAddr, hit)
-  else
-    self:_refreshShapePreview(startAddr, endAddr, nil)
-  end
+  self:_commitRange(startAddr, endAddr)
 end
 
 function Dialog:_runScan()
@@ -311,20 +406,12 @@ function Dialog:_runScan()
     return
   end
 
-  if type(self.onBeforeScan) == "function" then
-    self.onBeforeScan()
-  end
-
   local hits, timingMs = NametableStreamScanner.scan(self.romRaw, {
     codec = self.codec or "konami",
     returnTiming = true,
   })
   self.scanHits = hits or {}
-  self.hexGrid:setMinimapMarkers(hitsToMinimapMarkers(self.scanHits))
-
-  if type(self.onAfterScan) == "function" then
-    self.onAfterScan(self.scanHits, timingMs)
-  end
+  applyScanMarks(self.hexGrid, self.scanHits)
 
   local n = #self.scanHits
   local status
@@ -344,20 +431,22 @@ function Dialog:show(opts)
   self.targetWindow = opts.window
   self.onConfirm = opts.onConfirm
   self.onCancel = opts.onCancel
-  self.onBeforeScan = opts.onBeforeScan
-  self.onAfterScan = opts.onAfterScan
   self.visible = true
   self.romRaw = type(opts.romRaw) == "string" and opts.romRaw or ""
   self.codec = tostring(opts.codec or "konami"):lower()
   self.scanHits = {}
   self._statusText = nil
+  self._rangeAnchor = nil
+  self._rangeStart = nil
+  self._rangeEnd = nil
   if self.shapePreview then
     self.shapePreview:clear()
   end
 
   self.hexGrid:setRomRaw(self.romRaw)
-  self.hexGrid:setMinimapMarkers({})
+  clearScanMarks(self.hexGrid)
   self.hexGrid.groupSize = 1
+  self.hexGrid:setSelectedGroupSizes({})
 
   self.startField:setText(opts.initialStartAddress or "")
   self.endField:setText(opts.initialEndAddress or "")
@@ -376,7 +465,9 @@ function Dialog:show(opts)
     if type(endAddr) ~= "number" or endAddr < startAddr then
       endAddr = startAddr
     end
-    self:_applyRangeSelection(startAddr, endAddr, { scroll = true })
+    self:_commitRange(startAddr, endAddr)
+    -- Open only: bring the current range into view once.
+    self.hexGrid:scrollToReveal(startAddr)
   else
     self.hexGrid:_setStarts({}, 0, {
       emit = false,
@@ -400,17 +491,19 @@ function Dialog:hide()
   self.cancelButton.hovered = false
   self.onConfirm = nil
   self.onCancel = nil
-  self.onBeforeScan = nil
-  self.onAfterScan = nil
   self.targetWindow = nil
   self.romRaw = ""
   self.scanHits = {}
   self._statusText = nil
+  self._rangeAnchor = nil
+  self._rangeStart = nil
+  self._rangeEnd = nil
   if self.shapePreview then
     self.shapePreview:clear()
   end
   if self.hexGrid then
-    self.hexGrid:setMinimapMarkers({})
+    clearScanMarks(self.hexGrid)
+    self.hexGrid:setSelectedGroupSizes({})
     self.hexGrid:setRomRaw("")
   end
   if self.panel then
@@ -589,6 +682,7 @@ end
 
 -- Exported for unit tests.
 Dialog._hitsToMinimapMarkers = hitsToMinimapMarkers
-Dialog.STREAM_MARKER_COLOR = STREAM_MARKER_COLOR
+Dialog._hitsToSemiSelection = hitsToSemiSelection
+Dialog._applyScanMarks = applyScanMarks
 
 return Dialog

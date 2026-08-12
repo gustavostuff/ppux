@@ -1,7 +1,7 @@
 -- ui/nametable_shape_preview.lua
 -- 32x30 grayscale "shape" of a decompressed nametable page.
--- Most-repeated tile ID → black; remaining IDs fade to white by frequency rank
--- (2nd most common almost black, then lighter, … rarest ≈ white).
+-- Shade = f(occurrence count): most-repeated tile ID → black; rarest → white.
+-- Equal counts share one shade (no rank spread / tile-ID gradient).
 
 local NametableUtils = require("utils.nametable_utils")
 
@@ -28,7 +28,9 @@ local function sliceRomBytes(romRaw, startAddr, endAddr)
   return out
 end
 
---- Map each tile ID to luminance 0..1 by descending frequency rank.
+--- Map each tile ID to luminance 0..1 from occurrence count.
+--- Most-repeated → black (0); rarest → white (1). Same count ⇒ same shade
+--- (avoids fake spatial gradients when many unique tiles are tie-broken by ID).
 function M.luminanceByFrequency(nametable)
   local counts = {}
   local n = math.min(960, type(nametable) == "table" and #nametable or 0)
@@ -38,8 +40,15 @@ function M.luminanceByFrequency(nametable)
   end
 
   local ranked = {}
+  local maxCount, minCount = 0, nil
   for tile, count in pairs(counts) do
     ranked[#ranked + 1] = { tile = tile, count = count }
+    if count > maxCount then
+      maxCount = count
+    end
+    if minCount == nil or count < minCount then
+      minCount = count
+    end
   end
   table.sort(ranked, function(a, b)
     if a.count ~= b.count then
@@ -48,13 +57,14 @@ function M.luminanceByFrequency(nametable)
     return a.tile < b.tile
   end)
 
+  minCount = minCount or 0
   local shade = {}
-  local unique = #ranked
-  for i, entry in ipairs(ranked) do
-    if unique <= 1 then
+  local range = maxCount - minCount
+  for _, entry in ipairs(ranked) do
+    if range <= 0 then
       shade[entry.tile] = 0
     else
-      shade[entry.tile] = (i - 1) / (unique - 1)
+      shade[entry.tile] = (maxCount - entry.count) / range
     end
   end
   return shade, ranked

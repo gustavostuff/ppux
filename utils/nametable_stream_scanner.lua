@@ -147,6 +147,54 @@ local function tryKonamiHit(romRaw, startAddr, opts)
   }
 end
 
+--- Drop overlapping hits (prefer higher score, then longer span). Nested false
+--- positives otherwise paint stacked semi fills that look like broken groups.
+function M.dedupeOverlapping(hits)
+  local list = {}
+  for _, hit in ipairs(hits or {}) do
+    local s = math.floor(tonumber(hit.start) or -1)
+    local e = math.floor(tonumber(hit["end"]) or -1)
+    if s >= 0 and e >= s then
+      list[#list + 1] = hit
+    end
+  end
+  table.sort(list, function(a, b)
+    local sa = tonumber(a.score) or 0
+    local sb = tonumber(b.score) or 0
+    if sa ~= sb then
+      return sa > sb
+    end
+    local la = (tonumber(a["end"]) or 0) - (tonumber(a.start) or 0)
+    local lb = (tonumber(b["end"]) or 0) - (tonumber(b.start) or 0)
+    if la ~= lb then
+      return la > lb
+    end
+    return (tonumber(a.start) or 0) < (tonumber(b.start) or 0)
+  end)
+
+  local kept = {}
+  for _, hit in ipairs(list) do
+    local s = math.floor(tonumber(hit.start) or 0)
+    local e = math.floor(tonumber(hit["end"]) or 0)
+    local overlaps = false
+    for _, other in ipairs(kept) do
+      local os = math.floor(tonumber(other.start) or 0)
+      local oe = math.floor(tonumber(other["end"]) or 0)
+      if s <= oe and os <= e then
+        overlaps = true
+        break
+      end
+    end
+    if not overlaps then
+      kept[#kept + 1] = hit
+    end
+  end
+  table.sort(kept, function(a, b)
+    return (tonumber(a.start) or 0) < (tonumber(b.start) or 0)
+  end)
+  return kept
+end
+
 --- Scan ROM for complete nametable streams.
 --- @param romRaw string ROM bytes
 --- @param opts table|nil { codec="konami", maxSpan=n, onTimed=fn(ms) }
@@ -188,6 +236,10 @@ function M.scan(romRaw, opts)
     end
     return (a.score or 0) > (b.score or 0)
   end)
+
+  if opts.dedupeOverlaps ~= false then
+    hits = M.dedupeOverlapping(hits)
+  end
 
   if t0 ~= nil then
     local t1 = (love and love.timer and love.timer.getTime and love.timer.getTime())

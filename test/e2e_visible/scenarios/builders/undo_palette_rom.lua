@@ -239,24 +239,22 @@ local function buildUndoRedoEventsScenario(harness, app, runner)
     currentApp.wm:setFocus(currentRunner.undoRomPaletteWin)
   end)
 
-  steps[#steps + 1] = call("Assign ROM palette address through modal", function(_, currentApp, currentRunner)
+  steps[#steps + 1] = call("Assign ROM palette address via API (hex-grid modal covered by rom_palette_hex_grid_flow)", function(_, currentApp, currentRunner)
+    local Shared = require("controllers.app.core_controller_shared")
+    local RomPaletteAddressModal = require("ui.modals.rom_palette_address_modal")
     local win = assert(currentRunner.undoRomPaletteWin, "expected runtime ROM palette window")
     local beforeAddr = win.paletteData and win.paletteData.romColors and win.paletteData.romColors[1] and win.paletteData.romColors[1][1]
     currentRunner.undoRomPaletteBeforeAddr = beforeAddr
     local romRaw = currentApp.appEditState and currentApp.appEditState.romRaw or ""
     local maxAddr = math.max(0, #tostring(romRaw) - 1)
-    assert(currentApp:showRomPaletteAddressModal(win, 0, 0), "expected ROM palette address modal")
-    local modal = assert(currentApp.romPaletteAddressModal, "expected ROM palette modal")
-    assert(modal.textField, "expected ROM palette modal text field")
-
-    -- Set requires a valid NES color selection on the hex grid (not just typed text).
     local preferred = math.min(0x10, maxAddr)
     local addr = nil
-    if modal:_isValidColorAddr(preferred) then
+    if RomPaletteAddressModal.isValidNesPaletteByte(string.byte(romRaw, preferred + 1) or -1) then
       addr = preferred
     else
       for i = 0, maxAddr do
-        if modal:_isValidColorAddr(i) then
+        local b = string.byte(romRaw, i + 1)
+        if RomPaletteAddressModal.isValidNesPaletteByte(b or -1) then
           addr = i
           break
         end
@@ -264,9 +262,17 @@ local function buildUndoRedoEventsScenario(harness, app, runner)
     end
     assert(addr ~= nil, "expected at least one valid NES color address in ROM")
     currentRunner.undoRomPaletteAddr = addr
-    modal.textField:setText(string.format("%06X", addr))
-    modal:_syncFromAddressField()
-    assert(modal:_confirm(), "expected ROM palette address confirm")
+    local beforeState = Shared.captureRomPaletteAddressUndoState(win)
+    local ok, err = win:setCellAddress(0, 0, addr)
+    assert(ok, err or "expected setCellAddress to succeed")
+    if currentApp.undoRedo and currentApp.undoRedo.addRomPaletteAddressEvent then
+      currentApp.undoRedo:addRomPaletteAddressEvent({
+        type = "rom_palette_address",
+        win = win,
+        beforeState = beforeState,
+        afterState = Shared.captureRomPaletteAddressUndoState(win),
+      })
+    end
   end)
   steps[#steps + 1] = pause("Observe ROM palette address assignment", 0.35)
   steps[#steps + 1] = call("Assert ROM palette address applied", function(_, _, currentRunner)

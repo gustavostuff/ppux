@@ -65,7 +65,7 @@ describe("RomHexGrid", function()
     expect(grid:getGroupSize()).toBe(1)
   end)
 
-  it("click toggles additional groups without Ctrl (any start address)", function()
+  it("click toggles additional non-overlapping groups without Ctrl", function()
     local grid = oamGrid()
     grid:setRomRaw(makeRom(256))
     grid:setPosition(0, 0)
@@ -75,35 +75,37 @@ describe("RomHexGrid", function()
     grid:mousepressed(x10, y10, 1)
     expect(grid:getSelectedStarts()).toEqual({ 0x10 })
 
-    -- Off-phase click keeps the clicked byte as the new group start (no phase snap).
+    -- Inside the 0x10..0x13 selection → toggles that group off.
     local x11, y11 = cellPixel(1, 1)
     grid:mousepressed(x11, y11, 1)
-    -- 0x11 is inside the 0x10..0x13 selection → toggles that group off.
     expect(#grid:getSelectedStarts()).toBe(0)
 
     grid:mousepressed(x11, y11, 1)
     expect(grid:getSelectedStarts()).toEqual({ 0x11 })
 
+    -- Overlapping candidate (0x0F..0x12 vs 0x11..0x14) toggles the conflict off.
     local x0F, y0F = cellPixel(0x0F, 0)
     grid:mousepressed(x0F, y0F, 1)
+    expect(#grid:getSelectedStarts()).toBe(0)
+
+    grid:mousepressed(x11, y11, 1)
+    expect(grid:getSelectedStarts()).toEqual({ 0x11 })
+
+    -- Non-overlapping 0x20..0x23 can be added alongside 0x11..0x14.
+    local x20, y20 = cellPixel(0, 2)
+    grid:mousepressed(x20, y20, 1)
     local starts = grid:getSelectedStarts()
     expect(#starts).toBe(2)
     expect(starts[1]).toBe(0x11)
-    expect(starts[2]).toBe(0x0F)
-
-    local x20, y20 = cellPixel(0, 2)
-    grid:mousepressed(x20, y20, 1)
-    starts = grid:getSelectedStarts()
-    expect(#starts).toBe(3)
-    expect(starts[3]).toBe(0x20)
+    expect(starts[2]).toBe(0x20)
   end)
 
-  it("addStartGroup does not snap to the existing selection phase", function()
-    local starts, primary = RomHexGrid.addStartGroup({ 0x10 }, 0x11, 4)
-    expect(#starts).toBe(2)
+  it("addStartGroup rejects overlapping fixed-size groups", function()
+    local starts, primary, added = RomHexGrid.addStartGroup({ 0x10 }, 0x11, 4)
+    expect(added).toBe(false)
+    expect(#starts).toBe(1)
     expect(starts[1]).toBe(0x10)
-    expect(starts[2]).toBe(0x11)
-    expect(primary).toBe(0x11)
+    expect(primary).toBe(0x10)
   end)
 
   it("clicking a selected group toggles it off", function()
@@ -131,7 +133,8 @@ describe("RomHexGrid", function()
   end)
 
   it("addStartGroup does not fill intermediate groups", function()
-    local starts, primary = RomHexGrid.addStartGroup({ 0x10 }, 0x20, 4)
+    local starts, primary, added = RomHexGrid.addStartGroup({ 0x10 }, 0x20, 4)
+    expect(added).toBe(true)
     expect(#starts).toBe(2)
     expect(starts[1]).toBe(0x10)
     expect(starts[2]).toBe(0x20)
@@ -313,6 +316,33 @@ describe("RomHexGrid", function()
     expect(grid.scrollOffset + RomHexGrid.BYTES_PER_PAGE - 1).toBeGreaterThanOrEqual(0x200)
   end)
 
+  it("pixelCenterForAddr scrolls into view and returns the cell center", function()
+    local grid = RomHexGrid.new({ cols = 16, groupSize = 1 })
+    grid:setRomRaw(makeRom(0x400))
+    grid:setPosition(10, 20)
+    grid.scrollOffset = 0
+    local x, y = grid:pixelCenterForAddr(0x200)
+    expect(type(x) == "number" and type(y) == "number").toBe(true)
+    expect(grid:addrAtPixel(x, y)).toBe(0x200)
+  end)
+
+  it("setSelectedAddr does not scroll when the start is already on the page", function()
+    local grid = RomHexGrid.new({ cols = 16, groupSize = 1, maxSelectedStarts = 1 })
+    grid:setRomRaw(makeRom(0x400))
+    grid.scrollOffset = 0x100
+    grid:setSelectedAddr(0x110, { emit = false, scrollToReveal = true })
+    expect(grid.scrollOffset).toBe(0x100)
+  end)
+
+  it("setSelectedAddr scrolls only until an off-page start becomes visible", function()
+    local grid = RomHexGrid.new({ cols = 16, groupSize = 1, maxSelectedStarts = 1 })
+    grid:setRomRaw(makeRom(0x400))
+    grid.scrollOffset = 0
+    grid:setSelectedAddr(0x200, { emit = false, scrollToReveal = true })
+    expect(grid.scrollOffset <= 0x200).toBe(true)
+    expect(grid.scrollOffset + RomHexGrid.BYTES_PER_PAGE - 1).toBeGreaterThanOrEqual(0x200)
+  end)
+
   it("snaps a click 2 bytes before a disabled group to the preceding start", function()
     local grid = oamGrid()
     grid:setRomRaw(makeRom(256))
@@ -427,5 +457,34 @@ describe("RomHexGrid", function()
     expect(col).toBe(0xB)
     grid.scrollOffset = 0x100
     expect(grid:_selectionCrosshairCell()).toBeNil()
+  end)
+
+  it("semi-selected starts keep per-start groupSize after selection groupSize changes", function()
+    local grid = RomHexGrid.new({ cols = 16, groupSize = 1, maxSelectedStarts = 1 })
+    grid:setRomRaw(makeRom(512))
+    grid:setSemiSelectedStarts({ 0x10, 0x40 }, {
+      groupSizeByStart = { [0x10] = 8, [0x40] = 16 },
+      resetColors = true,
+    })
+    expect(grid:getSemiGroupSize(0x10)).toBe(8)
+    expect(grid:getSemiGroupSize(0x40)).toBe(16)
+    expect(grid:highlightColorForStart(0x10)[1]).toBe(appColors.red[1])
+    expect(grid:highlightColorForStart(0x40)[1]).toBe(appColors.green[1])
+
+    grid:setSelectedAddr(0x10, { emit = false, resetColors = true })
+    grid:setSelectedGroupSizes({ [0x10] = 8 })
+    expect(grid:getGroupSize()).toBe(1)
+    expect(grid:getSelectedGroupSize(0x10)).toBe(8)
+    expect(#grid:getSemiSelectedStarts()).toBe(2)
+    expect(grid:getSemiGroupSize(0x10)).toBe(8)
+    expect(grid:getSemiGroupSize(0x40)).toBe(16)
+    expect(grid:highlightColorForStart(0x10)[1]).toBe(appColors.red[1])
+    expect(grid:highlightColorForStart(0x40)[1]).toBe(appColors.green[1])
+  end)
+
+  it("highlightKeyForIndex cycles red/green/blue/yellow/brown", function()
+    expect(RomHexGrid.highlightKeyForIndex(1)).toBe("red")
+    expect(RomHexGrid.highlightKeyForIndex(5)).toBe("brown")
+    expect(RomHexGrid.highlightKeyForIndex(6)).toBe("red")
   end)
 end)

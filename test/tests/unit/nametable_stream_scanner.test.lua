@@ -160,5 +160,19 @@ describe("nametable_stream_scanner.lua", function()
       local containing = Scanner.hitAt(hits, 110)
       expect(containing.start).toBe(100)
     end)
+
+    it("dedupeOverlapping keeps higher-score / longer hits only", function()
+      local kept = Scanner.dedupeOverlapping({
+        { start = 0, ["end"] = 99, score = 10 },
+        { start = 50, ["end"] = 60, score = 99 }, -- nested, higher score wins
+        { start = 200, ["end"] = 210, score = 1 },
+        { start = 205, ["end"] = 220, score = 1 }, -- overlap, longer wins after equal score
+      })
+      expect(#kept).toBe(2)
+      expect(kept[1].start).toBe(50)
+      expect(kept[1]["end"]).toBe(60)
+      expect(kept[2].start).toBe(205)
+      expect(kept[2]["end"]).toBe(220)
+    end)
   end)
 end)

@@ -175,4 +175,52 @@ function M.assertStatusContainsOccupiedLayout(harness)
   )
 end
 
+--- Lay out a modal panel so hex-grid / button geometry is valid for clicks.
+function M.layoutModal(app, modal)
+  assert(app and app.canvas, "expected app canvas")
+  assert(modal and modal.draw, "expected modal with draw")
+  modal:draw(app.canvas)
+end
+
+--- Canvas center of a modal hex-grid cell (layouts the modal first).
+--- addrOrFn: number, or function(harness, app, runner, modal) -> addr
+function M.modalHexCellCenter(modalKey, addrOrFn)
+  return function(harness, app, runner)
+    local modal = assert(app[modalKey], "expected modal: " .. tostring(modalKey))
+    assert(modal:isVisible(), "expected modal visible: " .. tostring(modalKey))
+    M.layoutModal(app, modal)
+    local addr = addrOrFn
+    if type(addrOrFn) == "function" then
+      addr = addrOrFn(harness, app, runner, modal)
+    end
+    addr = math.floor(tonumber(addr) or -1)
+    assert(addr >= 0, "expected hex cell address")
+    local x, y = modal.hexGrid:pixelCenterForAddr(addr)
+    assert(x and y, string.format("expected pixel center for addr 0x%X", addr))
+    return x, y
+  end
+end
+
+function M.modalButtonCenter(modalKey, buttonResolver)
+  return function(harness, app, runner)
+    local modal = assert(app[modalKey], "expected modal: " .. tostring(modalKey))
+    assert(modal:isVisible(), "expected modal visible: " .. tostring(modalKey))
+    M.layoutModal(app, modal)
+    local button = buttonResolver(modal, runner, app)
+    assert(button, "expected modal button")
+    return M.buttonCenter(button)
+  end
+end
+
+--- Move over a hex cell then wheel the modal (uses app wheel routing).
+function M.wheelModalHex(harness, app, modalKey, addr, dy)
+  local modal = assert(app[modalKey], "expected modal: " .. tostring(modalKey))
+  M.layoutModal(app, modal)
+  local x, y = modal.hexGrid:pixelCenterForAddr(addr)
+  assert(x and y, "expected hex cell for wheel")
+  harness:moveMouse(x, y)
+  app:wheelmoved(0, dy or -1)
+  M.layoutModal(app, modal)
+end
+
 return M

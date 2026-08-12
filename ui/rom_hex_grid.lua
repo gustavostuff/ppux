@@ -190,10 +190,15 @@ function M.new(opts)
     _occupiedSet = {},
     semiSelectedStarts = {},
     _semiSet = {},
+    _semiGroupSizeByStart = {},
+    _selectedGroupSizeByStart = {},
     minimapMarkers = {},
     onSelect = opts.onSelect,
     -- Fired when scrollOffset changes (wheel, scrollbar drag, scrollToReveal).
     onScroll = opts.onScroll,
+    -- When true, clicks always select the cell under the cursor (no toggle-off).
+    -- Used by nametable range two-click start/end picking.
+    replaceSelect = opts.replaceSelect == true,
     -- When set, all semi-selected outlines share this RGBA instead of cycling.
     uniformSemiColor = opts.uniformSemiColor,
     -- Optional: function(addr) -> {r,g,b,a} for per-address semi fill colors.
@@ -280,15 +285,75 @@ function M:isOccupiedStart(addr)
   return self:isDisabledStart(addr)
 end
 
-function M:setSemiSelectedStarts(starts)
+function M:setSemiSelectedStarts(starts, opts)
+  opts = opts or {}
   local list, set = normalizeStartList(starts)
   self.semiSelectedStarts = list
   self._semiSet = set
-  self:_syncStartColors(list, { resetColors = false })
+
+  local sizeMap = {}
+  local rawSizes = opts.groupSizeByStart
+  if type(rawSizes) == "table" then
+    for addr, size in pairs(rawSizes) do
+      local a = math.floor(tonumber(addr) or -1)
+      local s = math.floor(tonumber(size) or 0)
+      if a >= 0 and s >= 1 then
+        sizeMap[a] = s
+      end
+    end
+  end
+  self._semiGroupSizeByStart = sizeMap
+
+  local syncOpts = { resetColors = opts.resetColors == true }
+  self:_syncStartColors(list, syncOpts)
 end
 
 function M:getSemiSelectedStarts()
   return copyStarts(self.semiSelectedStarts)
+end
+
+function M:getSemiGroupSize(startAddr)
+  startAddr = math.floor(tonumber(startAddr) or -1)
+  local mapped = self._semiGroupSizeByStart and self._semiGroupSizeByStart[startAddr]
+  if type(mapped) == "number" and mapped >= 1 then
+    return math.floor(mapped)
+  end
+  return self:getGroupSize()
+end
+
+--- Optional per-start span for the current selection (nametable streams, etc.).
+--- When unset for a start, draw/hit-test fall back to grid groupSize (OAM / palette).
+function M:setSelectedGroupSizes(sizeByStart)
+  local sizeMap = {}
+  if type(sizeByStart) == "table" then
+    for addr, size in pairs(sizeByStart) do
+      local a = math.floor(tonumber(addr) or -1)
+      local s = math.floor(tonumber(size) or 0)
+      if a >= 0 and s >= 1 then
+        sizeMap[a] = s
+      end
+    end
+  end
+  self._selectedGroupSizeByStart = sizeMap
+end
+
+function M:getSelectedGroupSize(startAddr)
+  startAddr = math.floor(tonumber(startAddr) or -1)
+  local mapped = self._selectedGroupSizeByStart and self._selectedGroupSizeByStart[startAddr]
+  if type(mapped) == "number" and mapped >= 1 then
+    return math.floor(mapped)
+  end
+  return self:getGroupSize()
+end
+
+--- Cycle key for minimap / UI: red, green, blue, yellow, brown (1-based index).
+function M.highlightKeyForIndex(index)
+  local n = #HIGHLIGHT_KEYS
+  if n < 1 then
+    return "red"
+  end
+  local i = ((math.floor(tonumber(index) or 1) - 1) % n) + 1
+  return HIGHLIGHT_KEYS[i]
 end
 
 local MINIMAP_COLORS = MINIMAP_COLOR_SET
@@ -367,7 +432,6 @@ function M:_combinedMinimapMarkers()
   for _, m in ipairs(self.minimapMarkers or {}) do
     out[#out + 1] = m
   end
-  local span = self:getGroupSize()
   local colorFn = self.selectedColorForAddr
   for _, addr in ipairs(self.selectedStarts or {}) do
     local c
@@ -381,7 +445,7 @@ function M:_combinedMinimapMarkers()
       offset = math.floor(addr),
       color = { c[1], c[2], c[3], c[4] or 0.9 },
       groupCount = 1,
-      groupSize = span,
+      groupSize = self:getSelectedGroupSize(addr),
     }
   end
   return out
@@ -395,9 +459,33 @@ function M.spansOverlap(a, b, span)
   return a < b + span and b < a + span
 end
 
+--- Asymmetric span overlap (selected streams may differ in length).
+function M.spansOverlapAsym(a, aSpan, b, bSpan)
+  a = math.floor(tonumber(a) or 0)
+  b = math.floor(tonumber(b) or 0)
+  aSpan = math.max(1, math.floor(tonumber(aSpan) or 1))
+  bSpan = math.max(1, math.floor(tonumber(bSpan) or 1))
+  return a < b + bSpan and b < a + aSpan
+end
+
 --- Backward-compatible name (assumes OAM 4-byte span).
 function M.oamSpansOverlap(a, b)
   return M.spansOverlap(a, b, M.OAM_SPAN)
+end
+
+--- Existing selected start whose span overlaps [startAddr, startAddr+newSpan), or nil.
+function M:findSelectedOverlap(startAddr, newSpan)
+  startAddr = math.floor(tonumber(startAddr) or -1)
+  newSpan = math.max(1, math.floor(tonumber(newSpan) or self:getGroupSize()))
+  if startAddr < 0 then
+    return nil
+  end
+  for _, s in ipairs(self.selectedStarts or {}) do
+    if M.spansOverlapAsym(startAddr, newSpan, s, self:getSelectedGroupSize(s)) then
+      return s
+    end
+  end
+  return nil
 end
 
 function M:startOverlapsDisabled(startAddr)
@@ -580,11 +668,29 @@ local function clampStartsToMax(cleaned, previousStarts, maxN)
 end
 
 --- Bind highlight colors by selection order (not list index).
+--- opts.preserveSemiColors: when resetting, keep colors already assigned to
+--- semi-selected starts (so scan marks don't all fall back to red on click).
 function M:_syncStartColors(cleaned, opts)
   opts = opts or {}
   if opts.resetColors then
-    self._startColorIndex = {}
-    self._nextColorSeq = 1
+    if opts.preserveSemiColors then
+      local keep = {}
+      local maxSeq = 0
+      for _, addr in ipairs(self.semiSelectedStarts or {}) do
+        local seq = self._startColorIndex and self._startColorIndex[addr]
+        if type(seq) == "number" then
+          keep[addr] = seq
+          if seq > maxSeq then
+            maxSeq = seq
+          end
+        end
+      end
+      self._startColorIndex = keep
+      self._nextColorSeq = maxSeq + 1
+    else
+      self._startColorIndex = {}
+      self._nextColorSeq = 1
+    end
   end
   local map = self._startColorIndex or {}
   for _, addr in ipairs(cleaned) do
@@ -643,8 +749,26 @@ function M:_setStarts(starts, primary, opts)
       seen[addr] = true
     end
   end
-  self:_syncStartColors(cleaned, opts)
+  local syncOpts = opts
+  if opts.resetColors then
+    syncOpts = {
+      resetColors = true,
+      preserveSemiColors = opts.preserveSemiColors ~= false,
+    }
+  end
+  self:_syncStartColors(cleaned, syncOpts)
   self.selectedStarts = cleaned
+  -- Drop per-start selection spans for addresses no longer selected.
+  if self._selectedGroupSizeByStart then
+    local keptSizes = {}
+    for _, addr in ipairs(cleaned) do
+      local s = self._selectedGroupSizeByStart[addr]
+      if type(s) == "number" and s >= 1 then
+        keptSizes[addr] = s
+      end
+    end
+    self._selectedGroupSizeByStart = keptSizes
+  end
   primary = self:_clampAddr(primary or (cleaned[#cleaned] or 0))
   if #cleaned > 0 and not seen[primary] then
     primary = cleaned[#cleaned]
@@ -652,7 +776,9 @@ function M:_setStarts(starts, primary, opts)
     primary = self:_clampAddr(primary)
   end
   self.selectedAddr = primary
-  if opts.scrollToReveal ~= false and #cleaned > 0 then
+  -- Opt-in: only scroll when asked. scrollToReveal() itself is a no-op while
+  -- `primary` is already on the current page (all three hex-grid modals rely on that).
+  if opts.scrollToReveal == true and #cleaned > 0 then
     self:scrollToReveal(primary)
   end
   self._selectionCapHit = capHit
@@ -664,11 +790,16 @@ function M:_setStarts(starts, primary, opts)
 end
 
 --- Replace selection with a single start (text field / programmatic).
+--- Defaults scrollToReveal=true so typed/shown addresses come into view when needed;
+--- clicks pass scrollToReveal explicitly (also true — no-op if already visible).
 function M:setSelectedAddr(addr, opts)
   opts = opts or {}
   addr = self:_clampAddr(addr)
   if opts.resetColors == nil then
     opts.resetColors = true
+  end
+  if opts.scrollToReveal == nil then
+    opts.scrollToReveal = true
   end
   if opts.allowOccupied ~= true and opts.allowDisabled ~= true then
     local resolved = self:resolveSelectableStart(addr)
@@ -685,6 +816,7 @@ function M:setSelectedAddr(addr, opts)
   self:_setStarts({ addr }, addr, opts)
 end
 
+--- Scroll so `addr`'s row is in view. No-op when that row is already visible.
 function M:scrollToReveal(addr)
   addr = math.floor(tonumber(addr) or 0)
   local cols = self:getCols()
@@ -750,6 +882,26 @@ function M:addrAtPixel(px, py)
     return nil
   end
   return addr
+end
+
+--- Canvas-space center of the cell for `addr` (scrolls into view first). Nil if out of ROM.
+function M:pixelCenterForAddr(addr)
+  addr = math.floor(tonumber(addr) or 0)
+  local len = romLen(self.romRaw)
+  if addr < 0 or addr >= len then
+    return nil, nil
+  end
+  self:scrollToReveal(addr)
+  local cols = self:getCols()
+  local localOffset = addr - (self.scrollOffset or 0)
+  local row = math.floor(localOffset / cols)
+  local col = localOffset % cols
+  if row < 0 or row >= M.ROWS or col < 0 or col >= cols then
+    return nil, nil
+  end
+  local gridX = (self.x or 0) + PAD + GUTTER_W
+  local gridY = (self.y or 0) + PAD + HEADER_H
+  return gridX + col * CELL_W + CELL_W * 0.5, gridY + row * CELL_H + CELL_H * 0.5
 end
 
 function M:_scrollbarTrackRect()
@@ -854,11 +1006,18 @@ function M:isScrollDragging()
   return self._scrollDragging == true
 end
 
-local function startsCoveringAddr(starts, addr, span)
+local function startsCoveringAddr(starts, addr, span, spanByStart)
   span = math.max(1, math.floor(tonumber(span) or 1))
   local covering = {}
   for i, start in ipairs(starts) do
-    if addr >= start and addr < start + span then
+    local s = span
+    if type(spanByStart) == "table" then
+      local mapped = spanByStart[start]
+      if type(mapped) == "number" and mapped >= 1 then
+        s = math.floor(mapped)
+      end
+    end
+    if addr >= start and addr < start + s then
       covering[#covering + 1] = i
     end
   end
@@ -875,29 +1034,38 @@ function M:getHoveredSelectedStart()
     return nil
   end
   local starts = self.selectedStarts or {}
-  local covering = startsCoveringAddr(starts, addr, self:getGroupSize())
+  local covering = startsCoveringAddr(
+    starts,
+    addr,
+    self:getGroupSize(),
+    self._selectedGroupSizeByStart
+  )
   if #covering == 0 then
     return nil
   end
   return starts[covering[#covering]]
 end
 
---- Append a group starting at `addr` (no phase lock — each click is its own start).
---- `groupSize` is kept for callers/tests; span overlap is allowed.
+--- Append a group starting at `addr` when it does not overlap an existing start's span.
+--- Returns starts, primary, added (bool).
 function M.addStartGroup(existingStarts, addr, groupSize)
   addr = math.floor(tonumber(addr) or 0)
   groupSize = math.max(1, math.floor(tonumber(groupSize) or M.OAM_SPAN))
   local existing = copyStarts(existingStarts)
   if #existing == 0 then
-    return { addr }, addr
+    return { addr }, addr, true
   end
   for _, s in ipairs(existing) do
     if s == addr then
-      return existing, addr
+      return existing, addr, false
+    end
+    if M.spansOverlap(s, addr, groupSize) then
+      -- Overlapping OAM (or fixed-size) groups stack into unreadable highlights.
+      return existing, s, false
     end
   end
   existing[#existing + 1] = addr
-  return existing, addr
+  return existing, addr, true
 end
 
 function M:mousepressed(px, py, button, _opts)
@@ -915,8 +1083,13 @@ function M:mousepressed(px, py, button, _opts)
   end
 
   local span = self:getGroupSize()
-  local covering = startsCoveringAddr(self.selectedStarts or {}, addr, span)
-  if #covering > 0 then
+  local covering = startsCoveringAddr(
+    self.selectedStarts or {},
+    addr,
+    span,
+    self._selectedGroupSizeByStart
+  )
+  if #covering > 0 and self.replaceSelect ~= true then
     -- Toggle off the covered selected group; semi list is unchanged so outline returns.
     local removeIdx = covering[#covering]
     local removeAddr = self.selectedStarts[removeIdx]
@@ -928,7 +1101,7 @@ function M:mousepressed(px, py, button, _opts)
     end
     local primary = nextStarts[#nextStarts] or removeAddr
     self:_setStarts(nextStarts, primary, {
-      scrollToReveal = false,
+      scrollToReveal = true,
       emit = true,
       allowEmpty = true,
       resetColors = false,
@@ -948,19 +1121,45 @@ function M:mousepressed(px, py, button, _opts)
     return true
   end
 
+  -- New group would overlap an existing selection (e.g. OAM start 1 byte earlier):
+  -- treat as toggle of that selection instead of stacking fills.
+  -- replaceSelect (nametable range) always reports the clicked cell to onSelect instead.
+  if self.replaceSelect ~= true then
+    local conflict = self:findSelectedOverlap(resolved, span)
+    if conflict ~= nil then
+      local nextStarts = {}
+      for _, s in ipairs(self.selectedStarts or {}) do
+        if s ~= conflict then
+          nextStarts[#nextStarts + 1] = s
+        end
+      end
+      local primary = nextStarts[#nextStarts] or conflict
+      self:_setStarts(nextStarts, primary, {
+        scrollToReveal = true,
+        emit = true,
+        allowEmpty = true,
+        resetColors = false,
+      })
+      return true
+    end
+  end
+
   local nextStarts, primary
   if #(self.selectedStarts or {}) == 0 or self.maxSelectedStarts == 1 then
-    -- Empty or single-select: replace with the clicked group.
     nextStarts, primary = { resolved }, resolved
   else
-    nextStarts, primary = M.addStartGroup(self.selectedStarts, resolved, span)
+    local added
+    nextStarts, primary, added = M.addStartGroup(self.selectedStarts, resolved, span)
+    if added == false then
+      return true
+    end
     if self:startOverlapsDisabled(primary) then
       return true
     end
   end
 
   self:_setStarts(nextStarts, primary, {
-    scrollToReveal = false,
+    scrollToReveal = self.replaceSelect ~= true,
     emit = true,
     resetColors = self.maxSelectedStarts == 1,
   })
@@ -1266,12 +1465,22 @@ end
 --- One rounded rect per contiguous same-row run of a group (splits on row wrap).
 --- mode: "fill" (default) or "line".
 --- Invokes onRun(x, y, w, h) for each visible run when provided (after setColor).
-function M:_forEachGroupRun(gridX, gridY, starts, onRun)
-  local span = self:getGroupSize()
+--- opts.span / opts.spanByStart override the grid groupSize for these starts.
+function M:_forEachGroupRun(gridX, gridY, starts, onRun, opts)
+  opts = opts or {}
+  local defaultSpan = math.max(1, math.floor(tonumber(opts.span) or self:getGroupSize()))
+  local spanByStart = opts.spanByStart
   local cols = self:getCols()
   local pageStart = self.scrollOffset
   local pageEnd = pageStart + self:bytesPerPage() - 1
   for _, start in ipairs(starts or {}) do
+    local span = defaultSpan
+    if type(spanByStart) == "table" then
+      local mapped = spanByStart[start]
+      if type(mapped) == "number" and mapped >= 1 then
+        span = math.floor(mapped)
+      end
+    end
     local runCol, runRow, runLen = nil, nil, 0
     local function flush()
       if runLen > 0 and runCol ~= nil and type(onRun) == "function" then
@@ -1307,8 +1516,9 @@ function M:_forEachGroupRun(gridX, gridY, starts, onRun)
   end
 end
 
-function M:_drawGroupHighlights(gridX, gridY, starts, colorForStart, mode)
+function M:_drawGroupHighlights(gridX, gridY, starts, colorForStart, mode, opts)
   mode = mode or "fill"
+  opts = opts or {}
   for _, start in ipairs(starts or {}) do
     local c
     if type(colorForStart) == "function" then
@@ -1326,7 +1536,7 @@ function M:_drawGroupHighlights(gridX, gridY, starts, colorForStart, mode)
       else
         love.graphics.rectangle("fill", x, y, w, h, HIGHLIGHT_RADIUS, HIGHLIGHT_RADIUS)
       end
-    end)
+    end, opts)
   end
 end
 
@@ -1337,6 +1547,7 @@ local SELECTION_ANTS_ANIM = {
 }
 
 --- Marching ants around group runs. opts.colorForStart(addr) and opts.alpha optional.
+--- opts.span / opts.spanByStart override grid groupSize (same as _forEachGroupRun).
 function M:_drawSelectionAnts(gridX, gridY, starts, opts)
   opts = opts or {}
   local okImg, images = pcall(require, "images")
@@ -1346,6 +1557,10 @@ function M:_drawSelectionAnts(gridX, gridY, starts, opts)
   end
   local colorFn = opts.colorForStart
   local alpha = opts.alpha
+  local runOpts = {
+    span = opts.span,
+    spanByStart = opts.spanByStart,
+  }
   for _, start in ipairs(starts or {}) do
     local c = { 1, 1, 1, 1 }
     if type(colorFn) == "function" then
@@ -1363,21 +1578,24 @@ function M:_drawSelectionAnts(gridX, gridY, starts, opts)
     love.graphics.setColor(c[1], c[2], c[3], a)
     self:_forEachGroupRun(gridX, gridY, { start }, function(x, y, w, h)
       Draw.drawRepeatingImageAnimated(images.pattern_a, x, y, w, h, SELECTION_ANTS_ANIM)
-    end)
+    end, runOpts)
   end
 end
 
 --- Ants on minimap-marker bytes (bound ROM palette addresses); white at half opacity.
+--- Uses each marker's own groupCount×groupSize span (not the grid groupSize).
 function M:_drawBoundMarkerAnts(gridX, gridY)
   local markers = self.minimapMarkers or {}
   if #markers == 0 then
     return
   end
   local starts = {}
+  local spanByStart = {}
   for _, m in ipairs(markers) do
     local offset = m.offset
     if type(offset) == "number" then
       starts[#starts + 1] = offset
+      spanByStart[offset] = M.minimapMarkerByteLength(m)
     end
   end
   if #starts == 0 then
@@ -1386,6 +1604,7 @@ function M:_drawBoundMarkerAnts(gridX, gridY)
   local alpha = tonumber(self.boundMarkerAntsAlpha) or 0.5
   self:_drawSelectionAnts(gridX, gridY, starts, {
     alpha = alpha,
+    spanByStart = spanByStart,
     colorForStart = function()
       return { 1, 1, 1, 1 }
     end,
@@ -1433,6 +1652,8 @@ function M:draw()
   local semi = self.semiSelectedStarts or {}
   local starts = self.selectedStarts or {}
   local span = self:getGroupSize()
+  local semiSpanByStart = self._semiGroupSizeByStart
+  local selectedSpanByStart = self._selectedGroupSizeByStart
   -- Semi fill under selection fill; disabled gray on top.
   local semiColorFn = nil
   if type(self.semiColorForAddr) == "function" then
@@ -1447,13 +1668,19 @@ function M:draw()
   if type(self.selectedColorForAddr) == "function" then
     selectedColorFn = self.selectedColorForAddr
   end
-  self:_drawGroupHighlights(gridX, gridY, semi, semiColorFn, "fill")
-  self:_drawGroupHighlights(gridX, gridY, starts, selectedColorFn, "fill")
+  self:_drawGroupHighlights(gridX, gridY, semi, semiColorFn, "fill", {
+    spanByStart = semiSpanByStart,
+  })
+  self:_drawGroupHighlights(gridX, gridY, starts, selectedColorFn, "fill", {
+    spanByStart = selectedSpanByStart,
+  })
   if self.boundMarkerAnts == true then
     self:_drawBoundMarkerAnts(gridX, gridY)
   end
   if self.selectionAnts == true then
-    self:_drawSelectionAnts(gridX, gridY, starts)
+    self:_drawSelectionAnts(gridX, gridY, starts, {
+      spanByStart = selectedSpanByStart,
+    })
   end
   self:_drawGroupHighlights(gridX, gridY, disabled, function()
     return disabledHighlightColor()
@@ -1480,9 +1707,9 @@ function M:draw()
     for col = 0, cols - 1 do
       local addr = rowAddr + col
       local cellX = gridX + col * CELL_W
-      local covering = startsCoveringAddr(starts, addr, span)
+      local covering = startsCoveringAddr(starts, addr, span, selectedSpanByStart)
       local coveringDis = startsCoveringAddr(disabled, addr, span)
-      local coveringSemi = startsCoveringAddr(semi, addr, span)
+      local coveringSemi = startsCoveringAddr(semi, addr, span, semiSpanByStart)
       local base = colors.white
       if #coveringDis > 0 then
         base = disText

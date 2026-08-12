@@ -45,4 +45,8 @@ return {
   ensureSpriteLayerReadyForAddSprite = H.ensureSpriteLayerReadyForAddSprite,
   harnessHoldShiftForGridResize = H.harnessHoldShiftForGridResize,
   assertStatusContainsOccupiedLayout = H.assertStatusContainsOccupiedLayout,
+  layoutModal = H.layoutModal,
+  modalHexCellCenter = H.modalHexCellCenter,
+  modalButtonCenter = H.modalButtonCenter,
+  wheelModalHex = H.wheelModalHex,
 }
