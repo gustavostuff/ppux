@@ -77,7 +77,7 @@ When colored, they indicate the window has a link to another one. In order they 
 
 - **Left-click** a colored badge to bring the linked window(s) forward and focus them.
 - **Right-click** a badge for the Link/Unlink/Jump menu for that slot.
-- **Left-drag** from a badge (empty or linked) onto another window's compatible badge.
+- **Left-drag** from a badge (empty or linked) onto another window's compatible badge. While dragging, empty badges pulse their role color so targets are easy to spot.
 
 ### Toolbars
 

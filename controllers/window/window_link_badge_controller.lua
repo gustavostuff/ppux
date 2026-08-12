@@ -776,20 +776,22 @@ function M.drawActiveDrag(app)
   if type(ax) ~= "number" or type(ay) ~= "number" or type(bx) ~= "number" or type(by) ~= "number" then
     return
   end
-  local colors = require("app_colors")
-  local lineColor = drag.legalHover and colors.green or colors.red
-  love.graphics.push("all")
-  love.graphics.setScissor()
-  love.graphics.setLineStyle("rough")
-  love.graphics.setLineWidth(1)
-  love.graphics.setColor(lineColor)
-  love.graphics.line(
-    math.floor(ax + 0.5),
-    math.floor(ay + 0.5),
-    math.floor(bx + 0.5),
-    math.floor(by + 0.5)
-  )
-  love.graphics.pop()
+
+  -- Snap the free end onto a hovered badge's line anchor when present.
+  if drag.hoverWin and drag.hoverSlot then
+    local state = WindowLinkVisualController.prepareLinkDrawState(app)
+    local entry = state
+      and state.layouts
+      and state.layouts[drag.hoverWin]
+      and state.layouts[drag.hoverWin][drag.hoverSlot]
+    if entry then
+      bx = entry.lineCx or entry.cx or bx
+      by = entry.lineCy or entry.cy or by
+    end
+  end
+
+  local lineColor = WindowLinkVisualController.dragPreviewColorForSlots(drag.sourceSlot, drag.hoverSlot)
+  WindowLinkVisualController.drawElbowMarchingAntsLine(ax, ay, bx, by, lineColor, 1)
 end
 
 return M

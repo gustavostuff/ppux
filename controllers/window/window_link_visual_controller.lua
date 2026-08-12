@@ -5,6 +5,7 @@
 local colors = require("app_colors")
 local images = require("images")
 local Draw = require("utils.draw_utils")
+local LoveCompat = require("utils.love_compat")
 local WindowCaps = require("controllers.window.window_capabilities")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local PaletteLinkRenderController = require("controllers.palette.palette_link_render_controller")
@@ -25,6 +26,8 @@ local HANDLE_COLLAPSED_LEFT_INSET = 2
 local HANDLE_COLLAPSED_RIGHT_INSET = 2
 local HANDLE_GROUP_BELOW_HEADER = 3
 local HANDLE_GROUP_ROW_GAP = 3
+-- Empty-badge hint while badge-dragging: color <-> transparent, 2 cycles/sec.
+local UNLINKED_DRAG_PULSE_HZ = 2
 
 M.HANDLE_OUTER_SIZE = HANDLE_OUTER_W
 M.HANDLE_INNER_SIZE = HANDLE_INNER_W
@@ -592,6 +595,69 @@ local function drawLinkPolyline(points, thickness, color, alpha)
   love.graphics.pop()
 end
 
+--- Slot identity color (red BG pattern / green sprite pattern / blue palette / brown PT source).
+function M.semanticColorForSlot(slot)
+  if slot == "ppu_pattern_bg" then
+    return colors.red
+  end
+  if slot == "ppu_pattern_sprite" or slot == "oam_pattern" then
+    return colors.green
+  end
+  if slot == "ppu_palette" or slot == "layout_palette" or slot == "palette_source" then
+    return colors.blue
+  end
+  if slot == PATTERN_TABLE_SLOT then
+    return colors.brown
+  end
+  return colors.blue
+end
+
+--- Prefer destination slot color while hovering; otherwise the drag source slot color.
+function M.dragPreviewColorForSlots(sourceSlot, hoverSlot)
+  if type(hoverSlot) == "string" and hoverSlot ~= "" then
+    return M.semanticColorForSlot(hoverSlot)
+  end
+  return M.semanticColorForSlot(sourceSlot)
+end
+
+--- Alpha 0..1 for empty-badge drag hints (2 full pulses per second).
+function M.unlinkedBadgeDragPulseAlpha(now)
+  local t = tonumber(now) or LoveCompat.getTimeOr(0)
+  return (1 - math.cos(2 * math.pi * UNLINKED_DRAG_PULSE_HZ * t)) * 0.5
+end
+
+local function activeBadgeDrag(app)
+  local drag = app and app.windowLinkBadgeDrag
+  if drag and drag.active == true then
+    return drag
+  end
+  return nil
+end
+
+--- Two-elbow marching-ants preview (same stroke as established links).
+function M.drawElbowMarchingAntsLine(x1, y1, x2, y2, color, alpha)
+  if not (type(x1) == "number" and type(y1) == "number" and type(x2) == "number" and type(y2) == "number") then
+    return
+  end
+  alpha = math.max(0, math.min(1, tonumber(alpha) or 1))
+  if alpha <= 0 then
+    return
+  end
+  local lineColor = color or colors.blue
+  local geometry = PaletteLinkRenderController.buildConnectorGeometry(x1, y1, x2, y2, {
+    showLine = true,
+    alpha = alpha,
+    lineColor = lineColor,
+  })
+  if not (geometry and geometry.points and #geometry.points >= 4) then
+    return
+  end
+  love.graphics.push("all")
+  love.graphics.setScissor()
+  drawLinkPolyline(geometry.points, LINE_WIDTH, lineColor, alpha)
+  love.graphics.pop()
+end
+
 function M.getLeftAnchorPoint(win, slot, layouts)
   local byWin = layouts and layouts[win]
   local entry = byWin and byWin[slot]
@@ -855,7 +921,7 @@ function M.drawPivotHandleChrome(cx, cy, chromeFillColor)
   love.graphics.rectangle("fill", ox, oy, HANDLE_OUTER_W, HANDLE_OUTER_H, HANDLE_OUTER_RADIUS, HANDLE_OUTER_RADIUS)
 end
 
-function M.drawPivotHandleInner(cx, cy, innerColor, pulseInner, chromeInkColor, _innerSplit)
+function M.drawPivotHandleInner(cx, cy, innerColor, pulseInner, chromeInkColor, _innerSplit, slot, app)
   if not (cx and cy) then
     return
   end
@@ -868,16 +934,27 @@ function M.drawPivotHandleInner(cx, cy, innerColor, pulseInner, chromeInkColor, 
   local idle = chromeInkColor or idleInnerColorForWindow(nil, nil)
 
   local baseInner = innerColor or idle
-  if isInnerColorTransparent(baseInner) then
+  -- While badge-dragging, empty (unlinked) badges pulse their slot color so roles are obvious.
+  if activeBadgeDrag(app) and isInnerColorTransparent(baseInner) then
+    local sem = M.semanticColorForSlot(slot)
+    if not sem or isInnerColorTransparent(sem) then
+      return
+    end
+    local pulseA = M.unlinkedBadgeDragPulseAlpha()
+    if pulseA <= 0.001 then
+      return
+    end
+    baseInner = { sem[1], sem[2], sem[3], pulseA * (sem[4] or 1) }
+  elseif isInnerColorTransparent(baseInner) then
     return
   end
   drawLinkInnerSolid(ix, iy, HANDLE_INNER_W, HANDLE_INNER_H, baseInner)
   love.graphics.setColor(colors.white)
 end
 
-function M.drawPivotHandle(cx, cy, innerColor, pulseInner, chromeFillColor, chromeInkColor, innerSplit)
+function M.drawPivotHandle(cx, cy, innerColor, pulseInner, chromeFillColor, chromeInkColor, innerSplit, slot, app)
   M.drawPivotHandleChrome(cx, cy, chromeFillColor)
-  M.drawPivotHandleInner(cx, cy, innerColor, pulseInner, chromeInkColor, innerSplit)
+  M.drawPivotHandleInner(cx, cy, innerColor, pulseInner, chromeInkColor, innerSplit, slot, app)
 end
 
 local function isLinkHandleShadowEligible(win)
@@ -1211,13 +1288,14 @@ local function drawHandlesForWindow(app, win, state, drawFn)
       handle.pulseInner,
       handle.chromeFillColor,
       handle.chromeInkColor,
-      handle.innerSplit
+      handle.innerSplit,
+      handle.slot
     )
     ::continue_handle::
   end
 end
 
---- Pass 1 for `win`: every 8×8 handle chrome rectangle (no inners, no lines).
+--- Pass 1 for `win`: every 8x8 handle chrome rectangle (no inners, no lines).
 function M.drawWindowLinkHandleChromes(app, win, state)
   if not (app and win and state) then
     return
@@ -1229,14 +1307,14 @@ function M.drawWindowLinkHandleChromes(app, win, state)
   love.graphics.pop()
 end
 
---- Pass 2 for `win`: every 3×3 animated-pattern inner square (no lines).
+--- Pass 2 for `win`: every 3x3 animated-pattern inner square (no lines).
 function M.drawWindowLinkHandleInners(app, win, state)
   if not (app and win and state) then
     return
   end
   love.graphics.push("all")
-  drawHandlesForWindow(app, win, state, function(cx, cy, innerColor, pulseInner, _, chromeInk, innerSplit)
-    M.drawPivotHandleInner(cx, cy, innerColor, pulseInner, chromeInk, innerSplit)
+  drawHandlesForWindow(app, win, state, function(cx, cy, innerColor, pulseInner, _, chromeInk, innerSplit, slot)
+    M.drawPivotHandleInner(cx, cy, innerColor, pulseInner, chromeInk, innerSplit, slot, app)
   end)
   love.graphics.pop()
 end
