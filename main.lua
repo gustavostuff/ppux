@@ -50,8 +50,8 @@ function love.load(arg)
     local ok, captureOrErr = pcall(require, "scripts.dev.capture_toolbar_readme_images")
     if not ok then
       error(
-        "Missing local capture helper scripts/dev/capture_toolbar_readme_images.lua "
-          .. "(gitignored). Original require error: "
+        "Missing scripts/dev/capture_toolbar_readme_images.lua. "
+          .. "Original require error: "
           .. tostring(captureOrErr)
       )
     end
