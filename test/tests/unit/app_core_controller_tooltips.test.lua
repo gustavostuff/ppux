@@ -155,11 +155,45 @@ describe("app_core_controller.lua - tooltip hit testing", function()
 
     local app = buildApp({})
     app.tooltipsEnabled = false
+    app._getTooltipsEnabledForSettings = function()
+      return false
+    end
 
     local candidate = app:getTooltipCandidateAt(40, 20)
 
     UserInput.getTooltipCandidate = oldGetTooltipCandidate
 
     expect(candidate).toBeNil()
+  end)
+
+  it("does not show window/cell tooltips through an open contextual menu", function()
+    local oldGetTooltipCandidate = UserInput.getTooltipCandidate
+    UserInput.getTooltipCandidate = function() return nil end
+
+    local win = {
+      _closed = false,
+      _minimized = false,
+      _collapsed = false,
+      contains = function() return true end,
+      getTooltipAt = function()
+        return { text = "Cell behind menu" }
+      end,
+    }
+
+    local app = buildApp({ win })
+    app.ppuTileContextMenu = {
+      isVisible = function() return true end,
+      contains = function(_, x, y)
+        return x == 40 and y == 20
+      end,
+    }
+
+    local overMenu = app:getTooltipCandidateAt(40, 20)
+    local besideMenu = app:getTooltipCandidateAt(100, 100)
+
+    UserInput.getTooltipCandidate = oldGetTooltipCandidate
+
+    expect(overMenu).toBeNil()
+    expect(besideMenu).toEqual({ text = "Cell behind menu" })
   end)
 end)

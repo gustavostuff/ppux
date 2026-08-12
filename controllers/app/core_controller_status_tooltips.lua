@@ -134,6 +134,12 @@ function AppCoreController:getTooltipCandidateAt(x, y)
     return nil
   end
 
+  -- Context menus / taskbar main menu sit above windows; do not spawn tooltips
+  -- for cells or chrome underneath while the pointer is over the menu.
+  if Shared.pointerOverOpenContextMenu(self, x, y) then
+    return nil
+  end
+
   local modalOpen = Shared.anyModalVisible(self) or (self.splash and self.splash:isVisible())
   if modalOpen then
     local modalCandidate = Shared.getTopModalTooltipCandidate(self, x, y)
