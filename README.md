@@ -412,7 +412,7 @@ Several ROM-backed pickers share the same debugger-style **ROM hex grid** (byte 
 
 **Add / Edit sprite (OAM)** - On **PPU Frame** and **OAM Animation** windows, **Add sprite** opens the Add/Edit sprite modal. Each pick is a 4-byte OAM group (Y, tile, attr, X). Click to toggle groups, with gray cells marking ones already on the layer. A live preview and the OAM start field stay in sync, **Add** / **Save** commits the selection, and **Edit sprite** reopens the same UI. **The 4-byte groups are not guaranteed to be valid OAM groups** actually used in the game, only an emulator would "know" that for sure. This is simply a tool so speed up UI-based sprite editing/building.
 
-<img src="img/readme_images/edit_oam_sprite.png" alt="Add/Edit sprite OAM hex grid modal">
+<img src="img/readme_images/add_oam_sprite.png" alt="Add/Edit sprite OAM hex grid modal">
 
 **Nametable tile range** - On a PPU Frame tile layer, **Set tile range** opens the nametable range modal. Manual mode uses two separate clicks for start and end range set (right-click clears a mid-pick). **Scanned mode** runs a one-shot scan of complete streams, underlines them with the OAM color cycle, and lets you click a stream to preview it in the _Nametable_ shadow component.
 
