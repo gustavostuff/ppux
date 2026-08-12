@@ -1169,11 +1169,25 @@ function AppCoreController:showPpuFrameRangeModal(win)
     and string.format("0x%06X", layer.nametableStartAddr) or ""
   local initialEnd = (layer and type(layer.nametableEndAddr) == "number")
     and string.format("0x%06X", layer.nametableEndAddr) or ""
+  local romRaw = (self.appEditState and self.appEditState.romRaw) or ""
+  local codec = (layer and layer.codec) or "konami"
   self.ppuFrameRangeModal:show({
     title = "Set tile range",
     window = win,
+    romRaw = romRaw,
+    codec = codec,
     initialStartAddress = initialStart,
     initialEndAddress = initialEnd,
+    onBeforeScan = function()
+      if self.beginSimpleLoading then
+        self:beginSimpleLoading("Scanning nametable streams...")
+      end
+    end,
+    onAfterScan = function()
+      if self.endSimpleLoading then
+        self:endSimpleLoading()
+      end
+    end,
     onConfirm = function(startText, endText, targetWindow)
       local startAddr, startErr = Shared.parseHexAddress(startText)
       if not startAddr then

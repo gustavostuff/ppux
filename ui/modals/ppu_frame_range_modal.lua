@@ -2,19 +2,62 @@ local Button = require("ui.button")
 local Panel = require("ui.panel")
 local TextField = require("ui.text_field")
 local ModalPanelUtils = require("ui.modals.panel_modal_utils")
+local RomHexGrid = require("ui.rom_hex_grid")
+local Shared = require("controllers.app.core_controller_shared")
+local ResolutionController = require("controllers.app.resolution_controller")
+local NametableStreamScanner = require("utils.nametable_stream_scanner")
+local NametableShapePreview = require("ui.nametable_shape_preview")
+
+-- Set nametable address range: ROM hex grid + Start/End + Scan/Set/Cancel.
+-- On open: no stream markers. Scan runs on-demand trial decompress and marks
+-- complete streams (960 NT + 64 attr). Selecting a mark fills Start/End and
+-- shows a 32x30 frequency-ranked shape preview above Set.
 
 local Dialog = {}
 Dialog.__index = Dialog
 
+local FOOTER_ROWS = 5 -- Start, End, buttons, Esc, status
+local PANEL_COLS = 3
+
+--- Soft green markers for complete stream hits (minimap + bound ants).
+local STREAM_MARKER_COLOR = { 0.22, 0.72, 0.48, 0.9 }
+
+local function rowspanForHeight(height, cellH, spacingY)
+  cellH = math.max(1, math.floor(tonumber(cellH) or 15))
+  spacingY = math.max(0, math.floor(tonumber(spacingY) or 0))
+  local step = cellH + spacingY
+  return math.max(1, math.ceil((math.max(1, height) + spacingY) / step))
+end
+
+local function cellWForHexGrid(spacingX, cols, panelCols)
+  local gridW = RomHexGrid.contentWidth(cols)
+  spacingX = math.max(0, math.floor(tonumber(spacingX) or 0))
+  panelCols = math.max(1, math.floor(tonumber(panelCols) or 2))
+  local gaps = spacingX * math.max(0, panelCols - 1)
+  return math.max(1, math.ceil((gridW - gaps) / panelCols))
+end
+
+local function syncModalGridMetrics(self)
+  local spacingX = self.buttonGap or self.colGap or 0
+  local cols = (self.hexGrid and self.hexGrid.getCols and self.hexGrid:getCols()) or 16
+  self.cellW = cellWForHexGrid(spacingX, cols, PANEL_COLS)
+end
+
 local function rebuildPanel(self)
+  syncModalGridMetrics(self)
+  local cellH = self.cellH
+  local spacingY = self.rowGap or 0
+  local hexRows = rowspanForHeight(RomHexGrid.contentHeight(), cellH, spacingY)
+  local totalRows = hexRows + FOOTER_ROWS
+
   self.panel = Panel.new({
-    cols = 2,
-    rows = 4,
+    cols = PANEL_COLS,
+    rows = totalRows,
     cellW = self.cellW,
-    cellH = self.cellH,
+    cellH = cellH,
     padding = self.padding,
     spacingX = self.buttonGap,
-    spacingY = self.rowGap,
+    spacingY = spacingY,
     cellPaddingX = self.cellPaddingX,
     cellPaddingY = self.cellPaddingY,
     visible = self.visible,
@@ -25,13 +68,50 @@ local function rebuildPanel(self)
     _modalChromeOverBlue = self._modalChromeOverBlue == true,
   })
 
-  self.panel:setCell(1, 1, { text = "Start:" })
-  self.panel:setCell(2, 1, { component = self.startField })
-  self.panel:setCell(1, 2, { text = "End:" })
-  self.panel:setCell(2, 2, { component = self.endField })
-  self.panel:setCell(1, 3, { component = self.setButton })
-  self.panel:setCell(2, 3, { component = self.cancelButton })
-  self.panel:setCell(1, 4, { text = "Esc) Close", colspan = 2 })
+  local startRow = hexRows + 1
+  local endRow = startRow + 1
+  local buttonRow = endRow + 1
+  local escRow = buttonRow + 1
+  local statusRow = escRow + 1
+
+  self.panel:setCell(1, 1, {
+    component = self.hexGrid,
+    colspan = PANEL_COLS,
+    rowspan = hexRows,
+  })
+  self.panel:setCell(1, startRow, { text = "Start:" })
+  self.panel:setCell(2, startRow, { component = self.startField })
+  self.panel:setCell(1, endRow, { text = "End:" })
+  self.panel:setCell(2, endRow, { component = self.endField })
+  self.panel:setCell(3, startRow, {
+    component = self.shapePreview,
+    rowspan = 2,
+  })
+  self.panel:setCell(1, buttonRow, { component = self.scanButton })
+  self.panel:setCell(2, buttonRow, { component = self.cancelButton })
+  self.panel:setCell(3, buttonRow, { component = self.setButton })
+  self.panel:setCell(1, escRow, { text = "Esc) Close", colspan = 2 })
+  local statusText = self._statusText or ""
+  if statusText ~= "" then
+    self.panel:setCell(1, statusRow, { text = statusText, colspan = PANEL_COLS })
+  end
+end
+
+local function hitsToMinimapMarkers(hits)
+  local markers = {}
+  for _, hit in ipairs(hits or {}) do
+    local startAddr = math.floor(tonumber(hit.start) or -1)
+    local endAddr = math.floor(tonumber(hit["end"]) or -1)
+    if startAddr >= 0 and endAddr >= startAddr then
+      markers[#markers + 1] = {
+        offset = startAddr,
+        color = STREAM_MARKER_COLOR,
+        groupCount = 1,
+        groupSize = endAddr - startAddr + 1,
+      }
+    end
+  end
+  return markers
 end
 
 function Dialog.new()
@@ -51,10 +131,34 @@ function Dialog.new()
     cellPaddingY = nil,
     onConfirm = nil,
     onCancel = nil,
+    onBeforeScan = nil,
+    onAfterScan = nil,
     targetWindow = nil,
+    romRaw = "",
+    codec = "konami",
+    scanHits = {},
     panel = nil,
+    _syncingFromGrid = false,
+    _statusText = nil,
   }, Dialog)
 
+  self.hexGrid = RomHexGrid.new({
+    cols = 16,
+    groupSize = 1,
+    maxSelectedStarts = 1,
+    selectionAnts = true,
+    boundMarkerAnts = true,
+    boundMarkerAntsAlpha = 0.45,
+    selectionCrosshair = true,
+    onSelect = function(addr, selectOpts)
+      selectOpts = selectOpts or {}
+      self:_onGridSelect(addr, {
+        fromGrid = true,
+        selectionCapHit = selectOpts.selectionCapHit == true,
+      })
+    end,
+  })
+  self.shapePreview = NametableShapePreview.new()
   self.startField = TextField.new({
     width = 104,
     height = self.fieldH,
@@ -64,6 +168,15 @@ function Dialog.new()
     width = 104,
     height = self.fieldH,
     mask = "0x000000",
+  })
+  self.scanButton = Button.new({
+    text = "Scan",
+    w = self.buttonW,
+    h = self.buttonH,
+    transparent = true,
+    action = function()
+      self:_runScan()
+    end,
   })
   self.setButton = Button.new({
     text = "Set",
@@ -86,6 +199,8 @@ function Dialog.new()
 
   ModalPanelUtils.applyPanelDefaults(self)
   self.buttonGap = self.colGap
+  self._uses_modal_default_cellW = false
+  syncModalGridMetrics(self)
   rebuildPanel(self)
   return self
 end
@@ -94,22 +209,182 @@ function Dialog:isVisible()
   return self.visible
 end
 
+function Dialog:_formatAddr(addr)
+  return string.format("0x%06X", math.floor(tonumber(addr) or 0))
+end
+
+function Dialog:_setStatus(text)
+  self._statusText = text
+  if self.panel then
+    rebuildPanel(self)
+  end
+end
+
+function Dialog:_applyRangeSelection(startAddr, endAddr, opts)
+  opts = opts or {}
+  startAddr = math.floor(tonumber(startAddr) or 0)
+  endAddr = math.floor(tonumber(endAddr) or startAddr)
+  if endAddr < startAddr then
+    endAddr = startAddr
+  end
+  local span = endAddr - startAddr + 1
+  self.hexGrid.groupSize = math.max(1, span)
+  self.hexGrid:setSelectedAddr(startAddr, {
+    emit = false,
+    allowOccupied = true,
+    allowDisabled = true,
+    resetColors = true,
+  })
+  if opts.scroll ~= false then
+    self.hexGrid:scrollToReveal(startAddr)
+  end
+end
+
+function Dialog:_syncFieldsFromRange(startAddr, endAddr)
+  self._syncingFromGrid = true
+  self.startField:setText(self:_formatAddr(startAddr))
+  self.endField:setText(self:_formatAddr(endAddr))
+  self._syncingFromGrid = false
+end
+
+function Dialog:_refreshShapePreview(startAddr, endAddr, hit)
+  if not self.shapePreview then
+    return
+  end
+  if not hit then
+    self.shapePreview:clear()
+    return
+  end
+  local s = math.floor(tonumber(hit.start) or startAddr or -1)
+  local e = math.floor(tonumber(hit["end"]) or endAddr or -1)
+  if s < 0 or e < s then
+    self.shapePreview:clear()
+    return
+  end
+  self.shapePreview:setFromStream(self.romRaw, s, e, self.codec or "konami")
+end
+
+function Dialog:_onGridSelect(addr, _opts)
+  addr = math.floor(tonumber(addr) or 0)
+  local hit = NametableStreamScanner.hitAt(self.scanHits, addr)
+  local startAddr = addr
+  local endAddr = addr
+  if hit then
+    startAddr = math.floor(tonumber(hit.start) or addr)
+    endAddr = math.floor(tonumber(hit["end"]) or addr)
+  end
+  self:_applyRangeSelection(startAddr, endAddr, { scroll = false })
+  self:_syncFieldsFromRange(startAddr, endAddr)
+  self:_refreshShapePreview(startAddr, endAddr, hit)
+end
+
+function Dialog:_syncFromAddressFields()
+  if self._syncingFromGrid then
+    return
+  end
+  local startAddr = select(1, Shared.parseHexAddress(self.startField:getText() or ""))
+  local endAddr = select(1, Shared.parseHexAddress(self.endField:getText() or ""))
+  if type(startAddr) ~= "number" then
+    return
+  end
+  if type(endAddr) ~= "number" then
+    endAddr = startAddr
+  end
+  if endAddr < startAddr then
+    endAddr = startAddr
+  end
+  self:_applyRangeSelection(startAddr, endAddr, { scroll = true })
+  local hit = NametableStreamScanner.hitAt(self.scanHits, startAddr)
+  if hit
+    and math.floor(tonumber(hit.start) or -1) == startAddr
+    and math.floor(tonumber(hit["end"]) or -1) == endAddr
+  then
+    self:_refreshShapePreview(startAddr, endAddr, hit)
+  else
+    self:_refreshShapePreview(startAddr, endAddr, nil)
+  end
+end
+
+function Dialog:_runScan()
+  if type(self.romRaw) ~= "string" or self.romRaw == "" then
+    self:_setStatus("No ROM loaded")
+    return
+  end
+
+  if type(self.onBeforeScan) == "function" then
+    self.onBeforeScan()
+  end
+
+  local hits, timingMs = NametableStreamScanner.scan(self.romRaw, {
+    codec = self.codec or "konami",
+    returnTiming = true,
+  })
+  self.scanHits = hits or {}
+  self.hexGrid:setMinimapMarkers(hitsToMinimapMarkers(self.scanHits))
+
+  if type(self.onAfterScan) == "function" then
+    self.onAfterScan(self.scanHits, timingMs)
+  end
+
+  local n = #self.scanHits
+  local status
+  if n == 0 then
+    status = "No complete streams"
+  elseif timingMs ~= nil then
+    status = string.format("%d stream%s (%.0f ms)", n, n == 1 and "" or "s", timingMs)
+  else
+    status = string.format("%d stream%s", n, n == 1 and "" or "s")
+  end
+  self:_setStatus(status)
+end
+
 function Dialog:show(opts)
   opts = opts or {}
   self.title = opts.title or "Set tile range"
   self.targetWindow = opts.window
   self.onConfirm = opts.onConfirm
   self.onCancel = opts.onCancel
+  self.onBeforeScan = opts.onBeforeScan
+  self.onAfterScan = opts.onAfterScan
   self.visible = true
+  self.romRaw = type(opts.romRaw) == "string" and opts.romRaw or ""
+  self.codec = tostring(opts.codec or "konami"):lower()
+  self.scanHits = {}
+  self._statusText = nil
+  if self.shapePreview then
+    self.shapePreview:clear()
+  end
+
+  self.hexGrid:setRomRaw(self.romRaw)
+  self.hexGrid:setMinimapMarkers({})
+  self.hexGrid.groupSize = 1
 
   self.startField:setText(opts.initialStartAddress or "")
   self.endField:setText(opts.initialEndAddress or "")
   self.startField:setFocused(true)
   self.endField:setFocused(false)
+  self.scanButton.pressed = false
   self.setButton.pressed = false
   self.cancelButton.pressed = false
+  self.scanButton.hovered = false
   self.setButton.hovered = false
   self.cancelButton.hovered = false
+
+  local startAddr = select(1, Shared.parseHexAddress(opts.initialStartAddress or ""))
+  local endAddr = select(1, Shared.parseHexAddress(opts.initialEndAddress or ""))
+  if type(startAddr) == "number" then
+    if type(endAddr) ~= "number" or endAddr < startAddr then
+      endAddr = startAddr
+    end
+    self:_applyRangeSelection(startAddr, endAddr, { scroll = true })
+  else
+    self.hexGrid:_setStarts({}, 0, {
+      emit = false,
+      allowEmpty = true,
+      resetColors = true,
+    })
+  end
+
   rebuildPanel(self)
 end
 
@@ -117,13 +392,27 @@ function Dialog:hide()
   self.visible = false
   self.startField:setFocused(false)
   self.endField:setFocused(false)
+  self.scanButton.pressed = false
   self.setButton.pressed = false
   self.cancelButton.pressed = false
+  self.scanButton.hovered = false
   self.setButton.hovered = false
   self.cancelButton.hovered = false
   self.onConfirm = nil
   self.onCancel = nil
+  self.onBeforeScan = nil
+  self.onAfterScan = nil
   self.targetWindow = nil
+  self.romRaw = ""
+  self.scanHits = {}
+  self._statusText = nil
+  if self.shapePreview then
+    self.shapePreview:clear()
+  end
+  if self.hexGrid then
+    self.hexGrid:setMinimapMarkers({})
+    self.hexGrid:setRomRaw("")
+  end
   if self.panel then
     self.panel:setVisible(false)
   end
@@ -192,9 +481,11 @@ function Dialog:handleKey(key)
     return true
   end
   if self.startField.focused and self.startField:onKeyPressed(key) then
+    self:_syncFromAddressFields()
     return true
   end
   if self.endField.focused and self.endField:onKeyPressed(key) then
+    self:_syncFromAddressFields()
     return true
   end
   return false
@@ -203,10 +494,18 @@ end
 function Dialog:textinput(text)
   if not self.visible then return false end
   if self.startField.focused then
-    return self.startField:onTextInput(text)
+    local ok = self.startField:onTextInput(text)
+    if ok then
+      self:_syncFromAddressFields()
+    end
+    return ok
   end
   if self.endField.focused then
-    return self.endField:onTextInput(text)
+    local ok = self.endField:onTextInput(text)
+    if ok then
+      self:_syncFromAddressFields()
+    end
+    return ok
   end
   return false
 end
@@ -218,26 +517,54 @@ function Dialog:mousepressed(x, y, button)
     self:_cancel()
     return true
   end
+  if self.startField:contains(x, y) then
+    self.startField:setFocused(true)
+    self.endField:setFocused(false)
+  elseif self.endField:contains(x, y) then
+    self.endField:setFocused(true)
+    self.startField:setFocused(false)
+  end
   return self.panel and self.panel:mousepressed(x, y, button) or true
 end
 
 function Dialog:mousereleased(x, y, button)
   if not self.visible then return false end
+  if self.hexGrid then
+    self.hexGrid:mousereleased(x, y, button)
+  end
   return self.panel and self.panel:mousereleased(x, y, button) or true
 end
 
 function Dialog:mousemoved(x, y)
   if not self.visible then return false end
-  if self.panel then
+  if self.hexGrid then
+    self.hexGrid:mousemoved(x, y)
+  end
+  if self.panel and not (self.hexGrid and self.hexGrid:isScrollDragging()) then
     self.panel:mousemoved(x, y)
   end
   return true
 end
 
+function Dialog:wheelmoved(dx, dy)
+  if not self.visible then return false end
+  local mx, my = 0, 0
+  if ResolutionController and ResolutionController.getScaledMouse then
+    local mouse = ResolutionController:getScaledMouse(true)
+    mx = mouse and mouse.x or 0
+    my = mouse and mouse.y or 0
+  elseif love and love.mouse and love.mouse.getPosition then
+    mx, my = love.mouse.getPosition()
+  end
+  if not self.hexGrid then
+    return true
+  end
+  return self.hexGrid:wheelmovedAt(dx, dy, mx, my)
+end
+
 function Dialog:draw(canvas)
   if not self.visible then return end
   ModalPanelUtils.refreshTargetMetrics(self)
-  -- Avoid rebuilding Panel each frame so button press/release stays on one Panel instance.
   if not self.panel then
     rebuildPanel(self)
   else
@@ -259,5 +586,9 @@ function Dialog:draw(canvas)
   self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas, self)
   self.panel:draw()
 end
+
+-- Exported for unit tests.
+Dialog._hitsToMinimapMarkers = hitsToMinimapMarkers
+Dialog.STREAM_MARKER_COLOR = STREAM_MARKER_COLOR
 
 return Dialog
