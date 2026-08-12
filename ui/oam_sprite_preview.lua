@@ -247,7 +247,7 @@ end
 --- Preferred panel cell height for the current selection count / wrap.
 function M:preferredHeight()
   local _, ph, _, rows = self:_layoutMetrics()
-  return rows * (ph + PREVIEW_GAP) - PREVIEW_GAP + 8
+  return rows * (ph + PREVIEW_GAP) - PREVIEW_GAP + 2
 end
 
 function M:_drawOne(slot, boxX, boxY, pw, ph, hovered)

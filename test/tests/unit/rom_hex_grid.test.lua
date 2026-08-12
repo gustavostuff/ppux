@@ -307,6 +307,32 @@ describe("RomHexGrid", function()
     expect(grid.scrollOffset).toBe(0)
   end)
 
+  it("scrollOnSelect false keeps scroll offset when clicking groups", function()
+    local grid = RomHexGrid.new({
+      cols = 16,
+      groupSize = 4,
+      maxSelectedStarts = 8,
+      scrollOnSelect = false,
+    })
+    grid:setRomRaw(makeRom(0x400))
+    grid:setPosition(0, 0)
+    grid.scrollOffset = 0x100
+    grid:_setStarts({}, 0, {
+      emit = false,
+      allowEmpty = true,
+      resetColors = true,
+      scrollToReveal = false,
+    })
+    local hx, hy = cellPixel(0, 0) -- addr 0x100 on this page
+    grid:mousepressed(hx, hy, 1)
+    expect(grid.scrollOffset).toBe(0x100)
+    expect(grid:getSelectedStarts()).toEqual({ 0x100 })
+    -- Toggle off same group — still no scroll.
+    grid:mousepressed(hx, hy, 1)
+    expect(grid.scrollOffset).toBe(0x100)
+    expect(grid:getSelectedStarts()).toEqual({})
+  end)
+
   it("scrollToReveal brings off-screen selection into view", function()
     local grid = oamGrid()
     grid:setRomRaw(makeRom(2048))

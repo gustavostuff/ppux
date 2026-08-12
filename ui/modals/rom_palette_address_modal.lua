@@ -405,6 +405,17 @@ function Dialog.new()
     end,
     onRejectSelect = function()
       self._invalidColorWarning = "Not a valid color"
+      self.hexGrid:_setStarts({}, 0, {
+        emit = false,
+        allowEmpty = true,
+        resetColors = true,
+        scrollToReveal = false,
+      })
+      self._syncingFromGrid = true
+      self.textField:setText("")
+      self:_refreshSelectedPreview(nil)
+      self._syncingFromGrid = false
+      self:_refreshSetEnabled()
     end,
     onSelect = function(addr, selectOpts)
       selectOpts = selectOpts or {}

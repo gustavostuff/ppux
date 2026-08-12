@@ -289,10 +289,13 @@ describe("rom_palette_address_modal.lua", function()
     local hy = 2 + 12 + 0 * 12 + 2
     modal.hexGrid:setPosition(0, 0)
     modal.hexGrid:mousepressed(hx, hy, 1)
-    expect(modal.hexGrid:getSelectedStarts()).toEqual({ 0x0F })
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({})
     expect(modal._invalidColorWarning).toBe("Not a valid color")
-    expect(modal:cursorNameAt(hx, hy)).toBe("arrow")
-    expect(modal:cursorNameAt(2 + 38 + 0x0F * 15 + 2, hy)).toBe("hand")
+    -- Masked "0x000000" field cannot be truly empty; clear resets to the mask skeleton.
+    expect(modal.textField:getText()).toBe("0x000000")
+    -- Invalid NES bytes paint as ninja → hand cursor (not selectable, but still "pointable").
+    expect(modal:cursorNameAt(hx, hy)).toBe("hand")
+    expect(modal.setButton.enabled).toBe(false)
     modal:hide()
   end)
 end)

@@ -13,9 +13,30 @@ describe("nametable_shape_preview.lua", function()
 
     local shade = ShapePreview.luminanceByFrequency(nt)
     expect(shade[0x10]).toBe(0)
-    expect(shade[0x20] > 0 and shade[0x20] < 1).toBe(true)
+    expect(shade[0x20]).toBe(0.5)
     expect(shade[0x30]).toBe(1)
     expect(shade[0x20] < shade[0x30]).toBe(true)
+  end)
+
+  it("quantizes luminance to five discrete grays including black and white", function()
+    local nt = {}
+    -- Counts 320/256/192/128/64 → luminances 0, 0.25, 0.5, 0.75, 1 before/after quantize.
+    local sizes = { 320, 256, 192, 128, 64 }
+    local tiles = { 0x11, 0x22, 0x33, 0x44, 0x55 }
+    local at = 1
+    for i, n in ipairs(sizes) do
+      for _ = 1, n do
+        nt[at] = tiles[i]
+        at = at + 1
+      end
+    end
+    expect(#nt).toBe(960)
+    local shade = ShapePreview.luminanceByFrequency(nt)
+    expect(shade[0x11]).toBe(0)
+    expect(shade[0x22]).toBe(0.25)
+    expect(shade[0x33]).toBe(0.5)
+    expect(shade[0x44]).toBe(0.75)
+    expect(shade[0x55]).toBe(1)
   end)
 
   it("gives equal-frequency tiles the same shade (no tile-ID gradient)", function()

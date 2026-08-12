@@ -1,7 +1,8 @@
 -- ui/nametable_shape_preview.lua
--- 32x30 grayscale "shape" of a decompressed nametable page.
+-- Standalone 32x30 grayscale "shape" of a decompressed nametable page.
 -- Shade = f(occurrence count): most-repeated tile ID → black; rarest → white.
 -- Equal counts share one shade (no rank spread / tile-ID gradient).
+-- Luminance is quantized to 5 discrete grays (incl. black and white).
 
 local NametableUtils = require("utils.nametable_utils")
 
@@ -10,6 +11,17 @@ M.__index = M
 
 M.W = 32
 M.H = 30
+
+-- Black, three mid grays, white.
+local GRAY_SHADES = { 0, 0.25, 0.5, 0.75, 1 }
+
+local function quantizeToGrayShade(lum)
+  lum = tonumber(lum) or 0
+  if lum < 0 then lum = 0 end
+  if lum > 1 then lum = 1 end
+  local i = math.floor(lum * (#GRAY_SHADES - 1) + 0.5) + 1
+  return GRAY_SHADES[i]
+end
 
 local function sliceRomBytes(romRaw, startAddr, endAddr)
   local out = {}
@@ -31,6 +43,7 @@ end
 --- Map each tile ID to luminance 0..1 from occurrence count.
 --- Most-repeated → black (0); rarest → white (1). Same count ⇒ same shade
 --- (avoids fake spatial gradients when many unique tiles are tie-broken by ID).
+--- Output uses only the five GRAY_SHADES values.
 function M.luminanceByFrequency(nametable)
   local counts = {}
   local n = math.min(960, type(nametable) == "table" and #nametable or 0)
@@ -61,11 +74,13 @@ function M.luminanceByFrequency(nametable)
   local shade = {}
   local range = maxCount - minCount
   for _, entry in ipairs(ranked) do
+    local lum
     if range <= 0 then
-      shade[entry.tile] = 0
+      lum = 0
     else
-      shade[entry.tile] = (maxCount - entry.count) / range
+      lum = (maxCount - entry.count) / range
     end
+    shade[entry.tile] = quantizeToGrayShade(lum)
   end
   return shade, ranked
 end

@@ -2,7 +2,8 @@
 -- gutter, column headers. Wheel scrolls 8 rows (Shift+wheel: 64 rows / 1KB).
 -- Selection is groups of `groupSize` bytes from each selected start address.
 -- Cell paint states (docs/hex_grid_refinement.txt): normal / selectable / ninja /
--- semi-selected (outline) / selected (rounded fill) / user-selected (ants) / disabled.
+-- semi-selected (contrast plate + outline/text at 70%→100% on hover) / selected /
+-- user-selected (ants) / disabled.
 -- Dual scroll tracks: full-ROM overview (click/drag) + informative zoom (1px per hex row).
 
 local colors = require("app_colors")
@@ -221,6 +222,8 @@ function M.new(opts)
     boundMarkerAntsAlpha = tonumber(opts.boundMarkerAntsAlpha) or 0.5,
     -- When true, tint the selected address's row + column (ROM palette modal).
     selectionCrosshair = opts.selectionCrosshair == true,
+    -- When false, clicks that change selection do not scroll (OAM add/edit).
+    scrollOnSelect = opts.scrollOnSelect ~= false,
     -- Optional: function(addr) -> bool; when false, click does not select.
     canSelectAddr = opts.canSelectAddr,
     -- Optional: function(addr) when canSelectAddr rejects a click.
@@ -1056,6 +1059,36 @@ local function startsCoveringAddr(starts, addr, span, spanByStart)
   return covering
 end
 
+--- Drop groups that overlap any blocker span so each cell paints one state.
+local function filterStartsOutsideBlockers(starts, spanByStart, defaultSpan, blockers, blockerSpanByStart, blockerDefaultSpan)
+  if type(blockers) ~= "table" or #blockers == 0 then
+    return starts or {}
+  end
+  defaultSpan = math.max(1, math.floor(tonumber(defaultSpan) or 1))
+  blockerDefaultSpan = math.max(1, math.floor(tonumber(blockerDefaultSpan) or 1))
+  local out = {}
+  for _, start in ipairs(starts or {}) do
+    local s = defaultSpan
+    if type(spanByStart) == "table" then
+      local mapped = spanByStart[start]
+      if type(mapped) == "number" and mapped >= 1 then
+        s = math.floor(mapped)
+      end
+    end
+    local blocked = false
+    for addr = start, start + s - 1 do
+      if #startsCoveringAddr(blockers, addr, blockerDefaultSpan, blockerSpanByStart) > 0 then
+        blocked = true
+        break
+      end
+    end
+    if not blocked then
+      out[#out + 1] = start
+    end
+  end
+  return out
+end
+
 --- Selected group start under the pointer, or nil when not over a selected span.
 function M:getHoveredSelectedStart()
   if self._hoverX == nil or self._hoverY == nil then
@@ -1133,7 +1166,7 @@ function M:mousepressed(px, py, button, _opts)
     end
     local primary = nextStarts[#nextStarts] or removeAddr
     self:_setStarts(nextStarts, primary, {
-      scrollToReveal = true,
+      scrollToReveal = self.scrollOnSelect == true,
       emit = true,
       allowEmpty = true,
       resetColors = false,
@@ -1167,7 +1200,7 @@ function M:mousepressed(px, py, button, _opts)
       end
       local primary = nextStarts[#nextStarts] or conflict
       self:_setStarts(nextStarts, primary, {
-        scrollToReveal = true,
+        scrollToReveal = self.scrollOnSelect == true,
         emit = true,
         allowEmpty = true,
         resetColors = false,
@@ -1191,7 +1224,7 @@ function M:mousepressed(px, py, button, _opts)
   end
 
   self:_setStarts(nextStarts, primary, {
-    scrollToReveal = self.replaceSelect ~= true,
+    scrollToReveal = self.scrollOnSelect == true and self.replaceSelect ~= true,
     emit = true,
     resetColors = self.maxSelectedStarts == 1,
   })
@@ -1276,7 +1309,7 @@ end
 
 local function printOffsetDigits(x, y, addr, font, textColor)
   local label = string.format("%0" .. OFFSET_DIGITS .. "X", addr)
-  local color = textColor or { 0.75, 0.75, 0.75, 1 }
+  local color = textColor or { 1, 1, 1, 0.5 }
   for i = 1, OFFSET_DIGITS do
     local ch = label:sub(i, i)
     local tw = Text.getFontWidth(ch, font)
@@ -1336,22 +1369,9 @@ function M:_selectionCrosshairCell()
   return math.floor(rel / cols), rel % cols
 end
 
---- Soft row + column bands for the selected byte (drawn right after the grid BG).
-function M:_drawSelectionCrosshair(gridX, gridY, x0, y0)
-  local row, col = self:_selectionCrosshairCell()
-  if row == nil then
-    return
-  end
-  local cols = self:getCols()
-  x0 = x0 or (gridX - GUTTER_W)
-  y0 = y0 or (gridY - HEADER_H)
-  love.graphics.setColor(1, 1, 1, 0.14)
-  drawFillRect(gridX, gridY + row * CELL_H, cols * CELL_W - 1, CELL_H - 1)
-  drawFillRect(gridX + col * CELL_W, gridY, CELL_W - 1, M.ROWS * CELL_H - 1)
-  -- Header / gutter markers (same pass, still under labels).
-  love.graphics.setColor(1, 1, 1, 0.2)
-  drawFillRect(gridX + col * CELL_W, y0, CELL_W - 1, HEADER_H)
-  drawFillRect(x0, gridY + row * CELL_H, GUTTER_W - 1, CELL_H - 1)
+--- Crosshair is label-only (column header + row gutter); no cell/band fills.
+function M:_drawSelectionCrosshair(_gridX, _gridY, _x0, _y0)
+  -- Intentionally empty: highlight is applied when printing header/gutter labels.
 end
 
 local function drawMinimapMarkersOnTrack(markers, len, trackX, trackY, trackH, rangeStart, rangeLen)
@@ -1432,7 +1452,8 @@ local function drawScrollThumb(trackX, trackY, trackH, scrollOffset, rangeStart,
     if offsetFrac > 1 then offsetFrac = 1 end
   end
   local thumbY = math.floor(trackY + (trackH - thumbH) * offsetFrac)
-  love.graphics.setColor(1, 1, 1, 0.65)
+  -- Match zoom-track viewport rectangle opacity.
+  love.graphics.setColor(1, 1, 1, 0.22)
   drawFillRect(trackX, thumbY, SCROLLBAR_W, thumbH)
 end
 
@@ -1575,7 +1596,7 @@ function M:_drawGroupHighlights(gridX, gridY, starts, colorForStart, mode, opts)
         if lineInset then
           lx = x + 1
           ly = y + 1
-          lw = math.max(1, w - 2)
+          lw = math.max(1, w - 1)
           lh = math.max(1, h - 1)
         end
         if cornerRadius and cornerRadius > 0 then
@@ -1809,14 +1830,20 @@ function M:draw()
   local crossRow, crossCol = nil, nil
   if self.selectionCrosshair == true then
     crossRow, crossCol = self:_selectionCrosshairCell()
-    self:_drawSelectionCrosshair(gridX, gridY, x0, y0)
   end
 
+  -- Column headers: 50% by default; ROM crosshair column at 100%.
+  local headerDim = { 1, 1, 1, 0.5 }
+  local headerHi = { 1, 1, 1, 1 }
   for col = 0, cols - 1 do
     local label = string.format("%02X", col)
     local tw = Text.getFontWidth(label, font)
+    local headerColor = headerDim
+    if crossCol ~= nil and col == crossCol then
+      headerColor = headerHi
+    end
     Text.print(label, gridX + col * CELL_W + math.floor((CELL_W - tw) * 0.5), y0 + TEXT_NUDGE_Y, {
-      color = colors.white,
+      color = headerColor,
       font = font,
       literalColor = true,
     })
@@ -1839,26 +1866,107 @@ function M:draw()
     hoverAddr = self:addrAtPixel(self._hoverX, self._hoverY)
   end
 
-  -- Semi-selected: outline only, no corner radius (50% → 100% on hover handled in text + outline pass).
+  local boundStarts, boundSpans = nil, nil
+  if self.boundAsSelected == true then
+    boundStarts, boundSpans = self:_boundMarkerStartsAndSpans()
+  end
+
+  -- One paint state per cell: disabled > selected > bound > semi > default.
+  local selectedDraw = filterStartsOutsideBlockers(
+    starts,
+    selectedSpanByStart,
+    span,
+    disabled,
+    nil,
+    span
+  )
+  local boundDraw = boundStarts
+  if boundStarts then
+    boundDraw = filterStartsOutsideBlockers(
+      boundStarts,
+      boundSpans,
+      1,
+      disabled,
+      nil,
+      span
+    )
+    boundDraw = filterStartsOutsideBlockers(
+      boundDraw,
+      boundSpans,
+      1,
+      starts,
+      selectedSpanByStart,
+      span
+    )
+  end
+  local semiBlockers = starts
+  local semiBlockerSpans = selectedSpanByStart
+  if boundDraw and #boundDraw > 0 then
+    -- Temporarily merge selected + bound into one blocker list for semi filter.
+    local merged = {}
+    for _, s in ipairs(starts or {}) do
+      merged[#merged + 1] = s
+    end
+    for _, s in ipairs(boundDraw) do
+      merged[#merged + 1] = s
+    end
+    local mergedSpans = {}
+    if type(selectedSpanByStart) == "table" then
+      for k, v in pairs(selectedSpanByStart) do
+        mergedSpans[k] = v
+      end
+    end
+    if type(boundSpans) == "table" then
+      for k, v in pairs(boundSpans) do
+        mergedSpans[k] = v
+      end
+    end
+    semiBlockers = merged
+    semiBlockerSpans = mergedSpans
+  end
+  local semiDraw = filterStartsOutsideBlockers(
+    semi,
+    semiSpanByStart,
+    span,
+    semiBlockers,
+    semiBlockerSpans,
+    span
+  )
+  semiDraw = filterStartsOutsideBlockers(
+    semiDraw,
+    semiSpanByStart,
+    span,
+    disabled,
+    nil,
+    span
+  )
+
+  -- Semi-selected: sharp contrast plate (full opacity), then outline + text at 70%/100%.
+  self:_drawGroupHighlights(gridX, gridY, semiDraw, function(startAddr)
+    local fill = self:_semiColorForStart(startAddr, 1)
+    return inkForFill(fill)
+  end, "fill", {
+    spanByStart = semiSpanByStart,
+    cornerRadius = 0,
+  })
   local function semiColorFn(startAddr)
     local hovered = false
     if hoverAddr ~= nil then
-      local covering = startsCoveringAddr(semi, hoverAddr, span, semiSpanByStart)
-      if #covering > 0 and semi[covering[#covering]] == startAddr then
+      local covering = startsCoveringAddr(semiDraw, hoverAddr, span, semiSpanByStart)
+      if #covering > 0 and semiDraw[covering[#covering]] == startAddr then
         hovered = true
       end
     end
-    return self:_semiColorForStart(startAddr, hovered and 1 or 0.5)
+    return self:_semiColorForStart(startAddr, hovered and 1 or 0.7)
   end
-  self:_drawGroupHighlights(gridX, gridY, semi, semiColorFn, "line", {
+  self:_drawGroupHighlights(gridX, gridY, semiDraw, semiColorFn, "line", {
     spanByStart = semiSpanByStart,
     cornerRadius = 0,
   })
 
   -- Bound addresses as Selected fills (under live selection).
-  if self.boundAsSelected == true then
-    local boundStarts, boundSpans = self:_boundMarkerStartsAndSpans()
-    self:_drawGroupHighlights(gridX, gridY, boundStarts, function(startAddr)
+  if boundDraw and #boundDraw > 0 then
+    self:_drawGroupHighlights(gridX, gridY, boundDraw, function(startAddr)
       return self:_boundFillColorForStart(startAddr)
     end, "fill", {
       spanByStart = boundSpans,
@@ -1867,7 +1975,7 @@ function M:draw()
   end
 
   -- Selected fills (rounded).
-  self:_drawGroupHighlights(gridX, gridY, starts, function(startAddr)
+  self:_drawGroupHighlights(gridX, gridY, selectedDraw, function(startAddr)
     return self:_selectedFillColorForStart(startAddr)
   end, "fill", {
     spanByStart = selectedSpanByStart,
@@ -1898,12 +2006,9 @@ function M:draw()
   })
 
   local disText = disabledTextColor()
+  local gutterDim = { 1, 1, 1, 0.5 }
   local gutterHi = { 1, 1, 1, 1 }
   local defaultStyle = self.defaultCellStyle or "normal"
-  local boundStarts, boundSpans = nil, nil
-  if self.boundAsSelected == true then
-    boundStarts, boundSpans = self:_boundMarkerStartsAndSpans()
-  end
 
   for row = 0, M.ROWS - 1 do
     local rowAddr = self.scrollOffset + row * cols
@@ -1911,17 +2016,17 @@ function M:draw()
     if crossRow ~= nil and row == crossRow then
       printOffsetDigits(x0, rowY + TEXT_NUDGE_Y, rowAddr, font, gutterHi)
     else
-      printOffsetDigits(x0, rowY + TEXT_NUDGE_Y, rowAddr, font)
+      printOffsetDigits(x0, rowY + TEXT_NUDGE_Y, rowAddr, font, gutterDim)
     end
 
     for col = 0, cols - 1 do
       local addr = rowAddr + col
       local cellX = gridX + col * CELL_W
-      local covering = startsCoveringAddr(starts, addr, span, selectedSpanByStart)
+      local covering = startsCoveringAddr(selectedDraw, addr, span, selectedSpanByStart)
       local coveringDis = startsCoveringAddr(disabled, addr, span)
-      local coveringSemi = startsCoveringAddr(semi, addr, span, semiSpanByStart)
-      local coveringBound = boundStarts
-        and startsCoveringAddr(boundStarts, addr, 1, boundSpans)
+      local coveringSemi = startsCoveringAddr(semiDraw, addr, span, semiSpanByStart)
+      local coveringBound = boundDraw
+        and startsCoveringAddr(boundDraw, addr, 1, boundSpans)
         or {}
       local hovered = hoverAddr ~= nil and addr == hoverAddr
 
@@ -1929,23 +2034,23 @@ function M:draw()
       if #coveringDis > 0 then
         textColor = { disText[1], disText[2], disText[3], 1 }
       elseif #covering > 0 then
-        local start = starts[covering[#covering]]
+        local start = selectedDraw[covering[#covering]]
         local fill = self:_selectedFillColorForStart(start)
         local ink = inkForFill(fill)
         textColor = { ink[1], ink[2], ink[3], 1 }
       elseif #coveringBound > 0 then
-        local start = boundStarts[coveringBound[#coveringBound]]
+        local start = boundDraw[coveringBound[#coveringBound]]
         local fill = self:_boundFillColorForStart(start)
         local ink = inkForFill(fill)
         textColor = { ink[1], ink[2], ink[3], 1 }
       elseif #coveringSemi > 0 then
-        local start = semi[coveringSemi[#coveringSemi]]
+        local start = semiDraw[coveringSemi[#coveringSemi]]
         local groupHovered = false
         if hoverAddr ~= nil then
-          local hc = startsCoveringAddr(semi, hoverAddr, span, semiSpanByStart)
-          groupHovered = #hc > 0 and semi[hc[#hc]] == start
+          local hc = startsCoveringAddr(semiDraw, hoverAddr, span, semiSpanByStart)
+          groupHovered = #hc > 0 and semiDraw[hc[#hc]] == start
         end
-        textColor = self:_semiColorForStart(start, groupHovered and 1 or 0.5)
+        textColor = self:_semiColorForStart(start, groupHovered and 1 or 0.7)
       else
         local reject = type(self.canSelectAddr) == "function"
           and addr < len

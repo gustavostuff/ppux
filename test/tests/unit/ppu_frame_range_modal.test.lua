@@ -66,7 +66,9 @@ describe("ppu_frame_range_modal.lua", function()
     expect(modal._rangeAnchor).toBe(0x40)
     expect(modal.startField:getText()).toBe("0x000040")
     expect(modal.endField:getText()).toBe("0x000040")
-    expect(modal.hexGrid:getSelectedGroupSize(0x40)).toBe(1)
+    expect(#(modal.hexGrid:getSelectedStarts())).toBe(0)
+    expect(modal.hexGrid:getSemiSelectedStarts()).toEqual({ 0x40 })
+    expect(modal.hexGrid:getSemiGroupSize(0x40)).toBe(1)
 
     modal:_onGridSelect(0x4F, { fromGrid = true })
     expect(modal._rangeAnchor).toBe(nil)
@@ -75,13 +77,15 @@ describe("ppu_frame_range_modal.lua", function()
     expect(modal.startField:getText()).toBe("0x000040")
     expect(modal.endField:getText()).toBe("0x00004F")
     expect(modal.hexGrid:getSelectedGroupSize(0x40)).toBe(0x10)
+    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(0)
 
     -- Click inside committed range → starts a new anchor (not a no-op).
     modal:_onGridSelect(0x45, { fromGrid = true })
     expect(modal._rangeAnchor).toBe(0x45)
     expect(modal._rangeStart).toBe(nil)
     expect(modal._rangeEnd).toBe(nil)
-    expect(modal.hexGrid:getSelectedGroupSize(0x45)).toBe(1)
+    expect(#(modal.hexGrid:getSelectedStarts())).toBe(0)
+    expect(modal.hexGrid:getSemiGroupSize(0x45)).toBe(1)
 
     -- Same-cell second click clears.
     modal:_onGridSelect(0x45, { fromGrid = true })
@@ -122,6 +126,12 @@ describe("ppu_frame_range_modal.lua", function()
     expect(modal.hexGrid:getUserSelectedStarts()).toEqual({ pad + 4 })
     expect(modal.shapePreview:isActive()).toBe(true)
     expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(#semi)
+    -- Selected fill keeps the scan hit highlight color (not forced red).
+    local selectedFill = modal.hexGrid:_selectedFillColorForStart(pad)
+    local scanTint = modal.hexGrid:highlightColorForStart(pad)
+    expect(selectedFill[1]).toBe(scanTint[1])
+    expect(selectedFill[2]).toBe(scanTint[2])
+    expect(selectedFill[3]).toBe(scanTint[3])
 
     -- Outside any scan hit → no-op (keeps prior selection).
     modal:_onGridSelect(0x08, { fromGrid = true })

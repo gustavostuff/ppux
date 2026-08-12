@@ -85,8 +85,9 @@ local function rebuildPanel(self)
   })
   self.panel:setCell(1, modeRow, {
     component = self.selectionModeCheckbox,
-    colspan = PANEL_COLS,
+    colspan = 2,
   })
+  self.panel:setCell(3, modeRow, { text = "NT preview" })
   self.panel:setCell(1, startRow, { text = "Start:" })
   self.panel:setCell(2, startRow, { component = self.startField })
   self.panel:setCell(1, endRow, { text = "End:" })
@@ -221,8 +222,11 @@ function Dialog.new()
     maxSelectedStarts = 1,
     replaceSelect = true,
     defaultCellStyle = "ninja",
-    -- Single user range → always red Selected fill.
-    selectedColorForAddr = function()
+    -- Manual pick: red. Scan mode: keep the stream's highlight cycle color.
+    selectedColorForAddr = function(addr)
+      if self:isSelectionMode() then
+        return self.hexGrid:highlightColorForStart(addr)
+      end
       local c = colors.red
       return { c[1], c[2] or 0, c[3] or 0, 1 }
     end,
@@ -423,6 +427,10 @@ function Dialog:_clearRangeSelection()
     resetColors = false,
     scrollToReveal = false,
   })
+  if not self:isSelectionMode() then
+    self.hexGrid.uniformSemiColor = nil
+    self.hexGrid:setSemiSelectedStarts({}, { resetColors = true })
+  end
   self:_syncManualMinimap()
   self._syncingFromGrid = true
   self.startField:setText("")
@@ -433,6 +441,62 @@ function Dialog:_clearRangeSelection()
   end
 end
 
+function Dialog:_manualRangeRed()
+  local c = colors.red
+  return { c[1], c[2] or 0, c[3] or 0, 1 }
+end
+
+--- Mid two-click: red semi outline from anchor→hover (or anchor alone).
+function Dialog:_refreshManualRangePreview()
+  if self:isSelectionMode() then
+    return
+  end
+  local anchor = self._rangeAnchor
+  if type(anchor) ~= "number" then
+    return
+  end
+  if type(self._rangeStart) == "number" and type(self._rangeEnd) == "number" then
+    return
+  end
+  local hover = nil
+  local grid = self.hexGrid
+  if grid and grid._hoverX ~= nil and grid._hoverY ~= nil then
+    hover = grid:addrAtPixel(grid._hoverX, grid._hoverY)
+  end
+  local other = type(hover) == "number" and hover or anchor
+  local lo = math.min(anchor, other)
+  local hi = math.max(anchor, other)
+  grid.uniformSemiColor = self:_manualRangeRed()
+  grid:setSemiSelectedStarts({ lo }, {
+    groupSizeByStart = { [lo] = hi - lo + 1 },
+    resetColors = true,
+  })
+end
+
+function Dialog:_beginManualRangeAnchor(addr)
+  addr = math.floor(tonumber(addr) or 0)
+  self._rangeAnchor = addr
+  self._rangeStart = nil
+  self._rangeEnd = nil
+  self.hexGrid:setUserSelectedStarts({})
+  self.hexGrid:setSelectedGroupSizes({})
+  self.hexGrid:_setStarts({}, 0, {
+    emit = false,
+    allowEmpty = true,
+    resetColors = false,
+    scrollToReveal = false,
+  })
+  self._syncingFromGrid = true
+  self.startField:setText(self:_formatAddr(addr))
+  self.endField:setText(self:_formatAddr(addr))
+  self._syncingFromGrid = false
+  self:_syncManualMinimap()
+  if self.shapePreview then
+    self.shapePreview:clear()
+  end
+  self:_refreshManualRangePreview()
+end
+
 function Dialog:_commitRange(startAddr, endAddr, opts)
   opts = opts or {}
   if endAddr < startAddr then
@@ -441,6 +505,10 @@ function Dialog:_commitRange(startAddr, endAddr, opts)
   self._rangeAnchor = nil
   self._rangeStart = startAddr
   self._rangeEnd = endAddr
+  if not self:isSelectionMode() then
+    self.hexGrid.uniformSemiColor = nil
+    self.hexGrid:setSemiSelectedStarts({}, { resetColors = true })
+  end
   self:_applyRangeSelection(startAddr, endAddr)
   self:_syncFieldsFromRange(startAddr, endAddr)
   if opts.userSelectedAddr ~= nil then
@@ -498,14 +566,20 @@ function Dialog:_onGridSelect(addr, _opts)
     return
   end
 
-  self._rangeAnchor = addr
-  self._rangeStart = nil
-  self._rangeEnd = nil
-  self.hexGrid:setUserSelectedStarts({})
-  self:_applyRangeSelection(addr, addr)
-  self:_syncFieldsFromRange(addr, addr)
-  self:_syncManualMinimap()
-  self:_refreshShapePreview(addr, addr)
+  self:_beginManualRangeAnchor(addr)
+end
+
+function Dialog:_alignShapePreviewToSet()
+  local shape = self.shapePreview
+  local btn = self.setButton
+  if not shape or not btn then
+    return
+  end
+  local sw = shape:getWidth()
+  local bx = tonumber(btn.x) or 0
+  local bw = tonumber(btn.w) or self.buttonW or 68
+  local sy = tonumber(shape.y) or 0
+  shape:setPosition(math.floor(bx + (bw - sw) * 0.5), sy + 1)
 end
 
 function Dialog:_syncFromAddressFields()
@@ -575,6 +649,7 @@ end
 function Dialog:_onSelectionModeChanged(enabled)
   self:_clearRangeSelection()
   if enabled then
+    self.hexGrid.uniformSemiColor = nil
     self.startField:setFocused(false)
     self.endField:setFocused(false)
     self:_ensureScanComputed()
@@ -843,6 +918,7 @@ function Dialog:mousemoved(x, y)
   if self.panel and not (self.hexGrid and self.hexGrid:isScrollDragging()) then
     self.panel:mousemoved(x, y)
   end
+  self:_refreshManualRangePreview()
   return true
 end
 
@@ -885,6 +961,8 @@ function Dialog:draw(canvas)
   end
   ModalPanelUtils.drawBackdrop(canvas)
   self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas, self)
+  self:_alignShapePreviewToSet()
+  self:_refreshManualRangePreview()
   self.panel:draw()
 end
 

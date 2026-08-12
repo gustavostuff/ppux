@@ -90,6 +90,19 @@ local function rowspanForHeight(height, cellH, spacingY)
   return math.max(1, math.ceil((math.max(1, height) + spacingY) / step))
 end
 
+--- Prefer one fewer row when ceil overshoots by nearly a full cell (grid→preview gap).
+local function rowspanForHeightTight(height, cellH, spacingY)
+  local rows = rowspanForHeight(height, cellH, spacingY)
+  cellH = math.max(1, math.floor(tonumber(cellH) or 15))
+  spacingY = math.max(0, math.floor(tonumber(spacingY) or 0))
+  local step = cellH + spacingY
+  local used = rows * step - spacingY
+  if rows > 1 and (used - height) >= math.max(1, cellH - 2) then
+    rows = rows - 1
+  end
+  return math.max(1, rows)
+end
+
 --- Panel cell width so PANEL_COLS (+ spacing) match the hex grid content width.
 local function cellWForHexGrid(spacingX)
   local gridW = RomHexGrid.contentWidth()
@@ -107,7 +120,7 @@ local function rebuildPanel(self)
   syncModalGridMetrics(self)
   local cellH = self.cellH
   local spacingY = self.rowGap or 0
-  local hexRows = rowspanForHeight(RomHexGrid.contentHeight(), cellH, spacingY)
+  local hexRows = rowspanForHeightTight(RomHexGrid.contentHeight(), cellH, spacingY)
   local previewRows = rowspanForHeight(self.preview:preferredHeight(), cellH, spacingY)
   local totalRows = hexRows + previewRows + FOOTER_ROWS
 
@@ -181,6 +194,7 @@ function Dialog.new()
     defaultCellStyle = "ninja",
     selectionAnts = true,
     selectionAntsOnHover = true,
+    scrollOnSelect = false,
     onSelect = function(addr, selectOpts)
       selectOpts = selectOpts or {}
       self:_onGridSelect(addr, {
@@ -341,6 +355,9 @@ function Dialog:show(opts)
   self._limitWarning = nil
 
   self.addButton.text = opts.primaryButtonText or "Add"
+
+  -- Add: multi-select up to MAX; Edit: single selection (toggle off allowed).
+  self.hexGrid.maxSelectedStarts = self.isEdit and 1 or RomHexGrid.MAX_SELECTED_STARTS
 
   local romRaw = type(opts.romRaw) == "string" and opts.romRaw or ""
   self.hexGrid:setRomRaw(romRaw)

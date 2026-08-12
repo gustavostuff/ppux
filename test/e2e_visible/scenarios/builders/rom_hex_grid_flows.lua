@@ -100,12 +100,17 @@ local function buildRomPaletteHexGridFlowScenario(harness, app, runner)
     return invalid
   end), { moveDuration = 0.08, postPause = 0.15 })
 
-  steps[#steps + 1] = call("Assert invalid click rejected", function(_, currentApp, currentRunner)
+  steps[#steps + 1] = call("Assert invalid click clears selection", function(_, currentApp, currentRunner)
     local modal = assert(currentApp.romPaletteAddressModal, "expected modal")
     assert(modal:isVisible(), "expected modal still open after invalid click")
     assert(modal._invalidColorWarning == "Not a valid color", "expected invalid color warning")
     assert(#(modal.hexGrid:getSelectedStarts()) == 0, "expected no selection after invalid click")
+    assert(modal.setButton.enabled == false, "expected Set disabled with empty selection")
+    -- Masked address field resets to skeleton text when cleared.
+    assert(modal.textField:getText() == "0x000000", "expected address field cleared to mask skeleton")
+    assert(modal.hexGrid.selectionCrosshair == true, "expected ROM palette crosshair (label-only)")
   end)
+  steps[#steps + 1] = pause("Observe cleared selection after invalid click", 0.25)
 
   appendClick(steps, "Select first valid color on hex grid", modalHexCellCenter("romPaletteAddressModal", function(_, _, currentRunner)
     return currentRunner.paletteValidA
@@ -118,8 +123,10 @@ local function buildRomPaletteHexGridFlowScenario(harness, app, runner)
     assert(#starts == 1 and starts[1] == currentRunner.paletteValidA, "expected first valid addr selected")
     assert(modal.setButton.enabled == true, "expected Set enabled after valid selection")
     assert(modal._invalidColorWarning == nil, "expected invalid warning cleared")
+    local row, col = modal.hexGrid:_selectionCrosshairCell()
+    assert(row ~= nil and col ~= nil, "expected crosshair labels for on-page selection")
   end)
-  steps[#steps + 1] = pause("Observe first palette selection", 0.3)
+  steps[#steps + 1] = pause("Observe first palette selection + label crosshair", 0.3)
 
   appendClick(steps, "Replace selection with second valid color", modalHexCellCenter("romPaletteAddressModal", function(_, _, currentRunner)
     return currentRunner.paletteValidB
@@ -246,21 +253,35 @@ local function buildOamSpriteHexGridFlowScenario(harness, app, runner)
       resetColors = true,
       scrollToReveal = false,
     })
-    modal:_refreshAddEnabled()
+    modal:_syncPreviewFromGrid()
     layoutModal(currentApp, modal)
     assert(#(modal.hexGrid:getSelectedStarts()) == 0, "expected cleared selection before grid picks")
+    assert(modal.addButton.enabled == false, "expected Add disabled with empty selection")
+    assert(modal.hexGrid.scrollOnSelect == false, "expected OAM clicks not to auto-scroll")
+    assert(modal.hexGrid.maxSelectedStarts == RomHexGrid.MAX_SELECTED_STARTS,
+      "expected Add-mode multi-select cap")
   end)
   steps[#steps + 1] = pause("Observe add-sprite hex grid", 0.4)
+
+  steps[#steps + 1] = call("Park scroll before multi-select clicks", function(_, currentApp, currentRunner)
+    local modal = assert(currentApp.ppuFrameAddSpriteModal, "expected modal")
+    -- Keep A/B on the same page so select/deselect must not scroll.
+    modal.hexGrid:scrollToReveal(currentRunner.oamAddrA)
+    currentRunner.oamScrollBefore = modal.hexGrid.scrollOffset
+    layoutModal(currentApp, modal)
+  end)
 
   appendClick(steps, "Select first OAM group", modalHexCellCenter("ppuFrameAddSpriteModal", function(_, _, currentRunner)
     return currentRunner.oamAddrA
   end), { moveDuration = 0.08, postPause = 0.15 })
-  steps[#steps + 1] = call("Assert first OAM group selected", function(_, currentApp, currentRunner)
+  steps[#steps + 1] = call("Assert first OAM group selected without scroll", function(_, currentApp, currentRunner)
     local modal = assert(currentApp.ppuFrameAddSpriteModal, "expected modal")
     local starts = modal.hexGrid:getSelectedStarts()
     assert(#starts == 1 and starts[1] == currentRunner.oamAddrA, "expected first OAM start selected")
     assert(modal.hexGrid:getSelectedGroupSize(currentRunner.oamAddrA) == 4, "expected 4-byte span")
     assert(modal.addButton.enabled == true, "expected Add enabled")
+    assert(modal.hexGrid.scrollOffset == currentRunner.oamScrollBefore,
+      "expected no auto-scroll on OAM select")
   end)
 
   appendClick(steps, "Add second non-overlapping OAM group", modalHexCellCenter("ppuFrameAddSpriteModal", function(_, _, currentRunner)
@@ -272,15 +293,20 @@ local function buildOamSpriteHexGridFlowScenario(harness, app, runner)
     assert(#starts == 2, "expected two OAM groups selected")
     local set = { [starts[1]] = true, [starts[2]] = true }
     assert(set[currentRunner.oamAddrA] and set[currentRunner.oamAddrB], "expected A and B selected")
+    assert(modal.hexGrid.scrollOffset == currentRunner.oamScrollBefore,
+      "expected no auto-scroll on second OAM select")
   end)
 
   appendClick(steps, "Toggle off first OAM group by re-click", modalHexCellCenter("ppuFrameAddSpriteModal", function(_, _, currentRunner)
     return currentRunner.oamAddrA
   end), { moveDuration = 0.08, postPause = 0.15 })
-  steps[#steps + 1] = call("Assert first group toggled off", function(_, currentApp, currentRunner)
+  steps[#steps + 1] = call("Assert first group toggled off without scroll", function(_, currentApp, currentRunner)
     local modal = assert(currentApp.ppuFrameAddSpriteModal, "expected modal")
     local starts = modal.hexGrid:getSelectedStarts()
     assert(#starts == 1 and starts[1] == currentRunner.oamAddrB, "expected only B remaining")
+    assert(modal.addButton.enabled == true, "expected Add still enabled with B selected")
+    assert(modal.hexGrid.scrollOffset == currentRunner.oamScrollBefore,
+      "expected no auto-scroll on OAM deselect")
   end)
 
   appendClick(steps, "Re-add first group then click overlapping conflict", modalHexCellCenter("ppuFrameAddSpriteModal", function(_, _, currentRunner)
@@ -393,17 +419,25 @@ local function buildNametableHexGridFlowScenario(harness, app, runner)
     layoutModal(currentApp, modal)
     assert(modal.hexGrid.replaceSelect == true, "expected replaceSelect for nametable picking")
     assert(#(modal.hexGrid:getSelectedStarts()) == 0, "expected no committed range yet")
+    assert(#(modal.hexGrid:getSemiSelectedStarts()) == 0, "expected no mid-range preview yet")
   end)
-  steps[#steps + 1] = pause("Observe empty range modal", 0.35)
+  steps[#steps + 1] = pause("Observe empty range modal + NT preview label", 0.35)
 
   appendClick(steps, "Anchor range start", modalHexCellCenter("ppuFrameRangeModal", function(_, _, currentRunner)
     return currentRunner.ppuFixtureRangeStart
   end), { moveDuration = 0.08, postPause = 0.12 })
-  steps[#steps + 1] = call("Assert provisional anchor", function(_, currentApp, currentRunner)
+  steps[#steps + 1] = call("Assert provisional red semi preview (not Selected yet)", function(_, currentApp, currentRunner)
     local modal = assert(currentApp.ppuFrameRangeModal, "expected modal")
-    assert(modal._rangeAnchor == currentRunner.ppuFixtureRangeStart, "expected range anchor")
+    local anchor = currentRunner.ppuFixtureRangeStart
+    assert(modal._rangeAnchor == anchor, "expected range anchor")
     assert(modal._rangeStart == nil, "expected not committed yet")
+    assert(#(modal.hexGrid:getSelectedStarts()) == 0, "expected mid-range to stay unselected")
+    local semis = modal.hexGrid:getSemiSelectedStarts()
+    assert(#semis == 1 and semis[1] == anchor, "expected red semi preview at anchor")
+    assert(modal.hexGrid:getSemiGroupSize(anchor) == 1, "expected single-cell semi until hover/end")
+    assert(type(modal.hexGrid.uniformSemiColor) == "table", "expected uniform red semi color")
   end)
+  steps[#steps + 1] = pause("Observe mid-range semi preview", 0.3)
 
   appendClick(steps, "Commit range end", modalHexCellCenter("ppuFrameRangeModal", function(_, _, currentRunner)
     return currentRunner.ppuFixtureRangeEnd
@@ -415,6 +449,7 @@ local function buildNametableHexGridFlowScenario(harness, app, runner)
     local span = currentRunner.ppuFixtureRangeEnd - currentRunner.ppuFixtureRangeStart + 1
     assert(modal.hexGrid:getSelectedGroupSize(currentRunner.ppuFixtureRangeStart) == span,
       "expected selected span to match range")
+    assert(#(modal.hexGrid:getSemiSelectedStarts()) == 0, "expected semi preview cleared on commit")
     assert(modal.shapePreview and modal.shapePreview:isActive(),
       "expected shape preview for complete manual nametable range")
   end)
@@ -423,11 +458,13 @@ local function buildNametableHexGridFlowScenario(harness, app, runner)
   appendClick(steps, "Click inside committed range starts new anchor", modalHexCellCenter("ppuFrameRangeModal", function(_, _, currentRunner)
     return currentRunner.ppuFixtureRangeStart + 2
   end), { moveDuration = 0.06, postPause = 0.12 })
-  steps[#steps + 1] = call("Assert inside click re-anchored", function(_, currentApp, currentRunner)
+  steps[#steps + 1] = call("Assert inside click re-anchored as semi", function(_, currentApp, currentRunner)
     local modal = assert(currentApp.ppuFrameRangeModal, "expected modal")
     local expected = currentRunner.ppuFixtureRangeStart + 2
     assert(modal._rangeAnchor == expected, "expected new range anchor inside prior range")
     assert(modal._rangeStart == nil and modal._rangeEnd == nil, "expected prior commit cleared")
+    assert(#(modal.hexGrid:getSelectedStarts()) == 0, "expected re-anchor not Selected yet")
+    assert(modal.hexGrid:getSemiGroupSize(expected) == 1, "expected new semi preview at re-anchor")
   end)
 
   appendClick(steps, "Same-cell second click clears selection", modalHexCellCenter("ppuFrameRangeModal", function(_, _, currentRunner)
@@ -437,6 +474,7 @@ local function buildNametableHexGridFlowScenario(harness, app, runner)
     local modal = assert(currentApp.ppuFrameRangeModal, "expected modal")
     assert(modal._rangeAnchor == nil, "expected provisional cleared")
     assert(#(modal.hexGrid:getSelectedStarts()) == 0, "expected no selection")
+    assert(#(modal.hexGrid:getSemiSelectedStarts()) == 0, "expected mid-range semis cleared")
   end)
 
   appendClick(steps, "Enable Selection mode (one-shot scan)", modalButtonCenter("ppuFrameRangeModal", function(modal)
@@ -459,13 +497,23 @@ local function buildNametableHexGridFlowScenario(harness, app, runner)
     local hit = assert(currentRunner.scanHit, "expected scan hit")
     return math.floor(hit.start) + 4
   end), { moveDuration = 0.08, postPause = 0.2 })
-  steps[#steps + 1] = call("Assert whole scan hit selected + shape", function(_, currentApp, currentRunner)
+  steps[#steps + 1] = call("Assert whole scan hit selected + shape keeps hit color", function(_, currentApp, currentRunner)
     local modal = assert(currentApp.ppuFrameRangeModal, "expected modal")
     local hit = assert(currentRunner.scanHit, "expected scan hit")
-    assert(modal._rangeStart == math.floor(hit.start), "expected whole hit start")
+    local startAddr = math.floor(hit.start)
+    assert(modal._rangeStart == startAddr, "expected whole hit start")
     assert(modal._rangeEnd == math.floor(hit["end"]), "expected whole hit end")
     assert(modal.shapePreview and modal.shapePreview:isActive(),
       "expected nametable shape preview for scanned range")
+    -- Selected fill must keep the scan stream tint (not forced red).
+    local selectedFill = modal.hexGrid:_selectedFillColorForStart(startAddr)
+    local scanTint = modal.hexGrid:highlightColorForStart(startAddr)
+    assert(selectedFill[1] == scanTint[1]
+      and selectedFill[2] == scanTint[2]
+      and selectedFill[3] == scanTint[3],
+      "expected Selected scan range to keep hit highlight color")
+    local user = modal.hexGrid:getUserSelectedStarts()
+    assert(#user == 1 and user[1] == startAddr + 4, "expected clicked cell user-selected")
   end)
 
   appendClick(steps, "Click outside scan hits (no-op)", modalHexCellCenter("ppuFrameRangeModal", function()

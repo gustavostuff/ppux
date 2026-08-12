@@ -20,15 +20,15 @@ describe("e2e - RomHexGrid modal flows", function()
     end
   end
 
-  it("ROM palette address modal: invalid reject, select, replace, scroll semis, Set/Cancel", function()
+  it("ROM palette: invalid clears selection, label crosshair, select/replace, scroll semis, Set/Cancel", function()
     runScenario("rom_palette_hex_grid_flow")
   end)
 
-  it("OAM add-sprite modal: multi-select, toggle, overlap conflict, cap, Add", function()
+  it("OAM add-sprite: multi-select, no auto-scroll, toggle, overlap, cap, Add disabled when empty", function()
     runScenario("oam_sprite_hex_grid_flow")
   end)
 
-  it("Nametable range modal: manual two-click, Selection mode scan-only, Set", function()
+  it("Nametable range: mid-range red semi, commit Selected, Selection mode keeps hit color, Set", function()
     runScenario("nametable_hex_grid_flow")
   end)
 end)

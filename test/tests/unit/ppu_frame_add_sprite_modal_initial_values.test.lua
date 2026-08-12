@@ -1,5 +1,6 @@
 local AppCoreController = require("controllers.app.core_controller")
 local Dialog = require("ui.modals.ppu_frame_add_sprite_modal")
+local RomHexGrid = require("ui.rom_hex_grid")
 
 local function validSpriteLayer(extra)
   local layer = {
@@ -197,6 +198,40 @@ describe("Add sprite modal default selection and disabled layer scope", function
     expect(modal.oamStartField:getText()).toBe("0x0002A0")
     -- Editing sprite's start is excluded from disabled so the group is selectable.
     expect(modal.hexGrid:getOccupiedStarts()).toEqual({ 0x2A4 })
+    expect(modal.hexGrid.maxSelectedStarts).toBe(1)
+    expect(modal.addButton.enabled).toBe(true)
+    -- Toggle off the only selection → Save disabled.
+    modal.hexGrid:setPosition(0, 0)
+    modal.hexGrid:scrollToReveal(0x2A0)
+    local cols = modal.hexGrid:getCols()
+    local rel = 0x2A0 - (modal.hexGrid.scrollOffset or 0)
+    local col = rel % cols
+    local row = math.floor(rel / cols)
+    local hx = 2 + 38 + col * 15 + 2
+    local hy = 2 + 12 + row * 11 + 2
+    modal.hexGrid:mousepressed(hx, hy, 1)
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({})
+    expect(modal.addButton.enabled).toBe(false)
+    modal:hide()
+  end)
+
+  it("Add mode allows multi-select and disables Add with an empty selection", function()
+    local modal = Dialog.new()
+    modal:show({
+      romRaw = string.rep("\0", 256),
+      spriteLayer = validSpriteLayer({ items = {} }),
+      tilesPool = { [1] = {} },
+    })
+    expect(modal.hexGrid.maxSelectedStarts).toBe(RomHexGrid.MAX_SELECTED_STARTS)
+    expect(modal.addButton.enabled).toBe(true)
+    modal.hexGrid:_setStarts({}, 0, {
+      emit = false,
+      allowEmpty = true,
+      resetColors = true,
+      scrollToReveal = false,
+    })
+    modal:_syncPreviewFromGrid()
+    expect(modal.addButton.enabled).toBe(false)
     modal:hide()
   end)
 end)
