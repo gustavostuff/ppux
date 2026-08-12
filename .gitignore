@@ -2,9 +2,6 @@ base-love2d-images/
 build/
 docs/
 misc/
-todos.lua
-README_old.md
-detailed_manual_test_guide.md
 native/ppux_sketch/libppux_sketch.so
 native/ppux_sketch/libppux_sketch.dylib
 native/ppux_sketch/ppux_sketch.dll
