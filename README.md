@@ -68,16 +68,16 @@ You'll also notice these little "badges" on windows:
 
 When colored, they indicate the window has a link to another one. In order they are:
 
-1. Background/nametable pattern table (red)
-2. Sprite-layer pattern table (green)
+1. Background pattern table (red)
+2. Sprite pattern table (green)
 3. ROM palette (blue)
 4. Pattern table linked to both BG and sprite layers (brown)
 
-**Source** windows (ROM palette, Pattern table) show badges on the **right**; destinations stay on the **left**. Pattern table always shows its source badge so you can start a link before anything is connected.
+**Source** windows (ROM palette, Pattern table) show badges on the **right** side. Destinations stay on the **left**.
 
 - **Left-click** a colored badge to bring the linked window(s) forward and focus them.
-- **Right-click** a badge for the Link / Unlink / Jump menu for that slot.
-- **Left-drag** from a badge (empty or linked) onto a compatible badge - or onto a window body when only one slot fits - to create or retarget a link. The preview line is green on a legal drop and red otherwise; the pointer shows the unavailable cursor over illegal targets. Release on empty space to cancel.
+- **Right-click** a badge for the Link/Unlink/Jump menu for that slot.
+- **Left-drag** from a badge (empty or linked) onto another window's compatible badge.
 
 ### Toolbars
 
@@ -141,9 +141,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 <tr>
 <td>
 
-<a id="static-art-tiles-and-sprites-toolbar"></a>**Static Art (tiles and sprites) toolbar**
-
-<img src="img/readme_images/toolbars/2x/static_tiles_toolbar.png" alt="Static Art tiles/sprites specialized toolbar">
+**Static Art (tiles and sprites) toolbar**
 
 No specialized toolbar buttons - palette links use the left-edge [badge](#windows-system) (drag / right-click menu).
 
