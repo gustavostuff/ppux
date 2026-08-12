@@ -326,6 +326,21 @@ describe("RomHexGrid", function()
     expect(grid:addrAtPixel(x, y)).toBe(0x200)
   end)
 
+  it("cursorNameAt returns unavailable over disabled and hand over ninja cells", function()
+    local grid = RomHexGrid.new({
+      cols = 16,
+      groupSize = 4,
+      defaultCellStyle = "ninja",
+    })
+    grid:setRomRaw(makeRom(256))
+    grid:setPosition(0, 0)
+    grid:setDisabledStarts({ 0x10 })
+    local hx, hy = cellPixel(0, 1) -- 0x10
+    expect(grid:cursorNameAt(hx, hy)).toBe("unavailable")
+    local fx, fy = cellPixel(4, 1) -- 0x14 free
+    expect(grid:cursorNameAt(fx, fy)).toBe("hand")
+  end)
+
   it("setSelectedAddr does not scroll when the start is already on the page", function()
     local grid = RomHexGrid.new({ cols = 16, groupSize = 1, maxSelectedStarts = 1 })
     grid:setRomRaw(makeRom(0x400))

@@ -9,6 +9,7 @@ local ResolutionController = require("controllers.app.resolution_controller")
 local NametableStreamScanner = require("utils.nametable_stream_scanner")
 local NametableShapePreview = require("ui.nametable_shape_preview")
 local NametableUtils = require("utils.nametable_utils")
+local colors = require("app_colors")
 
 -- Set nametable address range: ROM hex grid + Start/End + Set/Cancel.
 -- Selection mode OFF (default): two-click manual range (start, then end;
@@ -219,8 +220,12 @@ function Dialog.new()
     groupSize = 1,
     maxSelectedStarts = 1,
     replaceSelect = true,
-    selectionAnts = true,
-    selectionCrosshair = true,
+    defaultCellStyle = "ninja",
+    -- Single user range → always red Selected fill.
+    selectedColorForAddr = function()
+      local c = colors.red
+      return { c[1], c[2] or 0, c[3] or 0, 1 }
+    end,
     onSelect = function(addr, selectOpts)
       selectOpts = selectOpts or {}
       self:_onGridSelect(addr, {
@@ -312,6 +317,36 @@ function Dialog:_applyRangeSelection(startAddr, endAddr, opts)
   self.hexGrid:setSelectedGroupSizes({ [startAddr] = span })
 end
 
+function Dialog:_syncManualMinimap()
+  if self:isSelectionMode() then
+    return
+  end
+  local rs, re = self._rangeStart, self._rangeEnd
+  if type(rs) == "number" and type(re) == "number" and re >= rs then
+    self.hexGrid:setMinimapMarkers({
+      {
+        offset = rs,
+        color = "red",
+        groupCount = 1,
+        groupSize = re - rs + 1,
+      },
+    })
+  else
+    self.hexGrid:setMinimapMarkers({})
+  end
+end
+
+function Dialog:_setUserSelectedCell(addr)
+  if type(addr) ~= "number" then
+    self.hexGrid:setUserSelectedStarts({})
+    return
+  end
+  addr = math.floor(addr)
+  self.hexGrid:setUserSelectedStarts({ addr }, {
+    groupSizeByStart = { [addr] = 1 },
+  })
+end
+
 function Dialog:_syncFieldsFromRange(startAddr, endAddr)
   self._syncingFromGrid = true
   self.startField:setText(self:_formatAddr(startAddr))
@@ -381,12 +416,14 @@ function Dialog:_clearRangeSelection()
   self._rangeEnd = nil
   self.hexGrid.groupSize = 1
   self.hexGrid:setSelectedGroupSizes({})
+  self.hexGrid:setUserSelectedStarts({})
   self.hexGrid:_setStarts({}, 0, {
     emit = false,
     allowEmpty = true,
     resetColors = false,
     scrollToReveal = false,
   })
+  self:_syncManualMinimap()
   self._syncingFromGrid = true
   self.startField:setText("")
   self.endField:setText("")
@@ -396,7 +433,8 @@ function Dialog:_clearRangeSelection()
   end
 end
 
-function Dialog:_commitRange(startAddr, endAddr)
+function Dialog:_commitRange(startAddr, endAddr, opts)
+  opts = opts or {}
   if endAddr < startAddr then
     startAddr, endAddr = endAddr, startAddr
   end
@@ -405,6 +443,12 @@ function Dialog:_commitRange(startAddr, endAddr)
   self._rangeEnd = endAddr
   self:_applyRangeSelection(startAddr, endAddr)
   self:_syncFieldsFromRange(startAddr, endAddr)
+  if opts.userSelectedAddr ~= nil then
+    self:_setUserSelectedCell(opts.userSelectedAddr)
+  else
+    self.hexGrid:setUserSelectedStarts({})
+  end
+  self:_syncManualMinimap()
   self:_refreshShapePreview(startAddr, endAddr)
 end
 
@@ -417,6 +461,7 @@ function Dialog:_restoreCurrentSelectionVisual()
   end
   self.hexGrid.groupSize = 1
   self.hexGrid:setSelectedGroupSizes({})
+  self.hexGrid:setUserSelectedStarts({})
   self.hexGrid:_setStarts({}, 0, {
     emit = false,
     allowEmpty = true,
@@ -428,7 +473,7 @@ end
 function Dialog:_onGridSelect(addr, _opts)
   addr = math.floor(tonumber(addr) or 0)
 
-  -- Selection mode: only whole scanned streams.
+  -- Selection mode: only whole scanned streams; clicked cell → User-selected.
   if self:isSelectionMode() then
     local hit = NametableStreamScanner.hitAt(self.scanHits, addr)
     if not hit then
@@ -437,13 +482,12 @@ function Dialog:_onGridSelect(addr, _opts)
     end
     local s = math.floor(tonumber(hit.start) or addr)
     local e = math.floor(tonumber(hit["end"]) or addr)
-    self:_commitRange(s, e)
+    self:_commitRange(s, e, { userSelectedAddr = addr })
     return
   end
 
   -- Manual two-click: first click anchors start; second sets end.
-  -- Same cell as the anchor clears. Any other click (including inside a
-  -- committed range) starts a new range.
+  -- Same cell as the anchor clears. Any other click starts a new pick.
   local anchor = self._rangeAnchor
   if type(anchor) == "number" then
     if addr == anchor then
@@ -457,8 +501,10 @@ function Dialog:_onGridSelect(addr, _opts)
   self._rangeAnchor = addr
   self._rangeStart = nil
   self._rangeEnd = nil
+  self.hexGrid:setUserSelectedStarts({})
   self:_applyRangeSelection(addr, addr)
   self:_syncFieldsFromRange(addr, addr)
+  self:_syncManualMinimap()
   self:_refreshShapePreview(addr, addr)
 end
 
@@ -534,8 +580,39 @@ function Dialog:_onSelectionModeChanged(enabled)
     self:_ensureScanComputed()
   else
     clearScanMarks(self.hexGrid)
+    self.hexGrid:setUserSelectedStarts({})
+    self:_syncManualMinimap()
     self:_setStatus(nil)
   end
+end
+
+function Dialog:cursorNameAt(mx, my)
+  if not self.visible then
+    return nil
+  end
+  if self.panel and type(self.panel.getButtonAt) == "function" and self.panel:getButtonAt(mx, my) then
+    return "hand"
+  end
+  if self.selectionModeCheckbox and self.selectionModeCheckbox.contains
+      and self.selectionModeCheckbox:contains(mx, my) then
+    return "hand"
+  end
+  if not self:isSelectionMode() then
+    if self.startField and self.startField.contains and self.startField:contains(mx, my) then
+      return "hand"
+    end
+    if self.endField and self.endField.contains and self.endField:contains(mx, my) then
+      return "hand"
+    end
+  end
+  local grid = self.hexGrid
+  if grid and type(grid.cursorNameAt) == "function" then
+    local name = grid:cursorNameAt(mx, my)
+    if type(name) == "string" then
+      return name
+    end
+  end
+  return "arrow"
 end
 
 --- Test / legacy hook: force a scan and enable marks (Selection mode ON).

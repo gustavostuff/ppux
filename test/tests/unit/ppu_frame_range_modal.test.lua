@@ -114,11 +114,12 @@ describe("ppu_frame_range_modal.lua", function()
     expect(#semi).toBeGreaterThan(0)
     expect(modal.hexGrid:getSemiGroupSize(pad)).toBe(streamLen)
 
-    -- Mid-stream click selects the whole hit.
+    -- Mid-stream click selects the whole hit + marks clicked cell user-selected.
     modal:_onGridSelect(pad + 4, { fromGrid = true })
     expect(modal._rangeStart).toBe(pad)
     expect(modal._rangeEnd).toBe(pad + streamLen - 1)
     expect(modal.hexGrid:getSelectedGroupSize(pad)).toBe(streamLen)
+    expect(modal.hexGrid:getUserSelectedStarts()).toEqual({ pad + 4 })
     expect(modal.shapePreview:isActive()).toBe(true)
     expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(#semi)
 

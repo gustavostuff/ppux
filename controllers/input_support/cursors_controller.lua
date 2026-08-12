@@ -629,6 +629,20 @@ local function resolveTargetCursorName(app, mode)
           return name
         end
       end
+      if app.ppuFrameAddSpriteModal == topModal
+          and type(app.ppuFrameAddSpriteModal.cursorNameAt) == "function" then
+        local name = app.ppuFrameAddSpriteModal:cursorNameAt(mx, my)
+        if type(name) == "string" then
+          return name
+        end
+      end
+      if app.ppuFrameRangeModal == topModal
+          and type(app.ppuFrameRangeModal.cursorNameAt) == "function" then
+        local name = app.ppuFrameRangeModal:cursorNameAt(mx, my)
+        if type(name) == "string" then
+          return name
+        end
+      end
       if app.settingsModal == topModal then
         if type(app.settingsModal.isHoveringDisabledAppearancePickerAt) == "function"
             and app.settingsModal:isHoveringDisabledAppearancePickerAt(mx, my) then

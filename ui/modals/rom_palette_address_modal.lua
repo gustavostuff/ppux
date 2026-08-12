@@ -389,16 +389,16 @@ function Dialog.new()
     cols = 16,
     groupSize = 1,
     maxSelectedStarts = 1,
+    defaultCellStyle = "ninja",
     selectionAnts = true,
-    -- Bound palette addresses: white marching ants at half opacity.
-    boundMarkerAnts = true,
-    boundMarkerAntsAlpha = 0.5,
+    boundAsSelected = true,
     selectionCrosshair = true,
+    -- Bound palette addresses: Selected fills via minimap markers (boundAsSelected).
     semiColorForAddr = function(addr)
       return self:_nesFillColorForAddr(addr, 1)
     end,
     selectedColorForAddr = function(addr)
-      return self:_nesFillColorForAddr(addr, 0.9)
+      return self:_nesFillColorForAddr(addr, 1)
     end,
     canSelectAddr = function(addr)
       return self:_isValidColorAddr(addr)
@@ -631,7 +631,7 @@ function Dialog:_syncFromAddressField()
   self:_refreshSetEnabled()
 end
 
---- Cursor over this modal: hand on buttons / valid color cells / scrollbar; arrow otherwise.
+--- Cursor over this modal: hand on interactive cells; unavailable on none (ninja invalid uses hand).
 function Dialog:cursorNameAt(mx, my)
   if not self.visible then
     return nil
@@ -643,15 +643,11 @@ function Dialog:cursorNameAt(mx, my)
     return "hand"
   end
   local grid = self.hexGrid
-  if grid and grid.contains and grid:contains(mx, my) then
-    if grid.maxScroll and grid:maxScroll() > 0 and grid._scrollbarHitTest and grid:_scrollbarHitTest(mx, my) then
-      return "hand"
+  if grid and type(grid.cursorNameAt) == "function" then
+    local name = grid:cursorNameAt(mx, my)
+    if type(name) == "string" then
+      return name
     end
-    local addr = grid:addrAtPixel(mx, my)
-    if addr ~= nil and self:_isValidColorAddr(addr) then
-      return "hand"
-    end
-    return "arrow"
   end
   return "arrow"
 end

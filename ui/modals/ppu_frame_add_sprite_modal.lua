@@ -178,6 +178,9 @@ function Dialog.new()
   self.hexGrid = RomHexGrid.new({
     groupSize = 4,
     maxSelectedStarts = RomHexGrid.MAX_SELECTED_STARTS,
+    defaultCellStyle = "ninja",
+    selectionAnts = true,
+    selectionAntsOnHover = true,
     onSelect = function(addr, selectOpts)
       selectOpts = selectOpts or {}
       self:_onGridSelect(addr, {
@@ -222,6 +225,26 @@ end
 
 function Dialog:isVisible()
   return self.visible
+end
+
+function Dialog:cursorNameAt(mx, my)
+  if not self.visible then
+    return nil
+  end
+  if self.panel and type(self.panel.getButtonAt) == "function" and self.panel:getButtonAt(mx, my) then
+    return "hand"
+  end
+  if self.oamStartField and self.oamStartField.contains and self.oamStartField:contains(mx, my) then
+    return "hand"
+  end
+  local grid = self.hexGrid
+  if grid and type(grid.cursorNameAt) == "function" then
+    local name = grid:cursorNameAt(mx, my)
+    if type(name) == "string" then
+      return name
+    end
+  end
+  return "arrow"
 end
 
 function Dialog:_focusOamField()

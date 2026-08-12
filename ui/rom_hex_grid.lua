@@ -1,9 +1,8 @@
 -- FCEUX-style read-only ROM hex grid: N columns x 8 rows (default 16), absolute offset
 -- gutter, column headers. Wheel scrolls 8 rows (Shift+wheel: 64 rows / 1KB).
 -- Selection is groups of `groupSize` bytes from each selected start address.
--- Click toggles a group Selected; click again restores Semi-selected or Normal.
--- Disabled groups are non-interactive. Optional scrollbar minimap markers
--- ({ offset, color, groupCount=N, groupSize=M }; span = N*M bytes, overlaps OK).
+-- Cell paint states (docs/hex_grid_refinement.txt): normal / selectable / ninja /
+-- semi-selected (outline) / selected (rounded fill) / user-selected (ants) / disabled.
 -- Dual scroll tracks: full-ROM overview (click/drag) + informative zoom (1px per hex row).
 
 local colors = require("app_colors")
@@ -199,16 +198,25 @@ function M.new(opts)
     -- When true, clicks always select the cell under the cursor (no toggle-off).
     -- Used by nametable range two-click start/end picking.
     replaceSelect = opts.replaceSelect == true,
+    -- Unmarked cells: "normal" | "selectable" | "ninja" (see docs/hex_grid_refinement.txt).
+    defaultCellStyle = opts.defaultCellStyle or "normal",
     -- When set, all semi-selected outlines share this RGBA instead of cycling.
     uniformSemiColor = opts.uniformSemiColor,
-    -- Optional: function(addr) -> {r,g,b,a} for per-address semi fill colors.
+    -- Optional: function(addr) -> {r,g,b,a} for per-address semi outline/text colors.
     semiColorForAddr = opts.semiColorForAddr,
     -- Optional: function(addr) -> {r,g,b,a} for selected fills (else highlight cycle).
     selectedColorForAddr = opts.selectedColorForAddr,
-    -- When true, draw marching-ants borders on selected groups (ROM palette modal).
+    -- When true, draw marching-ants on selected groups (see selectionAntsOnHover).
     selectionAnts = opts.selectionAnts == true,
-    -- When true, draw marching ants on minimap-marker offsets in the byte grid
-    -- (ROM palette: bound addresses).
+    -- When true with selectionAnts, ants only while the pointer is over that group (OAM).
+    selectionAntsOnHover = opts.selectionAntsOnHover == true,
+    -- Explicit user-selected starts (ants); used by nametable scan click-cell.
+    userSelectedStarts = {},
+    _userSelectedSet = {},
+    _userSelectedGroupSizeByStart = {},
+    -- Draw minimap-marker spans as Selected fills (ROM palette bound addresses).
+    boundAsSelected = opts.boundAsSelected == true,
+    -- Legacy: ants on minimap markers (prefer boundAsSelected). Kept off by default.
     boundMarkerAnts = opts.boundMarkerAnts == true,
     boundMarkerAntsAlpha = tonumber(opts.boundMarkerAntsAlpha) or 0.5,
     -- When true, tint the selected address's row + column (ROM palette modal).
@@ -344,6 +352,30 @@ function M:getSelectedGroupSize(startAddr)
     return math.floor(mapped)
   end
   return self:getGroupSize()
+end
+
+--- Explicit User-selected starts (marching ants). Typically single-byte click cells.
+function M:setUserSelectedStarts(starts, opts)
+  opts = opts or {}
+  local list, set = normalizeStartList(starts)
+  self.userSelectedStarts = list
+  self._userSelectedSet = set
+  local sizeMap = {}
+  local rawSizes = opts.groupSizeByStart
+  if type(rawSizes) == "table" then
+    for addr, size in pairs(rawSizes) do
+      local a = math.floor(tonumber(addr) or -1)
+      local s = math.floor(tonumber(size) or 0)
+      if a >= 0 and s >= 1 then
+        sizeMap[a] = s
+      end
+    end
+  end
+  self._userSelectedGroupSizeByStart = sizeMap
+end
+
+function M:getUserSelectedStarts()
+  return copyStarts(self.userSelectedStarts)
 end
 
 --- Cycle key for minimap / UI: red, green, blue, yellow, brown (1-based index).
@@ -1519,6 +1551,13 @@ end
 function M:_drawGroupHighlights(gridX, gridY, starts, colorForStart, mode, opts)
   mode = mode or "fill"
   opts = opts or {}
+  local cornerRadius = opts.cornerRadius
+  if cornerRadius == nil then
+    cornerRadius = (mode == "line") and 0 or HIGHLIGHT_RADIUS
+  end
+  -- Love2D line rects paint thicker/outside the fill box; inset by 1px (docs/hex_grid_refinement).
+  local lineInset = (mode == "line") and (opts.lineInset ~= false)
+
   for _, start in ipairs(starts or {}) do
     local c
     if type(colorForStart) == "function" then
@@ -1532,9 +1571,24 @@ function M:_drawGroupHighlights(gridX, gridY, starts, colorForStart, mode, opts)
     love.graphics.setColor(c[1], c[2], c[3], c[4] or 0.9)
     self:_forEachGroupRun(gridX, gridY, { start }, function(x, y, w, h)
       if mode == "line" then
-        love.graphics.rectangle("line", x, y, w, h, HIGHLIGHT_RADIUS, HIGHLIGHT_RADIUS)
+        local lx, ly, lw, lh = x, y, w, h
+        if lineInset then
+          lx = x + 1
+          ly = y + 1
+          lw = math.max(1, w - 2)
+          lh = math.max(1, h - 1)
+        end
+        if cornerRadius and cornerRadius > 0 then
+          love.graphics.rectangle("line", lx, ly, lw, lh, cornerRadius, cornerRadius)
+        else
+          love.graphics.rectangle("line", lx, ly, lw, lh)
+        end
       else
-        love.graphics.rectangle("fill", x, y, w, h, HIGHLIGHT_RADIUS, HIGHLIGHT_RADIUS)
+        if cornerRadius and cornerRadius > 0 then
+          love.graphics.rectangle("fill", x, y, w, h, cornerRadius, cornerRadius)
+        else
+          love.graphics.rectangle("fill", x, y, w, h)
+        end
       end
     end, opts)
   end
@@ -1582,8 +1636,7 @@ function M:_drawSelectionAnts(gridX, gridY, starts, opts)
   end
 end
 
---- Ants on minimap-marker bytes (bound ROM palette addresses); white at half opacity.
---- Uses each marker's own groupCount×groupSize span (not the grid groupSize).
+--- Ants on minimap-marker bytes (legacy). Prefer boundAsSelected fills.
 function M:_drawBoundMarkerAnts(gridX, gridY)
   local markers = self.minimapMarkers or {}
   if #markers == 0 then
@@ -1602,13 +1655,140 @@ function M:_drawBoundMarkerAnts(gridX, gridY)
     return
   end
   local alpha = tonumber(self.boundMarkerAntsAlpha) or 0.5
+  local w = colors.white
   self:_drawSelectionAnts(gridX, gridY, starts, {
     alpha = alpha,
     spanByStart = spanByStart,
     colorForStart = function()
-      return { 1, 1, 1, 1 }
+      return { w[1], w[2], w[3], 1 }
     end,
   })
+end
+
+local function rgbaMulAlpha(c, alpha)
+  if type(c) ~= "table" then
+    return { 1, 1, 1, alpha }
+  end
+  return { c[1] or 1, c[2] or 1, c[3] or 1, alpha }
+end
+
+function M:_boundMarkerStartsAndSpans()
+  local starts = {}
+  local spanByStart = {}
+  for _, m in ipairs(self.minimapMarkers or {}) do
+    local offset = m.offset
+    if type(offset) == "number" then
+      starts[#starts + 1] = offset
+      spanByStart[offset] = M.minimapMarkerByteLength(m)
+    end
+  end
+  return starts, spanByStart
+end
+
+function M:_selectedFillColorForStart(startAddr)
+  if type(self.selectedColorForAddr) == "function" then
+    local c = self.selectedColorForAddr(startAddr)
+    if type(c) == "table" then
+      return { c[1], c[2] or 0, c[3] or 0, c[4] or 1 }
+    end
+  end
+  local c = self:highlightColorForStart(startAddr)
+  return { c[1], c[2] or 0, c[3] or 0, c[4] or 1 }
+end
+
+function M:_semiColorForStart(startAddr, alpha)
+  local c
+  if type(self.semiColorForAddr) == "function" then
+    c = self.semiColorForAddr(startAddr)
+  elseif type(self.uniformSemiColor) == "table" then
+    c = self.uniformSemiColor
+  else
+    c = self:highlightColorForStart(startAddr)
+  end
+  if type(c) ~= "table" then
+    c = colors.white
+  end
+  return rgbaMulAlpha(c, alpha)
+end
+
+function M:_boundFillColorForStart(startAddr)
+  if type(self.selectedColorForAddr) == "function" then
+    local c = self.selectedColorForAddr(startAddr)
+    if type(c) == "table" then
+      return { c[1], c[2] or 0, c[3] or 0, c[4] or 1 }
+    end
+  end
+  -- Prefer marker color key when present.
+  for _, m in ipairs(self.minimapMarkers or {}) do
+    if math.floor(tonumber(m.offset) or -1) == startAddr then
+      return colorFromKey(m.color)
+    end
+  end
+  return { colors.white[1], colors.white[2], colors.white[3], 1 }
+end
+
+--- Which starts receive User-selected marching ants this frame.
+function M:_antsTargetStarts(hoverAddr)
+  local user = self.userSelectedStarts or {}
+  if #user > 0 then
+    return user, self._userSelectedGroupSizeByStart, true
+  end
+  if self.selectionAnts ~= true then
+    return {}, nil, false
+  end
+  local starts = self.selectedStarts or {}
+  local spanByStart = self._selectedGroupSizeByStart
+  if self.selectionAntsOnHover == true then
+    if hoverAddr == nil then
+      return {}, nil, false
+    end
+    local covering = startsCoveringAddr(starts, hoverAddr, self:getGroupSize(), spanByStart)
+    if #covering == 0 then
+      return {}, nil, false
+    end
+    local start = starts[covering[#covering]]
+    return { start }, spanByStart, true
+  end
+  return starts, spanByStart, true
+end
+
+--- Cursor over a byte cell: unavailable / hand / arrow.
+function M:cursorNameAt(px, py)
+  if not self:contains(px, py) then
+    return nil
+  end
+  if self:maxScroll() > 0 and self:_scrollbarHitTest(px, py) then
+    return "hand"
+  end
+  local addr = self:addrAtPixel(px, py)
+  if addr == nil then
+    return "arrow"
+  end
+  if self:addrInDisabledSpan(addr) then
+    return "unavailable"
+  end
+  local style = self.defaultCellStyle or "normal"
+  if type(self.canSelectAddr) == "function" and not self.canSelectAddr(addr) then
+    -- Invalid / non-selectable still ninja-like: hand per refinement doc.
+    return "hand"
+  end
+  if self:addrInOccupiedSpan(addr) then
+    return "unavailable"
+  end
+  -- Semi / selected / selectable / ninja are interactive.
+  local semi = self.semiSelectedStarts or {}
+  local starts = self.selectedStarts or {}
+  local span = self:getGroupSize()
+  if #startsCoveringAddr(starts, addr, span, self._selectedGroupSizeByStart) > 0 then
+    return "hand"
+  end
+  if #startsCoveringAddr(semi, addr, span, self._semiGroupSizeByStart) > 0 then
+    return "hand"
+  end
+  if style == "ninja" or style == "selectable" then
+    return "hand"
+  end
+  return "arrow"
 end
 
 function M:draw()
@@ -1623,13 +1803,12 @@ function M:draw()
   local gridX = x0 + GUTTER_W
   local gridY = y0 + HEADER_H
 
-  love.graphics.setColor(colors.black[1], colors.black[2], colors.black[3], 0.55)
+  love.graphics.setColor(colors.black[1], colors.black[2], colors.black[3], 1)
   love.graphics.rectangle("fill", self.x, self.y, self.w, self.h)
 
   local crossRow, crossCol = nil, nil
   if self.selectionCrosshair == true then
     crossRow, crossCol = self:_selectionCrosshairCell()
-    -- Crosshair sits on the BG, under fills / ants / text.
     self:_drawSelectionCrosshair(gridX, gridY, x0, y0)
   end
 
@@ -1654,46 +1833,77 @@ function M:draw()
   local span = self:getGroupSize()
   local semiSpanByStart = self._semiGroupSizeByStart
   local selectedSpanByStart = self._selectedGroupSizeByStart
-  -- Semi fill under selection fill; disabled gray on top.
-  local semiColorFn = nil
-  if type(self.semiColorForAddr) == "function" then
-    semiColorFn = self.semiColorForAddr
-  elseif type(self.uniformSemiColor) == "table" then
-    local c = self.uniformSemiColor
-    semiColorFn = function()
-      return c
-    end
-  end
-  local selectedColorFn = nil
-  if type(self.selectedColorForAddr) == "function" then
-    selectedColorFn = self.selectedColorForAddr
-  end
-  self:_drawGroupHighlights(gridX, gridY, semi, semiColorFn, "fill", {
-    spanByStart = semiSpanByStart,
-  })
-  self:_drawGroupHighlights(gridX, gridY, starts, selectedColorFn, "fill", {
-    spanByStart = selectedSpanByStart,
-  })
-  if self.boundMarkerAnts == true then
-    self:_drawBoundMarkerAnts(gridX, gridY)
-  end
-  if self.selectionAnts == true then
-    self:_drawSelectionAnts(gridX, gridY, starts, {
-      spanByStart = selectedSpanByStart,
-    })
-  end
-  self:_drawGroupHighlights(gridX, gridY, disabled, function()
-    return disabledHighlightColor()
-  end, "fill")
 
   local hoverAddr = nil
   if self._hoverX ~= nil and self._hoverY ~= nil then
     hoverAddr = self:addrAtPixel(self._hoverX, self._hoverY)
   end
 
+  -- Semi-selected: outline only, no corner radius (50% → 100% on hover handled in text + outline pass).
+  local function semiColorFn(startAddr)
+    local hovered = false
+    if hoverAddr ~= nil then
+      local covering = startsCoveringAddr(semi, hoverAddr, span, semiSpanByStart)
+      if #covering > 0 and semi[covering[#covering]] == startAddr then
+        hovered = true
+      end
+    end
+    return self:_semiColorForStart(startAddr, hovered and 1 or 0.5)
+  end
+  self:_drawGroupHighlights(gridX, gridY, semi, semiColorFn, "line", {
+    spanByStart = semiSpanByStart,
+    cornerRadius = 0,
+  })
+
+  -- Bound addresses as Selected fills (under live selection).
+  if self.boundAsSelected == true then
+    local boundStarts, boundSpans = self:_boundMarkerStartsAndSpans()
+    self:_drawGroupHighlights(gridX, gridY, boundStarts, function(startAddr)
+      return self:_boundFillColorForStart(startAddr)
+    end, "fill", {
+      spanByStart = boundSpans,
+      cornerRadius = HIGHLIGHT_RADIUS,
+    })
+  end
+
+  -- Selected fills (rounded).
+  self:_drawGroupHighlights(gridX, gridY, starts, function(startAddr)
+    return self:_selectedFillColorForStart(startAddr)
+  end, "fill", {
+    spanByStart = selectedSpanByStart,
+    cornerRadius = HIGHLIGHT_RADIUS,
+  })
+
+  if self.boundMarkerAnts == true and self.boundAsSelected ~= true then
+    self:_drawBoundMarkerAnts(gridX, gridY)
+  end
+
+  -- User-selected marching ants (pure white).
+  local antsStarts, antsSpans = self:_antsTargetStarts(hoverAddr)
+  if #antsStarts > 0 then
+    local w = colors.white
+    self:_drawSelectionAnts(gridX, gridY, antsStarts, {
+      spanByStart = antsSpans,
+      colorForStart = function()
+        return { w[1], w[2], w[3], 1 }
+      end,
+    })
+  end
+
+  -- Disabled on top.
+  self:_drawGroupHighlights(gridX, gridY, disabled, function()
+    return disabledHighlightColor()
+  end, "fill", {
+    cornerRadius = HIGHLIGHT_RADIUS,
+  })
+
   local disText = disabledTextColor()
-  local useCustomSelectedText = type(self.selectedColorForAddr) == "function"
   local gutterHi = { 1, 1, 1, 1 }
+  local defaultStyle = self.defaultCellStyle or "normal"
+  local boundStarts, boundSpans = nil, nil
+  if self.boundAsSelected == true then
+    boundStarts, boundSpans = self:_boundMarkerStartsAndSpans()
+  end
 
   for row = 0, M.ROWS - 1 do
     local rowAddr = self.scrollOffset + row * cols
@@ -1710,35 +1920,51 @@ function M:draw()
       local covering = startsCoveringAddr(starts, addr, span, selectedSpanByStart)
       local coveringDis = startsCoveringAddr(disabled, addr, span)
       local coveringSemi = startsCoveringAddr(semi, addr, span, semiSpanByStart)
-      local base = colors.white
+      local coveringBound = boundStarts
+        and startsCoveringAddr(boundStarts, addr, 1, boundSpans)
+        or {}
+      local hovered = hoverAddr ~= nil and addr == hoverAddr
+
+      local textColor
       if #coveringDis > 0 then
-        base = disText
+        textColor = { disText[1], disText[2], disText[3], 1 }
       elseif #covering > 0 then
         local start = starts[covering[#covering]]
-        local fill
-        if useCustomSelectedText then
-          fill = self.selectedColorForAddr(start)
-        else
-          fill = self:highlightColorForStart(start)
-        end
-        base = inkForFill(fill)
+        local fill = self:_selectedFillColorForStart(start)
+        local ink = inkForFill(fill)
+        textColor = { ink[1], ink[2], ink[3], 1 }
+      elseif #coveringBound > 0 then
+        local start = boundStarts[coveringBound[#coveringBound]]
+        local fill = self:_boundFillColorForStart(start)
+        local ink = inkForFill(fill)
+        textColor = { ink[1], ink[2], ink[3], 1 }
       elseif #coveringSemi > 0 then
         local start = semi[coveringSemi[#coveringSemi]]
-        local fill
-        if type(self.semiColorForAddr) == "function" then
-          fill = self.semiColorForAddr(start)
-        elseif type(self.uniformSemiColor) == "table" then
-          fill = self.uniformSemiColor
-        else
-          fill = self:highlightColorForStart(start)
+        local groupHovered = false
+        if hoverAddr ~= nil then
+          local hc = startsCoveringAddr(semi, hoverAddr, span, semiSpanByStart)
+          groupHovered = #hc > 0 and semi[hc[#hc]] == start
         end
-        base = inkForFill(fill)
+        textColor = self:_semiColorForStart(start, groupHovered and 1 or 0.5)
+      else
+        local reject = type(self.canSelectAddr) == "function"
+          and addr < len
+          and not self.canSelectAddr(addr)
+        local style = reject and "ninja" or defaultStyle
+        if style == "ninja" then
+          textColor = { colors.white[1], colors.white[2], colors.white[3], 0.25 }
+        elseif style == "selectable" then
+          textColor = {
+            colors.white[1],
+            colors.white[2],
+            colors.white[3],
+            hovered and 1 or 0.5,
+          }
+        else
+          textColor = { colors.white[1], colors.white[2], colors.white[3], 1 }
+        end
       end
-      local alpha = (hoverAddr ~= nil and addr == hoverAddr) and 1 or 0.6
-      if type(self.canSelectAddr) == "function" and addr < len and not self.canSelectAddr(addr) then
-        alpha = 0.15
-      end
-      local textColor = { base[1], base[2], base[3], alpha }
+
       local byteText = "  "
       if addr < len then
         byteText = string.format("%02X", string.byte(self.romRaw, addr + 1) or 0)
