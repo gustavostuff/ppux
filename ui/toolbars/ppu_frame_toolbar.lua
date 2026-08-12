@@ -67,13 +67,6 @@ local function findPpuFirstSpriteLayerIndexForToolbar(window)
   return nil
 end
 
-local function hasConfiguredRange(window)
-  local layer = getNametableLayer(window)
-  return layer
-    and type(layer.nametableStartAddr) == "number"
-    and type(layer.nametableEndAddr) == "number"
-end
-
 local function clamp(value, minValue, maxValue)
   value = math.floor(tonumber(value) or 0)
   if value < minValue then return minValue end
@@ -541,13 +534,8 @@ function PPUFrameToolbar:updateRangeButton()
   if not self.rangeButton then return end
   self.rangeButton.icon = images.icons.actions.icon_nametable_range or self.rangeButton.icon
   self.rangeButton.enabled = true
-  if hasConfiguredRange(self.window) then
-    self.rangeButton.bgColor = nil
-    self.rangeButton.contentColor = colors.white
-  else
-    self.rangeButton.bgColor = colors.yellow
-    self.rangeButton.contentColor = colors.black
-  end
+  self.rangeButton.bgColor = nil
+  self.rangeButton.contentColor = colors.white
   self.rangeButton.tooltip = "Set start and end addresses for nametable"
 end
 
