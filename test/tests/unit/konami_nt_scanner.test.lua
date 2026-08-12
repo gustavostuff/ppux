@@ -1,8 +1,9 @@
--- nametable_stream_scanner.test.lua
--- Unit tests for utils/nametable_stream_scanner.lua
+-- konami_nt_scanner.test.lua
+-- Unit tests for scanners/konami_nt_scanner.lua
 
 local NametableUtils = require("utils.nametable_utils")
-local Scanner = require("utils.nametable_stream_scanner")
+local Scanner = require("scanners.konami_nt_scanner")
+local NtScanners = require("scanners")
 
 local function buildFullPage(seed)
   seed = seed or 0
@@ -37,7 +38,7 @@ local function plantAt(romSize, offset, bytes, fill)
   return bytesToRomString(buf)
 end
 
-describe("nametable_stream_scanner.lua", function()
+describe("konami_nt_scanner.lua", function()
   describe("isKonamiCandidateStart", function()
     it("accepts 00 20 followed by a data opcode", function()
       local rom = string.char(0x00, 0x20, 0x80, 0x01, 0xFF)
@@ -101,6 +102,9 @@ describe("nametable_stream_scanner.lua", function()
       local rom = bytesToRomString(compressed)
       local hits = Scanner.scan(rom, { codec = "zelda2" })
       expect(#hits).toBe(0)
+      expect(NtScanners.supports("konami")).toBe(true)
+      expect(NtScanners.supports("zelda2")).toBe(false)
+      expect(#(NtScanners.scan(rom, { codec = "zelda2" }))).toBe(0)
     end)
 
     it("recalls Contra DB title-screen range when planted at DB offsets", function()

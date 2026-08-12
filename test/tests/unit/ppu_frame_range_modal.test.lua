@@ -228,4 +228,28 @@ describe("ppu_frame_range_modal.lua", function()
     expect(modal.shapePreview:isActive()).toBe(true)
     modal:hide()
   end)
+
+  it("disables Selection mode for non-konami codecs with a reason tooltip", function()
+    local modal = PPUFrameRangeModal.new()
+    modal:show({
+      romRaw = string.rep("\0", 256),
+      codec = "zelda2",
+    })
+    expect(modal.selectionModeCheckbox.enabled).toBe(false)
+    expect(modal.selectionModeCheckbox.tooltip).toBe(PPUFrameRangeModal.MSG_SCAN_UNSUPPORTED)
+    expect(modal:isSelectionMode()).toBe(false)
+
+    -- Clicks / forced toggles must not enter Selection mode.
+    modal.selectionModeCheckbox:setChecked(true)
+    expect(modal:isSelectionMode()).toBe(false)
+    expect(modal._scanComputed).toBe(false)
+
+    modal:show({
+      romRaw = string.rep("\0", 256),
+      codec = "konami",
+    })
+    expect(modal.selectionModeCheckbox.enabled).toBe(true)
+    expect(modal.selectionModeCheckbox.tooltip).toBe("")
+    modal:hide()
+  end)
 end)

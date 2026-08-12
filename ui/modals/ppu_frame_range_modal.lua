@@ -6,7 +6,7 @@ local ModalPanelUtils = require("ui.modals.panel_modal_utils")
 local RomHexGrid = require("ui.rom_hex_grid")
 local Shared = require("controllers.app.core_controller_shared")
 local ResolutionController = require("controllers.app.resolution_controller")
-local NametableStreamScanner = require("utils.nametable_stream_scanner")
+local NtScanners = require("scanners")
 local NametableShapePreview = require("ui.nametable_shape_preview")
 local NametableUtils = require("utils.nametable_utils")
 local colors = require("app_colors")
@@ -16,7 +16,8 @@ local colors = require("app_colors")
 -- same cell clears). Any click starts a new pick — no inside-range lock.
 -- Selection mode ON: one-shot Scan for this modal life; click any cell in a
 -- complete stream to select that whole range (click again to toggle off;
--- manual ranges are unavailable).
+-- manual ranges are unavailable). Available only for codecs with a scanner
+-- under scanners/ (currently Konami).
 -- Shape preview shows for complete streams (1024 unique page writes) and is cached.
 
 local Dialog = {}
@@ -26,6 +27,8 @@ Dialog.__index = Dialog
 local FOOTER_ROWS = 5
 local PANEL_COLS = 3
 Dialog.MSG_TWO_CLICKS = "use 2 separate clicks"
+Dialog.MSG_SCAN_UNSUPPORTED =
+  "Selection mode scan is only available for Konami nametable layers."
 
 local function rowspanForHeight(height, cellH, spacingY)
   cellH = math.max(1, math.floor(tonumber(cellH) or 15))
@@ -581,7 +584,7 @@ function Dialog:_onGridSelect(addr, _opts)
 
   -- Selection mode: only whole scanned streams; click toggles the hit off/on.
   if self:isSelectionMode() then
-    local hit = NametableStreamScanner.hitAt(self.scanHits, addr)
+    local hit = NtScanners.hitAt(self.scanHits, addr)
     if not hit then
       self:_restoreCurrentSelectionVisual()
       return
@@ -660,7 +663,7 @@ function Dialog:_ensureScanComputed()
     return
   end
 
-  local hits, timingMs = NametableStreamScanner.scan(self.romRaw, {
+  local hits, timingMs = NtScanners.scan(self.romRaw, {
     codec = self.codec or "konami",
     returnTiming = true,
   })
@@ -690,6 +693,10 @@ function Dialog:_ensureScanComputed()
 end
 
 function Dialog:_onSelectionModeChanged(enabled)
+  if enabled and not NtScanners.supports(self.codec) then
+    self.selectionModeCheckbox:setChecked(false, { silent = true })
+    return
+  end
   self:_clearRangeSelection()
   if enabled then
     self.hexGrid.uniformUnderlineColor = nil
@@ -708,6 +715,21 @@ function Dialog:_onSelectionModeChanged(enabled)
   end
 end
 
+function Dialog:_syncSelectionModeAvailability()
+  local supported = NtScanners.supports(self.codec)
+  local cb = self.selectionModeCheckbox
+  if not cb then
+    return
+  end
+  cb.enabled = supported
+  if supported then
+    cb.tooltip = ""
+  else
+    cb.tooltip = Dialog.MSG_SCAN_UNSUPPORTED
+    cb:setChecked(false, { silent = true })
+  end
+end
+
 function Dialog:cursorNameAt(mx, my)
   if not self.visible then
     return nil
@@ -716,7 +738,8 @@ function Dialog:cursorNameAt(mx, my)
     return "hand"
   end
   if self.selectionModeCheckbox and self.selectionModeCheckbox.contains
-      and self.selectionModeCheckbox:contains(mx, my) then
+      and self.selectionModeCheckbox:contains(mx, my)
+      and self.selectionModeCheckbox.enabled ~= false then
     return "hand"
   end
   if not self:isSelectionMode() then
@@ -739,6 +762,9 @@ end
 
 --- Test / legacy hook: force a scan and enable marks (Selection mode ON).
 function Dialog:_runScan()
+  if not NtScanners.supports(self.codec) then
+    return
+  end
   self._scanComputed = false
   self.selectionModeCheckbox:setChecked(true, { silent = true })
   self:_ensureScanComputed()
@@ -770,6 +796,7 @@ function Dialog:show(opts)
   self.hexGrid.groupSize = 1
   self.hexGrid:setSelectedGroupSizes({})
 
+  self:_syncSelectionModeAvailability()
   self.selectionModeCheckbox:setChecked(false, { silent = true })
   self.startField:setText(opts.initialStartAddress or "")
   self.endField:setText(opts.initialEndAddress or "")

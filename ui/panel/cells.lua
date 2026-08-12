@@ -206,15 +206,40 @@ local function install(Panel, utils)
 
   function Panel:getTooltipAt(px, py)
     local btn = self:getButtonAt(px, py)
-    if not btn or not btn.tooltip or btn.tooltip == "" then
-      return nil
+    if btn and btn.tooltip and btn.tooltip ~= "" then
+      return {
+        text = btn.tooltip,
+        immediate = (btn.tooltipImmediate == true),
+        key = btn,
+      }
     end
 
-    return {
-      text = btn.tooltip,
-      immediate = (btn.tooltipImmediate == true),
-      key = btn,
-    }
+    -- Disabled controls are omitted by getButtonAt; still surface why they are off.
+    local cell = self:getCellAt(px, py)
+    if not cell then
+      return nil
+    end
+    local c = cell.component
+    if c and c.enabled == false and c.tooltip and c.tooltip ~= "" then
+      if type(c.contains) ~= "function" or c:contains(px, py) then
+        return {
+          text = c.tooltip,
+          immediate = (c.tooltipImmediate == true),
+          key = c,
+        }
+      end
+    end
+    local b = cell.button
+    if b and b.enabled == false and b.tooltip and b.tooltip ~= "" then
+      if b:contains(px, py) or self._hitTestIncludeRowGaps == true then
+        return {
+          text = b.tooltip,
+          immediate = (b.tooltipImmediate == true),
+          key = b,
+        }
+      end
+    end
+    return nil
   end
 
   function Panel:getComponentAt(px, py)

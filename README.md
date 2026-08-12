@@ -418,7 +418,7 @@ Several ROM-backed pickers share the same debugger-style **ROM hex grid** (byte 
 
 <img src="img/readme_images/set_nametable_range.png" alt="Nametable range hex grid modal">
 
-Note: so far, the scanner functionality only works for Konami games, but support will be extended.
+Note: Selection mode scan is Konami-only for now (other codecs keep the checkbox disabled). More scanners will land under `scanners/`.
 
 ### ROM palette & patches
 

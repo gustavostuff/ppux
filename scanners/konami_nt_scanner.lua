@@ -1,8 +1,9 @@
--- utils/nametable_stream_scanner.lua
--- On-demand nametable stream scan: candidate starts → bound terminator → trial decode.
--- Keep only streams that fully fill one PPU page (960 NT + 64 attr ⇒ uniquePageWrites == 1024).
+-- scanners/konami_nt_scanner.lua
+-- On-demand Konami nametable stream scan: candidate starts -> bound terminator -> trial decode.
+-- Keep only streams that fully fill one PPU page (960 NT + 64 attr => uniquePageWrites == 1024).
 --
--- Konami first. Zelda2 candidate rules are deferred (phase 2).
+-- Other codecs register under scanners/ and scanners/init.lua when Selection mode
+-- support lands (Zelda2 candidate rules deferred).
 --
 -- Native deferral: if Lua Scan is too slow on large ROMs, replace the walk+decode
 -- loop with a sibling of libppux_sketch (e.g. ppux_nametable_scan_konami) using the
@@ -10,7 +11,7 @@
 -- opts.onTimed / returned timingMs before adding C.
 -- Practical threshold: if Scan status shows >> ~200ms on real ROMs and feels frozen
 -- even with the loading pulse, implement native. Planted ~75KB Contra-offset scans
--- are currently single-digit ms in unit tests — keep this Lua until measured otherwise.
+-- are currently single-digit ms in unit tests - keep this Lua until measured otherwise.
 
 local NametableUtils = require("utils.nametable_utils")
 
