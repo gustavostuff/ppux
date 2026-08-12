@@ -8,6 +8,7 @@ local PaletteLinkController = require("controllers.palette.palette_link_controll
 local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
 local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
 local MouseWindowChrome = require("controllers.input.mouse_window_chrome_controller")
+local TableUtils = require("utils.table_utils")
 
 local M = {}
 
@@ -246,17 +247,153 @@ function M.canLinkWindows(winA, slotA, winB, slotB)
   return false, "Incompatible link badges"
 end
 
+local function afterPatternTableLinkChange(app, contentWin, layerIndex)
+  if not (app and contentWin and layerIndex) then
+    return
+  end
+  if type(app._afterPatternTableLinkChange) == "function" then
+    app:_afterPatternTableLinkChange(contentWin, layerIndex)
+  end
+end
+
+local function normalizeLinkedPatternTableWindowId(id)
+  if type(id) == "string" and id ~= "" then
+    return id
+  end
+  return nil
+end
+
+local function snapshotPatternTableLayer(win, layerIndex)
+  local layer = win and win.layers and win.layers[layerIndex]
+  if not layer then
+    return nil
+  end
+  local pt = layer.patternTable
+  return {
+    linkedId = normalizeLinkedPatternTableWindowId(layer.linkedPatternTableWindowId),
+    patternTableDeep = type(pt) == "table" and TableUtils.deepcopy(pt) or { ranges = {} },
+    patternTableRef = pt,
+  }
+end
+
+local function patternTableLayerMutationWasNoOp(beforeSnap, layerAfter)
+  if not (beforeSnap and layerAfter) then
+    return false
+  end
+  return beforeSnap.linkedId == normalizeLinkedPatternTableWindowId(layerAfter.linkedPatternTableWindowId)
+    and beforeSnap.patternTableRef == layerAfter.patternTable
+end
+
+local function pushPatternTableLinkUndo(app, win, layerIndex, beforeSnap)
+  if not (app and app.undoRedo and app.undoRedo.addPatternTableLinkEvent and win and beforeSnap) then
+    return
+  end
+  local layer = win.layers and win.layers[layerIndex]
+  if not layer or patternTableLayerMutationWasNoOp(beforeSnap, layer) then
+    return
+  end
+  local afterSnap = snapshotPatternTableLayer(win, layerIndex)
+  if not afterSnap then
+    return
+  end
+  app.undoRedo:addPatternTableLinkEvent({
+    type = "pattern_table_link",
+    actions = {
+      {
+        win = win,
+        layerIndex = layerIndex,
+        beforeLinkedId = beforeSnap.linkedId,
+        afterLinkedId = afterSnap.linkedId,
+        beforePatternTable = beforeSnap.patternTableDeep,
+        afterPatternTable = afterSnap.patternTableDeep,
+      },
+    },
+  })
+end
+
+local function pushPatternTableLinkUndoBatch(app, entries)
+  if not (app and app.undoRedo and app.undoRedo.addPatternTableLinkEvent and type(entries) == "table") then
+    return
+  end
+  local actions = {}
+  for _, e in ipairs(entries) do
+    local win = e.win
+    local li = e.layerIndex
+    local beforeSnap = e.beforeSnap
+    local layer = win and win.layers and li and win.layers[li]
+    if layer and beforeSnap and not patternTableLayerMutationWasNoOp(beforeSnap, layer) then
+      local afterSnap = snapshotPatternTableLayer(win, li)
+      if afterSnap then
+        actions[#actions + 1] = {
+          win = win,
+          layerIndex = li,
+          beforeLinkedId = beforeSnap.linkedId,
+          afterLinkedId = afterSnap.linkedId,
+          beforePatternTable = beforeSnap.patternTableDeep,
+          afterPatternTable = afterSnap.patternTableDeep,
+        }
+      end
+    end
+  end
+  if #actions > 0 then
+    app.undoRedo:addPatternTableLinkEvent({
+      type = "pattern_table_link",
+      actions = actions,
+    })
+  end
+end
+
+local function pushSketchPatternTableLinkUndo(app, sketchWin, ptWin, beforeLinkedId, beforePack, stolenMeta)
+  if not (app and app.undoRedo and app.undoRedo.addSketchCanvasPatternTableLinkEvent and sketchWin) then
+    return
+  end
+  beforeLinkedId = normalizeLinkedPatternTableWindowId(beforeLinkedId)
+  local afterLinkedId = normalizeLinkedPatternTableWindowId(sketchWin.linkedPatternTableWindowId)
+  if beforeLinkedId == afterLinkedId then
+    return
+  end
+  app.undoRedo:addSketchCanvasPatternTableLinkEvent({
+    type = "sketch_canvas_pattern_table_link",
+    sketchWin = sketchWin,
+    beforeLinkedId = beforeLinkedId,
+    afterLinkedId = afterLinkedId,
+    beforeStolenSketchWin = stolenMeta and stolenMeta.sketchWin or nil,
+    beforeStolenLinkedId = stolenMeta and stolenMeta.linkedId or nil,
+    beforePack = beforePack,
+    afterPack = SketchCanvasPackController.snapshotPackFields(sketchWin),
+  })
+end
+
+local function afterPaletteLinkChange(app, contentWin, layerIndex, paletteWin)
+  if not app then
+    return
+  end
+  -- linkLayerToPalette already invalidates via getApp(); reinforce when app is known.
+  if type(app.invalidatePpuFramePaletteLayer) == "function" and contentWin and layerIndex then
+    app:invalidatePpuFramePaletteLayer(contentWin, layerIndex)
+  end
+  if type(app.invalidateConsumersOfPaletteWindow) == "function" and paletteWin then
+    app:invalidateConsumersOfPaletteWindow(paletteWin)
+  end
+  if contentWin and contentWin.specializedToolbar and contentWin.specializedToolbar.updateIcons then
+    contentWin.specializedToolbar:updateIcons()
+  end
+end
+
 local function applyPaletteLink(app, paletteWin, destWin)
   local li = getActiveLayerIndex(destWin)
   local ok, err = PaletteLinkController.linkLayerToPalette(destWin, li, paletteWin)
-  if ok and app and app.setStatus then
-    app:setStatus(string.format(
-      "Linked %s to %s layer %d",
-      tostring(paletteWin.title or "palette"),
-      tostring(destWin.title or "window"),
-      li
-    ))
-  elseif not ok and app and app.setStatus then
+  if ok then
+    afterPaletteLinkChange(app, destWin, li, paletteWin)
+    if app and app.setStatus then
+      app:setStatus(string.format(
+        "Linked %s to %s layer %d",
+        tostring(paletteWin.title or "palette"),
+        tostring(destWin.title or "window"),
+        li
+      ))
+    end
+  elseif app and app.setStatus then
     app:setStatus(err or "Palette link failed")
   end
   return ok == true
@@ -264,14 +401,65 @@ end
 
 local function applyPatternLink(app, ptWin, destWin, destSlot)
   if destSlot == "ppu_pattern_bg" and WindowCaps.isSketchCanvas(destWin) then
+    local beforeLinkedId = destWin.linkedPatternTableWindowId
+    local beforePack = SketchCanvasPackController.snapshotPackFields(destWin)
+    local stolenMeta = nil
+    if type(ptWin.linkedSketchCanvasWindowId) == "string"
+      and ptWin.linkedSketchCanvasWindowId ~= ""
+      and ptWin.linkedSketchCanvasWindowId ~= destWin._id
+      and app
+      and app.wm
+      and app.wm.findWindowById
+    then
+      local other = app.wm:findWindowById(ptWin.linkedSketchCanvasWindowId)
+      if WindowCaps.isSketchCanvas(other) then
+        stolenMeta = {
+          sketchWin = other,
+          linkedId = ptWin._id,
+        }
+      end
+    end
     local ok = SketchCanvasPackController.linkSketchToPatternTable(destWin, ptWin, app and app.wm)
+    if ok then
+      pushSketchPatternTableLinkUndo(app, destWin, ptWin, beforeLinkedId, beforePack, stolenMeta)
+      if type(SketchCanvasPackController.invalidateReflectDisplay) == "function" then
+        SketchCanvasPackController.invalidateReflectDisplay(destWin)
+      end
+      if ptWin and ptWin.invalidateTileLayerCanvas then
+        ptWin:invalidateTileLayerCanvas(1)
+      end
+      if destWin.specializedToolbar and destWin.specializedToolbar.updateIcons then
+        destWin.specializedToolbar:updateIcons()
+      end
+      if ptWin.specializedToolbar and ptWin.specializedToolbar.updateIcons then
+        ptWin.specializedToolbar:updateIcons()
+      end
+    end
     if app and app.setStatus then
       app:setStatus(ok and "Linked sketch to pattern table" or "Pattern table link failed")
     end
     return ok == true
   end
   if destSlot == "oam_pattern" and WindowCaps.isOamAnimation(destWin) then
+    local batchBefore = {}
+    for li, layer in ipairs(destWin.layers or {}) do
+      if layer and layer.kind == "sprite" then
+        batchBefore[#batchBefore + 1] = {
+          win = destWin,
+          layerIndex = li,
+          beforeSnap = snapshotPatternTableLayer(destWin, li),
+        }
+      end
+    end
     local ok = PatternTableDisplayController.linkAllOamSpriteLayersToPatternTableWindow(destWin, ptWin)
+    if ok then
+      pushPatternTableLinkUndoBatch(app, batchBefore)
+      for li, layer in ipairs(destWin.layers or {}) do
+        if layer and layer.kind == "sprite" then
+          afterPatternTableLinkChange(app, destWin, li)
+        end
+      end
+    end
     if app and app.setStatus then
       app:setStatus(ok and "Linked OAM frames to pattern table" or "Pattern table link failed")
     end
@@ -289,7 +477,12 @@ local function applyPatternLink(app, ptWin, destWin, destSlot)
     end
     return false
   end
+  local beforeSnap = snapshotPatternTableLayer(destWin, layerIndex)
   local ok = PatternTableDisplayController.linkContentLayerToPatternTableWindow(destWin, layerIndex, ptWin)
+  if ok then
+    pushPatternTableLinkUndo(app, destWin, layerIndex, beforeSnap)
+    afterPatternTableLinkChange(app, destWin, layerIndex)
+  end
   if app and app.setStatus then
     app:setStatus(ok and "Linked pattern table" or "Pattern table link failed")
   end

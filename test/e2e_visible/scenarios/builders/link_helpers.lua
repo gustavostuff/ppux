@@ -36,6 +36,153 @@ function M.findFirstLayerIndexByKind(win, kind)
   return nil
 end
 
+--- Logical pattern index -> { bank, page, tileByte } via the layer's current patternTable map.
+function M.patternMapEntry(layer, logicalIndex)
+  local PatternTableMapping = require("utils.pattern_table_mapping")
+  local map = assert(PatternTableMapping.buildMap(layer and layer.patternTable), "expected pattern table map")
+  local entry = map[math.floor(tonumber(logicalIndex) or 0)]
+  assert(entry, "expected map entry for logical index " .. tostring(logicalIndex))
+  return entry
+end
+
+function M.assertPatternMapBankAndTile(layer, logicalIndex, expectedBank, expectedTileByte)
+  local entry = M.patternMapEntry(layer, logicalIndex)
+  assert(
+    tonumber(entry.bank) == tonumber(expectedBank),
+    string.format(
+      "expected logical %s -> bank %s, got bank %s",
+      tostring(logicalIndex),
+      tostring(expectedBank),
+      tostring(entry.bank)
+    )
+  )
+  assert(
+    tonumber(entry.tileByte) == tonumber(expectedTileByte),
+    string.format(
+      "expected logical %s -> tileByte %s, got %s",
+      tostring(logicalIndex),
+      tostring(expectedTileByte),
+      tostring(entry.tileByte)
+    )
+  )
+  return entry
+end
+
+--- Hydrate PPU fixture nametable range (written by setupDeterministicPpuFixture).
+function M.hydratePpuFixtureNametable(app, runner)
+  local ppu = M.requireRunnerWindow(runner, "ppuFixtureWin")
+  local bgIdx = assert(M.findFirstLayerIndexByKind(ppu, "tile"), "expected PPU tile layer")
+  local layer = assert(ppu.layers[bgIdx], "expected bg layer")
+  layer.nametableStartAddr = assert(runner.ppuFixtureRangeStart, "expected fixture range start")
+  layer.nametableEndAddr = assert(runner.ppuFixtureRangeEnd, "expected fixture range end")
+  if app.hydrateNametableLayerIfReady then
+    app:hydrateNametableLayerIfReady(ppu, layer, bgIdx)
+  elseif ppu.refreshNametableVisuals and app.appEditState then
+    ppu:refreshNametableVisuals(app.appEditState.tilesPool, bgIdx)
+  end
+  return ppu, bgIdx, layer
+end
+
+function M.assertPpuCellMatchesPatternMap(app, runner, col, row, logicalIndex)
+  local ppu, bgIdx, layer = M.hydratePpuFixtureNametable(app, runner)
+  -- Re-read after hydrate/refresh from current link.
+  if app._afterPatternTableLinkChange then
+    app:_afterPatternTableLinkChange(ppu, bgIdx)
+  elseif ppu.refreshNametableVisuals and app.appEditState then
+    ppu:refreshNametableVisuals(app.appEditState.tilesPool, bgIdx)
+  end
+  local entry = M.patternMapEntry(layer, logicalIndex)
+  local tile = assert(ppu:get(col, row, bgIdx), string.format("expected tile at %d,%d", col, row))
+  local tileIndex = math.floor(tonumber(tile.index) or -1)
+  local expectedIndex = math.floor(tonumber(entry.tileByte) or 0)
+  if tonumber(entry.page) == 2 then
+    expectedIndex = expectedIndex + 256
+  end
+  assert(
+    tileIndex == expectedIndex or (tileIndex % 256) == tonumber(entry.tileByte),
+    string.format(
+      "expected NT %d,%d index ~%s (map tileByte %s page %s), got %s",
+      col,
+      row,
+      tostring(expectedIndex),
+      tostring(entry.tileByte),
+      tostring(entry.page),
+      tostring(tileIndex)
+    )
+  )
+  assert(
+    tonumber(tile._bankIndex) == tonumber(entry.bank),
+    string.format(
+      "expected NT %d,%d bank %s from pattern map, got %s",
+      col,
+      row,
+      tostring(entry.bank),
+      tostring(tile._bankIndex)
+    )
+  )
+  local pool = app.appEditState and app.appEditState.tilesPool
+  local bankTiles = pool and pool[entry.bank]
+  local poolTile = bankTiles and bankTiles[tileIndex]
+  if poolTile then
+    assert(
+      tile == poolTile or (tile.pixels and poolTile.pixels and tile.pixels == poolTile.pixels),
+      "expected NT tile to resolve to the CHR bank tilesPool entry"
+    )
+  end
+  return tile, entry
+end
+
+function M.layerPaletteCodes(layer, paletteNumber)
+  local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
+  return ShaderPaletteController.resolveLayerPaletteCodes(layer, paletteNumber or 1, nil)
+end
+
+--- Resolve linked palette row codes via wm (reliable in e2e without ctx.wm()).
+function M.resolveLinkedPaletteCodes(app, layer, paletteNumber)
+  local winId = layer and layer.paletteData and layer.paletteData.winId
+  assert(type(winId) == "string" and winId ~= "", "expected layer.paletteData.winId")
+  local win = assert(app.wm:findWindowById(winId), "expected linked palette window " .. tostring(winId))
+  local rowIdx = (paletteNumber or 1) - 1
+  local row = assert(win.codes2D and win.codes2D[rowIdx], "expected codes2D row on linked palette")
+  return {
+    row[0],
+    row[1],
+    row[2],
+    row[3],
+  }, win
+end
+
+function M.assertLayerPaletteCodesMatchWindow(app, layer, paletteWin, paletteNumber)
+  assert(
+    layer and layer.paletteData and layer.paletteData.winId == paletteWin._id,
+    "expected layer linked to palette window"
+  )
+  local codes = assert(select(1, M.resolveLinkedPaletteCodes(app, layer, paletteNumber)))
+  local rowIdx = (paletteNumber or 1) - 1
+  local row = assert(paletteWin.codes2D and paletteWin.codes2D[rowIdx], "expected palette codes2D row")
+  for col = 0, 3 do
+    assert(
+      codes[col + 1] == row[col],
+      string.format(
+        "expected consumer palette[%d][%d]=%s, got %s",
+        rowIdx,
+        col,
+        tostring(row[col]),
+        tostring(codes[col + 1])
+      )
+    )
+  end
+  return codes
+end
+
+function M.closeAllOpenWindows(app)
+  for _, win in ipairs(app.wm:getWindows() or {}) do
+    if win and not win._closed then
+      win._closed = true
+    end
+  end
+end
+
 function M.paletteHandleCenterByKey(key, slot)
   return M.badgeCenterByKey(key, slot)
 end
@@ -117,7 +264,23 @@ function M.appendBadgeDragLink(steps, label, fromKey, fromSlot, toKey, toSlot)
   })
 end
 
--- Remove dead unused locals in appendRightDrag
+--- Drag from a source badge onto a consumer window body (used when stacked destination
+--- badges make badge-to-badge drops ambiguous; body resolve picks the only legal slot).
+function M.appendBadgeDragToWindowBody(steps, label, fromKey, fromSlot, toKey, col, row)
+  M.appendFocusWindow(steps, "Focus " .. tostring(fromKey) .. " before badge drag", fromKey)
+  appendDrag(steps, label, M.badgeCenterByKey(fromKey, fromSlot, { allowEmpty = true }), function(h, _, currentRunner)
+    local win = M.requireRunnerWindow(currentRunner, toKey)
+    return h:windowCellCenter(win, col or 2, row or 2)
+  end, {
+    button = 1,
+    moveDuration = 0.08,
+    prePressPause = 0.06,
+    holdDuration = 0.05,
+    dragDuration = 0.28,
+    postPause = 0.28,
+  })
+end
+
 function M.appendRightDragPaletteLink(steps, label, fromKey, toKey)
   M.appendFocusWindow(steps, "Focus " .. tostring(fromKey) .. " before badge link drag", fromKey)
   appendDrag(steps, label, function(h, app, runner)

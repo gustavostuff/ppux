@@ -148,6 +148,12 @@ local function applySketchCanvasPatternTableLinkEvent(event, direction, app)
     -- Unlink-in-tile-mode clears PT tiles before pack restore; rebuild from pack+paint.
     SketchCanvasPackController.applyPackToLinkedPatternTable(sketchWin, app.wm)
   end
+  if type(SketchCanvasPackController.invalidateReflectDisplay) == "function" then
+    SketchCanvasPackController.invalidateReflectDisplay(sketchWin)
+  end
+  if ptWin and ptWin.invalidateTileLayerCanvas then
+    ptWin:invalidateTileLayerCanvas(1)
+  end
   return ok == true
 end
 

@@ -22,7 +22,12 @@ function M.runSteps(harness, app, runner, steps)
     elseif step.kind == "call" then
       assert(type(step.fn) == "function", "call step requires fn: " .. tostring(step.label))
       step.fn(harness, app, runner)
-    elseif step.kind == "pause" or step.kind == "move" or step.kind == "assert_delay" then
+    elseif step.kind == "move" then
+      local x, y = resolvePoint(step.pointResolver, harness, app, runner)
+      if x and y and harness.moveMouse then
+        harness:moveMouse(x, y)
+      end
+    elseif step.kind == "pause" or step.kind == "assert_delay" then
       -- Visual timing only.
     else
       error("unsupported instant step kind: " .. tostring(step.kind))
