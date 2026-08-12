@@ -408,13 +408,15 @@ local function buildNametableHexGridFlowScenario(harness, app, runner)
   appendClick(steps, "Commit range end", modalHexCellCenter("ppuFrameRangeModal", function(_, _, currentRunner)
     return currentRunner.ppuFixtureRangeEnd
   end), { moveDuration = 0.08, postPause = 0.18 })
-  steps[#steps + 1] = call("Assert committed range", function(_, currentApp, currentRunner)
+  steps[#steps + 1] = call("Assert committed range + shape for complete stream", function(_, currentApp, currentRunner)
     local modal = assert(currentApp.ppuFrameRangeModal, "expected modal")
     assert(modal._rangeStart == currentRunner.ppuFixtureRangeStart, "expected committed start")
     assert(modal._rangeEnd == currentRunner.ppuFixtureRangeEnd, "expected committed end")
     local span = currentRunner.ppuFixtureRangeEnd - currentRunner.ppuFixtureRangeStart + 1
     assert(modal.hexGrid:getSelectedGroupSize(currentRunner.ppuFixtureRangeStart) == span,
       "expected selected span to match range")
+    assert(modal.shapePreview and modal.shapePreview:isActive(),
+      "expected shape preview for complete manual nametable range")
   end)
   steps[#steps + 1] = pause("Observe committed nametable range", 0.35)
 
@@ -445,53 +447,45 @@ local function buildNametableHexGridFlowScenario(harness, app, runner)
     assert(#(modal.hexGrid:getSelectedStarts()) == 0, "expected no selection")
   end)
 
-  appendClick(steps, "Click Scan for nametable streams", modalButtonCenter("ppuFrameRangeModal", function(modal)
-    return modal.scanButton
-  end), { moveDuration = 0.08, postPause = 0.35 })
-  steps[#steps + 1] = call("Assert scan semis + minimap marks", function(_, currentApp, currentRunner)
+  appendClick(steps, "Enable Selection mode (one-shot scan)", modalButtonCenter("ppuFrameRangeModal", function(modal)
+    return modal.selectionModeCheckbox
+  end), { moveDuration = 0.08, postPause = 0.4 })
+  steps[#steps + 1] = call("Assert selection mode scanned streams", function(_, currentApp, currentRunner)
     local modal = assert(currentApp.ppuFrameRangeModal, "expected modal")
     layoutModal(currentApp, modal)
+    assert(modal:isSelectionMode(), "expected Selection mode ON")
     local semis = modal.hexGrid:getSemiSelectedStarts()
     assert(#semis > 0, "expected scan semi-selected streams")
     assert(#(modal.hexGrid.minimapMarkers or {}) > 0, "expected minimap markers after scan")
     assert(#(modal.scanHits or {}) > 0, "expected scanHits populated")
+    assert(modal._scanComputed == true, "expected scan computed once")
     currentRunner.scanHit = modal.scanHits[1]
   end)
   steps[#steps + 1] = pause("Observe scan semis", 0.45)
 
-  appendClick(steps, "Create user range overlapping a scan semi", modalHexCellCenter("ppuFrameRangeModal", function(_, _, currentRunner)
+  appendClick(steps, "Click mid-stream selects whole scanned range", modalHexCellCenter("ppuFrameRangeModal", function(_, _, currentRunner)
     local hit = assert(currentRunner.scanHit, "expected scan hit")
-    local s = math.floor(hit.start)
-    currentRunner.overlapStart = s + 2
-    return currentRunner.overlapStart
-  end), { moveDuration = 0.06, postPause = 0.1 })
-  appendClick(steps, "Finish overlapping user range", modalHexCellCenter("ppuFrameRangeModal", function(_, _, currentRunner)
-    local hit = assert(currentRunner.scanHit, "expected scan hit")
-    currentRunner.overlapEnd = math.min(math.floor(hit["end"]), currentRunner.overlapStart + 8)
-    return currentRunner.overlapEnd
-  end), { moveDuration = 0.06, postPause = 0.18 })
-  steps[#steps + 1] = call("Assert user range over semis", function(_, currentApp, currentRunner)
+    return math.floor(hit.start) + 4
+  end), { moveDuration = 0.08, postPause = 0.2 })
+  steps[#steps + 1] = call("Assert whole scan hit selected + shape", function(_, currentApp, currentRunner)
     local modal = assert(currentApp.ppuFrameRangeModal, "expected modal")
-    assert(modal._rangeStart == currentRunner.overlapStart, "expected overlap start")
-    assert(modal._rangeEnd == currentRunner.overlapEnd, "expected overlap end")
-    assert(not (modal.shapePreview and modal.shapePreview:isActive()),
-      "expected no shape preview for partial overlap")
+    local hit = assert(currentRunner.scanHit, "expected scan hit")
+    assert(modal._rangeStart == math.floor(hit.start), "expected whole hit start")
+    assert(modal._rangeEnd == math.floor(hit["end"]), "expected whole hit end")
+    assert(modal.shapePreview and modal.shapePreview:isActive(),
+      "expected nametable shape preview for scanned range")
   end)
 
-  appendClick(steps, "Select exact scan hit start", modalHexCellCenter("ppuFrameRangeModal", function(_, _, currentRunner)
-    return math.floor(currentRunner.scanHit.start)
-  end), { moveDuration = 0.06, postPause = 0.1 })
-  appendClick(steps, "Select exact scan hit end", modalHexCellCenter("ppuFrameRangeModal", function(_, _, currentRunner)
-    return math.floor(currentRunner.scanHit["end"])
-  end), { moveDuration = 0.06, postPause = 0.2 })
-  steps[#steps + 1] = call("Assert shape preview for exact scan hit", function(_, currentApp, currentRunner)
+  appendClick(steps, "Click outside scan hits (no-op)", modalHexCellCenter("ppuFrameRangeModal", function()
+    return 0x08
+  end), { moveDuration = 0.06, postPause = 0.12 })
+  steps[#steps + 1] = call("Assert outside scan click kept selection", function(_, currentApp, currentRunner)
     local modal = assert(currentApp.ppuFrameRangeModal, "expected modal")
-    assert(modal._rangeStart == math.floor(currentRunner.scanHit.start), "expected exact hit start")
-    assert(modal._rangeEnd == math.floor(currentRunner.scanHit["end"]), "expected exact hit end")
-    assert(modal.shapePreview and modal.shapePreview:isActive(),
-      "expected nametable shape preview for exact scan hit")
+    local hit = assert(currentRunner.scanHit, "expected scan hit")
+    assert(modal._rangeStart == math.floor(hit.start), "expected selection unchanged")
+    assert(modal._rangeEnd == math.floor(hit["end"]), "expected selection unchanged")
   end)
-  steps[#steps + 1] = pause("Observe shape preview", 0.45)
+  steps[#steps + 1] = pause("Observe selection-mode pick", 0.35)
 
   appendClick(steps, "Set nametable range from grid selection", modalButtonCenter("ppuFrameRangeModal", function(modal)
     return modal.setButton

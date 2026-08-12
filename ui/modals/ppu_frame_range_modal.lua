@@ -1,4 +1,5 @@
 local Button = require("ui.button")
+local Checkbox = require("ui.checkbox")
 local Panel = require("ui.panel")
 local TextField = require("ui.text_field")
 local ModalPanelUtils = require("ui.modals.panel_modal_utils")
@@ -7,16 +8,19 @@ local Shared = require("controllers.app.core_controller_shared")
 local ResolutionController = require("controllers.app.resolution_controller")
 local NametableStreamScanner = require("utils.nametable_stream_scanner")
 local NametableShapePreview = require("ui.nametable_shape_preview")
+local NametableUtils = require("utils.nametable_utils")
 
--- Set nametable address range: ROM hex grid + Start/End + Scan/Set/Cancel.
--- On open: no stream markers. Scan marks complete streams (960 NT + 64 attr).
--- Grid uses two-click range pick (start, then end; same cell clears).
--- Shape preview shows when Start/End match a scanned hit.
+-- Set nametable address range: ROM hex grid + Start/End + Set/Cancel.
+-- Selection mode OFF (default): two-click manual range pick.
+-- Selection mode ON: one-shot Scan for this modal life; click any cell in a
+-- complete stream to select that whole range (manual ranges are unavailable).
+-- Shape preview shows for complete streams (1024 unique page writes) and is cached.
 
 local Dialog = {}
 Dialog.__index = Dialog
 
-local FOOTER_ROWS = 5 -- Start, End, buttons, Esc, status
+-- Mode checkbox, Start, End, buttons, Esc, status
+local FOOTER_ROWS = 6
 local PANEL_COLS = 3
 
 local function rowspanForHeight(height, cellH, spacingY)
@@ -65,7 +69,8 @@ local function rebuildPanel(self)
     _modalChromeOverBlue = self._modalChromeOverBlue == true,
   })
 
-  local startRow = hexRows + 1
+  local modeRow = hexRows + 1
+  local startRow = modeRow + 1
   local endRow = startRow + 1
   local buttonRow = endRow + 1
   local escRow = buttonRow + 1
@@ -76,6 +81,10 @@ local function rebuildPanel(self)
     colspan = PANEL_COLS,
     rowspan = hexRows,
   })
+  self.panel:setCell(1, modeRow, {
+    component = self.selectionModeCheckbox,
+    colspan = PANEL_COLS,
+  })
   self.panel:setCell(1, startRow, { text = "Start:" })
   self.panel:setCell(2, startRow, { component = self.startField })
   self.panel:setCell(1, endRow, { text = "End:" })
@@ -84,7 +93,6 @@ local function rebuildPanel(self)
     component = self.shapePreview,
     rowspan = 2,
   })
-  self.panel:setCell(1, buttonRow, { component = self.scanButton })
   self.panel:setCell(2, buttonRow, { component = self.cancelButton })
   self.panel:setCell(3, buttonRow, { component = self.setButton })
   self.panel:setCell(1, escRow, { text = "Esc) Close", colspan = 2 })
@@ -145,6 +153,32 @@ local function clearScanMarks(hexGrid)
   hexGrid:setSemiSelectedStarts({}, { resetColors = true })
 end
 
+local function sliceRomBytes(romRaw, startAddr, endAddr)
+  local out = {}
+  startAddr = math.floor(tonumber(startAddr) or 0)
+  endAddr = math.floor(tonumber(endAddr) or startAddr)
+  if type(romRaw) ~= "string" or startAddr < 0 or endAddr < startAddr then
+    return out
+  end
+  local len = #romRaw
+  for addr = startAddr, endAddr do
+    if addr >= len then
+      break
+    end
+    out[#out + 1] = string.byte(romRaw, addr + 1) or 0
+  end
+  return out
+end
+
+local function shapeCacheKey(startAddr, endAddr, codec)
+  return string.format(
+    "%d:%d:%s",
+    math.floor(tonumber(startAddr) or -1),
+    math.floor(tonumber(endAddr) or -1),
+    tostring(codec or "konami"):lower()
+  )
+end
+
 function Dialog.new()
   local self = setmetatable({
     visible = false,
@@ -169,8 +203,11 @@ function Dialog.new()
     panel = nil,
     _syncingFromGrid = false,
     _statusText = nil,
-    -- Two-click range: first click anchors start; second sets end (same cell clears).
-    -- Committed range: click inside = no-op; click outside = clear.
+    -- Cached scan for this modal life (Selection mode ON).
+    _scanComputed = false,
+    -- Cached decoded nametables for shape preview: key -> nt bytes table.
+    _shapeCache = {},
+    -- Two-click manual range (Selection mode OFF).
     _rangeAnchor = nil,
     _rangeStart = nil,
     _rangeEnd = nil,
@@ -192,6 +229,13 @@ function Dialog.new()
     end,
   })
   self.shapePreview = NametableShapePreview.new()
+  self.selectionModeCheckbox = Checkbox.new({
+    text = "Selection mode",
+    checked = false,
+    onChange = function(checked)
+      self:_onSelectionModeChanged(checked == true)
+    end,
+  })
   self.startField = TextField.new({
     width = 104,
     height = self.fieldH,
@@ -201,15 +245,6 @@ function Dialog.new()
     width = 104,
     height = self.fieldH,
     mask = "0x000000",
-  })
-  self.scanButton = Button.new({
-    text = "Scan",
-    w = self.buttonW,
-    h = self.buttonH,
-    transparent = true,
-    action = function()
-      self:_runScan()
-    end,
   })
   self.setButton = Button.new({
     text = "Set",
@@ -242,6 +277,10 @@ function Dialog:isVisible()
   return self.visible
 end
 
+function Dialog:isSelectionMode()
+  return self.selectionModeCheckbox and self.selectionModeCheckbox:isChecked()
+end
+
 function Dialog:_formatAddr(addr)
   return string.format("0x%06X", math.floor(tonumber(addr) or 0))
 end
@@ -261,15 +300,12 @@ function Dialog:_applyRangeSelection(startAddr, endAddr, opts)
     endAddr = startAddr
   end
   local span = endAddr - startAddr + 1
-  -- Keep grid groupSize at 1 (byte). Variable stream length uses selectedGroupSizes
-  -- so OAM-style fixed groups stay intact and spans do not bleed into each other.
   self.hexGrid.groupSize = 1
   self.hexGrid:setSelectedAddr(startAddr, {
     emit = false,
     allowOccupied = true,
     allowDisabled = true,
     resetColors = false,
-    -- Never jump the viewport on nametable select (click or typed range).
     scrollToReveal = false,
   })
   self.hexGrid:setSelectedGroupSizes({ [startAddr] = span })
@@ -282,21 +318,60 @@ function Dialog:_syncFieldsFromRange(startAddr, endAddr)
   self._syncingFromGrid = false
 end
 
-function Dialog:_refreshShapePreview(startAddr, endAddr, hit)
+--- Decode range; return nametable when it is a complete page (1024 unique writes).
+function Dialog:_tryCompleteNametable(startAddr, endAddr)
+  startAddr = math.floor(tonumber(startAddr) or -1)
+  endAddr = math.floor(tonumber(endAddr) or -1)
+  if startAddr < 0 or endAddr < startAddr then
+    return nil
+  end
+  local data = sliceRomBytes(self.romRaw, startAddr, endAddr)
+  if #data < 2 then
+    return nil
+  end
+  local nt, _, meta = NametableUtils.decode_compressed_nametable(
+    data,
+    false,
+    self.codec or "konami"
+  )
+  if type(nt) ~= "table" or #nt < 960 then
+    return nil
+  end
+  if type(meta) ~= "table" or meta.complete ~= true then
+    return nil
+  end
+  local total = math.floor(tonumber(meta.totalPageWrites) or 0)
+  if total > 1024 then
+    return nil
+  end
+  return nt
+end
+
+function Dialog:_cacheShapeForRange(startAddr, endAddr)
+  local key = shapeCacheKey(startAddr, endAddr, self.codec)
+  local cached = self._shapeCache[key]
+  if cached ~= nil then
+    return cached
+  end
+  local nt = self:_tryCompleteNametable(startAddr, endAddr)
+  if nt then
+    self._shapeCache[key] = nt
+  else
+    self._shapeCache[key] = false
+  end
+  return self._shapeCache[key]
+end
+
+function Dialog:_refreshShapePreview(startAddr, endAddr)
   if not self.shapePreview then
     return
   end
-  if not hit then
+  local nt = self:_cacheShapeForRange(startAddr, endAddr)
+  if type(nt) == "table" then
+    self.shapePreview:setFromNametable(nt)
+  else
     self.shapePreview:clear()
-    return
   end
-  local s = math.floor(tonumber(hit.start) or startAddr or -1)
-  local e = math.floor(tonumber(hit["end"]) or endAddr or -1)
-  if s < 0 or e < s then
-    self.shapePreview:clear()
-    return
-  end
-  self.shapePreview:setFromStream(self.romRaw, s, e, self.codec or "konami")
 end
 
 function Dialog:_clearRangeSelection()
@@ -329,27 +404,44 @@ function Dialog:_commitRange(startAddr, endAddr)
   self._rangeEnd = endAddr
   self:_applyRangeSelection(startAddr, endAddr)
   self:_syncFieldsFromRange(startAddr, endAddr)
-  self:_refreshShapePreview(startAddr, endAddr, self:_hitMatchingRange(startAddr, endAddr))
+  self:_refreshShapePreview(startAddr, endAddr)
 end
 
-function Dialog:_hitMatchingRange(startAddr, endAddr)
-  local hit = NametableStreamScanner.hitAt(self.scanHits, startAddr)
-  if not hit then
-    return nil
+function Dialog:_restoreCurrentSelectionVisual()
+  local rs, re = self._rangeStart, self._rangeEnd
+  if type(rs) == "number" and type(re) == "number" then
+    self:_applyRangeSelection(rs, re)
+    self:_syncFieldsFromRange(rs, re)
+    return
   end
-  if math.floor(tonumber(hit.start) or -1) == startAddr
-    and math.floor(tonumber(hit["end"]) or -1) == endAddr
-  then
-    return hit
-  end
-  return nil
+  self.hexGrid.groupSize = 1
+  self.hexGrid:setSelectedGroupSizes({})
+  self.hexGrid:_setStarts({}, 0, {
+    emit = false,
+    allowEmpty = true,
+    resetColors = false,
+    scrollToReveal = false,
+  })
 end
 
 function Dialog:_onGridSelect(addr, _opts)
   addr = math.floor(tonumber(addr) or 0)
-  local anchor = self._rangeAnchor
 
-  -- Mid two-click: waiting for end.
+  -- Selection mode: only whole scanned streams.
+  if self:isSelectionMode() then
+    local hit = NametableStreamScanner.hitAt(self.scanHits, addr)
+    if not hit then
+      self:_restoreCurrentSelectionVisual()
+      return
+    end
+    local s = math.floor(tonumber(hit.start) or addr)
+    local e = math.floor(tonumber(hit["end"]) or addr)
+    self:_commitRange(s, e)
+    return
+  end
+
+  -- Manual two-click.
+  local anchor = self._rangeAnchor
   if type(anchor) == "number" then
     if addr == anchor then
       self:_clearRangeSelection()
@@ -359,8 +451,6 @@ function Dialog:_onGridSelect(addr, _opts)
     return
   end
 
-  -- Committed range: inside = no-op (re-apply so the grid click does not stick);
-  -- outside = clear and re-anchor at the clicked cell in one step.
   local rs, re = self._rangeStart, self._rangeEnd
   if type(rs) == "number" and type(re) == "number" then
     if addr >= rs and addr <= re then
@@ -372,18 +462,20 @@ function Dialog:_onGridSelect(addr, _opts)
     -- Fall through to re-anchor.
   end
 
-  -- No range yet (or just cleared): first click anchors start
-  -- (works on/inside/overlapping scan semis).
   self._rangeAnchor = addr
   self._rangeStart = nil
   self._rangeEnd = nil
   self:_applyRangeSelection(addr, addr)
   self:_syncFieldsFromRange(addr, addr)
-  self:_refreshShapePreview(addr, addr, self:_hitMatchingRange(addr, addr))
+  self:_refreshShapePreview(addr, addr)
 end
 
 function Dialog:_syncFromAddressFields()
   if self._syncingFromGrid then
+    return
+  end
+  -- Scan selection mode is click-only; typed fields stay display of the pick.
+  if self:isSelectionMode() then
     return
   end
   local startAddr = select(1, Shared.parseHexAddress(self.startField:getText() or ""))
@@ -400,8 +492,15 @@ function Dialog:_syncFromAddressFields()
   self:_commitRange(startAddr, endAddr)
 end
 
-function Dialog:_runScan()
+function Dialog:_ensureScanComputed()
+  if self._scanComputed then
+    applyScanMarks(self.hexGrid, self.scanHits)
+    return
+  end
   if type(self.romRaw) ~= "string" or self.romRaw == "" then
+    self.scanHits = {}
+    self._scanComputed = true
+    clearScanMarks(self.hexGrid)
     self:_setStatus("No ROM loaded")
     return
   end
@@ -411,7 +510,17 @@ function Dialog:_runScan()
     returnTiming = true,
   })
   self.scanHits = hits or {}
+  self._scanComputed = true
   applyScanMarks(self.hexGrid, self.scanHits)
+
+  -- Warm shape cache for every complete stream found.
+  for _, hit in ipairs(self.scanHits) do
+    local s = math.floor(tonumber(hit.start) or -1)
+    local e = math.floor(tonumber(hit["end"]) or -1)
+    if s >= 0 and e >= s then
+      self:_cacheShapeForRange(s, e)
+    end
+  end
 
   local n = #self.scanHits
   local status
@@ -425,6 +534,25 @@ function Dialog:_runScan()
   self:_setStatus(status)
 end
 
+function Dialog:_onSelectionModeChanged(enabled)
+  self:_clearRangeSelection()
+  if enabled then
+    self.startField:setFocused(false)
+    self.endField:setFocused(false)
+    self:_ensureScanComputed()
+  else
+    clearScanMarks(self.hexGrid)
+    self:_setStatus(nil)
+  end
+end
+
+--- Test / legacy hook: force a scan and enable marks (Selection mode ON).
+function Dialog:_runScan()
+  self._scanComputed = false
+  self.selectionModeCheckbox:setChecked(true, { silent = true })
+  self:_ensureScanComputed()
+end
+
 function Dialog:show(opts)
   opts = opts or {}
   self.title = opts.title or "Set tile range"
@@ -435,6 +563,8 @@ function Dialog:show(opts)
   self.romRaw = type(opts.romRaw) == "string" and opts.romRaw or ""
   self.codec = tostring(opts.codec or "konami"):lower()
   self.scanHits = {}
+  self._scanComputed = false
+  self._shapeCache = {}
   self._statusText = nil
   self._rangeAnchor = nil
   self._rangeStart = nil
@@ -448,14 +578,13 @@ function Dialog:show(opts)
   self.hexGrid.groupSize = 1
   self.hexGrid:setSelectedGroupSizes({})
 
+  self.selectionModeCheckbox:setChecked(false, { silent = true })
   self.startField:setText(opts.initialStartAddress or "")
   self.endField:setText(opts.initialEndAddress or "")
   self.startField:setFocused(true)
   self.endField:setFocused(false)
-  self.scanButton.pressed = false
   self.setButton.pressed = false
   self.cancelButton.pressed = false
-  self.scanButton.hovered = false
   self.setButton.hovered = false
   self.cancelButton.hovered = false
 
@@ -466,7 +595,6 @@ function Dialog:show(opts)
       endAddr = startAddr
     end
     self:_commitRange(startAddr, endAddr)
-    -- Open only: bring the current range into view once.
     self.hexGrid:scrollToReveal(startAddr)
   else
     self.hexGrid:_setStarts({}, 0, {
@@ -483,17 +611,18 @@ function Dialog:hide()
   self.visible = false
   self.startField:setFocused(false)
   self.endField:setFocused(false)
-  self.scanButton.pressed = false
   self.setButton.pressed = false
   self.cancelButton.pressed = false
-  self.scanButton.hovered = false
   self.setButton.hovered = false
   self.cancelButton.hovered = false
+  self.selectionModeCheckbox:setChecked(false, { silent = true })
   self.onConfirm = nil
   self.onCancel = nil
   self.targetWindow = nil
   self.romRaw = ""
   self.scanHits = {}
+  self._scanComputed = false
+  self._shapeCache = {}
   self._statusText = nil
   self._rangeAnchor = nil
   self._rangeStart = nil
@@ -563,6 +692,10 @@ function Dialog:handleKey(key)
     self:_confirm()
     return true
   end
+  if self:isSelectionMode() then
+    -- Fields are display-only in selection mode.
+    return false
+  end
   if key == "tab" then
     if self.startField.focused then
       self.startField:setFocused(false)
@@ -586,6 +719,9 @@ end
 
 function Dialog:textinput(text)
   if not self.visible then return false end
+  if self:isSelectionMode() then
+    return false
+  end
   if self.startField.focused then
     local ok = self.startField:onTextInput(text)
     if ok then
@@ -610,12 +746,14 @@ function Dialog:mousepressed(x, y, button)
     self:_cancel()
     return true
   end
-  if self.startField:contains(x, y) then
-    self.startField:setFocused(true)
-    self.endField:setFocused(false)
-  elseif self.endField:contains(x, y) then
-    self.endField:setFocused(true)
-    self.startField:setFocused(false)
+  if not self:isSelectionMode() then
+    if self.startField:contains(x, y) then
+      self.startField:setFocused(true)
+      self.endField:setFocused(false)
+    elseif self.endField:contains(x, y) then
+      self.endField:setFocused(true)
+      self.startField:setFocused(false)
+    end
   end
   return self.panel and self.panel:mousepressed(x, y, button) or true
 end
@@ -658,6 +796,7 @@ end
 function Dialog:draw(canvas)
   if not self.visible then return end
   ModalPanelUtils.refreshTargetMetrics(self)
+  syncModalGridMetrics(self)
   if not self.panel then
     rebuildPanel(self)
   else
@@ -680,7 +819,6 @@ function Dialog:draw(canvas)
   self.panel:draw()
 end
 
--- Exported for unit tests.
 Dialog._hitsToMinimapMarkers = hitsToMinimapMarkers
 Dialog._hitsToSemiSelection = hitsToSemiSelection
 Dialog._applyScanMarks = applyScanMarks

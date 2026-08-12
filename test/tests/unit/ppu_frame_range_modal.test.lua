@@ -1,5 +1,5 @@
 -- ppu_frame_range_modal.test.lua
--- Unit tests for ui/modals/ppu_frame_range_modal.lua scan markers / open behavior
+-- Unit tests for ui/modals/ppu_frame_range_modal.lua selection mode / shape cache
 
 local PPUFrameRangeModal = require("ui.modals.ppu_frame_range_modal")
 local NametableUtils = require("utils.nametable_utils")
@@ -24,6 +24,20 @@ local function bytesToRomString(bytes)
   return table.concat(parts)
 end
 
+local function plantStreamRom(seed, pad)
+  pad = pad or 32
+  local nt, at = buildFullPage(seed)
+  local compressed = NametableUtils.encode_decompressed_nametable(nt, at, "konami")
+  local buf = {}
+  for i = 1, pad + #compressed + 8 do
+    buf[i] = 0x44
+  end
+  for i = 1, #compressed do
+    buf[pad + i] = compressed[i]
+  end
+  return bytesToRomString(buf), pad, #compressed
+end
+
 describe("ppu_frame_range_modal.lua", function()
   it("hitsToMinimapMarkers spans each complete stream with OAM color cycle", function()
     local markers = PPUFrameRangeModal._hitsToMinimapMarkers({
@@ -39,43 +53,14 @@ describe("ppu_frame_range_modal.lua", function()
     expect(markers[3].color).toBe("blue")
   end)
 
-  it("Scan marks streams as semi-selected and keeps them after selecting a hit", function()
-    local nt, at = buildFullPage(9)
-    local compressed = NametableUtils.encode_decompressed_nametable(nt, at, "konami")
-    local pad = 32
-    local buf = {}
-    for i = 1, pad + #compressed + 8 do
-      buf[i] = 0x44
-    end
-    for i = 1, #compressed do
-      buf[pad + i] = compressed[i]
-    end
-    local rom = bytesToRomString(buf)
-
-    local modal = PPUFrameRangeModal.new()
-    modal:show({
-      romRaw = rom,
-      codec = "konami",
-    })
-    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(0)
-
-    modal:_runScan()
-    local semi = modal.hexGrid:getSemiSelectedStarts()
-    expect(#semi).toBeGreaterThan(0)
-    expect(modal.hexGrid:getSemiGroupSize(pad)).toBe(#compressed)
-
-    modal:_onGridSelect(pad + 4, { fromGrid = true })
-    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(#semi)
-    expect(modal.hexGrid:highlightColorForStart(pad)[1]).toBeTruthy()
-    modal:hide()
-  end)
-
-  it("two-click grid selection sets start then end; same cell clears", function()
+  it("selection mode OFF allows manual two-click ranges without scan marks", function()
     local modal = PPUFrameRangeModal.new()
     modal:show({
       romRaw = string.rep("\0", 256),
       codec = "konami",
     })
+    expect(modal:isSelectionMode()).toBe(false)
+    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(0)
 
     modal:_onGridSelect(0x40, { fromGrid = true })
     expect(modal._rangeAnchor).toBe(0x40)
@@ -95,21 +80,16 @@ describe("ppu_frame_range_modal.lua", function()
     modal:_onGridSelect(0x45, { fromGrid = true })
     expect(modal._rangeStart).toBe(0x40)
     expect(modal._rangeEnd).toBe(0x4F)
-    expect(modal.hexGrid:getSelectedGroupSize(0x40)).toBe(0x10)
 
-    -- Click outside → clear and re-anchor at that cell.
+    -- Click outside → clear and re-anchor.
     modal:_onGridSelect(0x20, { fromGrid = true })
     expect(modal._rangeAnchor).toBe(0x20)
     expect(modal._rangeStart).toBe(nil)
-    expect(modal._rangeEnd).toBe(nil)
-    expect(modal.hexGrid:getSelectedGroupSize(0x20)).toBe(1)
 
-    -- Mid two-click: same cell clears.
     modal:_onGridSelect(0x20, { fromGrid = true })
     expect(modal._rangeAnchor).toBe(nil)
     expect(#(modal.hexGrid:getSelectedStarts())).toBe(0)
 
-    -- End before start still normalizes.
     modal:_onGridSelect(0x50, { fromGrid = true })
     modal:_onGridSelect(0x40, { fromGrid = true })
     expect(modal.startField:getText()).toBe("0x000040")
@@ -117,30 +97,73 @@ describe("ppu_frame_range_modal.lua", function()
     modal:hide()
   end)
 
-  it("user ranges can be created overlapping scan semi-selected marks", function()
-    local nt, at = buildFullPage(3)
-    local compressed = NametableUtils.encode_decompressed_nametable(nt, at, "konami")
-    local pad = 32
-    local buf = {}
-    for i = 1, pad + #compressed + 8 do
-      buf[i] = 0x44
-    end
-    for i = 1, #compressed do
-      buf[pad + i] = compressed[i]
-    end
-    local rom = bytesToRomString(buf)
-
+  it("selection mode ON scans once and only selects whole scanned streams", function()
+    local rom, pad, streamLen = plantStreamRom(9)
     local modal = PPUFrameRangeModal.new()
     modal:show({ romRaw = rom, codec = "konami" })
-    modal:_runScan()
-    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBeGreaterThan(0)
+    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(0)
 
-    -- Two-click entirely inside the scanned stream span.
+    modal.selectionModeCheckbox:setChecked(true)
+    expect(modal:isSelectionMode()).toBe(true)
+    expect(modal._scanComputed).toBe(true)
+    local semi = modal.hexGrid:getSemiSelectedStarts()
+    expect(#semi).toBeGreaterThan(0)
+    expect(modal.hexGrid:getSemiGroupSize(pad)).toBe(streamLen)
+
+    -- Mid-stream click selects the whole hit.
+    modal:_onGridSelect(pad + 4, { fromGrid = true })
+    expect(modal._rangeStart).toBe(pad)
+    expect(modal._rangeEnd).toBe(pad + streamLen - 1)
+    expect(modal.hexGrid:getSelectedGroupSize(pad)).toBe(streamLen)
+    expect(modal.shapePreview:isActive()).toBe(true)
+    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(#semi)
+
+    -- Outside any scan hit → no-op (keeps prior selection).
+    modal:_onGridSelect(0x08, { fromGrid = true })
+    expect(modal._rangeStart).toBe(pad)
+    expect(modal._rangeEnd).toBe(pad + streamLen - 1)
+
+    -- Cannot invent a partial user range while selection mode is on.
+    modal:_onGridSelect(pad + 2, { fromGrid = true })
+    expect(modal._rangeStart).toBe(pad)
+    expect(modal._rangeEnd).toBe(pad + streamLen - 1)
+
+    -- Re-toggle: scan is not recomputed.
+    local hitsBefore = modal.scanHits
+    modal.selectionModeCheckbox:setChecked(false)
+    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(0)
+    expect(modal._rangeStart).toBe(nil)
+    modal.selectionModeCheckbox:setChecked(true)
+    expect(modal.scanHits).toBe(hitsBefore)
+    expect(modal._scanComputed).toBe(true)
+    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(#semi)
+    modal:hide()
+  end)
+
+  it("manual complete range shows cached shape preview; incomplete does not", function()
+    local rom, pad, streamLen = plantStreamRom(3)
+    local modal = PPUFrameRangeModal.new()
+    modal:show({ romRaw = rom, codec = "konami" })
+
+    -- Partial span is not a complete page → no shape.
     modal:_onGridSelect(pad + 2, { fromGrid = true })
     modal:_onGridSelect(pad + 10, { fromGrid = true })
-    expect(modal._rangeStart).toBe(pad + 2)
-    expect(modal._rangeEnd).toBe(pad + 10)
-    expect(modal.hexGrid:getSelectedGroupSize(pad + 2)).toBe(9)
+    expect(modal.shapePreview:isActive()).toBe(false)
+
+    -- Exact complete stream → shape + cache entry.
+    modal:_onGridSelect(pad, { fromGrid = true })
+    modal:_onGridSelect(pad + streamLen - 1, { fromGrid = true })
+    expect(modal._rangeStart).toBe(pad)
+    expect(modal._rangeEnd).toBe(pad + streamLen - 1)
+    expect(modal.shapePreview:isActive()).toBe(true)
+    local key = string.format("%d:%d:konami", pad, pad + streamLen - 1)
+    expect(type(modal._shapeCache[key]) == "table").toBe(true)
+
+    -- Second refresh hits cache (same table).
+    local cached = modal._shapeCache[key]
+    modal:_refreshShapePreview(pad, pad + streamLen - 1)
+    expect(modal._shapeCache[key]).toBe(cached)
+    expect(modal.shapePreview:isActive()).toBe(true)
     modal:hide()
   end)
 end)
