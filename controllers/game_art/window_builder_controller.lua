@@ -119,7 +119,17 @@ function M.buildWindowsFromLayout(layout, opts)
   --- Same order as `wm:add` during this load; used to rebuild z-order when persisted ids omit entries (often pattern_table).
   local builtOrderedWins = {}
 
-  for _, w in ipairs(layout.windows or {}) do
+  local specs = layout.windows or {}
+  local total = #specs
+  local onProgress = opts.onProgress
+  local onPhase = opts.onPhase
+  local function phase(message, force)
+    if type(onPhase) == "function" then
+      onPhase(message, force)
+    end
+  end
+
+  for i, w in ipairs(specs) do
     local kind = w.kind or "normal"
     local builder = builders[kind]
     local buildStartedAt = LoveCompat.getTime()
@@ -141,8 +151,13 @@ function M.buildWindowsFromLayout(layout, opts)
       buildElapsed,
       finalizeElapsed
     )
+
+    if type(onProgress) == "function" then
+      onProgress(i, total, w, win)
+    end
   end
 
+  phase("Activating palettes...")
   local paletteSyncStartedAt = LoveCompat.getTime()
   local activePaletteFound = false
   local allWindows = wm:getWindows()
@@ -171,6 +186,7 @@ function M.buildWindowsFromLayout(layout, opts)
   GameArtWindowFactoryController.afterLayoutPatternTablesHydrate(wm, tilesPool, ensureTiles, {
     romRaw = romRaw,
     appEditState = opts.appEditState,
+    onPhase = onPhase,
   })
   DebugController.log("info", "LOAD_PERF", "window_builder pattern_table_hydrate duration=%.3fs", LoveCompat.getTime() - patternTableStartedAt)
 

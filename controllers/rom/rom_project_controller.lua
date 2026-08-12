@@ -115,10 +115,15 @@ local function logPerf(label, startedAt, extra)
   end
 end
 
-local function pulseLoading(app, message)
+local function pulseLoading(app, message, opts)
   if app and app.pulseSimpleLoading then
-    app:pulseSimpleLoading(message)
+    app:pulseSimpleLoading(message, opts)
   end
+end
+
+--- Same present path as phase labels (honors LOADING_PRESENT_DELAY_SECONDS).
+local function pulseLoadingProgress(app, message)
+  pulseLoading(app, message)
 end
 
 local function formatLoadToast(seconds)
@@ -877,6 +882,31 @@ end
 
 M._dbLayoutHasWindows = dbLayoutHasWindows
 
+--- Shared present for post-create hydrate phases (one pulse per distinct label).
+local function makeLayoutBuildProgressHandlers(app, windowLabel)
+  windowLabel = windowLabel or "Building project windows"
+  local lastMessage = nil
+  local function present(message)
+    if type(message) ~= "string" or message == "" then
+      return
+    end
+    -- Same label again is noise (not concurrency); keep the first pulse only.
+    if message == lastMessage then
+      return
+    end
+    pulseLoadingProgress(app, message)
+    lastMessage = message
+  end
+  return {
+    onProgress = function(_i, _total, _spec, _win)
+      present(windowLabel .. "...")
+    end,
+    onPhase = function(message, _force)
+      present(message)
+    end,
+  }
+end
+
 local function loadFromProject(app, project)
   local state = app.appEditState
   local loadStartedAt = LoveCompat.getTime()
@@ -920,6 +950,7 @@ local function loadFromProject(app, project)
     end
   end
   local buildStartedAt = LoveCompat.getTime()
+  local layoutProgress = makeLayoutBuildProgressHandlers(app, "Building project windows")
   local built, why = GameArtController.buildWindowsFromLayout(project, {
     wm          = app.wm,
     tilesPool   = state.tilesPool,
@@ -928,6 +959,7 @@ local function loadFromProject(app, project)
     appEditState = state,
     chrBackingMode = ChrBackingController.getMode(state),
     onPatternCanvasRestoreError = onPatternCanvasRestoreError,
+    onPhase = layoutProgress.onPhase,
   })
 
   if not built then
@@ -987,6 +1019,7 @@ local function loadFromProject(app, project)
     end
   end
 
+  pulseLoading(app, "Refreshing linked pattern tables...")
   local function stripRuntimePatternTableRefLayers()
     local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
     PatternTableDisplayController.refreshAllPatternTableWindows(app.wm, {
@@ -1071,6 +1104,7 @@ local function loadFromDBLayout(app, sha)
     end
   end
   local buildStartedAt = LoveCompat.getTime()
+  local layoutProgress = makeLayoutBuildProgressHandlers(app, "Building default windows")
   local built, why = GameArtController.buildWindowsFromLayout(layout, {
     wm          = app.wm,
     tilesPool   = state.tilesPool,
@@ -1078,6 +1112,7 @@ local function loadFromDBLayout(app, sha)
     romRaw      = state.romRaw,
     chrBackingMode = ChrBackingController.getMode(state),
     onPatternCanvasRestoreError = onPatternCanvasRestoreError,
+    onPhase = layoutProgress.onPhase,
   })
 
   if not built then
@@ -1101,6 +1136,7 @@ local function loadFromDBLayout(app, sha)
   syncDuplicateIndexesForLoad(app, state)
   logPerf("db_layout.sync_duplicate_indexes", dupesStartedAt, string.format("enabled=%s", tostring(app.syncDuplicateTiles == true)))
 
+  pulseLoading(app, "Refreshing linked pattern tables...")
   local function stripRuntimePatternTableRefLayers()
     local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
     PatternTableDisplayController.refreshAllPatternTableWindows(app.wm, {

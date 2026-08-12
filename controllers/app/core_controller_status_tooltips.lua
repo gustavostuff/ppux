@@ -104,22 +104,28 @@ end
 function AppCoreController:beginSimpleLoading(message)
   self._simpleLoadingActive = true
   self._simpleLoadingMessage = message or "Loading..."
+  if SimpleLoadingScreen.resetPresentDebugState then
+    SimpleLoadingScreen.resetPresentDebugState()
+  end
   return SimpleLoadingScreen.present(self._simpleLoadingMessage, self)
 end
 
-function AppCoreController:pulseSimpleLoading(message)
+function AppCoreController:pulseSimpleLoading(message, opts)
   if message and message ~= "" then
     self._simpleLoadingMessage = message
   end
   if self._simpleLoadingActive ~= true then
     return false
   end
-  return SimpleLoadingScreen.present(self._simpleLoadingMessage or "Loading...", self)
+  return SimpleLoadingScreen.present(self._simpleLoadingMessage or "Loading...", self, opts)
 end
 
 function AppCoreController:endSimpleLoading()
   self._simpleLoadingActive = false
   self._simpleLoadingMessage = nil
+  if SimpleLoadingScreen.logFinalPhaseWork then
+    SimpleLoadingScreen.logFinalPhaseWork("endSimpleLoading")
+  end
 end
 
 function AppCoreController:getTooltipCandidateAt(x, y)

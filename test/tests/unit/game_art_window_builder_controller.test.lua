@@ -290,4 +290,49 @@ describe("game_art_window_builder_controller.lua", function()
     expect(spriteLayer).toBeTruthy()
     expect(spriteLayer.linkedPatternTableWindowId).toBe("pattern_tbl_a")
   end)
+
+  it("invokes onProgress after each window is created and finalized", function()
+    local wm = makeWM()
+    local progress = {}
+
+    Factory.createPaletteWindow = function(w)
+      return { _id = w.id, kind = "palette", isPalette = true }
+    end
+
+    Factory.finalizeWindow = function(win, w, windowsById, wmArg)
+      if not win then return end
+      windowsById[w.id] = win
+      wmArg._windows[#wmArg._windows + 1] = win
+    end
+
+    local layout = {
+      windows = {
+        { id = "palette_1", kind = "palette" },
+        { id = "palette_2", kind = "palette" },
+      },
+    }
+
+    Builder.buildWindowsFromLayout(layout, {
+      wm = wm,
+      tilesPool = {},
+      ensureTiles = function() end,
+      romRaw = "",
+      onProgress = function(i, total, spec, win)
+        progress[#progress + 1] = {
+          i = i,
+          total = total,
+          id = spec and spec.id,
+          winId = win and win._id,
+        }
+      end,
+    })
+
+    expect(#progress).toBe(2)
+    expect(progress[1].i).toBe(1)
+    expect(progress[1].total).toBe(2)
+    expect(progress[1].id).toBe("palette_1")
+    expect(progress[1].winId).toBe("palette_1")
+    expect(progress[2].i).toBe(2)
+    expect(progress[2].id).toBe("palette_2")
+  end)
 end)

@@ -269,7 +269,8 @@ function M.refreshAllPatternTableWindows(wm, opts)
     opts.wm = wm
   end
   local list = M.collectPatternTableWindows(wm)
-  DebugController.log("info", "PATTERN_TABLE", "refreshAllPatternTableWindows: pattern_table count=%d", #list)
+  local total = #list
+  DebugController.log("info", "PATTERN_TABLE", "refreshAllPatternTableWindows: pattern_table count=%d", total)
   for _, w in ipairs(list) do
     if isSketchOwnedPatternTableWindow(w, wm) then
       DebugController.log(

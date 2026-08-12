@@ -16,6 +16,14 @@ local BAR_H = 4
 local BAR_GAP_BELOW_TEXT = 14
 local BAR_SLIDE_SPEED = 2.0
 
+local presentSeq = 0
+local lastPresentLabel = nil
+local lastPresentAt = nil
+local seenLabels = {}
+--- Wall time when the previous present() finished (after delay sleep); work for that label runs until the next present.
+local phaseWorkStartedAt = nil
+local activePhaseLabel = nil
+
 local function loadingScreenDisabled()
   return rawget(_G, DISABLE_LOADING_SCREEN_FLAG) == true
 end
@@ -105,7 +113,83 @@ local function renderLoadingPatternToCanvas(canvas, message, font)
   love.graphics.setCanvas()
 end
 
-function M.present(message, app)
+local function shortSource(info)
+  if not info or not info.short_src then
+    return "?"
+  end
+  return tostring(info.short_src):gsub("\\", "/"):gsub(".*/", "")
+end
+
+local function callerHint()
+  -- Frames: 1=callerHint, 2=logPresent, 3=present, 4+=app call chain
+  local function fmt(level)
+    local info = debug.getinfo(level, "Sl")
+    return string.format("%s:%s", shortSource(info), tostring(info and info.currentline or "?"))
+  end
+  return string.format("%s <- %s <- %s", fmt(4), fmt(5), fmt(6))
+end
+
+local function logPresent(label)
+  presentSeq = presentSeq + 1
+  local now = LoveCompat.getTime()
+  local sinceLastPresent = lastPresentAt and (now - lastPresentAt) or 0
+  local prevWork = 0
+  if phaseWorkStartedAt then
+    prevWork = math.max(0, now - phaseWorkStartedAt)
+  end
+  local consecutive = (lastPresentLabel == label)
+  local revisit = (not consecutive) and (seenLabels[label] == true)
+  seenLabels[label] = true
+
+  local tag = ""
+  if consecutive then
+    tag = " [SAME]"
+  elseif revisit then
+    tag = " [REVISIT]"
+  end
+
+  local slowTag = ""
+  if phaseWorkStartedAt and prevWork >= 0.05 then
+    slowTag = " [SLOW]"
+  end
+
+  local ok, DebugController = pcall(require, "controllers.dev.debug_controller")
+  if ok and DebugController and DebugController.log then
+    if activePhaseLabel then
+      DebugController.log(
+        "info",
+        "LOADING",
+        "#%d %s%s | after %q work=%.3fs%s (gap=%.3fs) via %s",
+        presentSeq,
+        label,
+        tag,
+        activePhaseLabel,
+        prevWork,
+        slowTag,
+        sinceLastPresent,
+        callerHint()
+      )
+    else
+      DebugController.log(
+        "info",
+        "LOADING",
+        "#%d %s%s | via %s",
+        presentSeq,
+        label,
+        tag,
+        callerHint()
+      )
+    end
+  end
+
+  lastPresentLabel = label
+  lastPresentAt = now
+  activePhaseLabel = label
+  -- phaseWorkStartedAt is set after the present delay sleep in present().
+  phaseWorkStartedAt = nil
+end
+
+function M.present(message, app, opts)
   if loadingScreenDisabled() then
     return true
   end
@@ -114,7 +198,9 @@ function M.present(message, app)
     return false
   end
 
+  opts = opts or {}
   local label = message or "Loading..."
+  logPresent(label)
   love.graphics.push("all")
   love.graphics.origin()
   local bg = colors:appWorkspaceFill()
@@ -132,10 +218,54 @@ function M.present(message, app)
 
   love.graphics.present()
   love.graphics.pop()
-  if ENABLE_LOADING_PRESENT_DELAY then
-    LoveCompat.sleep(LOADING_PRESENT_DELAY_SECONDS)
+  local delay = opts.delaySeconds
+  if delay == nil then
+    delay = LOADING_PRESENT_DELAY_SECONDS
   end
+  if ENABLE_LOADING_PRESENT_DELAY and delay > 0 then
+    LoveCompat.sleep(delay)
+  end
+  -- Real work for this label happens after we return to the caller.
+  phaseWorkStartedAt = LoveCompat.getTime()
   return true
+end
+
+function M.getPresentDelaySeconds()
+  if not ENABLE_LOADING_PRESENT_DELAY then
+    return 0
+  end
+  return LOADING_PRESENT_DELAY_SECONDS
+end
+
+--- Log work time for the last loading label (call when the loading session ends).
+function M.logFinalPhaseWork(reason)
+  if not activePhaseLabel or not phaseWorkStartedAt then
+    return
+  end
+  local work = math.max(0, LoveCompat.getTime() - phaseWorkStartedAt)
+  local slowTag = work >= 0.05 and " [SLOW]" or ""
+  local ok, DebugController = pcall(require, "controllers.dev.debug_controller")
+  if ok and DebugController and DebugController.log then
+    DebugController.log(
+      "info",
+      "LOADING",
+      "final %s work=%.3fs%s (%s)",
+      activePhaseLabel,
+      work,
+      slowTag,
+      tostring(reason or "end")
+    )
+  end
+  phaseWorkStartedAt = nil
+end
+
+function M.resetPresentDebugState()
+  presentSeq = 0
+  lastPresentLabel = nil
+  lastPresentAt = nil
+  seenLabels = {}
+  phaseWorkStartedAt = nil
+  activePhaseLabel = nil
 end
 
 --- Compact sliding bar overlay for a window content rect (does not block / present).
