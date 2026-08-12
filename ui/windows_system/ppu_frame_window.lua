@@ -326,6 +326,47 @@ function PPUFrameWindow:syncNametableVisualCell(col, row, byteVal, tilesPool, la
   self:invalidateNametableLayerCanvas(li, col, row)
 end
 
+--- Bulk rebuild layer.items from nametableBytes with one pattern map + one dirtyAll.
+--- Does not apply on-the-fly replacements (caller owns that).
+function PPUFrameWindow:rebuildNametableLayerItems(tilesPool, layerIndex)
+  local li = layerIndex or self.activeLayer or 1
+  local layer = self:getLayer(li)
+  if not layer then
+    return false
+  end
+  if not tilesPool then
+    return false
+  end
+
+  -- UI often mutates patternTable.ranges in place (same table object); drop any stale cache.
+  PatternTableMapping.invalidateMapCache(layer)
+
+  local map, mapErr = PatternTableMapping.getMapForLayer(layer)
+  if mapErr and not layer._patternTableResolveWarned then
+    layer._patternTableResolveWarned = true
+    DebugController.log("warning", "PPU", "Pattern table mapping error: %s", tostring(mapErr))
+  end
+
+  local bytes = self.nametableBytes or {}
+  local items = {}
+  local removedCells = self.getRemovedCells and self:getRemovedCells(li) or nil
+
+  for i = 1, #bytes do
+    if removedCells then
+      removedCells[i] = nil
+    end
+    local tileRef = nil
+    if map then
+      tileRef = select(1, PatternTableMapping.resolveTileFromMap(tilesPool, map, bytes[i]))
+    end
+    items[i] = tileRef
+  end
+
+  layer.items = items
+  self:invalidateNametableLayerCanvas(li)
+  return true
+end
+
 function PPUFrameWindow:isPatternTableInteractionLocked(layerIndex)
   local PatternLayerGate = require("controllers.window.pattern_layer_gate")
   return PatternLayerGate.isLayerInteractionLocked(self, layerIndex)
@@ -503,12 +544,16 @@ function PPUFrameWindow:setNametableBytes(bytesTbl, bankIndex, pageIndex, tilesP
   end
 
   if tilesPool then
-    for i = 1, #self.nametableBytes do
-      local b = self.nametableBytes[i]
-      local z = i - 1
-      local col = z % cols
-      local row = math.floor(z / cols)
-      self:syncNametableVisualCell(col, row, b, tilesPool, li)
+    if self.rebuildNametableLayerItems then
+      self:rebuildNametableLayerItems(tilesPool, li)
+    else
+      for i = 1, #self.nametableBytes do
+        local b = self.nametableBytes[i]
+        local z = i - 1
+        local col = z % cols
+        local row = math.floor(z / cols)
+        self:syncNametableVisualCell(col, row, b, tilesPool, li)
+      end
     end
   end
   if L then
@@ -917,14 +962,11 @@ function PPUFrameWindow:refreshNametableVisuals(tilesPool, layerIndex)
     NametableTilesController.extractPaletteNumbersFromAttributes(self, layer, self.cols or 32, self.rows or 30)
   end
 
-  layer.items = {}
-
-  for i = 1, #(self.nametableBytes or {}) do
-    local z = i - 1
-    local col = z % (self.cols or 1)
-    local row = math.floor(z / (self.cols or 1))
-    local byteVal = self.nametableBytes[i]
-    self:syncNametableVisualCell(col, row, byteVal, tilesPool, li)
+  if tilesPool then
+    self:rebuildNametableLayerItems(tilesPool, li)
+  else
+    layer.items = {}
+    self:invalidateNametableLayerCanvas(li)
   end
 
   NametableTilesController.applyOnTheFlyReplacements(self, layer, tilesPool, {

@@ -411,9 +411,9 @@ function AppCoreController:load()
 
   -- Initialize debug manager (logging requires init(true); use setCategoryFilter to reduce noise)
   local DebugController = require("controllers.dev.debug_controller")
-  DebugController.init(true)
-  DebugController.setCategoryFilter({ "LOADING" })
-  DebugController.log("info", "LOADING", "startup: category filter = LOADING only")
+  DebugController.init(false)
+  -- DebugController.setCategoryFilter({ "LOADING" })
+  -- DebugController.log("info", "LOADING", "startup: category filter = LOADING only")
   -- DebugController.setCategoryFilter({ "PATTERN_TABLE" })
   -- DebugController.log("info", "PATTERN_TABLE", "startup: category filter = PATTERN_TABLE only")
 

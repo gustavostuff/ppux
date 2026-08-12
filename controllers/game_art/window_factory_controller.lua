@@ -906,6 +906,8 @@ function M.finalizeDeferredPpuNametableHydrates(wm, romRaw, tilesPool, ensureTil
             tostring(win.title or win._id or ""),
             tostring(err)
           )
+        else
+          win._ppuxDeferredNametableHydrated = true
         end
       end
     end
@@ -958,7 +960,8 @@ function M.afterLayoutPatternTablesHydrate(wm, tilesPool, ensureTiles, opts)
 
   -- hydrateWindowNametable / early layout can populate nametable visuals before tilesPool CHR keys
   -- exist or before pattern linkage is finalized, leaving sparse layer.items until something
-  -- (e.g. switching tabs) retriggers rebuild. Refresh every real nametable tile layer once CHR is ready.
+  -- (e.g. switching tabs) retriggers rebuild. Refresh layers that still need a fill; skip when
+  -- deferred hydrate already rebuilt items with a ready pool.
   phase("Refreshing nametables...")
   if type(tilesPool) == "table" then
     for _, win in ipairs(allWindows) do
@@ -966,13 +969,20 @@ function M.afterLayoutPatternTablesHydrate(wm, tilesPool, ensureTiles, opts)
         and type(win.refreshNametableVisuals) == "function"
         and #(win.nametableBytes or {}) > 0
       then
+        local deferredFresh = win._ppuxDeferredNametableHydrated == true
+        win._ppuxDeferredNametableHydrated = nil
         for li, L in ipairs(win.layers or {}) do
           if L
             and L.kind == "tile"
             and L._runtimePatternTableRefLayer ~= true
             and PatternTableMapping.validate(L.patternTable)
           then
-            win:refreshNametableVisuals(tilesPool, li)
+            if deferredFresh and L._ppuxNametableVisualsFresh == true then
+              L._ppuxNametableVisualsFresh = nil
+            else
+              L._ppuxNametableVisualsFresh = nil
+              win:refreshNametableVisuals(tilesPool, li)
+            end
           end
         end
       end

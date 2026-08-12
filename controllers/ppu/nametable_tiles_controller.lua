@@ -756,22 +756,29 @@ function M.hydrateWindowNametable(win, layer, opts)
   ensurePatternTableBanks(layer.patternTable, ensureTiles)
   if tilesPool then
     local fillGridStartedAt = LoveCompat.getTime()
-    for i = 1, #win.nametableBytes do
-      local z   = i - 1
-      local col = z % win.cols
-      local row = math.floor(z / win.cols)
-      local byteVal = win.nametableBytes[i]
-      if win.syncNametableVisualCell then
-        win:syncNametableVisualCell(col, row, byteVal, tilesPool, li)
-      else
-        local tileRef = PatternTableMapping.resolveTile(tilesPool, layer, byteVal)
-        if tileRef then
-          win:set(col, row, tileRef, li)
+    -- Ranges may have been edited in place since any prior resolveTile cache.
+    PatternTableMapping.invalidateMapCache(layer)
+    if win.rebuildNametableLayerItems then
+      win:rebuildNametableLayerItems(tilesPool, li)
+    else
+      for i = 1, #win.nametableBytes do
+        local z   = i - 1
+        local col = z % win.cols
+        local row = math.floor(z / win.cols)
+        local byteVal = win.nametableBytes[i]
+        if win.syncNametableVisualCell then
+          win:syncNametableVisualCell(col, row, byteVal, tilesPool, li)
         else
-          win:clear(col, row, li)
+          local tileRef = PatternTableMapping.resolveTile(tilesPool, layer, byteVal)
+          if tileRef then
+            win:set(col, row, tileRef, li)
+          else
+            win:clear(col, row, li)
+          end
         end
       end
     end
+    layer._ppuxNametableVisualsFresh = true
     logPerf("ntm.fill_grid", fillGridStartedAt, string.format("title=%s", tostring(win.title or "")))
   end
 

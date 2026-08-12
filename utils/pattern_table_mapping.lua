@@ -200,13 +200,46 @@ function M.buildMap(patternTable, fallbackBank, fallbackPage)
   return out, nil
 end
 
-function M.resolveTile(tilesPool, layer, logicalIndex, fallbackBank, fallbackPage)
+--- Drop a layer's cached pattern map (call when patternTable contents change in-place).
+function M.invalidateMapCache(layer)
+  if type(layer) == "table" then
+    layer._ppuxPatternMapCache = nil
+  end
+end
+
+--- Cached buildMap for a layer. Cache key is patternTable object identity + fallbacks.
+function M.getMapForLayer(layer, fallbackBank, fallbackPage)
+  fallbackBank = clampBank(fallbackBank)
+  fallbackPage = clampPage(fallbackPage)
+  local patternTable = layer and layer.patternTable or nil
+  local cached = layer and layer._ppuxPatternMapCache or nil
+  if cached
+    and cached.patternTable == patternTable
+    and cached.fallbackBank == fallbackBank
+    and cached.fallbackPage == fallbackPage
+  then
+    return cached.map, cached.err
+  end
+
+  local map, err = M.buildMap(patternTable, fallbackBank, fallbackPage)
+  if type(layer) == "table" then
+    layer._ppuxPatternMapCache = {
+      patternTable = patternTable,
+      fallbackBank = fallbackBank,
+      fallbackPage = fallbackPage,
+      map = map,
+      err = err,
+    }
+  end
+  return map, err
+end
+
+function M.resolveTileFromMap(tilesPool, map, logicalIndex)
   if not tilesPool then
     return nil, "missing_tiles_pool"
   end
-  local map, err = M.buildMap(layer and layer.patternTable or nil, fallbackBank, fallbackPage)
-  if not map then
-    return nil, err
+  if type(map) ~= "table" then
+    return nil, "missing_map"
   end
 
   local idx = clampByte(logicalIndex)
@@ -221,11 +254,19 @@ function M.resolveTile(tilesPool, layer, logicalIndex, fallbackBank, fallbackPag
   return bank[entry.tileIndex], nil
 end
 
+function M.resolveTile(tilesPool, layer, logicalIndex, fallbackBank, fallbackPage)
+  local map, err = M.getMapForLayer(layer, fallbackBank, fallbackPage)
+  if not map then
+    return nil, err
+  end
+  return M.resolveTileFromMap(tilesPool, map, logicalIndex)
+end
+
 function M.logicalIndexForTileRef(layer, tileRef, fallbackBank, fallbackPage)
   if type(tileRef) ~= "table" or type(tileRef.index) ~= "number" then
     return nil, "invalid_tile_ref"
   end
-  local map, err = M.buildMap(layer and layer.patternTable or nil, fallbackBank, fallbackPage)
+  local map, err = M.getMapForLayer(layer, fallbackBank, fallbackPage)
   if not map then
     return nil, err
   end
