@@ -25,7 +25,7 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
   - [Lua project mapping](#lua-project-mapping)
   - [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom)
   - [PPU frame & OAM](#ppu-frame--oam)
-  - [Add sprite modal](#add-sprite-modal)
+  - [Hex grid flows](#hex-grid-flows)
   - [ROM palette & patches](#rom-palette--patches)
 - [Development](#development)
 - [Notes](#notes)
@@ -175,7 +175,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 2. **Next layer** - `Shift` + `Up` key.
 3. **Remove layer** - `-` key.
 4. **Add layer** - `+` key.
-5. **Add sprite** - Opens the [Add sprite modal](#add-sprite-modal) (OAM hex grid).
+5. **Add sprite** - Opens the [Add sprite](#hex-grid-flows) hex-grid modal (OAM).
 6. **Toggle origin guides** - toggles dotted reference lines, this is user defined, not something that comes from ROM data.
 7. **Copy from previous layer** - Copies everything, including palette links and pattern table links.
 8. **Play / Pause** - `P` key. While focused, **`Shift` + `Left` / `Shift` + `Right`** adjusts frame delay for all frames.
@@ -224,7 +224,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 1. **Previous layer** - `Shift` + `Down` key.
 2. **Next layer** - `Shift` + `Up` key.
 3. **Nametable range** - Set compressed nametable **start/end** ROM addresses for the tile layer stream.
-4. **Add sprite** - Opens the [Add sprite modal](#add-sprite-modal) (OAM hex grid).
+4. **Add sprite** - Opens the [Add sprite](#hex-grid-flows) hex-grid modal (OAM).
 5. **Pattern table link** - left-click for a menu with separate **background** and **sprites** submenus to link **Pattern table** windows.
 6. **Toggle origin guides** - hidden until a sprite layer exists, it toggles dotted reference lines on sprite layers.
 
@@ -277,7 +277,7 @@ Palette windows are the editors used for colors across the app (NES colors).
 
 On ROM palettes, unbound cells show as empty (`-`). Cells you have recolored keep a small swatch of the original ROM color so you can tell overrides apart at a glance. Use the toolbar **Reset cell** / **Reset all** actions (or edit the color again with double click) to go back to the ROM base.
 
-See [ROM palette & patches](#rom-palette--patches) for assigning addresses and the shared hex grid picker.
+See [ROM palette & patches](#rom-palette--patches) and [Hex grid flows](#hex-grid-flows) for assigning addresses.
 
 ### Main controls
 
@@ -400,23 +400,25 @@ Note: the zelda2 codec has only been tested with the Game Over screen. The konam
 
 `oam_animation` windows are ROM-backed sprite animations where **each layer is one hardware frame** of sprites tied to real OAM bytes. Like PPU frames, they need a linked **Pattern table** for sprite CHR. Multiple animation or PPU windows can share the same pattern table.
 
-From the UI: open **New Window > OAM Animation**, link a Pattern table, then use **Add sprite**, and use the frame controls to build each frame. Items that share a `startAddr` stay in sync with PPU Frame sprite layers (and other OAM windows). Origin and origin guides behave the same way as on PPU Frame sprite layers.
+From the UI: open **New Window > OAM Animation**, link a Pattern table, use the **Add sprite** flow and then the frame controls to build each frame. Items that share a `startAddr` stay in sync with PPU Frame sprite layers (and other OAM windows). Origin and origin guides behave the same way as on PPU Frame sprite layers.
 
-### Add sprite modal
+### Hex grid flows
 
-On **PPU Frame** and **OAM Animation** windows, **Add sprite** picks sprites from real ROM OAM bytes. Link a sprite **Pattern table** first (toolbar PT button).
+Several ROM-backed pickers share the same debugger-style **ROM hex grid** (byte view, wheel scroll, dual minimap scrubbers). Cell paint differs per flow, but the idea is the same: browse ROM bytes, select what you need, and confirm.
 
-<img src="img/readme_images/add_oam_sprite.png" alt="Add sprite modal">
+**ROM palette address** - Double-click a ROM-role palette cell (or use **Connect / Update ROM address** from the cell menu) to open the **Enter color address** modal. Valid NES color bytes show as colored labels while invalid ones stay hidden by default. Pick an address, check the swatch, then **Set**. Already-bound cells use a different shape (rounded solid rectangle).
 
-The modal has three synced pieces:
+<img src="img/readme_images/edit_palette_rom_address.png" alt="ROM palette address hex grid modal">
 
-1. **ROM hex grid** - debugger-style byte view of the ROM. Each pick is a 4-byte OAM group (Y, tile, attr, X) starting at the clicked byte. Click a group to select it, click again to deselect. Further clicks add more groups (any alignment). The cap is **8** groups per Add event. Gray = already on the layer. Wheel scrolls the page (**Shift+wheel**: larger jumps). Beside the grid: a narrow full-ROM overview scrubber, then a **cols-wide zoom miniature** (1px = one hex byte) so OAM markers show as 4×1 strips and palette binds as individual color pixels.
-2. **Preview** - live draw of the selected groups (ants tint matches the OAM group color).
-3. **OAM start** field - hex address stays in sync with the grid.
+**Add / Edit sprite (OAM)** - On **PPU Frame** and **OAM Animation** windows, **Add sprite** opens the Add/Edit sprite modal. Each pick is a 4-byte OAM group (Y, tile, attr, X). Click to toggle groups, with gray cells marking ones already on the layer. A live preview and the OAM start field stay in sync, **Add** / **Save** commits the selection, and **Edit sprite** reopens the same UI. The 4-byte groups are not guaranteed to be valid OAM groups actually used in the game, only an emulator would "know" that for sure. This is simply a tool so speed up UI-based sprite editing/building.
 
-**Add** commits the selection. Double-click an OAM sprite (or **Edit sprite**) reopens the same UI to rebind `startAddr`. Colors come from a linked **ROM palette** afterward (toolbar RP button), not from this modal.
+<img src="img/readme_images/edit_oam_sprite.png" alt="Add/Edit sprite OAM hex grid modal">
 
-Note: a 4-byte pick is only a candidate OAM group. It is not guaranteed to be real sprite data in the game. Confirm with trial and error and/or an emulator debugger.
+**Nametable tile range** - On a PPU Frame tile layer, **Set tile range** opens the nametable range modal. Manual mode uses two separate clicks for start and end range set (right-click clears a mid-pick). **Selection mode** runs a one-shot scan of complete streams, underlines them with the OAM color cycle, and lets you click a stream to preview it in the _Nametable_ shadow component.
+
+<img src="img/readme_images/set_nametable_range.png" alt="Nametable range hex grid modal">
+
+Note: so far, the scanner functionality only works for Konami games, but support will be extended.
 
 ### ROM palette & patches
 
@@ -424,13 +426,9 @@ Note: a 4-byte pick is only a candidate OAM group. It is not guaranteed to be re
 
 On the ROM palette toolbar, use **Reset cell** / **Reset all** to restore overridden colors to the captured ROM base, and the connect button to right-drag links onto layers (or left-click for source-side management).
 
-Double-click a ROM-role cell to open the **Enter color address** modal.
+To bind or change a ROM address on a cell, use the shared hex grid picker described in [Hex grid flows](#hex-grid-flows).
 
-<img src="img/readme_images/edit_rom_palette_color.png" alt="Add sprite modal">
-
-It uses the same style of interactive **ROM hex grid** as Add sprite: valid NES palette bytes are highlighted, you pick an address (or type it), and the selected color preview stays in sync. Sketch-role palette windows skip that double-click, since their colors are not tied to ROM addresses.
-
-Note: a highlighted byte can be a _valid_ NES color value without being a palette entry the game actually uses. Again, confirm thjis outside PPUX if unsure.
+Note: a highlighted byte can be a _valid_ NES color value without being a palette entry the game actually uses. Again, confirm this outside PPUX if unsure.
 
 Other windows can point at a palette by `winId` instead of repeating hex addresses:
 
@@ -471,7 +469,7 @@ Patches live on the project as a `romPatches` array. Every entry needs a non-emp
 
 ## Development
 
-Local run (LÖVE 11.5): `love .` from the repo root. The optional `ppux_sketch` C helper accelerates sketch pack, reflect compose/bake, gallery thumbs, flood fill, color masks, PNG→indexed import, and CHR bank full repaints; missing the `.so`/`.dll` falls back to Lua.
+Local run (LÖVE 11.5): `love .` from the repo root. The optional `ppux_sketch` C helper accelerates sketch pack, reflect compose/bake, gallery thumbs, flood fill, color masks, PNG->indexed import, and CHR bank full repaints; missing the `.so`/`.dll` falls back to Lua.
 
 ```bash
 make -C native/ppux_sketch   # Linux: libppux_sketch.so (also found under native/ppux_sketch/ by love .)
