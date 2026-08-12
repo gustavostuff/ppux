@@ -216,7 +216,7 @@ end
 function Dialog.new()
   local self = setmetatable({
     visible = false,
-    title = "Set tile range",
+    title = "Set nametable range",
     padding = nil,
     rowGap = nil,
     buttonGap = nil,
@@ -767,7 +767,7 @@ end
 
 function Dialog:show(opts)
   opts = opts or {}
-  self.title = opts.title or "Set tile range"
+  self.title = opts.title or "Set nametable range"
   self.targetWindow = opts.window
   self.onConfirm = opts.onConfirm
   self.onCancel = opts.onCancel

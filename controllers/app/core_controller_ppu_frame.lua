@@ -1172,7 +1172,7 @@ function AppCoreController:showPpuFrameRangeModal(win)
   local romRaw = (self.appEditState and self.appEditState.romRaw) or ""
   local codec = (layer and layer.codec) or "konami"
   self.ppuFrameRangeModal:show({
-    title = "Set tile range",
+    title = "Set nametable range",
     window = win,
     romRaw = romRaw,
     codec = codec,

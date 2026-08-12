@@ -420,7 +420,7 @@ Several ROM-backed pickers share the same debugger-style **ROM hex grid** (byte 
 
 ---
 
-**Nametable tile range** - On a PPU Frame tile layer, **Set tile range** opens the nametable range modal. Manual mode uses two separate clicks for start and end range set (right-click clears a mid-pick). **Scanned mode** runs a one-shot scan of complete streams, underlines them with the OAM color cycle, and lets you click a stream to preview it in the _Nametable_ shadow component.
+**Nametable tile range** - On a PPU Frame tile layer, **Set nametable range** opens the nametable range modal. Manual mode uses two separate clicks for start and end range set (right-click clears a mid-pick). **Scanned mode** runs a one-shot scan of complete streams, underlines them with the OAM color cycle, and lets you click a stream to preview it in the _Nametable_ shadow component.
 
 <img src="img/readme_images/set_nametable_range.png" alt="Nametable range hex grid modal">
 
