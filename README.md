@@ -143,7 +143,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 **Static Art (tiles and sprites) toolbar**
 
-No specialized toolbar buttons - palette links use the left-edge [badge](#windows-system) (drag / right-click menu).
+No specialized toolbar buttons - palette links use the left-edge badge (drag / right-click menu).
 
 </td>
 </tr>
@@ -161,7 +161,7 @@ No specialized toolbar buttons - palette links use the left-edge [badge](#window
 5. **Copy from previous layer** - Copies everything, including palette links and pattern table links.
 6. **Play / Pause** - `P` key.
 
-Palette and pattern-table links use on-canvas [badges](#windows-system) (drag / right-click menu), not toolbar buttons.
+Palette and pattern-table links use on-canvas badges (drag / right-click menu), not toolbar buttons.
 </td>
 </tr>
 <tr>
@@ -180,7 +180,7 @@ Palette and pattern-table links use on-canvas [badges](#windows-system) (drag / 
 7. **Copy from previous layer** - Copies everything, including palette links and pattern table links.
 8. **Play / Pause** - `P` key. While focused, **`Shift` + `Left` / `Shift` + `Right`** adjusts frame delay for all frames.
 
-Palette and pattern-table links use on-canvas [badges](#windows-system) (drag / right-click menu). A Pattern table link is **required** for sprite CHR.
+Palette and pattern-table links use on-canvas badges (drag / right-click menu). A Pattern table link is **required** for sprite CHR.
 
 **Shift + right-drag** on the canvas moves sprite `originX` / `originY` (same as PPU Frame sprite layers).
 
@@ -211,7 +211,7 @@ Palette and pattern-table links use on-canvas [badges](#windows-system) (drag / 
 3. **Reset cell** - restores the selected cell to its captured ROM base color (clears that cell's user override).
 4. **Reset all** - restores every overridden cell on this palette to ROM base colors.
 
-Link consumers via the right-edge [badge](#windows-system) (drag or right-click menu).
+Link consumers via the right-edge badge (drag or right-click menu).
 
 </td>
 </tr>
@@ -228,7 +228,7 @@ Link consumers via the right-edge [badge](#windows-system) (drag or right-click 
 4. **Add sprite** - Opens the [Add sprite](#hex-grid-flows) hex-grid modal (OAM).
 5. **Toggle origin guides** - hidden until a sprite layer exists, it toggles dotted reference lines on sprite layers.
 
-Pattern table and palette links use left-edge [badges](#windows-system) on the frame (drag / right-click).
+Pattern table and palette links use left-edge badges on the frame (drag / right-click).
 
 </td>
 </tr>
@@ -241,7 +241,7 @@ Pattern table and palette links use left-edge [badges](#windows-system) on the f
 
 1. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - **`Ctrl + M`**.
 
-Consumer links use the right-edge [badge](#windows-system) (drag / right-click menu).
+Consumer links use the right-edge badge (drag / right-click menu).
 
 Note: Logical **ranges** are built by dragging tiles (multi selections, ideally) from **CHR Banks** or **ROM Banks** onto the pattern table content. Ranges must add up to **256** tiles for a complete map. When a **Sketch canvas** owns the pattern table, CHR/ROM drops are blocked and the catalog comes from Generate.
 
@@ -262,7 +262,7 @@ Note: Logical **ranges** are built by dragging tiles (multi selections, ideally)
 6. **Export CHR** - writes a 4KB CHR bank (256 tiles) beside the project/ROM folder (needs a successful Generate).
 7. **Export nametable** - writes a 1024-byte `.nam` (960 tiles + 64 attribute bytes).
 
-Pattern table and sketch-mode palette links use left-edge [badges](#windows-system) (drag / right-click).
+Pattern table and sketch-mode palette links use left-edge badges (drag / right-click).
 
 </td>
 </tr>
