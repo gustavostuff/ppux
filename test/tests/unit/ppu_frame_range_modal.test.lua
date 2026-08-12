@@ -229,17 +229,24 @@ describe("ppu_frame_range_modal.lua", function()
     modal:hide()
   end)
 
-  it("disables Scanned mode for non-konami codecs with a reason tooltip", function()
+  it("hides Scanned mode checkbox when no scanner exists for the codec", function()
     local modal = PPUFrameRangeModal.new()
     modal:show({
       romRaw = string.rep("\0", 256),
       codec = "zelda2",
     })
-    expect(modal.scannedModeCheckbox.enabled).toBe(false)
-    expect(modal.scannedModeCheckbox.tooltip).toBe(PPUFrameRangeModal.MSG_SCAN_UNSUPPORTED)
+    expect(modal:isScannedModeAvailable()).toBe(false)
     expect(modal:isScannedMode()).toBe(false)
 
-    -- Clicks / forced toggles must not enter Scanned mode.
+    local checkboxInPanel = false
+    for _, cell in ipairs(modal.panel:_iterCells()) do
+      if cell.component == modal.scannedModeCheckbox then
+        checkboxInPanel = true
+        break
+      end
+    end
+    expect(checkboxInPanel).toBe(false)
+
     modal.scannedModeCheckbox:setChecked(true)
     expect(modal:isScannedMode()).toBe(false)
     expect(modal._scanComputed).toBe(false)
@@ -248,8 +255,15 @@ describe("ppu_frame_range_modal.lua", function()
       romRaw = string.rep("\0", 256),
       codec = "konami",
     })
-    expect(modal.scannedModeCheckbox.enabled).toBe(true)
-    expect(modal.scannedModeCheckbox.tooltip).toBe("")
+    expect(modal:isScannedModeAvailable()).toBe(true)
+    checkboxInPanel = false
+    for _, cell in ipairs(modal.panel:_iterCells()) do
+      if cell.component == modal.scannedModeCheckbox then
+        checkboxInPanel = true
+        break
+      end
+    end
+    expect(checkboxInPanel).toBe(true)
     modal:hide()
   end)
 end)

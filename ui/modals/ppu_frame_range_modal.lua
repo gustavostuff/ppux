@@ -16,8 +16,8 @@ local colors = require("app_colors")
 -- same cell clears). Any click starts a new pick — no inside-range lock.
 -- Scanned mode ON: one-shot Scan for this modal life; click any cell in a
 -- complete stream to select that whole range (click again to toggle off;
--- manual ranges are unavailable). Available only for codecs with a scanner
--- under scanners/ (currently Konami).
+-- manual ranges are unavailable). Checkbox is shown only when a scanner
+-- exists for the layer codec under scanners/ (currently Konami).
 -- Shape preview shows for complete streams (1024 unique page writes) and is cached.
 
 local Dialog = {}
@@ -27,8 +27,6 @@ Dialog.__index = Dialog
 local FOOTER_ROWS = 5
 local PANEL_COLS = 3
 Dialog.MSG_TWO_CLICKS = "use 2 separate clicks"
-Dialog.MSG_SCAN_UNSUPPORTED =
-  "Scanned mode is only available for Konami nametable layers."
 
 local function rowspanForHeight(height, cellH, spacingY)
   cellH = math.max(1, math.floor(tonumber(cellH) or 15))
@@ -100,10 +98,12 @@ local function rebuildPanel(self)
     colspan = PANEL_COLS,
     rowspan = hexRows,
   })
-  self.panel:setCell(1, modeRow, {
-    component = self.scannedModeCheckbox,
-    colspan = 2,
-  })
+  if self:isScannedModeAvailable() then
+    self.panel:setCell(1, modeRow, {
+      component = self.scannedModeCheckbox,
+      colspan = 2,
+    })
+  end
   self.panel:setCell(3, modeRow, { text = "NT preview", align = "center" })
   self.panel:setCell(1, startRow, { text = "Start:" })
   self.panel:setCell(2, startRow, { component = self.startField })
@@ -322,6 +322,10 @@ end
 
 function Dialog:isScannedMode()
   return self.scannedModeCheckbox and self.scannedModeCheckbox:isChecked()
+end
+
+function Dialog:isScannedModeAvailable()
+  return NtScanners.supports(self.codec)
 end
 
 function Dialog:_formatAddr(addr)
@@ -693,7 +697,7 @@ function Dialog:_ensureScanComputed()
 end
 
 function Dialog:_onScannedModeChanged(enabled)
-  if enabled and not NtScanners.supports(self.codec) then
+  if enabled and not self:isScannedModeAvailable() then
     self.scannedModeCheckbox:setChecked(false, { silent = true })
     return
   end
@@ -716,17 +720,8 @@ function Dialog:_onScannedModeChanged(enabled)
 end
 
 function Dialog:_syncScannedModeAvailability()
-  local supported = NtScanners.supports(self.codec)
-  local cb = self.scannedModeCheckbox
-  if not cb then
-    return
-  end
-  cb.enabled = supported
-  if supported then
-    cb.tooltip = ""
-  else
-    cb.tooltip = Dialog.MSG_SCAN_UNSUPPORTED
-    cb:setChecked(false, { silent = true })
+  if not self:isScannedModeAvailable() and self.scannedModeCheckbox then
+    self.scannedModeCheckbox:setChecked(false, { silent = true })
   end
 end
 
@@ -737,9 +732,9 @@ function Dialog:cursorNameAt(mx, my)
   if self.panel and type(self.panel.getButtonAt) == "function" and self.panel:getButtonAt(mx, my) then
     return "hand"
   end
-  if self.scannedModeCheckbox and self.scannedModeCheckbox.contains
-      and self.scannedModeCheckbox:contains(mx, my)
-      and self.scannedModeCheckbox.enabled ~= false then
+  if self:isScannedModeAvailable()
+      and self.scannedModeCheckbox and self.scannedModeCheckbox.contains
+      and self.scannedModeCheckbox:contains(mx, my) then
     return "hand"
   end
   if not self:isScannedMode() then
@@ -762,7 +757,7 @@ end
 
 --- Test / legacy hook: force a scan and enable marks (Scanned mode ON).
 function Dialog:_runScan()
-  if not NtScanners.supports(self.codec) then
+  if not self:isScannedModeAvailable() then
     return
   end
   self._scanComputed = false

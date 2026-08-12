@@ -410,7 +410,7 @@ Several ROM-backed pickers share the same debugger-style **ROM hex grid** (byte 
 
 <img src="img/readme_images/edit_palette_rom_address.png" alt="ROM palette address hex grid modal">
 
-**Add / Edit sprite (OAM)** - On **PPU Frame** and **OAM Animation** windows, **Add sprite** opens the Add/Edit sprite modal. Each pick is a 4-byte OAM group (Y, tile, attr, X). Click to toggle groups, with gray cells marking ones already on the layer. A live preview and the OAM start field stay in sync, **Add** / **Save** commits the selection, and **Edit sprite** reopens the same UI. The 4-byte groups are not guaranteed to be valid OAM groups actually used in the game, only an emulator would "know" that for sure. This is simply a tool so speed up UI-based sprite editing/building.
+**Add / Edit sprite (OAM)** - On **PPU Frame** and **OAM Animation** windows, **Add sprite** opens the Add/Edit sprite modal. Each pick is a 4-byte OAM group (Y, tile, attr, X). Click to toggle groups, with gray cells marking ones already on the layer. A live preview and the OAM start field stay in sync, **Add** / **Save** commits the selection, and **Edit sprite** reopens the same UI. **The 4-byte groups are not guaranteed to be valid OAM groups** actually used in the game, only an emulator would "know" that for sure. This is simply a tool so speed up UI-based sprite editing/building.
 
 <img src="img/readme_images/edit_oam_sprite.png" alt="Add/Edit sprite OAM hex grid modal">
 
@@ -418,7 +418,7 @@ Several ROM-backed pickers share the same debugger-style **ROM hex grid** (byte 
 
 <img src="img/readme_images/set_nametable_range.png" alt="Nametable range hex grid modal">
 
-Note: Scanned mode is Konami-only for now (other codecs keep the checkbox disabled). More scanners will land under `scanners/`.
+Note: Scanned mode is Konami-only for now (the checkbox is hidden for other codecs). More scanners will land under `scanners/`.
 
 ### ROM palette & patches
 
