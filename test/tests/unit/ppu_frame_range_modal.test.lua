@@ -53,6 +53,25 @@ describe("ppu_frame_range_modal.lua", function()
     expect(markers[3].color).toBe("blue")
   end)
 
+  it("keeps two-click hint after hydrate from existing layer range", function()
+    local modal = PPUFrameRangeModal.new()
+    modal:show({
+      romRaw = string.rep("\0", 256),
+      codec = "konami",
+      initialStartAddress = "0x000010",
+      initialEndAddress = "0x00001F",
+    })
+    expect(modal:isSelectionMode()).toBe(false)
+    expect(modal._rangeStart).toBe(0x10)
+    expect(modal._rangeEnd).toBe(0x1F)
+    expect(modal._hasCommittedRange).toBe(false)
+
+    modal:_onGridSelect(0x40, { fromGrid = true })
+    modal:_onGridSelect(0x4F, { fromGrid = true })
+    expect(modal._hasCommittedRange).toBe(true)
+    modal:hide()
+  end)
+
   it("selection mode OFF allows manual two-click ranges without scan marks", function()
     local modal = PPUFrameRangeModal.new()
     modal:show({
@@ -60,15 +79,17 @@ describe("ppu_frame_range_modal.lua", function()
       codec = "konami",
     })
     expect(modal:isSelectionMode()).toBe(false)
-    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(0)
+    expect(#(modal.hexGrid:getUnderlinedStarts())).toBe(0)
+    expect(modal._hasCommittedRange).toBe(false)
 
     modal:_onGridSelect(0x40, { fromGrid = true })
     expect(modal._rangeAnchor).toBe(0x40)
     expect(modal.startField:getText()).toBe("0x000040")
     expect(modal.endField:getText()).toBe("0x000040")
     expect(#(modal.hexGrid:getSelectedStarts())).toBe(0)
-    expect(modal.hexGrid:getSemiSelectedStarts()).toEqual({ 0x40 })
-    expect(modal.hexGrid:getSemiGroupSize(0x40)).toBe(1)
+    expect(modal.hexGrid:getUnderlinedStarts()).toEqual({ 0x40 })
+    expect(modal.hexGrid:getUnderlinedGroupSize(0x40)).toBe(1)
+    expect(modal._hasCommittedRange).toBe(false)
 
     modal:_onGridSelect(0x4F, { fromGrid = true })
     expect(modal._rangeAnchor).toBe(nil)
@@ -77,7 +98,8 @@ describe("ppu_frame_range_modal.lua", function()
     expect(modal.startField:getText()).toBe("0x000040")
     expect(modal.endField:getText()).toBe("0x00004F")
     expect(modal.hexGrid:getSelectedGroupSize(0x40)).toBe(0x10)
-    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(0)
+    expect(#(modal.hexGrid:getUnderlinedStarts())).toBe(0)
+    expect(modal._hasCommittedRange).toBe(true)
 
     -- Click inside committed range → starts a new anchor (not a no-op).
     modal:_onGridSelect(0x45, { fromGrid = true })
@@ -85,7 +107,7 @@ describe("ppu_frame_range_modal.lua", function()
     expect(modal._rangeStart).toBe(nil)
     expect(modal._rangeEnd).toBe(nil)
     expect(#(modal.hexGrid:getSelectedStarts())).toBe(0)
-    expect(modal.hexGrid:getSemiGroupSize(0x45)).toBe(1)
+    expect(modal.hexGrid:getUnderlinedGroupSize(0x45)).toBe(1)
 
     -- Same-cell second click clears.
     modal:_onGridSelect(0x45, { fromGrid = true })
@@ -101,7 +123,7 @@ describe("ppu_frame_range_modal.lua", function()
     expect(modal.hexGrid:contains(hx, hy)).toBe(true)
     modal:mousepressed(hx, hy, 2)
     expect(modal._rangeAnchor).toBe(nil)
-    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(0)
+    expect(#(modal.hexGrid:getUnderlinedStarts())).toBe(0)
 
     -- Outside / anywhere also just starts a new two-click.
     modal:_onGridSelect(0x20, { fromGrid = true })
@@ -120,14 +142,14 @@ describe("ppu_frame_range_modal.lua", function()
     local rom, pad, streamLen = plantStreamRom(9)
     local modal = PPUFrameRangeModal.new()
     modal:show({ romRaw = rom, codec = "konami" })
-    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(0)
+    expect(#(modal.hexGrid:getUnderlinedStarts())).toBe(0)
 
     modal.selectionModeCheckbox:setChecked(true)
     expect(modal:isSelectionMode()).toBe(true)
     expect(modal._scanComputed).toBe(true)
-    local semi = modal.hexGrid:getSemiSelectedStarts()
-    expect(#semi).toBeGreaterThan(0)
-    expect(modal.hexGrid:getSemiGroupSize(pad)).toBe(streamLen)
+    local underlined = modal.hexGrid:getUnderlinedStarts()
+    expect(#underlined).toBeGreaterThan(0)
+    expect(modal.hexGrid:getUnderlinedGroupSize(pad)).toBe(streamLen)
 
     -- Mid-stream click selects the whole hit + marks clicked cell user-selected.
     modal:_onGridSelect(pad + 4, { fromGrid = true })
@@ -136,7 +158,7 @@ describe("ppu_frame_range_modal.lua", function()
     expect(modal.hexGrid:getSelectedGroupSize(pad)).toBe(streamLen)
     expect(modal.hexGrid:getUserSelectedStarts()).toEqual({ pad + 4 })
     expect(modal.shapePreview:isActive()).toBe(true)
-    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(#semi)
+    expect(#(modal.hexGrid:getUnderlinedStarts())).toBe(#underlined)
     -- Selected fill keeps the scan hit highlight color (not forced red).
     local selectedFill = modal.hexGrid:_selectedFillColorForStart(pad)
     local scanTint = modal.hexGrid:highlightColorForStart(pad)
@@ -157,12 +179,12 @@ describe("ppu_frame_range_modal.lua", function()
     -- Re-toggle: scan is not recomputed.
     local hitsBefore = modal.scanHits
     modal.selectionModeCheckbox:setChecked(false)
-    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(0)
+    expect(#(modal.hexGrid:getUnderlinedStarts())).toBe(0)
     expect(modal._rangeStart).toBe(nil)
     modal.selectionModeCheckbox:setChecked(true)
     expect(modal.scanHits).toBe(hitsBefore)
     expect(modal._scanComputed).toBe(true)
-    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(#semi)
+    expect(#(modal.hexGrid:getUnderlinedStarts())).toBe(#underlined)
     modal:hide()
   end)
 

@@ -161,8 +161,12 @@ local function printCore(text, x, y, data)
       end
     end
   elseif shadow then
-    -- bottom-right shadow
-    setColor(shadowColor)
+    -- bottom-right shadow (literal RGB by default so white contrast shadows work)
+    local shadowLiteral = data.shadowLiteralColor
+    if shadowLiteral == nil then
+      shadowLiteral = true
+    end
+    setColor(shadowColor, shadowLiteral == true)
     if type(text) == "table" then
       for i=1,n do
         rawPrint(text[i] or "", x + dx, y + dy + (i - 1) * lh)

@@ -1,9 +1,9 @@
--- FCEUX-style read-only ROM hex grid: N columns x 8 rows (default 16), absolute offset
+-- emulator-style read-only ROM hex grid: N columns x 8 rows (default 16), absolute offset
 -- gutter, column headers. Wheel scrolls 8 rows (Shift+wheel: 64 rows / 1KB).
 -- Selection is groups of `groupSize` bytes from each selected start address.
 -- Cell paint states (docs/hex_grid_refinement.txt): normal / selectable / ninja /
--- semi-selected (outline + text at 100%, contrast via font outline) /
--- selected / user-selected (ants) / disabled.
+-- semi-selected (colored text at 100%, contrast via font shadow or outline) /
+-- underlined / selected / user-selected (ants) / disabled.
 -- Dual scroll tracks: full-ROM overview (click/drag) + informative zoom (1px per hex row).
 
 local colors = require("app_colors")
@@ -191,6 +191,10 @@ function M.new(opts)
     semiSelectedStarts = {},
     _semiSet = {},
     _semiGroupSizeByStart = {},
+    -- Underlined ranges (nametable mid-pick / scan marks).
+    underlinedStarts = {},
+    _underlinedSet = {},
+    _underlinedGroupSizeByStart = {},
     _selectedGroupSizeByStart = {},
     minimapMarkers = {},
     onSelect = opts.onSelect,
@@ -201,10 +205,14 @@ function M.new(opts)
     replaceSelect = opts.replaceSelect == true,
     -- Unmarked cells: "normal" | "selectable" | "ninja" (see docs/hex_grid_refinement.txt).
     defaultCellStyle = opts.defaultCellStyle or "normal",
-    -- When set, all semi-selected outlines share this RGBA instead of cycling.
+    -- When set, all semi-selected text shares this RGBA instead of cycling.
     uniformSemiColor = opts.uniformSemiColor,
-    -- Optional: function(addr) -> {r,g,b,a} for per-address semi outline/text colors.
+    -- Optional: function(addr) -> {r,g,b,a} for per-address semi text colors.
     semiColorForAddr = opts.semiColorForAddr,
+    -- When set, all underlines share this RGBA instead of cycling / white default.
+    uniformUnderlineColor = opts.uniformUnderlineColor,
+    -- Optional: function(addr) -> {r,g,b,a} for per-address underline + text colors.
+    underlineColorForAddr = opts.underlineColorForAddr,
     -- Optional: function(addr) -> {r,g,b,a} for selected fills (else highlight cycle).
     selectedColorForAddr = opts.selectedColorForAddr,
     -- When true, draw marching-ants on selected groups (see selectionAntsOnHover).
@@ -230,6 +238,8 @@ function M.new(opts)
     onRejectSelect = opts.onRejectSelect,
     -- How rejected (canSelectAddr=false) cells paint/cursor: "ninja" | "hidden".
     rejectedCellStyle = opts.rejectedCellStyle or "ninja",
+    -- Semi label contrast via Text.print: "outline" (8-dir) or "shadow" (offset).
+    semiTextContrast = (opts.semiTextContrast == "shadow") and "shadow" or "outline",
     _hoverX = nil,
     _hoverY = nil,
     _selectionCapHit = false,
@@ -328,6 +338,43 @@ end
 function M:getSemiGroupSize(startAddr)
   startAddr = math.floor(tonumber(startAddr) or -1)
   local mapped = self._semiGroupSizeByStart and self._semiGroupSizeByStart[startAddr]
+  if type(mapped) == "number" and mapped >= 1 then
+    return math.floor(mapped)
+  end
+  return self:getGroupSize()
+end
+
+--- Underlined groups: black BG + colored/white text + bottom edge line (nametable ranges).
+function M:setUnderlinedStarts(starts, opts)
+  opts = opts or {}
+  local list, set = normalizeStartList(starts)
+  self.underlinedStarts = list
+  self._underlinedSet = set
+
+  local sizeMap = {}
+  local rawSizes = opts.groupSizeByStart
+  if type(rawSizes) == "table" then
+    for addr, size in pairs(rawSizes) do
+      local a = math.floor(tonumber(addr) or -1)
+      local s = math.floor(tonumber(size) or 0)
+      if a >= 0 and s >= 1 then
+        sizeMap[a] = s
+      end
+    end
+  end
+  self._underlinedGroupSizeByStart = sizeMap
+
+  local syncOpts = { resetColors = opts.resetColors == true }
+  self:_syncStartColors(list, syncOpts)
+end
+
+function M:getUnderlinedStarts()
+  return copyStarts(self.underlinedStarts)
+end
+
+function M:getUnderlinedGroupSize(startAddr)
+  startAddr = math.floor(tonumber(startAddr) or -1)
+  local mapped = self._underlinedGroupSizeByStart and self._underlinedGroupSizeByStart[startAddr]
   if type(mapped) == "number" and mapped >= 1 then
     return math.floor(mapped)
   end
@@ -706,22 +753,26 @@ end
 
 --- Bind highlight colors by selection order (not list index).
 --- opts.preserveSemiColors: when resetting, keep colors already assigned to
---- semi-selected starts (so scan marks don't all fall back to red on click).
+--- semi/underlined starts (so scan marks don't all fall back to red on click).
 function M:_syncStartColors(cleaned, opts)
   opts = opts or {}
   if opts.resetColors then
     if opts.preserveSemiColors then
       local keep = {}
       local maxSeq = 0
-      for _, addr in ipairs(self.semiSelectedStarts or {}) do
-        local seq = self._startColorIndex and self._startColorIndex[addr]
-        if type(seq) == "number" then
-          keep[addr] = seq
-          if seq > maxSeq then
-            maxSeq = seq
+      local function keepFrom(list)
+        for _, addr in ipairs(list or {}) do
+          local seq = self._startColorIndex and self._startColorIndex[addr]
+          if type(seq) == "number" then
+            keep[addr] = seq
+            if seq > maxSeq then
+              maxSeq = seq
+            end
           end
         end
       end
+      keepFrom(self.semiSelectedStarts)
+      keepFrom(self.underlinedStarts)
       self._startColorIndex = keep
       self._nextColorSeq = maxSeq + 1
     else
@@ -1594,18 +1645,18 @@ function M:_drawGroupHighlights(gridX, gridY, starts, colorForStart, mode, opts)
     love.graphics.setColor(c[1], c[2], c[3], c[4] or 0.9)
     self:_forEachGroupRun(gridX, gridY, { start }, function(x, y, w, h)
       if mode == "line" then
-        -- local lx, ly, lw, lh = x, y, w, h
-        -- if lineInset then
-        --   lx = x + 1
-        --   ly = y + 1
-        --   lw = math.max(1, w - 1)
-        --   lh = math.max(1, h - 1)
-        -- end
-        -- if cornerRadius and cornerRadius > 0 then
-        --   love.graphics.rectangle("line", lx, ly, lw, lh, cornerRadius, cornerRadius)
-        -- else
-        --   love.graphics.rectangle("line", lx, ly, lw, lh)
-        -- end
+        local lx, ly, lw, lh = x, y, w, h
+        if lineInset then
+          lx = x + 1
+          ly = y + 1
+          lw = math.max(1, w - 2)
+          lh = math.max(1, h - 1)
+        end
+        if cornerRadius and cornerRadius > 0 then
+          love.graphics.rectangle("line", lx, ly, lw, lh, cornerRadius, cornerRadius)
+        else
+          love.graphics.rectangle("line", lx, ly, lw, lh)
+        end
       else
         if cornerRadius and cornerRadius > 0 then
           love.graphics.rectangle("fill", x, y, w, h, cornerRadius, cornerRadius)
@@ -1613,6 +1664,29 @@ function M:_drawGroupHighlights(gridX, gridY, starts, colorForStart, mode, opts)
           love.graphics.rectangle("fill", x, y, w, h)
         end
       end
+    end, opts)
+  end
+end
+
+local UNDERLINE_H = 1
+
+--- Bottom edge underline for underlined-state groups (no corner radius).
+function M:_drawUnderlines(gridX, gridY, starts, colorForStart, opts)
+  opts = opts or {}
+  for _, start in ipairs(starts or {}) do
+    local c
+    if type(colorForStart) == "function" then
+      c = colorForStart(start)
+    else
+      c = self:_underlineColorForStart(start)
+    end
+    if type(c) ~= "table" then
+      c = { 1, 1, 1, 1 }
+    end
+    love.graphics.setColor(c[1], c[2], c[3], c[4] or 1)
+    self:_forEachGroupRun(gridX, gridY, { start }, function(x, y, w, h)
+      local uy = y + math.max(0, h - UNDERLINE_H)
+      love.graphics.rectangle("fill", x, uy, math.max(1, w), UNDERLINE_H)
     end, opts)
   end
 end
@@ -1734,6 +1808,24 @@ function M:_semiColorForStart(startAddr, alpha)
   return rgbaMulAlpha(c, alpha)
 end
 
+--- Underline + text color. Default white; may cycle highlights or use uniform/per-addr overrides.
+function M:_underlineColorForStart(startAddr)
+  local c
+  if type(self.underlineColorForAddr) == "function" then
+    c = self.underlineColorForAddr(startAddr)
+  elseif type(self.uniformUnderlineColor) == "table" then
+    c = self.uniformUnderlineColor
+  elseif self._startColorIndex and self._startColorIndex[startAddr] ~= nil then
+    c = self:highlightColorForStart(startAddr)
+  else
+    c = colors.white
+  end
+  if type(c) ~= "table" then
+    c = colors.white
+  end
+  return { c[1] or 1, c[2] or 1, c[3] or 1, c[4] or 1 }
+end
+
 function M:_boundFillColorForStart(startAddr)
   if type(self.selectedColorForAddr) == "function" then
     local c = self.selectedColorForAddr(startAddr)
@@ -1801,11 +1893,15 @@ function M:cursorNameAt(px, py)
   if self:addrInOccupiedSpan(addr) then
     return "unavailable"
   end
-  -- Semi / selected / selectable / ninja are interactive.
+  -- Underlined / semi / selected / selectable / ninja are interactive.
+  local underlined = self.underlinedStarts or {}
   local semi = self.semiSelectedStarts or {}
   local starts = self.selectedStarts or {}
   local span = self:getGroupSize()
   if #startsCoveringAddr(starts, addr, span, self._selectedGroupSizeByStart) > 0 then
+    return "hand"
+  end
+  if #startsCoveringAddr(underlined, addr, span, self._underlinedGroupSizeByStart) > 0 then
     return "hand"
   end
   if #startsCoveringAddr(semi, addr, span, self._semiGroupSizeByStart) > 0 then
@@ -1860,9 +1956,11 @@ function M:draw()
 
   local len = romLen(self.romRaw)
   local disabled = self.disabledStarts or {}
+  local underlined = self.underlinedStarts or {}
   local semi = self.semiSelectedStarts or {}
   local starts = self.selectedStarts or {}
   local span = self:getGroupSize()
+  local underlinedSpanByStart = self._underlinedGroupSizeByStart
   local semiSpanByStart = self._semiGroupSizeByStart
   local selectedSpanByStart = self._selectedGroupSizeByStart
 
@@ -1876,7 +1974,7 @@ function M:draw()
     boundStarts, boundSpans = self:_boundMarkerStartsAndSpans()
   end
 
-  -- One paint state per cell: disabled > selected > bound > semi > default.
+  -- One paint state per cell: disabled > selected > bound > underlined > semi > default.
   local selectedDraw = filterStartsOutsideBlockers(
     starts,
     selectedSpanByStart,
@@ -1904,30 +2002,60 @@ function M:draw()
       span
     )
   end
-  local semiBlockers = starts
-  local semiBlockerSpans = selectedSpanByStart
-  if boundDraw and #boundDraw > 0 then
-    -- Temporarily merge selected + bound into one blocker list for semi filter.
+
+  local function mergeBlockers(baseStarts, baseSpans, extraStarts, extraSpans)
     local merged = {}
-    for _, s in ipairs(starts or {}) do
+    for _, s in ipairs(baseStarts or {}) do
       merged[#merged + 1] = s
     end
-    for _, s in ipairs(boundDraw) do
+    for _, s in ipairs(extraStarts or {}) do
       merged[#merged + 1] = s
     end
     local mergedSpans = {}
-    if type(selectedSpanByStart) == "table" then
-      for k, v in pairs(selectedSpanByStart) do
+    if type(baseSpans) == "table" then
+      for k, v in pairs(baseSpans) do
         mergedSpans[k] = v
       end
     end
-    if type(boundSpans) == "table" then
-      for k, v in pairs(boundSpans) do
+    if type(extraSpans) == "table" then
+      for k, v in pairs(extraSpans) do
         mergedSpans[k] = v
       end
     end
-    semiBlockers = merged
-    semiBlockerSpans = mergedSpans
+    return merged, mergedSpans
+  end
+
+  local hiBlockers = starts
+  local hiBlockerSpans = selectedSpanByStart
+  if boundDraw and #boundDraw > 0 then
+    hiBlockers, hiBlockerSpans = mergeBlockers(starts, selectedSpanByStart, boundDraw, boundSpans)
+  end
+
+  local underlinedDraw = filterStartsOutsideBlockers(
+    underlined,
+    underlinedSpanByStart,
+    span,
+    hiBlockers,
+    hiBlockerSpans,
+    span
+  )
+  underlinedDraw = filterStartsOutsideBlockers(
+    underlinedDraw,
+    underlinedSpanByStart,
+    span,
+    disabled,
+    nil,
+    span
+  )
+
+  local semiBlockers, semiBlockerSpans = hiBlockers, hiBlockerSpans
+  if #underlinedDraw > 0 then
+    semiBlockers, semiBlockerSpans = mergeBlockers(
+      hiBlockers,
+      hiBlockerSpans,
+      underlinedDraw,
+      underlinedSpanByStart
+    )
   end
   local semiDraw = filterStartsOutsideBlockers(
     semi,
@@ -1946,14 +2074,14 @@ function M:draw()
     span
   )
 
-  -- Semi-selected: colored outline + text at full opacity; contrast via font outline.
-  self:_drawGroupHighlights(gridX, gridY, semiDraw, function(startAddr)
-    return self:_semiColorForStart(startAddr, 1)
-  end, "line", {
-    spanByStart = semiSpanByStart,
-    cornerRadius = 0,
+  -- Underlined: bottom edge line (black BG stays default; text colored below).
+  self:_drawUnderlines(gridX, gridY, underlinedDraw, function(startAddr)
+    return self:_underlineColorForStart(startAddr)
+  end, {
+    spanByStart = underlinedSpanByStart,
   })
 
+  -- Semi-selected: colored text only (font outline/shadow contrast); no cell rect.
   -- Bound addresses as Selected fills (under live selection).
   if boundDraw and #boundDraw > 0 then
     self:_drawGroupHighlights(gridX, gridY, boundDraw, function(startAddr)
@@ -2014,6 +2142,7 @@ function M:draw()
       local cellX = gridX + col * CELL_W
       local covering = startsCoveringAddr(selectedDraw, addr, span, selectedSpanByStart)
       local coveringDis = startsCoveringAddr(disabled, addr, span)
+      local coveringUnderlined = startsCoveringAddr(underlinedDraw, addr, span, underlinedSpanByStart)
       local coveringSemi = startsCoveringAddr(semiDraw, addr, span, semiSpanByStart)
       local coveringBound = boundDraw
         and startsCoveringAddr(boundDraw, addr, 1, boundSpans)
@@ -2021,8 +2150,7 @@ function M:draw()
       local hovered = hoverAddr ~= nil and addr == hoverAddr
 
       local textColor
-      local useOutline = false
-      local outlineColor = nil
+      local contrastColor = nil
       if #coveringDis > 0 then
         textColor = { disText[1], disText[2], disText[3], 1 }
       elseif #covering > 0 then
@@ -2035,11 +2163,13 @@ function M:draw()
         local fill = self:_boundFillColorForStart(start)
         local ink = inkForFill(fill)
         textColor = { ink[1], ink[2], ink[3], 1 }
+      elseif #coveringUnderlined > 0 then
+        local start = underlinedDraw[coveringUnderlined[#coveringUnderlined]]
+        textColor = self:_underlineColorForStart(start)
       elseif #coveringSemi > 0 then
         local start = semiDraw[coveringSemi[#coveringSemi]]
         textColor = self:_semiColorForStart(start, 1)
-        outlineColor = inkForFill(self:_semiColorForStart(start, 1))
-        useOutline = true
+        contrastColor = inkForFill(self:_semiColorForStart(start, 1))
       else
         local reject = type(self.canSelectAddr) == "function"
           and addr < len
@@ -2079,9 +2209,14 @@ function M:draw()
         font = font,
         literalColor = true,
       }
-      if useOutline then
-        printOpts.outline = true
-        printOpts.outlineColor = outlineColor
+      if contrastColor then
+        if self.semiTextContrast == "shadow" then
+          printOpts.shadow = true
+          printOpts.shadowColor = contrastColor
+        else
+          printOpts.outline = true
+          printOpts.outlineColor = contrastColor
+        end
       end
       Text.print(byteText, cellX + math.floor((CELL_W - tw) * 0.5), rowY + TEXT_NUDGE_Y, printOpts)
     end

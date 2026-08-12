@@ -21,9 +21,10 @@ local colors = require("app_colors")
 local Dialog = {}
 Dialog.__index = Dialog
 
--- Mode checkbox, Start, End, buttons, Esc, status
-local FOOTER_ROWS = 6
+-- Mode checkbox, Start, End, buttons, Esc (right side: tip or scan status)
+local FOOTER_ROWS = 5
 local PANEL_COLS = 3
+Dialog.MSG_TWO_CLICKS = "use 2 separate clicks"
 
 local function rowspanForHeight(height, cellH, spacingY)
   cellH = math.max(1, math.floor(tonumber(cellH) or 15))
@@ -89,7 +90,6 @@ local function rebuildPanel(self)
   local endRow = startRow + 1
   local buttonRow = endRow + 1
   local escRow = buttonRow + 1
-  local statusRow = escRow + 1
 
   self.panel:setCell(1, 1, {
     component = self.hexGrid,
@@ -111,10 +111,24 @@ local function rebuildPanel(self)
   })
   self.panel:setCell(2, buttonRow, { component = self.cancelButton })
   self.panel:setCell(3, buttonRow, { component = self.setButton })
-  self.panel:setCell(1, escRow, { text = "Esc) Close", colspan = 2 })
+  self.panel:setCell(1, escRow, { text = "Esc) Close" })
+
+  -- Same Esc-row slot: scan status in Selection mode, else two-click tip.
+  local rightLabel = nil
   local statusText = self._statusText or ""
-  if statusText ~= "" then
-    self.panel:setCell(1, statusRow, { text = statusText, colspan = PANEL_COLS })
+  if self:isSelectionMode() then
+    if statusText ~= "" then
+      rightLabel = statusText
+    end
+  elseif self._hasCommittedRange ~= true then
+    rightLabel = Dialog.MSG_TWO_CLICKS
+  end
+  if rightLabel then
+    self.panel:setCell(2, escRow, {
+      text = rightLabel,
+      align = "right",
+      colspan = 2,
+    })
   end
 end
 
@@ -135,7 +149,7 @@ local function hitsToMinimapMarkers(hits)
   return markers
 end
 
-local function hitsToSemiSelection(hits)
+local function hitsToUnderlinedSelection(hits)
   local starts = {}
   local groupSizeByStart = {}
   for _, hit in ipairs(hits or {}) do
@@ -153,9 +167,9 @@ local function applyScanMarks(hexGrid, hits)
   if not hexGrid then
     return
   end
-  local starts, groupSizeByStart = hitsToSemiSelection(hits)
+  local starts, groupSizeByStart = hitsToUnderlinedSelection(hits)
   hexGrid:setMinimapMarkers(hitsToMinimapMarkers(hits))
-  hexGrid:setSemiSelectedStarts(starts, {
+  hexGrid:setUnderlinedStarts(starts, {
     groupSizeByStart = groupSizeByStart,
     resetColors = true,
   })
@@ -166,7 +180,7 @@ local function clearScanMarks(hexGrid)
     return
   end
   hexGrid:setMinimapMarkers({})
-  hexGrid:setSemiSelectedStarts({}, { resetColors = true })
+  hexGrid:setUnderlinedStarts({}, { resetColors = true })
 end
 
 local function sliceRomBytes(romRaw, startAddr, endAddr)
@@ -227,6 +241,8 @@ function Dialog.new()
     _rangeAnchor = nil,
     _rangeStart = nil,
     _rangeEnd = nil,
+    -- After first committed range this modal life, hide the two-click hint.
+    _hasCommittedRange = false,
   }, Dialog)
 
   self.hexGrid = RomHexGrid.new({
@@ -441,8 +457,8 @@ function Dialog:_clearRangeSelection()
     scrollToReveal = false,
   })
   if not self:isSelectionMode() then
-    self.hexGrid.uniformSemiColor = nil
-    self.hexGrid:setSemiSelectedStarts({}, { resetColors = true })
+    self.hexGrid.uniformUnderlineColor = nil
+    self.hexGrid:setUnderlinedStarts({}, { resetColors = true })
   end
   self:_syncManualMinimap()
   self._syncingFromGrid = true
@@ -459,7 +475,7 @@ function Dialog:_manualRangeRed()
   return { c[1], c[2] or 0, c[3] or 0, 1 }
 end
 
---- Mid two-click: red semi outline from anchor→hover (or anchor alone).
+--- Mid two-click: red underline from anchor→hover (or anchor alone).
 function Dialog:_refreshManualRangePreview()
   if self:isSelectionMode() then
     return
@@ -479,8 +495,8 @@ function Dialog:_refreshManualRangePreview()
   local other = type(hover) == "number" and hover or anchor
   local lo = math.min(anchor, other)
   local hi = math.max(anchor, other)
-  grid.uniformSemiColor = self:_manualRangeRed()
-  grid:setSemiSelectedStarts({ lo }, {
+  grid.uniformUnderlineColor = self:_manualRangeRed()
+  grid:setUnderlinedStarts({ lo }, {
     groupSizeByStart = { [lo] = hi - lo + 1 },
     resetColors = true,
   })
@@ -518,9 +534,17 @@ function Dialog:_commitRange(startAddr, endAddr, opts)
   self._rangeAnchor = nil
   self._rangeStart = startAddr
   self._rangeEnd = endAddr
+  -- Opening with an existing layer range must not dismiss the tip.
+  if opts.dismissTwoClickHint ~= false then
+    local wasShowingHint = self._hasCommittedRange ~= true
+    self._hasCommittedRange = true
+    if wasShowingHint and self.panel then
+      rebuildPanel(self)
+    end
+  end
   if not self:isSelectionMode() then
-    self.hexGrid.uniformSemiColor = nil
-    self.hexGrid:setSemiSelectedStarts({}, { resetColors = true })
+    self.hexGrid.uniformUnderlineColor = nil
+    self.hexGrid:setUnderlinedStarts({}, { resetColors = true })
   end
   self:_applyRangeSelection(startAddr, endAddr)
   self:_syncFieldsFromRange(startAddr, endAddr)
@@ -662,7 +686,7 @@ end
 function Dialog:_onSelectionModeChanged(enabled)
   self:_clearRangeSelection()
   if enabled then
-    self.hexGrid.uniformSemiColor = nil
+    self.hexGrid.uniformUnderlineColor = nil
     self.startField:setFocused(false)
     self.endField:setFocused(false)
     self:_ensureScanComputed()
@@ -671,6 +695,10 @@ function Dialog:_onSelectionModeChanged(enabled)
     self.hexGrid:setUserSelectedStarts({})
     self:_syncManualMinimap()
     self:_setStatus(nil)
+  end
+  -- Esc-row tip depends on Selection mode; rebuild even when status text is unchanged.
+  if self.panel then
+    rebuildPanel(self)
   end
 end
 
@@ -726,6 +754,7 @@ function Dialog:show(opts)
   self._rangeAnchor = nil
   self._rangeStart = nil
   self._rangeEnd = nil
+  self._hasCommittedRange = false
   if self.shapePreview then
     self.shapePreview:clear()
   end
@@ -751,7 +780,7 @@ function Dialog:show(opts)
     if type(endAddr) ~= "number" or endAddr < startAddr then
       endAddr = startAddr
     end
-    self:_commitRange(startAddr, endAddr)
+    self:_commitRange(startAddr, endAddr, { dismissTwoClickHint = false })
     self.hexGrid:scrollToReveal(startAddr)
   else
     self.hexGrid:_setStarts({}, 0, {
@@ -784,6 +813,7 @@ function Dialog:hide()
   self._rangeAnchor = nil
   self._rangeStart = nil
   self._rangeEnd = nil
+  self._hasCommittedRange = false
   if self.shapePreview then
     self.shapePreview:clear()
   end
@@ -1001,7 +1031,8 @@ function Dialog:draw(canvas)
 end
 
 Dialog._hitsToMinimapMarkers = hitsToMinimapMarkers
-Dialog._hitsToSemiSelection = hitsToSemiSelection
+Dialog._hitsToUnderlinedSelection = hitsToUnderlinedSelection
+Dialog._hitsToSemiSelection = hitsToUnderlinedSelection -- legacy alias
 Dialog._applyScanMarks = applyScanMarks
 
 return Dialog

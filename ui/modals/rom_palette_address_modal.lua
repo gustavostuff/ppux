@@ -294,7 +294,7 @@ function SelectedPreview:draw()
     local tw = Text.getFontWidth(label, font)
     local ty = self.y + math.floor((self.h - (font and font.getHeight and font:getHeight() or 10)) * 0.5)
     Text.print(label, sx + SWATCH_PX + 4, ty, {
-      color = colors.white,
+      color = colors.black,
       font = font,
       literalColor = true,
     })

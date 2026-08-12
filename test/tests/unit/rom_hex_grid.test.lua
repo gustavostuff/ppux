@@ -528,4 +528,29 @@ describe("RomHexGrid", function()
     expect(RomHexGrid.highlightKeyForIndex(5)).toBe("brown")
     expect(RomHexGrid.highlightKeyForIndex(6)).toBe("red")
   end)
+
+  it("semiTextContrast defaults to outline and accepts shadow", function()
+    local grid = RomHexGrid.new({ cols = 16, groupSize = 1 })
+    expect(grid.semiTextContrast).toBe("outline")
+    local shadowed = RomHexGrid.new({ cols = 16, groupSize = 1, semiTextContrast = "shadow" })
+    expect(shadowed.semiTextContrast).toBe("shadow")
+    shadowed.semiTextContrast = "outline"
+    expect(shadowed.semiTextContrast).toBe("outline")
+  end)
+
+  it("underlined starts keep per-start groupSize and cycle highlight colors", function()
+    local grid = RomHexGrid.new({ cols = 16, groupSize = 1, maxSelectedStarts = 1 })
+    grid:setRomRaw(makeRom(512))
+    grid:setUnderlinedStarts({ 0x10, 0x40 }, {
+      groupSizeByStart = { [0x10] = 8, [0x40] = 16 },
+      resetColors = true,
+    })
+    expect(grid:getUnderlinedStarts()).toEqual({ 0x10, 0x40 })
+    expect(grid:getUnderlinedGroupSize(0x10)).toBe(8)
+    expect(grid:getUnderlinedGroupSize(0x40)).toBe(16)
+    expect(grid:_underlineColorForStart(0x10)[1]).toBe(appColors.red[1])
+    expect(grid:_underlineColorForStart(0x40)[1]).toBe(appColors.green[1])
+    grid.uniformUnderlineColor = { 1, 1, 1, 1 }
+    expect(grid:_underlineColorForStart(0x10)[1]).toBe(1)
+  end)
 end)
