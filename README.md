@@ -414,11 +414,11 @@ Several ROM-backed pickers share the same debugger-style **ROM hex grid** (byte 
 
 <img src="img/readme_images/edit_oam_sprite.png" alt="Add/Edit sprite OAM hex grid modal">
 
-**Nametable tile range** - On a PPU Frame tile layer, **Set tile range** opens the nametable range modal. Manual mode uses two separate clicks for start and end range set (right-click clears a mid-pick). **Selection mode** runs a one-shot scan of complete streams, underlines them with the OAM color cycle, and lets you click a stream to preview it in the _Nametable_ shadow component.
+**Nametable tile range** - On a PPU Frame tile layer, **Set tile range** opens the nametable range modal. Manual mode uses two separate clicks for start and end range set (right-click clears a mid-pick). **Scanned mode** runs a one-shot scan of complete streams, underlines them with the OAM color cycle, and lets you click a stream to preview it in the _Nametable_ shadow component.
 
 <img src="img/readme_images/set_nametable_range.png" alt="Nametable range hex grid modal">
 
-Note: Selection mode scan is Konami-only for now (other codecs keep the checkbox disabled). More scanners will land under `scanners/`.
+Note: Scanned mode is Konami-only for now (other codecs keep the checkbox disabled). More scanners will land under `scanners/`.
 
 ### ROM palette & patches
 

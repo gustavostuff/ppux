@@ -1,6 +1,6 @@
 -- scanners/init.lua
 -- Nametable stream scanners keyed by layer codec. Add a module under scanners/
--- and register it here when a new codec gains Selection-mode support.
+-- and register it here when a new codec gains Scanned-mode support.
 
 local KonamiNtScanner = require("scanners.konami_nt_scanner")
 

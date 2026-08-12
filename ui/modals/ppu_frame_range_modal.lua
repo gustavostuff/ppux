@@ -12,9 +12,9 @@ local NametableUtils = require("utils.nametable_utils")
 local colors = require("app_colors")
 
 -- Set nametable address range: ROM hex grid + Start/End + Set/Cancel.
--- Selection mode OFF (default): two-click manual range (start, then end;
+-- Scanned mode OFF (default): two-click manual range (start, then end;
 -- same cell clears). Any click starts a new pick — no inside-range lock.
--- Selection mode ON: one-shot Scan for this modal life; click any cell in a
+-- Scanned mode ON: one-shot Scan for this modal life; click any cell in a
 -- complete stream to select that whole range (click again to toggle off;
 -- manual ranges are unavailable). Available only for codecs with a scanner
 -- under scanners/ (currently Konami).
@@ -28,7 +28,7 @@ local FOOTER_ROWS = 5
 local PANEL_COLS = 3
 Dialog.MSG_TWO_CLICKS = "use 2 separate clicks"
 Dialog.MSG_SCAN_UNSUPPORTED =
-  "Selection mode scan is only available for Konami nametable layers."
+  "Scanned mode is only available for Konami nametable layers."
 
 local function rowspanForHeight(height, cellH, spacingY)
   cellH = math.max(1, math.floor(tonumber(cellH) or 15))
@@ -101,7 +101,7 @@ local function rebuildPanel(self)
     rowspan = hexRows,
   })
   self.panel:setCell(1, modeRow, {
-    component = self.selectionModeCheckbox,
+    component = self.scannedModeCheckbox,
     colspan = 2,
   })
   self.panel:setCell(3, modeRow, { text = "NT preview", align = "center" })
@@ -117,10 +117,10 @@ local function rebuildPanel(self)
   self.panel:setCell(3, buttonRow, { component = self.setButton })
   self.panel:setCell(1, escRow, { text = "Esc) Close" })
 
-  -- Same Esc-row slot: scan status in Selection mode, else two-click tip.
+  -- Same Esc-row slot: scan status in Scanned mode, else two-click tip.
   local rightLabel = nil
   local statusText = self._statusText or ""
-  if self:isSelectionMode() then
+  if self:isScannedMode() then
     if statusText ~= "" then
       rightLabel = statusText
     end
@@ -237,11 +237,11 @@ function Dialog.new()
     panel = nil,
     _syncingFromGrid = false,
     _statusText = nil,
-    -- Cached scan for this modal life (Selection mode ON).
+    -- Cached scan for this modal life (Scanned mode ON).
     _scanComputed = false,
     -- Cached decoded nametables for shape preview: key -> nt bytes table.
     _shapeCache = {},
-    -- Two-click manual range (Selection mode OFF).
+    -- Two-click manual range (Scanned mode OFF).
     _rangeAnchor = nil,
     _rangeStart = nil,
     _rangeEnd = nil,
@@ -257,7 +257,7 @@ function Dialog.new()
     defaultCellStyle = "ninja",
     -- Manual pick: red. Scan mode: keep the stream's highlight cycle color.
     selectedColorForAddr = function(addr)
-      if self:isSelectionMode() then
+      if self:isScannedMode() then
         return self.hexGrid:highlightColorForStart(addr)
       end
       local c = colors.red
@@ -272,11 +272,11 @@ function Dialog.new()
     end,
   })
   self.shapePreview = NametableShapePreview.new()
-  self.selectionModeCheckbox = Checkbox.new({
-    text = "Selection mode",
+  self.scannedModeCheckbox = Checkbox.new({
+    text = "Scanned mode",
     checked = false,
     onChange = function(checked)
-      self:_onSelectionModeChanged(checked == true)
+      self:_onScannedModeChanged(checked == true)
     end,
   })
   self.startField = TextField.new({
@@ -320,8 +320,8 @@ function Dialog:isVisible()
   return self.visible
 end
 
-function Dialog:isSelectionMode()
-  return self.selectionModeCheckbox and self.selectionModeCheckbox:isChecked()
+function Dialog:isScannedMode()
+  return self.scannedModeCheckbox and self.scannedModeCheckbox:isChecked()
 end
 
 function Dialog:_formatAddr(addr)
@@ -355,7 +355,7 @@ function Dialog:_applyRangeSelection(startAddr, endAddr, opts)
 end
 
 function Dialog:_syncManualMinimap()
-  if self:isSelectionMode() then
+  if self:isScannedMode() then
     return
   end
   local rs, re = self._rangeStart, self._rangeEnd
@@ -460,7 +460,7 @@ function Dialog:_clearRangeSelection()
     resetColors = false,
     scrollToReveal = false,
   })
-  if not self:isSelectionMode() then
+  if not self:isScannedMode() then
     self.hexGrid.uniformUnderlineColor = nil
     self.hexGrid:setUnderlinedStarts({}, { resetColors = true })
   end
@@ -481,7 +481,7 @@ end
 
 --- Mid two-click: red underline from anchor→hover (or anchor alone).
 function Dialog:_refreshManualRangePreview()
-  if self:isSelectionMode() then
+  if self:isScannedMode() then
     return
   end
   local anchor = self._rangeAnchor
@@ -546,7 +546,7 @@ function Dialog:_commitRange(startAddr, endAddr, opts)
       rebuildPanel(self)
     end
   end
-  if not self:isSelectionMode() then
+  if not self:isScannedMode() then
     self.hexGrid.uniformUnderlineColor = nil
     self.hexGrid:setUnderlinedStarts({}, { resetColors = true })
   end
@@ -582,8 +582,8 @@ end
 function Dialog:_onGridSelect(addr, _opts)
   addr = math.floor(tonumber(addr) or 0)
 
-  -- Selection mode: only whole scanned streams; click toggles the hit off/on.
-  if self:isSelectionMode() then
+  -- Scanned mode: only whole scanned streams; click toggles the hit off/on.
+  if self:isScannedMode() then
     local hit = NtScanners.hitAt(self.scanHits, addr)
     if not hit then
       self:_restoreCurrentSelectionVisual()
@@ -632,8 +632,8 @@ function Dialog:_syncFromAddressFields()
   if self._syncingFromGrid then
     return
   end
-  -- Scan selection mode is click-only; typed fields stay display of the pick.
-  if self:isSelectionMode() then
+  -- Scan scanned mode is click-only; typed fields stay display of the pick.
+  if self:isScannedMode() then
     return
   end
   local startAddr = select(1, Shared.parseHexAddress(self.startField:getText() or ""))
@@ -692,9 +692,9 @@ function Dialog:_ensureScanComputed()
   self:_setStatus(status)
 end
 
-function Dialog:_onSelectionModeChanged(enabled)
+function Dialog:_onScannedModeChanged(enabled)
   if enabled and not NtScanners.supports(self.codec) then
-    self.selectionModeCheckbox:setChecked(false, { silent = true })
+    self.scannedModeCheckbox:setChecked(false, { silent = true })
     return
   end
   self:_clearRangeSelection()
@@ -709,15 +709,15 @@ function Dialog:_onSelectionModeChanged(enabled)
     self:_syncManualMinimap()
     self:_setStatus(nil)
   end
-  -- Esc-row tip depends on Selection mode; rebuild even when status text is unchanged.
+  -- Esc-row tip depends on Scanned mode; rebuild even when status text is unchanged.
   if self.panel then
     rebuildPanel(self)
   end
 end
 
-function Dialog:_syncSelectionModeAvailability()
+function Dialog:_syncScannedModeAvailability()
   local supported = NtScanners.supports(self.codec)
-  local cb = self.selectionModeCheckbox
+  local cb = self.scannedModeCheckbox
   if not cb then
     return
   end
@@ -737,12 +737,12 @@ function Dialog:cursorNameAt(mx, my)
   if self.panel and type(self.panel.getButtonAt) == "function" and self.panel:getButtonAt(mx, my) then
     return "hand"
   end
-  if self.selectionModeCheckbox and self.selectionModeCheckbox.contains
-      and self.selectionModeCheckbox:contains(mx, my)
-      and self.selectionModeCheckbox.enabled ~= false then
+  if self.scannedModeCheckbox and self.scannedModeCheckbox.contains
+      and self.scannedModeCheckbox:contains(mx, my)
+      and self.scannedModeCheckbox.enabled ~= false then
     return "hand"
   end
-  if not self:isSelectionMode() then
+  if not self:isScannedMode() then
     if self.startField and self.startField.contains and self.startField:contains(mx, my) then
       return "hand"
     end
@@ -760,13 +760,13 @@ function Dialog:cursorNameAt(mx, my)
   return "arrow"
 end
 
---- Test / legacy hook: force a scan and enable marks (Selection mode ON).
+--- Test / legacy hook: force a scan and enable marks (Scanned mode ON).
 function Dialog:_runScan()
   if not NtScanners.supports(self.codec) then
     return
   end
   self._scanComputed = false
-  self.selectionModeCheckbox:setChecked(true, { silent = true })
+  self.scannedModeCheckbox:setChecked(true, { silent = true })
   self:_ensureScanComputed()
 end
 
@@ -796,8 +796,8 @@ function Dialog:show(opts)
   self.hexGrid.groupSize = 1
   self.hexGrid:setSelectedGroupSizes({})
 
-  self:_syncSelectionModeAvailability()
-  self.selectionModeCheckbox:setChecked(false, { silent = true })
+  self:_syncScannedModeAvailability()
+  self.scannedModeCheckbox:setChecked(false, { silent = true })
   self.startField:setText(opts.initialStartAddress or "")
   self.endField:setText(opts.initialEndAddress or "")
   self.startField:setFocused(true)
@@ -834,7 +834,7 @@ function Dialog:hide()
   self.cancelButton.pressed = false
   self.setButton.hovered = false
   self.cancelButton.hovered = false
-  self.selectionModeCheckbox:setChecked(false, { silent = true })
+  self.scannedModeCheckbox:setChecked(false, { silent = true })
   self.onConfirm = nil
   self.onCancel = nil
   self.targetWindow = nil
@@ -912,8 +912,8 @@ function Dialog:handleKey(key)
     self:_confirm()
     return true
   end
-  if self:isSelectionMode() then
-    -- Fields are display-only in selection mode.
+  if self:isScannedMode() then
+    -- Fields are display-only in scanned mode.
     return false
   end
   if key == "tab" then
@@ -939,7 +939,7 @@ end
 
 function Dialog:textinput(text)
   if not self.visible then return false end
-  if self:isSelectionMode() then
+  if self:isScannedMode() then
     return false
   end
   if self.startField.focused then
@@ -965,7 +965,7 @@ function Dialog:handleRightClick(x, y)
   end
   -- Clear mid-range provisional (before the second click commits). Otherwise
   -- fall through so the modal can still be right-dragged.
-  if not self:isSelectionMode()
+  if not self:isScannedMode()
       and type(self._rangeAnchor) == "number"
       and self._rangeStart == nil
       and self.hexGrid
@@ -987,7 +987,7 @@ function Dialog:mousepressed(x, y, button)
     self:_cancel()
     return true
   end
-  if not self:isSelectionMode() then
+  if not self:isScannedMode() then
     if self.startField:contains(x, y) then
       self.startField:setFocused(true)
       self.endField:setFocused(false)

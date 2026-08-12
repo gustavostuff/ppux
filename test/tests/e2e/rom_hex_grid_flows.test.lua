@@ -28,7 +28,7 @@ describe("e2e - RomHexGrid modal flows", function()
     runScenario("oam_sprite_hex_grid_flow")
   end)
 
-  it("Nametable range: mid-range underline, scan toggle, Selection mode keeps hit color, Set", function()
+  it("Nametable range: mid-range underline, scan toggle, Scanned mode keeps hit color, Set", function()
     runScenario("nametable_hex_grid_flow")
   end)
 end)

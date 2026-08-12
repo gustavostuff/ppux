@@ -2,7 +2,7 @@
 -- On-demand Konami nametable stream scan: candidate starts -> bound terminator -> trial decode.
 -- Keep only streams that fully fill one PPU page (960 NT + 64 attr => uniquePageWrites == 1024).
 --
--- Other codecs register under scanners/ and scanners/init.lua when Selection mode
+-- Other codecs register under scanners/ and scanners/init.lua when Scanned mode
 -- support lands (Zelda2 candidate rules deferred).
 --
 -- Native deferral: if Lua Scan is too slow on large ROMs, replace the walk+decode

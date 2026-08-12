@@ -1,5 +1,5 @@
 -- ppu_frame_range_modal.test.lua
--- Unit tests for ui/modals/ppu_frame_range_modal.lua selection mode / shape cache
+-- Unit tests for ui/modals/ppu_frame_range_modal.lua scanned mode / shape cache
 
 local PPUFrameRangeModal = require("ui.modals.ppu_frame_range_modal")
 local NametableUtils = require("utils.nametable_utils")
@@ -61,7 +61,7 @@ describe("ppu_frame_range_modal.lua", function()
       initialStartAddress = "0x000010",
       initialEndAddress = "0x00001F",
     })
-    expect(modal:isSelectionMode()).toBe(false)
+    expect(modal:isScannedMode()).toBe(false)
     expect(modal._rangeStart).toBe(0x10)
     expect(modal._rangeEnd).toBe(0x1F)
     expect(modal._hasCommittedRange).toBe(false)
@@ -72,13 +72,13 @@ describe("ppu_frame_range_modal.lua", function()
     modal:hide()
   end)
 
-  it("selection mode OFF allows manual two-click ranges without scan marks", function()
+  it("scanned mode OFF allows manual two-click ranges without scan marks", function()
     local modal = PPUFrameRangeModal.new()
     modal:show({
       romRaw = string.rep("\0", 256),
       codec = "konami",
     })
-    expect(modal:isSelectionMode()).toBe(false)
+    expect(modal:isScannedMode()).toBe(false)
     expect(#(modal.hexGrid:getUnderlinedStarts())).toBe(0)
     expect(modal._hasCommittedRange).toBe(false)
 
@@ -138,14 +138,14 @@ describe("ppu_frame_range_modal.lua", function()
     modal:hide()
   end)
 
-  it("selection mode ON scans once and only selects whole scanned streams", function()
+  it("scanned mode ON scans once and only selects whole scanned streams", function()
     local rom, pad, streamLen = plantStreamRom(9)
     local modal = PPUFrameRangeModal.new()
     modal:show({ romRaw = rom, codec = "konami" })
     expect(#(modal.hexGrid:getUnderlinedStarts())).toBe(0)
 
-    modal.selectionModeCheckbox:setChecked(true)
-    expect(modal:isSelectionMode()).toBe(true)
+    modal.scannedModeCheckbox:setChecked(true)
+    expect(modal:isScannedMode()).toBe(true)
     expect(modal._scanComputed).toBe(true)
     local underlined = modal.hexGrid:getUnderlinedStarts()
     expect(#underlined).toBeGreaterThan(0)
@@ -192,10 +192,10 @@ describe("ppu_frame_range_modal.lua", function()
 
     -- Re-toggle: scan is not recomputed.
     local hitsBefore = modal.scanHits
-    modal.selectionModeCheckbox:setChecked(false)
+    modal.scannedModeCheckbox:setChecked(false)
     expect(#(modal.hexGrid:getUnderlinedStarts())).toBe(0)
     expect(modal._rangeStart).toBe(nil)
-    modal.selectionModeCheckbox:setChecked(true)
+    modal.scannedModeCheckbox:setChecked(true)
     expect(modal.scanHits).toBe(hitsBefore)
     expect(modal._scanComputed).toBe(true)
     expect(#(modal.hexGrid:getUnderlinedStarts())).toBe(#underlined)
@@ -229,27 +229,27 @@ describe("ppu_frame_range_modal.lua", function()
     modal:hide()
   end)
 
-  it("disables Selection mode for non-konami codecs with a reason tooltip", function()
+  it("disables Scanned mode for non-konami codecs with a reason tooltip", function()
     local modal = PPUFrameRangeModal.new()
     modal:show({
       romRaw = string.rep("\0", 256),
       codec = "zelda2",
     })
-    expect(modal.selectionModeCheckbox.enabled).toBe(false)
-    expect(modal.selectionModeCheckbox.tooltip).toBe(PPUFrameRangeModal.MSG_SCAN_UNSUPPORTED)
-    expect(modal:isSelectionMode()).toBe(false)
+    expect(modal.scannedModeCheckbox.enabled).toBe(false)
+    expect(modal.scannedModeCheckbox.tooltip).toBe(PPUFrameRangeModal.MSG_SCAN_UNSUPPORTED)
+    expect(modal:isScannedMode()).toBe(false)
 
-    -- Clicks / forced toggles must not enter Selection mode.
-    modal.selectionModeCheckbox:setChecked(true)
-    expect(modal:isSelectionMode()).toBe(false)
+    -- Clicks / forced toggles must not enter Scanned mode.
+    modal.scannedModeCheckbox:setChecked(true)
+    expect(modal:isScannedMode()).toBe(false)
     expect(modal._scanComputed).toBe(false)
 
     modal:show({
       romRaw = string.rep("\0", 256),
       codec = "konami",
     })
-    expect(modal.selectionModeCheckbox.enabled).toBe(true)
-    expect(modal.selectionModeCheckbox.tooltip).toBe("")
+    expect(modal.scannedModeCheckbox.enabled).toBe(true)
+    expect(modal.scannedModeCheckbox.tooltip).toBe("")
     modal:hide()
   end)
 end)

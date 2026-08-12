@@ -518,13 +518,13 @@ local function buildNametableHexGridFlowScenario(harness, app, runner)
     assert(#(modal.hexGrid:getUnderlinedStarts()) == 0, "expected mid-range underlines cleared")
   end)
 
-  appendClick(steps, "Enable Selection mode (one-shot scan)", modalButtonCenter("ppuFrameRangeModal", function(modal)
-    return modal.selectionModeCheckbox
+  appendClick(steps, "Enable Scanned mode (one-shot scan)", modalButtonCenter("ppuFrameRangeModal", function(modal)
+    return modal.scannedModeCheckbox
   end), { moveDuration = 0.08, postPause = 0.4 })
-  steps[#steps + 1] = call("Assert selection mode scanned streams", function(_, currentApp, currentRunner)
+  steps[#steps + 1] = call("Assert scanned mode scanned streams", function(_, currentApp, currentRunner)
     local modal = assert(currentApp.ppuFrameRangeModal, "expected modal")
     layoutModal(currentApp, modal)
-    assert(modal:isSelectionMode(), "expected Selection mode ON")
+    assert(modal:isScannedMode(), "expected Scanned mode ON")
     local underlines = modal.hexGrid:getUnderlinedStarts()
     assert(#underlines > 0, "expected scan underlined streams")
     assert(#(modal.hexGrid.minimapMarkers or {}) > 0, "expected minimap markers after scan")
