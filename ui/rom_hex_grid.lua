@@ -361,14 +361,22 @@ function M.minimapMarkerByteLength(marker)
 end
 
 --- Static markers plus live selection tints (selection last so it paints on top).
+--- Uses selectedColorForAddr when set (ROM palette NES colors); else highlight cycle (OAM).
 function M:_combinedMinimapMarkers()
   local out = {}
   for _, m in ipairs(self.minimapMarkers or {}) do
     out[#out + 1] = m
   end
   local span = self:getGroupSize()
+  local colorFn = self.selectedColorForAddr
   for _, addr in ipairs(self.selectedStarts or {}) do
-    local c = self:highlightColorForStart(addr)
+    local c
+    if type(colorFn) == "function" then
+      c = colorFn(addr)
+    end
+    if type(c) ~= "table" or type(c[1]) ~= "number" then
+      c = self:highlightColorForStart(addr)
+    end
     out[#out + 1] = {
       offset = math.floor(addr),
       color = { c[1], c[2], c[3], c[4] or 0.9 },

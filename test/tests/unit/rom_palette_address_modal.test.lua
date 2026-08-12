@@ -11,6 +11,7 @@ describe("rom_palette_address_modal.lua", function()
       window = targetWindow,
       col = 2,
       row = 1,
+      romRaw = string.rep("\x30", 0x4000),
       onConfirm = function(addressText, win, col, row)
         confirmed = {
           addressText = addressText,
@@ -22,6 +23,8 @@ describe("rom_palette_address_modal.lua", function()
     })
 
     modal.textField:setText("  3F10  ")
+    modal:_syncFromAddressField()
+    expect(modal.setButton.enabled).toBe(true)
     expect(modal:handleKey("return")).toBe(true)
 
     expect(modal:isVisible()).toBe(false)
@@ -37,13 +40,15 @@ describe("rom_palette_address_modal.lua", function()
     local confirmCalls = 0
 
     modal:show({
+      romRaw = string.rep("\x30", 0x4000),
+      initialAddress = "0x003F10",
       onConfirm = function()
         confirmCalls = confirmCalls + 1
         return false
       end,
     })
 
-    modal.textField:setText("ZZZZ")
+    expect(modal.setButton.enabled).toBe(true)
     expect(modal:handleKey("return")).toBe(true)
     expect(confirmCalls).toBe(1)
     expect(modal:isVisible()).toBe(true)
@@ -438,5 +443,32 @@ describe("showRomPaletteAddressModal initial address", function()
     app:showRomPaletteAddressModal(win, 0, 0)
 
     expect(capture.opts.initialAddress).toBe("")
+  end)
+end)
+
+describe("rom_palette_address_modal Set enabled", function()
+  it("disables Set when opened with no valid color selection", function()
+    local modal = RomPaletteAddressModal.new()
+    modal:show({
+      romRaw = string.rep("\x0F", 256),
+      initialAddress = "",
+    })
+    expect(#modal.hexGrid:getSelectedStarts()).toBe(0)
+    expect(modal.setButton.enabled).toBe(false)
+    modal:hide()
+  end)
+
+  it("enables Set when a valid color is selected", function()
+    local modal = RomPaletteAddressModal.new()
+    modal:show({
+      romRaw = string.rep("\x30", 256),
+      initialAddress = "0x000010",
+    })
+    expect(#modal.hexGrid:getSelectedStarts()).toBe(1)
+    expect(modal.setButton.enabled).toBe(true)
+    modal.hexGrid:_setStarts({}, 0, { emit = false, allowEmpty = true, resetColors = true })
+    modal:_refreshSetEnabled()
+    expect(modal.setButton.enabled).toBe(false)
+    modal:hide()
   end)
 end)

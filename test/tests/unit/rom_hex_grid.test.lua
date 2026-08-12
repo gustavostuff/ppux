@@ -399,6 +399,24 @@ describe("RomHexGrid", function()
     expect(combined[3].offset).toBe(0x40)
   end)
 
+  it("combined minimap markers use selectedColorForAddr when provided", function()
+    local grid = RomHexGrid.new({
+      cols = 16,
+      groupSize = 1,
+      selectedColorForAddr = function()
+        return { 0.1, 0.2, 0.3, 0.9 }
+      end,
+    })
+    grid:setRomRaw(makeRom(256))
+    grid:setSelectedAddr(0x11, { emit = false })
+    local combined = grid:_combinedMinimapMarkers()
+    expect(#combined).toBe(1)
+    expect(combined[1].offset).toBe(0x11)
+    expect(combined[1].color[1]).toBe(0.1)
+    expect(combined[1].color[2]).toBe(0.2)
+    expect(combined[1].color[3]).toBe(0.3)
+  end)
+
   it("selectionCrosshairCell maps on-page selection to row/col", function()
     local grid = RomHexGrid.new({ cols = 16, groupSize = 1, selectionCrosshair = true })
     grid:setRomRaw(makeRom(512))

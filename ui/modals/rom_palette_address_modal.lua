@@ -581,6 +581,11 @@ local function romRawWithBaseRestored(romRaw, boundAddr, baseRomCode)
   return newRom
 end
 
+function Dialog:_refreshSetEnabled()
+  local starts = self.hexGrid and self.hexGrid:getSelectedStarts() or {}
+  self.setButton.enabled = #starts > 0
+end
+
 function Dialog:_onGridSelect(addr, opts)
   opts = opts or {}
   addr = math.floor(tonumber(addr) or 0)
@@ -596,6 +601,7 @@ function Dialog:_onGridSelect(addr, opts)
     self:_refreshSelectedPreview(nil)
   end
   self._syncingFromGrid = false
+  self:_refreshSetEnabled()
 end
 
 function Dialog:_syncFromAddressField()
@@ -622,6 +628,7 @@ function Dialog:_syncFromAddressField()
     self:_refreshSelectedPreview(nil)
   end
   self:_refreshSemiSelectedIfScrolled(prevScroll)
+  self:_refreshSetEnabled()
 end
 
 --- Cursor over this modal: hand on buttons / valid color cells / scrollbar; arrow otherwise.
@@ -711,6 +718,7 @@ function Dialog:show(opts)
     self:_refreshSelectedPreview(nil)
   end
   self:_refreshSemiSelected()
+  self:_refreshSetEnabled()
 
   self:_focusAddressField()
   self.setButton.pressed = false
@@ -766,6 +774,13 @@ function Dialog:getTooltipAt(x, y)
 end
 
 function Dialog:_confirm()
+  if self.setButton and self.setButton.enabled == false then
+    return false
+  end
+  local starts = self.hexGrid and self.hexGrid:getSelectedStarts() or {}
+  if #starts == 0 then
+    return false
+  end
   local raw = self.textField:getText() or ""
   local value = trim(raw)
   if value == "" then
