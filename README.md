@@ -160,7 +160,6 @@ No specialized toolbar buttons - palette links use the left-edge [badge](#window
 4. **Add layer** - `+` key.
 5. **Copy from previous layer** - Copies everything, including palette links and pattern table links.
 6. **Play / Pause** - `P` key.
-7. **Play / Pause** - `P` key.
 
 Palette and pattern-table links use on-canvas [badges](#windows-system) (drag / right-click menu), not toolbar buttons.
 </td>
