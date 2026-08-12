@@ -5,7 +5,6 @@ local images = require("images")
 local UiScale = require("ui.ui_scale")
 local WindowCaps = require("controllers.window.window_capabilities")
 local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
-local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local Text = require("utils.text_utils")
 local LoveCompat = require("utils.love_compat")
 
@@ -904,7 +903,7 @@ function M.forEachQuickButtonKeyInLayoutOrder(app, fn)
   end
 end
 
---- Hand cursor: quick buttons, docked window toolbar buttons, palette-link handle in the top strip.
+--- Hand cursor: quick buttons and docked window toolbar buttons in the top strip.
 function M.isPointerOverInteractiveTopChrome(app, px, py)
   if not M.containsPointer(app, px, py) then
     return false
@@ -916,9 +915,6 @@ function M.isPointerOverInteractiveTopChrome(app, px, py)
     local focus = app.wm:getFocus()
     local tb = focus and focus.specializedToolbar
     if inDockArea(app, px) and focus and tb then
-      if PaletteLinkController.isPointInToolbarLinkHandle(tb, px, py) then
-        return true
-      end
       if tb.contains and tb:contains(px, py) and tb.getButtonAt and tb:getButtonAt(px, py) then
         return true
       end
@@ -972,18 +968,6 @@ function M.mousepressed(app, px, py, button)
   if app.separateToolbar == true and app.wm and app.wm.getFocus then
     local focus = app.wm:getFocus()
     local tb = focus and focus.specializedToolbar
-    if inDockArea(app, px) and focus and tb and PaletteLinkController.isPointInToolbarLinkHandle(tb, px, py) then
-      if button == 2 then
-        if PaletteLinkController.beginDrag(tb, button, px, py, focus, app.wm) then
-          return true
-        end
-      else
-        local UserInput = require("controllers.input")
-        if UserInput.beginPaletteLinkContextFromAppTopBar(focus, px, py, button) then
-          return true
-        end
-      end
-    end
     if button == 1 and inDockArea(app, px) and tb and tb.mousepressed and tb:mousepressed(px, py, button) then
       return true
     end

@@ -1,5 +1,6 @@
 -- window_link_visual_controller.lua
--- On-canvas link lines and left-edge pivot handles (pattern table + ROM palette).
+-- On-canvas link lines and pivot handles (pattern table + ROM palette).
+-- Source windows place badges on the right; destinations stay on the left.
 
 local colors = require("app_colors")
 local images = require("images")
@@ -21,6 +22,7 @@ local HANDLE_INNER_W = 3
 local HANDLE_INNER_H = 3
 local HANDLE_OUTSIDE_TOUCH_GAP = 0
 local HANDLE_COLLAPSED_LEFT_INSET = 2
+local HANDLE_COLLAPSED_RIGHT_INSET = 2
 local HANDLE_GROUP_BELOW_HEADER = 3
 local HANDLE_GROUP_ROW_GAP = 3
 
@@ -160,6 +162,11 @@ local function isPaletteOnlyConsumer(win)
   return not usesPpuStyleLinkSlots(win) and not WindowCaps.isOamAnimation(win)
 end
 
+--- Source windows (ROM palette + Pattern table) place badges on the right edge.
+local function usesRightSideHandles(win)
+  return WindowCaps.isRomPaletteWindow(win) == true or WindowCaps.isPatternTable(win) == true
+end
+
 local function buildHandleAnchorPositions(win, count)
   count = math.max(1, math.floor(tonumber(count) or 1))
   local hx, hy, hw, hh
@@ -177,9 +184,19 @@ local function buildHandleAnchorPositions(win, count)
   hh = tonumber(hh) or 0
   local rowStep = HANDLE_OUTER_H + HANDLE_GROUP_ROW_GAP
   local collapsed = win and win._collapsed == true
+  local onRight = usesRightSideHandles(win)
   if collapsed then
     local colStep = HANDLE_OUTER_W + HANDLE_GROUP_ROW_GAP
-    local firstCenterX = roundPixel((tonumber(hx) or 0) + HANDLE_OUTER_W * 0.5 + HANDLE_COLLAPSED_LEFT_INSET)
+    local firstCenterX
+    if onRight then
+      firstCenterX = roundPixel(
+        (tonumber(hx) or 0) + hw - HANDLE_OUTER_W * 0.5 - HANDLE_COLLAPSED_RIGHT_INSET
+      )
+      -- Stack leftward from the right inset so multiple badges stay on-header.
+      colStep = -colStep
+    else
+      firstCenterX = roundPixel((tonumber(hx) or 0) + HANDLE_OUTER_W * 0.5 + HANDLE_COLLAPSED_LEFT_INSET)
+    end
     local centerY = roundPixel(hy + hh + HANDLE_OUTER_H * 0.5 - 1)
     local out = {}
     for i = 0, count - 1 do
@@ -190,7 +207,12 @@ local function buildHandleAnchorPositions(win, count)
     end
     return out
   end
-  local anchorX = M.handleCenterXForWindowLeft(hx)
+  local anchorX
+  if onRight then
+    anchorX = M.handleCenterXForWindowRight((tonumber(hx) or 0) + hw)
+  else
+    anchorX = M.handleCenterXForWindowLeft(hx)
+  end
   local firstCenterY = hy + hh + HANDLE_GROUP_BELOW_HEADER + HANDLE_OUTER_H * 0.5
   local out = {}
   for i = 0, count - 1 do
@@ -345,6 +367,11 @@ end
 function M.handleCenterXForWindowLeft(windowLeftX)
   local left = math.floor(tonumber(windowLeftX) or 0) - math.floor(HANDLE_OUTSIDE_TOUCH_GAP)
   return left - HANDLE_OUTER_W * 0.5
+end
+
+function M.handleCenterXForWindowRight(windowRightX)
+  local right = math.floor(tonumber(windowRightX) or 0) + math.floor(HANDLE_OUTSIDE_TOUCH_GAP)
+  return right + HANDLE_OUTER_W * 0.5
 end
 
 function M.getPivotHandleRect(cx, cy)
@@ -649,10 +676,8 @@ function M.buildAnchorLayouts(app, edges)
     elseif isPaletteOnlyConsumer(win) then
       needSlot(win, "layout_palette")
     elseif WindowCaps.isPatternTable(win) then
-      local consumers = PatternTableDisplayController.getLinkedConsumersForPatternTable(wm, win)
-      if #consumers > 0 or slotHasLinkEdge(slotLinked, win, PATTERN_TABLE_SLOT) then
-        needSlot(win, PATTERN_TABLE_SLOT)
-      end
+      -- Always show the source badge so an unlinked PT can start a drag.
+      needSlot(win, PATTERN_TABLE_SLOT)
     end
     ::continue::
   end
@@ -1482,6 +1507,7 @@ function M.focusWindowsLinkedToHandle(app, win, slot, edges)
 end
 
 --- Left-click on a pivot handle: consume the hit and focus linked windows.
+--- Prefer WindowLinkBadgeController.beginPress for click-vs-drag; this remains for tests.
 function M.tryHandlePivotHandleClick(app, x, y, button)
   if button ~= 1 then
     return false

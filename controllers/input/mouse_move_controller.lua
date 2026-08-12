@@ -3,6 +3,7 @@ local SpriteOriginDrag = require("controllers.sprite.sprite_origin_drag_controll
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
+local WindowLinkBadgeController = require("controllers.window.window_link_badge_controller")
 local Shared = require("controllers.app.core_controller_shared")
 
 local M = {}
@@ -376,6 +377,10 @@ function M.handleMouseMoved(env, x, y, dx, dy)
 
   if app and app.paletteLinkDrag and app.paletteLinkDrag.active and PaletteLinkController.updateDragHover then
     PaletteLinkController.updateDragHover(wm, x, y)
+  end
+
+  if app and WindowLinkBadgeController.isPendingOrActive(app) then
+    WindowLinkBadgeController.updateHover(app, x, y)
   end
 
   local overMenu = app and Shared.pointerOverOpenContextMenu(app, x, y)

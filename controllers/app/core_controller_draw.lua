@@ -3,6 +3,7 @@ local AppTopToolbarController = require("controllers.app.app_top_toolbar_control
 local DebugController = require("controllers.dev.debug_controller")
 local PaletteLinkRenderController = require("controllers.palette.palette_link_render_controller")
 local WindowLinkVisualController = require("controllers.window.window_link_visual_controller")
+local WindowLinkBadgeController = require("controllers.window.window_link_badge_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 local SpriteController = require("controllers.sprite.sprite_controller")
 local BrushController = require("controllers.input_support.brush_controller")
@@ -46,6 +47,7 @@ end
 
 local function drawActivePaletteLinkDrag(app)
   PaletteLinkRenderController.drawActiveDrag(app)
+  WindowLinkBadgeController.drawActiveDrag(app)
 end
 
 local function drawPaletteLinks(app)

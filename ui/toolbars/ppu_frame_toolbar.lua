@@ -36,37 +36,6 @@ local function getFirstSpriteLayer(window)
   return nil, nil
 end
 
-local function findPpuNametableTileLayerIndexForToolbar(window)
-  if not (window and window.layers) then
-    return nil
-  end
-  for i, layer in ipairs(window.layers) do
-    if layer and layer.kind == "tile" and layer._runtimePatternTableRefLayer ~= true then
-      if type(layer.nametableStartAddr) == "number" and type(layer.nametableEndAddr) == "number" then
-        return i
-      end
-    end
-  end
-  for i, layer in ipairs(window.layers) do
-    if layer and layer.kind == "tile" and layer._runtimePatternTableRefLayer ~= true then
-      return i
-    end
-  end
-  return nil
-end
-
-local function findPpuFirstSpriteLayerIndexForToolbar(window)
-  if not (window and window.layers) then
-    return nil
-  end
-  for i, layer in ipairs(window.layers) do
-    if layer and layer.kind == "sprite" then
-      return i
-    end
-  end
-  return nil
-end
-
 local function clamp(value, minValue, maxValue)
   value = math.floor(tonumber(value) or 0)
   if value < minValue then return minValue end
@@ -133,15 +102,10 @@ function PPUFrameToolbar.new(window, ctx, windowController)
     self:_onAddSprite()
   end, "Add a sprite on sprite layer")
 
-  self.patternTableLinkButton = self:addButton(images.icons.actions.icon_pattern_table or images.icons.actions.icon_nametable_range, function()
-    self:_onPatternTableLinkMenu()
-  end, "Background and sprite pattern table links")
-
   self.toggleOriginGuidesButton = self:addButton(images.icons.actions.icon_dotted_lines, function()
     self:_onToggleOriginGuides()
   end, "Toggle origin guides")
 
-  self:updatePatternTableLinkButton()
   self:updateRangeButton()
   self:updateSpriteButton()
   self:updateOriginButtons()
@@ -152,36 +116,11 @@ function PPUFrameToolbar.new(window, ctx, windowController)
   return self
 end
 
-function PPUFrameToolbar:_onPatternTableLinkMenu()
-  if not self.window then
-    return
-  end
-  local app = self.ctx and self.ctx.app
-  if not app or not app.showPatternTableLinkDestinationContextMenu then
-    StatusHelpers.setStatus(self.ctx, "Pattern table link is not available")
-    return
-  end
-  local btn = self.patternTableLinkButton
-  if not btn then
-    return
-  end
-  self:updatePosition()
-  local x = btn.x + btn.w * 0.5
-  local y = btn.y + btn.h * 0.5
-  app:showPatternTableLinkDestinationContextMenu(
-    self.window,
-    x,
-    y,
-    ToolbarBase.menuOptsFromButton(btn)
-  )
-end
-
 -- Handle previous layer
 function PPUFrameToolbar:_onPrevLayer()
   if not self.window then return end
   
   self.window:prevLayer()
-  self:updatePatternTableLinkButton()
   self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
   
@@ -199,7 +138,6 @@ function PPUFrameToolbar:_onNextLayer()
   if not self.window then return end
   
   self.window:nextLayer()
-  self:updatePatternTableLinkButton()
   self:updateOriginButtons()
   if self.triggerLayerLabelFlash then self:triggerLayerLabelFlash() end
   
@@ -459,7 +397,6 @@ function PPUFrameToolbar:_removeLayerAtIndex(layerIndex, opts)
 
   self:updateSpriteButton()
   self:updateOriginButtons()
-  self:updatePatternTableLinkButton()
   return true
 end
 
@@ -499,35 +436,9 @@ end
 
 -- Empty updateIcons method
 function PPUFrameToolbar:updateIcons()
-  self:updatePatternTableLinkButton()
   self:updateRangeButton()
   self:updateSpriteButton()
   self:updateOriginButtons()
-end
-
-function PPUFrameToolbar:updatePatternTableLinkButton()
-  local button = self.patternTableLinkButton
-  if not button then
-    return
-  end
-  button.icon = images.icons.actions.icon_pattern_table or images.icons.actions.icon_nametable_range or button.icon
-  button.enabled = true
-  local bgIdx = self.window and findPpuNametableTileLayerIndexForToolbar(self.window)
-  local sprIdx = self.window and findPpuFirstSpriteLayerIndexForToolbar(self.window)
-  local bgLayer = bgIdx and self.window.layers and self.window.layers[bgIdx]
-  local sprLayer = sprIdx and self.window.layers and self.window.layers[sprIdx]
-  local bgLinked = bgLayer and type(bgLayer.linkedPatternTableWindowId) == "string" and bgLayer.linkedPatternTableWindowId ~= ""
-  local sprLinked = sprLayer and type(sprLayer.linkedPatternTableWindowId) == "string" and sprLayer.linkedPatternTableWindowId ~= ""
-  local linked = bgLinked or sprLinked
-  if linked then
-    button.bgColor = colors.green
-    button.contentColor = colors.white
-    button.tooltip = "Background and/or sprite pattern table linked (menu)"
-  else
-    button.bgColor = colors.gray20
-    button.contentColor = colors.white
-    button.tooltip = "Link background and sprite pattern tables (menu)"
-  end
 end
 
 function PPUFrameToolbar:updateRangeButton()

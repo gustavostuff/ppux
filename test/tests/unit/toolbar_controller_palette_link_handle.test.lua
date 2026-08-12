@@ -39,7 +39,7 @@ describe("toolbar_controller.lua - palette link handle", function()
     expect(win.specializedToolbar.compactButton).toBeNil()
   end)
 
-  it("creates a specialized toolbar with a link handle for ROM palette windows", function()
+  it("creates a specialized toolbar without a link handle for ROM palette windows", function()
     local wm = WM.new()
     local win = wm:createRomPaletteWindow({
       title = "ROM Palette",
@@ -57,8 +57,8 @@ describe("toolbar_controller.lua - palette link handle", function()
     expect(win.specializedToolbar.buttons[3]).toBe(win.specializedToolbar.resetCellButton)
     expect(win.specializedToolbar.resetAllButton).toBeTruthy()
     expect(win.specializedToolbar.buttons[4]).toBe(win.specializedToolbar.resetAllButton)
-    expect(win.specializedToolbar.linkButton).toBeTruthy()
-    expect(win.specializedToolbar.buttons[5]).toBe(win.specializedToolbar.linkButton)
+    expect(win.specializedToolbar.linkButton).toBeNil()
+    expect(win.specializedToolbar.getLinkHandleRect).toBeNil()
   end)
 
   it("hides grouped navigation buttons when grouped mode is off", function()

@@ -73,9 +73,11 @@ When colored, they indicate the window has a link to another one. In order they 
 3. ROM palette (blue)
 4. Pattern table linked to both BG and sprite layers (brown)
 
-Click a colored badge to bring the linked window forward and focus it (this works for both ends of the connection). Badges aren't drag targets tho, to add/change/remove links, use the toolbars _Pattern table link_ and _ROM Palette link_ buttons.
+**Source** windows (ROM palette, Pattern table) show badges on the **right**; destinations stay on the **left**. Pattern table always shows its source badge so you can start a link before anything is connected.
 
-<img src="img/readme_images/pt_and_palette_buttons.png" alt="App toolbar">
+- **Left-click** a colored badge to bring the linked window(s) forward and focus them.
+- **Right-click** a badge for the Link / Unlink / Jump menu for that slot.
+- **Left-drag** from a badge (empty or linked) onto a compatible badge - or onto a window body when only one slot fits - to create or retarget a link. The preview line is green on a legal drop and red otherwise; the pointer shows the unavailable cursor over illegal targets. Release on empty space to cancel.
 
 ### Toolbars
 
@@ -143,7 +145,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 
 <img src="img/readme_images/toolbars/2x/static_tiles_toolbar.png" alt="Static Art tiles/sprites specialized toolbar">
 
-1. **Palette link button** - right-drag onto a **ROM palette** window, or from the ROM palette's link button onto this one. Left-click to link via a menu.
+No specialized toolbar buttons - palette links use the left-edge [badge](#windows-system) (drag / right-click menu).
 
 </td>
 </tr>
@@ -160,8 +162,9 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 4. **Add layer** - `+` key.
 5. **Copy from previous layer** - Copies everything, including palette links and pattern table links.
 6. **Play / Pause** - `P` key.
-7. **Palette link button** - Same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
+7. **Play / Pause** - `P` key.
 
+Palette and pattern-table links use on-canvas [badges](#windows-system) (drag / right-click menu), not toolbar buttons.
 </td>
 </tr>
 <tr>
@@ -179,8 +182,8 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 6. **Toggle origin guides** - toggles dotted reference lines, this is user defined, not something that comes from ROM data.
 7. **Copy from previous layer** - Copies everything, including palette links and pattern table links.
 8. **Play / Pause** - `P` key. While focused, **`Shift` + `Left` / `Shift` + `Right`** adjusts frame delay for all frames.
-9. **Pattern table link** - left-click for a menu to link or unlink a **Pattern table** window for **all frames** at once (**required** for sprite CHR).
-10. **Palette link button** - Same ROM palette linking behavior as [Static Art](#static-art-tiles-and-sprites-toolbar).
+
+Palette and pattern-table links use on-canvas [badges](#windows-system) (drag / right-click menu). A Pattern table link is **required** for sprite CHR.
 
 **Shift + right-drag** on the canvas moves sprite `originX` / `originY` (same as PPU Frame sprite layers).
 
@@ -210,7 +213,8 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 2. **Next grouped slot** (when Grouped palettes is enabled).
 3. **Reset cell** - restores the selected cell to its captured ROM base color (clears that cell's user override).
 4. **Reset all** - restores every overridden cell on this palette to ROM base colors.
-5. **Palette link button (source)** - right-drag to link other windows/layers, or left-click for a menu.
+
+Link consumers via the right-edge [badge](#windows-system) (drag or right-click menu).
 
 </td>
 </tr>
@@ -225,8 +229,9 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 2. **Next layer** - `Shift` + `Up` key.
 3. **Nametable range** - Set compressed nametable **start/end** ROM addresses for the tile layer stream.
 4. **Add sprite** - Opens the [Add sprite](#hex-grid-flows) hex-grid modal (OAM).
-5. **Pattern table link** - left-click for a menu with separate **background** and **sprites** submenus to link **Pattern table** windows.
-6. **Toggle origin guides** - hidden until a sprite layer exists, it toggles dotted reference lines on sprite layers.
+5. **Toggle origin guides** - hidden until a sprite layer exists, it toggles dotted reference lines on sprite layers.
+
+Pattern table and palette links use left-edge [badges](#windows-system) on the frame (drag / right-click).
 
 </td>
 </tr>
@@ -238,7 +243,8 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 <img src="img/readme_images/toolbars/2x/pattern_table_toolbar.png" alt="Pattern table specialized toolbar">
 
 1. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - **`Ctrl + M`**.
-2. **Pattern table link (source)** - left-click for a menu: jump to linked consumer layer(s), or remove all links from this pattern table.
+
+Consumer links use the right-edge [badge](#windows-system) (drag / right-click menu).
 
 Note: Logical **ranges** are built by dragging tiles (multi selections, ideally) from **CHR Banks** or **ROM Banks** onto the pattern table content. Ranges must add up to **256** tiles for a complete map. When a **Sketch canvas** owns the pattern table, CHR/ROM drops are blocked and the catalog comes from Generate.
 
@@ -258,8 +264,8 @@ Note: Logical **ranges** are built by dragging tiles (multi selections, ideally)
 5. **Gallery title screen** - marks this sketch as the one-shot gallery title slide (only one at a time; click again to clear).
 6. **Export CHR** - writes a 4KB CHR bank (256 tiles) beside the project/ROM folder (needs a successful Generate).
 7. **Export nametable** - writes a 1024-byte `.nam` (960 tiles + 64 attribute bytes).
-8. **Pattern table link** - left-click to link, jump to, or unlink a **Pattern table**.
-9. **Palette link button** - right-drag onto a **sketch-mode** ROM palette (or left-click for a menu). Needed for live multi-palette preview and Gallery ROM colors.
+
+Pattern table and sketch-mode palette links use left-edge [badges](#windows-system) (drag / right-click).
 
 </td>
 </tr>
@@ -374,7 +380,7 @@ After Generating patterns, the sketch toolbar can export a 4KB CHR bank and a 10
 
 ### PPU frame & OAM
 
-`ppu_frame` windows are structured screen views: a **tile** layer backed by compressed nametable data in the ROM, plus an optional **sprite** overlay that tracks real OAM bytes. Link **Pattern table** windows from the toolbar so the tile layer, sprite layer, or both can resolve CHR through shared pattern-table ranges. Without a background pattern table link, a set nametable range still draws a shadow (based on tile index frequency) The same Pattern table can be linked from multiple PPU frames or OAM animation windows.
+`ppu_frame` windows are structured screen views: a **tile** layer backed by compressed nametable data in the ROM, plus an optional **sprite** overlay that tracks real OAM bytes. Link **Pattern table** windows via on-canvas badges so the tile layer, sprite layer, or both can resolve CHR through shared pattern-table ranges. Without a background pattern table link, a set nametable range still draws a shadow (based on tile index frequency) The same Pattern table can be linked from multiple PPU frames or OAM animation windows.
 
 Use **New Window > PPU Frame** and the toolbar/right-click menus to edit nametables and sprites. Saving the project keeps layer state and nametable diffs.
 
@@ -432,7 +438,7 @@ Note: Scanned mode is Konami-only for now (the checkbox is hidden for other code
 
 `rom_palette` windows are `4x4` palette editors. **ROM**-role windows are backed by ROM addresses. **Sketch**-role windows hold free colors for Sketch canvas windows.
 
-On the ROM palette toolbar, use **Reset cell** / **Reset all** to restore overridden colors to the captured ROM base, and the connect button to right-drag links onto layers (or left-click for source-side management).
+On the ROM palette toolbar, use **Reset cell** / **Reset all** to restore overridden colors to the captured ROM base. Link consumers via the right-edge badge (drag or right-click menu).
 
 To bind or change a ROM address on a cell, use the shared hex grid picker described in [Hex grid flows](#hex-grid-flows).
 

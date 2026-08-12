@@ -11,7 +11,6 @@ local DebugController = require("controllers.dev.debug_controller")
 local SpaceHighlightController = require("controllers.window.space_highlight_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local Timer = require("utils.timer_utils")
-local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 
 local ToolbarBase = {}
@@ -419,9 +418,6 @@ function ToolbarBase:addButton(icon, action, tooltip, opts)
     underlayCornerRadius = 0,
   })
   button.toolbarRow = tonumber(opts.row) or nil
-  if opts.paletteLinkHandle then
-    button.paletteLinkHandle = true
-  end
 
   table.insert(self.buttons, button)
   self:_layoutButtons()
@@ -842,13 +838,7 @@ function ToolbarBase:draw()
           button.literalContentColor = true
         end
         button.iconRespectTheme = false
-        if button.paletteLinkHandle then
-          button.skipIconDraw = PaletteLinkController.shouldHidePaletteLinkHandleIconForWindow(self.window)
-          button:draw()
-          button.skipIconDraw = nil
-        else
-          button:draw()
-        end
+        button:draw()
         button.iconRespectTheme = prevIr
         button.contentColor = prevCc
         button.literalContentColor = prevLit

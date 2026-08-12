@@ -2,10 +2,9 @@ local SpriteController = require("controllers.sprite.sprite_controller")
 local SpriteOriginDrag = require("controllers.sprite.sprite_origin_drag_controller")
 local CursorsController = require("controllers.input_support.cursors_controller")
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
-local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local MouseWindowChromeController = require("controllers.input.mouse_window_chrome_controller")
-local WindowLinkVisualController = require("controllers.window.window_link_visual_controller")
+local WindowLinkBadgeController = require("controllers.window.window_link_badge_controller")
 local StatusHelpers = require("utils.status_helpers")
 local LoveCompat = require("utils.love_compat")
 local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
@@ -1240,48 +1239,7 @@ local function handleWindowLinkPivotHandleClick(env, button, x, y)
   if not app then
     return false
   end
-  return WindowLinkVisualController.tryHandlePivotHandleClick(app, x, y, button) == true
-end
-
-local function handlePaletteLinkContextClick(env, button, x, y, win, wm)
-  if button ~= 1 and button ~= 2 and button ~= 3 then
-    return false
-  end
-  if not (win and win.specializedToolbar and env.beginContextMenuClick) then
-    return false
-  end
-  if not PaletteLinkController.isPointInToolbarLinkHandle(win.specializedToolbar, x, y) then
-    return false
-  end
-
-  if wm and wm.setFocus then
-    wm:setFocus(win)
-  end
-
-  if button == 1 or button == 3 then
-    if button == 1 then
-      if PaletteLinkController.tryHandleLinkHandleDoubleClickUnlink(win.specializedToolbar, x, y, win, wm) then
-        return true
-      end
-    end
-    if WindowCaps.isRomPaletteWindow(win) then
-      env.beginContextMenuClick("palette_link_source", x, y, button, win)
-      return true
-    end
-    if WindowCaps.isAnyPaletteWindow(win) or WindowCaps.isChrLike(win) then
-      return false
-    end
-    env.beginContextMenuClick("palette_link_destination", x, y, button, win, {
-      layerIndex = (win.getActiveLayerIndex and win:getActiveLayerIndex()) or win.activeLayer or 1,
-    })
-    return true
-  end
-
-  if button == 2 then
-    return PaletteLinkController.beginDrag(win.specializedToolbar, button, x, y, win, wm)
-  end
-
-  return false
+  return WindowLinkBadgeController.beginPress(app, x, y, button, env.beginContextMenuClick) == true
 end
 
 --- Unit tests may pass a partial `chrome` stub; always resolve the surface window the same as the app.
@@ -1301,10 +1259,6 @@ function M.handleMousePressed(env, x, y, button)
   -- Pivot handles sit outside window bodies; consume before chrome/content so
   -- clicks do not spill to windows behind or clear workspace focus.
   if handleWindowLinkPivotHandleClick(env, button, x, y) then
-    return true
-  end
-
-  if handlePaletteLinkContextClick(env, button, x, y, toolbarWin, wm) then
     return true
   end
 

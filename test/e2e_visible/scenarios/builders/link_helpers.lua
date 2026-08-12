@@ -2,10 +2,10 @@
 local P = require("test.e2e_visible.scenarios.prelude")
 
 local pause, call, appendClick, appendDrag,
-  toolbarLinkHandleCenter, windowHeaderCenter, rootMenuItemCenter, childMenuRowCenter,
+  windowHeaderCenter, rootMenuItemCenter, childMenuRowCenter,
   ppuToolbarButtonCenter
   = P.pause, P.call, P.appendClick, P.appendDrag,
-  P.toolbarLinkHandleCenter, P.windowHeaderCenter, P.rootMenuItemCenter, P.childMenuRowCenter,
+  P.windowHeaderCenter, P.rootMenuItemCenter, P.childMenuRowCenter,
   P.ppuToolbarButtonCenter
 
 local M = {}
@@ -36,16 +36,104 @@ function M.findFirstLayerIndexByKind(win, kind)
   return nil
 end
 
-function M.paletteHandleCenterByKey(key)
-  return toolbarLinkHandleCenter(function(_, currentRunner)
-    return M.requireRunnerWindow(currentRunner, key)
-  end)
+function M.paletteHandleCenterByKey(key, slot)
+  return M.badgeCenterByKey(key, slot)
 end
 
 function M.windowHeaderCenterByKey(key)
   return windowHeaderCenter(function(_, currentRunner)
     return M.requireRunnerWindow(currentRunner, key)
   end)
+end
+
+local function defaultBadgeSlotForWindow(win)
+  local WindowCaps = require("controllers.window.window_capabilities")
+  if WindowCaps.isRomPaletteWindow(win) then
+    return "palette_source"
+  end
+  if WindowCaps.isPatternTable(win) then
+    return "pattern_source"
+  end
+  if WindowCaps.isPpuFrame(win) or WindowCaps.isSketchCanvas(win) then
+    return "ppu_palette"
+  end
+  if WindowCaps.isOamAnimation(win) then
+    return "layout_palette"
+  end
+  return "layout_palette"
+end
+
+--- On-canvas link badge center (sources may be on the right).
+--- @param winKey string
+--- @param slot string|nil
+--- @param opts table|nil { allowEmpty = bool } - empty badges are valid drag/menu targets
+function M.badgeCenterByKey(winKey, slot, opts)
+  opts = opts or {}
+  return function(_, currentApp, currentRunner)
+    local win = M.requireRunnerWindow(currentRunner, winKey)
+    local LinkVisual = require("controllers.window.window_link_visual_controller")
+    local state = assert(LinkVisual.prepareLinkDrawState(currentApp), "expected link draw state for badges")
+    local byWin = assert(state.layouts and state.layouts[win], "expected badge layouts for " .. tostring(winKey))
+
+    local resolvedSlot = slot
+    if resolvedSlot == nil then
+      resolvedSlot = defaultBadgeSlotForWindow(win)
+    end
+    local entry = byWin[resolvedSlot]
+    assert(entry, string.format("expected badge slot %s on %s", tostring(resolvedSlot), tostring(winKey)))
+    if slot ~= nil and opts.allowEmpty ~= true then
+      assert(
+        entry.pulseInner == true,
+        string.format("expected linked badge for %s/%s", tostring(winKey), tostring(slot))
+      )
+    end
+    local cx = entry.lineCx or entry.cx
+    local cy = entry.lineCy or entry.cy
+    assert(type(cx) == "number" and type(cy) == "number", "expected badge center for " .. tostring(winKey))
+    return cx, cy
+  end
+end
+
+function M.appendClickPaletteHandle(steps, label, key, slot)
+  M.appendFocusWindow(steps, "Focus " .. tostring(key) .. " before badge menu", key)
+  appendClick(steps, label, M.badgeCenterByKey(key, slot, { allowEmpty = true }), {
+    button = 2,
+    moveDuration = 0.08,
+    prePressPause = 0.06,
+    holdDuration = 0.05,
+    postPause = 0.18,
+  })
+end
+
+function M.appendBadgeDragLink(steps, label, fromKey, fromSlot, toKey, toSlot)
+  M.appendFocusWindow(steps, "Focus " .. tostring(fromKey) .. " before badge drag", fromKey)
+  appendDrag(steps, label, M.badgeCenterByKey(fromKey, fromSlot, { allowEmpty = true }), M.badgeCenterByKey(toKey, toSlot, { allowEmpty = true }), {
+    button = 1,
+    moveDuration = 0.08,
+    prePressPause = 0.06,
+    holdDuration = 0.05,
+    dragDuration = 0.28,
+    postPause = 0.28,
+  })
+end
+
+-- Remove dead unused locals in appendRightDrag
+function M.appendRightDragPaletteLink(steps, label, fromKey, toKey)
+  M.appendFocusWindow(steps, "Focus " .. tostring(fromKey) .. " before badge link drag", fromKey)
+  appendDrag(steps, label, function(h, app, runner)
+    local win = M.requireRunnerWindow(runner, fromKey)
+    return M.badgeCenterByKey(fromKey, defaultBadgeSlotForWindow(win), { allowEmpty = true })(h, app, runner)
+  end, function(h, app, runner)
+    local win = M.requireRunnerWindow(runner, toKey)
+    return M.badgeCenterByKey(toKey, defaultBadgeSlotForWindow(win), { allowEmpty = true })(h, app, runner)
+  end, {
+    button = 1,
+    moveDuration = 0.08,
+    prePressPause = 0.06,
+    holdDuration = 0.05,
+    dragDuration = 0.28,
+    postPause = 0.28,
+  })
 end
 
 function M.appendFocusWindow(steps, label, key)
@@ -147,33 +235,6 @@ function M.paletteLinkChildMenuItemByText(textResolver)
     assert(targetRow, "expected link child menu item: " .. tostring(expectedText))
     return M.paletteLinkChildMenuRow(targetRow)(nil, currentApp, currentRunner)
   end
-end
-
-function M.appendClickPaletteHandle(steps, label, key)
-  M.appendFocusWindow(steps, "Focus " .. tostring(key) .. " before palette handle click", key)
-  appendClick(steps, label, M.paletteHandleCenterByKey(key), {
-    button = 1,
-    moveDuration = 0.08,
-    prePressPause = 0.06,
-    holdDuration = 0.05,
-    postPause = 0.18,
-  })
-end
-
-function M.appendRightDragPaletteLink(steps, label, fromKey, toKey)
-  M.appendFocusWindow(steps, "Focus " .. tostring(fromKey) .. " before right-drag link", fromKey)
-  appendDrag(steps, label, M.paletteHandleCenterByKey(fromKey), function(h, _, currentRunner)
-    local win = M.requireRunnerWindow(currentRunner, toKey)
-    -- Prefer interior content drop (more reliable than header chrome).
-    return h:windowCellCenter(win, 2, 2)
-  end, {
-    button = 2,
-    moveDuration = 0.08,
-    prePressPause = 0.06,
-    holdDuration = 0.05,
-    dragDuration = 0.28,
-    postPause = 0.28,
-  })
 end
 
 function M.assertPaletteLinks(expectedPaletteKeyByTargetKey)

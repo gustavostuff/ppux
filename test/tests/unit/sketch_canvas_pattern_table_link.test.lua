@@ -378,7 +378,8 @@ describe("sketch canvas - link + pattern table apply", function()
         toasts[#toasts + 1] = { kind = kind, text = text }
       end,
     }, wm)
-    expect(toolbar.linkButton.enabled).toBe(true)
+    expect(toolbar.linkButton).toBeNil()
+    expect(toolbar.generateButton).toBeTruthy()
 
     toolbar.generateButton.action()
     expect(#pt.layers[1].items).toBe(256)

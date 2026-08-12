@@ -69,38 +69,33 @@ describe("sketch canvas - New Window + toolbar shell", function()
     expect(h).toBe(240)
   end)
 
-  it("builds a sketch toolbar shell with Link, Tolerance, Generate controls (no Reflect button)", function()
+  it("builds a sketch toolbar shell with Tolerance and Generate controls (links via badges)", function()
     local wm = WM.new()
     local win = wm:createSketchCanvasWindow()
     local ctx = { app = { setStatus = function() end } }
     local toolbar = ToolbarController.createSpecializedToolbar(win, ctx, wm)
-    local colors = require("app_colors")
 
     expect(toolbar).toBeTruthy()
-    expect(toolbar.linkButton).toBeTruthy()
+    expect(toolbar.linkButton).toBeNil()
+    expect(toolbar.paletteLinkButton).toBeNil()
     expect(toolbar.toleranceDownButton).toBeTruthy()
     expect(toolbar.toleranceUpButton).toBeTruthy()
     expect(toolbar.generateButton).toBeTruthy()
     expect(toolbar.titleScreenButton).toBeTruthy()
     expect(toolbar.reflectButton).toBeNil()
 
-    expect(toolbar.linkButton.enabled).toBe(true)
-    expect(toolbar.linkButton.bgColor).toBe(colors.gray20)
     expect(toolbar.toleranceDownButton.enabled).toBe(false) -- tolerance starts at 0
     expect(toolbar.toleranceUpButton.enabled).toBe(true)
     expect(toolbar.generateButton.enabled).toBe(true) -- enabled; prompts to create PT if unlinked
     expect(toolbar.titleScreenButton.enabled).toBe(true)
     expect(toolbar.titleScreenButton.tooltip:find("title screen", 1, true)).toBeTruthy()
 
-    expect(toolbar.linkButton.tooltip:find("Link", 1, true)).toBeTruthy()
     expect(toolbar.generateButton.tooltip:find("create a pattern table", 1, true)).toBeTruthy()
 
     local pt = wm:createPatternTableWindow()
     local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
     assert(SketchCanvasPackController.linkSketchToPatternTable(win, pt, wm))
     toolbar:updateIcons()
-    expect(toolbar.linkButton.bgColor).toBe(colors.green)
-    expect(toolbar.linkButton.tooltip:find("Manage", 1, true)).toBeTruthy()
     expect(toolbar.generateButton.enabled).toBe(true)
   end)
 

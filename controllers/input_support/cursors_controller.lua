@@ -610,6 +610,11 @@ end
 local function resolveTargetCursorName(app, mode)
   local mx, my = getMouseCanvasPosition()
   if type(mx) == "number" and type(my) == "number" then
+    local WindowLinkBadgeController = require("controllers.window.window_link_badge_controller")
+    local badgeCursor = WindowLinkBadgeController.cursorNameForPointer(app, mx, my)
+    if type(badgeCursor) == "string" then
+      return badgeCursor
+    end
     local _, topModal = Shared.getTopModal(app)
     if topModal then
       if app.settingsModal == topModal and type(app.settingsModal.isHoveringColorPickerSwatchAt) == "function" then

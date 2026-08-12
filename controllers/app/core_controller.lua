@@ -61,6 +61,21 @@ function AppCoreController.new()
     currentX = 0,
     currentY = 0,
   }
+  self.windowLinkBadgeDrag = {
+    active = false,
+    pending = false,
+    sourceWin = nil,
+    sourceSlot = nil,
+    sourceCx = 0,
+    sourceCy = 0,
+    startX = 0,
+    startY = 0,
+    currentX = 0,
+    currentY = 0,
+    legalHover = false,
+    hoverWin = nil,
+    hoverSlot = nil,
+  }
 
   self.chrCanvasOnlyWindow = nil
   self.chrCanvasOnlyScrollY = 0

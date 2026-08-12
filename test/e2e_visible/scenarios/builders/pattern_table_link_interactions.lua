@@ -95,24 +95,15 @@ local function buildPatternTableLinkInteractionsScenario(harness, app, runner)
     currentRunner.ppuSpriteLayerIndex = assert(H.findFirstLayerIndexByKind(ppu, "sprite"), "expected PPU sprite layer")
   end)
 
-  -- Pattern table links from PPU toolbar button.
-  H.appendClickToolbarButton(steps, "Open PPU pattern-table link menu", "ppuFixtureWin", function(toolbar)
-    return toolbar.patternTableLinkButton
-  end)
-  steps[#steps + 1] = call("Assert PPU pattern-table destination menu", H.assertPaletteLinkMenuTexts({
-    "Link background pattern table",
-    "Link sprites pattern table",
-  }))
-  steps[#steps + 1] = call(
-    "Open Link background pattern table child menu",
-    H.openPaletteLinkChildMenuByText("Link background pattern table")
+  -- Badge-drag pattern table -> PPU background slot.
+  H.appendBadgeDragLink(
+    steps,
+    "Badge-drag pattern table onto PPU bg slot",
+    "patternTableFixtureWin",
+    "pattern_source",
+    "ppuFixtureWin",
+    "ppu_pattern_bg"
   )
-  appendClick(steps, "Link PPU background to pattern fixture", H.paletteLinkChildMenuItemByText("Pattern Link Fixture"), {
-    moveDuration = 0.08,
-    prePressPause = 0.05,
-    holdDuration = 0.05,
-    postPause = 0.24,
-  })
   steps[#steps + 1] = call("Assert PPU background pattern-table link", function(_, _, currentRunner)
     local ppu = H.requireRunnerWindow(currentRunner, "ppuFixtureWin")
     local pt = H.requireRunnerWindow(currentRunner, "patternTableFixtureWin")
@@ -124,25 +115,15 @@ local function buildPatternTableLinkInteractionsScenario(harness, app, runner)
     )
   end)
 
-  H.appendClickToolbarButton(steps, "Open PPU pattern-table link menu for sprites", "ppuFixtureWin", function(toolbar)
-    return toolbar.patternTableLinkButton
-  end)
-  steps[#steps + 1] = call("Assert PPU menu still offers sprite linking", H.assertPaletteLinkMenuTexts({
-    "Link background pattern table",
-    "Link sprites pattern table",
-    "Jump to background pattern table",
-    "Unlink background pattern table",
-  }))
-  steps[#steps + 1] = call(
-    "Open Link sprites pattern table child menu",
-    H.openPaletteLinkChildMenuByText("Link sprites pattern table")
+  -- Badge-drag pattern table -> PPU sprite slot.
+  H.appendBadgeDragLink(
+    steps,
+    "Badge-drag pattern table onto PPU sprite slot",
+    "patternTableFixtureWin",
+    "pattern_source",
+    "ppuFixtureWin",
+    "ppu_pattern_sprite"
   )
-  appendClick(steps, "Link PPU sprites to pattern fixture", H.paletteLinkChildMenuItemByText("Pattern Link Fixture"), {
-    moveDuration = 0.08,
-    prePressPause = 0.05,
-    holdDuration = 0.05,
-    postPause = 0.3,
-  })
   steps[#steps + 1] = call("Assert PPU sprite pattern-table link", function(_, _, currentRunner)
     local ppu = H.requireRunnerWindow(currentRunner, "ppuFixtureWin")
     local pt = H.requireRunnerWindow(currentRunner, "patternTableFixtureWin")
@@ -159,9 +140,8 @@ local function buildPatternTableLinkInteractionsScenario(harness, app, runner)
     )
   end)
 
-  H.appendClickToolbarButton(steps, "Open PPU pattern-table menu after links", "ppuFixtureWin", function(toolbar)
-    return toolbar.patternTableLinkButton
-  end)
+  -- Right-click destination badge menu (PPU bg slot).
+  H.appendClickPaletteHandle(steps, "Open PPU bg pattern badge menu", "ppuFixtureWin", "ppu_pattern_bg")
   steps[#steps + 1] = call("Assert linked PPU pattern-table menu items", H.assertPaletteLinkMenuTexts({
     "Link background pattern table",
     "Link sprites pattern table",
@@ -178,10 +158,8 @@ local function buildPatternTableLinkInteractionsScenario(harness, app, runner)
   })
   steps[#steps + 1] = call("Assert jump focused pattern table fixture", H.assertFocusedWindow("patternTableFixtureWin"))
 
-  -- Pattern table source toolbar button.
-  H.appendClickToolbarButton(steps, "Open pattern-table source link menu", "patternTableFixtureWin", function(toolbar)
-    return toolbar.linkButton
-  end)
+  -- Pattern table source badge menu.
+  H.appendClickPaletteHandle(steps, "Open pattern-table source badge menu", "patternTableFixtureWin", "pattern_source")
   steps[#steps + 1] = call("Assert pattern-table source menu items", H.assertPaletteLinkMenuTexts({
     "Jump to linked layer",
     "Remove all links",
@@ -229,20 +207,15 @@ local function buildPatternTableLinkInteractionsScenario(harness, app, runner)
   steps[#steps + 1] = call("Assert pattern-table pivot focused PPU", H.assertFocusedWindow("ppuFixtureWin"))
   steps[#steps + 1] = call("Assert pattern-table pivot brought PPU frontmost", H.assertWindowFrontmost("ppuFixtureWin"))
 
-  -- OAM pattern-table toolbar button.
-  H.appendClickToolbarButton(steps, "Open OAM pattern-table link menu", "oamFixtureWin", function(toolbar)
-    return toolbar.patternTableLinkButton
-  end)
-  steps[#steps + 1] = call("Assert OAM pattern-table destination menu", H.assertPaletteLinkMenuTexts({
-    "Link pattern table",
-  }))
-  steps[#steps + 1] = call("Open OAM Link pattern table child menu", H.openPaletteLinkChildMenuByText("Link pattern table"))
-  appendClick(steps, "Link OAM frames to pattern fixture", H.paletteLinkChildMenuItemByText("Pattern Link Fixture"), {
-    moveDuration = 0.08,
-    prePressPause = 0.05,
-    holdDuration = 0.05,
-    postPause = 0.24,
-  })
+  -- OAM pattern-table badge drag.
+  H.appendBadgeDragLink(
+    steps,
+    "Badge-drag pattern table onto OAM pattern slot",
+    "patternTableFixtureWin",
+    "pattern_source",
+    "oamFixtureWin",
+    "oam_pattern"
+  )
   steps[#steps + 1] = call("Assert OAM sprite layers linked to pattern table", function(_, _, currentRunner)
     local oam = H.requireRunnerWindow(currentRunner, "oamFixtureWin")
     local pt = H.requireRunnerWindow(currentRunner, "patternTableFixtureWin")
@@ -271,9 +244,7 @@ local function buildPatternTableLinkInteractionsScenario(harness, app, runner)
   steps[#steps + 1] = call("Assert OAM pivot focused pattern table", H.assertFocusedWindow("patternTableFixtureWin"))
   steps[#steps + 1] = call("Assert OAM pivot brought pattern table frontmost", H.assertWindowFrontmost("patternTableFixtureWin"))
 
-  H.appendClickToolbarButton(steps, "Open pattern-table source menu for remove-all", "patternTableFixtureWin", function(toolbar)
-    return toolbar.linkButton
-  end)
+  H.appendClickPaletteHandle(steps, "Open pattern-table source menu for remove-all", "patternTableFixtureWin", "pattern_source")
   appendClick(steps, "Remove all pattern-table links from source", H.paletteLinkMenuRowByText("Remove all links"), {
     moveDuration = 0.08,
     prePressPause = 0.05,

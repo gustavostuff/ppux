@@ -3,7 +3,7 @@ local P = require("test.e2e_visible.scenarios.prelude")
 local BubbleExample, PaletteLinkController, ContextualMenuController, images,
   normalizeSpeedMultiplier, pause, moveTo, mouseDown, mouseUp, keyPress, textInput, call, assertDelay, appendClick, appendDrag,
   newWindowOptionCenter, newWindowOptionCenterByText, newWindowModeToggleCenter,
-  textFieldDemoFieldCenter, textFieldDemoFieldTextPoint, spriteItemCenter, toolbarLinkHandleCenter,
+  textFieldDemoFieldCenter, textFieldDemoFieldTextPoint, spriteItemCenter,
   windowHeaderCenter, saveOptionCenter, menuRowCenter, taskbarRootMenu, childMenuRowCenter,
   rootMenuItemCenter, resizeHandleCenter, taskbarMenuGapPoint, assertTaskbarChildState,
   buttonCenter, appQuickButtonCenter, ppuToolbarButtonCenter, menuRowCenterByText, setFocusedTextFieldValue,
@@ -11,7 +11,7 @@ local BubbleExample, PaletteLinkController, ContextualMenuController, images,
   = P.BubbleExample, P.PaletteLinkController, P.ContextualMenuController, P.images,
   P.normalizeSpeedMultiplier, P.pause, P.moveTo, P.mouseDown, P.mouseUp, P.keyPress, P.textInput, P.call, P.assertDelay, P.appendClick, P.appendDrag,
   P.newWindowOptionCenter, P.newWindowOptionCenterByText, P.newWindowModeToggleCenter,
-  P.textFieldDemoFieldCenter, P.textFieldDemoFieldTextPoint, P.spriteItemCenter, P.toolbarLinkHandleCenter,
+  P.textFieldDemoFieldCenter, P.textFieldDemoFieldTextPoint, P.spriteItemCenter,
   P.windowHeaderCenter, P.saveOptionCenter, P.menuRowCenter, P.taskbarRootMenu, P.childMenuRowCenter,
   P.rootMenuItemCenter, P.resizeHandleCenter, P.taskbarMenuGapPoint, P.assertTaskbarChildState,
   P.buttonCenter, P.appQuickButtonCenter, P.ppuToolbarButtonCenter, P.menuRowCenterByText, P.setFocusedTextFieldValue,
@@ -636,9 +636,17 @@ local function buildRomPaletteLinkScenario(harness, app, runner)
     currentApp.wm:setFocus(spriteWin)
   end)
   steps[#steps + 1] = pause("Observe auto-hide with palette unfocused", 0.45)
-  steps[#steps + 1] = moveTo("Hover ROM palette link handle while unfocused", toolbarLinkHandleCenter(function(_, currentRunner)
-    return currentRunner.romLinkPaletteWin
-  end), 0.12)
+  steps[#steps + 1] = moveTo("Hover ROM palette link badge while unfocused", function(_, currentApp, currentRunner)
+    local win = assert(currentRunner.romLinkPaletteWin, "expected runtime ROM palette window")
+    local LinkVisual = require("controllers.window.window_link_visual_controller")
+    if currentApp and currentApp._applyWindowLinksSetting then
+      -- Keep auto_hide; prepare layouts still include badges when revealed/hoverable.
+    end
+    local edges = LinkVisual.collectWindowLinkEdges(currentApp)
+    local layouts = select(1, LinkVisual.buildAnchorLayouts(currentApp, edges))
+    local entry = assert(layouts[win] and layouts[win].palette_source, "expected palette_source badge")
+    return entry.cx, entry.cy
+  end, 0.12)
   steps[#steps + 1] = pause("Observe handle hover reveal", 0.65)
   steps[#steps + 1] = moveTo("Move away from ROM palette handle", function(h)
     local spriteWin = assert(runner.romLinkSpriteWin, "expected runtime sprite link window")

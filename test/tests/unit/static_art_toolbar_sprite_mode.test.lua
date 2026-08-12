@@ -13,7 +13,7 @@ describe("static_art_toolbar.lua", function()
     _G.ctx = previousCtx
   end)
 
-  it("exposes a palette link handle for static art windows", function()
+  it("builds an empty specialized toolbar (palette links use on-canvas badges)", function()
     local wm = WM.new()
     local win = wm:createSpriteWindow({
       animated = false,
@@ -24,7 +24,8 @@ describe("static_art_toolbar.lua", function()
 
     local ctx = { setStatus = function() end }
     local toolbar = StaticArtToolbar.new(win, ctx, wm)
-    expect(toolbar.linkButton).toBeTruthy()
-    expect(toolbar:getLinkHandleRect()).toBeTruthy()
+    expect(toolbar.linkButton).toBeNil()
+    expect(toolbar.getLinkHandleRect).toBeNil()
+    expect(#toolbar.buttons).toBe(0)
   end)
 end)

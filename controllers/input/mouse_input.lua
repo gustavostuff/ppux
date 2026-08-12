@@ -19,8 +19,21 @@ local ToolbarBase = require("ui.toolbars.toolbar_base")
 
 local M = {}
 
---- Match Pattern table link menus: anchor the root panel to the handle, not the click point.
-local function menuOptsFromPaletteLinkHandle(win)
+--- Match Pattern table / palette link menus: prefer badge rect, else toolbar handle.
+local function menuOptsFromLinkBadgeOrHandle(win, slot)
+  local app = ctx and ctx.app or nil
+  if app and win and type(slot) == "string" then
+    local LinkVisual = require("controllers.window.window_link_visual_controller")
+    local edges = LinkVisual.collectWindowLinkEdges(app)
+    local layouts = select(1, LinkVisual.buildAnchorLayouts(app, edges))
+    local entry = layouts and layouts[win] and layouts[win][slot]
+    if entry and entry.cx and entry.cy then
+      local ox, oy, ow, oh = LinkVisual.getPivotHandleRect(entry.cx, entry.cy)
+      if ox then
+        return ToolbarBase.menuOptsFromButton({ x = ox, y = oy, w = ow, h = oh })
+      end
+    end
+  end
   local toolbar = win and win.specializedToolbar
   if not (toolbar and toolbar.getLinkHandleRect) then
     return nil
@@ -33,6 +46,10 @@ local function menuOptsFromPaletteLinkHandle(win)
     return nil
   end
   return ToolbarBase.menuOptsFromButton({ x = x, y = y, w = w, h = h })
+end
+
+local function menuOptsFromPaletteLinkHandle(win)
+  return menuOptsFromLinkBadgeOrHandle(win, nil)
 end
 
 local ctx
@@ -382,7 +399,7 @@ local function handleContextMenuRelease(button, x, y)
         pending.win,
         x,
         y,
-        menuOptsFromPaletteLinkHandle(pending.win)
+        menuOptsFromLinkBadgeOrHandle(pending.win, "palette_source")
       )
       return true
     end
@@ -395,7 +412,33 @@ local function handleContextMenuRelease(button, x, y)
         pending.win,
         x,
         y,
-        menuOptsFromPaletteLinkHandle(pending.win)
+        menuOptsFromLinkBadgeOrHandle(pending.win, pending.slot or "layout_palette")
+      )
+      return true
+    end
+    return false
+  end
+
+  if pending.kind == "pattern_table_link_source" then
+    if app.showPatternTableLinkSourceContextMenu and pending.win then
+      app:showPatternTableLinkSourceContextMenu(
+        pending.win,
+        x,
+        y,
+        menuOptsFromLinkBadgeOrHandle(pending.win, "pattern_source")
+      )
+      return true
+    end
+    return false
+  end
+
+  if pending.kind == "pattern_table_link_destination" then
+    if app.showPatternTableLinkDestinationContextMenu and pending.win then
+      app:showPatternTableLinkDestinationContextMenu(
+        pending.win,
+        x,
+        y,
+        menuOptsFromLinkBadgeOrHandle(pending.win, pending.slot)
       )
       return true
     end

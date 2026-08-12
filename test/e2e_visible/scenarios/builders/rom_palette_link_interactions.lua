@@ -66,25 +66,23 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
     pause("Observe ROM palette link fixtures", 0.6),
   }
 
-  -- Create via right-drag from palette handle onto targets.
-  H.appendRightDragPaletteLink(steps, "Right-drag palette A handle onto target 1", "romLinkPaletteAWin", "linkTarget1")
-  steps[#steps + 1] = call("Assert right-drag linked target 1 to palette A", H.assertPaletteLinks({
+  -- Create via left-drag badge -> badge.
+  H.appendRightDragPaletteLink(steps, "Badge-drag palette A onto target 1", "romLinkPaletteAWin", "linkTarget1")
+  steps[#steps + 1] = call("Assert badge-drag linked target 1 to palette A", H.assertPaletteLinks({
     linkTarget1 = "romLinkPaletteAWin",
   }))
-  steps[#steps + 1] = call("Clear palette-handle double-click arming before next drag", function()
-    -- Visible E2E runs at 8x by default; wall-clock gaps between right-drags can stay
-    -- inside the 0.35s double-click window and accidentally unlink-all.
+  steps[#steps + 1] = call("Clear drag state before next badge drag", function()
     H.resetDoubleClickState()
   end)
-  H.appendRightDragPaletteLink(steps, "Right-drag palette A handle onto target 2", "romLinkPaletteAWin", "linkTarget2")
-  steps[#steps + 1] = call("Assert right-drag linked target 2 to palette A", H.assertPaletteLinks({
+  H.appendRightDragPaletteLink(steps, "Badge-drag palette A onto target 2", "romLinkPaletteAWin", "linkTarget2")
+  steps[#steps + 1] = call("Assert badge-drag linked target 2 to palette A", H.assertPaletteLinks({
     linkTarget1 = "romLinkPaletteAWin",
     linkTarget2 = "romLinkPaletteAWin",
     linkTarget3 = nil,
   }))
 
-  -- Reverse create: destination handle -> palette B.
-  H.appendRightDragPaletteLink(steps, "Right-drag target 3 handle onto palette B", "linkTarget3", "romLinkPaletteBWin")
+  -- Reverse create: destination badge -> palette B.
+  H.appendRightDragPaletteLink(steps, "Badge-drag target 3 onto palette B", "linkTarget3", "romLinkPaletteBWin")
   steps[#steps + 1] = call("Assert reverse-drag linked target 3 to palette B", H.assertPaletteLinks({
     linkTarget1 = "romLinkPaletteAWin",
     linkTarget2 = "romLinkPaletteAWin",
@@ -184,31 +182,15 @@ local function buildRomPaletteLinkInteractionsScenario(harness, app, runner)
     linkTarget3 = "romLinkPaletteBWin",
   }))
 
-  -- Double-click palette B handle to remove all remaining B links.
-  H.appendFocusWindow(steps, "Focus palette B before double-click unlink", "romLinkPaletteBWin")
-  steps[#steps + 1] = call("Arm clean double-click state for palette B", function()
-    H.resetDoubleClickState()
-  end)
-  appendClick(steps, "First click palette B handle (arm double-click)", H.paletteHandleCenterByKey("romLinkPaletteBWin"), {
-    button = 1,
-    moveDuration = 0.06,
-    prePressPause = 0.04,
-    holdDuration = 0.04,
-    postPause = 0.08,
-  })
-  steps[#steps + 1] = call("Hide menu before second double-click", function(_, currentApp)
-    if currentApp.hideAppContextMenus then
-      currentApp:hideAppContextMenus()
-    end
-  end)
-  appendClick(steps, "Second click palette B handle (unlink all)", H.paletteHandleCenterByKey("romLinkPaletteBWin"), {
-    button = 1,
-    moveDuration = 0.04,
-    prePressPause = 0.02,
-    holdDuration = 0.04,
+  -- Source badge menu: remove all remaining B links.
+  H.appendClickPaletteHandle(steps, "Open palette B source menu for remove-all", "romLinkPaletteBWin")
+  appendClick(steps, "Remove all links from palette B", H.paletteLinkMenuRowByText("Remove all links"), {
+    moveDuration = 0.08,
+    prePressPause = 0.05,
+    holdDuration = 0.05,
     postPause = 0.22,
   })
-  steps[#steps + 1] = call("Assert double-click removed palette B links", H.assertPaletteLinks({
+  steps[#steps + 1] = call("Assert remove-all cleared palette B links", H.assertPaletteLinks({
     linkTarget1 = nil,
     linkTarget2 = nil,
     linkTarget3 = nil,

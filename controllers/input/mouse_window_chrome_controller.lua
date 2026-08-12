@@ -221,6 +221,13 @@ function M.handleToolbarClicks(button, x, y, win, wm)
 end
 
 function M.handleToolbarRelease(button, x, y, wm)
+  local gctx = rawget(_G, "ctx")
+  local app = gctx and gctx.app or nil
+  local WindowLinkBadgeController = require("controllers.window.window_link_badge_controller")
+  if WindowLinkBadgeController.finish(app, x, y) then
+    return true
+  end
+
   if PaletteLinkController.finishDrag(wm, x, y) then
     return true
   end

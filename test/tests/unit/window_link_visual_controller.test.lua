@@ -3,9 +3,12 @@ local WM = require("controllers.window.window_controller")
 local colors = require("app_colors")
 
 describe("window_link_visual_controller.lua", function()
-  it("computes pivot handle geometry from window left edge", function()
+  it("computes pivot handle geometry from window left and right edges", function()
     local handleCx = LinkVisual.handleCenterXForWindowLeft(100)
     expect(handleCx).toBe(96.5)
+
+    local rightCx = LinkVisual.handleCenterXForWindowRight(100)
+    expect(rightCx).toBe(103.5)
 
     local ox, oy, ow, oh = LinkVisual.getPivotHandleRect(handleCx, 40)
     expect(ox).toBe(93)
@@ -68,9 +71,29 @@ describe("window_link_visual_controller.lua", function()
     expect(layouts[rom].palette_source).toBeTruthy()
     expect(#handles >= 2).toBe(true)
 
+    local artHx = select(1, art:getHeaderRect())
+    local romHx, _, romHw = rom:getHeaderRect()
+    expect(layouts[art].layout_palette.cx < artHx).toBe(true)
+    expect(layouts[rom].palette_source.cx > (romHx + romHw)).toBe(true)
+
     local cx, cy = LinkVisual.getLeftAnchorPoint(art, "layout_palette", layouts)
     expect(type(cx)).toBe("number")
     expect(type(cy)).toBe("number")
+  end)
+
+  it("always shows a pattern_source badge on visible pattern table windows", function()
+    local wm = WM.new()
+    local pt = wm:createPatternTableWindow({ title = "PT", x = 10, y = 10 })
+    local app = {
+      wm = wm,
+      windowLinksMode = "always",
+      canvas = { getWidth = function() return 640 end, getHeight = function() return 360 end },
+    }
+    local layouts = LinkVisual.buildAnchorLayouts(app, {})
+    expect(layouts[pt]).toBeTruthy()
+    expect(layouts[pt].pattern_source).toBeTruthy()
+    local hx, _, hw = pt:getHeaderRect()
+    expect(layouts[pt].pattern_source.cx > (hx + hw)).toBe(true)
   end)
 
   it("gives sketch canvas the same three PPU-style link handles", function()

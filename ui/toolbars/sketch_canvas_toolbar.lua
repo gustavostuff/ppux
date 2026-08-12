@@ -1,12 +1,11 @@
 -- sketch_canvas_toolbar.lua
--- Sketch canvas toolbar: tolerance, Generate, title screen, Export CHR/NT, then pattern table + palette links.
+-- Sketch canvas toolbar: tolerance, Generate, title screen, Export CHR/NT (links via on-canvas badges).
 -- Tile/edit global mode drives packed mirror view (no dedicated Reflect button).
 
 local ToolbarBase = require("ui.toolbars.toolbar_base")
 local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
 local SketchCanvasExportController = require("controllers.game_art.sketch_canvas_export_controller")
 local SketchCanvasGalleryRomController = require("controllers.game_art.sketch_canvas_gallery_rom_controller")
-local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local images = require("images")
 local colors = require("app_colors")
 local Palettes = require("palettes")
@@ -177,26 +176,6 @@ function SketchCanvasToolbar.new(window, ctx, windowController)
     "Export nametable binary"
   )
 
-  -- Link handles last (same order as OAM / animation: pattern table, then palette).
-  self.linkButton = self:addButton(
-    actions.icon_pattern_table or actions.icon_connect or chrome.icon_circle,
-    function()
-      self:_onLinkMenu()
-    end,
-    "Link pattern table"
-  )
-
-  self.paletteLinkButton = self:addButton(
-    actions.icon_connect or chrome.icon_circle,
-    function()
-      self:_onPaletteLinkMenu()
-    end,
-    "Palette link handle; right-drag to a sketch palette to link; left-click for menu",
-    {
-      paletteLinkHandle = true,
-    }
-  )
-
   self:updateIcons()
   self:updatePosition()
   return self
@@ -231,50 +210,6 @@ function SketchCanvasToolbar:_cancelToleranceRegen()
     Timer.cancel(self._toleranceRegenTimerId)
     self._toleranceRegenTimerId = nil
   end
-end
-
-function SketchCanvasToolbar:_onLinkMenu()
-  local app = getApp(self)
-  if not (app and app.showPatternTableLinkDestinationContextMenu and self.window) then
-    StatusHelpers.setStatus(self.ctx, "Pattern table link is unavailable")
-    return
-  end
-  local btn = self.linkButton
-  local x = (btn and btn.x or 0) + ((btn and btn.w) or 0) * 0.5
-  local y = (btn and btn.y or 0) + ((btn and btn.h) or 0) * 0.5
-  app:showPatternTableLinkDestinationContextMenu(
-    self.window,
-    x,
-    y,
-    ToolbarBase.menuOptsFromButton(btn)
-  )
-  self:updateIcons()
-end
-
-function SketchCanvasToolbar:getLinkHandleRect()
-  if not self.paletteLinkButton or self.paletteLinkButton.hidden == true then
-    return nil
-  end
-  self:updatePosition()
-  return self.paletteLinkButton.x, self.paletteLinkButton.y, self.paletteLinkButton.w, self.paletteLinkButton.h
-end
-
-function SketchCanvasToolbar:_onPaletteLinkMenu()
-  local app = getApp(self)
-  if not (app and app.showPaletteLinkDestinationContextMenu and self.window) then
-    StatusHelpers.setStatus(self.ctx, "Palette link is unavailable")
-    return
-  end
-  local btn = self.paletteLinkButton
-  local x = (btn and btn.x or 0) + ((btn and btn.w) or 0) * 0.5
-  local y = (btn and btn.y or 0) + ((btn and btn.h) or 0) * 0.5
-  app:showPaletteLinkDestinationContextMenu(
-    self.window,
-    x,
-    y,
-    ToolbarBase.menuOptsFromButton(btn)
-  )
-  self:updateIcons()
 end
 
 function SketchCanvasToolbar:_runGenerate(opts)
@@ -480,29 +415,7 @@ function SketchCanvasToolbar:updateIcons()
   local hasPack = self:_hasPack()
   local hasCanvas = self:_hasCanvas()
   local generateDirty = SketchCanvasPackController.isGenerateDirty(self.window)
-  local linkedPalette = PaletteLinkController.getActiveLayerLinkedPaletteWindow(
-    self.window,
-    self.windowController
-  )
 
-  if self.paletteLinkButton then
-    self.paletteLinkButton.enabled = true
-    self.paletteLinkButton.bgColor = linkedPalette and colors.green or colors.gray20
-    if linkedPalette then
-      self.paletteLinkButton.tooltip = string.format(
-        "Linked to %s; right-drag to a sketch palette to change link; left-click for menu",
-        tostring(linkedPalette.title or "palette")
-      )
-    else
-      self.paletteLinkButton.tooltip =
-        "No palette linked; right-drag to a sketch palette to link; left-click for menu"
-    end
-  end
-  if self.linkButton then
-    self.linkButton.enabled = true
-    self.linkButton.bgColor = linked and colors.green or colors.gray20
-    self.linkButton.tooltip = linked and "Manage linked pattern table" or "Link pattern table"
-  end
   if self.toleranceDownButton then
     self.toleranceDownButton.enabled = tol > 0
     self.toleranceDownButton.tooltip = linked
