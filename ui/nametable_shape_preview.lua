@@ -1,7 +1,8 @@
 -- ui/nametable_shape_preview.lua
 -- Standalone 32x30 grayscale "shape" of a decompressed nametable page.
 -- Shade = f(occurrence count): most-repeated tile ID → black; rarest → white.
--- Equal counts share one shade (no rank spread / tile-ID gradient).
+-- Equal counts share one shade. Distinct frequency levels are ranked (not raw
+-- count span), so mid-frequency tiles stay gray even with a dominant background.
 -- Luminance is quantized to 5 discrete grays (incl. black and white).
 
 local NametableUtils = require("utils.nametable_utils")
@@ -41,9 +42,10 @@ local function sliceRomBytes(romRaw, startAddr, endAddr)
 end
 
 --- Map each tile ID to luminance 0..1 from occurrence count.
---- Most-repeated → black (0); rarest → white (1). Same count ⇒ same shade
---- (avoids fake spatial gradients when many unique tiles are tie-broken by ID).
---- Output uses only the five GRAY_SHADES values.
+--- Most-repeated → black (0); rarest → white (1). Same count ⇒ same shade.
+--- Shade steps are ranked by *distinct frequency levels* (not raw count span),
+--- so a tile that appears ~30× stays mid-gray even when a background tile
+--- dominates hundreds of cells. Output uses only the five GRAY_SHADES values.
 function M.luminanceByFrequency(nametable)
   local counts = {}
   local n = math.min(960, type(nametable) == "table" and #nametable or 0)
@@ -52,37 +54,37 @@ function M.luminanceByFrequency(nametable)
     counts[tile] = (counts[tile] or 0) + 1
   end
 
-  local ranked = {}
-  local maxCount, minCount = 0, nil
-  for tile, count in pairs(counts) do
-    ranked[#ranked + 1] = { tile = tile, count = count }
-    if count > maxCount then
-      maxCount = count
-    end
-    if minCount == nil or count < minCount then
-      minCount = count
+  -- Unique count values, descending (most frequent first).
+  local countSeen = {}
+  local distinctCounts = {}
+  for _, count in pairs(counts) do
+    if not countSeen[count] then
+      countSeen[count] = true
+      distinctCounts[#distinctCounts + 1] = count
     end
   end
-  table.sort(ranked, function(a, b)
-    if a.count ~= b.count then
-      return a.count > b.count
-    end
-    return a.tile < b.tile
+  table.sort(distinctCounts, function(a, b)
+    return a > b
   end)
 
-  minCount = minCount or 0
+  local rankByCount = {}
+  for rank, count in ipairs(distinctCounts) do
+    rankByCount[count] = rank
+  end
+
+  local levels = #distinctCounts
   local shade = {}
-  local range = maxCount - minCount
-  for _, entry in ipairs(ranked) do
+  for tile, count in pairs(counts) do
+    local rank = rankByCount[count] or levels
     local lum
-    if range <= 0 then
+    if levels <= 1 then
       lum = 0
     else
-      lum = (maxCount - entry.count) / range
+      lum = (rank - 1) / (levels - 1)
     end
-    shade[entry.tile] = quantizeToGrayShade(lum)
+    shade[tile] = quantizeToGrayShade(lum)
   end
-  return shade, ranked
+  return shade, distinctCounts
 end
 
 --- Build 32x30 flat luminance samples (row-major) from nametable bytes.

@@ -20,7 +20,7 @@ describe("nametable_shape_preview.lua", function()
 
   it("quantizes luminance to five discrete grays including black and white", function()
     local nt = {}
-    -- Counts 320/256/192/128/64 → luminances 0, 0.25, 0.5, 0.75, 1 before/after quantize.
+    -- Counts 320/256/192/128/64 → five frequency ranks → 0, 0.25, 0.5, 0.75, 1.
     local sizes = { 320, 256, 192, 128, 64 }
     local tiles = { 0x11, 0x22, 0x33, 0x44, 0x55 }
     local at = 1
@@ -54,6 +54,19 @@ describe("nametable_shape_preview.lua", function()
     expect(shade[1]).toBe(1)
     expect(shade[2]).toBe(1)
     expect(shade[60]).toBe(1)
+  end)
+
+  it("keeps mid-frequency tiles gray when a background tile dominates", function()
+    local nt = {}
+    -- 900 background, 30 of a mid tile, 30 unique once → mid must not snap to white.
+    for i = 1, 900 do nt[i] = 0x10 end
+    for i = 901, 930 do nt[i] = 0x20 end
+    for i = 931, 960 do nt[i] = i - 930 end -- tiles 1..30, each once
+    local shade = ShapePreview.luminanceByFrequency(nt)
+    expect(shade[0x10]).toBe(0)
+    expect(shade[0x20]).toBe(0.5)
+    expect(shade[1]).toBe(1)
+    expect(shade[0x20] > 0 and shade[0x20] < 1).toBe(true)
   end)
 
   it("builds a 960-luminance grid from a decoded stream", function()

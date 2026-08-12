@@ -1073,20 +1073,22 @@ function AppCoreController:_buildRomPaletteCellContextMenuItems(context)
   end
 
   local editable = win.isCellEditable and win:isCellEditable(col, row)
+  local boundAddr = win.getRomByteAddress and win:getRomByteAddress(col, row)
+  local isConnected = type(boundAddr) == "number"
 
   return {
     {
-      text = "Clear value",
+      text = "Disconnect from ROM",
       menuGroup = "rom_palette_cell_edit",
-      enabled = editable == true,
+      enabled = editable == true and isConnected,
       callback = function()
         selfRef:hideAppContextMenus()
-        if not editable then
+        if not editable or not isConnected then
           return
         end
         local beforeState = Shared.captureRomPaletteAddressUndoState(win)
         if not (win.clearRomCellBinding and win:clearRomCellBinding(col, row)) then
-          selfRef:setStatus("ROM palette cell cannot be cleared")
+          selfRef:setStatus("ROM palette cell cannot be disconnected")
           return
         end
         if selfRef.invalidatePpuFrameLayersAffectedByPaletteWin then
@@ -1100,11 +1102,11 @@ function AppCoreController:_buildRomPaletteCellContextMenuItems(context)
             afterState = Shared.captureRomPaletteAddressUndoState(win),
           })
         end
-        selfRef:setStatus(string.format("Cleared ROM palette cell (%d,%d)", col, row))
+        selfRef:setStatus(string.format("Disconnected ROM palette cell (%d,%d)", col, row))
       end,
     },
     {
-      text = "Change ROM address",
+      text = isConnected and "Update ROM address" or "Connect ROM address",
       menuGroup = "rom_palette_cell_metadata",
       enabled = true,
       callback = function()

@@ -239,6 +239,14 @@ function colors:setTheme(themeKey)
   end
 end
 
+--- Modal footer warnings (e.g. "Not a valid color", sprite limits): red on light, yellow on dark.
+function colors:modalWarningColor()
+  if self:getTheme() == "light" then
+    return self.red
+  end
+  return self.yellow
+end
+
 colors.transparent = {0, 0, 0, 0}
 colors:setTheme("dark")
 

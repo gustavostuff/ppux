@@ -134,6 +134,10 @@ function M.newTaskbarButton(opts)
   opts = opts or {}
   -- Taskbar icons stay white-multiply; do not auto-switch to black on light chrome.
   opts.skipIconContrastAdapt = true
+  -- Hover/focus underlay is a sharp square (menu + minimized window buttons).
+  if opts.underlayCornerRadius == nil then
+    opts.underlayCornerRadius = 0
+  end
   return Button.new(opts)
 end
 

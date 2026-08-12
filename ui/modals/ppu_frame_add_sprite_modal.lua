@@ -642,7 +642,7 @@ function Dialog:_drawLimitWarning()
   local x = self._boxX + self._boxW - pad - tw
   local y = self._boxY + self._boxH - pad - th
   Text.print(msg, x, y, {
-    color = colors.red,
+    color = colors:modalWarningColor(),
     font = font,
     literalColor = true,
   })
