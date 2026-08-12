@@ -66,6 +66,30 @@ describe("modal right-drag", function()
     expect(modal._modalDragging).toBeFalsy()
   end)
 
+  it("dispatchTopModalMousePressed prefers handleRightClick over right-drag", function()
+    local cleared = false
+    local modal = {
+      visible = true,
+      isVisible = function()
+        return true
+      end,
+      panel = fakePanel(80, 40),
+      _boxX = 10,
+      _boxY = 10,
+      _boxW = 80,
+      _boxH = 40,
+      handleRightClick = function()
+        cleared = true
+        return true
+      end,
+    }
+    local app = { quitConfirmModal = modal }
+    local handled = Shared.dispatchTopModalMousePressed(app, 20, 20, 2)
+    expect(handled).toBe(true)
+    expect(cleared).toBe(true)
+    expect(modal._modalDragging).toBeFalsy()
+  end)
+
   it("dispatchTopModalMousePressed handles right-drag before modal mousepressed", function()
     local pressed = false
     local modal = {

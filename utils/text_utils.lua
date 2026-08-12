@@ -1,5 +1,5 @@
 -- text-utils.lua
--- Pixel-friendly text: optional shadow and optional 8-direction black outline.
+-- Pixel-friendly text: optional shadow and optional 8-direction outline.
 local Timer = require("utils.timer_utils")
 local colors = require("app_colors")
 local LoveCompat = require("utils.love_compat")
@@ -121,6 +121,12 @@ local function printCore(text, x, y, data)
   local outline     = data.outline == true
   local ox          = data.ox or 1  -- outline offsets (usually 1 px)
   local oy          = data.oy or 1
+  local outlineColor = data.outlineColor or colors.black
+  -- Outline uses literal RGB (no near-white remapping) unless explicitly disabled.
+  local outlineLiteral = data.outlineLiteralColor
+  if outlineLiteral == nil then
+    outlineLiteral = true
+  end
 
   local gGfx = love and love.graphics
   local oldFont = nil
@@ -134,8 +140,8 @@ local function printCore(text, x, y, data)
   local w, h, lh, n = measureBlock(text, font, data.lineHeight)
 
   if outline then
-    -- 8-direction black outline
-    setColor(colors.black)
+    -- 8-direction outline (default black; callers may pass outlineColor).
+    setColor(outlineColor, outlineLiteral == true)
     local dirs = {
       {-ox, 0}, { ox, 0}, {0, -oy}, {0,  oy},
       {-ox,-oy},{ ox,-oy},{-ox, oy},{ ox, oy},

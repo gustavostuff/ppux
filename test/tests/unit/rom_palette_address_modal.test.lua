@@ -290,12 +290,25 @@ describe("rom_palette_address_modal.lua", function()
     modal.hexGrid:setPosition(0, 0)
     modal.hexGrid:mousepressed(hx, hy, 1)
     expect(modal.hexGrid:getSelectedStarts()).toEqual({})
-    expect(modal._invalidColorWarning).toBe("Not a valid color")
+    -- Hidden invalid: clear selection without the warning label.
+    expect(modal._invalidColorWarning).toBe(nil)
     -- Masked "0x000000" field cannot be truly empty; clear resets to the mask skeleton.
     expect(modal.textField:getText()).toBe("0x000000")
-    -- Invalid NES bytes paint as ninja → hand cursor (not selectable, but still "pointable").
-    expect(modal:cursorNameAt(hx, hy)).toBe("hand")
+    -- Default: Hide invalid colors → empty cell uses arrow cursor.
+    expect(modal:isHideInvalidColors()).toBe(true)
+    expect(modal.hexGrid.rejectedCellStyle).toBe("hidden")
+    expect(modal:cursorNameAt(hx, hy)).toBe("arrow")
     expect(modal.setButton.enabled).toBe(false)
+
+    -- Uncheck: invalid cells paint as ninja with hand cursor + warning on reject.
+    modal.hideInvalidCheckbox:setChecked(false)
+    expect(modal.hexGrid.rejectedCellStyle).toBe("ninja")
+    expect(modal:cursorNameAt(hx, hy)).toBe("hand")
+    modal.hexGrid:setSelectedAddr(0x0F, { emit = false })
+    modal:_onGridSelect(0x0F, { fromGrid = true })
+    modal.hexGrid:mousepressed(hx, hy, 1)
+    expect(modal._invalidColorWarning).toBe("Not a valid color")
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({})
     modal:hide()
   end)
 end)

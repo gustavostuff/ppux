@@ -2,8 +2,8 @@
 -- gutter, column headers. Wheel scrolls 8 rows (Shift+wheel: 64 rows / 1KB).
 -- Selection is groups of `groupSize` bytes from each selected start address.
 -- Cell paint states (docs/hex_grid_refinement.txt): normal / selectable / ninja /
--- semi-selected (contrast plate + outline/text at 70%→100% on hover) / selected /
--- user-selected (ants) / disabled.
+-- semi-selected (outline + text at 100%, contrast via font outline) /
+-- selected / user-selected (ants) / disabled.
 -- Dual scroll tracks: full-ROM overview (click/drag) + informative zoom (1px per hex row).
 
 local colors = require("app_colors")
@@ -228,6 +228,8 @@ function M.new(opts)
     canSelectAddr = opts.canSelectAddr,
     -- Optional: function(addr) when canSelectAddr rejects a click.
     onRejectSelect = opts.onRejectSelect,
+    -- How rejected (canSelectAddr=false) cells paint/cursor: "ninja" | "hidden".
+    rejectedCellStyle = opts.rejectedCellStyle or "ninja",
     _hoverX = nil,
     _hoverY = nil,
     _selectionCapHit = false,
@@ -1592,18 +1594,18 @@ function M:_drawGroupHighlights(gridX, gridY, starts, colorForStart, mode, opts)
     love.graphics.setColor(c[1], c[2], c[3], c[4] or 0.9)
     self:_forEachGroupRun(gridX, gridY, { start }, function(x, y, w, h)
       if mode == "line" then
-        local lx, ly, lw, lh = x, y, w, h
-        if lineInset then
-          lx = x + 1
-          ly = y + 1
-          lw = math.max(1, w - 1)
-          lh = math.max(1, h - 1)
-        end
-        if cornerRadius and cornerRadius > 0 then
-          love.graphics.rectangle("line", lx, ly, lw, lh, cornerRadius, cornerRadius)
-        else
-          love.graphics.rectangle("line", lx, ly, lw, lh)
-        end
+        -- local lx, ly, lw, lh = x, y, w, h
+        -- if lineInset then
+        --   lx = x + 1
+        --   ly = y + 1
+        --   lw = math.max(1, w - 1)
+        --   lh = math.max(1, h - 1)
+        -- end
+        -- if cornerRadius and cornerRadius > 0 then
+        --   love.graphics.rectangle("line", lx, ly, lw, lh, cornerRadius, cornerRadius)
+        -- else
+        --   love.graphics.rectangle("line", lx, ly, lw, lh)
+        -- end
       else
         if cornerRadius and cornerRadius > 0 then
           love.graphics.rectangle("fill", x, y, w, h, cornerRadius, cornerRadius)
@@ -1790,6 +1792,9 @@ function M:cursorNameAt(px, py)
   end
   local style = self.defaultCellStyle or "normal"
   if type(self.canSelectAddr) == "function" and not self.canSelectAddr(addr) then
+    if self.rejectedCellStyle == "hidden" then
+      return "arrow"
+    end
     -- Invalid / non-selectable still ninja-like: hand per refinement doc.
     return "hand"
   end
@@ -1941,25 +1946,10 @@ function M:draw()
     span
   )
 
-  -- Semi-selected: sharp contrast plate (full opacity), then outline + text at 70%/100%.
+  -- Semi-selected: colored outline + text at full opacity; contrast via font outline.
   self:_drawGroupHighlights(gridX, gridY, semiDraw, function(startAddr)
-    local fill = self:_semiColorForStart(startAddr, 1)
-    return inkForFill(fill)
-  end, "fill", {
-    spanByStart = semiSpanByStart,
-    cornerRadius = 0,
-  })
-  local function semiColorFn(startAddr)
-    local hovered = false
-    if hoverAddr ~= nil then
-      local covering = startsCoveringAddr(semiDraw, hoverAddr, span, semiSpanByStart)
-      if #covering > 0 and semiDraw[covering[#covering]] == startAddr then
-        hovered = true
-      end
-    end
-    return self:_semiColorForStart(startAddr, hovered and 1 or 0.7)
-  end
-  self:_drawGroupHighlights(gridX, gridY, semiDraw, semiColorFn, "line", {
+    return self:_semiColorForStart(startAddr, 1)
+  end, "line", {
     spanByStart = semiSpanByStart,
     cornerRadius = 0,
   })
@@ -2031,6 +2021,8 @@ function M:draw()
       local hovered = hoverAddr ~= nil and addr == hoverAddr
 
       local textColor
+      local useOutline = false
+      local outlineColor = nil
       if #coveringDis > 0 then
         textColor = { disText[1], disText[2], disText[3], 1 }
       elseif #covering > 0 then
@@ -2045,41 +2037,53 @@ function M:draw()
         textColor = { ink[1], ink[2], ink[3], 1 }
       elseif #coveringSemi > 0 then
         local start = semiDraw[coveringSemi[#coveringSemi]]
-        local groupHovered = false
-        if hoverAddr ~= nil then
-          local hc = startsCoveringAddr(semiDraw, hoverAddr, span, semiSpanByStart)
-          groupHovered = #hc > 0 and semiDraw[hc[#hc]] == start
-        end
-        textColor = self:_semiColorForStart(start, groupHovered and 1 or 0.7)
+        textColor = self:_semiColorForStart(start, 1)
+        outlineColor = inkForFill(self:_semiColorForStart(start, 1))
+        useOutline = true
       else
         local reject = type(self.canSelectAddr) == "function"
           and addr < len
           and not self.canSelectAddr(addr)
-        local style = reject and "ninja" or defaultStyle
-        if style == "ninja" then
-          textColor = { colors.white[1], colors.white[2], colors.white[3], 0.25 }
-        elseif style == "selectable" then
-          textColor = {
-            colors.white[1],
-            colors.white[2],
-            colors.white[3],
-            hovered and 1 or 0.5,
-          }
+        if reject and self.rejectedCellStyle == "hidden" then
+          -- Empty cell: no hex digit (click still clears via onRejectSelect).
+          textColor = { 0, 0, 0, 0 }
         else
-          textColor = { colors.white[1], colors.white[2], colors.white[3], 1 }
+          local style = reject and "ninja" or defaultStyle
+          if style == "ninja" then
+            textColor = { colors.white[1], colors.white[2], colors.white[3], 0.25 }
+          elseif style == "selectable" then
+            textColor = {
+              colors.white[1],
+              colors.white[2],
+              colors.white[3],
+              hovered and 1 or 0.5,
+            }
+          else
+            textColor = { colors.white[1], colors.white[2], colors.white[3], 1 }
+          end
         end
       end
 
       local byteText = "  "
       if addr < len then
-        byteText = string.format("%02X", string.byte(self.romRaw, addr + 1) or 0)
+        local rejectHidden = type(self.canSelectAddr) == "function"
+          and not self.canSelectAddr(addr)
+          and self.rejectedCellStyle == "hidden"
+        if not rejectHidden then
+          byteText = string.format("%02X", string.byte(self.romRaw, addr + 1) or 0)
+        end
       end
       local tw = Text.getFontWidth(byteText, font)
-      Text.print(byteText, cellX + math.floor((CELL_W - tw) * 0.5), rowY + TEXT_NUDGE_Y, {
+      local printOpts = {
         color = textColor,
         font = font,
         literalColor = true,
-      })
+      }
+      if useOutline then
+        printOpts.outline = true
+        printOpts.outlineColor = outlineColor
+      end
+      Text.print(byteText, cellX + math.floor((CELL_W - tw) * 0.5), rowY + TEXT_NUDGE_Y, printOpts)
     end
   end
 

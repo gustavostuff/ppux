@@ -1,4 +1,5 @@
 local Button = require("ui.button")
+local Checkbox = require("ui.checkbox")
 local Panel = require("ui.panel")
 local TextField = require("ui.text_field")
 local Text = require("utils.text_utils")
@@ -19,8 +20,8 @@ local chr = require("chr")
 local Dialog = {}
 Dialog.__index = Dialog
 
-local FOOTER_ROWS_DEFAULT = 4 -- Selected, address, buttons, Esc
-local FOOTER_ROWS_WITH_OVERRIDE = 5 -- Base ROM color, User override, address, buttons, Esc
+local FOOTER_ROWS_DEFAULT = 5 -- Hide-invalid, Selected, address, buttons, Esc
+local FOOTER_ROWS_WITH_OVERRIDE = 6 -- Hide-invalid, Base, User override, address, buttons, Esc
 local PANEL_COLS = 3
 local SWATCH_PX = 11
 local SELECTION_RECT_ANIM = {
@@ -192,6 +193,19 @@ local function rowspanForHeight(height, cellH, spacingY)
   return math.max(1, math.ceil((math.max(1, height) + spacingY) / step))
 end
 
+--- Drop a wasted panel row when ceil overshoots (closes gap above Hide invalid).
+local function rowspanForHeightTight(height, cellH, spacingY)
+  local rows = rowspanForHeight(height, cellH, spacingY)
+  cellH = math.max(1, math.floor(tonumber(cellH) or 15))
+  spacingY = math.max(0, math.floor(tonumber(spacingY) or 0))
+  local step = cellH + spacingY
+  local used = rows * step - spacingY
+  if rows > 1 and (used - height) >= math.max(1, cellH - 2) then
+    rows = rows - 1
+  end
+  return math.max(1, rows)
+end
+
 local function cellWForHexGrid(spacingX, cols, panelCols)
   local gridW = RomHexGrid.contentWidth(cols)
   spacingX = math.max(0, math.floor(tonumber(spacingX) or 0))
@@ -309,7 +323,7 @@ local function rebuildPanel(self)
   syncModalGridMetrics(self)
   local cellH = self.cellH
   local spacingY = self.rowGap or 0
-  local hexRows = rowspanForHeight(RomHexGrid.contentHeight(), cellH, spacingY)
+  local hexRows = rowspanForHeightTight(RomHexGrid.contentHeight(), cellH, spacingY)
   local showOverride = self._showUserOverride == true
   local footerRows = showOverride and FOOTER_ROWS_WITH_OVERRIDE or FOOTER_ROWS_DEFAULT
   local totalRows = hexRows + footerRows
@@ -332,7 +346,8 @@ local function rebuildPanel(self)
     _modalChromeOverBlue = self._modalChromeOverBlue == true,
   })
 
-  local colorRow = hexRows + 1
+  local hideRow = hexRows + 1
+  local colorRow = hideRow + 1
   local overrideRow = showOverride and (colorRow + 1) or nil
   local addrRow = (overrideRow or colorRow) + 1
   local buttonRow = addrRow + 1
@@ -342,6 +357,10 @@ local function rebuildPanel(self)
     component = self.hexGrid,
     colspan = PANEL_COLS,
     rowspan = hexRows,
+  })
+  self.panel:setCell(1, hideRow, {
+    component = self.hideInvalidCheckbox,
+    colspan = PANEL_COLS,
   })
   -- Labels + values in columns 1-2; Cancel in col 2, Set in col 3.
   local colorLabel = showOverride and "Base ROM color:" or "Selected:"
@@ -393,6 +412,7 @@ function Dialog.new()
     selectionAnts = true,
     boundAsSelected = true,
     selectionCrosshair = true,
+    rejectedCellStyle = "hidden",
     -- Bound palette addresses: Selected fills via minimap markers (boundAsSelected).
     semiColorForAddr = function(addr)
       return self:_nesFillColorForAddr(addr, 1)
@@ -404,7 +424,12 @@ function Dialog.new()
       return self:_isValidColorAddr(addr)
     end,
     onRejectSelect = function()
-      self._invalidColorWarning = "Not a valid color"
+      -- Hidden invalid cells clear selection silently; ninja mode still warns.
+      if self:isHideInvalidColors() then
+        self._invalidColorWarning = nil
+      else
+        self._invalidColorWarning = "Not a valid color"
+      end
       self.hexGrid:_setStarts({}, 0, {
         emit = false,
         allowEmpty = true,
@@ -427,6 +452,13 @@ function Dialog.new()
     end,
     onScroll = function()
       self:_refreshSemiSelected()
+    end,
+  })
+  self.hideInvalidCheckbox = Checkbox.new({
+    text = "Hide invalid colors",
+    checked = true,
+    onChange = function(checked)
+      self:_onHideInvalidChanged(checked == true)
     end,
   })
   self.selectedPreview = SelectedPreview.new({ showAnts = true })
@@ -642,12 +674,16 @@ function Dialog:_syncFromAddressField()
   self:_refreshSetEnabled()
 end
 
---- Cursor over this modal: hand on interactive cells; unavailable on none (ninja invalid uses hand).
+--- Cursor over this modal: hand on interactive cells; hidden invalid → arrow.
 function Dialog:cursorNameAt(mx, my)
   if not self.visible then
     return nil
   end
   if self.panel and type(self.panel.getButtonAt) == "function" and self.panel:getButtonAt(mx, my) then
+    return "hand"
+  end
+  if self.hideInvalidCheckbox and self.hideInvalidCheckbox.contains
+      and self.hideInvalidCheckbox:contains(mx, my) then
     return "hand"
   end
   if self.textField and self.textField.contains and self.textField:contains(mx, my) then
@@ -661,6 +697,16 @@ function Dialog:cursorNameAt(mx, my)
     end
   end
   return "arrow"
+end
+
+function Dialog:_onHideInvalidChanged(hide)
+  if self.hexGrid then
+    self.hexGrid.rejectedCellStyle = hide and "hidden" or "ninja"
+  end
+end
+
+function Dialog:isHideInvalidColors()
+  return self.hideInvalidCheckbox and self.hideInvalidCheckbox:isChecked()
 end
 
 function Dialog:show(opts)
@@ -695,6 +741,11 @@ function Dialog:show(opts)
   self.romRaw = romRawWithBaseRestored(sourceRom, self._boundAddr, self._baseRomCode)
   self.hexGrid:setRomRaw(self.romRaw)
   self.hexGrid:setDisabledStarts({})
+  -- Default: hide invalid colors (empty cells, arrow cursor; click still clears).
+  if self.hideInvalidCheckbox then
+    self.hideInvalidCheckbox:setChecked(true, { silent = true })
+  end
+  self.hexGrid.rejectedCellStyle = "hidden"
   self.hexGrid:setMinimapMarkers(
     Dialog.collectBoundRomColorMinimapMarkers(self.targetWindow, self.romRaw, {
       romPaletteWindows = opts.romPaletteWindows,

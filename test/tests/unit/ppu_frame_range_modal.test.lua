@@ -92,6 +92,17 @@ describe("ppu_frame_range_modal.lua", function()
     expect(modal._rangeAnchor).toBe(nil)
     expect(#(modal.hexGrid:getSelectedStarts())).toBe(0)
 
+    -- Right-click clears a mid-range provisional before commit.
+    modal:_onGridSelect(0x20, { fromGrid = true })
+    expect(modal._rangeAnchor).toBe(0x20)
+    modal.hexGrid:setPosition(0, 0)
+    local hx = 2 + 38 + 0 * 15 + 2
+    local hy = 2 + 12 + 2 * 11 + 2 -- addr 0x20 on page 0
+    expect(modal.hexGrid:contains(hx, hy)).toBe(true)
+    modal:mousepressed(hx, hy, 2)
+    expect(modal._rangeAnchor).toBe(nil)
+    expect(#(modal.hexGrid:getSemiSelectedStarts())).toBe(0)
+
     -- Outside / anywhere also just starts a new two-click.
     modal:_onGridSelect(0x20, { fromGrid = true })
     expect(modal._rangeAnchor).toBe(0x20)

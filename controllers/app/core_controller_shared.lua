@@ -261,9 +261,11 @@ function M.dispatchTopModalMousePressed(app, x, y, button)
   if not modal then
     return false
   end
-  -- Right-drag moves the whole modal (including over buttons / hex grids).
-  -- No modal currently uses right-click for its own drag/gesture.
+  -- Prefer modal-specific right-click actions (e.g. clear mid-range) over drag.
   if button == 2 then
+    if type(modal.handleRightClick) == "function" and modal:handleRightClick(x, y) == true then
+      return true, modalKey
+    end
     local ModalPanelUtils = require("ui.modals.panel_modal_utils")
     ModalPanelUtils.beginRightDrag(modal, x, y)
     return true, modalKey

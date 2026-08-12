@@ -32,6 +32,19 @@ local function rowspanForHeight(height, cellH, spacingY)
   return math.max(1, math.ceil((math.max(1, height) + spacingY) / step))
 end
 
+--- Drop a wasted panel row when ceil overshoots (closes gap above NT preview / checkbox).
+local function rowspanForHeightTight(height, cellH, spacingY)
+  local rows = rowspanForHeight(height, cellH, spacingY)
+  cellH = math.max(1, math.floor(tonumber(cellH) or 15))
+  spacingY = math.max(0, math.floor(tonumber(spacingY) or 0))
+  local step = cellH + spacingY
+  local used = rows * step - spacingY
+  if rows > 1 and (used - height) >= math.max(1, cellH - 2) then
+    rows = rows - 1
+  end
+  return math.max(1, rows)
+end
+
 local function cellWForHexGrid(spacingX, cols, panelCols)
   local gridW = RomHexGrid.contentWidth(cols)
   spacingX = math.max(0, math.floor(tonumber(spacingX) or 0))
@@ -50,7 +63,7 @@ local function rebuildPanel(self)
   syncModalGridMetrics(self)
   local cellH = self.cellH
   local spacingY = self.rowGap or 0
-  local hexRows = rowspanForHeight(RomHexGrid.contentHeight(), cellH, spacingY)
+  local hexRows = rowspanForHeightTight(RomHexGrid.contentHeight(), cellH, spacingY)
   local totalRows = hexRows + FOOTER_ROWS
 
   self.panel = Panel.new({
@@ -87,7 +100,7 @@ local function rebuildPanel(self)
     component = self.selectionModeCheckbox,
     colspan = 2,
   })
-  self.panel:setCell(3, modeRow, { text = "NT preview" })
+  self.panel:setCell(3, modeRow, { text = "NT preview", align = "center" })
   self.panel:setCell(1, startRow, { text = "Start:" })
   self.panel:setCell(2, startRow, { component = self.startField })
   self.panel:setCell(1, endRow, { text = "End:" })
@@ -883,8 +896,29 @@ function Dialog:textinput(text)
   return false
 end
 
+function Dialog:handleRightClick(x, y)
+  if not self.visible then
+    return false
+  end
+  -- Clear mid-range provisional (before the second click commits). Otherwise
+  -- fall through so the modal can still be right-dragged.
+  if not self:isSelectionMode()
+      and type(self._rangeAnchor) == "number"
+      and self._rangeStart == nil
+      and self.hexGrid
+      and self.hexGrid:contains(x, y) then
+    self:_clearRangeSelection()
+    return true
+  end
+  return false
+end
+
 function Dialog:mousepressed(x, y, button)
   if not self.visible then return false end
+  if button == 2 then
+    self:handleRightClick(x, y)
+    return true
+  end
   if button ~= 1 then return true end
   if not self:_containsBox(x, y) then
     self:_cancel()
