@@ -3,12 +3,12 @@
 local P = require("test.e2e_visible.scenarios.prelude")
 local RomHexGrid = require("ui.rom_hex_grid")
 
-local BubbleExample, pause, call, appendClick,
+local BubbleExample, pause, call, appendClick, keyPress,
   ppuToolbarButtonCenter, setupDeterministicPpuFixture, ensureSpriteLayerReadyForAddSprite,
   layoutModal, modalHexCellCenter, modalButtonCenter, wheelModalHex
-  = P.BubbleExample, P.pause, P.call, P.appendClick,
-  P.ppuToolbarButtonCenter, P.setupDeterministicPpuFixture, P.ensureSpriteLayerReadyForAddSprite,
-  P.layoutModal, P.modalHexCellCenter, P.modalButtonCenter, P.wheelModalHex
+  = P.BubbleExample, P.pause, P.call, P.appendClick, P.keyPress,
+    P.ppuToolbarButtonCenter, P.setupDeterministicPpuFixture, P.ensureSpriteLayerReadyForAddSprite,
+    P.layoutModal, P.modalHexCellCenter, P.modalButtonCenter, P.wheelModalHex
 
 local function findValidColorAddr(modal, preferNear)
   local romRaw = modal.romRaw or ""
@@ -178,8 +178,29 @@ local function buildRomPaletteHexGridFlowScenario(harness, app, runner)
     local addr = win:getRomByteAddress(0, 0)
     assert(addr == currentRunner.paletteValidB,
       string.format("expected bound addr 0x%X, got %s", currentRunner.paletteValidB, tostring(addr)))
+    currentRunner.paletteBoundBeforeUndo = addr
+    currentApp.wm:setFocus(win)
   end)
   steps[#steps + 1] = pause("Observe bound palette cell", 0.4)
+
+  steps[#steps + 1] = keyPress("Undo ROM palette address bind", "z", { "lctrl" })
+  steps[#steps + 1] = pause("Observe palette address undo", 0.25)
+  steps[#steps + 1] = call("Assert ROM palette address undo", function(_, currentApp, currentRunner)
+    local win = assert(currentRunner.romPaletteWin, "expected ROM palette window")
+    local addr = win:getRomByteAddress(0, 0)
+    assert(addr == false or addr == nil,
+      string.format("expected undo to clear cell 0,0 binding, got %s", tostring(addr)))
+  end)
+
+  steps[#steps + 1] = keyPress("Redo ROM palette address bind", "y", { "lctrl" })
+  steps[#steps + 1] = pause("Observe palette address redo", 0.25)
+  steps[#steps + 1] = call("Assert ROM palette address redo", function(_, currentApp, currentRunner)
+    local win = assert(currentRunner.romPaletteWin, "expected ROM palette window")
+    local addr = win:getRomByteAddress(0, 0)
+    assert(addr == currentRunner.paletteBoundBeforeUndo,
+      string.format("expected redo to restore 0x%X, got %s",
+        currentRunner.paletteBoundBeforeUndo, tostring(addr)))
+  end)
 
   steps[#steps + 1] = call("Re-open modal and Cancel", function(_, currentApp, currentRunner)
     local win = assert(currentRunner.romPaletteWin, "expected ROM palette window")
@@ -534,6 +555,27 @@ local function buildNametableHexGridFlowScenario(harness, app, runner)
       "expected Selected scan range to keep hit highlight color")
     local user = modal.hexGrid:getUserSelectedStarts()
     assert(#user == 1 and user[1] == startAddr + 4, "expected clicked cell user-selected")
+  end)
+
+  appendClick(steps, "Click same scan range toggles selection off", modalHexCellCenter("ppuFrameRangeModal", function(_, _, currentRunner)
+    local hit = assert(currentRunner.scanHit, "expected scan hit")
+    return math.floor(hit.start) + 2
+  end), { moveDuration = 0.06, postPause = 0.12 })
+  steps[#steps + 1] = call("Assert scan range toggled off", function(_, currentApp)
+    local modal = assert(currentApp.ppuFrameRangeModal, "expected modal")
+    assert(modal._rangeStart == nil and modal._rangeEnd == nil, "expected selection cleared")
+    assert(#(modal.hexGrid:getSelectedStarts()) == 0, "expected no Selected starts")
+  end)
+
+  appendClick(steps, "Re-select scanned range before Set", modalHexCellCenter("ppuFrameRangeModal", function(_, _, currentRunner)
+    local hit = assert(currentRunner.scanHit, "expected scan hit")
+    return math.floor(hit.start) + 4
+  end), { moveDuration = 0.06, postPause = 0.15 })
+  steps[#steps + 1] = call("Assert scan range re-selected", function(_, currentApp, currentRunner)
+    local modal = assert(currentApp.ppuFrameRangeModal, "expected modal")
+    local hit = assert(currentRunner.scanHit, "expected scan hit")
+    assert(modal._rangeStart == math.floor(hit.start), "expected range re-selected")
+    assert(modal._rangeEnd == math.floor(hit["end"]), "expected range re-selected")
   end)
 
   appendClick(steps, "Click outside scan hits (no-op)", modalHexCellCenter("ppuFrameRangeModal", function()

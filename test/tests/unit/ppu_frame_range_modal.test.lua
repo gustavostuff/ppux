@@ -166,12 +166,26 @@ describe("ppu_frame_range_modal.lua", function()
     expect(selectedFill[2]).toBe(scanTint[2])
     expect(selectedFill[3]).toBe(scanTint[3])
 
+    -- Click same scanned range again → toggles selection off.
+    modal:_onGridSelect(pad + 2, { fromGrid = true })
+    expect(modal._rangeStart).toBe(nil)
+    expect(modal._rangeEnd).toBe(nil)
+    expect(#(modal.hexGrid:getSelectedStarts())).toBe(0)
+    expect(#(modal.hexGrid:getUserSelectedStarts())).toBe(0)
+
+    -- Select again for the rest of the assertions.
+    modal:_onGridSelect(pad + 4, { fromGrid = true })
+    expect(modal._rangeStart).toBe(pad)
+    expect(modal._rangeEnd).toBe(pad + streamLen - 1)
+
     -- Outside any scan hit → no-op (keeps prior selection).
     modal:_onGridSelect(0x08, { fromGrid = true })
     expect(modal._rangeStart).toBe(pad)
     expect(modal._rangeEnd).toBe(pad + streamLen - 1)
 
-    -- Cannot invent a partial user range while selection mode is on.
+    -- Clicking another cell in the same hit toggles off (not a partial re-pick).
+    modal:_onGridSelect(pad + 2, { fromGrid = true })
+    expect(modal._rangeStart).toBe(nil)
     modal:_onGridSelect(pad + 2, { fromGrid = true })
     expect(modal._rangeStart).toBe(pad)
     expect(modal._rangeEnd).toBe(pad + streamLen - 1)

@@ -15,7 +15,8 @@ local colors = require("app_colors")
 -- Selection mode OFF (default): two-click manual range (start, then end;
 -- same cell clears). Any click starts a new pick — no inside-range lock.
 -- Selection mode ON: one-shot Scan for this modal life; click any cell in a
--- complete stream to select that whole range (manual ranges are unavailable).
+-- complete stream to select that whole range (click again to toggle off;
+-- manual ranges are unavailable).
 -- Shape preview shows for complete streams (1024 unique page writes) and is cached.
 
 local Dialog = {}
@@ -578,7 +579,7 @@ end
 function Dialog:_onGridSelect(addr, _opts)
   addr = math.floor(tonumber(addr) or 0)
 
-  -- Selection mode: only whole scanned streams; clicked cell → User-selected.
+  -- Selection mode: only whole scanned streams; click toggles the hit off/on.
   if self:isSelectionMode() then
     local hit = NametableStreamScanner.hitAt(self.scanHits, addr)
     if not hit then
@@ -587,6 +588,11 @@ function Dialog:_onGridSelect(addr, _opts)
     end
     local s = math.floor(tonumber(hit.start) or addr)
     local e = math.floor(tonumber(hit["end"]) or addr)
+    if type(self._rangeStart) == "number" and type(self._rangeEnd) == "number"
+        and self._rangeStart == s and self._rangeEnd == e then
+      self:_clearRangeSelection()
+      return
+    end
     self:_commitRange(s, e, { userSelectedAddr = addr })
     return
   end

@@ -294,16 +294,14 @@ function SelectedPreview:draw()
     local tw = Text.getFontWidth(label, font)
     local ty = self.y + math.floor((self.h - (font and font.getHeight and font:getHeight() or 10)) * 0.5)
     Text.print(label, sx + SWATCH_PX + 4, ty, {
-      color = colors.black,
+      color = colors.textPrimary or colors.white,
       font = font,
-      literalColor = true,
     })
     self.w = math.max(72, SWATCH_PX + 4 + tw + 2)
   else
     Text.print("-", sx, self.y + 2, {
-      color = colors.gray75,
+      color = colors.textPrimary or colors.gray75,
       font = font,
-      literalColor = true,
     })
   end
   love.graphics.setColor(1, 1, 1, 1)

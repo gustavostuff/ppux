@@ -423,6 +423,8 @@ end
 function M.captureRomPaletteAddressUndoState(win)
   return {
     paletteData = TableUtils.deepcopy((win and win.paletteData) or {}),
+    -- Bind-time bases must round-trip; otherwise undo keeps the rebound cell's base.
+    baseCodes2D = TableUtils.deepcopy((win and win.baseCodes2D) or {}),
     selected = {
       col = win and win.selected and win.selected.col or nil,
       row = win and win.selected and win.selected.row or nil,

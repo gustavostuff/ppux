@@ -1302,9 +1302,9 @@ function RomPaletteWindow:drawGrid()
 
       if editable then
         drawCellLabel(code, x, y, cw, ch, getLabelTextColor(fillColor))
-        -- Top-left 3x3 swatch of captured ROM/base when overridden.
+        -- Top-left 3x3 swatch of captured ROM/base when overridden (ROM role only).
         local baseCode = self:getOverriddenBaseCode(c, r)
-        if baseCode then
+        if baseCode and not self:isSketchPalette() then
           local swatchX = x + OVERRIDE_SWATCH_MARGIN_LEFT
           local swatchY = y + OVERRIDE_SWATCH_MARGIN_TOP
           local baseRgb = self.palette[baseCode] or colors.black

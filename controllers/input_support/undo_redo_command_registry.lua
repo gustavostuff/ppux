@@ -310,6 +310,12 @@ local function applyRomPaletteAddressEvent(event, direction)
 
   local win = event.win
   win.paletteData = deepCopy(state.paletteData or {})
+  -- Restore bind-time bases (or clear) before rebuild so rebound cells don't stick.
+  if type(state.baseCodes2D) == "table" then
+    win.baseCodes2D = deepCopy(state.baseCodes2D)
+  else
+    win.baseCodes2D = nil
+  end
   if win.initializeFromROMOrUserCodes then
     win:initializeFromROMOrUserCodes()
   end
