@@ -420,28 +420,20 @@ local function buildNametableHexGridFlowScenario(harness, app, runner)
   end)
   steps[#steps + 1] = pause("Observe committed nametable range", 0.35)
 
-  appendClick(steps, "Click inside committed range (no-op)", modalHexCellCenter("ppuFrameRangeModal", function(_, _, currentRunner)
+  appendClick(steps, "Click inside committed range starts new anchor", modalHexCellCenter("ppuFrameRangeModal", function(_, _, currentRunner)
     return currentRunner.ppuFixtureRangeStart + 2
   end), { moveDuration = 0.06, postPause = 0.12 })
-  steps[#steps + 1] = call("Assert inside click was no-op", function(_, currentApp, currentRunner)
+  steps[#steps + 1] = call("Assert inside click re-anchored", function(_, currentApp, currentRunner)
     local modal = assert(currentApp.ppuFrameRangeModal, "expected modal")
-    assert(modal._rangeStart == currentRunner.ppuFixtureRangeStart, "expected range unchanged")
-    assert(modal._rangeEnd == currentRunner.ppuFixtureRangeEnd, "expected range unchanged")
+    local expected = currentRunner.ppuFixtureRangeStart + 2
+    assert(modal._rangeAnchor == expected, "expected new range anchor inside prior range")
+    assert(modal._rangeStart == nil and modal._rangeEnd == nil, "expected prior commit cleared")
   end)
 
-  appendClick(steps, "Click outside range (clear + re-anchor)", modalHexCellCenter("ppuFrameRangeModal", function()
-    return 0x08
-  end), { moveDuration = 0.06, postPause = 0.15 })
-  steps[#steps + 1] = call("Assert outside clear+reanchor", function(_, currentApp)
-    local modal = assert(currentApp.ppuFrameRangeModal, "expected modal")
-    assert(modal._rangeAnchor == 0x08, "expected re-anchor at outside click")
-    assert(modal._rangeStart == nil and modal._rangeEnd == nil, "expected committed range cleared")
-  end)
-
-  appendClick(steps, "Cancel provisional by same-cell click", modalHexCellCenter("ppuFrameRangeModal", function()
-    return 0x08
+  appendClick(steps, "Same-cell second click clears selection", modalHexCellCenter("ppuFrameRangeModal", function(_, _, currentRunner)
+    return currentRunner.ppuFixtureRangeStart + 2
   end), { moveDuration = 0.06, postPause = 0.12 })
-  steps[#steps + 1] = call("Assert provisional cleared", function(_, currentApp)
+  steps[#steps + 1] = call("Assert same-cell cleared", function(_, currentApp)
     local modal = assert(currentApp.ppuFrameRangeModal, "expected modal")
     assert(modal._rangeAnchor == nil, "expected provisional cleared")
     assert(#(modal.hexGrid:getSelectedStarts()) == 0, "expected no selection")

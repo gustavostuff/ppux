@@ -28,7 +28,7 @@ describe("e2e - RomHexGrid modal flows", function()
     runScenario("oam_sprite_hex_grid_flow")
   end)
 
-  it("Nametable range modal: manual pick, Selection mode scan-only, Set", function()
+  it("Nametable range modal: manual two-click, Selection mode scan-only, Set", function()
     runScenario("nametable_hex_grid_flow")
   end)
 end)

@@ -11,7 +11,8 @@ local NametableShapePreview = require("ui.nametable_shape_preview")
 local NametableUtils = require("utils.nametable_utils")
 
 -- Set nametable address range: ROM hex grid + Start/End + Set/Cancel.
--- Selection mode OFF (default): two-click manual range pick.
+-- Selection mode OFF (default): two-click manual range (start, then end;
+-- same cell clears). Any click starts a new pick — no inside-range lock.
 -- Selection mode ON: one-shot Scan for this modal life; click any cell in a
 -- complete stream to select that whole range (manual ranges are unavailable).
 -- Shape preview shows for complete streams (1024 unique page writes) and is cached.
@@ -440,7 +441,9 @@ function Dialog:_onGridSelect(addr, _opts)
     return
   end
 
-  -- Manual two-click.
+  -- Manual two-click: first click anchors start; second sets end.
+  -- Same cell as the anchor clears. Any other click (including inside a
+  -- committed range) starts a new range.
   local anchor = self._rangeAnchor
   if type(anchor) == "number" then
     if addr == anchor then
@@ -449,17 +452,6 @@ function Dialog:_onGridSelect(addr, _opts)
     end
     self:_commitRange(anchor, addr)
     return
-  end
-
-  local rs, re = self._rangeStart, self._rangeEnd
-  if type(rs) == "number" and type(re) == "number" then
-    if addr >= rs and addr <= re then
-      self:_applyRangeSelection(rs, re)
-      self:_syncFieldsFromRange(rs, re)
-      return
-    end
-    self:_clearRangeSelection()
-    -- Fall through to re-anchor.
   end
 
   self._rangeAnchor = addr

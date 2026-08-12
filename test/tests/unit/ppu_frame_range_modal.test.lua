@@ -76,19 +76,23 @@ describe("ppu_frame_range_modal.lua", function()
     expect(modal.endField:getText()).toBe("0x00004F")
     expect(modal.hexGrid:getSelectedGroupSize(0x40)).toBe(0x10)
 
-    -- Click inside committed range → no-op.
+    -- Click inside committed range → starts a new anchor (not a no-op).
     modal:_onGridSelect(0x45, { fromGrid = true })
-    expect(modal._rangeStart).toBe(0x40)
-    expect(modal._rangeEnd).toBe(0x4F)
-
-    -- Click outside → clear and re-anchor.
-    modal:_onGridSelect(0x20, { fromGrid = true })
-    expect(modal._rangeAnchor).toBe(0x20)
+    expect(modal._rangeAnchor).toBe(0x45)
     expect(modal._rangeStart).toBe(nil)
+    expect(modal._rangeEnd).toBe(nil)
+    expect(modal.hexGrid:getSelectedGroupSize(0x45)).toBe(1)
 
-    modal:_onGridSelect(0x20, { fromGrid = true })
+    -- Same-cell second click clears.
+    modal:_onGridSelect(0x45, { fromGrid = true })
     expect(modal._rangeAnchor).toBe(nil)
     expect(#(modal.hexGrid:getSelectedStarts())).toBe(0)
+
+    -- Outside / anywhere also just starts a new two-click.
+    modal:_onGridSelect(0x20, { fromGrid = true })
+    expect(modal._rangeAnchor).toBe(0x20)
+    modal:_onGridSelect(0x20, { fromGrid = true })
+    expect(modal._rangeAnchor).toBe(nil)
 
     modal:_onGridSelect(0x50, { fromGrid = true })
     modal:_onGridSelect(0x40, { fromGrid = true })
