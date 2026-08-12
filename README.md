@@ -41,7 +41,7 @@ PPUX has two main functionalities:
 
 For the first approach, drop a ROM into the window. Without a DB entry, PPUX loads a basic default layout. With one, it opens a tailored workspace. **This is the core feature** of the app.
 
-For the second approach, use _Sketch Canvas_ windows. From these you can generate pattern tables and map colors through attributes, as with real nametables. You can export CHR and nametable binaries, or a full _Gallery ROM_ with one gallery item per Sketch Canvas.
+For the second approach, use _Sketch Canvas_ windows. From these you can generate pattern tables and map colors through attributes. You can export CHR and nametable binaries, or a full _Gallery ROM_ with one gallery item per Sketch Canvas.
 
 ### Windows system
 

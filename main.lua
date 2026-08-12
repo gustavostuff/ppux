@@ -1,5 +1,6 @@
 local app
 local e2eRunner
+local captureToolbarsMode = false
 local lastPolledMouseX
 local lastPolledMouseY
 local highSpeedPaintMode = true
@@ -14,6 +15,7 @@ local function parseCommandLineArgs(argv)
   local out = {
     e2eScenario = nil,
     e2eSpeedMultiplier = nil,
+    captureToolbars = false,
     romPath = nil,
   }
 
@@ -26,6 +28,9 @@ local function parseCommandLineArgs(argv)
     elseif value == "--e2e-speed" then
       out.e2eSpeedMultiplier = tonumber(argv[i + 1]) or 1
       i = i + 2
+    elseif value == "--capture-toolbars" then
+      out.captureToolbars = true
+      i = i + 1
     elseif value and not value:match("^%-") and not out.romPath then
       out.romPath = value
       i = i + 1
@@ -39,6 +44,20 @@ end
 
 function love.load(arg)
   local cli = parseCommandLineArgs(arg)
+
+  if cli.captureToolbars then
+    captureToolbarsMode = true
+    local ok, captureOrErr = pcall(require, "scripts.dev.capture_toolbar_readme_images")
+    if not ok then
+      error(
+        "Missing local capture helper scripts/dev/capture_toolbar_readme_images.lua "
+          .. "(gitignored). Original require error: "
+          .. tostring(captureOrErr)
+      )
+    end
+    captureOrErr.run()
+    return
+  end
 
   if cli.e2eScenario then
     local VisibleE2ERunner = require("test.e2e_visible_runner")
@@ -194,6 +213,9 @@ local function pollMouseMovement()
 end
 
 function love.update(dt)
+  if captureToolbarsMode then
+    return
+  end
   if e2eRunner then
     e2eRunner:update(dt)
     return
@@ -203,6 +225,9 @@ function love.update(dt)
 end
 
 function love.draw()
+  if captureToolbarsMode or not app then
+    return
+  end
   app:draw()
   if e2eRunner then
     e2eRunner:drawOverlay()
@@ -210,11 +235,12 @@ function love.draw()
 end
 
 function love.filedropped(file)
-  if e2eRunner then return end
+  if captureToolbarsMode or e2eRunner then return end
   app:filedropped(file)
 end
 
 function love.keypressed(k, scancode, isrepeat)
+  if captureToolbarsMode then return end
   if e2eRunner then
     if e2eRunner.keypressed then
       e2eRunner:keypressed(k, scancode, isrepeat)
@@ -252,6 +278,7 @@ function love.keyreleased(k)
 end
 
 function love.mousepressed(x, y, b)
+  if captureToolbarsMode then return end
   if e2eRunner then
     if e2eRunner.mousepressed then
       e2eRunner:mousepressed(x, y, b)
@@ -262,29 +289,30 @@ function love.mousepressed(x, y, b)
 end
 
 function love.mousereleased(x, y, b)
-  if e2eRunner then return end
+  if captureToolbarsMode or e2eRunner then return end
   app:mousereleased(x, y, b)
 end
 
 function love.mousemoved(x, y, dx, dy)
-  if e2eRunner then return end
+  if captureToolbarsMode or e2eRunner then return end
   lastPolledMouseX, lastPolledMouseY = x, y
   app:mousemoved(x, y, dx, dy)
 end
 
 function love.wheelmoved(dx, dy)
-  if e2eRunner then return end
+  if captureToolbarsMode or e2eRunner then return end
   app:wheelmoved(dx, dy)
 end
 
 function love.textinput(text)
-  if e2eRunner then return end
+  if captureToolbarsMode or e2eRunner then return end
   if app and app.textinput then
     app:textinput(text)
   end
 end
 
 function love.resize(w, h)
+  if captureToolbarsMode or not app then return end
   app:resize(w, h)
 end
 
