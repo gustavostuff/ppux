@@ -1,5 +1,6 @@
--- Shared rules for when PPU / OAM layers may render or receive edits:
--- * Nametable (ROM tile) layers: nametable addresses, decoded grid bytes, complete pattern table.
+-- Shared rules for when PPU / OAM layers may render fully or receive edits:
+-- * Nametable (ROM tile) layers: nametable addresses, decoded grid bytes, complete pattern table
+--   for interaction / CHR rendering. Addresses + bytes alone allow a frequency "shadow" preview.
 -- * Sprite layers (PPU + OAM): complete pattern table (256 logical tiles) from layout or linked window.
 
 local WindowCaps = require("controllers.window.window_capabilities")
@@ -23,6 +24,64 @@ end
 
 local function ppuTileLayerUsesNametableBytes(layer)
   return layer and layer.kind == "tile" and layer.attrMode ~= true
+end
+
+local function ppuNametableLayer(win, layerIndex)
+  local layer = win and win.layers and win.layers[layerIndex]
+  if not (WindowCaps.isPpuFrame(win) and ppuTileLayerUsesNametableBytes(layer)) then
+    return nil
+  end
+  if layer._runtimePatternTableRefLayer == true then
+    return nil
+  end
+  return layer
+end
+
+--- True when a layer points at a pattern_table window id that is missing or closed.
+local function linkedPatternTableWindowMissing(layer)
+  local id = layer and layer.linkedPatternTableWindowId
+  if type(id) ~= "string" or id == "" then
+    return false
+  end
+  local ctx = rawget(_G, "ctx")
+  local wm = ctx and ctx.app and ctx.app.wm
+  if not (wm and wm.getWindows) then
+    return false
+  end
+  for _, w in ipairs(wm:getWindows()) do
+    if w and w._id == id and not w._closed and WindowCaps.isPatternTable(w) then
+      return false
+    end
+  end
+  return true
+end
+
+--- True when decoded nametable bytes can be shown as a frequency shadow (no pattern table required).
+function M.canDrawNametableShadow(win, layerIndex)
+  local layer = ppuNametableLayer(win, layerIndex)
+  if not layer then
+    return false
+  end
+  if type(layer.nametableStartAddr) ~= "number" or type(layer.nametableEndAddr) ~= "number" then
+    return false
+  end
+  return M.nametableByteGridReady(win)
+end
+
+--- Shadow instead of CHR: bytes ready and pattern table not usable (invalid or link target gone).
+function M.shouldDrawNametableShadow(win, layerIndex)
+  if not M.canDrawNametableShadow(win, layerIndex) then
+    return false
+  end
+  local layer = ppuNametableLayer(win, layerIndex)
+  if not layer then
+    return false
+  end
+  if linkedPatternTableWindowMissing(layer) then
+    return true
+  end
+  local ok = PatternTableMapping.validate(layer.patternTable)
+  return not ok
 end
 
 --- Returns locked (boolean), reason (string|nil). Mirrors legacy PPUFrameWindow:isPatternTableInteractionLocked
@@ -51,6 +110,9 @@ function M.isLayerInteractionLocked(win, layerIndex)
       if not M.nametableByteGridReady(win) then
         return true, "nametable bytes not loaded"
       end
+      if linkedPatternTableWindowMissing(layer) then
+        return true, "pattern table window missing"
+      end
       local ok, err = PatternTableMapping.validate(layer.patternTable)
       if not ok then
         return true, err or "patternTable invalid"
@@ -59,6 +121,9 @@ function M.isLayerInteractionLocked(win, layerIndex)
     end
 
     if layer.kind == "sprite" then
+      if linkedPatternTableWindowMissing(layer) then
+        return true, "pattern table window missing"
+      end
       local ok, err = PatternTableMapping.validate(layer.patternTable)
       if not ok then
         return true, err or "sprite patternTable invalid"
@@ -70,6 +135,9 @@ function M.isLayerInteractionLocked(win, layerIndex)
   end
 
   if WindowCaps.isOamAnimation(win) and layer.kind == "sprite" then
+    if linkedPatternTableWindowMissing(layer) then
+      return true, "pattern table window missing"
+    end
     local ok, err = PatternTableMapping.validate(layer.patternTable)
     if not ok then
       return true, err or "sprite patternTable invalid"

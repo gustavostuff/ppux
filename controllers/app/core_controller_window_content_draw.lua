@@ -513,9 +513,17 @@ local function drawTileLayer(app, w, layerIndex, isFocused)
   local isPPUFrame = WindowCaps.isPpuFrame(w)
   local layer = w.layers and w.layers[layerIndex]
   local attrMode = isPPUFrame and layer and layer.attrMode == true
-  if isPPUFrame and w.isPatternTableInteractionLocked then
-    local locked = w:isPatternTableInteractionLocked(layerIndex)
-    if locked then
+  if isPPUFrame and not attrMode then
+    local PatternLayerGate = require("controllers.window.pattern_layer_gate")
+    -- Prefer frequency shadow whenever CHR pattern mapping is unusable (unlinked,
+    -- incomplete, or linked window closed). Do not blit a stale nametable canvas.
+    if PatternLayerGate.shouldDrawNametableShadow(w, layerIndex) then
+      if w.drawNametableFrequencyShadow then
+        w:drawNametableFrequencyShadow(layerIndex)
+      end
+      return
+    end
+    if w.isPatternTableInteractionLocked and w:isPatternTableInteractionLocked(layerIndex) then
       return
     end
   end

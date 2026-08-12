@@ -58,6 +58,8 @@ return function(PPUFrameWindow)
       return false
     end
 
+    self._nametableShadowDirty = true
+
     if col == nil or row == nil then
       state.dirtyAll = true
       state.dirtyCells = {}
@@ -157,6 +159,13 @@ return function(PPUFrameWindow)
     if layer.attrMode == true then
       return false
     end
+    local PatternLayerGate = require("controllers.window.pattern_layer_gate")
+    if PatternLayerGate.shouldDrawNametableShadow(self, li)
+      or select(1, self:isPatternTableInteractionLocked(li))
+    then
+      -- Never blit a stale CHR canvas while the layer should show the NT shadow.
+      return false
+    end
 
     if state.dirtyAll or (state.dirtyCells and next(state.dirtyCells) ~= nil) then
       self:_repaintNametableLayerCanvas(li)
@@ -184,6 +193,100 @@ return function(PPUFrameWindow)
       local vR1 = math.min((self.rows or 30) - 1, vR0 + (self.visibleRows or 1) - 1)
       self:drawPatternRangeHoverOverlay(cw, ch, vC0, vR0, vC1, vR1, rangeHighlight)
     end
+    love.graphics.pop()
+    love.graphics.setScissor()
+    love.graphics.setColor(colors.white)
+    return true
+  end
+
+  --- Wipe CHR pixels from the cached nametable canvas (unlink / decode-only).
+  function PPUFrameWindow:clearNametableLayerCanvasContents(layerIndex)
+    local state, li = self:_ensureNametableLayerCanvasState(layerIndex)
+    if not (state and state.canvas) then
+      return false
+    end
+    if love and love.graphics and love.graphics.setCanvas then
+      love.graphics.push("all")
+      love.graphics.setCanvas(state.canvas)
+      love.graphics.origin()
+      love.graphics.clear(0, 0, 0, 0)
+      love.graphics.setCanvas()
+      love.graphics.pop()
+    end
+    state.dirtyAll = true
+    state.dirtyCells = {}
+    self._nametableShadowDirty = true
+    return true
+  end
+
+  --- Frequency-ranked grayscale shadow when no pattern table is linked.
+  --- Most-common tile shade is transparent so chess BG shows through.
+  function PPUFrameWindow:invalidateNametableShadowPreview()
+    self._nametableShadowDirty = true
+  end
+
+  function PPUFrameWindow:_rebuildNametableShadowPreview()
+    local PatternLayerGate = require("controllers.window.pattern_layer_gate")
+    local NametableShapePreview = require("ui.nametable_shape_preview")
+    if not PatternLayerGate.nametableByteGridReady(self) then
+      self._nametableShadowImage = nil
+      self._nametableShadowDirty = false
+      return false
+    end
+    if not (love and love.image and love.image.newImageData and love.graphics and love.graphics.newImage) then
+      return false
+    end
+
+    local cols = NametableShapePreview.W
+    local rows = NametableShapePreview.H
+    local grid = NametableShapePreview.buildLuminanceGrid(self.nametableBytes)
+    local imgData = love.image.newImageData(cols, rows)
+    for row = 0, rows - 1 do
+      for col = 0, cols - 1 do
+        local lum = grid[row * cols + col + 1] or 1
+        local r, g, b, a = NametableShapePreview.rgbaForLuminance(lum, true)
+        imgData:setPixel(col, row, r, g, b, a)
+      end
+    end
+    local image = love.graphics.newImage(imgData)
+    if image.setFilter then
+      image:setFilter("nearest", "nearest")
+    end
+    self._nametableShadowImage = image
+    self._nametableShadowDirty = false
+    return true
+  end
+
+  function PPUFrameWindow:drawNametableFrequencyShadow(layerIndex)
+    local PatternLayerGate = require("controllers.window.pattern_layer_gate")
+    local li = layerIndex or self.activeLayer or 1
+    if not PatternLayerGate.canDrawNametableShadow(self, li) then
+      return false
+    end
+    if self._nametableShadowDirty ~= false or not self._nametableShadowImage then
+      if not self:_rebuildNametableShadowPreview() then
+        return false
+      end
+    end
+    local image = self._nametableShadowImage
+    if not image then
+      return false
+    end
+
+    local layer = self:getLayer(li)
+    local layerOpacity = (layer and layer.opacity ~= nil) and layer.opacity or 1.0
+    local sx, sy, sw, sh = self:getInsetContentScreenRect()
+    local z = self.zoom or 1
+    local cw, ch = self.cellW or 8, self.cellH or 8
+
+    love.graphics.push()
+    local ox, oy = self:getContentScreenOrigin()
+    love.graphics.translate(ox, oy)
+    love.graphics.scale(z, z)
+    CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
+    love.graphics.translate(-(self.scrollCol or 0) * cw, -(self.scrollRow or 0) * ch)
+    love.graphics.setColor(1, 1, 1, layerOpacity)
+    love.graphics.draw(image, 0, 0, 0, cw, ch)
     love.graphics.pop()
     love.graphics.setScissor()
     love.graphics.setColor(colors.white)

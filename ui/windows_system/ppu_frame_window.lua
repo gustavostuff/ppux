@@ -1368,7 +1368,22 @@ function PPUFrameWindow:isLayerAllowedInCurrentMode(layerIndex)
   return containsIndex(allowed, layerIndex)
 end
 
+--- Visibility for drawing (not the same as interaction/navigation).
+--- Nametable layers with decoded bytes stay visible without a pattern table so the
+--- frequency shadow can render; sprites stay gated on a complete pattern table.
 function PPUFrameWindow:isLayerVisibleInMode(layerIndex)
+  if self.patternLayerSoloMode == true then
+    return self:isLayerAllowedInCurrentMode(layerIndex)
+  end
+  local layer = self.layers and self.layers[layerIndex]
+  if not layer or self:isRuntimeOnlyLayer(layer) then
+    return false
+  end
+  if layer.kind == "tile" and layer.attrMode ~= true then
+    local PatternLayerGate = require("controllers.window.pattern_layer_gate")
+    return PatternLayerGate.canDrawNametableShadow(self, layerIndex)
+      or not select(1, PatternLayerGate.isLayerInteractionLocked(self, layerIndex))
+  end
   return self:isLayerAllowedInCurrentMode(layerIndex)
 end
 

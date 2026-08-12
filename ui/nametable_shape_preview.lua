@@ -87,6 +87,18 @@ function M.luminanceByFrequency(nametable)
   return shade, distinctCounts
 end
 
+--- Map luminance 0..1 to RGBA. When transparentBlack, most-common shade (0) is alpha 0
+--- so chessboard / BG shows through (PPU frame shadow preview).
+function M.rgbaForLuminance(lum, transparentBlack)
+  lum = tonumber(lum) or 0
+  if lum < 0 then lum = 0 end
+  if lum > 1 then lum = 1 end
+  if transparentBlack == true and lum <= 0 then
+    return 0, 0, 0, 0
+  end
+  return lum, lum, lum, 1
+end
+
 --- Build 32x30 flat luminance samples (row-major) from nametable bytes.
 function M.buildLuminanceGrid(nametable)
   local shade = M.luminanceByFrequency(nametable)
@@ -192,7 +204,8 @@ function M:setFromNametable(nametable)
   for row = 0, M.H - 1 do
     for col = 0, M.W - 1 do
       local lum = grid[row * M.W + col + 1] or 1
-      self._imgData:setPixel(col, row, lum, lum, lum, 1)
+      local r, g, b, a = M.rgbaForLuminance(lum, false)
+      self._imgData:setPixel(col, row, r, g, b, a)
     end
   end
   if self._image.replacePixels then

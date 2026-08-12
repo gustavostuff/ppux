@@ -747,80 +747,94 @@ function M.hydrateWindowNametable(win, layer, opts)
     layer.patternTable = {}
   end
   local mapOk, mapErr = PatternTableMapping.validate(layer.patternTable)
-  if not mapOk then
-    local message = string.format("Invalid patternTable mapping for '%s'", win.title or "")
-    reportDecodeCoverageError(message, opts)
-    return nil, message
-  end
-
-  ensurePatternTableBanks(layer.patternTable, ensureTiles)
-  if tilesPool then
-    local fillGridStartedAt = LoveCompat.getTime()
-    -- Ranges may have been edited in place since any prior resolveTile cache.
-    PatternTableMapping.invalidateMapCache(layer)
-    if win.rebuildNametableLayerItems then
-      win:rebuildNametableLayerItems(tilesPool, li)
-    else
-      for i = 1, #win.nametableBytes do
-        local z   = i - 1
-        local col = z % win.cols
-        local row = math.floor(z / win.cols)
-        local byteVal = win.nametableBytes[i]
-        if win.syncNametableVisualCell then
-          win:syncNametableVisualCell(col, row, byteVal, tilesPool, li)
-        else
-          local tileRef = PatternTableMapping.resolveTile(tilesPool, layer, byteVal)
-          if tileRef then
-            win:set(col, row, tileRef, li)
+  local decodeOnly = not mapOk
+  local appliedTileSwaps = false
+  if decodeOnly then
+    -- Keep decoded nametableBytes / attrs for frequency-shadow preview without CHR.
+    -- Interaction stays gated until a complete pattern table is linked.
+    DebugController.log(
+      "info",
+      "NTM",
+      "Decode-only nametable hydrate for '%s' (%s)",
+      tostring(win.title or ""),
+      tostring(mapErr or "patternTable invalid")
+    )
+    layer.items = {}
+    layer._ppuxNametableVisualsFresh = false
+    if win.clearNametableLayerCanvasContents then
+      win:clearNametableLayerCanvasContents(li)
+    elseif win.invalidateNametableLayerCanvas then
+      win:invalidateNametableLayerCanvas(li)
+    end
+  else
+    ensurePatternTableBanks(layer.patternTable, ensureTiles)
+    if tilesPool then
+      local fillGridStartedAt = LoveCompat.getTime()
+      -- Ranges may have been edited in place since any prior resolveTile cache.
+      PatternTableMapping.invalidateMapCache(layer)
+      if win.rebuildNametableLayerItems then
+        win:rebuildNametableLayerItems(tilesPool, li)
+      else
+        for i = 1, #win.nametableBytes do
+          local z   = i - 1
+          local col = z % win.cols
+          local row = math.floor(z / win.cols)
+          local byteVal = win.nametableBytes[i]
+          if win.syncNametableVisualCell then
+            win:syncNametableVisualCell(col, row, byteVal, tilesPool, li)
           else
-            win:clear(col, row, li)
+            local tileRef = PatternTableMapping.resolveTile(tilesPool, layer, byteVal)
+            if tileRef then
+              win:set(col, row, tileRef, li)
+            else
+              win:clear(col, row, li)
+            end
           end
         end
       end
+      layer._ppuxNametableVisualsFresh = true
+      logPerf("ntm.fill_grid", fillGridStartedAt, string.format("title=%s", tostring(win.title or "")))
     end
-    layer._ppuxNametableVisualsFresh = true
-    logPerf("ntm.fill_grid", fillGridStartedAt, string.format("title=%s", tostring(win.title or "")))
-  end
 
-  -- Apply any pre-existing tileSwaps from layout/project
-  local appliedTileSwaps = false
-  if tileSwaps then
-    local swapsStartedAt = LoveCompat.getTime()
-    local rawTileSwaps = tileSwaps
-    if type(tileSwaps) == "string" then
-      tileSwaps = decodeTileSwapsRLE(tileSwaps)
-    elseif type(tileSwaps) == "table" and tileSwaps.rle then
-      tileSwaps = decodeTileSwapsRLE(tileSwaps.rle)
-    elseif type(tileSwaps) == "table" then
-      -- Keep native { {col,row,val}, ... } swap lists; only decode when this is
-      -- the chunked-RLE table representation.
-      tileSwaps = decodeTileSwapsRLE(tileSwaps) or rawTileSwaps
+    -- Apply any pre-existing tileSwaps from layout/project
+    if tileSwaps then
+      local swapsStartedAt = LoveCompat.getTime()
+      local rawTileSwaps = tileSwaps
+      if type(tileSwaps) == "string" then
+        tileSwaps = decodeTileSwapsRLE(tileSwaps)
+      elseif type(tileSwaps) == "table" and tileSwaps.rle then
+        tileSwaps = decodeTileSwapsRLE(tileSwaps.rle)
+      elseif type(tileSwaps) == "table" then
+        -- Keep native { {col,row,val}, ... } swap lists; only decode when this is
+        -- the chunked-RLE table representation.
+        tileSwaps = decodeTileSwapsRLE(tileSwaps) or rawTileSwaps
+      end
+      if rawTileSwaps ~= nil then
+        layer.tileSwaps = TableUtils.deepcopy(rawTileSwaps)
+      end
+      if tileSwaps and #tileSwaps > 0 then
+        M.applyTileSwaps(win, layer, tileSwaps, tilesPool, { persistProjectDiffs = true })
+        appliedTileSwaps = true
+      end
+      logPerf("ntm.apply_tile_swaps", swapsStartedAt, string.format("title=%s count=%d", tostring(win.title or ""), tileSwaps and #tileSwaps or 0))
     end
-    if rawTileSwaps ~= nil then
-      layer.tileSwaps = TableUtils.deepcopy(rawTileSwaps)
-    end
-    if tileSwaps and #tileSwaps > 0 then
-      M.applyTileSwaps(win, layer, tileSwaps, tilesPool, { persistProjectDiffs = true })
-      appliedTileSwaps = true
-    end
-    logPerf("ntm.apply_tile_swaps", swapsStartedAt, string.format("title=%s count=%d", tostring(win.title or ""), tileSwaps and #tileSwaps or 0))
-  end
 
-  -- On-the-fly replacements: patch nametableBytes with PT logical indexes, then
-  -- let the normal syncNametableVisualCell / patternTable path render them.
-  do
-    local replacements = opts.onTheFlyReplacements or layer.onTheFlyReplacements
-    if replacements ~= nil then
-      layer.onTheFlyReplacements = TableUtils.deepcopy(replacements)
-    end
-    if tilesPool or layer.onTheFlyReplacements then
-      local otfStartedAt = LoveCompat.getTime()
-      local n = M.applyOnTheFlyReplacements(win, layer, tilesPool, {
-        ensureTiles = ensureTiles,
-        wm = opts.wm,
-        appEditState = opts.appEditState,
-      })
-      logPerf("ntm.apply_on_the_fly", otfStartedAt, string.format("title=%s count=%d", tostring(win.title or ""), n or 0))
+    -- On-the-fly replacements: patch nametableBytes with PT logical indexes, then
+    -- let the normal syncNametableVisualCell / patternTable path render them.
+    do
+      local replacements = opts.onTheFlyReplacements or layer.onTheFlyReplacements
+      if replacements ~= nil then
+        layer.onTheFlyReplacements = TableUtils.deepcopy(replacements)
+      end
+      if tilesPool or layer.onTheFlyReplacements then
+        local otfStartedAt = LoveCompat.getTime()
+        local n = M.applyOnTheFlyReplacements(win, layer, tilesPool, {
+          ensureTiles = ensureTiles,
+          wm = opts.wm,
+          appEditState = opts.appEditState,
+        })
+        logPerf("ntm.apply_on_the_fly", otfStartedAt, string.format("title=%s count=%d", tostring(win.title or ""), n or 0))
+      end
     end
   end
 

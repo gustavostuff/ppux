@@ -1249,7 +1249,11 @@ function WM:closeWindow(win)
 
   if WindowCaps.isPatternTable(win) then
     local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+    local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
     SketchCanvasPackController.onPatternTableClosed(win, self)
+    local ctx = rawget(_G, "ctx")
+    local app = ctx and ctx.app or nil
+    PatternTableDisplayController.onPatternTableWindowClosed(win, self, app)
   elseif WindowCaps.isRomPaletteWindow(win) then
     PaletteLinkController.onRomPaletteClosed(win, self)
   end

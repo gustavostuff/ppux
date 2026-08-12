@@ -11,7 +11,7 @@ local PatternTableMapping = require("utils.pattern_table_mapping")
 
 return function(AppCoreController)
 
-local function isNametableLayerRenderReady(layer)
+local function isNametableLayerRangeReady(layer)
   if type(layer) ~= "table" then
     return false, "Missing nametable layer"
   end
@@ -20,13 +20,6 @@ local function isNametableLayerRenderReady(layer)
   end
   if type(layer.nametableEndAddr) ~= "number" then
     return false, "nametableEndAddr is not set"
-  end
-  local total, err = PpuRange.patternTableLogicalSize(layer.patternTable)
-  if err then
-    return false, err
-  end
-  if total ~= 256 then
-    return false, string.format("patternTable ranges must add up to 256 tiles (got %d)", total)
   end
   return true, nil
 end
@@ -80,7 +73,7 @@ local function clearOamSpriteEditorOverrides(s)
 end
 
 local function hydrateNametableLayerIfReady(app, win, layer, layerIndex)
-  local ready, reason = isNametableLayerRenderReady(layer)
+  local ready, reason = isNametableLayerRangeReady(layer)
   if not ready then
     if layer then
       layer.items = {}

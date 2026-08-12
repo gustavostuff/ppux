@@ -561,12 +561,44 @@ function M.unlinkContentLayerPatternTable(contentWin, layerIndex)
     )
   then
     layer.patternTable = { ranges = {} }
+    if layer.kind == "tile" then
+      layer.items = {}
+      layer._ppuxNametableVisualsFresh = false
+      if contentWin.clearNametableLayerCanvasContents then
+        contentWin:clearNametableLayerCanvasContents(layerIndex)
+      elseif contentWin.invalidateNametableLayerCanvas then
+        contentWin:invalidateNametableLayerCanvas(layerIndex)
+      end
+      if contentWin.invalidateNametableShadowPreview then
+        contentWin:invalidateNametableShadowPreview()
+      end
+    end
   elseif type(layer.patternTable) == "table" then
     layer.patternTable = TableUtils.deepcopy(layer.patternTable)
   else
     layer.patternTable = { ranges = {} }
   end
   return true
+end
+
+--- Pattern table window closed: detach PPU / OAM consumers (sketch handled separately).
+function M.onPatternTableWindowClosed(ptWin, wm, app)
+  if not (WindowCaps.isPatternTable(ptWin) and wm) then
+    return 0
+  end
+  local consumers = M.getLinkedConsumersForPatternTable(wm, ptWin)
+  local n = 0
+  for _, entry in ipairs(consumers) do
+    if entry.kind ~= "sketch_canvas" and type(entry.layerIndex) == "number" then
+      if M.unlinkContentLayerPatternTable(entry.win, entry.layerIndex) then
+        n = n + 1
+        if app and type(app._afterPatternTableLinkChange) == "function" then
+          app:_afterPatternTableLinkChange(entry.win, entry.layerIndex)
+        end
+      end
+    end
+  end
+  return n
 end
 
 return M
