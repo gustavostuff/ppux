@@ -10,6 +10,7 @@ local AppTopToolbarController = require("controllers.app.app_top_toolbar_control
 local BankViewController = require("controllers.chr.bank_view_controller")
 local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
 local WindowLinkBadgeController = require("controllers.window.window_link_badge_controller")
+local SpriteController = require("controllers.sprite.sprite_controller")
 local FilesystemPath = require("utils.filesystem_path")
 local chr = require("chr")
 
@@ -165,6 +166,92 @@ local function addSpriteLayer(ppu)
     kind = "sprite",
     mode = "8x8",
   })
+end
+
+-- 8x8 static-art layout from the "Building pretty girl" E2E (BubbleExample fallback
+-- when test/test_rom.lua Static Art (tiles) has no saved items).
+local function prettyGirlPlacements()
+  return BubbleExample.getPlacements()
+end
+
+local function prettyGirlTileSet()
+  local used = {}
+  for _, p in ipairs(prettyGirlPlacements()) do
+    used[p.tile] = true
+  end
+  return used
+end
+
+-- Nametable filler that is not one of the pretty-girl CHR indices (tile 0 is used in the art).
+local function prettyGirlEmptyByte()
+  local used = prettyGirlTileSet()
+  for i = 1, 255 do
+    if not used[i] then
+      return i
+    end
+  end
+  return 1
+end
+
+local function ensurePpuNametable(app, ppu)
+  local tilesPool = app.appEditState and app.appEditState.tilesPool
+  local cols = ppu.cols or 32
+  local rows = ppu.rows or 30
+  local n = cols * rows
+  if type(ppu.nametableBytes) == "table" and #ppu.nametableBytes >= n then
+    return tilesPool
+  end
+  local bytes = {}
+  local empty = prettyGirlEmptyByte()
+  for i = 1, n do
+    bytes[i] = empty
+  end
+  ppu:setNametableBytes(bytes, 1, 1, tilesPool)
+  return tilesPool
+end
+
+local function placePrettyGirlNametable(app, ppu, originCol, originRow)
+  local tilesPool = ensurePpuNametable(app, ppu)
+  originCol = originCol or 4
+  originRow = originRow or 4
+  if ppu.beginNametableRomBatch then
+    ppu:beginNametableRomBatch()
+  end
+  for _, p in ipairs(prettyGirlPlacements()) do
+    ppu:setNametableByteAt(originCol + p.col, originRow + p.row, p.tile, tilesPool, 1)
+  end
+  if ppu.endNametableRomBatch then
+    ppu:endNametableRomBatch()
+  end
+end
+
+-- Four tiles from the pretty-girl 8x8 face (rows 3-4, cols 2-3) as a 2x2 sprite cluster.
+local PRETTY_GIRL_SPRITE_CELLS = {
+  { tile = 161, col = 0, row = 0 },
+  { tile = 239, col = 1, row = 0 },
+  { tile = 206, col = 0, row = 1 },
+  { tile = 142, col = 1, row = 1 },
+}
+
+local function placePrettyGirlSprites(app, win, originX, originY)
+  local layer = win.layers and win.layers[win.activeLayer or 1]
+  assert(layer and layer.kind == "sprite", "expected sprite layer")
+  local tilesPool = app.appEditState and app.appEditState.tilesPool
+  assert(tilesPool and tilesPool[1], "expected bank 1 tiles")
+  originX = originX or 24
+  originY = originY or 24
+  for _, cell in ipairs(PRETTY_GIRL_SPRITE_CELLS) do
+    local tile = tilesPool[1][cell.tile]
+    assert(tile, string.format("expected CHR tile %d", cell.tile))
+    local idx = SpriteController.addSpriteToLayer(
+      layer,
+      tile,
+      originX + cell.col * 8,
+      originY + cell.row * 8,
+      tilesPool
+    )
+    assert(idx, string.format("failed to place sprite tile %d", cell.tile))
+  end
 end
 
 local function linkWindows(app, a, slotA, b, slotB)
@@ -354,6 +441,8 @@ local function captureExample3(app)
   local ppuX = IMAGE_W - ppuW - MARGIN
   local ppu = createFittedPpu(app, "PPU Frame", ppuX, focusedContentY(), ppuCols, ppuRows)
   linkWindows(app, pt, "pattern_source", ppu, "ppu_pattern_bg")
+  -- Visible 16x16: center the 8x8 pretty-girl nametable art.
+  placePrettyGirlNametable(app, ppu, 4, 4)
   app.wm:setFocus(ppu)
   captureCanvas(app, "source_links_example_3.png")
 end
@@ -381,6 +470,7 @@ local function captureExample4(app)
   setVisibleGrid(oam, 8, 8)
   placeWindow(oam, oamX, oamY)
   linkWindows(app, pt, "pattern_source", oam, "oam_pattern")
+  placePrettyGirlSprites(app, oam, 24, 24)
   app.wm:setFocus(oam)
   captureCanvas(app, "source_links_example_4.png")
 end
