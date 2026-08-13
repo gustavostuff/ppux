@@ -81,6 +81,87 @@ describe("window_link_visual_controller.lua", function()
     expect(type(cy)).toBe("number")
   end)
 
+  it("shows palette badge and edges when a non-active layer is linked", function()
+    local wm = WM.new()
+    local art = wm:createTileWindow({
+      animated = true,
+      title = "Anim",
+      x = 20,
+      y = 20,
+      numFrames = 2,
+    })
+    local romA = wm:createRomPaletteWindow({ title = "ROMA", x = 300, y = 20 })
+    local romB = wm:createRomPaletteWindow({ title = "ROMB", x = 300, y = 80 })
+    art.activeLayer = 1
+    art.layers[1].paletteData = nil
+    art.layers[2].paletteData = { winId = romA._id }
+
+    local app = {
+      wm = wm,
+      windowLinksMode = "always",
+      canvas = { getWidth = function() return 640 end, getHeight = function() return 360 end },
+    }
+
+    expect(LinkVisual.getConsumerLinkedPaletteWindowIncludingMinimized(art, wm)).toBe(romA)
+    expect(LinkVisual.innerColorForSlot(art, "layout_palette", wm)[1]).toBe(colors.blue[1])
+
+    local edges = LinkVisual.collectWindowLinkEdges(app)
+    local sawA = false
+    for _, edge in ipairs(edges) do
+      if edge.fromWin == art and edge.toWin == romA then
+        sawA = true
+      end
+    end
+    expect(sawA).toBe(true)
+
+    art.layers[1].paletteData = { winId = romB._id }
+    local edges2 = LinkVisual.collectWindowLinkEdges(app)
+    local sawBoth = 0
+    for _, edge in ipairs(edges2) do
+      if edge.fromWin == art and (edge.toWin == romA or edge.toWin == romB) then
+        sawBoth = sawBoth + 1
+      end
+    end
+    expect(sawBoth).toBe(2)
+  end)
+
+  it("shows PPU palette edges for nametable and sprites when the other layer is active", function()
+    local wm = WM.new()
+    local ppu = wm:createPPUFrameWindow({ title = "PPU", x = 200, y = 10, romRaw = string.rep("\0", 256) })
+    local romBg = wm:createRomPaletteWindow({ title = "BG", x = 20, y = 20 })
+    local romSp = wm:createRomPaletteWindow({ title = "SP", x = 20, y = 80 })
+    ppu.layers[1].paletteData = { winId = romBg._id }
+    table.insert(ppu.layers, {
+      kind = "sprite",
+      items = {},
+      paletteData = { winId = romSp._id },
+    })
+    ppu.activeLayer = 2
+
+    local app = {
+      wm = wm,
+      windowLinksMode = "always",
+      canvas = { getWidth = function() return 640 end, getHeight = function() return 360 end },
+    }
+
+    expect(LinkVisual.innerColorForSlot(ppu, "ppu_palette", wm)[1]).toBe(colors.blue[1])
+    local linked = LinkVisual.collectConsumerLinkedPaletteWindows(ppu, wm, true)
+    expect(#linked).toBe(2)
+
+    local edges = LinkVisual.collectWindowLinkEdges(app)
+    local sawBg, sawSp = false, false
+    for _, edge in ipairs(edges) do
+      if edge.fromWin == ppu and edge.fromSlot == "ppu_palette" and edge.toWin == romBg then
+        sawBg = true
+      end
+      if edge.fromWin == ppu and edge.fromSlot == "ppu_palette" and edge.toWin == romSp then
+        sawSp = true
+      end
+    end
+    expect(sawBg).toBe(true)
+    expect(sawSp).toBe(true)
+  end)
+
   it("always shows a pattern_source badge on visible pattern table windows", function()
     local wm = WM.new()
     local pt = wm:createPatternTableWindow({ title = "PT", x = 10, y = 10 })

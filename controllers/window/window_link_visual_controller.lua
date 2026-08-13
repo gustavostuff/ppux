@@ -227,55 +227,69 @@ local function buildHandleAnchorPositions(win, count)
   return out
 end
 
-local function getPpuPaletteLinkLayer(ppu)
-  if not (ppu and ppu.layers) then
-    return nil
-  end
-  local activeIdx = (ppu.getActiveLayerIndex and ppu:getActiveLayerIndex()) or ppu.activeLayer or 1
-  local active = ppu.layers[activeIdx]
-  if active and type(active.paletteData) == "table" and type(active.paletteData.winId) == "string" and active.paletteData.winId ~= "" then
-    return active
-  end
-  for _, layer in ipairs(ppu.layers) do
-    if layer
-      and layer.kind == "tile"
-      and layer._runtimePatternTableRefLayer ~= true
-      and type(layer.paletteData) == "table"
-      and type(layer.paletteData.winId) == "string"
-      and layer.paletteData.winId ~= ""
-    then
-      return layer
-    end
+local function paletteWinIdFromLayer(layer)
+  local id = layer and layer.paletteData and layer.paletteData.winId
+  if type(id) == "string" and id ~= "" then
+    return id
   end
   return nil
 end
 
-local function getConsumerLinkedPaletteWindowRaw(consumer, wm, allowMinimized)
-  if WindowCaps.isPpuFrame(consumer) then
-    local layer = getPpuPaletteLinkLayer(consumer)
-    local winId = layer and layer.paletteData and layer.paletteData.winId
-    if type(winId) == "string" and winId ~= "" and wm and wm.findWindowById then
-      local linked = wm:findWindowById(winId)
-      if linked and isLinkWindowEligible(linked) and WindowCaps.isRomPaletteWindow(linked) then
-        if allowMinimized or isLinkWindowVisible(linked) then
-          return linked
-        end
-      end
-    end
+local function isPaletteLinkConsumerLayer(layer)
+  if not layer then
+    return false
+  end
+  if layer._runtimePatternTableRefLayer == true or layer._runtimeOnly == true then
+    return false
+  end
+  return paletteWinIdFromLayer(layer) ~= nil
+end
+
+local function resolveLinkedRomPaletteWindow(winId, wm, allowMinimized)
+  if not (type(winId) == "string" and winId ~= "" and wm and wm.findWindowById) then
     return nil
   end
-  local layer = consumer and consumer.layers
-    and consumer.layers[(consumer.getActiveLayerIndex and consumer:getActiveLayerIndex()) or consumer.activeLayer or 1]
-  local pd = layer and layer.paletteData
-  if pd and pd.winId and wm and wm.findWindowById then
-    local linked = wm:findWindowById(pd.winId)
-    if linked and isLinkWindowEligible(linked) and WindowCaps.isRomPaletteWindow(linked) then
-      if allowMinimized or isLinkWindowVisible(linked) then
-        return linked
-      end
+  local linked = wm:findWindowById(winId)
+  if not (linked and isLinkWindowEligible(linked) and WindowCaps.isRomPaletteWindow(linked)) then
+    return nil
+  end
+  if allowMinimized or isLinkWindowVisible(linked) then
+    return linked
+  end
+  return nil
+end
+
+--- Every ROM palette linked from any consumer layer (not just the active one).
+function M.collectConsumerLinkedPaletteWindows(consumer, wm, allowMinimized)
+  local out = {}
+  if not (consumer and consumer.layers and wm) then
+    return out
+  end
+  local seen = {}
+  local function addFromLayer(layer)
+    if not isPaletteLinkConsumerLayer(layer) then
+      return
+    end
+    local linked = resolveLinkedRomPaletteWindow(paletteWinIdFromLayer(layer), wm, allowMinimized == true)
+    if linked and not seen[linked] then
+      seen[linked] = true
+      out[#out + 1] = linked
     end
   end
-  return PaletteLinkController.getActiveLayerLinkedPaletteWindow(consumer, wm)
+
+  local activeIdx = (consumer.getActiveLayerIndex and consumer:getActiveLayerIndex()) or consumer.activeLayer or 1
+  addFromLayer(consumer.layers[activeIdx])
+  for li, layer in ipairs(consumer.layers) do
+    if li ~= activeIdx then
+      addFromLayer(layer)
+    end
+  end
+  return out
+end
+
+local function getConsumerLinkedPaletteWindowRaw(consumer, wm, allowMinimized)
+  local linked = M.collectConsumerLinkedPaletteWindows(consumer, wm, allowMinimized)
+  return linked[1]
 end
 
 function M.getConsumerLinkedPaletteWindow(consumer, wm)
@@ -1040,18 +1054,19 @@ function M.collectWindowLinkEdges(app)
 
   for _, consumer in ipairs(wm:getWindows()) do
     if isLinkWindowEligible(consumer) and consumerSupportsPaletteLink(consumer) then
-      local paletteWin = getConsumerLinkedPaletteWindowRaw(consumer, wm, true)
-      if paletteWin and isLinkWindowEligible(paletteWin) then
-        local key = tostring(consumer._id or consumer) .. "->" .. tostring(paletteWin._id or paletteWin)
-        if not paletteSeen[key] then
-          paletteSeen[key] = true
-          edges[#edges + 1] = {
-            fromWin = consumer,
-            fromSlot = consumerPaletteLinkSlot(consumer),
-            toWin = paletteWin,
-            toSlot = "palette_source",
-            color = colors.blue,
-          }
+      for _, paletteWin in ipairs(M.collectConsumerLinkedPaletteWindows(consumer, wm, true)) do
+        if isLinkWindowEligible(paletteWin) then
+          local key = tostring(consumer._id or consumer) .. "->" .. tostring(paletteWin._id or paletteWin)
+          if not paletteSeen[key] then
+            paletteSeen[key] = true
+            edges[#edges + 1] = {
+              fromWin = consumer,
+              fromSlot = consumerPaletteLinkSlot(consumer),
+              toWin = paletteWin,
+              toSlot = "palette_source",
+              color = colors.blue,
+            }
+          end
         end
       end
     end

@@ -388,10 +388,15 @@ local function refreshPaletteRevealForWindow(app, wm, win)
   end
 
   local WindowLinkVisual = require("controllers.window.window_link_visual_controller")
-  local paletteWin = WindowLinkVisual.getConsumerLinkedPaletteWindowIncludingMinimized(win, wm)
-  if paletteWin and isLinkWindowEligible(paletteWin) then
-    M.touchReveal(win, M.PALETTE_REVEAL_FIELD)
-    M.touchReveal(paletteWin, M.PALETTE_REVEAL_FIELD)
+  local palettes = WindowLinkVisual.collectConsumerLinkedPaletteWindows(win, wm, true)
+  if #palettes == 0 then
+    return
+  end
+  M.touchReveal(win, M.PALETTE_REVEAL_FIELD)
+  for _, paletteWin in ipairs(palettes) do
+    if isLinkWindowEligible(paletteWin) then
+      M.touchReveal(paletteWin, M.PALETTE_REVEAL_FIELD)
+    end
   end
 end
 
