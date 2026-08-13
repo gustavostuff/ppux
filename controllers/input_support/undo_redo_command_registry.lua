@@ -861,6 +861,14 @@ local function applyWindowCloseEvent(event, direction, app)
       local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
       SketchCanvasPackController.restoreSketchPatternTableCloseUndo(event.sketchPtRestore, wm)
     end
+    if reopened and type(event.ptConsumerRestore) == "table" then
+      local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
+      PatternTableDisplayController.restorePatternTableConsumerCloseUndo(event.ptConsumerRestore, wm, app)
+    end
+    if reopened and type(event.paletteCloseRestore) == "table" then
+      local PaletteLinkController = require("controllers.palette.palette_link_controller")
+      PaletteLinkController.restoreRomPaletteCloseUndo(event.paletteCloseRestore, wm)
+    end
     return reopened == true
   end
 

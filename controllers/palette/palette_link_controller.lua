@@ -1417,12 +1417,44 @@ function M.onRomPaletteClosed(paletteWin, wm)
     return
   end
   local targets = collectLinkedTargetsForPalette(wm, paletteWin)
+  local sketchTargets = {}
   local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
   for _, entry in ipairs(targets or {}) do
     if WindowCaps.isSketchCanvas(entry.win) then
+      sketchTargets[#sketchTargets + 1] = entry.win
       SketchPalette.onUnlinkedFromPalette(entry.win)
     end
   end
+  -- Stash for window_close undo (HeaderToolbar reads this after closeWindow returns).
+  if #sketchTargets > 0 then
+    paletteWin._paletteCloseUndoRestore = {
+      sketchWins = sketchTargets,
+      paletteId = paletteWin._id,
+    }
+  else
+    paletteWin._paletteCloseUndoRestore = nil
+  end
+end
+
+--- After undoing a ROM palette close, refresh sketch consumers that still hold the winId.
+function M.restoreRomPaletteCloseUndo(restore, wm)
+  if type(restore) ~= "table" then
+    return false
+  end
+  local paletteWin = restore.paletteId and wm and wm.findWindowById and wm:findWindowById(restore.paletteId) or nil
+  if not (paletteWin and WindowCaps.isRomPaletteWindow(paletteWin) and paletteWin._closed ~= true) then
+    return false
+  end
+  local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+  local restored = 0
+  for _, sketchWin in ipairs(restore.sketchWins or {}) do
+    if WindowCaps.isSketchCanvas(sketchWin) and SketchPalette.getLinkedSketchPalette(sketchWin, wm) == paletteWin then
+      -- Same visual refresh as unlink, now that the palette is open again.
+      SketchPalette.onUnlinkedFromPalette(sketchWin)
+      restored = restored + 1
+    end
+  end
+  return restored > 0
 end
 
 function M.removeLinkForLayer(contentWin, layerIndex)

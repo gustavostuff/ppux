@@ -6,6 +6,7 @@ local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_p
 local SketchCanvasGalleryRomController = require("controllers.game_art.sketch_canvas_gallery_rom_controller")
 local KeyboardArtActions = require("controllers.input.keyboard_art_actions_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
+local UndoRedoController = require("controllers.input_support.undo_redo_controller")
 
 describe("sketch_canvas_palette_link (B5)", function()
   it("creates sketch-mode palettes with free editable cells", function()
@@ -328,9 +329,26 @@ describe("sketch_canvas_palette_link (B5)", function()
     expect(sketch.layers[1].paletteData.winId).toBe(pal._id)
     expect(SketchPalette.getLinkedSketchPalette(sketch, wm)).toBeNil()
     expect(sketch.nametableAttrBytes[2]).toBe(0x02)
+    expect(type(pal._paletteCloseUndoRestore)).toBe("table")
 
-    assert(wm:reopenWindow(pal))
+    local undo = UndoRedoController.new(10)
+    local app = { wm = wm, undoRedo = undo }
+    local restore = pal._paletteCloseUndoRestore
+    pal._paletteCloseUndoRestore = nil
+    undo:addWindowEvent({
+      type = "window_close",
+      win = pal,
+      wm = wm,
+      prevClosed = false,
+      prevMinimized = false,
+      prevFocused = true,
+      paletteCloseRestore = restore,
+    })
+
+    assert(undo:undo(app))
+    expect(pal._closed).toBe(false)
     expect(SketchPalette.getLinkedSketchPalette(sketch, wm)).toBe(pal)
+    expect(sketch.nametableAttrBytes[2]).toBe(0x02)
   end)
 
   it("encodePaletteBlob32 falls back to brown when palette is missing", function()

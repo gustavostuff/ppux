@@ -385,6 +385,10 @@ function HeaderToolbar:_onClose()
   if undoRedo and undoRedo.addWindowEvent then
     local sketchPtRestore = self.window._sketchCloseUndoRestore
     self.window._sketchCloseUndoRestore = nil
+    local ptConsumerRestore = self.window._ptConsumerCloseUndoRestore
+    self.window._ptConsumerCloseUndoRestore = nil
+    local paletteCloseRestore = self.window._paletteCloseUndoRestore
+    self.window._paletteCloseUndoRestore = nil
     undoRedo:addWindowEvent({
       type = "window_close",
       win = self.window,
@@ -393,6 +397,8 @@ function HeaderToolbar:_onClose()
       prevMinimized = wasMinimized,
       prevFocused = wasFocused,
       sketchPtRestore = sketchPtRestore,
+      ptConsumerRestore = ptConsumerRestore,
+      paletteCloseRestore = paletteCloseRestore,
     })
   end
   

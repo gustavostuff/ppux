@@ -581,20 +581,203 @@ function M.unlinkContentLayerPatternTable(contentWin, layerIndex)
   return true
 end
 
+local function copyByteArray(arr)
+  if type(arr) ~= "table" then
+    return nil
+  end
+  local out = {}
+  for i = 1, #arr do
+    out[i] = arr[i]
+  end
+  return out
+end
+
+local function capturePpuNametableUndoState(win, layer)
+  if not (WindowCaps.isPpuFrame(win) and layer and layer.kind == "tile" and layer._runtimePatternTableRefLayer ~= true) then
+    return nil
+  end
+  return {
+    nametableBytes = copyByteArray(win.nametableBytes),
+    nametableAttrBytes = copyByteArray(win.nametableAttrBytes),
+    originalNametableBytes = copyByteArray(win._originalNametableBytes),
+    originalNametableAttrBytes = copyByteArray(win._originalNametableAttrBytes),
+    romDecodedNametableAttrBytes = copyByteArray(win._romDecodedNametableAttrBytes),
+    tileSwapsWin = TableUtils.deepcopy(win._tileSwaps),
+    tileSwapsLayer = TableUtils.deepcopy(layer.tileSwaps),
+    userDefinedAttrs = layer.userDefinedAttrs,
+    onTheFlyReplacements = TableUtils.deepcopy(layer.onTheFlyReplacements),
+    nametableStart = win.nametableStart,
+    originalTotalByteNumber = win.originalTotalByteNumber,
+  }
+end
+
+local function restorePpuNametableUndoState(win, layer, snap)
+  if not (win and layer and type(snap) == "table") then
+    return
+  end
+  if snap.nametableBytes then
+    win.nametableBytes = copyByteArray(snap.nametableBytes)
+  end
+  if snap.nametableAttrBytes then
+    win.nametableAttrBytes = copyByteArray(snap.nametableAttrBytes)
+  end
+  if snap.originalNametableBytes then
+    win._originalNametableBytes = copyByteArray(snap.originalNametableBytes)
+  end
+  if snap.originalNametableAttrBytes then
+    win._originalNametableAttrBytes = copyByteArray(snap.originalNametableAttrBytes)
+  end
+  if snap.romDecodedNametableAttrBytes then
+    win._romDecodedNametableAttrBytes = copyByteArray(snap.romDecodedNametableAttrBytes)
+  end
+  if snap.tileSwapsWin ~= nil then
+    win._tileSwaps = TableUtils.deepcopy(snap.tileSwapsWin)
+  end
+  if snap.tileSwapsLayer ~= nil then
+    layer.tileSwaps = TableUtils.deepcopy(snap.tileSwapsLayer)
+  end
+  layer.userDefinedAttrs = snap.userDefinedAttrs
+  if snap.onTheFlyReplacements ~= nil then
+    layer.onTheFlyReplacements = TableUtils.deepcopy(snap.onTheFlyReplacements)
+  end
+  if snap.nametableStart ~= nil then
+    win.nametableStart = snap.nametableStart
+  end
+  if snap.originalTotalByteNumber ~= nil then
+    win.originalTotalByteNumber = snap.originalTotalByteNumber
+  end
+end
+
+local function refreshConsumerAfterPatternTableRelink(win, layerIndex, app)
+  local layer = win and win.layers and win.layers[layerIndex]
+  if not layer then
+    return
+  end
+  local state = app and app.appEditState or nil
+  if WindowCaps.isPpuFrame(win)
+    and layer.kind == "tile"
+    and layer._runtimePatternTableRefLayer ~= true
+    and win.refreshNametableVisuals
+  then
+    local tilesPool = state and state.tilesPool or nil
+    if tilesPool and type(layer.patternTable) == "table" and type(layer.patternTable.ranges) == "table" then
+      local ensured = {}
+      for _, r in ipairs(layer.patternTable.ranges) do
+        PpuRange.foreachBankInPatternRange(r, function(bankIdx)
+          local b = math.floor(tonumber(bankIdx) or -1)
+          if b >= 1 and ensured[b] == nil and state and state.chrBanksBytes and state.chrBanksBytes[b] then
+            ensured[b] = true
+            BankViewController.ensureBankTiles(state, b)
+          end
+        end)
+      end
+    end
+    win:refreshNametableVisuals(tilesPool, layerIndex)
+  elseif layer.kind == "sprite" and state then
+    local SpriteController = require("controllers.sprite.sprite_controller")
+    SpriteController.hydrateSpriteLayer(layer, {
+      romRaw = state.romRaw or "",
+      tilesPool = state.tilesPool,
+      appEditState = state,
+    })
+  end
+  if win.specializedToolbar and win.specializedToolbar.updateIcons then
+    win.specializedToolbar:updateIcons()
+  end
+end
+
+--- Snapshot PPU / OAM (non-sketch) links before a pattern table window is closed.
+function M.capturePatternTableConsumerCloseRestore(ptWin, wm)
+  local actions = {}
+  if not (WindowCaps.isPatternTable(ptWin) and wm) then
+    return nil
+  end
+  local ptId = ptWin._id
+  if type(ptId) ~= "string" or ptId == "" then
+    return nil
+  end
+  for _, entry in ipairs(M.getLinkedConsumersForPatternTable(wm, ptWin)) do
+    if entry.kind ~= "sketch_canvas" and type(entry.layerIndex) == "number" then
+      local layer = entry.win and entry.win.layers and entry.win.layers[entry.layerIndex]
+      if layer then
+        local pt = layer.patternTable
+        actions[#actions + 1] = {
+          win = entry.win,
+          layerIndex = entry.layerIndex,
+          linkedId = ptId,
+          patternTable = type(pt) == "table" and TableUtils.deepcopy(pt) or { ranges = {} },
+          nametable = capturePpuNametableUndoState(entry.win, layer),
+        }
+      end
+    end
+  end
+  if #actions == 0 then
+    return nil
+  end
+  return actions
+end
+
+--- Re-link PPU / OAM consumers after undoing a pattern table window close.
+--- Restores in-memory nametable bytes/attrs and refreshes visuals. Do not ROM-rehydrate:
+--- that path ran with an empty pattern table on close and wiped tile swaps / attrs.
+function M.restorePatternTableConsumerCloseUndo(actions, wm, app)
+  if type(actions) ~= "table" or #actions == 0 then
+    return false
+  end
+  local restored = 0
+  for _, act in ipairs(actions) do
+    local win = act.win
+    local li = act.layerIndex
+    local layer = win and win.layers and li and win.layers[li] or nil
+    if layer then
+      restorePpuNametableUndoState(win, layer, act.nametable)
+      local linkedId = (type(act.linkedId) == "string" and act.linkedId ~= "") and act.linkedId or nil
+      layer.linkedPatternTableWindowId = linkedId
+      local ptWin = linkedId and wm and wm.findWindowById and wm:findWindowById(linkedId) or nil
+      local srcLayer = ptWin and ptWin.layers and ptWin.layers[1]
+      if srcLayer and type(srcLayer.patternTable) == "table" then
+        layer.patternTable = srcLayer.patternTable
+      elseif type(act.patternTable) == "table" then
+        layer.patternTable = TableUtils.deepcopy(act.patternTable)
+      else
+        layer.patternTable = { ranges = {} }
+      end
+      refreshConsumerAfterPatternTableRelink(win, li, app)
+      restored = restored + 1
+    end
+  end
+  return restored > 0
+end
+
 --- Pattern table window closed: detach PPU / OAM consumers (sketch handled separately).
 function M.onPatternTableWindowClosed(ptWin, wm, app)
   if not (WindowCaps.isPatternTable(ptWin) and wm) then
     return 0
   end
+  -- Stash for window_close undo (HeaderToolbar reads this after closeWindow returns).
+  ptWin._ptConsumerCloseUndoRestore = M.capturePatternTableConsumerCloseRestore(ptWin, wm)
   local consumers = M.getLinkedConsumersForPatternTable(wm, ptWin)
   local n = 0
   for _, entry in ipairs(consumers) do
     if entry.kind ~= "sketch_canvas" and type(entry.layerIndex) == "number" then
       if M.unlinkContentLayerPatternTable(entry.win, entry.layerIndex) then
         n = n + 1
-        if app and type(app._afterPatternTableLinkChange) == "function" then
-          app:_afterPatternTableLinkChange(entry.win, entry.layerIndex)
+        local win = entry.win
+        -- Do not call `_afterPatternTableLinkChange`: it ROM-rehydrates with an empty
+        -- pattern table and overwrites nametableBytes / attrs / tile swaps.
+        if win and win.removePatternReferenceLayers then
+          win:removePatternReferenceLayers(entry.layerIndex)
         end
+        if win and win.specializedToolbar and win.specializedToolbar.updateIcons then
+          win.specializedToolbar:updateIcons()
+        end
+      end
+    end
+  end
+  if n > 0 and app and app.wm and app.wm.getWindows then
+    for _, w in ipairs(app.wm:getWindows()) do
+      if WindowCaps.isPatternTable(w) and w.specializedToolbar and w.specializedToolbar.updateIcons then
+        w.specializedToolbar:updateIcons()
       end
     end
   end
