@@ -37,7 +37,7 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
 
 PPUX has two main functionalities:
 
-1. Modify graphics on an existing game.
+1. Modify graphics on existing games.
 2. Create graphics from scratch.
 
 For the first approach, drop a ROM into the window. Without a DB entry, PPUX loads a basic default layout. With one, it opens a tailored workspace. **This is the core feature** of the app.
