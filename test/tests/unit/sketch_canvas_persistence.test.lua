@@ -322,7 +322,8 @@ describe("sketch canvas - data model + persistence", function()
     expect(restored.tilesPool[1].solidShade).toBe(0)
     expect(restored.tilesPool[1].exactSolid).toBe(true)
     expect(restored.tilesPool[2].solidShade).toBe(2)
-    expect(restored._generateDirty).toBe(true)
+    -- Saved generateDirty is recomputed on load; solidShade cells are skipped so pack agrees.
+    expect(restored._generateDirty).toBeFalsy()
   end)
 
   it("omits empty nametableBytes and blank link id from the snapshot", function()

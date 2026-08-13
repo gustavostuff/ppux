@@ -198,8 +198,13 @@ local function resolvePaint(win)
 end
 
 local function markSketchDirty(win)
-  if SketchCanvasPackController.markGenerateDirty then
+  if SketchCanvasPackController.syncGenerateDirtyFromPaint then
+    SketchCanvasPackController.syncGenerateDirtyFromPaint(win)
+  elseif SketchCanvasPackController.markGenerateDirty then
     SketchCanvasPackController.markGenerateDirty(win)
+  end
+  if win and win.specializedToolbar and win.specializedToolbar.updateIcons then
+    win.specializedToolbar:updateIcons()
   end
 end
 

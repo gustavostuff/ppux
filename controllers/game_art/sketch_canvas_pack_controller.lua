@@ -354,26 +354,13 @@ function M.makeScratchTileFromPixels(pixels)
 end
 
 --- Pixels for a pool entry: canonical solid when packed as a flat shade, else canvas sample.
+--- Does not mutate pack metadata; PT scratch edits clear solidShade at the sync site.
 function M.pixelsForPoolEntry(canvas, entry)
   if type(entry) ~= "table" then
     return nil
   end
   local shade = entry.solidShade
   if type(shade) == "number" and shade >= 0 and shade <= 3 then
-    -- Paint under the sample may have been edited (PT scratch / undo). If it no
-    -- longer matches the packed solid, fall back to the live canvas sample.
-    if canvas and type(canvas.extractTilePixels) == "function" then
-      local sampled = canvas:extractTilePixels(
-        math.floor(tonumber(entry.x) or 0),
-        math.floor(tonumber(entry.y) or 0),
-        M.CELL
-      )
-      if sampled and solidDiffCount(sampled, shade, 0) > 0 then
-        entry.solidShade = nil
-        entry.exactSolid = nil
-        return sampled
-      end
-    end
     return makeSolidPattern(shade)
   end
   if not (canvas and type(canvas.extractTilePixels) == "function") then
@@ -676,6 +663,7 @@ function M.clearPackData(win, opts)
   win.nametableBytes = nil
   win.reflectPatternTable = false
   win._reflectDisplayCanvas = nil
+  win._generatePaintToken = nil
   do
     local Thumb = require("controllers.game_art.sketch_canvas_gallery_thumb_controller")
     Thumb.clearTileAverages(win)
@@ -749,20 +737,66 @@ function M.isGenerateDirty(win)
   return WindowCaps.isSketchCanvas(win) and win._generateDirty == true
 end
 
+local function paintContentToken(canvas)
+  if not (canvas and type(canvas.pixels) == "table") then
+    return nil
+  end
+  local pixels = canvas.pixels
+  local h1, h2 = 0, 0
+  local n = #pixels
+  for i = 1, n do
+    local v = math.floor(tonumber(pixels[i]) or 0)
+    h1 = (h1 + v * (i % 251 + 1)) % 2147483647
+    h2 = (h2 * 5 + v) % 2147483647
+  end
+  return string.format("%d:%d:%d", h1, h2, n)
+end
+
+function M.captureGeneratePaintToken(win)
+  if not WindowCaps.isSketchCanvas(win) then
+    return
+  end
+  win._generatePaintToken = paintContentToken(resolveCanvas(win))
+end
+
+--- Set or clear Generate dirty from paint vs the last successful Generate snapshot.
+function M.syncGenerateDirtyFromPaint(win)
+  if not WindowCaps.isSketchCanvas(win) then
+    return false
+  end
+  if not M.hasPackData(win) then
+    return M.isGenerateDirty(win)
+  end
+  if win._generatePaintToken == nil then
+    if M.isGenerateDirty(win) then
+      return true
+    end
+    M.captureGeneratePaintToken(win)
+    return false
+  end
+  local now = paintContentToken(resolveCanvas(win))
+  if now == win._generatePaintToken then
+    M.clearGenerateDirty(win)
+    return false
+  end
+  M.markGenerateDirty(win)
+  return true
+end
+
 --- If paint at any nametable cell disagrees with the pack sample for that cell,
 --- mark Generate dirty so the toolbar prompts a re-pack.
 --- Skips solidShade entries (intentional NES collapse vs freehand detail).
+--- Duplicate cells packed with tolerance may differ from the sample by up to
+--- that many pixels; those are not treated as pending Generate work.
 function M.markGenerateDirtyIfPackDisagreesWithPaint(win)
   if not M.hasPackData(win) then
-    return false
-  end
-  if M.isGenerateDirty(win) then
-    return true
+    return M.isGenerateDirty(win)
   end
   local paint = resolveCanvas(win)
   if not paint then
-    return false
+    return M.isGenerateDirty(win)
   end
+  local threshold = clampTolerance(win.tolerance)
   local pool = win.tilesPool
   local nt = win.nametableBytes
   for row = 0, M.GRID_ROWS - 1 do
@@ -773,17 +807,20 @@ function M.markGenerateDirtyIfPackDisagreesWithPaint(win)
       if entry and type(entry.solidShade) ~= "number" then
         local expected = M.pixelsForPoolEntry(paint, entry)
         local actual = paint:extractTilePixels(col * M.CELL, row * M.CELL, M.CELL)
-        if expected and actual and pixelDiffCount(actual, expected, 0) > 0 then
+        if expected and actual and pixelDiffCount(actual, expected, threshold) > threshold then
           M.markGenerateDirty(win)
           return true
         end
       end
     end
   end
+  -- Pack still matches paint (including saved generateDirty false-positives).
+  M.clearGenerateDirty(win)
+  M.captureGeneratePaintToken(win)
   return false
 end
 
---- After project load: re-arm Generate dirty when pack samples no longer match paint.
+--- After project load: recompute Generate dirty from pack vs paint (do not trust the saved flag).
 function M.reconcileLoadedSketchPacks(wm)
   if not wm then
     return 0
@@ -794,6 +831,9 @@ function M.reconcileLoadedSketchPacks(wm)
     if WindowCaps.isSketchCanvas(win) and not win._closed then
       if M.markGenerateDirtyIfPackDisagreesWithPaint(win) then
         count = count + 1
+      end
+      if win.specializedToolbar and win.specializedToolbar.updateIcons then
+        win.specializedToolbar:updateIcons()
       end
     end
   end
@@ -1569,6 +1609,7 @@ function M.generate(win)
   end
   M.applyPackToWindow(win, pack)
   M.clearGenerateDirty(win)
+  M.captureGeneratePaintToken(win)
   -- Snapshot packed preview now so later paint does not refresh tile-mode compose.
   M.getReflectDisplayCanvas(win)
   return true, pack
@@ -1866,7 +1907,7 @@ function M.refreshViewsForScratchTileItems(app, items)
       if WindowCaps.isSketchCanvas(win) and not win._closed then
         local canvas = resolveCanvas(win)
         if canvas and seen[canvas] then
-          M.markGenerateDirty(win)
+          M.syncGenerateDirtyFromPaint(win)
           M.invalidateReflectDisplay(win)
           any = true
         end

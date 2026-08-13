@@ -2,6 +2,7 @@ local PixelCanvas = require("ui.windows_system.pixel_canvas")
 local WM = require("controllers.window.window_controller")
 local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
 local UndoRedoController = require("controllers.input_support.undo_redo_controller")
+local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
 
 describe("sketch_canvas_pixel_selection_controller", function()
   local function paintRect(canvas, x, y, w, h, value)
@@ -682,6 +683,36 @@ describe("sketch_canvas_pixel_selection_controller", function()
     PixelSel.updateDrag(win, 5, 5)
     PixelSel.commitDrag(win)
     expect(KeyboardSelectionActionsController.handleSketchPixelTransform(ctx, utils, "h", win)).toBe(false)
+
+    _G.ctx = nil
+  end)
+
+  it("does not leave Generate dirty after lift/stamp in place or cancel", function()
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow()
+    local canvas = win:getActiveCanvas()
+    local pt = wm:createPatternTableWindow()
+    win.linkedPatternTableWindowId = pt._id
+    paintRect(canvas, 0, 0, 8, 8, 2)
+    assert(SketchCanvasPackController.generate(win))
+    expect(SketchCanvasPackController.isGenerateDirty(win)).toBe(false)
+    _G.ctx = { getMode = function() return "edit" end }
+    local app = { undoRedo = UndoRedoController.new(20) }
+
+    PixelSel.begin(win, PixelSel.KIND_RECT, 0, 0)
+    PixelSel.updateDrag(win, 7, 7)
+    PixelSel.commitDrag(win)
+    expect(PixelSel.ensureLifted(win, app)).toBe(true)
+    expect(SketchCanvasPackController.isGenerateDirty(win)).toBe(true)
+    expect(PixelSel.stampDown(win, app)).toBe(true)
+    expect(SketchCanvasPackController.isGenerateDirty(win)).toBe(false)
+
+    PixelSel.begin(win, PixelSel.KIND_RECT, 0, 0)
+    PixelSel.updateDrag(win, 7, 7)
+    PixelSel.commitDrag(win)
+    expect(PixelSel.ensureLifted(win, app)).toBe(true)
+    expect(PixelSel.cancelFloating(win, app)).toBe(true)
+    expect(SketchCanvasPackController.isGenerateDirty(win)).toBe(false)
 
     _G.ctx = nil
   end)

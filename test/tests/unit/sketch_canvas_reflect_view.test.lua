@@ -265,6 +265,32 @@ describe("sketch canvas - tile-mode mirror view", function()
     end, wm)
   end)
 
+  it("does not mark Generate dirty for in-tolerance duplicate tiles after generate", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow()
+    local paint = sketch.layers[1].canvas
+    sketch.tolerance = 8
+    paintTile(paint, 0, 0, 2)
+    paintTileDiffPixels(paint, 1, 0, 2, 4)
+    assert(SketchCanvasPackController.generate(sketch))
+    expect(SketchCanvasPackController.isGenerateDirty(sketch)).toBe(false)
+    expect(SketchCanvasPackController.markGenerateDirtyIfPackDisagreesWithPaint(sketch)).toBe(false)
+    expect(SketchCanvasPackController.isGenerateDirty(sketch)).toBe(false)
+  end)
+
+  it("clears a saved Generate dirty flag on load when pack still matches paint", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow()
+    local pt = wm:createPatternTableWindow()
+    local paint = sketch.layers[1].canvas
+    paintTile(paint, 0, 0, 2)
+    assert(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm))
+    assert(SketchCanvasPackController.generate(sketch))
+    sketch._generateDirty = true
+    expect(SketchCanvasPackController.reconcileLoadedSketchPacks(wm)).toBe(0)
+    expect(SketchCanvasPackController.isGenerateDirty(sketch)).toBe(false)
+  end)
+
   it("does not collapse near-transparent skirt edges into blank solidShade 0", function()
     local wm = WM.new()
     local sketch = wm:createSketchCanvasWindow()
