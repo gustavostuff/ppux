@@ -65,41 +65,39 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 
 ### Window links
 
-You'll also notice these little **badges** on windows. When a badge is colored, that slot is linked. Empty badges stay chrome until you start a drag (they then pulse their role color).
+You'll also notice these little **badges** on windows. When a badge is colored, it means that slot is linked.
 
-<img src="img/readme_images/badges.png" alt="Source window badges (right edge)">
+<img src="img/readme_images/badges.png" alt="Badges">
 
-- **Left-click** a colored badge to bring the linked window(s) forward.
-- **Right-click** a badge for the Link/Unlink/Jump menu for that slot.
-- **Left-drag** from a badge (empty or linked) onto a compatible badge on another window.
+- Left-click a colored badge to bring the linked window(s) forward.
+- Right-click a badge for the Link/Unlink/Jump menu for that slot.
+- Left-drag from a badge (empty or linked) onto a compatible badge on another window.
 
-Same-role drops are **moves**, not copies. Drag a source badge onto another source (or a destination badge onto another destination) and every consumer of the drag window is retargeted onto the drop window. The drag window is left unlinked. A ROM palette or Pattern table can still feed many windows, but each destination layer keeps at most one palette and one Pattern table.
+Links can be reattached to a different consumer and keep the same source, or the other way around. It's a one-to-many relation ship (one source to N consumers).
 
 **Source windows/badges** (right edge)
 
-- **ROM palette** - palette source (blue).
-- **Pattern table** - pattern source (red for BG, green for sprites or **brown** if linked to both BG and sprites).
+- **ROM palette**: Blue
+- **Pattern table**: Red for BG, green for sprites or **brown** if linked to both BG and sprites.
 
 Examples:
 
 <img src="img/readme_images/source_links_example_1.png" alt="Source window badges (right edge)">
 
-<img src="img/readme_images/source_links_example_1.png" alt="Source window badges, linked">
+<img src="img/readme_images/source_links_example_2.png" alt="Source window badges, linked">
 
-**Destination windows/badges** (left edge)
+**Consumer windows/badges** (left edge)
 
-- **PPU Frame** - background pattern (red), sprite pattern (green), ROM palette (blue).
-- **Sketch canvas** - background pattern (red), sprite pattern (unused for now), sketch-mode ROM palette (blue).
-- **OAM Animation** - sprite pattern (green), ROM palette (blue).
-- **Static Art/Animation** (tiles or sprites) - ROM palette (blue).
+- **PPU Frame**: Background pattern (red), sprite pattern (green), ROM palette (blue).
+- **Sketch canvas**: Background pattern (red), sprite pattern (unused for now), sketch-mode ROM palette (blue).
+- **OAM Animation**: Sprite pattern (green), ROM palette (blue).
+- **Static Art/Animation** (tiles or sprites): ROM palette (blue).
 
 Examples:
 
-<img src="img/readme_images/source_links_example_1.png" alt="Destination window badges (left edge)">
+<img src="img/readme_images/source_links_example_3.png" alt="Destination window badges (left edge)">
 
-<img src="img/readme_images/source_links_example_1.png" alt="Destination window badges, linked">
-
-CHR Banks, ROM Banks, Generic palettes.
+<img src="img/readme_images/source_links_example_4.png" alt="Destination window badges, linked">
 
 ### Toolbars
 
