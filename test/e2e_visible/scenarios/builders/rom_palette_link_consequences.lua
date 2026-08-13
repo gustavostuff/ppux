@@ -62,6 +62,13 @@ local function buildRomPaletteLinkConsequencesScenario(harness, app, runner)
         zoom = 2,
       }), "expected sprite art")
 
+      -- Fixture OAM sits on palette B's source badge; park it so dest→B drops hit B.
+      local oam = currentRunner.oamFixtureWin
+      if oam then
+        oam.x = 520
+        oam.y = 280
+      end
+
       currentApp.wm:setFocus(currentRunner.romPaletteAWin)
     end),
     pause("Observe palette fixtures", 0.4),
@@ -194,6 +201,62 @@ local function buildRomPaletteLinkConsequencesScenario(harness, app, runner)
     -- Static remains on B after redo; remove-all on A must not touch it.
     assert(H.activeLayerPaletteWinId(H.requireRunnerWindow(currentRunner, "staticArtWin"))
       == H.requireRunnerWindow(currentRunner, "romPaletteBWin")._id, "expected static still on palette B")
+  end)
+
+  -- Same-side source→source: relink sprite to A, then drag A onto B (move, A emptied).
+  H.appendBadgeDragLink(
+    steps,
+    "Badge-drag palette A onto sprite art for source move",
+    "romPaletteAWin",
+    "palette_source",
+    "spriteArtWin",
+    "layout_palette"
+  )
+  H.appendBadgeDragLink(
+    steps,
+    "Move all palette A consumers onto palette B source badge",
+    "romPaletteAWin",
+    "palette_source",
+    "romPaletteBWin",
+    "palette_source"
+  )
+  steps[#steps + 1] = call("Assert source-to-source moved sprite onto B and emptied A", function(_, currentApp, currentRunner)
+    local spriteWin = H.requireRunnerWindow(currentRunner, "spriteArtWin")
+    local palA = H.requireRunnerWindow(currentRunner, "romPaletteAWin")
+    local palB = H.requireRunnerWindow(currentRunner, "romPaletteBWin")
+    assert(H.activeLayerPaletteWinId(spriteWin) == palB._id, "expected sprite moved onto palette B")
+    assert(H.activeLayerPaletteWinId(H.requireRunnerWindow(currentRunner, "staticArtWin")) == palB._id, "expected static still on B")
+    local PaletteLinkController = require("controllers.palette.palette_link_controller")
+    assert(#PaletteLinkController.getLinkedTargetsForPalette(currentApp.wm, palA) == 0, "expected palette A emptied")
+    local codes = H.assertLayerPaletteCodesMatchWindow(currentApp, spriteWin.layers[1], palB, 1)
+    assert(codes[2] == "2A", "expected sprite to resolve palette B after source move")
+  end)
+  steps[#steps + 1] = keyPress("Undo palette source move", "z", { "lctrl" })
+  steps[#steps + 1] = pause("Observe palette source-move undo", 0.2)
+  steps[#steps + 1] = call("Assert undo restored sprite onto palette A", function(_, currentApp, currentRunner)
+    local spriteWin = H.requireRunnerWindow(currentRunner, "spriteArtWin")
+    local palA = H.requireRunnerWindow(currentRunner, "romPaletteAWin")
+    assert(H.activeLayerPaletteWinId(spriteWin) == palA._id, "expected undo back to palette A")
+    H.assertLayerPaletteCodesMatchWindow(currentApp, spriteWin.layers[1], palA, 1)
+  end)
+
+  -- Same-side dest→dest: sprite (A) onto static (B) moves A onto static and unlinks sprite.
+  H.appendBadgeDragLink(
+    steps,
+    "Move sprite dest palette badge onto static dest badge",
+    "spriteArtWin",
+    "layout_palette",
+    "staticArtWin",
+    "layout_palette"
+  )
+  steps[#steps + 1] = call("Assert dest-to-dest moved palette A onto static and unlinked sprite", function(_, currentApp, currentRunner)
+    local staticWin = H.requireRunnerWindow(currentRunner, "staticArtWin")
+    local spriteWin = H.requireRunnerWindow(currentRunner, "spriteArtWin")
+    local palA = H.requireRunnerWindow(currentRunner, "romPaletteAWin")
+    assert(H.activeLayerPaletteWinId(staticWin) == palA._id, "expected static replaced onto palette A")
+    assert(H.activeLayerPaletteWinId(spriteWin) ~= palA._id, "expected sprite unlinked after dest move")
+    local codes = H.assertLayerPaletteCodesMatchWindow(currentApp, staticWin.layers[1], palA, 1)
+    assert(codes[2] == "16", "expected static to resolve palette A after dest move")
   end)
 
   steps[#steps + 1] = pause("Scenario complete", 0.4)

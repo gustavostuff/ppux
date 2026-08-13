@@ -104,16 +104,31 @@ function M.isDestinationSlot(slot)
   return PALETTE_DEST[slot] == true or PATTERN_DEST[slot] == true
 end
 
---- True when two badge slots can form a palette or pattern-table link.
+local function destPatternKind(slot)
+  if slot == "ppu_pattern_bg" then
+    return "bg"
+  end
+  if slot == "ppu_pattern_sprite" or slot == "oam_pattern" then
+    return "sprite"
+  end
+  return nil
+end
+
+--- True when two badge slots can form a palette or pattern-table link or same-side move.
 function M.areSlotsCompatible(slotA, slotB)
-  if not (slotA and slotB) or slotA == slotB then
+  if not (slotA and slotB) then
     return false
   end
   if M.isPaletteSlot(slotA) and M.isPaletteSlot(slotB) then
-    return (slotA == PALETTE_SOURCE) ~= (slotB == PALETTE_SOURCE)
+    return true
   end
   if M.isPatternSlot(slotA) and M.isPatternSlot(slotB) then
-    return (slotA == PATTERN_SOURCE) ~= (slotB == PATTERN_SOURCE)
+    if M.isSourceSlot(slotA) or M.isSourceSlot(slotB) then
+      return true
+    end
+    local kindA = destPatternKind(slotA)
+    local kindB = destPatternKind(slotB)
+    return kindA ~= nil and kindA == kindB
   end
   return false
 end
@@ -186,40 +201,121 @@ local function resolvePatternPair(winA, slotA, winB, slotB)
   return ptWin, destWin, destSlot
 end
 
-function M.canLinkWindows(winA, slotA, winB, slotB)
-  if not (winA and winB and slotA and slotB) or winA == winB then
-    return false, "Window link failed"
+local function resolveWm(app)
+  if app and app.wm then
+    return app.wm
   end
-  if winA._closed or winB._closed or winA._minimized or winB._minimized then
-    return false, "Window link failed"
+  local gapp = getApp()
+  return gapp and gapp.wm or nil
+end
+
+local function paletteRolesCompatible(paletteWin, destWin)
+  if WindowCaps.isSketchCanvas(destWin) then
+    return paletteWin.paletteRole == "sketch", "Sketch canvases need a sketch-mode ROM palette"
   end
-  if not M.areSlotsCompatible(slotA, slotB) then
+  if paletteWin.paletteRole == "sketch" then
+    return false, "Sketch-mode palettes link only to sketch canvases"
+  end
+  return true
+end
+
+local function canRetargetPaletteSources(fromPal, toPal, wm)
+  if not (WindowCaps.isRomPaletteWindow(fromPal) and WindowCaps.isRomPaletteWindow(toPal)) then
     return false, "Incompatible link badges"
   end
+  if (fromPal.paletteRole == "sketch") ~= (toPal.paletteRole == "sketch") then
+    return false, "Incompatible palette roles"
+  end
+  local targets = PaletteLinkController.getLinkedTargetsForPalette(wm, fromPal)
+  if type(targets) ~= "table" or #targets == 0 then
+    return false, "No palette connections to move"
+  end
+  return true
+end
 
-  local paletteWin, destWin = resolvePalettePair(winA, slotA, winB, slotB)
-  if paletteWin then
-    if WindowCaps.isAnyPaletteWindow(destWin) or WindowCaps.isChrLike(destWin) then
-      return false, "Cannot link a palette to another palette window"
+local function normalizeLinkedPatternTableWindowId(id)
+  if type(id) == "string" and id ~= "" then
+    return id
+  end
+  return nil
+end
+
+local function destPatternLinkedPt(win, slot, wm)
+  if not (win and slot and wm and wm.findWindowById) then
+    return nil, nil, nil
+  end
+  if slot == "ppu_pattern_bg" and WindowCaps.isSketchCanvas(win) then
+    local id = normalizeLinkedPatternTableWindowId(win.linkedPatternTableWindowId)
+    local pt = id and wm:findWindowById(id) or nil
+    if WindowCaps.isPatternTable(pt) and pt._closed ~= true then
+      return pt, nil, "sketch"
     end
-    if WindowCaps.isSketchCanvas(destWin) then
-      if paletteWin.paletteRole ~= "sketch" then
-        return false, "Sketch canvases need a sketch-mode ROM palette"
+    return nil, nil, nil
+  end
+  local layerIndex
+  if slot == "ppu_pattern_bg" then
+    layerIndex = findPpuNametableTileLayerIndex(win)
+  elseif slot == "ppu_pattern_sprite" or slot == "oam_pattern" then
+    if WindowCaps.isOamAnimation(win) then
+      for li, layer in ipairs(win.layers or {}) do
+        if layer and layer.kind == "sprite" and normalizeLinkedPatternTableWindowId(layer.linkedPatternTableWindowId) then
+          layerIndex = li
+          break
+        end
       end
-    elseif paletteWin.paletteRole == "sketch" then
-      return false, "Sketch-mode palettes link only to sketch canvases"
+      if not layerIndex then
+        layerIndex = findFirstSpriteLayerIndex(win)
+      end
+    else
+      layerIndex = findFirstSpriteLayerIndex(win)
     end
-    local ok = PaletteLinkController.canApplyToTarget(destWin, paletteWin)
-    if not ok then
-      return false, "Palette link failed"
-    end
-    return true
   end
+  local layer = layerIndex and win.layers and win.layers[layerIndex] or nil
+  local id = layer and normalizeLinkedPatternTableWindowId(layer.linkedPatternTableWindowId)
+  local pt = id and wm:findWindowById(id) or nil
+  if WindowCaps.isPatternTable(pt) and pt._closed ~= true then
+    return pt, layerIndex, "layer"
+  end
+  return nil, nil, nil
+end
 
-  local ptWin, consumer, destSlot = resolvePatternPair(winA, slotA, winB, slotB)
-  if not ptWin then
+local function canRetargetPatternSources(fromPt, toPt, wm)
+  if not (WindowCaps.isPatternTable(fromPt) and WindowCaps.isPatternTable(toPt)) then
     return false, "Incompatible link badges"
   end
+  if SketchCanvasPackController.isSketchOwnedPatternTable(fromPt, wm)
+    or SketchCanvasPackController.isSketchOwnedPatternTable(toPt, wm)
+  then
+    return false, "Cannot move sketch-owned pattern table links this way"
+  end
+  local consumers = PatternTableDisplayController.getLinkedConsumersForPatternTable(wm, fromPt)
+  if type(consumers) ~= "table" or #consumers == 0 then
+    return false, "No pattern table connections to move"
+  end
+  for _, entry in ipairs(consumers) do
+    if entry.kind == "sketch_canvas" then
+      return false, "Cannot move sketch pattern table links this way"
+    end
+  end
+  return true
+end
+
+local function canLinkPaletteSourceDest(paletteWin, destWin)
+  if WindowCaps.isAnyPaletteWindow(destWin) or WindowCaps.isChrLike(destWin) then
+    return false, "Cannot link a palette to another palette window"
+  end
+  local roleOk, roleErr = paletteRolesCompatible(paletteWin, destWin)
+  if not roleOk then
+    return false, roleErr
+  end
+  local ok = PaletteLinkController.canApplyToTarget(destWin, paletteWin)
+  if not ok then
+    return false, "Palette link failed"
+  end
+  return true
+end
+
+local function canLinkPatternSourceDest(ptWin, consumer, destSlot)
   if destSlot == "ppu_pattern_bg" then
     if WindowCaps.isSketchCanvas(consumer) then
       return true
@@ -247,6 +343,66 @@ function M.canLinkWindows(winA, slotA, winB, slotB)
   return false, "Incompatible link badges"
 end
 
+function M.canLinkWindows(winA, slotA, winB, slotB, app)
+  if not (winA and winB and slotA and slotB) or winA == winB then
+    return false, "Window link failed"
+  end
+  if winA._closed or winB._closed or winA._minimized or winB._minimized then
+    return false, "Window link failed"
+  end
+  if not M.areSlotsCompatible(slotA, slotB) then
+    return false, "Incompatible link badges"
+  end
+
+  local wm = resolveWm(app)
+
+  if M.isSourceSlot(slotA) and M.isSourceSlot(slotB) then
+    if slotA == PALETTE_SOURCE and slotB == PALETTE_SOURCE then
+      return canRetargetPaletteSources(winA, winB, wm)
+    end
+    if slotA == PATTERN_SOURCE and slotB == PATTERN_SOURCE then
+      return canRetargetPatternSources(winA, winB, wm)
+    end
+    return false, "Incompatible link badges"
+  end
+
+  if M.isDestinationSlot(slotA) and M.isDestinationSlot(slotB) then
+    if PALETTE_DEST[slotA] and PALETTE_DEST[slotB] then
+      local pal = PaletteLinkController.getPreferredLinkedPaletteWindow(winA, wm)
+      if not pal then
+        return false, "No palette connection to move"
+      end
+      return canLinkPaletteSourceDest(pal, winB)
+    end
+    local kindA = destPatternKind(slotA)
+    local kindB = destPatternKind(slotB)
+    if kindA and kindA == kindB then
+      local pt = destPatternLinkedPt(winA, slotA, wm)
+      if not pt then
+        return false, "No pattern table connection to move"
+      end
+      if SketchCanvasPackController.isSketchOwnedPatternTable(pt, wm)
+        and not WindowCaps.isSketchCanvas(winB)
+      then
+        return false, "Cannot move sketch-owned pattern table links this way"
+      end
+      return canLinkPatternSourceDest(pt, winB, slotB)
+    end
+    return false, "Incompatible link badges"
+  end
+
+  local paletteWin, destWin = resolvePalettePair(winA, slotA, winB, slotB)
+  if paletteWin then
+    return canLinkPaletteSourceDest(paletteWin, destWin)
+  end
+
+  local ptWin, consumer, destSlot = resolvePatternPair(winA, slotA, winB, slotB)
+  if not ptWin then
+    return false, "Incompatible link badges"
+  end
+  return canLinkPatternSourceDest(ptWin, consumer, destSlot)
+end
+
 local function afterPatternTableLinkChange(app, contentWin, layerIndex)
   if not (app and contentWin and layerIndex) then
     return
@@ -254,13 +410,6 @@ local function afterPatternTableLinkChange(app, contentWin, layerIndex)
   if type(app._afterPatternTableLinkChange) == "function" then
     app:_afterPatternTableLinkChange(contentWin, layerIndex)
   end
-end
-
-local function normalizeLinkedPatternTableWindowId(id)
-  if type(id) == "string" and id ~= "" then
-    return id
-  end
-  return nil
 end
 
 local function snapshotPatternTableLayer(win, layerIndex)
@@ -489,11 +638,185 @@ local function applyPatternLink(app, ptWin, destWin, destSlot)
   return ok == true
 end
 
+local function applyPatternSourceRetarget(app, fromPt, toPt)
+  local wm = resolveWm(app)
+  local consumers = PatternTableDisplayController.getLinkedConsumersForPatternTable(wm, fromPt)
+  local batchBefore = {}
+  for _, entry in ipairs(consumers) do
+    if entry.kind ~= "sketch_canvas" and type(entry.layerIndex) == "number" then
+      batchBefore[#batchBefore + 1] = {
+        win = entry.win,
+        layerIndex = entry.layerIndex,
+        beforeSnap = snapshotPatternTableLayer(entry.win, entry.layerIndex),
+      }
+    end
+  end
+  if #batchBefore == 0 then
+    if app and app.setStatus then
+      app:setStatus("No pattern table connections to move")
+    end
+    return false
+  end
+  local moved = 0
+  for _, entry in ipairs(batchBefore) do
+    if PatternTableDisplayController.linkContentLayerToPatternTableWindow(entry.win, entry.layerIndex, toPt) then
+      moved = moved + 1
+    end
+  end
+  if moved <= 0 then
+    if app and app.setStatus then
+      app:setStatus("Pattern table link failed")
+    end
+    return false
+  end
+  pushPatternTableLinkUndoBatch(app, batchBefore)
+  for _, entry in ipairs(batchBefore) do
+    afterPatternTableLinkChange(app, entry.win, entry.layerIndex)
+  end
+  if app and app.setStatus then
+    app:setStatus(string.format(
+      "Moved %d pattern table connection%s from %s to %s",
+      moved,
+      moved == 1 and "" or "s",
+      tostring(fromPt.title or "pattern table"),
+      tostring(toPt.title or "pattern table")
+    ))
+  end
+  return true
+end
+
+local function applyPatternDestRetarget(app, fromWin, fromSlot, toWin, toSlot)
+  local wm = resolveWm(app)
+  local pt, fromLayerIndex, fromKind = destPatternLinkedPt(fromWin, fromSlot, wm)
+  if not pt then
+    if app and app.setStatus then
+      app:setStatus("No pattern table connection to move")
+    end
+    return false
+  end
+
+  local batchBefore = {}
+  if fromKind == "sketch" then
+    local beforeLinkedId = fromWin.linkedPatternTableWindowId
+    local beforePack = SketchCanvasPackController.snapshotPackFields(fromWin)
+    local linked = applyPatternLink(app, pt, toWin, toSlot)
+    if not linked then
+      return false
+    end
+    SketchCanvasPackController.unlinkSketchPatternTable(fromWin, wm, { toast = false })
+    pushSketchPatternTableLinkUndo(app, fromWin, nil, beforeLinkedId, beforePack, nil)
+    return true
+  end
+
+  local function addLayerSnap(win, li)
+    if win and type(li) == "number" then
+      batchBefore[#batchBefore + 1] = {
+        win = win,
+        layerIndex = li,
+        beforeSnap = snapshotPatternTableLayer(win, li),
+      }
+    end
+  end
+
+  if toSlot == "oam_pattern" and WindowCaps.isOamAnimation(toWin) then
+    for li, layer in ipairs(toWin.layers or {}) do
+      if layer and layer.kind == "sprite" then
+        addLayerSnap(toWin, li)
+      end
+    end
+    if not PatternTableDisplayController.linkAllOamSpriteLayersToPatternTableWindow(toWin, pt) then
+      if app and app.setStatus then
+        app:setStatus("Pattern table link failed")
+      end
+      return false
+    end
+  elseif toSlot == "ppu_pattern_bg" and WindowCaps.isSketchCanvas(toWin) then
+    local linked = applyPatternLink(app, pt, toWin, toSlot)
+    if not linked then
+      return false
+    end
+  else
+    local toLayerIndex
+    if toSlot == "ppu_pattern_bg" then
+      toLayerIndex = findPpuNametableTileLayerIndex(toWin)
+    elseif toSlot == "ppu_pattern_sprite" then
+      toLayerIndex = findFirstSpriteLayerIndex(toWin)
+    end
+    addLayerSnap(toWin, toLayerIndex)
+    if not toLayerIndex
+      or not PatternTableDisplayController.linkContentLayerToPatternTableWindow(toWin, toLayerIndex, pt)
+    then
+      if app and app.setStatus then
+        app:setStatus("Pattern table link failed")
+      end
+      return false
+    end
+  end
+
+  if fromSlot == "oam_pattern" and WindowCaps.isOamAnimation(fromWin) then
+    for li, layer in ipairs(fromWin.layers or {}) do
+      if layer and layer.kind == "sprite" and normalizeLinkedPatternTableWindowId(layer.linkedPatternTableWindowId) == pt._id then
+        addLayerSnap(fromWin, li)
+        PatternTableDisplayController.unlinkContentLayerPatternTable(fromWin, li)
+      end
+    end
+  elseif type(fromLayerIndex) == "number" then
+    addLayerSnap(fromWin, fromLayerIndex)
+    PatternTableDisplayController.unlinkContentLayerPatternTable(fromWin, fromLayerIndex)
+  end
+
+  pushPatternTableLinkUndoBatch(app, batchBefore)
+  for _, entry in ipairs(batchBefore) do
+    afterPatternTableLinkChange(app, entry.win, entry.layerIndex)
+  end
+  if app and app.setStatus then
+    app:setStatus(string.format(
+      "Moved pattern table link from %s to %s",
+      tostring(fromWin.title or "window"),
+      tostring(toWin.title or "window")
+    ))
+  end
+  return true
+end
+
 function M.applyLink(app, winA, slotA, winB, slotB)
-  local ok = M.canLinkWindows(winA, slotA, winB, slotB)
+  local ok = M.canLinkWindows(winA, slotA, winB, slotB, app)
   if not ok then
     return false
   end
+  local wm = resolveWm(app)
+
+  if slotA == PALETTE_SOURCE and slotB == PALETTE_SOURCE then
+    local targets = PaletteLinkController.getLinkedTargetsForPalette(wm, winA)
+    local moved = PaletteLinkController.moveAllLinksToPalette(wm, winA, winB)
+    if moved then
+      for _, entry in ipairs(targets or {}) do
+        afterPaletteLinkChange(app, entry.win, entry.layerIndex, winB)
+      end
+    end
+    return moved == true
+  end
+
+  if slotA == PATTERN_SOURCE and slotB == PATTERN_SOURCE then
+    return applyPatternSourceRetarget(app, winA, winB)
+  end
+
+  if PALETTE_DEST[slotA] and PALETTE_DEST[slotB] then
+    local pal = PaletteLinkController.getPreferredLinkedPaletteWindow(winA, wm)
+    local moved, err = PaletteLinkController.retargetDestPaletteLink(winA, winB, wm)
+    if moved then
+      afterPaletteLinkChange(app, winB, getActiveLayerIndex(winB), pal)
+      afterPaletteLinkChange(app, winA, getActiveLayerIndex(winA), pal)
+    elseif app and app.setStatus then
+      app:setStatus(err or "Palette link failed")
+    end
+    return moved == true
+  end
+
+  if destPatternKind(slotA) and destPatternKind(slotA) == destPatternKind(slotB) then
+    return applyPatternDestRetarget(app, winA, slotA, winB, slotB)
+  end
+
   local paletteWin, destWin = resolvePalettePair(winA, slotA, winB, slotB)
   if paletteWin then
     return applyPaletteLink(app, paletteWin, destWin)
@@ -548,7 +871,7 @@ function M.resolveDropTarget(app, sourceWin, sourceSlot, x, y)
   local layouts = getLayouts(app)
   local hoverWin, hoverSlot = WindowLinkVisibility.resolveTopLinkHandleAt(app, x, y, layouts)
   if hoverWin and hoverSlot and hoverWin ~= sourceWin then
-    if M.canLinkWindows(sourceWin, sourceSlot, hoverWin, hoverSlot) then
+    if M.canLinkWindows(sourceWin, sourceSlot, hoverWin, hoverSlot, app) then
       return hoverWin, hoverSlot
     end
     -- Illegal badge under pointer: report for unavailable cursor, but not as apply target.
@@ -570,7 +893,7 @@ function M.resolveDropTarget(app, sourceWin, sourceSlot, x, y)
     then
       local candidates = {}
       for _, slot in ipairs(destinationSlotsForWindow(win)) do
-        if M.canLinkWindows(sourceWin, sourceSlot, win, slot) then
+        if M.canLinkWindows(sourceWin, sourceSlot, win, slot, app) then
           candidates[#candidates + 1] = slot
         end
       end
@@ -704,7 +1027,7 @@ function M.updateHover(app, x, y)
   drag.currentY = y
   local hoverWin, hoverSlot, legal = M.resolveDropTarget(app, drag.sourceWin, drag.sourceSlot, x, y)
   if legal == nil and hoverWin and hoverSlot then
-    legal = M.canLinkWindows(drag.sourceWin, drag.sourceSlot, hoverWin, hoverSlot) == true
+    legal = M.canLinkWindows(drag.sourceWin, drag.sourceSlot, hoverWin, hoverSlot, app) == true
   end
   drag.hoverWin = hoverWin
   drag.hoverSlot = hoverSlot
@@ -730,7 +1053,7 @@ function M.finish(app, x, y)
   if wasActive then
     local targetWin, targetSlot, legal = M.resolveDropTarget(app, sourceWin, sourceSlot, x, y)
     if legal == nil and targetWin and targetSlot then
-      legal = M.canLinkWindows(sourceWin, sourceSlot, targetWin, targetSlot) == true
+      legal = M.canLinkWindows(sourceWin, sourceSlot, targetWin, targetSlot, app) == true
     end
     M.clearDrag(app)
     if legal and targetWin and targetSlot then

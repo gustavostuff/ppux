@@ -1557,4 +1557,124 @@ function M.moveAllLinksToPalette(wm, sourcePaletteWin, targetPaletteWin)
   return moveAllPaletteTargets(wm, sourcePaletteWin, targetPaletteWin)
 end
 
+local function getPreferredLinkedPaletteForDest(contentWin, wm)
+  if not (contentWin and contentWin.layers) then
+    return nil, nil
+  end
+  local function paletteFromLayer(layer)
+    local id = layer and layer.paletteData and layer.paletteData.winId
+    if type(id) ~= "string" or id == "" or not (wm and wm.findWindowById) then
+      return nil
+    end
+    local pal = wm:findWindowById(id)
+    if WindowCaps.isRomPaletteWindow(pal) and pal._closed ~= true then
+      return pal
+    end
+    return nil
+  end
+  local activeIdx = (contentWin.getActiveLayerIndex and contentWin:getActiveLayerIndex()) or contentWin.activeLayer or 1
+  local activePal = paletteFromLayer(contentWin.layers[activeIdx])
+  if activePal then
+    return activePal, activeIdx
+  end
+  for _, li in ipairs(collectNumericLayerKeys(contentWin.layers)) do
+    local pal = paletteFromLayer(contentWin.layers[li])
+    if pal then
+      return pal, li
+    end
+  end
+  return nil, nil
+end
+
+function M.getPreferredLinkedPaletteWindow(contentWin, wm)
+  local pal = getPreferredLinkedPaletteForDest(contentWin, wm)
+  return pal
+end
+
+--- Move dest `fromWin`'s palette link onto `toWin` (replaces toWin's current palette). Unlinks fromWin.
+function M.retargetDestPaletteLink(fromWin, toWin, wm)
+  if not (fromWin and toWin) or fromWin == toWin then
+    return false, "Palette link failed"
+  end
+  local pal = getPreferredLinkedPaletteForDest(fromWin, wm)
+  if not pal then
+    return false, "No palette connection to move"
+  end
+  local ok, toLiOrErr = M.canApplyToTarget(toWin, pal)
+  if not ok then
+    return false, toLiOrErr
+  end
+  if WindowCaps.isSketchCanvas(toWin) then
+    if pal.paletteRole ~= "sketch" then
+      return false, "Sketch canvases need a sketch-mode ROM palette"
+    end
+  elseif pal.paletteRole == "sketch" then
+    return false, "Sketch-mode palettes link only to sketch canvases"
+  end
+
+  local toLi = toLiOrErr
+  local toLayer = toWin.layers and toWin.layers[toLi]
+  if not toLayer then
+    return false, "Target window has no active layer"
+  end
+
+  local actions = {}
+  local beforeTo = clonePaletteData(toLayer.paletteData or nil)
+  local alreadyLinked = beforeTo and beforeTo.winId == pal._id
+  if not alreadyLinked then
+    toLayer.paletteData = { winId = pal._id }
+    if WindowCaps.isSketchCanvas(toWin) then
+      local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+      SketchPalette.onLinkedToPalette(toWin, pal)
+    end
+    actions[#actions + 1] = {
+      win = toWin,
+      layerIndex = toLi,
+      beforePaletteData = beforeTo,
+      afterPaletteData = clonePaletteData(toLayer.paletteData or nil),
+    }
+  end
+
+  local fromUnlinkedSketch = false
+  for _, li in ipairs(collectNumericLayerKeys(fromWin.layers)) do
+    local layer = fromWin.layers[li]
+    local pd = layer and layer.paletteData or nil
+    if pd and pd.winId == pal._id then
+      local beforeFrom = clonePaletteData(pd)
+      if clearPaletteWinIdLink(layer) then
+        actions[#actions + 1] = {
+          win = fromWin,
+          layerIndex = li,
+          beforePaletteData = beforeFrom,
+          afterPaletteData = clonePaletteData(layer.paletteData or nil),
+        }
+        if WindowCaps.isSketchCanvas(fromWin) then
+          fromUnlinkedSketch = true
+        end
+      end
+    end
+  end
+
+  if #actions == 0 then
+    return false, "No palette connection to move"
+  end
+
+  pushPaletteLinkUndo(actions)
+  invalidatePaletteLinkedPpuLayersForActions(actions)
+  if fromUnlinkedSketch then
+    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+    SketchPalette.onUnlinkedFromPalette(fromWin)
+  end
+
+  local app = getApp()
+  if app and app.setStatus then
+    app:setStatus(string.format(
+      "Moved palette link from %s to %s",
+      fromWin.title or "window",
+      toWin.title or "window"
+    ))
+  end
+  return true
+end
+
 return M

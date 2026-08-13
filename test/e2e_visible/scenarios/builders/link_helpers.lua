@@ -69,26 +69,27 @@ function M.assertPatternMapBankAndTile(layer, logicalIndex, expectedBank, expect
 end
 
 --- Hydrate PPU fixture nametable range (written by setupDeterministicPpuFixture).
+--- Full ROM decode once; later calls only refresh CHR visuals from the current PT link.
 function M.hydratePpuFixtureNametable(app, runner)
   local ppu = M.requireRunnerWindow(runner, "ppuFixtureWin")
   local bgIdx = assert(M.findFirstLayerIndexByKind(ppu, "tile"), "expected PPU tile layer")
   local layer = assert(ppu.layers[bgIdx], "expected bg layer")
   layer.nametableStartAddr = assert(runner.ppuFixtureRangeStart, "expected fixture range start")
   layer.nametableEndAddr = assert(runner.ppuFixtureRangeEnd, "expected fixture range end")
-  if app.hydrateNametableLayerIfReady then
-    app:hydrateNametableLayerIfReady(ppu, layer, bgIdx)
-  elseif ppu.refreshNametableVisuals and app.appEditState then
-    ppu:refreshNametableVisuals(app.appEditState.tilesPool, bgIdx)
+  local hasBytes = type(ppu.nametableBytes) == "table" and #ppu.nametableBytes > 0
+  if not hasBytes then
+    if app.hydrateNametableLayerIfReady then
+      app:hydrateNametableLayerIfReady(ppu, layer, bgIdx)
+    elseif ppu.refreshNametableVisuals and app.appEditState then
+      ppu:refreshNametableVisuals(app.appEditState.tilesPool, bgIdx)
+    end
   end
   return ppu, bgIdx, layer
 end
 
 function M.assertPpuCellMatchesPatternMap(app, runner, col, row, logicalIndex)
   local ppu, bgIdx, layer = M.hydratePpuFixtureNametable(app, runner)
-  -- Re-read after hydrate/refresh from current link.
-  if app._afterPatternTableLinkChange then
-    app:_afterPatternTableLinkChange(ppu, bgIdx)
-  elseif ppu.refreshNametableVisuals and app.appEditState then
+  if ppu.refreshNametableVisuals and app.appEditState then
     ppu:refreshNametableVisuals(app.appEditState.tilesPool, bgIdx)
   end
   local entry = M.patternMapEntry(layer, logicalIndex)

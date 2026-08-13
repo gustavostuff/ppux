@@ -266,6 +266,97 @@ local function buildPatternTableLinkConsequencesScenario(harness, app, runner)
     assert(linked >= 1, "expected at least one OAM sprite layer")
   end)
 
+  -- Same-side source→source before sketch owns PT A.
+  -- PT B's right-edge source badge sits on the OAM window; park OAM so the drop hits PT B.
+  steps[#steps + 1] = call("Park OAM so PT B source badge is droppable", function(_, currentApp, currentRunner)
+    local oam = H.requireRunnerWindow(currentRunner, "oamFixtureWin")
+    currentRunner.oamPosBeforePtSourceMove = { x = oam.x, y = oam.y }
+    oam.x = 520
+    oam.y = 280
+    local ptB = H.requireRunnerWindow(currentRunner, "patternTableBWin")
+    if currentApp.wm.bringToFront then
+      currentApp.wm:bringToFront(ptB)
+    end
+  end)
+  H.appendBadgeDragLink(
+    steps,
+    "Move all PT A consumers onto PT B source badge",
+    "patternTableAWin",
+    "pattern_source",
+    "patternTableBWin",
+    "pattern_source"
+  )
+  steps[#steps + 1] = call("Assert source-to-source moved PPU sprite and OAM onto PT B", function(_, _, currentRunner)
+    local ppu = H.requireRunnerWindow(currentRunner, "ppuFixtureWin")
+    local oam = H.requireRunnerWindow(currentRunner, "oamFixtureWin")
+    local ptA = H.requireRunnerWindow(currentRunner, "patternTableAWin")
+    local ptB = H.requireRunnerWindow(currentRunner, "patternTableBWin")
+    local sprIdx = assert(H.findFirstLayerIndexByKind(ppu, "sprite"), "expected sprite layer")
+    assert(H.layerPatternTableWinId(ppu, sprIdx) == ptB._id, "expected PPU sprite moved onto PT B")
+    assert(H.layerPatternTableWinId(ppu, sprIdx) ~= ptA._id, "expected PPU sprite no longer on PT A")
+    H.assertPatternMapBankAndTile(ppu.layers[sprIdx], 6, currentRunner.ptBankB, currentRunner.ptBExpectedTileByte)
+    for _, layer in ipairs(oam.layers or {}) do
+      if layer and layer.kind == "sprite" then
+        assert(layer.linkedPatternTableWindowId == ptB._id, "expected OAM moved onto PT B")
+        H.assertPatternMapBankAndTile(layer, 0, currentRunner.ptBankB, currentRunner.ptBExpectedTileByte - 6)
+      end
+    end
+  end)
+  steps[#steps + 1] = pause("Observe PT source move", 0.25)
+  steps[#steps + 1] = keyPress("Undo PT source move", "z", { "lctrl" })
+  steps[#steps + 1] = pause("Observe PT source-move undo", 0.2)
+  steps[#steps + 1] = call("Assert undo restored PPU sprite and OAM onto PT A", function(_, _, currentRunner)
+    local ppu = H.requireRunnerWindow(currentRunner, "ppuFixtureWin")
+    local oam = H.requireRunnerWindow(currentRunner, "oamFixtureWin")
+    local ptA = H.requireRunnerWindow(currentRunner, "patternTableAWin")
+    local sprIdx = assert(H.findFirstLayerIndexByKind(ppu, "sprite"), "expected sprite layer")
+    assert(H.layerPatternTableWinId(ppu, sprIdx) == ptA._id, "expected undo back to PT A")
+    H.assertPatternMapBankAndTile(ppu.layers[sprIdx], 6, currentRunner.ptBankA, 6)
+    for _, layer in ipairs(oam.layers or {}) do
+      if layer and layer.kind == "sprite" then
+        assert(layer.linkedPatternTableWindowId == ptA._id, "expected OAM undo back to PT A")
+      end
+    end
+  end)
+  steps[#steps + 1] = call("Restore OAM position after PT source move", function(_, _, currentRunner)
+    local oam = H.requireRunnerWindow(currentRunner, "oamFixtureWin")
+    local pos = currentRunner.oamPosBeforePtSourceMove
+    if pos then
+      oam.x = pos.x
+      oam.y = pos.y
+    end
+  end)
+
+  -- Same-side dest→dest: PPU sprite (A) onto OAM sprite slot moves A onto OAM and unlinks PPU sprite.
+  H.appendBadgeDragLink(
+    steps,
+    "Move PPU sprite dest badge onto OAM pattern badge",
+    "ppuFixtureWin",
+    "ppu_pattern_sprite",
+    "oamFixtureWin",
+    "oam_pattern"
+  )
+  steps[#steps + 1] = call("Assert dest-to-dest unlinked PPU sprite and kept OAM on PT A", function(_, _, currentRunner)
+    local ppu = H.requireRunnerWindow(currentRunner, "ppuFixtureWin")
+    local oam = H.requireRunnerWindow(currentRunner, "oamFixtureWin")
+    local ptA = H.requireRunnerWindow(currentRunner, "patternTableAWin")
+    local sprIdx = assert(H.findFirstLayerIndexByKind(ppu, "sprite"), "expected sprite layer")
+    assert(H.layerPatternTableWinId(ppu, sprIdx) ~= ptA._id, "expected PPU sprite unlinked after dest move")
+    for _, layer in ipairs(oam.layers or {}) do
+      if layer and layer.kind == "sprite" then
+        assert(layer.linkedPatternTableWindowId == ptA._id, "expected OAM still on PT A")
+      end
+    end
+  end)
+  H.appendBadgeDragLink(
+    steps,
+    "Restore PPU sprite link to PT A after dest move",
+    "patternTableAWin",
+    "pattern_source",
+    "ppuFixtureWin",
+    "ppu_pattern_sprite"
+  )
+
   -- Sketch window-level link.
   H.appendBadgeDragLink(
     steps,
