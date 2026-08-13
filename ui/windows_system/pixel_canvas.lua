@@ -16,6 +16,7 @@ function PixelCanvas.new(width, height, fillValue)
   self.pixels = {}
   self.imgData = nil
   self.image = nil
+  self._rev = 0
   self._imageDirty = true
 
   local count = self.width * self.height
@@ -26,12 +27,17 @@ function PixelCanvas.new(width, height, fillValue)
   return self
 end
 
+function PixelCanvas:markContentChanged()
+  self._rev = (self._rev or 0) + 1
+  self._imageDirty = true
+end
+
 function PixelCanvas:clone()
   local other = PixelCanvas.new(self.width, self.height, self.fillValue)
   for i = 1, #self.pixels do
     other.pixels[i] = self.pixels[i]
   end
-  other._imageDirty = true
+  other:markContentChanged()
   return other
 end
 
@@ -45,7 +51,7 @@ function PixelCanvas:clear(fillValue)
   for i = 1, #self.pixels do
     self.pixels[i] = value
   end
-  self._imageDirty = true
+  self:markContentChanged()
   if self.imgData and self.image then
     self:refreshImage()
   end
@@ -74,6 +80,7 @@ function PixelCanvas:edit(x, y, color)
   end
 
   self.pixels[idx] = value
+  self._rev = (self._rev or 0) + 1
   if self.imgData and self.image then
     self.imgData:setPixel(x, y, idxToRGBA(value))
     self.image:replacePixels(self.imgData)
@@ -179,7 +186,7 @@ function PixelCanvas:loadTilePixels(tileX, tileY, pixels, tileH)
   end
   -- Defer ImageData upload to refreshImage/draw (avoid per-pixel replacePixels).
   if any then
-    self._imageDirty = true
+    self:markContentChanged()
   end
 end
 
@@ -219,7 +226,7 @@ function PixelCanvas:extractRect(x, y, w, h)
       out.pixels[py * rw + px + 1] = self:getPixel(x + px, y + py) or self.fillValue
     end
   end
-  out._imageDirty = true
+  out:markContentChanged()
   return out, x, y, rw, rh
 end
 
@@ -230,6 +237,7 @@ function PixelCanvas:loadRect(destX, destY, source, sourceW, sourceH)
   destY = math.floor(tonumber(destY) or 0)
   local Native = require("utils.ppux_sketch_native")
   if Native.isAvailable() and Native.blitIntoCanvas(self, source, destX, destY, sourceW, sourceH) then
+    self:markContentChanged()
     return true
   end
 
@@ -266,7 +274,7 @@ function PixelCanvas:loadRect(destX, destY, source, sourceW, sourceH)
     end
   end
   if any then
-    self._imageDirty = true
+    self:markContentChanged()
   end
   return any
 end
@@ -283,6 +291,7 @@ function PixelCanvas:fillRect(x, y, w, h, value)
   end
   local Native = require("utils.ppux_sketch_native")
   if Native.isAvailable() and Native.fillCanvasRect(self, x, y, w, h, value) then
+    self:markContentChanged()
     return true
   end
   local any = false
@@ -300,7 +309,7 @@ function PixelCanvas:fillRect(x, y, w, h, value)
     end
   end
   if any then
-    self._imageDirty = true
+    self:markContentChanged()
   end
   return any
 end

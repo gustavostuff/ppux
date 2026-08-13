@@ -1151,7 +1151,10 @@ function M.drawLinkEdge(app, edge, layouts)
   drawLinkPolyline(points, LINE_WIDTH, lineColor, lineAlpha)
 end
 
-local function windowZIndex(wm, win)
+local function windowZIndex(state, wm, win)
+  if state and state.zIndexByWin and win then
+    return state.zIndexByWin[win] or 0
+  end
   if not (wm and win and wm.getWindows) then
     return 0
   end
@@ -1163,7 +1166,7 @@ local function windowZIndex(wm, win)
   return 0
 end
 
-local function getEdgeDrawOwnerBackmost(wm, edge)
+local function getEdgeDrawOwnerBackmost(wm, edge, state)
   if not edge then
     return nil
   end
@@ -1178,13 +1181,13 @@ local function getEdgeDrawOwnerBackmost(wm, edge)
   if not (fromWin and toWin) then
     return fromWin or toWin
   end
-  if windowZIndex(wm, fromWin) <= windowZIndex(wm, toWin) then
+  if windowZIndex(state, wm, fromWin) <= windowZIndex(state, wm, toWin) then
     return fromWin
   end
   return toWin
 end
 
-local function getEdgeDrawOwnerFrontmost(wm, edge)
+local function getEdgeDrawOwnerFrontmost(wm, edge, state)
   if not edge then
     return nil
   end
@@ -1199,15 +1202,15 @@ local function getEdgeDrawOwnerFrontmost(wm, edge)
   if not (fromWin and toWin) then
     return fromWin or toWin
   end
-  if windowZIndex(wm, fromWin) >= windowZIndex(wm, toWin) then
+  if windowZIndex(state, wm, fromWin) >= windowZIndex(state, wm, toWin) then
     return fromWin
   end
   return toWin
 end
 
-local function edgeEndpointsDifferInZOrder(wm, edge)
-  local back = getEdgeDrawOwnerBackmost(wm, edge)
-  local front = getEdgeDrawOwnerFrontmost(wm, edge)
+local function edgeEndpointsDifferInZOrder(wm, edge, state)
+  local back = getEdgeDrawOwnerBackmost(wm, edge, state)
+  local front = getEdgeDrawOwnerFrontmost(wm, edge, state)
   return back and front and back ~= front
 end
 
@@ -1254,8 +1257,35 @@ local function scissorForEdgeEndpoints(edge, pad)
   return true
 end
 
+--- Draw-pass cache: shadows + window overlays share one layout; cleared after draw.
+function M.beginDrawPass(app)
+  if not app then
+    return
+  end
+  app._windowLinkDrawPass = true
+  app._windowLinkDrawCached = false
+  app._windowLinkDrawStateCache = nil
+end
+
+function M.endDrawPass(app)
+  if not app then
+    return
+  end
+  app._windowLinkDrawPass = false
+  app._windowLinkDrawCached = false
+  app._windowLinkDrawStateCache = nil
+end
+
 function M.prepareLinkDrawState(app)
+  if app and app._windowLinkDrawPass and app._windowLinkDrawCached then
+    return app._windowLinkDrawStateCache
+  end
+
   if app and Shared.modalBlocksWorkspaceInteractions(app) then
+    if app._windowLinkDrawPass then
+      app._windowLinkDrawCached = true
+      app._windowLinkDrawStateCache = nil
+    end
     return nil
   end
 
@@ -1274,22 +1304,54 @@ function M.prepareLinkDrawState(app)
     end
   end
   if #visibleEdges == 0 and #handles == 0 then
+    if app and app._windowLinkDrawPass then
+      app._windowLinkDrawCached = true
+      app._windowLinkDrawStateCache = nil
+    end
     return nil
   end
 
-  return {
+  local wm = app and app.wm
+  local zIndexByWin = {}
+  local handlesByWin = {}
+  if wm and wm.getWindows then
+    for i, win in ipairs(wm:getWindows()) do
+      zIndexByWin[win] = i
+    end
+  end
+  for _, handle in ipairs(handles) do
+    local win = handle and handle.win
+    if win then
+      local list = handlesByWin[win]
+      if not list then
+        list = {}
+        handlesByWin[win] = list
+      end
+      list[#list + 1] = handle
+    end
+  end
+
+  local state = {
     app = app,
     layouts = layouts,
     handles = handles,
+    handlesByWin = handlesByWin,
     visibleEdges = visibleEdges,
+    zIndexByWin = zIndexByWin,
   }
+  if app and app._windowLinkDrawPass then
+    app._windowLinkDrawCached = true
+    app._windowLinkDrawStateCache = state
+  end
+  return state
 end
 
 local function drawHandlesForWindow(app, win, state, drawFn)
   if not (app and win and state and drawFn) then
     return
   end
-  for _, handle in ipairs(state.handles or {}) do
+  local handles = (state.handlesByWin and state.handlesByWin[win]) or state.handles or {}
+  for _, handle in ipairs(handles) do
     if handle.win ~= win then
       goto continue_handle
     end
@@ -1348,10 +1410,10 @@ function M.drawWindowLinkLines(app, win, state)
     if edgeHasTaskbarEndpoint(edge, state.layouts) then
       goto continue_edge
     end
-    if getEdgeDrawOwnerBackmost(wm, edge) ~= win then
+    if getEdgeDrawOwnerBackmost(wm, edge, state) ~= win then
       goto continue_edge
     end
-    if edgeEndpointsDifferInZOrder(wm, edge) or getEdgeDrawOwnerFrontmost(wm, edge) == win then
+    if edgeEndpointsDifferInZOrder(wm, edge, state) or getEdgeDrawOwnerFrontmost(wm, edge, state) == win then
       M.drawLinkEdge(app, edge, state.layouts)
     end
     ::continue_edge::
@@ -1391,7 +1453,7 @@ function M.drawWindowLinkLinesFrontmostOverlay(app, state)
 
   love.graphics.push("all")
   for _, edge in ipairs(state.visibleEdges or {}) do
-    if not edgeEndpointsDifferInZOrder(wm, edge) then
+    if not edgeEndpointsDifferInZOrder(wm, edge, state) then
       goto continue_edge
     end
     if scissorForEdgeEndpoints(edge, 6) then

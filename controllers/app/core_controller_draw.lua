@@ -714,6 +714,7 @@ local function drawHUD(app)
 end
 
 function AppCoreController:draw()  
+  WindowLinkVisualController.beginDrawPass(self)
   DebugController.perfBeginFrame()
   love.graphics.setCanvas({ self.canvas, depthstencil = true })
   if ChrCanvasOnlyMode.isActive(self) then
@@ -741,6 +742,7 @@ function AppCoreController:draw()
       drawHUD(self)
     end
     DebugController.perfEndFrame()
+    WindowLinkVisualController.endDrawPass(self)
     return
   end
 
@@ -787,6 +789,7 @@ function AppCoreController:draw()
     drawHUD(self)
   end
   DebugController.perfEndFrame()
+  WindowLinkVisualController.endDrawPass(self)
 end
 
 function AppCoreController:resize(w, h)

@@ -53,9 +53,34 @@ local function getRomPaletteBgColorForWindow(win, wm)
 
   return nil
 end
-local function renderWindowChessPattern(window, wm)
-  -- Pick base BG color: window ROM palette BG -> active generic palette BG -> black
-  local bgColor = getRomPaletteBgColorForWindow(window, wm) or getActiveGlobalPaletteBgColor(wm) or colors.black
+
+-- One quad per window instead of 2 fill rects per visible cell (12k+ draws on large chess grids).
+local chessGridShader = love.graphics.newShader([[
+extern vec2 u_origin;
+extern vec2 u_step;
+
+vec4 effect(vec4 color, Image tex, vec2 texCoord, vec2 screenCoord)
+{
+    float stepx = max(u_step.x, 1.0);
+    float stepy = max(u_step.y, 1.0);
+    vec2 rel = screenCoord - u_origin;
+    float cx = floor(rel.x / stepx);
+    float cy = floor(rel.y / stepy);
+    float parity = mod(cx + cy, 2.0);
+    if (parity < 0.0) {
+        parity += 2.0;
+    }
+    if (parity < 0.5) {
+        return color;
+    }
+    return vec4(0.0, 0.0, 0.0, 0.0);
+}
+]])
+
+local function renderWindowChessPattern(window)
+  if not window or window._collapsed then
+    return
+  end
   local grid = (window.getDisplayGridMetrics and window:getDisplayGridMetrics()) or {
     baseCellW = window.cellW or 8,
     baseCellH = window.cellH or 8,
@@ -63,30 +88,40 @@ local function renderWindowChessPattern(window, wm)
     cellH = window.cellH or 8,
     rowStride = 1,
   }
-  local chessRowSkip = GridOverlayMetrics.chessNominalRowSkip(window, grid)
-  local bandH = GridOverlayMetrics.overlayVerticalPeriodNes(window, grid)
+  local zoom = (window.getZoomLevel and window:getZoomLevel()) or window.zoom or 1
+  local stepX = (grid.cellW or 8) * zoom
+  local stepY = GridOverlayMetrics.overlayVerticalPeriodNes(window, grid) * zoom
+  if stepX <= 0 or stepY <= 0 then
+    return
+  end
 
-  window:drawGrid(function(col, row, x, y, cw, ch)
-    if chessRowSkip > 1 and (row % chessRowSkip) ~= 0 then
-      return
-    end
+  local sx, sy, sw, sh = window:getInsetContentScreenRect()
+  if not (sx and sy and sw and sh) or sw <= 0 or sh <= 0 then
+    return
+  end
 
-    love.graphics.setColor(bgColor)
-    love.graphics.rectangle("fill", x, y, cw + 1, bandH + 1)
+  -- Match drawGrid: origin is inset content minus full scroll (not modulo) so cell
+  -- parity follows grid indices when scrolling 8x16 bands by half a checker cell.
+  local cellW = grid.cellW or 8
+  local cellH = grid.cellH or 8
+  local originX = sx - (window.scrollCol or 0) * cellW * zoom
+  local originY = sy - (window.scrollRow or 0) * cellH * zoom
 
-    if (math.floor(row / chessRowSkip) + col) % 2 == 0 then
-      local color = colors.white
-      local checkerAlpha = 0.1
-      if ResolutionController.canvasCrtShaderEnabled == true
-          and (ResolutionController.canvasCrtFilterKind or "crt") == "composite" then
-        checkerAlpha = 0.2
-      end
-      love.graphics.setColor(color[1], color[2], color[3], checkerAlpha)
-      love.graphics.rectangle("fill", x, y, cw + 1, bandH + 1)
-    end
-  end)
+  local checkerAlpha = 0.1
+  if ResolutionController.canvasCrtShaderEnabled == true
+      and (ResolutionController.canvasCrtFilterKind or "crt") == "composite" then
+    checkerAlpha = 0.2
+  end
 
-  love.graphics.setColor(colors.white)
+  love.graphics.push("all")
+  CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
+  love.graphics.setShader(chessGridShader)
+  local ox, oy = love.graphics.transformPoint(originX, originY)
+  chessGridShader:send("u_origin", { ox, oy })
+  chessGridShader:send("u_step", { stepX, stepY })
+  love.graphics.setColor(1, 1, 1, checkerAlpha)
+  love.graphics.rectangle("fill", sx, sy, sw, sh)
+  love.graphics.pop()
 end
 
 local linesGridShader = love.graphics.newShader([[
@@ -638,30 +673,8 @@ local function drawCanvasLayer(app, w, layerIndex, isFocused)
     )
     love.graphics.setColor(colors.white)
   elseif useAttrPalette and canvas.drawRegion then
-    local cell = w.cellW or 8
-    local cols = w.cols or 32
-    local rows = w.rows or 30
-    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
-    -- BG sketch: color index 0 is a real palette color (not CHR/sprite transparency).
-    local opaqueBgZero = { transparentZero = false }
-    for row = 0, rows - 1 do
-      for col = 0, cols - 1 do
-        local palNum = SketchPalette.getTilePaletteNumber(w, col, row) or 1
-        ShaderPaletteController.applyLayerItemPalette(
-          layer,
-          canvas,
-          true,
-          romRaw,
-          palNum,
-          layerOpacity,
-          opaqueBgZero
-        )
-        local px = col * cell
-        local py = row * cell
-        canvas:drawRegion(px, py, px, py, cell, cell, 1)
-      end
-    end
-    ShaderPaletteController.releaseShader()
+    local SketchDisplay = require("controllers.game_art.sketch_canvas_display_controller")
+    SketchDisplay.drawAttrPalettized(app, w, canvas, layer, layerOpacity, romRaw)
   elseif WindowCaps.isSketchCanvas(w) then
     -- No linked sketch palette (unlinked or closed): default brown ramp in edit and tile mode.
     local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")

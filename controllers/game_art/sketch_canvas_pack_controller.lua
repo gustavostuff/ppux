@@ -829,6 +829,11 @@ function M.getReflectDisplayCanvas(sketchWin)
 
   local Native = require("utils.ppux_sketch_native")
   if Native.composeNametableInto(display, paint, sketchWin) then
+    if display.markContentChanged then
+      display:markContentChanged()
+    else
+      display._imageDirty = true
+    end
     sketchWin._reflectDisplayDirty = false
     return display
   end
@@ -893,7 +898,11 @@ function M.bakeReflectIntoPaint(sketchWin)
         paint.pixels[row + x + 1] = display.pixels[y * (display.width or w) + x + 1] or 0
       end
     end
-    paint._imageDirty = true
+    if paint.markContentChanged then
+      paint:markContentChanged()
+    else
+      paint._imageDirty = true
+    end
   end
 
   local pool = sketchWin.tilesPool
@@ -1622,7 +1631,11 @@ function M.restorePackFields(win, snap)
       for i = 1, n do
         canvas.pixels[i] = math.floor(tonumber(snap.paintPixels[i]) or 0)
       end
-      canvas._imageDirty = true
+      if canvas.markContentChanged then
+        canvas:markContentChanged()
+      else
+        canvas._imageDirty = true
+      end
     end
   end
   M.invalidateReflectDisplay(win)

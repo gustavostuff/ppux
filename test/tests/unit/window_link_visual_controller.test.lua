@@ -252,6 +252,28 @@ describe("window_link_visual_controller.lua", function()
     expect(LinkVisual.prepareLinkDrawState(app)).toBe(nil)
   end)
 
+  it("reuses prepareLinkDrawState within a draw pass only", function()
+    local wm = WM.new()
+    local rom = wm:createRomPaletteWindow({ title = "ROM", x = 20, y = 20 })
+    local art = wm:createTileWindow({ title = "Art", x = 200, y = 20 })
+    assert(require("controllers.palette.palette_link_controller").linkLayerToPalette(art, 1, rom))
+    local app = {
+      wm = wm,
+      windowLinksMode = "always",
+    }
+    LinkVisual.beginDrawPass(app)
+    local first = LinkVisual.prepareLinkDrawState(app)
+    local second = LinkVisual.prepareLinkDrawState(app)
+    expect(first ~= nil).toBe(true)
+    expect(second).toBe(first)
+    expect(first.zIndexByWin[rom]).toBeTruthy()
+    expect(first.handlesByWin[rom]).toBeTruthy()
+    LinkVisual.endDrawPass(app)
+    local third = LinkVisual.prepareLinkDrawState(app)
+    expect(third ~= nil).toBe(true)
+    expect(third == first).toBe(false)
+  end)
+
   it("collects partner windows for a pivot handle slot", function()
     local a = { _id = "a" }
     local b = { _id = "b" }
