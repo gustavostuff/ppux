@@ -65,7 +65,7 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 
 ### Window links
 
-You'll also notice these little **badges** on windows. When a badge is colored, it means that slot is linked.
+You'll also notice these little **badges** on windows. When a badge is colored, it means that slot/window is linked to another one.
 
 <img src="img/readme_images/badges.png" alt="Badges">
 
