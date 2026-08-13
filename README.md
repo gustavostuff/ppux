@@ -53,13 +53,13 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 | CHR Banks              | <img src="img/readme_images/windows_system_table/icon_chr_window.png" alt="CHR Banks taskbar icon">                      | Primary source window for CHR                                                                                                                    |
 | ROM Banks              | <img src="img/readme_images/windows_system_table/icon_rom_window.png" alt="ROM Banks taskbar icon">                      | Same as CHR Banks, but loads the whole ROM                                                                                                       |
 | Static Art (tiles)     | <img src="img/readme_images/windows_system_table/icon_static_tile_window.png" alt="Static Art tiles taskbar icon">       | Single-layer, grid-snapped tile assembly                                                                                                         |
-| Animation (tiles)      | <img src="img/readme_images/windows_system_table/icon_animated_tile_window.gif" alt="Animation tiles taskbar icon">      | Same, but multi layered.                                                                                                                         |
+| Animation (tiles)      | <img src="img/readme_images/windows_system_table/icon_animated_tile_window.gif" alt="Animation tiles taskbar icon">      | Same, but multi-layered.                                                                                                                         |
 | Static Art (sprites)   | <img src="img/readme_images/windows_system_table/icon_static_sprite_window.png" alt="Static Art sprites taskbar icon">   | Single-layer sprite composition, items are pixel-snapped                                                                                         |
-| Animation (sprites)    | <img src="img/readme_images/windows_system_table/icon_animated_sprite_window.gif" alt="Animation sprites taskbar icon">  | Same, but multi layered.                                                                                                                         |
+| Animation (sprites)    | <img src="img/readme_images/windows_system_table/icon_animated_sprite_window.gif" alt="Animation sprites taskbar icon">  | Same, but multi-layered.                                                                                                                         |
 | OAM Animation          | <img src="img/readme_images/windows_system_table/icon_oam_animated_window.gif" alt="OAM Animation taskbar icon">         | ROM-backed sprite animation, **requires a linked Pattern table** window for sprite CHR. Each sprite is created from a real ROM address (OAM)     |
 | Generic palette        | <img src="img/readme_images/windows_system_table/icon_palette_window.png" alt="Generic palette taskbar icon">            | Generic palette window for items without an assigned ROM palette (cycle them with PgUp/PgDown)                                                   |
 | ROM palette            | <img src="img/readme_images/windows_system_table/icon_rom_palette_window.png" alt="ROM palette taskbar icon">            | ROM palette editor: **ROM** role (addresses) or **Sketch** role (free 4x4 for sketch canvases)                                                   |
-| PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view. Without a pattern table link, the nametable still show a NT "shadow" (not interactive).
+| PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view. Without a pattern table link, the nametable still shows a NT "shadow" (not interactive). |
 | Pattern table          | <img src="img/readme_images/windows_system_table/icon_pattern_table_window.png" alt="Pattern table taskbar icon">        | Sub-set of CHR/ROM items, intended to mimic the actual pattern tables assembled in game run-time                                                 |
 | Sketch canvas          | <img src="img/readme_images/windows_system_table/icon_sketch_canvas_window.png" alt="Sketch canvas taskbar icon">        | Free 256x240 background paint canvas. It packs into its own **Pattern table**. See [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom)    |
 
@@ -73,7 +73,7 @@ You'll also notice these little **badges** on windows. When a badge is colored, 
 - Right-click a badge for the Link/Unlink/Jump menu for that slot.
 - Left-drag from a badge (empty or linked) onto a compatible badge on another window.
 
-Links can be reattached to a different consumer and keep the same source, or the other way around. It's a one-to-many relation ship (one source to N consumers).
+Links can be reattached to a different consumer and keep the same source, or the other way around. It's a one-to-many relationship (one source to N consumers).
 
 **Source windows/badges** (right edge)
 
@@ -186,7 +186,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 3. **Remove layer** - `-` key.
 4. **Add layer** - `+` key.
 5. **Add sprite** - Opens the [Add sprite](#hex-grid-flows) hex-grid modal (OAM).
-6. **Toggle origin guides** - toggles dotted reference lines, this is user defined, not something that comes from ROM data.
+6. **Toggle origin guides** - toggles dotted reference lines; this is user-defined, not something that comes from ROM data.
 7. **Copy from previous layer** - Copies the previous layer's sprites into the active layer.
 8. **Play/Pause** - `P` key. While focused, **`Shift` + `Left`/`Shift` + `Right`** adjusts frame delay for all frames.
 
@@ -247,7 +247,7 @@ A **Pattern table** link is **required** for sprite CHR.
 
 1. **Tile layout (8x8 / 8x16)** - straight `8x8` rows vs paired `8x16` layout - **`Ctrl + M`**.
 
-Note: Logical **ranges** are built by dragging tiles (multi selections, ideally) from **CHR Banks** or **ROM Banks** onto the pattern table content. Ranges must add up to **256** tiles for a complete map. When a **Sketch canvas** owns the pattern table, CHR/ROM drops are blocked and the catalog comes from Generate.
+Note: Logical **ranges** are built by dragging tiles (multi-selections, ideally) from **CHR Banks** or **ROM Banks** onto the pattern table content. Ranges must add up to **256** tiles for a complete map. When a **Sketch canvas** owns the pattern table, CHR/ROM drops are blocked and the catalog comes from Generate.
 
 </td>
 </tr>
@@ -323,7 +323,7 @@ Edit mode is for pixel-level editing.
 - `1` to `4` choose the active color.
 - `Alt + 1/2/3/4` or `Ctrl + Alt + mouse wheel` change brush size.
 - On a **Sketch canvas**: hold `C` and **left**-click to mask all pixels of the clicked color.
-- On a **Sketch canvas**: Hold `C` and **right**-click to clear the mask.
+- On a **Sketch canvas**: hold `C` and **right**-click to clear the mask.
 - On a **Sketch canvas**: `S` toggles region select (rectangular selection). Use shift for free-form selection.
 
 Note: clipboard (Ctrl + C/X/V) should work for both item selection (like tiles) and for pixel selections on Sketch Canvas windows.
@@ -453,7 +453,7 @@ paletteData = {
 
 The referenced window must also appear in the same `windows` array so palette resolution works. Pointing several windows at one `rom_palette` entry is how you share palette data without pasting the same hex over and over.
 
-`romPatches` apply small ROM patches from project data before windows are built, so you are already working on top of a patched ROM. This is for targeted graphics-related setup (force a game state, tweak a short byte sequence). It is not a full ROM hacking workflow and it's Lua only (No UI for this).
+`romPatches` apply small ROM patches from project data before windows are built, so you are already working on top of a patched ROM. This is for targeted graphics-related setup (force a game state, tweak a short byte sequence). It is not a full ROM hacking workflow and it's Lua only (no UI for this).
 
 Patches live on the project as a `romPatches` array. Every entry needs a non-empty `reason`. Values are single bytes (0-255). Addresses are unsigned integers. Three formats are supported:
 
