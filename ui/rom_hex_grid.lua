@@ -197,6 +197,8 @@ function M.new(opts)
     _underlinedGroupSizeByStart = {},
     _selectedGroupSizeByStart = {},
     minimapMarkers = {},
+    -- Optional separate list for boundAsSelected fills (ROM palette mapped cells).
+    boundPaintMarkers = nil,
     onSelect = opts.onSelect,
     -- Fired when scrollOffset changes (wheel, scrollbar drag, scrollToReveal).
     onScroll = opts.onScroll,
@@ -225,6 +227,8 @@ function M.new(opts)
     _userSelectedGroupSizeByStart = {},
     -- Draw minimap-marker spans as Selected fills (ROM palette bound addresses).
     boundAsSelected = opts.boundAsSelected == true,
+    -- When false, live selectedStarts are not appended to the minimap (caller composes markers).
+    minimapIncludeSelection = opts.minimapIncludeSelection ~= false,
     -- Legacy: ants on minimap markers (prefer boundAsSelected). Kept off by default.
     boundMarkerAnts = opts.boundMarkerAnts == true,
     boundMarkerAntsAlpha = tonumber(opts.boundMarkerAntsAlpha) or 0.5,
@@ -472,6 +476,8 @@ local function normalizeMinimapMarker(m)
     color = normalizedColor,
     groupCount = groupCount,
     groupSize = groupSize,
+    -- Search-only marks live on the mini maps without Selected/bound fills.
+    boundPaint = m.boundPaint ~= false,
   }
 end
 
@@ -486,15 +492,36 @@ function M:setMinimapMarkers(markers)
   self.minimapMarkers = out
 end
 
+--- Bound Selected fills, independent of what the mini maps currently display.
+function M:setBoundPaintMarkers(markers)
+  if markers == nil then
+    self.boundPaintMarkers = nil
+    return
+  end
+  local out = {}
+  for _, m in ipairs(markers) do
+    local normalized = normalizeMinimapMarker(m)
+    if normalized then
+      out[#out + 1] = normalized
+    end
+  end
+  self.boundPaintMarkers = out
+end
+
 function M:getMinimapMarkers()
   local out = {}
   for i, m in ipairs(self.minimapMarkers or {}) do
-    out[i] = {
+    local copy = {
       offset = m.offset,
       color = m.color,
       groupCount = m.groupCount,
       groupSize = m.groupSize,
     }
+    -- Only surface the opt-out; default bound paint stays implied.
+    if m.boundPaint == false then
+      copy.boundPaint = false
+    end
+    out[i] = copy
   end
   return out
 end
@@ -515,6 +542,9 @@ function M:_combinedMinimapMarkers()
   local out = {}
   for _, m in ipairs(self.minimapMarkers or {}) do
     out[#out + 1] = m
+  end
+  if self.minimapIncludeSelection == false then
+    return out
   end
   local colorFn = self.selectedColorForAddr
   for _, addr in ipairs(self.selectedStarts or {}) do
@@ -1772,11 +1802,17 @@ end
 function M:_boundMarkerStartsAndSpans()
   local starts = {}
   local spanByStart = {}
-  for _, m in ipairs(self.minimapMarkers or {}) do
-    local offset = m.offset
-    if type(offset) == "number" then
-      starts[#starts + 1] = offset
-      spanByStart[offset] = M.minimapMarkerByteLength(m)
+  local markers = self.boundPaintMarkers
+  if type(markers) ~= "table" then
+    markers = self.minimapMarkers or {}
+  end
+  for _, m in ipairs(markers) do
+    if m.boundPaint ~= false then
+      local offset = m.offset
+      if type(offset) == "number" then
+        starts[#starts + 1] = offset
+        spanByStart[offset] = M.minimapMarkerByteLength(m)
+      end
     end
   end
   return starts, spanByStart
@@ -2001,6 +2037,15 @@ function M:draw()
       selectedSpanByStart,
       span
     )
+    -- Search underlines win over bound Selected so inactive hits stay Underlined.
+    boundDraw = filterStartsOutsideBlockers(
+      boundDraw,
+      boundSpans,
+      1,
+      underlined,
+      underlinedSpanByStart,
+      span
+    )
   end
 
   local function mergeBlockers(baseStarts, baseSpans, extraStarts, extraSpans)
@@ -2199,7 +2244,10 @@ function M:draw()
         local rejectHidden = type(self.canSelectAddr) == "function"
           and not self.canSelectAddr(addr)
           and self.rejectedCellStyle == "hidden"
-        if not rejectHidden then
+        local occupied = #coveringDis > 0 or #covering > 0 or #coveringBound > 0
+          or #coveringUnderlined > 0 or #coveringSemi > 0
+        -- Hidden invalids stay empty unless another state (search/bound/pick) owns the cell.
+        if not rejectHidden or occupied then
           byteText = string.format("%02X", string.byte(self.romRaw, addr + 1) or 0)
         end
       end

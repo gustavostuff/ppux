@@ -1,5 +1,4 @@
 local Button = require("ui.button")
-local Checkbox = require("ui.checkbox")
 local Panel = require("ui.panel")
 local TextField = require("ui.text_field")
 local Text = require("utils.text_utils")
@@ -15,14 +14,16 @@ local colors = require("app_colors")
 local chr = require("chr")
 
 -- Enter color address: ROM hex grid + color preview(s) + address field.
--- New cells: "Selected". Already-bound cells: "Base ROM color" + "User override".
+-- Valid bytes: Ninja. Minimap-bound: Selected. Clicked pick: User-selected.
+-- Invalid NES colors are always hidden. Search bytes underlines matching sequences.
 
 local Dialog = {}
 Dialog.__index = Dialog
 
-local FOOTER_ROWS_DEFAULT = 5 -- Hide-invalid, Selected, address, buttons, Esc
-local FOOTER_ROWS_WITH_OVERRIDE = 6 -- Hide-invalid, Base, User override, address, buttons, Esc
+local FOOTER_ROWS_DEFAULT = 6 -- spacer, Search, Selected, address, buttons, Esc
+local FOOTER_ROWS_WITH_OVERRIDE = 7 -- spacer, Search, Base, User override, address, buttons, Esc
 local PANEL_COLS = 3
+local MAX_SEARCH_MARKS = 256
 local SWATCH_PX = 11
 local SELECTION_RECT_ANIM = {
   stepPx = 1,
@@ -68,6 +69,57 @@ function Dialog.collectValidColorAddrsOnPage(romRaw, scrollOffset, bytesPerPage)
     end
   end
   return starts
+end
+
+--- Parse a hex-bytes search string into a byte list.
+--- Accepts spaced bytes ("A0 B2 23 0A") or a packed hex stream ("a0b234567").
+--- Odd trailing nibble is ignored until a second digit arrives.
+function Dialog.parseSearchBytes(text)
+  local hex = {}
+  text = tostring(text or "")
+  for i = 1, #text do
+    local ch = text:sub(i, i)
+    if ch:match("[0-9A-Fa-f]") then
+      hex[#hex + 1] = ch:upper()
+    elseif ch ~= " " then
+      return {}
+    end
+  end
+  if #hex < 2 then
+    return {}
+  end
+  local bytes = {}
+  for i = 1, #hex - (#hex % 2), 2 do
+    bytes[#bytes + 1] = tonumber(hex[i] .. hex[i + 1], 16)
+  end
+  return bytes
+end
+
+--- 0-based start addresses of `bytes` inside `romRaw` (non-overlapping).
+function Dialog.findByteSequence(romRaw, bytes)
+  local hits = {}
+  if type(romRaw) ~= "string" or type(bytes) ~= "table" or #bytes < 1 then
+    return hits
+  end
+  local parts = {}
+  for i = 1, #bytes do
+    parts[i] = string.char(bytes[i] % 256)
+  end
+  local needle = table.concat(parts)
+  if needle == "" then
+    return hits
+  end
+  local start = 1
+  local span = #needle
+  while true do
+    local i = string.find(romRaw, needle, start, true)
+    if not i then
+      break
+    end
+    hits[#hits + 1] = i - 1
+    start = i + span
+  end
+  return hits
 end
 
 local function nesCodeFromByte(byte)
@@ -193,7 +245,7 @@ local function rowspanForHeight(height, cellH, spacingY)
   return math.max(1, math.ceil((math.max(1, height) + spacingY) / step))
 end
 
---- Drop a wasted panel row when ceil overshoots (closes gap above Hide invalid).
+--- Drop a wasted panel row when ceil overshoots (closes gap above the search row).
 local function rowspanForHeightTight(height, cellH, spacingY)
   local rows = rowspanForHeight(height, cellH, spacingY)
   cellH = math.max(1, math.floor(tonumber(cellH) or 15))
@@ -344,8 +396,8 @@ local function rebuildPanel(self)
     _modalChromeOverBlue = self._modalChromeOverBlue == true,
   })
 
-  local hideRow = hexRows + 1
-  local colorRow = hideRow + 1
+  local searchRow = hexRows + 2 -- skip one empty row under the hex grid
+  local colorRow = searchRow + 1
   local overrideRow = showOverride and (colorRow + 1) or nil
   local addrRow = (overrideRow or colorRow) + 1
   local buttonRow = addrRow + 1
@@ -356,9 +408,13 @@ local function rebuildPanel(self)
     colspan = PANEL_COLS,
     rowspan = hexRows,
   })
-  self.panel:setCell(1, hideRow, {
-    component = self.hideInvalidCheckbox,
-    colspan = PANEL_COLS,
+  self._searchStatusRow = searchRow
+  self.panel:setCell(1, searchRow, { text = "Search bytes:" })
+  self.panel:setCell(2, searchRow, {
+    component = self.searchField,
+  })
+  self.panel:setCell(3, searchRow, {
+    text = self:_searchStatusText(),
   })
   -- Labels + values in columns 1-2; Cancel in col 2, Set in col 3.
   local colorLabel = showOverride and "Base ROM color:" or "Selected:"
@@ -400,6 +456,11 @@ function Dialog.new()
     _syncingFromGrid = false,
     _invalidColorWarning = nil,
     _showUserOverride = false,
+    _searchHits = {},
+    _searchHitIndex = 0,
+    _searchGroupSize = 1,
+    _searchStatusRow = nil,
+    _boundMinimapMarkers = {},
   }, Dialog)
 
   self.hexGrid = RomHexGrid.new({
@@ -407,38 +468,25 @@ function Dialog.new()
     groupSize = 1,
     maxSelectedStarts = 1,
     defaultCellStyle = "ninja",
-    selectionAnts = true,
+    selectionAnts = false,
     boundAsSelected = true,
+    minimapIncludeSelection = false,
     selectionCrosshair = true,
     rejectedCellStyle = "hidden",
-    -- Bound palette addresses: Selected fills via minimap markers (boundAsSelected).
-    semiColorForAddr = function(addr)
-      return self:_nesFillColorForAddr(addr, 1)
-    end,
+    -- Bound / picked colors: NES fill. Search groups: OAM highlight cycle.
     selectedColorForAddr = function(addr)
-      return self:_nesFillColorForAddr(addr, 1)
+      return self:_selectedFillForAddr(addr)
+    end,
+    underlineColorForAddr = function(addr)
+      return self:_searchColorForAddr(addr)
     end,
     canSelectAddr = function(addr)
       return self:_isValidColorAddr(addr)
     end,
     onRejectSelect = function()
-      -- Hidden invalid cells clear selection silently; ninja mode still warns.
-      if self:isHideInvalidColors() then
-        self._invalidColorWarning = nil
-      else
-        self._invalidColorWarning = "Not a valid color"
-      end
-      self.hexGrid:_setStarts({}, 0, {
-        emit = false,
-        allowEmpty = true,
-        resetColors = true,
-        scrollToReveal = false,
-      })
-      self._syncingFromGrid = true
-      self.textField:setText("")
-      self:_refreshSelectedPreview(nil)
-      self._syncingFromGrid = false
-      self:_refreshSetEnabled()
+      -- Invalid cells are always hidden; click still clears the pick.
+      self._invalidColorWarning = nil
+      self:_clearPick()
     end,
     onSelect = function(addr, selectOpts)
       selectOpts = selectOpts or {}
@@ -448,19 +496,14 @@ function Dialog.new()
         selectionCapHit = selectOpts.selectionCapHit == true,
       })
     end,
-    onScroll = function()
-      self:_refreshSemiSelected()
-    end,
-  })
-  self.hideInvalidCheckbox = Checkbox.new({
-    text = "Hide invalid colors",
-    checked = true,
-    onChange = function(checked)
-      self:_onHideInvalidChanged(checked == true)
-    end,
   })
   self.selectedPreview = SelectedPreview.new({ showAnts = true })
   self.overridePreview = SelectedPreview.new({ showAnts = false })
+  self.searchField = TextField.new({
+    width = 104,
+    height = self.fieldH,
+    accept = "hex_bytes",
+  })
   self.textField = TextField.new({
     width = 104,
     height = self.fieldH,
@@ -498,7 +541,19 @@ function Dialog:isVisible()
 end
 
 function Dialog:_focusAddressField()
+  if self.searchField then
+    self.searchField:setFocused(false)
+  end
   self.textField:setFocused(true)
+  self:_refreshMinimapMarkers()
+end
+
+function Dialog:_focusSearchField()
+  self.textField:setFocused(false)
+  if self.searchField then
+    self.searchField:setFocused(true)
+  end
+  self:_refreshMinimapMarkers()
 end
 
 function Dialog:_formatAddr(addr)
@@ -559,39 +614,244 @@ function Dialog:_nesFillColorForAddr(addr, alpha)
   return { rgb[1], rgb[2], rgb[3], alpha or 0.5 }
 end
 
-function Dialog:_refreshSemiSelected()
-  local starts = Dialog.collectValidColorAddrsOnPage(
-    self.romRaw,
-    self.hexGrid.scrollOffset,
-    self.hexGrid:bytesPerPage()
-  )
-  -- Ensure the bound address stays semi-selectable when we restored its base for display.
-  if self._boundAddr ~= nil and self:_isValidColorAddr(self._boundAddr) then
-    local pageStart = math.max(0, math.floor(tonumber(self.hexGrid.scrollOffset) or 0))
-    local pageEnd = pageStart + self.hexGrid:bytesPerPage() - 1
-    if self._boundAddr >= pageStart and self._boundAddr <= pageEnd then
-      local found = false
-      for _, a in ipairs(starts) do
-        if a == self._boundAddr then
-          found = true
-          break
-        end
-      end
-      if not found then
-        starts[#starts + 1] = self._boundAddr
-      end
-    end
+function Dialog:_searchHighlightColor(index)
+  local list = RomHexGrid.getHighlightColors()
+  local n = #list
+  if n < 1 then
+    return { 1, 1, 1, 1 }
   end
-  self.hexGrid:setSemiSelectedStarts(starts)
+  local i = ((math.floor(tonumber(index) or 1) - 1) % n) + 1
+  local c = list[i]
+  return { c[1], c[2] or 0, c[3] or 0, 1 }
 end
 
---- Recompute page semi fills only when the visible hex page moved.
-function Dialog:_refreshSemiSelectedIfScrolled(prevScroll)
-  if self.hexGrid.scrollOffset ~= prevScroll then
-    self:_refreshSemiSelected()
-    return true
+function Dialog:_searchHitIndexOf(addr)
+  addr = math.floor(tonumber(addr) or -1)
+  for i, start in ipairs(self._searchHits or {}) do
+    if start == addr then
+      return i
+    end
   end
-  return false
+  return nil
+end
+
+function Dialog:_searchColorForAddr(addr)
+  local i = self:_searchHitIndexOf(addr)
+  if i == nil then
+    return nil
+  end
+  return self:_searchHighlightColor(i)
+end
+
+function Dialog:_currentSearchStart()
+  local hits = self._searchHits or {}
+  local i = math.floor(tonumber(self._searchHitIndex) or 0)
+  local addr = hits[i]
+  if type(addr) ~= "number" then
+    return nil
+  end
+  return math.floor(addr)
+end
+
+function Dialog:_currentPickAddr()
+  local user = self.hexGrid and self.hexGrid.getUserSelectedStarts and self.hexGrid:getUserSelectedStarts() or {}
+  if #user > 0 and type(user[1]) == "number" then
+    return math.floor(user[1])
+  end
+  return nil
+end
+
+function Dialog:_isSearchFocused()
+  return self.searchField ~= nil and self.searchField.focused == true
+end
+
+function Dialog:_selectedFillForAddr(addr)
+  local searchColor = self:_searchColorForAddr(addr)
+  if searchColor then
+    return searchColor
+  end
+  return self:_nesFillColorForAddr(addr, 1)
+end
+
+function Dialog:_setUserPick(addr)
+  if type(addr) ~= "number" then
+    self.hexGrid:setUserSelectedStarts({})
+    return
+  end
+  addr = math.floor(addr)
+  self.hexGrid:setUserSelectedStarts({ addr }, {
+    groupSizeByStart = { [addr] = 1 },
+  })
+end
+
+function Dialog:_syncSearchPaint()
+  local grid = self.hexGrid
+  if not grid then
+    return
+  end
+  local starts = {}
+  local sizes = {}
+  local searchStart = self:_currentSearchStart()
+  local searchSize = math.max(1, math.floor(tonumber(self._searchGroupSize) or 1))
+  if searchStart ~= nil then
+    starts[#starts + 1] = searchStart
+    sizes[searchStart] = searchSize
+  end
+  local pick = self:_currentPickAddr()
+  if pick ~= nil and pick ~= searchStart then
+    starts[#starts + 1] = pick
+    sizes[pick] = 1
+  end
+  grid:_setStarts(starts, pick or searchStart or 0, {
+    emit = false,
+    allowEmpty = true,
+    resetColors = false,
+    preserveSemiColors = true,
+    scrollToReveal = false,
+    enforceMax = false,
+  })
+  grid:setSelectedGroupSizes(sizes)
+end
+
+function Dialog:_searchMinimapMarkers()
+  local markers = {}
+  local size = math.max(1, math.floor(tonumber(self._searchGroupSize) or 1))
+  for i, addr in ipairs(self._searchHits or {}) do
+    markers[#markers + 1] = {
+      offset = addr,
+      color = RomHexGrid.highlightKeyForIndex(i),
+      groupCount = 1,
+      groupSize = size,
+      boundPaint = false,
+    }
+  end
+  return markers
+end
+
+function Dialog:_refreshMinimapMarkers()
+  local grid = self.hexGrid
+  if not grid then
+    return
+  end
+  local markers
+  if self:_isSearchFocused() and #(self._searchHits or {}) > 0 then
+    markers = self:_searchMinimapMarkers()
+  else
+    markers = self._boundMinimapMarkers or {}
+  end
+  grid:setMinimapMarkers(markers)
+end
+
+function Dialog:_clearPick()
+  self.hexGrid:setUserSelectedStarts({})
+  self._syncingFromGrid = true
+  self.textField:setText("")
+  self:_refreshSelectedPreview(nil)
+  self._syncingFromGrid = false
+  self:_syncSearchPaint()
+  self:_refreshMinimapMarkers()
+  self:_refreshSetEnabled()
+end
+
+function Dialog:_searchStatusText()
+  local n = #(self._searchHits or {})
+  local i = math.floor(tonumber(self._searchHitIndex) or 0)
+  if n < 1 then
+    local bytes = Dialog.parseSearchBytes(self.searchField and self.searchField:getText() or "")
+    if #bytes < 1 then
+      return ""
+    end
+    return "0"
+  end
+  if i < 1 then
+    i = 1
+  elseif i > n then
+    i = n
+  end
+  return string.format("%d/%d", i, n)
+end
+
+function Dialog:_refreshSearchStatus()
+  local row = self._searchStatusRow
+  if not (self.panel and type(row) == "number") then
+    return
+  end
+  self.panel:setCell(3, row, {
+    text = self:_searchStatusText(),
+  })
+end
+
+function Dialog:_revealSearchHit(index)
+  local hits = self._searchHits or {}
+  local addr = hits[index]
+  if type(addr) ~= "number" or not self.hexGrid then
+    return
+  end
+  self.hexGrid:scrollToReveal(addr)
+end
+
+function Dialog:_applyByteSearch()
+  local grid = self.hexGrid
+  if not grid then
+    return
+  end
+  local bytes = Dialog.parseSearchBytes(self.searchField and self.searchField:getText() or "")
+  if #bytes < 1 then
+    self._searchHits = {}
+    self._searchHitIndex = 0
+    self._searchGroupSize = 1
+    grid:setUnderlinedStarts({}, { resetColors = true })
+    self:_syncSearchPaint()
+    self:_refreshMinimapMarkers()
+    self:_refreshSearchStatus()
+    return
+  end
+  local hits = Dialog.findByteSequence(self.romRaw, bytes)
+  local starts = {}
+  local sizes = {}
+  local n = math.min(#hits, MAX_SEARCH_MARKS)
+  self._searchGroupSize = #bytes
+  for i = 1, n do
+    local addr = hits[i]
+    starts[i] = addr
+    sizes[addr] = #bytes
+  end
+  self._searchHits = starts
+  self._searchHitIndex = n > 0 and 1 or 0
+  grid:setUnderlinedStarts(starts, {
+    groupSizeByStart = sizes,
+    resetColors = true,
+  })
+  self:_syncSearchPaint()
+  self:_refreshMinimapMarkers()
+  if self._searchHitIndex > 0 then
+    local pageStart = math.floor(tonumber(grid.scrollOffset) or 0)
+    local pageEnd = pageStart + grid:bytesPerPage() - 1
+    local visible = false
+    for i = 1, #starts do
+      if starts[i] >= pageStart and starts[i] <= pageEnd then
+        visible = true
+        break
+      end
+    end
+    if not visible then
+      self:_revealSearchHit(self._searchHitIndex)
+    end
+  end
+  self:_refreshSearchStatus()
+end
+
+function Dialog:_cycleSearchHit()
+  local n = #(self._searchHits or {})
+  if n < 1 then
+    self:_applyByteSearch()
+    return
+  end
+  self._searchHitIndex = (math.floor(tonumber(self._searchHitIndex) or 0) % n) + 1
+  self:_syncSearchPaint()
+  self:_refreshMinimapMarkers()
+  self:_revealSearchHit(self._searchHitIndex)
+  self:_refreshSearchStatus()
 end
 
 function Dialog:_refreshSelectedPreview(addr)
@@ -623,25 +883,33 @@ local function romRawWithBaseRestored(romRaw, boundAddr, baseRomCode)
 end
 
 function Dialog:_refreshSetEnabled()
-  local starts = self.hexGrid and self.hexGrid:getSelectedStarts() or {}
-  self.setButton.enabled = #starts > 0
+  self.setButton.enabled = self:_currentPickAddr() ~= nil
 end
 
 function Dialog:_onGridSelect(addr, opts)
   opts = opts or {}
   addr = math.floor(tonumber(addr) or 0)
-  if opts.fromGrid ~= true then
-    self.hexGrid:setSelectedAddr(addr, { emit = false })
+  local pick = nil
+  if opts.fromGrid == true then
+    local starts = self.hexGrid:getSelectedStarts()
+    if #starts > 0 then
+      pick = math.floor(starts[1])
+    end
+  else
+    pick = addr
   end
-  local starts = self.hexGrid:getSelectedStarts()
   self._syncingFromGrid = true
-  if #starts > 0 then
-    self.textField:setText(self:_formatAddr(starts[1]))
-    self:_refreshSelectedPreview(starts[1])
+  if pick ~= nil then
+    self.textField:setText(self:_formatAddr(pick))
+    self:_refreshSelectedPreview(pick)
+    self:_setUserPick(pick)
   else
     self:_refreshSelectedPreview(nil)
+    self.hexGrid:setUserSelectedStarts({})
   end
   self._syncingFromGrid = false
+  self:_syncSearchPaint()
+  self:_refreshMinimapMarkers()
   self:_refreshSetEnabled()
 end
 
@@ -653,22 +921,19 @@ function Dialog:_syncFromAddressField()
   if type(addr) ~= "number" then
     return
   end
-  local prevScroll = self.hexGrid.scrollOffset
   if self:_isValidColorAddr(addr) then
     self._invalidColorWarning = nil
-    self.hexGrid:setSelectedAddr(addr, { emit = false })
+    self:_setUserPick(addr)
     self:_refreshSelectedPreview(addr)
+    self.hexGrid:scrollToReveal(addr)
   else
     self._invalidColorWarning = "Not a valid color"
-    self.hexGrid:_setStarts({}, addr, {
-      emit = false,
-      allowEmpty = true,
-      resetColors = true,
-      scrollToReveal = true,
-    })
+    self.hexGrid:setUserSelectedStarts({})
+    self.hexGrid:scrollToReveal(addr)
     self:_refreshSelectedPreview(nil)
   end
-  self:_refreshSemiSelectedIfScrolled(prevScroll)
+  self:_syncSearchPaint()
+  self:_refreshMinimapMarkers()
   self:_refreshSetEnabled()
 end
 
@@ -680,8 +945,7 @@ function Dialog:cursorNameAt(mx, my)
   if self.panel and type(self.panel.getButtonAt) == "function" and self.panel:getButtonAt(mx, my) then
     return "hand"
   end
-  if self.hideInvalidCheckbox and self.hideInvalidCheckbox.contains
-      and self.hideInvalidCheckbox:contains(mx, my) then
+  if self.searchField and self.searchField.contains and self.searchField:contains(mx, my) then
     return "hand"
   end
   if self.textField and self.textField.contains and self.textField:contains(mx, my) then
@@ -695,16 +959,6 @@ function Dialog:cursorNameAt(mx, my)
     end
   end
   return "arrow"
-end
-
-function Dialog:_onHideInvalidChanged(hide)
-  if self.hexGrid then
-    self.hexGrid.rejectedCellStyle = hide and "hidden" or "ninja"
-  end
-end
-
-function Dialog:isHideInvalidColors()
-  return self.hideInvalidCheckbox and self.hideInvalidCheckbox:isChecked()
 end
 
 function Dialog:show(opts)
@@ -739,16 +993,19 @@ function Dialog:show(opts)
   self.romRaw = romRawWithBaseRestored(sourceRom, self._boundAddr, self._baseRomCode)
   self.hexGrid:setRomRaw(self.romRaw)
   self.hexGrid:setDisabledStarts({})
-  -- Default: hide invalid colors (empty cells, arrow cursor; click still clears).
-  if self.hideInvalidCheckbox then
-    self.hideInvalidCheckbox:setChecked(true, { silent = true })
-  end
+  self.hexGrid:setSemiSelectedStarts({})
   self.hexGrid.rejectedCellStyle = "hidden"
-  self.hexGrid:setMinimapMarkers(
-    Dialog.collectBoundRomColorMinimapMarkers(self.targetWindow, self.romRaw, {
-      romPaletteWindows = opts.romPaletteWindows,
-    })
-  )
+  self._boundMinimapMarkers = Dialog.collectBoundRomColorMinimapMarkers(self.targetWindow, self.romRaw, {
+    romPaletteWindows = opts.romPaletteWindows,
+  })
+  self.hexGrid:setBoundPaintMarkers(self._boundMinimapMarkers)
+  if self.searchField then
+    self.searchField:setText("")
+  end
+  self._searchHits = {}
+  self._searchHitIndex = 0
+  self._searchGroupSize = 1
+  self.hexGrid:setUnderlinedStarts({}, { resetColors = true })
 
   local initialText = opts.initialAddress or ""
   self.textField:setText(initialText)
@@ -757,23 +1014,19 @@ function Dialog:show(opts)
     initialAddr = 0
   end
   if initialText ~= "" and self:_isValidColorAddr(initialAddr) then
-    self.hexGrid:setSelectedAddr(initialAddr, { emit = false })
+    self:_setUserPick(initialAddr)
     self:_refreshSelectedPreview(initialAddr)
+    self.hexGrid:scrollToReveal(initialAddr)
   else
     if initialText ~= "" then
       self._invalidColorWarning = "Not a valid color"
-      self.hexGrid:_setStarts({}, initialAddr, {
-        emit = false,
-        allowEmpty = true,
-        resetColors = true,
-        scrollToReveal = true,
-      })
-    else
-      self.hexGrid:_setStarts({}, 0, { emit = false, allowEmpty = true, resetColors = true })
+      self.hexGrid:scrollToReveal(initialAddr)
     end
+    self.hexGrid:setUserSelectedStarts({})
     self:_refreshSelectedPreview(nil)
   end
-  self:_refreshSemiSelected()
+  self:_syncSearchPaint()
+  self:_refreshMinimapMarkers()
   self:_refreshSetEnabled()
 
   self:_focusAddressField()
@@ -787,6 +1040,9 @@ end
 function Dialog:hide()
   self.visible = false
   self.textField:setFocused(false)
+  if self.searchField then
+    self.searchField:setFocused(false)
+  end
   self.setButton.pressed = false
   self.cancelButton.pressed = false
   self.setButton.hovered = false
@@ -806,9 +1062,20 @@ function Dialog:hide()
   end
   if self.hexGrid then
     self.hexGrid:setSemiSelectedStarts({})
+    self.hexGrid:setUserSelectedStarts({})
+    self.hexGrid:setUnderlinedStarts({}, { resetColors = true })
     self.hexGrid:setMinimapMarkers({})
+    self.hexGrid:setBoundPaintMarkers(nil)
     self.hexGrid:setRomRaw("")
   end
+  if self.searchField then
+    self.searchField:setText("")
+  end
+  self._searchHits = {}
+  self._searchHitIndex = 0
+  self._searchGroupSize = 1
+  self._searchStatusRow = nil
+  self._boundMinimapMarkers = {}
   if self.panel then
     self.panel:setVisible(false)
   end
@@ -833,8 +1100,7 @@ function Dialog:_confirm()
   if self.setButton and self.setButton.enabled == false then
     return false
   end
-  local starts = self.hexGrid and self.hexGrid:getSelectedStarts() or {}
-  if #starts == 0 then
+  if self:_currentPickAddr() == nil then
     return false
   end
   local raw = self.textField:getText() or ""
@@ -878,11 +1144,21 @@ function Dialog:handleKey(key)
     return true
   end
   if key == "return" or key == "kpenter" then
+    if self.searchField and self.searchField.focused then
+      self:_cycleSearchHit()
+      return true
+    end
     self:_confirm()
     return true
   end
   if key == "tab" then
     self:_focusAddressField()
+    return true
+  end
+  if self.searchField and self.searchField.focused and self.searchField:onKeyPressed(key) then
+    if key ~= "left" and key ~= "right" and key ~= "home" and key ~= "end" then
+      self:_applyByteSearch()
+    end
     return true
   end
   if self.textField.focused and self.textField:onKeyPressed(key) then
@@ -896,6 +1172,13 @@ end
 
 function Dialog:textinput(text)
   if not self.visible then return false end
+  if self.searchField and self.searchField.focused then
+    local ok = self.searchField:onTextInput(text)
+    if ok then
+      self:_applyByteSearch()
+    end
+    return ok
+  end
   if self.textField.focused then
     local ok = self.textField:onTextInput(text)
     if ok then
@@ -914,11 +1197,22 @@ function Dialog:mousepressed(x, y, button)
     return true
   end
 
-  if self.textField:contains(x, y) then
+  local onSearch = self.searchField and self.searchField:contains(x, y)
+  if onSearch then
+    self:_focusSearchField()
+  elseif self.textField:contains(x, y) then
     self:_focusAddressField()
+  elseif self.searchField then
+    self.searchField:setFocused(false)
   end
 
-  return self.panel and self.panel:mousepressed(x, y, button) or true
+  local handled = self.panel and self.panel:mousepressed(x, y, button) or true
+  -- Panel may re-focus the search field when the click lands in its cell padding.
+  if not onSearch and self.searchField and self.searchField.focused then
+    self.searchField:setFocused(false)
+  end
+  self:_refreshMinimapMarkers()
+  return handled
 end
 
 function Dialog:mousereleased(x, y, button)
@@ -950,7 +1244,6 @@ function Dialog:wheelmoved(dx, dy)
   elseif love and love.mouse and love.mouse.getPosition then
     mx, my = love.mouse.getPosition()
   end
-  -- onScroll callback refreshes semi-select when the page moves.
   return self.hexGrid:wheelmovedAt(dx, dy, mx, my)
 end
 

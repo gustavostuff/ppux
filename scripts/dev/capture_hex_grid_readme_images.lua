@@ -100,7 +100,19 @@ local function hideAppChrome(app)
   end
 end
 
+local function makeCornersTransparent(imgData)
+  local w, h = imgData:getDimensions()
+  if w < 1 or h < 1 then
+    return
+  end
+  imgData:setPixel(0, 0, 0, 0, 0, 0)
+  imgData:setPixel(w - 1, 0, 0, 0, 0, 0)
+  imgData:setPixel(0, h - 1, 0, 0, 0, 0)
+  imgData:setPixel(w - 1, h - 1, 0, 0, 0, 0)
+end
+
 local function writePng(imgData, filename)
+  makeCornersTransparent(imgData)
   local fileData = assert(imgData:encode("png"), "encode png failed")
   local path = absOutPath(filename)
   local tmpPath = path .. ".tmp.png"
@@ -110,7 +122,7 @@ local function writePng(imgData, filename)
   local srcW, srcH = imgData:getDimensions()
   local outW, outH = srcW * OUTPUT_SCALE, srcH * OUTPUT_SCALE
   local cmd = string.format(
-    'ffmpeg -v error -y -i %q -vf scale=%d:%d:flags=neighbor -pix_fmt rgba %q',
+    'ffmpeg -v error -y -i %q -vf format=rgba,scale=%d:%d:flags=neighbor -pix_fmt rgba %q',
     tmpPath, outW, outH, path)
   local ok = os.execute(cmd)
   os.remove(tmpPath)
@@ -161,15 +173,15 @@ local function writeRomBytes(app, startAddr, values)
 end
 
 local function palettePageBytes()
-  -- Mostly valid NES colors so Hide-invalid leaves a colorful grid with a few holes.
+  -- Mostly valid NES colors (invalid bytes stay hidden).
   local pretty = {
     0x0F, 0x30, 0x36, 0x26, 0x16, 0x06, 0x12, 0x22,
     0x32, 0x11, 0x21, 0x01, 0x19, 0x29, 0x2A, 0x1A,
     0x27, 0x07, 0x17, 0x37, 0x2C, 0x1C, 0x0C, 0x00,
   }
   local bytes = {}
+  -- Keep first-row (bound) bytes valid so Selected fills are not blank white.
   local invalidAt = {
-    [0x0A] = 0x0D,
     [0x1F] = 0x0E,
     [0x33] = 0x1E,
     [0x4C] = 0x2E,
@@ -265,9 +277,6 @@ local function capturePaletteAddress(app)
   layoutModal(app, modal)
   -- Park the colorful injected page at the top of the grid.
   modal.hexGrid.scrollOffset = RomHexGrid.alignRow(PALETTE_BASE)
-  if modal._refreshSemiSelected then
-    modal:_refreshSemiSelected()
-  end
   layoutModal(app, modal)
   captureModal(app, modal, "edit_palette_rom_address.png")
   modal:hide()

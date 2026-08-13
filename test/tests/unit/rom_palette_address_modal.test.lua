@@ -74,7 +74,7 @@ describe("rom_palette_address_modal.lua", function()
     expect(RomPaletteAddressModal.isValidNesPaletteByte(0xFF)).toBe(false)
   end)
 
-  it("semi-selects valid NES color bytes on the current hex page", function()
+  it("uses ninja for valid colors, hides invalid, and user-selects the pick", function()
     local modal = RomPaletteAddressModal.new()
     -- Page 0 (16 cols x 8 rows): mix of valid and invalid.
     local bytes = {}
@@ -89,16 +89,16 @@ describe("rom_palette_address_modal.lua", function()
 
     expect(modal.hexGrid:getCols()).toBe(16)
     expect(modal.hexGrid:bytesPerPage()).toBe(128)
-    local semi = modal.hexGrid:getSemiSelectedStarts()
-    local semiSet = {}
-    for _, addr in ipairs(semi) do
-      semiSet[addr] = true
-    end
-    expect(semiSet[0x0C]).toBe(true)
-    expect(semiSet[0x0F]).toBe(true)
-    expect(semiSet[0x0D]).toBeNil()
-    expect(semiSet[0x1E]).toBeNil()
-    expect(semiSet[0x40]).toBeNil()
+    expect(modal.hexGrid.defaultCellStyle).toBe("ninja")
+    expect(modal.hexGrid.rejectedCellStyle).toBe("hidden")
+    expect(modal.hexGrid:getSemiSelectedStarts()).toEqual({})
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({ 0x0F })
+    expect(modal.hexGrid:getUserSelectedStarts()).toEqual({ 0x0F })
+    expect(modal:_isValidColorAddr(0x0C)).toBe(true)
+    expect(modal:_isValidColorAddr(0x0F)).toBe(true)
+    expect(modal:_isValidColorAddr(0x0D)).toBe(false)
+    expect(modal:_isValidColorAddr(0x1E)).toBe(false)
+    expect(modal:_isValidColorAddr(0x40)).toBe(false)
     expect(modal.hexGrid:getGroupSize()).toBe(1)
     expect(modal.selectedPreview.code).toBe("0F")
     expect(modal.textField:getText()).toBe("0x00000F")
@@ -198,6 +198,17 @@ describe("rom_palette_address_modal.lua", function()
     expect(#gridMarkers).toBe(2)
     expect(gridMarkers[1].offset).toBe(0x11)
     expect(gridMarkers[2].offset).toBe(0x15)
+    modal.searchField:setText("07")
+    modal:_applyByteSearch()
+    modal:_focusSearchField()
+    expect(#modal.hexGrid:getMinimapMarkers() > 0).toBe(true)
+    expect(modal.hexGrid:getMinimapMarkers()[1].boundPaint).toBe(false)
+    modal.searchField:setFocused(false)
+    modal:_refreshMinimapMarkers()
+    gridMarkers = modal.hexGrid:getMinimapMarkers()
+    expect(#gridMarkers).toBe(2)
+    expect(gridMarkers[1].offset).toBe(0x11)
+    expect(gridMarkers[2].offset).toBe(0x15)
     modal:hide()
   end)
 
@@ -273,7 +284,7 @@ describe("rom_palette_address_modal.lua", function()
     modal:hide()
   end)
 
-  it("rejects clicks on invalid NES color bytes and shows a warning", function()
+  it("rejects clicks on invalid NES color bytes and clears the pick", function()
     local modal = RomPaletteAddressModal.new()
     local bytes = {}
     for i = 0, 127 do
@@ -290,25 +301,189 @@ describe("rom_palette_address_modal.lua", function()
     modal.hexGrid:setPosition(0, 0)
     modal.hexGrid:mousepressed(hx, hy, 1)
     expect(modal.hexGrid:getSelectedStarts()).toEqual({})
+    expect(modal.hexGrid:getUserSelectedStarts()).toEqual({})
     -- Hidden invalid: clear selection without the warning label.
     expect(modal._invalidColorWarning).toBe(nil)
     -- Masked "0x000000" field cannot be truly empty; clear resets to the mask skeleton.
     expect(modal.textField:getText()).toBe("0x000000")
-    -- Default: Hide invalid colors → empty cell uses arrow cursor.
-    expect(modal:isHideInvalidColors()).toBe(true)
     expect(modal.hexGrid.rejectedCellStyle).toBe("hidden")
     expect(modal:cursorNameAt(hx, hy)).toBe("arrow")
     expect(modal.setButton.enabled).toBe(false)
+    modal:hide()
+  end)
 
-    -- Uncheck: invalid cells paint as ninja with hand cursor + warning on reject.
-    modal.hideInvalidCheckbox:setChecked(false)
-    expect(modal.hexGrid.rejectedCellStyle).toBe("ninja")
-    expect(modal:cursorNameAt(hx, hy)).toBe("hand")
-    modal.hexGrid:setSelectedAddr(0x0F, { emit = false })
-    modal:_onGridSelect(0x0F, { fromGrid = true })
-    modal.hexGrid:mousepressed(hx, hy, 1)
-    expect(modal._invalidColorWarning).toBe("Not a valid color")
+  it("parses spaced and packed hex-byte searches", function()
+    expect(RomPaletteAddressModal.parseSearchBytes("A0 B2 23 0A")).toEqual({
+      0xA0, 0xB2, 0x23, 0x0A,
+    })
+    expect(RomPaletteAddressModal.parseSearchBytes("a0b234567")).toEqual({
+      0xA0, 0xB2, 0x34, 0x56,
+    })
+    expect(RomPaletteAddressModal.parseSearchBytes("")).toEqual({})
+    expect(RomPaletteAddressModal.parseSearchBytes("G0")).toEqual({})
+  end)
+
+  it("underlines search hits and ignores non-hex search input", function()
+    local modal = RomPaletteAddressModal.new()
+    local rom = string.char(0x11, 0xA0, 0xB2, 0x23, 0x0A, 0x99, 0xA0, 0xB2, 0x23, 0x0A)
+    modal:show({
+      romRaw = rom,
+      initialAddress = "",
+    })
+    modal.searchField:setText("A0 B2 23 0A")
+    modal:_applyByteSearch()
+    expect(modal.hexGrid:getUnderlinedStarts()).toEqual({ 1, 6 })
+    expect(modal.hexGrid:getUnderlinedGroupSize(1)).toBe(4)
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({ 1 })
+    expect(modal.hexGrid:getSelectedGroupSize(1)).toBe(4)
+    expect(modal:_searchStatusText()).toBe("1/2")
+    expect(#modal.hexGrid:getMinimapMarkers()).toBe(0)
+    modal:_focusSearchField()
+    local marks = modal.hexGrid:getMinimapMarkers()
+    expect(#marks).toBe(2)
+    expect(marks[1].offset).toBe(1)
+    expect(marks[1].groupSize).toBe(4)
+    expect(marks[1].boundPaint).toBe(false)
+    expect(marks[1].color).toBe("red")
+    expect(marks[2].offset).toBe(6)
+    expect(marks[2].color).toBe("green")
+    modal.searchField:setFocused(false)
+    modal:_refreshMinimapMarkers()
+    expect(#modal.hexGrid:getMinimapMarkers()).toBe(0)
+    modal.searchField:setText("zz")
+    expect(modal.searchField:getText()).toBe("")
+    modal:_applyByteSearch()
+    expect(modal.hexGrid:getUnderlinedStarts()).toEqual({})
     expect(modal.hexGrid:getSelectedStarts()).toEqual({})
+    expect(modal:_searchStatusText()).toBe("")
+    modal:hide()
+  end)
+
+  it("cycles search hits with Enter while the search field is focused", function()
+    local modal = RomPaletteAddressModal.new()
+    local rom = string.char(0x11, 0xA0, 0xB2, 0x23, 0x0A, 0x99, 0xA0, 0xB2, 0x23, 0x0A)
+    modal:show({
+      romRaw = rom,
+      initialAddress = "",
+    })
+    modal.searchField:setText("A0B2230A")
+    modal:_applyByteSearch()
+    expect(modal:_searchStatusText()).toBe("1/2")
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({ 1 })
+    modal:_focusSearchField()
+    expect(modal:handleKey("return")).toBe(true)
+    expect(modal._searchHitIndex).toBe(2)
+    expect(modal:_searchStatusText()).toBe("2/2")
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({ 6 })
+    expect(modal.hexGrid:getSelectedGroupSize(6)).toBe(4)
+    expect(modal:handleKey("return")).toBe(true)
+    expect(modal._searchHitIndex).toBe(1)
+    expect(modal:_searchStatusText()).toBe("1/2")
+    expect(modal:isVisible()).toBe(true)
+    modal.searchField:setText("FF")
+    modal:_applyByteSearch()
+    expect(modal:_searchStatusText()).toBe("0")
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({})
+    modal:hide()
+  end)
+
+  it("lays out Search bytes in one column with occurrence status and no hide-invalid checkbox", function()
+    local modal = RomPaletteAddressModal.new()
+    modal:show({
+      romRaw = string.rep("\x30", 256),
+      initialAddress = "",
+    })
+    expect(modal.hideInvalidCheckbox).toBeNil()
+    expect(modal.searchField).toBeTruthy()
+    expect(modal.searchField.accept).toBe("hex_bytes")
+    expect(modal.hexGrid.boundAsSelected).toBe(true)
+    expect(modal.hexGrid.minimapIncludeSelection).toBe(false)
+    local row = modal._searchStatusRow
+    expect(type(row)).toBe("number")
+    local fieldCell = modal.panel:getCell(2, row)
+    expect(fieldCell.component).toBe(modal.searchField)
+    expect(fieldCell.colspan).toBe(1)
+    local statusCell = modal.panel:getCell(3, row)
+    expect(statusCell.text).toBe("")
+    modal.searchField:setText("30")
+    modal:_applyByteSearch()
+    expect(modal:_searchStatusText()).toBe("1/256")
+    expect(modal.panel:getCell(3, row).text).toBe("1/256")
+    modal:hide()
+  end)
+
+  it("paints the active search hit Selected and inactive hits Underlined with the OAM color cycle", function()
+    local modal = RomPaletteAddressModal.new()
+    local rom = string.char(0x11, 0xA0, 0xB2, 0x23, 0x0A, 0x99, 0xA0, 0xB2, 0x23, 0x0A)
+    modal:show({
+      romRaw = rom,
+      initialAddress = "",
+    })
+    modal.searchField:setText("A0B2230A")
+    modal:_applyByteSearch()
+    local red = modal:_searchHighlightColor(1)
+    local green = modal:_searchHighlightColor(2)
+    expect(modal:_searchColorForAddr(1)[1]).toBe(red[1])
+    expect(modal:_searchColorForAddr(1)[2]).toBe(red[2])
+    expect(modal:_searchColorForAddr(1)[3]).toBe(red[3])
+    expect(modal:_searchColorForAddr(6)[1]).toBe(green[1])
+    expect(modal:_selectedFillForAddr(1)[1]).toBe(red[1])
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({ 1 })
+    expect(modal.hexGrid:getUnderlinedStarts()).toEqual({ 1, 6 })
+    expect(modal.hexGrid:getSelectedGroupSize(1)).toBe(4)
+    expect(modal.hexGrid:getUnderlinedGroupSize(6)).toBe(4)
+    local underline = modal.hexGrid:_underlineColorForStart(6)
+    expect(underline[1]).toBe(green[1])
+    expect(underline[2]).toBe(green[2])
+    expect(underline[3]).toBe(green[3])
+    modal:_focusSearchField()
+    expect(modal:handleKey("return")).toBe(true)
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({ 6 })
+    expect(modal:_selectedFillForAddr(6)[1]).toBe(green[1])
+    expect(modal:isVisible()).toBe(true)
+    modal:hide()
+  end)
+
+  it("restores mapped ROM palette minimap markers after unfocusing Search bytes", function()
+    local modal = RomPaletteAddressModal.new()
+    local rom = string.rep(string.char(0x07), 256)
+    local win = {
+      rows = 4,
+      cols = 4,
+      codes2D = {
+        [0] = { [0] = "0F", [1] = "0C", [2] = "2A", [3] = "07" },
+      },
+      paletteData = {
+        romColors = {
+          { false, 0x11, 0x15, false },
+          { false, false, false, false },
+          { false, false, false, false },
+          { false, false, false, false },
+        },
+      },
+    }
+    modal:show({
+      window = win,
+      romRaw = rom,
+      initialAddress = "0x000011",
+      romPaletteWindows = { win },
+    })
+    expect(#modal.hexGrid:getMinimapMarkers()).toBe(2)
+    modal.searchField:setText("07")
+    modal:_applyByteSearch()
+    modal:_focusSearchField()
+    expect(modal.searchField.focused).toBe(true)
+    expect(modal.hexGrid:getMinimapMarkers()[1].boundPaint).toBe(false)
+    modal.searchField.x, modal.searchField.y = 400, 400
+    modal.textField.x, modal.textField.y = 400, 420
+    modal.hexGrid:setPosition(0, 0)
+    expect(modal:mousepressed(8, 20, 1)).toBe(true)
+    expect(modal.searchField.focused).toBe(false)
+    local restored = modal.hexGrid:getMinimapMarkers()
+    expect(#restored).toBe(2)
+    expect(restored[1].offset).toBe(0x11)
+    expect(restored[2].offset).toBe(0x15)
+    expect(restored[1].boundPaint).toBeNil()
     modal:hide()
   end)
 end)
@@ -482,8 +657,7 @@ describe("rom_palette_address_modal Set enabled", function()
     })
     expect(#modal.hexGrid:getSelectedStarts()).toBe(1)
     expect(modal.setButton.enabled).toBe(true)
-    modal.hexGrid:_setStarts({}, 0, { emit = false, allowEmpty = true, resetColors = true })
-    modal:_refreshSetEnabled()
+    modal:_clearPick()
     expect(modal.setButton.enabled).toBe(false)
     modal:hide()
   end)

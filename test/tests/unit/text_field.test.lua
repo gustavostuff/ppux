@@ -138,6 +138,33 @@ describe("text_field.lua", function()
     expect(field.cursorPos).toBe(1)
   end)
 
+  it("accepts hex_bytes: spaces plus hex digits, uppercased", function()
+    local field = TextField.new({
+      accept = "hex_bytes",
+    })
+
+    field:setText("A0 B2 23 0A")
+    expect(field:getText()).toBe("A0 B2 23 0A")
+
+    field:setText("a0b234567")
+    expect(field:getText()).toBe("A0B234567")
+
+    field:setText("zzG0!!")
+    expect(field:getText()).toBe("0")
+
+    field:setText("xyz")
+    expect(field:getText()).toBe("")
+
+    field:setFocused(true)
+    field:setText("")
+    expect(field:onTextInput("a")).toBe(true)
+    expect(field:getText()).toBe("A")
+    expect(field:onTextInput("x")).toBe(false)
+    expect(field:getText()).toBe("A")
+    expect(field:onTextInput(" ")).toBe(true)
+    expect(field:getText()).toBe("A ")
+  end)
+
   it("builds masked text with a literal 0x prefix and right-aligned hex input", function()
     local field = TextField.new({
       mask = "0x000000",

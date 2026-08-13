@@ -413,7 +413,7 @@ Several ROM-backed pickers share the same debugger-style **ROM hex grid** (byte 
 
 ---
 
-**ROM palette address** - Double-click a ROM-role palette cell (or use **Connect/Update ROM address** from the cell menu) to open the **Enter color address** modal. Valid NES color bytes show as colored labels while invalid ones stay hidden by default. Pick an address, check the swatch, then **Set**. Already-bound cells use a different shape (rounded solid rectangle).
+**ROM palette address** - Double-click a ROM-role palette cell (or use **Connect/Update ROM address** from the cell menu) to open the **Enter color address** modal. Invalid NES color bytes stay hidden. Pick an address, check the swatch, then **Set**. Also, use **Search bytes** to find a hex sequence, the "search mode" is ON only while the search text field is focued.
 
 <img src="img/readme_images/edit_palette_rom_address.png" alt="ROM palette address hex grid modal">
 

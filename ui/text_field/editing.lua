@@ -121,8 +121,13 @@ local function install(TextField, utils)
       self:_clearSelection()
     end
 
+    text = self:_filterAcceptedText(text or "")
+    if text == "" then
+      return false
+    end
+
     local insertedCount = 0
-    for i = 1, #(text or "") do
+    for i = 1, #text do
       table.insert(self.text, self.cursorPos + insertedCount, text:sub(i, i))
       insertedCount = insertedCount + 1
     end

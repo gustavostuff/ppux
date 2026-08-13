@@ -94,6 +94,8 @@ function TextField.new(opts)
     visible = opts.visible ~= false,
     enabled = opts.enabled ~= false,
     mask = (type(mask) == "string" and mask ~= "") and mask or nil,
+    -- Unmasked fields only: "hex_bytes" keeps 0-9A-F and spaces (hex digits uppercased).
+    accept = (opts.accept == "hex_bytes") and "hex_bytes" or nil,
     keyRepeatDelay = opts.keyRepeatDelay or KEY_REPEAT_DELAY_SECONDS,
     keyRepeatInterval = opts.keyRepeatInterval or KEY_REPEAT_INTERVAL_SECONDS,
     _repeatKey = nil,
@@ -114,6 +116,24 @@ end
 
 function TextField:_hasMask()
   return type(self.mask) == "string" and self.mask ~= ""
+end
+
+--- Filter unmasked input. Hex-bytes: spaces + hex digits (uppercased); drop anything else.
+function TextField:_filterAcceptedText(str)
+  str = tostring(str or "")
+  if self.accept ~= "hex_bytes" then
+    return str
+  end
+  local out = {}
+  for i = 1, #str do
+    local ch = str:sub(i, i)
+    if ch == " " then
+      out[#out + 1] = " "
+    elseif isHexChar(ch) then
+      out[#out + 1] = uppercaseOrNil(ch)
+    end
+  end
+  return table.concat(out)
 end
 
 function TextField:_maskChars()
@@ -225,7 +245,7 @@ function TextField:setText(str)
       self.cursorPos = self:_firstEditableIndex()
     end
   else
-    str = str or ""
+    str = self:_filterAcceptedText(str or "")
     self.text = {}
     for i = 1, #str do
       self.text[i] = str:sub(i, i)

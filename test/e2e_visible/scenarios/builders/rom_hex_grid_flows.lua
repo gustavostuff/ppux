@@ -10,6 +10,8 @@ local BubbleExample, pause, call, appendClick, keyPress,
     P.ppuToolbarButtonCenter, P.setupDeterministicPpuFixture, P.ensureSpriteLayerReadyForAddSprite,
     P.layoutModal, P.modalHexCellCenter, P.modalButtonCenter, P.wheelModalHex
 
+local RomPaletteAddressModal = require("ui.modals.rom_palette_address_modal")
+
 local function findValidColorAddr(modal, preferNear)
   local romRaw = modal.romRaw or ""
   local maxAddr = math.max(0, #romRaw - 1)
@@ -38,6 +40,29 @@ local function findInvalidColorAddrOnPage(modal)
     end
   end
   return nil
+end
+
+local function pickSearchNeedle(romRaw)
+  if type(romRaw) ~= "string" or #romRaw < 2 then
+    return nil, {}
+  end
+  local limit = math.min(#romRaw - 1, 96)
+  for i = 1, limit do
+    local a = string.byte(romRaw, i)
+    local b = string.byte(romRaw, i + 1)
+    local hits = RomPaletteAddressModal.findByteSequence(romRaw, { a, b })
+    if #hits >= 2 then
+      return string.format("%02X%02X", a, b), hits
+    end
+  end
+  for i = 1, math.min(#romRaw, 64) do
+    local a = string.byte(romRaw, i)
+    local hits = RomPaletteAddressModal.findByteSequence(romRaw, { a })
+    if #hits >= 2 then
+      return string.format("%02X", a), hits
+    end
+  end
+  return nil, {}
 end
 
 local function findSecondValidColorAddr(modal, firstAddr)
@@ -73,15 +98,88 @@ local function buildRomPaletteHexGridFlowScenario(harness, app, runner)
     local modal = assert(currentApp.romPaletteAddressModal, "expected romPaletteAddressModal")
     assert(modal:isVisible(), "expected address modal visible")
     layoutModal(currentApp, modal)
-    local semis = modal.hexGrid:getSemiSelectedStarts()
-    assert(#semis > 0, "expected valid NES color cells semi-selected on the page")
+    assert(modal.hexGrid.defaultCellStyle == "ninja", "expected valid colors to use ninja cells")
+    assert(modal.hexGrid.rejectedCellStyle == "hidden", "expected invalid colors hidden")
+    assert(modal.hideInvalidCheckbox == nil, "expected Hide invalid checkbox removed")
+    assert(modal.searchField ~= nil, "expected Search bytes field")
+    assert(modal.searchField.accept == "hex_bytes", "expected hex-bytes search mask")
+    assert(modal.hexGrid.boundAsSelected == true, "expected bound palette cells Selected")
     currentRunner.paletteValidA = assert(findValidColorAddr(modal, 0x10), "expected a valid color address")
     currentRunner.paletteValidB = assert(
       findSecondValidColorAddr(modal, currentRunner.paletteValidA),
       "expected a second valid color address"
     )
   end)
-  steps[#steps + 1] = pause("Observe palette address modal + semis", 0.45)
+  steps[#steps + 1] = pause("Observe palette address modal", 0.45)
+
+  appendClick(steps, "Focus Search bytes field", function(_, currentApp)
+    local modal = assert(currentApp.romPaletteAddressModal, "expected modal")
+    layoutModal(currentApp, modal)
+    local field = assert(modal.searchField, "expected search field")
+    return field.x + field.w * 0.5, field.y + field.h * 0.5
+  end, { moveDuration = 0.08, postPause = 0.12 })
+
+  steps[#steps + 1] = call("Search bytes: groups, OAM colors, and focused mini maps", function(_, currentApp, currentRunner)
+    local modal = assert(currentApp.romPaletteAddressModal, "expected modal")
+    layoutModal(currentApp, modal)
+    if not modal.searchField.focused then
+      modal:_focusSearchField()
+    end
+    local needle, hits = pickSearchNeedle(modal.romRaw)
+    assert(needle and #hits >= 2, "expected a repeating search needle in the ROM")
+    currentRunner.paletteSearchNeedle = needle
+    currentRunner.paletteSearchHits = hits
+    modal.searchField:setText(needle)
+    modal:_applyByteSearch()
+    local groupSize = #RomPaletteAddressModal.parseSearchBytes(needle)
+    assert(modal:_searchStatusText() == "1/" .. tostring(math.min(#hits, 256)),
+      "expected search status 1/n, got " .. tostring(modal:_searchStatusText()))
+    local underlined = modal.hexGrid:getUnderlinedStarts()
+    assert(#underlined >= 2, "expected underlined inactive/active search hits")
+    assert(underlined[1] == hits[1], "expected first hit underlined")
+    assert(modal.hexGrid:getSelectedStarts()[1] == hits[1], "expected current hit Selected")
+    assert(modal.hexGrid:getSelectedGroupSize(hits[1]) == groupSize, "expected Selected search group")
+    assert(modal.hexGrid:getUnderlinedGroupSize(hits[2]) == groupSize, "expected Underlined search group")
+    local marks = modal.hexGrid:getMinimapMarkers()
+    assert(#marks >= 2, "expected search hits on mini maps while focused")
+    assert(marks[1].boundPaint == false, "expected search mini-map marks not to paint as bound")
+    assert(marks[1].color == "red", "expected first search hit to use OAM red")
+    assert(marks[2].color == "green", "expected second search hit to use OAM green")
+  end)
+  steps[#steps + 1] = pause("Observe search hits", 0.3)
+
+  steps[#steps + 1] = call("Cycle search hit with Enter", function(_, currentApp, currentRunner)
+    local modal = assert(currentApp.romPaletteAddressModal, "expected modal")
+    modal:_focusSearchField()
+    assert(modal:handleKey("return") == true, "expected Enter handled by search")
+    assert(modal:isVisible(), "expected modal still open after search Enter")
+    local hits = currentRunner.paletteSearchHits
+    assert(modal._searchHitIndex == 2, "expected second search hit after Enter")
+    assert(modal.hexGrid:getSelectedStarts()[1] == hits[2], "expected cycled hit Selected")
+    assert(modal:_searchStatusText() == "2/" .. tostring(math.min(#hits, 256)),
+      "expected search status 2/n")
+  end)
+
+  appendClick(steps, "Unfocus Search by clicking Address field", function(_, currentApp)
+    local modal = assert(currentApp.romPaletteAddressModal, "expected modal")
+    layoutModal(currentApp, modal)
+    local field = assert(modal.textField, "expected address field")
+    return field.x + field.w * 0.5, field.y + field.h * 0.5
+  end, { moveDuration = 0.08, postPause = 0.12 })
+
+  steps[#steps + 1] = call("Assert unfocus restores mapped palette mini maps", function(_, currentApp)
+    local modal = assert(currentApp.romPaletteAddressModal, "expected modal")
+    assert(modal.searchField.focused ~= true, "expected search field unfocused")
+    local marks = modal.hexGrid:getMinimapMarkers()
+    for _, m in ipairs(marks) do
+      assert(m.boundPaint ~= false, "expected mapped ROM palette mini-map marks after unfocus")
+    end
+    modal.searchField:setText("")
+    modal:_applyByteSearch()
+    assert(modal:_searchStatusText() == "", "expected search cleared")
+    assert(#(modal.hexGrid:getUnderlinedStarts()) == 0, "expected search underlines cleared")
+  end)
+  steps[#steps + 1] = pause("Observe restored mini maps", 0.25)
 
   appendClick(steps, "Click invalid NES color cell", modalHexCellCenter("romPaletteAddressModal", function(harness, app, currentRunner, modal)
     local invalid = findInvalidColorAddrOnPage(modal)
@@ -109,8 +207,8 @@ local function buildRomPaletteHexGridFlowScenario(harness, app, runner)
     -- Masked address field resets to skeleton text when cleared.
     assert(modal.textField:getText() == "0x000000", "expected address field cleared to mask skeleton")
     assert(modal.hexGrid.selectionCrosshair == true, "expected ROM palette crosshair (label-only)")
-    assert(modal:isHideInvalidColors() == true, "expected Hide invalid colors on by default")
     assert(modal.hexGrid.rejectedCellStyle == "hidden", "expected invalid cells hidden")
+    assert(#(modal.hexGrid:getUserSelectedStarts()) == 0, "expected user-selected pick cleared")
   end)
   steps[#steps + 1] = pause("Observe cleared selection after invalid click", 0.25)
 
@@ -123,6 +221,8 @@ local function buildRomPaletteHexGridFlowScenario(harness, app, runner)
     layoutModal(currentApp, modal)
     local starts = modal.hexGrid:getSelectedStarts()
     assert(#starts == 1 and starts[1] == currentRunner.paletteValidA, "expected first valid addr selected")
+    local user = modal.hexGrid:getUserSelectedStarts()
+    assert(#user == 1 and user[1] == currentRunner.paletteValidA, "expected first valid addr user-selected")
     assert(modal.setButton.enabled == true, "expected Set enabled after valid selection")
     assert(modal._invalidColorWarning == nil, "expected invalid warning cleared")
     local row, col = modal.hexGrid:_selectionCrosshairCell()
@@ -138,34 +238,23 @@ local function buildRomPaletteHexGridFlowScenario(harness, app, runner)
     local modal = assert(currentApp.romPaletteAddressModal, "expected modal")
     local starts = modal.hexGrid:getSelectedStarts()
     assert(#starts == 1 and starts[1] == currentRunner.paletteValidB, "expected second valid addr selected")
+    local user = modal.hexGrid:getUserSelectedStarts()
+    assert(#user == 1 and user[1] == currentRunner.paletteValidB, "expected second valid addr user-selected")
   end)
 
-  steps[#steps + 1] = call("Wheel scroll refreshes semi-selected page colors", function(currentHarness, currentApp, currentRunner)
+  steps[#steps + 1] = call("Wheel scroll keeps ninja defaults and the user pick", function(currentHarness, currentApp, currentRunner)
     local modal = assert(currentApp.romPaletteAddressModal, "expected modal")
     layoutModal(currentApp, modal)
     local beforeScroll = modal.hexGrid.scrollOffset
-    local beforeSemis = modal.hexGrid:getSemiSelectedStarts()
     wheelModalHex(currentHarness, currentApp, "romPaletteAddressModal", currentRunner.paletteValidB, -1)
     assert(modal.hexGrid.scrollOffset ~= beforeScroll, "expected hex grid to scroll")
-    local afterSemis = modal.hexGrid:getSemiSelectedStarts()
-    -- Page change should recompute semis (membership or order can change).
-    local changed = #afterSemis ~= #beforeSemis
-    if not changed then
-      for i = 1, #afterSemis do
-        if afterSemis[i] ~= beforeSemis[i] then
-          changed = true
-          break
-        end
-      end
-    end
-    assert(changed or #afterSemis >= 0, "expected semi-selected refresh after scroll")
+    assert(modal.hexGrid.defaultCellStyle == "ninja", "expected ninja cells after scroll")
     -- Restore selection onto a known-valid cell after scrolling away.
     modal.hexGrid:scrollToReveal(currentRunner.paletteValidB)
     modal:_onGridSelect(currentRunner.paletteValidB, { fromGrid = false })
-    modal:_refreshSemiSelected()
     layoutModal(currentApp, modal)
   end)
-  steps[#steps + 1] = pause("Observe scroll + semi refresh", 0.35)
+  steps[#steps + 1] = pause("Observe scroll + restored pick", 0.35)
 
   appendClick(steps, "Click Set to bind ROM palette address", modalButtonCenter("romPaletteAddressModal", function(modal)
     return modal.setButton
