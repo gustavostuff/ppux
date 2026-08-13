@@ -66,8 +66,8 @@ You'll also notice these little **badges** on windows. When a badge is colored, 
 
 <img src="img/readme_images/badges.png" alt="Source window badges (right edge)">
 
-- **Left-click** a colored badge to bring the linked window(s) forward and focus them.
-- **Right-click** a badge for the Link / Unlink / Jump menu for that slot.
+- **Left-click** a colored badge to bring the linked window(s) forward.
+- **Right-click** a badge for the Link/Unlink/Jump menu for that slot.
 - **Left-drag** from a badge (empty or linked) onto a compatible badge on another window.
 
 **Source windows/badges** (right edge)
@@ -86,7 +86,7 @@ Examples:
 - **PPU Frame** - background pattern (red), sprite pattern (green), ROM palette (blue).
 - **Sketch canvas** - background pattern (red), sprite pattern (unused for now), sketch-mode ROM palette (blue).
 - **OAM Animation** - sprite pattern (green), ROM palette (blue).
-- **Static Art / Animation** (tiles or sprites) - ROM palette (blue).
+- **Static Art/Animation** (tiles or sprites) - ROM palette (blue).
 
 Examples:
 
@@ -167,7 +167,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 3. **Remove layer** - `-` key.
 4. **Add layer** - `+` key.
 5. **Copy from previous layer** - Copies everything, including palette links and pattern table links.
-6. **Play / Pause** - `P` key.
+6. **Play/Pause** - `P` key.
 
 </td>
 </tr>
@@ -185,7 +185,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 5. **Add sprite** - Opens the [Add sprite](#hex-grid-flows) hex-grid modal (OAM).
 6. **Toggle origin guides** - toggles dotted reference lines, this is user defined, not something that comes from ROM data.
 7. **Copy from previous layer** - Copies everything, including palette links and pattern table links.
-8. **Play / Pause** - `P` key. While focused, **`Shift` + `Left` / `Shift` + `Right`** adjusts frame delay for all frames.
+8. **Play/Pause** - `P` key. While focused, **`Shift` + `Left`/`Shift` + `Right`** adjusts frame delay for all frames.
 
 A **Pattern table** link is **required** for sprite CHR.
 
@@ -277,7 +277,7 @@ Palette windows are the editors used for colors across the app (NES colors).
 * **Generic palette** - the fallback palette when nothing has a ROM palette linked. Handy for mockups and freeform art.
 * **ROM palette** (`4x4`) - when you create one, PPUX asks for a **role**: **ROM** (backed by ROM addresses for in-game palette editing) or **Sketch** (free colors, only for Sketch canvas windows).
 
-On ROM palettes, unbound cells show as empty (`-`). Cells you have recolored keep a small swatch of the original ROM color so you can tell overrides apart at a glance. Use the toolbar **Reset cell** / **Reset all** actions (or edit the color again with double click) to go back to the ROM base.
+On ROM palettes, unbound cells show as empty (`-`). Cells you have recolored keep a small swatch of the original ROM color so you can tell overrides apart at a glance. Use the toolbar **Reset cell**/**Reset all** actions (or edit the color again with double click) to go back to the ROM base.
 
 See [ROM palette & patches](#rom-palette--patches) and [Hex grid flows](#hex-grid-flows) for assigning addresses.
 
@@ -410,13 +410,13 @@ Several ROM-backed pickers share the same debugger-style **ROM hex grid** (byte 
 
 ---
 
-**ROM palette address** - Double-click a ROM-role palette cell (or use **Connect / Update ROM address** from the cell menu) to open the **Enter color address** modal. Valid NES color bytes show as colored labels while invalid ones stay hidden by default. Pick an address, check the swatch, then **Set**. Already-bound cells use a different shape (rounded solid rectangle).
+**ROM palette address** - Double-click a ROM-role palette cell (or use **Connect/Update ROM address** from the cell menu) to open the **Enter color address** modal. Valid NES color bytes show as colored labels while invalid ones stay hidden by default. Pick an address, check the swatch, then **Set**. Already-bound cells use a different shape (rounded solid rectangle).
 
 <img src="img/readme_images/edit_palette_rom_address.png" alt="ROM palette address hex grid modal">
 
 ---
 
-**Add / Edit sprite (OAM)** - On **PPU Frame** and **OAM Animation** windows, **Add sprite** opens the Add/Edit sprite modal. Each pick is a 4-byte OAM group (Y, tile, attr, X). Click to toggle groups, with gray cells marking ones already on the layer. A live preview and the OAM start field stay in sync, **Add** / **Save** commits the selection, and **Edit sprite** reopens the same UI. **The 4-byte groups are not guaranteed to be valid OAM groups** actually used in the game, only an emulator would "know" that for sure. This is simply a tool to speed up UI-based sprite editing/building.
+**Add/Edit sprite (OAM)** - On **PPU Frame** and **OAM Animation** windows, **Add sprite** opens the Add/Edit sprite modal. Each pick is a 4-byte OAM group (Y, tile, attr, X). Click to toggle groups, with gray cells marking ones already on the layer. A live preview and the OAM start field stay in sync, **Add**/**Save** commits the selection, and **Edit sprite** reopens the same UI. **The 4-byte groups are not guaranteed to be valid OAM groups** actually used in the game, only an emulator would "know" that for sure. This is simply a tool to speed up UI-based sprite editing/building.
 
 <img src="img/readme_images/add_oam_sprite.png" alt="Add/Edit sprite OAM hex grid modal">
 
@@ -434,7 +434,7 @@ Note: Scanned mode is Konami-only for now (the checkbox is hidden for other code
 
 `rom_palette` windows are `4x4` palette editors. **ROM**-role windows are backed by ROM addresses. **Sketch**-role windows hold free colors for Sketch canvas windows.
 
-On the ROM palette toolbar, use **Reset cell** / **Reset all** to restore overridden colors to the captured ROM base.
+On the ROM palette toolbar, use **Reset cell**/**Reset all** to restore overridden colors to the captured ROM base.
 
 To bind or change a ROM address on a cell, use the shared hex grid picker described in [Hex grid flows](#hex-grid-flows).
 
