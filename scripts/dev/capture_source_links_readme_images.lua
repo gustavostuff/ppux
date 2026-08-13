@@ -84,6 +84,9 @@ local function hideAppChrome(app)
   else
     app.windowShadowEnabled = false
   end
+  if app.wm then
+    app.wm.forceAllWindowsFocused = true
+  end
 end
 
 local function writePng(imgData, filename)
@@ -234,6 +237,8 @@ local function createPeekPpu(app, title, x, y)
   setVisibleGrid(win, 4, 12)
   placeWindow(win, x, y)
   addSpriteLayer(win)
+  -- Peek slivers: focused chrome only (full PPU toolbars would cover the shot).
+  win._captureSkipToolbar = true
   return win
 end
 
@@ -278,66 +283,44 @@ local function captureExample1(app)
   closeAllWindows(app)
   local paletteBase = writePaletteRomBytes(app)
 
-  local palAAddrs = {}
+  local palAddrs = {}
   local nextAddr = paletteBase
   for row = 1, 4 do
     for col = 1, 4 do
       if col == 1 then
-        palAAddrs[#palAAddrs + 1] = false
+        palAddrs[#palAddrs + 1] = false
       else
-        palAAddrs[#palAAddrs + 1] = nextAddr
+        palAddrs[#palAddrs + 1] = nextAddr
         nextAddr = nextAddr + 1
       end
     end
   end
-  local palBAddrs = {}
-  for _ = 1, 16 do
-    palBAddrs[#palBAddrs + 1] = nextAddr
-    nextAddr = nextAddr + 1
-  end
 
   local palX = MARGIN
-  local palY1 = focusedContentY(8)
-  local pal1 = assert(app.wm:createRomPaletteWindow({
+  local palY = focusedContentY()
+  local pal = assert(app.wm:createRomPaletteWindow({
     title = "ROM palette",
     x = palX,
-    y = palY1,
+    y = palY,
     zoom = 1,
     paletteRole = "rom",
     romRaw = app.appEditState.romRaw,
     paletteData = {
-      romColors = romColorsFromAddresses(palAAddrs, 4, 4),
+      romColors = romColorsFromAddresses(palAddrs, 4, 4),
       userDefinedCode = {},
     },
   }))
-  placeWindow(pal1, palX, palY1)
-  overrideCell(pal1, 1, 0, "27")
-  overrideCell(pal1, 2, 0, "36")
-  overrideCell(pal1, 1, 1, "2A")
-  overrideCell(pal1, 2, 1, "19")
-  pal1:setSelected(1, 0)
-
-  local palH = 4 * 16
-  local palY2 = palY1 + palH + HEADER_H + 8
-  local pal2 = assert(app.wm:createRomPaletteWindow({
-    title = "ROM palette",
-    x = palX,
-    y = palY2,
-    zoom = 1,
-    paletteRole = "rom",
-    romRaw = app.appEditState.romRaw,
-    paletteData = {
-      romColors = romColorsFromAddresses(palBAddrs, 4, 4),
-      userDefinedCode = {},
-    },
-  }))
-  placeWindow(pal2, palX, palY2)
-  pal2:setSelected(1, 3)
+  placeWindow(pal, palX, palY)
+  overrideCell(pal, 1, 0, "27")
+  overrideCell(pal, 2, 0, "36")
+  overrideCell(pal, 1, 1, "2A")
+  overrideCell(pal, 2, 1, "19")
+  pal:setSelected(1, 0)
 
   local peekX = IMAGE_W - 24
-  local ppu = createPeekPpu(app, "PPU Frame", peekX, palY1)
-  linkWindows(app, pal1, "palette_source", ppu, "ppu_palette")
-  app.wm:setFocus(pal1)
+  local ppu = createPeekPpu(app, "PPU Frame", peekX, palY)
+  linkWindows(app, pal, "palette_source", ppu, "ppu_palette")
+  app.wm:setFocus(pal)
   captureCanvas(app, "source_links_example_1.png")
 end
 
@@ -365,6 +348,7 @@ local function captureExample3(app)
   closeAllWindows(app)
   ensureBankTiles(app, 1)
   local pt = createPatternTable(app, "Pattern table", -240, unfocusedContentY(), 16, 16, 2)
+  pt._captureSkipToolbar = true
   local ppuCols, ppuRows = 16, 16
   local ppuW = ppuCols * 8
   local ppuX = IMAGE_W - ppuW - MARGIN
@@ -378,6 +362,7 @@ local function captureExample4(app)
   closeAllWindows(app)
   ensureBankTiles(app, 1)
   local pt = createPatternTable(app, "Pattern table", -240, unfocusedContentY(), 16, 16, 2)
+  pt._captureSkipToolbar = true
   local oamSize = 8 * 8 * 2
   local oamX = IMAGE_W - oamSize - MARGIN
   local oamY = focusedContentY()

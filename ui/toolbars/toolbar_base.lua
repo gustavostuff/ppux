@@ -19,6 +19,21 @@ ToolbarBase.__index = ToolbarBase
 -- Outside gap (screen px) used as viewport inset when clamping attached toolbars.
 local TOOLBAR_OUTSIDE_GAP = 1
 
+local function specializedToolbarIsFocused(self)
+  local win = self.window
+  local wm = self.windowController
+  if not win or not wm then
+    return false
+  end
+  if win._captureSkipToolbar == true then
+    return false
+  end
+  if wm.windowIsFocused then
+    return wm:windowIsFocused(win)
+  end
+  return wm.getFocus and win == wm:getFocus()
+end
+
 local function resolveCanvasWidth(app)
   if app and app.canvas and type(app.canvas.getWidth) == "function" then
     local w = app.canvas:getWidth()
@@ -259,7 +274,7 @@ function ToolbarBase:updatePosition()
   end
 
   local wm = self.windowController
-  if not wm or not wm.getFocus or wnd ~= wm:getFocus() then
+  if not wm or not specializedToolbarIsFocused(self) then
     self._verticalLayout = false
     self._layoutCenterWidth = nil
     self._verticalReserveW = nil
@@ -750,9 +765,7 @@ function ToolbarBase:draw()
   if not self.visible then return end
   
   -- Check if window is focused (specialized toolbars only show when focused)
-  if not self.window or not self.windowController then return end
-  local isFocused = (self.window == self.windowController:getFocus())
-  if not isFocused then return end
+  if not specializedToolbarIsFocused(self) then return end
   
   -- Update position before drawing (this also re-layouts buttons)
   self:updateIcons()

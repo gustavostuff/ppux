@@ -826,7 +826,7 @@ local function computeSpecializedToolbarShadowRect(app, w, wm)
   if w._collapsed then
     return nil
   end
-  local isFocused = wm and wm.getFocus and (w == wm:getFocus())
+  local isFocused = wm and ((wm.windowIsFocused and wm:windowIsFocused(w)) or (wm.getFocus and w == wm:getFocus()))
   if not isFocused or app.separateToolbar == true then
     return nil
   end
@@ -1195,7 +1195,7 @@ end
 local function drawCrtLensVisualizerWindow(app, w, wm)
   PaletteLinkRenderController.drawSourcePaletteProxyForWindow(app, w)
 
-  local isFocused = (w == wm:getFocus())
+  local isFocused = (wm.windowIsFocused and wm:windowIsFocused(w)) or (w == wm:getFocus())
   local isCollapsed = w._collapsed or false
 
   if isCollapsed then
@@ -1279,7 +1279,7 @@ end
 local function drawCrtLensWindowChromeOnly(app, w, wm)
   PaletteLinkRenderController.drawSourcePaletteProxyForWindow(app, w)
 
-  local isFocused = (w == wm:getFocus())
+  local isFocused = (wm.windowIsFocused and wm:windowIsFocused(w)) or (w == wm:getFocus())
   local isCollapsed = w._collapsed or false
 
   if isCollapsed then
@@ -1363,7 +1363,7 @@ local function drawWindows(app)
 end
 
 drawNormalWindow = function(app, w, wm)
-  local isFocused   = (w == wm:getFocus())
+  local isFocused = (wm.windowIsFocused and wm:windowIsFocused(w)) or (w == wm:getFocus())
   if w.specializedToolbar and app.separateToolbar ~= true then
     if isFocused then
       w.specializedToolbar:updatePosition()

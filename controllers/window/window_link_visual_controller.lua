@@ -109,15 +109,22 @@ local function getWindowBodyRect(win)
   return nil
 end
 
+local function windowIsFocused(wm, win)
+  if wm and wm.windowIsFocused then
+    return wm:windowIsFocused(win)
+  end
+  return wm and wm.getFocus and win == wm:getFocus()
+end
+
 local function idleInnerColorForWindow(win, wm)
-  if wm and wm.getFocus and win == wm:getFocus() then
+  if windowIsFocused(wm, win) then
     return colors:chromeTextIconsColorFocused()
   end
   return colors:chromeTextIconsColorNonFocused()
 end
 
 local function chromeFillColorForWindow(win, wm)
-  if wm and wm.getFocus and win == wm:getFocus() then
+  if windowIsFocused(wm, win) then
     return colors:focusedChromeColor()
   end
   return colors:chromeBackgroundUnfocused()

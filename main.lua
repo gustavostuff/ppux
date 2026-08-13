@@ -2,6 +2,8 @@ local app
 local e2eRunner
 local captureToolbarsMode = false
 local captureSourceLinksMode = false
+local capturePalettesMode = false
+local captureModeIndicatorsMode = false
 local lastPolledMouseX
 local lastPolledMouseY
 local highSpeedPaintMode = true
@@ -18,6 +20,8 @@ local function parseCommandLineArgs(argv)
     e2eSpeedMultiplier = nil,
     captureToolbars = false,
     captureSourceLinks = false,
+    capturePalettes = false,
+    captureModeIndicators = false,
     romPath = nil,
   }
 
@@ -35,6 +39,12 @@ local function parseCommandLineArgs(argv)
       i = i + 1
     elseif value == "--capture-source-links" then
       out.captureSourceLinks = true
+      i = i + 1
+    elseif value == "--capture-palettes" then
+      out.capturePalettes = true
+      i = i + 1
+    elseif value == "--capture-mode-indicators" then
+      out.captureModeIndicators = true
       i = i + 1
     elseif value and not value:match("^%-") and not out.romPath then
       out.romPath = value
@@ -70,6 +80,34 @@ function love.load(arg)
     if not ok then
       error(
         "Missing scripts/dev/capture_source_links_readme_images.lua. "
+          .. "Original require error: "
+          .. tostring(captureOrErr)
+      )
+    end
+    captureOrErr.run()
+    return
+  end
+
+  if cli.capturePalettes then
+    capturePalettesMode = true
+    local ok, captureOrErr = pcall(require, "scripts.dev.capture_palettes_readme_images")
+    if not ok then
+      error(
+        "Missing scripts/dev/capture_palettes_readme_images.lua. "
+          .. "Original require error: "
+          .. tostring(captureOrErr)
+      )
+    end
+    captureOrErr.run()
+    return
+  end
+
+  if cli.captureModeIndicators then
+    captureModeIndicatorsMode = true
+    local ok, captureOrErr = pcall(require, "scripts.dev.capture_mode_indicator_readme_images")
+    if not ok then
+      error(
+        "Missing scripts/dev/capture_mode_indicator_readme_images.lua. "
           .. "Original require error: "
           .. tostring(captureOrErr)
       )
@@ -232,7 +270,7 @@ local function pollMouseMovement()
 end
 
 function love.update(dt)
-  if captureToolbarsMode or captureSourceLinksMode then
+  if captureToolbarsMode or captureSourceLinksMode or capturePalettesMode or captureModeIndicatorsMode then
     return
   end
   if e2eRunner then
@@ -244,7 +282,7 @@ function love.update(dt)
 end
 
 function love.draw()
-  if captureToolbarsMode or captureSourceLinksMode or not app then
+  if captureToolbarsMode or captureSourceLinksMode or capturePalettesMode or captureModeIndicatorsMode or not app then
     return
   end
   app:draw()
@@ -254,12 +292,12 @@ function love.draw()
 end
 
 function love.filedropped(file)
-  if captureToolbarsMode or captureSourceLinksMode or e2eRunner then return end
+  if captureToolbarsMode or captureSourceLinksMode or capturePalettesMode or captureModeIndicatorsMode or e2eRunner then return end
   app:filedropped(file)
 end
 
 function love.keypressed(k, scancode, isrepeat)
-  if captureToolbarsMode or captureSourceLinksMode then return end
+  if captureToolbarsMode or captureSourceLinksMode or capturePalettesMode or captureModeIndicatorsMode then return end
   if e2eRunner then
     if e2eRunner.keypressed then
       e2eRunner:keypressed(k, scancode, isrepeat)
@@ -297,7 +335,7 @@ function love.keyreleased(k)
 end
 
 function love.mousepressed(x, y, b)
-  if captureToolbarsMode or captureSourceLinksMode then return end
+  if captureToolbarsMode or captureSourceLinksMode or capturePalettesMode or captureModeIndicatorsMode then return end
   if e2eRunner then
     if e2eRunner.mousepressed then
       e2eRunner:mousepressed(x, y, b)
@@ -308,30 +346,30 @@ function love.mousepressed(x, y, b)
 end
 
 function love.mousereleased(x, y, b)
-  if captureToolbarsMode or captureSourceLinksMode or e2eRunner then return end
+  if captureToolbarsMode or captureSourceLinksMode or capturePalettesMode or captureModeIndicatorsMode or e2eRunner then return end
   app:mousereleased(x, y, b)
 end
 
 function love.mousemoved(x, y, dx, dy)
-  if captureToolbarsMode or captureSourceLinksMode or e2eRunner then return end
+  if captureToolbarsMode or captureSourceLinksMode or capturePalettesMode or captureModeIndicatorsMode or e2eRunner then return end
   lastPolledMouseX, lastPolledMouseY = x, y
   app:mousemoved(x, y, dx, dy)
 end
 
 function love.wheelmoved(dx, dy)
-  if captureToolbarsMode or captureSourceLinksMode or e2eRunner then return end
+  if captureToolbarsMode or captureSourceLinksMode or capturePalettesMode or captureModeIndicatorsMode or e2eRunner then return end
   app:wheelmoved(dx, dy)
 end
 
 function love.textinput(text)
-  if captureToolbarsMode or captureSourceLinksMode or e2eRunner then return end
+  if captureToolbarsMode or captureSourceLinksMode or capturePalettesMode or captureModeIndicatorsMode or e2eRunner then return end
   if app and app.textinput then
     app:textinput(text)
   end
 end
 
 function love.resize(w, h)
-  if captureToolbarsMode or captureSourceLinksMode or not app then return end
+  if captureToolbarsMode or captureSourceLinksMode or capturePalettesMode or captureModeIndicatorsMode or not app then return end
   app:resize(w, h)
 end
 

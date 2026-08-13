@@ -1197,6 +1197,18 @@ function WM:getFocus()
   return self.focused
 end
 
+--- Visual focus (chrome / specialized toolbar). Capture scripts can set
+--- `forceAllWindowsFocused` so every on-screen window looks active.
+function WM:windowIsFocused(win)
+  if not win then
+    return false
+  end
+  if self.forceAllWindowsFocused == true then
+    return true
+  end
+  return self.focused == win
+end
+
 function WM:getTopInteractiveSurfaceWindowAt(x, y)
   return MouseWindowChrome.getTopInteractiveSurfaceWindowAt(x, y, self)
 end
