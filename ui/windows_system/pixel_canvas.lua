@@ -102,6 +102,14 @@ function PixelCanvas:ensureImage()
   self._imageDirty = true
 end
 
+--- Drop GPU Image/ImageData after a window/context change; CPU pixels stay.
+function PixelCanvas:discardGpuImage()
+  self.imgData = nil
+  self.image = nil
+  self._drawQuad = nil
+  self._imageDirty = true
+end
+
 function PixelCanvas:refreshImage()
   self:ensureImage()
   local k = 1

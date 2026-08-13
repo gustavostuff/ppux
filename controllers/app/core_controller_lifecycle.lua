@@ -456,6 +456,9 @@ function AppCoreController:setCrtModeEnabled(enabled)
   if self.invalidateAllStaticAnimationTileLayerCanvases then
     self:invalidateAllStaticAnimationTileLayerCanvases()
   end
+  if self.invalidateAllSketchCanvasGpuCaches then
+    self:invalidateAllSketchCanvasGpuCaches()
+  end
 
   if imageModeKey and self._applyCanvasImageModeSetting then
     self:_applyCanvasImageModeSetting(imageModeKey, false)

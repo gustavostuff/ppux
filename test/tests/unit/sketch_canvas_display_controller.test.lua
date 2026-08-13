@@ -49,6 +49,43 @@ describe("sketch_canvas_display_controller.lua", function()
       canvas:edit(1, 0, 3)
       expect(SketchDisplay.drawAttrPalettized(app, sketch, canvas, layer, 1, nil)).toBe(true)
       expect(sketch._sketchPalettized.rebuilds).toBe(4)
+
+      SketchDisplay.invalidatePalettizedCache(sketch)
+      expect(sketch._sketchPalettized).toBeNil()
+      expect(SketchDisplay.drawAttrPalettized(app, sketch, canvas, layer, 1, nil)).toBe(true)
+      expect(sketch._sketchPalettized.rebuilds).toBe(1)
+      love.graphics.pop()
+    end)
+  end)
+
+  it("drops palettized GPU cache and PixelCanvas images on sketch gpu invalidation", function()
+    local dummy = {}
+    require("controllers.app.core_controller_invalidation")(dummy)
+    local wm = WM.new()
+    withWm(wm, function()
+      local sketch = wm:createSketchCanvasWindow({ title = "BG" })
+      local pal = wm:createRomPaletteWindow({ title = "Sketch pal", paletteRole = "sketch" })
+      assert(PaletteLinkController.linkLayerToPalette(sketch, 1, pal))
+      SketchPalette.ensureAttrBytes(sketch)
+      local canvas = sketch:getActiveCanvas()
+      local layer = sketch.layers[1]
+      local app = { wm = wm }
+
+      love.graphics.push("all")
+      love.graphics.origin()
+      expect(SketchDisplay.drawAttrPalettized(app, sketch, canvas, layer, 1, nil)).toBe(true)
+      expect(sketch._sketchPalettized).toBeTruthy()
+      canvas:ensureImage()
+      expect(canvas.image).toBeTruthy()
+
+      dummy.wm = wm
+      expect(dummy:invalidateAllSketchCanvasGpuCaches()).toBe(true)
+      expect(sketch._sketchPalettized).toBeNil()
+      expect(canvas.image).toBeNil()
+      expect(canvas._imageDirty).toBe(true)
+
+      expect(SketchDisplay.drawAttrPalettized(app, sketch, canvas, layer, 1, nil)).toBe(true)
+      expect(sketch._sketchPalettized).toBeTruthy()
       love.graphics.pop()
     end)
   end)

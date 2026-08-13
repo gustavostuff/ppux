@@ -268,4 +268,35 @@ function AppCoreController:invalidateAllStaticAnimationTileLayerCanvases()
   return touched
 end
 
+-- Sketch palettized RGB canvases and PixelCanvas Images go blank after GPU/window
+-- changes (fullscreen toggle, scale). Force recreation on the next draw.
+function AppCoreController:invalidateAllSketchCanvasGpuCaches()
+  if not (self.wm and self.wm.getWindows) then
+    return false
+  end
+
+  local SketchDisplay = require("controllers.game_art.sketch_canvas_display_controller")
+  local touched = false
+  for _, win in ipairs(self.wm:getWindows() or {}) do
+    if win and WindowCaps.isSketchCanvas(win) then
+      SketchDisplay.invalidatePalettizedCache(win)
+      for _, layer in ipairs(win.layers or {}) do
+        if layer and layer.canvas and layer.canvas.discardGpuImage then
+          layer.canvas:discardGpuImage()
+        end
+      end
+      if win._reflectDisplayCanvas and win._reflectDisplayCanvas.discardGpuImage then
+        win._reflectDisplayCanvas:discardGpuImage()
+      end
+      local sel = win.pixelSelection
+      if sel and sel.floating and sel.floating.discardGpuImage then
+        sel.floating:discardGpuImage()
+      end
+      touched = true
+    end
+  end
+
+  return touched
+end
+
 end

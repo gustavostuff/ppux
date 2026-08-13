@@ -11,6 +11,9 @@ local function invalidateVolatileWindowCanvases(app)
   if app and app.invalidateAllStaticAnimationTileLayerCanvases then
     app:invalidateAllStaticAnimationTileLayerCanvases()
   end
+  if app and app.invalidateAllSketchCanvasGpuCaches then
+    app:invalidateAllSketchCanvasGpuCaches()
+  end
 end
 
 local function copyWindowFlags(flags)

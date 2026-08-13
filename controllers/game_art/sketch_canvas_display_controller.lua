@@ -103,6 +103,17 @@ local function ensureRgbCanvas(sketchWin, width, height)
   return state
 end
 
+function M.invalidatePalettizedCache(sketchWin)
+  if not sketchWin then
+    return
+  end
+  local state = sketchWin._sketchPalettized
+  if state and state.canvas and state.canvas.release then
+    pcall(state.canvas.release, state.canvas)
+  end
+  sketchWin._sketchPalettized = nil
+end
+
 --- Draw palettized sketch pixels. Rebuilds an offscreen RGB canvas when the
 --- source, attribute table, or linked palette codes change.
 function M.drawAttrPalettized(app, sketchWin, sourceCanvas, layer, layerOpacity, romRaw)

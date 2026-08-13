@@ -8,6 +8,7 @@ describe("keyboard_window_shortcuts_controller.lua - fullscreen handling", funct
     local oldRecalculate = ResolutionController.recalculate
     local fullscreen = true
     local updateCall = nil
+    local sketchCachesInvalidated = false
 
     love.window.getFullscreen = function()
       return fullscreen
@@ -34,6 +35,9 @@ describe("keyboard_window_shortcuts_controller.lua - fullscreen handling", funct
         getHeight = function() return 360 end,
       },
       _windowedScalePreference = 3,
+      invalidateAllSketchCanvasGpuCaches = function()
+        sketchCachesInvalidated = true
+      end,
     }
     local ctx = { app = app }
     local utils = {
@@ -60,6 +64,7 @@ describe("keyboard_window_shortcuts_controller.lua - fullscreen handling", funct
     expect(updateCall.flags.x).toBeNil()
     expect(updateCall.flags.y).toBeNil()
     expect(app._windowedScalePreference).toBe(2)
+    expect(sketchCachesInvalidated).toBe(true)
   end)
 
   it("exits fullscreen with a single updateMode call when changing window scale", function()
