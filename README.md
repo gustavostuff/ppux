@@ -73,6 +73,8 @@ You'll also notice these little **badges** on windows. When a badge is colored, 
 - **Right-click** a badge for the Link/Unlink/Jump menu for that slot.
 - **Left-drag** from a badge (empty or linked) onto a compatible badge on another window.
 
+Same-role drops are **moves**, not copies. Drag a source badge onto another source (or a destination badge onto another destination) and every consumer of the drag window is retargeted onto the drop window. The drag window is left unlinked. A ROM palette or Pattern table can still feed many windows, but each destination layer keeps at most one palette and one Pattern table.
+
 **Source windows/badges** (right edge)
 
 - **ROM palette** - palette source (blue).
