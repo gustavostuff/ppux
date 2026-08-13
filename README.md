@@ -169,7 +169,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 2. **Next layer** - `Shift` + `Up` key.
 3. **Remove layer** - `-` key.
 4. **Add layer** - `+` key.
-5. **Copy from previous layer** - Copies everything, including palette links and pattern table links.
+5. **Copy from previous layer** - Copies the previous layer's tiles or sprites into the active layer.
 6. **Play/Pause** - `P` key.
 
 </td>
@@ -187,7 +187,7 @@ Same strip as CHR Banks, excluding **Sync duplicate tiles** (a full-ROM surface 
 4. **Add layer** - `+` key.
 5. **Add sprite** - Opens the [Add sprite](#hex-grid-flows) hex-grid modal (OAM).
 6. **Toggle origin guides** - toggles dotted reference lines, this is user defined, not something that comes from ROM data.
-7. **Copy from previous layer** - Copies everything, including palette links and pattern table links.
+7. **Copy from previous layer** - Copies the previous layer's sprites into the active layer.
 8. **Play/Pause** - `P` key. While focused, **`Shift` + `Left`/`Shift` + `Right`** adjusts frame delay for all frames.
 
 A **Pattern table** link is **required** for sprite CHR.
@@ -280,7 +280,7 @@ Palette windows are the editors used for colors across the app (NES colors).
 * **Generic palette** - the fallback palette when nothing has a ROM palette linked. Handy for mockups and freeform art.
 * **ROM palette** (`4x4`) - when you create one, PPUX asks for a **role**: **ROM** (backed by ROM addresses for in-game palette editing) or **Sketch** (free colors, only for Sketch canvas windows).
 
-On ROM palettes, unbound cells show as empty (`-`). Cells you have recolored keep a small swatch of the original ROM color so you can tell overrides apart at a glance. Use the toolbar **Reset cell**/**Reset all** actions (or edit the color again with double click) to go back to the ROM base.
+On ROM palettes, unbound cells show as empty (`-`). Cells you have recolored keep a small swatch of the original ROM color so you can tell overrides apart at a glance. Use the toolbar **Reset cell**/**Reset all** actions to go back to the ROM base.
 
 See [ROM palette & patches](#rom-palette--patches) and [Hex grid flows](#hex-grid-flows) for assigning addresses.
 
@@ -425,7 +425,7 @@ Several ROM-backed pickers share the same debugger-style **ROM hex grid** (byte 
 
 ---
 
-**Nametable tile range** - On a PPU Frame tile layer, **Set nametable range** opens the nametable range modal. Manual mode uses two separate clicks for start and end range set (right-click clears a mid-pick). **Scanned mode** runs a one-shot scan of complete streams, underlines them with the OAM color cycle, and lets you click a stream to preview it in the _Nametable_ shadow component.
+**Nametable tile range** - On a PPU Frame tile layer, **Set nametable range** opens the nametable range modal. Manual mode uses two separate clicks for start and end range set (right-click clears a mid-pick). **Scanned mode** runs a one-shot scan of complete streams, underlines them with the OAM color cycle, and lets you click a stream to preview it in **NT preview**.
 
 <img src="img/readme_images/set_nametable_range.png" alt="Nametable range hex grid modal">
 
