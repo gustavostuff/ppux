@@ -1,4 +1,6 @@
--- Shared asserts for window-attached specialized toolbars (top strip + viewport clamp).
+-- Shared asserts for window-attached specialized toolbars.
+-- Always a horizontal top strip (never left/right/bottom). If that would leave
+-- the workspace, the strip moves: Y clamps under the app top bar, X inside the canvas.
 
 local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
 
@@ -29,7 +31,7 @@ local function canvasWidth(app)
   return nil
 end
 
---- After updatePosition, specialized toolbar stays in-view (Y: app top bar; X: canvas ± gap).
+--- After updatePosition: always top + visible (no T/B/L/R auto-side).
 function M.assertSpecializedToolbarMatchesTopClamp(win, app)
   local wm = app.wm
   assert(wm and wm:getFocus() == win, "window must stay focused for toolbar layout")
@@ -38,9 +40,14 @@ function M.assertSpecializedToolbarMatchesTopClamp(win, app)
 
   tb:updatePosition()
 
-  assert(tb._verticalLayout ~= true, "attached toolbar should use horizontal layout")
+  assert(tb._verticalLayout ~= true, "attached toolbar must stay horizontal (not a left/right strip)")
+  assert((win._toolbarInsetLeft or 0) == 0, "left toolbar inset must stay 0 (no side strip)")
+  assert((win._toolbarInsetRight or 0) == 0, "right toolbar inset must stay 0 (no side strip)")
+  assert((win._toolbarInsetTop or 0) == 0, "top toolbar inset must stay 0")
+  assert((win._toolbarInsetBottom or 0) == 0, "bottom toolbar inset must stay 0")
 
   local hx, hy, hw = win:getHeaderRect()
+  local bx, by, bw, bh = win:getBaseContentScreenRect()
   local minY = AppTopToolbarController.getContentOffsetY(app) + GAP
   local preferredY = math.floor(hy - tb.h - 1)
   local expectedY = math.max(preferredY, minY)
@@ -60,9 +67,29 @@ function M.assertSpecializedToolbarMatchesTopClamp(win, app)
     assert(tb.y == minY, string.format("clamped toolbar y should be minY=%s got %s", minY, tb.y))
   end
 
+  -- Old auto-placement parked a strip under the window when the header was low.
+  local oldBottomY = by + bh + GAP
+  assert(
+    math.abs(tb.y - oldBottomY) > 2,
+    string.format("toolbar must not sit below the window (y=%s bottom-slot=%s)", tb.y, oldBottomY)
+  )
+  assert(tb.y < by + bh, "toolbar must not start at or below the window bottom")
+
+  -- Old auto-placement used a vertical strip just outside the content left/right.
+  local oldLeftX = bx - GAP - tb.w
+  local oldRightX = bx + bw + GAP
+  local drawLeft = tb.x - 1
+  assert(
+    math.abs(drawLeft - oldLeftX) > 2,
+    string.format("toolbar must not sit as a left side strip (x=%s left-slot=%s)", drawLeft, oldLeftX)
+  )
+  assert(
+    math.abs(drawLeft - oldRightX) > 2,
+    string.format("toolbar must not sit as a right side strip (x=%s right-slot=%s)", drawLeft, oldRightX)
+  )
+
   local cw = canvasWidth(app)
   assert(cw, "expected canvas width for horizontal clamp assert")
-  local drawLeft = tb.x - 1
   local drawRight = drawLeft + tb.w
   local minLeft = GAP
   local maxRight = cw - GAP
@@ -86,8 +113,5 @@ function M.assertSpecializedToolbarMatchesTopClamp(win, app)
     string.format("toolbar left: expected %s (preferred=%s) got %s", expectedLeft, preferredLeft, drawLeft)
   )
 end
-
--- Back-compat alias for older scenario/test names.
-M.assertSpecializedToolbarMatchesAutoLayout = M.assertSpecializedToolbarMatchesTopClamp
 
 return M

@@ -1,4 +1,6 @@
--- Visible E2E: drag CHR window around; specialized toolbar stays on top with Y clamp.
+-- Visible E2E: drag CHR around canvas edges that used to flip the specialized toolbar
+-- to top/bottom/left/right. It now stays a horizontal top strip and moves (Y/X clamp)
+-- so it stays visible.
 
 local P = require("test.e2e_visible.scenarios.prelude")
 local BubbleExample, pause, call, appendDrag, windowHeaderCenter = P.BubbleExample, P.pause, P.call, P.appendDrag, P.windowHeaderCenter
@@ -20,6 +22,7 @@ end
 local function buildToolbarAutoPlacementDragScenario(harness, app, runner)
   harness:loadROM(BubbleExample.getLoadPath())
 
+  -- Includes near-top, near-bottom, near-left, near-right, and off-canvas spots.
   local spots = {
     { 48, 90 },
     { 520, 70 },

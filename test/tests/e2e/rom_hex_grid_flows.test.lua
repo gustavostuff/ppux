@@ -20,7 +20,7 @@ describe("e2e - RomHexGrid modal flows", function()
     end
   end
 
-  it("ROM palette: invalid clears, select/Set, undo/redo address bind, Cancel", function()
+  it("ROM palette: search hits, ninja/hidden, user-select/Set, undo/redo, Cancel", function()
     runScenario("rom_palette_hex_grid_flow")
   end)
 

@@ -1,11 +1,12 @@
--- E2E: moving a focused window keeps the attached specialized toolbar on top,
--- clamping Y to (app top bar height + TOOLBAR_OUTSIDE_GAP) and X inside the canvas (±gap) when needed.
+-- E2E: dragging a focused window no longer flips the specialized toolbar to
+-- bottom/left/right. It stays a top strip and moves (Y under the app bar, X
+-- inside the canvas) so it stays visible.
 
 local E2EHarness = require("test.e2e_harness")
 local ToolbarAuto = require("test.e2e_visible.scenarios.toolbar_auto_placement_helpers")
 
-describe("e2e - window toolbar viewport clamp after window drag", function()
-  it("keeps CHR specialized toolbar visible with top and horizontal clamps", function()
+describe("e2e - window toolbar stays on top after window drag", function()
+  it("keeps CHR specialized toolbar on top and visible (never left/right/bottom)", function()
     local harness = E2EHarness.new({
       settings = {
         skipSplash = true,
