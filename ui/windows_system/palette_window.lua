@@ -13,7 +13,7 @@ local CanvasSpace = require("utils.canvas_space")
 local PaletteEdit = require("utils.palette_edit_helpers")
 
 local NORMAL_CELL_W, NORMAL_CELL_H = 32, 24
-local COMPACT_CELL_W, COMPACT_CELL_H = 24, 15
+local COMPACT_CELL_W, COMPACT_CELL_H = 24, 16
 -- Compact is the only supported size; normal metrics / toggle paths stay for reference.
 local FORCE_COMPACT_ONLY = true
 local LABEL_MARGIN_RIGHT = 2

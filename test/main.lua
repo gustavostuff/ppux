@@ -117,6 +117,7 @@ end
 
 _G.__PPUX_TEST_FILE_FILTER__ = parseTestFilter()
 local Text = require("utils.text_utils")
+local LoveCompat = require("utils.love_compat")
 
 -- Load all test files
 loadTestFile("tests/unit/chr.test")
@@ -303,6 +304,7 @@ local lineHeight = 20
 local padding = 20
 local testsPerFrame = 1
 local slowReportPrinted = false
+local clipboardCopiedUntil = 0
 local scrollbar = {
   width = 14,
   margin = 5,
@@ -445,6 +447,69 @@ local function printSlowestTestsReport(limit)
   end
 end
 
+local function buildResultsText(state)
+  local lines = {}
+  if state.isComplete then
+    lines[#lines + 1] = "Test run complete"
+  else
+    lines[#lines + 1] = "Running tests..."
+  end
+
+  local completedTests = state.passedTests + state.failedTests
+  lines[#lines + 1] = string.format(
+    "Tests: %d passed, %d failed, %d/%d complete",
+    state.passedTests,
+    state.failedTests,
+    completedTests,
+    state.totalTests
+  )
+
+  if state.isRunning and state.currentTask then
+    lines[#lines + 1] = string.format(
+      "Running: %s > %s",
+      state.currentTask.suitePath,
+      state.currentTask.test.name
+    )
+  end
+
+  if #(state.errors or {}) > 0 then
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "Failures:"
+    for _, err in ipairs(state.errors) do
+      lines[#lines + 1] = string.format("  %s > %s", err.suite, err.test)
+      lines[#lines + 1] = "    " .. tostring(err.error)
+    end
+  end
+
+  if state.isComplete then
+    lines[#lines + 1] = ""
+    if state.failedTests == 0 then
+      lines[#lines + 1] = "All tests passed!"
+    else
+      lines[#lines + 1] = "Some tests failed."
+    end
+  end
+
+  return table.concat(lines, "\n")
+end
+
+local function copyResultsToClipboard()
+  local text = buildResultsText(TestFramework.getState())
+  if LoveCompat.setClipboardText(text) then
+    clipboardCopiedUntil = (LoveCompat.getTime() or 0) + 2
+    print("Copied test results to clipboard")
+  else
+    print("Could not copy test results to clipboard")
+  end
+end
+
+local function isCtrlDown()
+  if not (love.keyboard and love.keyboard.isDown) then
+    return false
+  end
+  return love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")
+end
+
 -- All tests are now in separate .test.lua files
 -- Love2D callbacks below
 
@@ -572,6 +637,18 @@ function love.draw()
   else
     Text.print("Running tests...", padding, y, { color = { 0.6, 0.8, 1.0, 1 } })
   end
+
+  local copyHint = "Ctrl+C copy"
+  local copyHintColor = { 0.45, 0.45, 0.45, 1 }
+  if (LoveCompat.getTime() or 0) < clipboardCopiedUntil then
+    copyHint = "Copied"
+    copyHintColor = { passedColor[1], passedColor[2], passedColor[3], 1 }
+  end
+  local copyHintX = screenW - padding - scrollbar.width - scrollbar.margin - font:getWidth(copyHint)
+  if copyHintX < padding then
+    copyHintX = padding
+  end
+  Text.print(copyHint, copyHintX, y, { color = copyHintColor })
   y = y + lineHeight
 
   local completedTests = state.passedTests + state.failedTests
@@ -648,5 +725,7 @@ end
 function love.keypressed(key, scancode, isrepeat)
   if key == "escape" then
     love.event.quit()
+  elseif key == "c" and isCtrlDown() then
+    copyResultsToClipboard()
   end
 end

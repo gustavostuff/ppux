@@ -979,10 +979,10 @@ function RomPaletteWindow:setCellAddress(col, row, romAddr)
 end
 
 -- Override drawGrid to show codes even when not active (ROM palettes always show codes)
-local OVERRIDE_SWATCH_PX = 3
+local OVERRIDE_SWATCH_PX = 7
 local OVERRIDE_SWATCH_MARGIN_LEFT = 2
 local OVERRIDE_SWATCH_MARGIN_TOP = 2
-local OVERRIDE_ANTS_PX = 5
+local OVERRIDE_ANTS_PX = 7
 local OVERRIDE_ANTS_ALPHA = 1
 local OVERRIDE_ANTS_ANIM = {
   stepPx = 1,

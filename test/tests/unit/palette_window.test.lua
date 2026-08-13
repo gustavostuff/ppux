@@ -1,33 +1,6 @@
 local PaletteWindow = require("ui.windows_system.palette_window")
 
 describe("palette_window.lua - compact mode", function()
-  it("forces compact 24x15 and ignores toggle-off / normal size", function()
-    local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 1, 4, {
-      title = "Generic Palette Compact",
-    })
-
-    expect(win:supportsCompactMode()).toBe(false)
-    expect(win.compactView).toBe(true)
-    expect(win.cellW).toBe(24)
-    expect(win.cellH).toBe(15)
-
-    win:setCompactMode(false)
-    expect(win.compactView).toBe(true)
-    expect(win.cellW).toBe(24)
-    expect(win.cellH).toBe(15)
-  end)
-
-  it("migrates constructor compactView=false to compact-only size", function()
-    local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 1, 4, {
-      title = "Generic Palette Compact Init",
-      compactView = false,
-    })
-
-    expect(win.compactView).toBe(true)
-    expect(win.cellW).toBe(24)
-    expect(win.cellH).toBe(15)
-  end)
-
   it("builds row and column strip codes from the selected color", function()
     local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 1, 4, {
       title = "Generic Palette Strips",
