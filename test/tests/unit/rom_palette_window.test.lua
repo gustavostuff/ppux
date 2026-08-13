@@ -560,6 +560,7 @@ describe("rom_palette_window.lua - locked cells", function()
     expect(strips.rowCodes[16]).toBe("0F")
     expect(strips.colCodes[1]).toBe("09")
     expect(strips.colCodes[4]).toBe("39")
+    expect(win:getStripMetrics()).toBe(nil)
   end)
 end)
 

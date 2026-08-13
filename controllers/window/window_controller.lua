@@ -1161,6 +1161,9 @@ function WM:setFocus(win)
   end
   self.focused = win
   self:bringToFront(win)
+  if changed and type(win.revealSelectionStrips) == "function" then
+    win:revealSelectionStrips()
+  end
   if changed then
     DebugController.log(
       "info", "WM",

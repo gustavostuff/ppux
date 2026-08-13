@@ -14,10 +14,16 @@ local PaletteEdit = require("utils.palette_edit_helpers")
 
 local NORMAL_CELL_W, NORMAL_CELL_H = 32, 24
 local COMPACT_CELL_W, COMPACT_CELL_H = 24, 16
--- Compact is the only supported size; normal metrics / toggle paths stay for reference.
+-- Compact is the only supported size for now, there is no "normal" vs "compact" at user level
 local FORCE_COMPACT_ONLY = true
+-- Color strips stay implemented, but stay hidden: the vertical strip overlaps the ROM palette link badge.
+local SHOW_SELECTION_STRIPS = false
 local LABEL_MARGIN_RIGHT = 2
 local LABEL_MARGIN_BOTTOM = 2
+-- Same peak/fade as window scrollbars (`SCROLL_BAR_OPACITY_TIME` / `dt / 3`).
+local STRIP_OPACITY_TIME = 1.5
+local STRIP_FADE_EPSILON = 0.01
+local STRIP_SELECTION_NATIVE_W, STRIP_SELECTION_NATIVE_H = 8, 6
 
 --- Bottom-right label: font box has `right`/`bottom` margins inside the cell.
 local function drawCellLabel(text, cellX, cellY, cellW, cellH, color)
@@ -47,7 +53,13 @@ end
 
 local function buildStripSelectionAnim()
   if images and images.strip_palette_selection then
-    return katsudo.new(images.strip_palette_selection, 8, 6, 4, 0.1)
+    return katsudo.new(
+      images.strip_palette_selection,
+      STRIP_SELECTION_NATIVE_W,
+      STRIP_SELECTION_NATIVE_H,
+      4,
+      0.1
+    )
   end
   return { draw = function() end }
 end
@@ -146,10 +158,26 @@ end
 -- Items cannot be removed
 function PaletteWindow:clear(col,row) end
 
+function PaletteWindow:revealSelectionStrips()
+  self.scrollbarOpacity = STRIP_OPACITY_TIME
+end
+
+function PaletteWindow:getSelectionStripOpacity()
+  return math.max(0, math.min(1, tonumber(self.scrollbarOpacity) or 0))
+end
+
+function PaletteWindow:areSelectionStripsVisible()
+  if not SHOW_SELECTION_STRIPS then
+    return false
+  end
+  return self:getSelectionStripOpacity() > STRIP_FADE_EPSILON
+end
+
 -- Override setSelected to add debug logging for color selection
 function PaletteWindow:setSelected(col, row, layerIndex, opts)
   Window.setSelected(self, col, row, layerIndex, opts)
   if col ~= nil and row ~= nil then
+    self:revealSelectionStrips()
     local code = self.codes2D and self.codes2D[row] and self.codes2D[row][col]
     if code then
       DebugController.log("info", "PAL", "Palette '%s' color selected: (%d,%d) = %s", self.title or "untitled", col, row, code)
@@ -175,6 +203,7 @@ end
 function PaletteWindow:adjustSelectedByArrows(dx,dy)
   local sc, sr = self:getSelected()
   if not sc or not sr then return end
+  self:revealSelectionStrips()
   local old = self.codes2D[sr][sc]
   local new = normalizeInvalidBlack(nibbleAdjust(old, dx, dy))
   if new == old then return end
@@ -275,7 +304,7 @@ function PaletteWindow:getSelectedStripCodes()
 end
 
 function PaletteWindow:getStripMetrics()
-  if self.compactView then
+  if not SHOW_SELECTION_STRIPS then
     return nil
   end
 
@@ -283,6 +312,7 @@ function PaletteWindow:getStripMetrics()
   local gridW = (self.cols or 0) * (self.cellW or 0)
   local gridH = (self.rows or 0) * (self.cellH or 0)
   local gap = 1
+  -- Compact 24x16 → 6x4 nibble cells; large 32x24 → 8x6.
   local horizontalCellW = math.max(4, math.floor((self.cellW or 0) / 4 + 0.5))
   local horizontalCellH = math.max(4, math.floor((self.cellH or 0) / 4 + 0.5))
   local verticalCellW = horizontalCellW
@@ -311,7 +341,7 @@ function PaletteWindow:getSelectionStripShadowRectsCanvas(wm)
   if wm and wm.getFocus and wm:getFocus() ~= self then
     return nil
   end
-  if self.compactView then
+  if not self:areSelectionStripsVisible() then
     return nil
   end
   local strips = self:getSelectedStripCodes()
@@ -349,6 +379,10 @@ function PaletteWindow:getSelectionStripShadowRectsCanvas(wm)
 end
 
 function PaletteWindow:drawSelectionStrips()
+  if not SHOW_SELECTION_STRIPS then
+    return nil
+  end
+
   local gctx = rawget(_G, "ctx")
   local wm = gctx and gctx.wm and gctx.wm() or nil
   if wm and wm.getFocus and wm:getFocus() ~= self then
@@ -365,16 +399,23 @@ function PaletteWindow:drawSelectionStrips()
     return nil
   end
 
+  local opacity = self:getSelectionStripOpacity()
+  if opacity <= STRIP_FADE_EPSILON then
+    return nil
+  end
+
   local horizontalStripW = #strips.rowCodes * metrics.horizontalCellW
   local horizontalStripH = metrics.horizontalCellH
   local verticalStripW = metrics.verticalCellW
   local verticalStripH = #strips.colCodes * metrics.verticalCellH
+  local markerScaleX = metrics.horizontalCellW / STRIP_SELECTION_NATIVE_W
+  local markerScaleY = metrics.horizontalCellH / STRIP_SELECTION_NATIVE_H
 
   for i, code in ipairs(strips.rowCodes) do
     local rgb = self.palette[code] or colors.black
     local x = metrics.horizontalX + ((i - 1) * metrics.horizontalCellW)
     local y = metrics.horizontalY
-    love.graphics.setColor(rgb[1], rgb[2], rgb[3], 1)
+    love.graphics.setColor(rgb[1], rgb[2], rgb[3], opacity)
     love.graphics.rectangle("fill", x, y, metrics.horizontalCellW, metrics.horizontalCellH)
   end
 
@@ -382,19 +423,20 @@ function PaletteWindow:drawSelectionStrips()
     local rgb = self.palette[code] or colors.black
     local x = metrics.verticalX
     local y = metrics.verticalY + ((i - 1) * metrics.verticalCellH)
-    love.graphics.setColor(rgb[1], rgb[2], rgb[3], 1)
+    love.graphics.setColor(rgb[1], rgb[2], rgb[3], opacity)
     love.graphics.rectangle("fill", x, y, metrics.verticalCellW, metrics.verticalCellH)
   end
 
-  love.graphics.setColor(colors.white)
+  love.graphics.setColor(colors.white[1], colors.white[2], colors.white[3], opacity)
   local horizontalMarkerX = metrics.horizontalX + (strips.colIndex * metrics.horizontalCellW)
   local horizontalMarkerY = metrics.horizontalY
   local verticalMarkerX = metrics.verticalX
   local verticalMarkerY = metrics.verticalY + (strips.rowIndex * metrics.verticalCellH)
-  self.stripSelection:draw(horizontalMarkerX, horizontalMarkerY)
-  self.stripSelection:draw(verticalMarkerX, verticalMarkerY)
+  self.stripSelection:draw(horizontalMarkerX, horizontalMarkerY, 0, markerScaleX, markerScaleY)
+  self.stripSelection:draw(verticalMarkerX, verticalMarkerY, 0, markerScaleX, markerScaleY)
 
-  love.graphics.setColor(colors:focusedChromeColor())
+  local chrome = colors:focusedChromeColor()
+  love.graphics.setColor(chrome[1], chrome[2], chrome[3], opacity)
   love.graphics.rectangle("line",
     metrics.horizontalX,
     metrics.horizontalY,

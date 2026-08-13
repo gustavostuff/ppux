@@ -20,7 +20,7 @@ describe("palette_window.lua - compact mode", function()
     expect(strips.colCodes[4]).toBe("3B")
   end)
 
-  it("hides nibble selection strips while compact-only is forced", function()
+  it("keeps nibble strip code but hides them while SHOW_SELECTION_STRIPS is off", function()
     local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 4, 4, {
       title = "Generic Palette Strip Metrics",
       initCodes = {
@@ -32,10 +32,12 @@ describe("palette_window.lua - compact mode", function()
     })
 
     win:setSelected(2, 1)
+    expect(win:getSelectedStripCodes()).toBeTruthy()
     expect(win:getStripMetrics()).toBe(nil)
+    expect(win:areSelectionStripsVisible()).toBe(false)
   end)
 
-  it("keeps selection usable when not shader-active (compact has no strip shadows)", function()
+  it("keeps selection usable when not shader-active (strips currently hidden)", function()
     local win = PaletteWindow.new(0, 0, 1, "smooth_fbx", 1, 4, {
       title = "Inactive Global",
       activePalette = false,
@@ -55,7 +57,6 @@ describe("palette_window.lua - compact mode", function()
     expect(win.codes2D[0][0]).toBe("0C")
 
     win.activePalette = true
-    -- Compact-only: nibble strips stay hidden even when shader-active.
     expect(win:getSelectionStripShadowRectsCanvas(wm)).toBe(nil)
   end)
 

@@ -616,6 +616,7 @@ function RomPaletteWindow:setSelected(col, row, layerIndex, opts)
 
   Window.setSelected(self, col, row, layerIndex, opts)
   if col ~= nil and row ~= nil then
+    self:revealSelectionStrips()
     local code = self.codes2D and self.codes2D[row] and self.codes2D[row][col]
     if code then
       DebugController.log("info", "ROM_PAL", "ROM Palette '%s' color selected: (%d,%d) = %s", 
@@ -668,6 +669,8 @@ function RomPaletteWindow:adjustSelectedByArrows(dx, dy)
       self.title or "untitled", sc, sr)
     return
   end
+
+  self:revealSelectionStrips()
   
   local old = self.codes2D[sr][sc]
   local new = normalizeInvalidBlack(nibbleAdjust(old, dx, dy))
