@@ -169,4 +169,86 @@ describe("mouse_tile_drop_controller.lua - sketch tile-mode swap undo", function
 
     rawset(_G, "ctx", prevCtx)
   end)
+
+  it("moves a multi-selected sketch tile group via nametable bytes", function()
+    local win = makeSketchReflectWin()
+    -- Three occupied cells: (0,0)=0x11, (1,0)=0x22, leave (2,0)=0 for dest room.
+    win.nametableBytes[3] = 0x00 -- col 2
+    win.nametableBytes[4] = 0x00 -- col 3
+    local pt = { id = "pt-1", kind = "pattern_table", _closed = false }
+    local ur = UndoRedoController.new(20)
+    local app = {
+      undoRedo = ur,
+      appEditState = { tilesPool = win.tilesPool },
+    }
+
+    local prevCtx = rawget(_G, "ctx")
+    rawset(_G, "ctx", {
+      getMode = function()
+        return "tile"
+      end,
+      app = app,
+      wm = function()
+        return {
+          windows = { win, pt },
+          findWindowById = function(_, id)
+            if id == "pt-1" then
+              return pt
+            end
+          end,
+        }
+      end,
+    })
+
+    expect(WindowCaps.isSketchReflectNametable(win)).toBe(true)
+
+    local cleared = false
+    local env = {
+      drag = {
+        active = true,
+        item = win:get(0, 0, 1),
+        srcWin = win,
+        srcCol = 0,
+        srcRow = 0,
+        srcLayer = 1,
+        copyMode = false,
+        tileGroup = {
+          entries = {
+            { srcCol = 0, srcRow = 0, offsetCol = 0, offsetRow = 0, item = win:get(0, 0, 1) },
+            { srcCol = 1, srcRow = 0, offsetCol = 1, offsetRow = 0, item = win:get(1, 0, 1) },
+          },
+          minOffsetCol = 0,
+          maxOffsetCol = 1,
+          minOffsetRow = 0,
+          maxOffsetRow = 0,
+        },
+      },
+      ctx = {
+        app = app,
+      },
+      clearDragState = function()
+        cleared = true
+      end,
+      markUnsaved = function() end,
+    }
+
+    local wm = {
+      windowAt = function()
+        return win
+      end,
+      setFocus = function() end,
+    }
+
+    -- Drop so anchor lands at col 2, row 0.
+    expect(MouseTileDropController.handleTileDrop(env, 16 + 1, 1, wm)).toBe(true)
+    expect(cleared).toBe(true)
+    expect(win.nametableBytes[1]).toBe(0x00)
+    expect(win.nametableBytes[2]).toBe(0x00)
+    expect(win.nametableBytes[3]).toBe(0x11)
+    expect(win.nametableBytes[4]).toBe(0x22)
+    expect((win._setCalls or 0)).toBe(0)
+    expect((win._ntSetCalls or 0) >= 2).toBe(true)
+
+    rawset(_G, "ctx", prevCtx)
+  end)
 end)

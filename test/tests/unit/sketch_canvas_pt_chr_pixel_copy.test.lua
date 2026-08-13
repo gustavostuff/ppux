@@ -147,6 +147,54 @@ describe("sketch canvas - pixel copy PT -> CHR/ROM", function()
     expect(drag.item.pixels[1]).toBe(2)
   end)
 
+  it("freezeSketchReflectDrag materializes drawable scratch tiles for ghost overlay", function()
+    local wm = WM.new()
+    local sketch = wm:createSketchCanvasWindow()
+    local pt = wm:createPatternTableWindow()
+    paintTile(sketch.layers[1].canvas, 0, 0, 2)
+    paintTile(sketch.layers[1].canvas, 1, 0, 3)
+    assert(SketchCanvasPackController.linkSketchToPatternTable(sketch, pt, wm))
+    assert(SketchCanvasPackController.generateAndApply(sketch, wm))
+
+    local prev = rawget(_G, "ctx")
+    rawset(_G, "ctx", {
+      getMode = function()
+        return "tile"
+      end,
+      app = { wm = wm },
+      wm = function()
+        return wm
+      end,
+    })
+
+    local handleA = sketch:get(0, 0, 1)
+    local handleB = sketch:get(1, 0, 1)
+    expect(handleA.kind).toBe("sketch_nt")
+    expect(type(handleA.draw)).toNotBe("function")
+
+    local drag = {
+      srcWin = sketch,
+      srcCol = 0,
+      srcRow = 0,
+      item = handleA,
+      tileGroup = {
+        entries = {
+          { srcCol = 0, srcRow = 0, offsetCol = 0, offsetRow = 0, item = handleA },
+          { srcCol = 1, srcRow = 0, offsetCol = 1, offsetRow = 0, item = handleB },
+        },
+      },
+    }
+
+    expect(SketchCanvasPackController.freezeSketchReflectDrag(sketch, drag)).toBe(true)
+    expect(type(drag.item.draw)).toBe("function")
+    expect(drag.item.pixels[1]).toBe(2)
+    expect(type(drag.tileGroup.entries[1].item.draw)).toBe("function")
+    expect(type(drag.tileGroup.entries[2].item.draw)).toBe("function")
+    expect(drag.tileGroup.entries[2].item.pixels[1]).toBe(3)
+
+    rawset(_G, "ctx", prev)
+  end)
+
   it("applyFrozenPixelPaintToChr paints destination CHR pixels", function()
     local targetTile = makeChrTargetTile()
     local chrWin = makeChrWindow(targetTile)

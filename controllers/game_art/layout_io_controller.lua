@@ -913,6 +913,9 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
                   Lout.paletteData = TableUtils.deepcopy(L.paletteData)
                   normalizeInvalidBlacksInTable(Lout.paletteData)
                 end
+                if L.attrMode ~= nil then
+                  Lout.attrMode = L.attrMode
+                end
                 table.insert(entry.layers, Lout)
                 goto continue_layer
               end

@@ -247,6 +247,8 @@ local function startTileDrag(env, win, col, row, layerIdx, item, wm, x, y, copyM
 
   if WindowCaps.isPatternTable(win) then
     SketchCanvasPackController.freezeSketchOwnedPatternTableDrag(win, drag, wm)
+  elseif WindowCaps.isSketchReflectNametable(win) then
+    SketchCanvasPackController.freezeSketchReflectDrag(win, drag)
   end
 end
 

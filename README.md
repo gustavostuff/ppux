@@ -80,10 +80,12 @@ Links can be reattached to a different consumer and keep the same source, or the
 - **ROM palette**: Blue
 - **Pattern table**: Red for BG, green for sprites or **brown** if linked to both BG and sprites.
 
-Examples:
+**Examples**
 
+ROM palette connected to one of the 2 layers of a PPU Frame window:
 <img src="img/readme_images/source_links_example_1.png" alt="Source window badges (right edge)">
 
+Pattern table connected to 2 PPU Frame windows, as both BG and Sprite sources:
 <img src="img/readme_images/source_links_example_2.png" alt="Source window badges, linked">
 
 **Consumer windows/badges** (left edge)
@@ -93,10 +95,12 @@ Examples:
 - **OAM Animation**: Sprite pattern (green), ROM palette (blue).
 - **Static Art/Animation** (tiles or sprites): ROM palette (blue).
 
-Examples:
+**Examples**
 
+PPU Frame window being a consumer of a Pattern table window:
 <img src="img/readme_images/source_links_example_3.png" alt="Destination window badges (left edge)">
 
+An OAM animation window also consuming a Pattern table, for sprite data.
 <img src="img/readme_images/source_links_example_4.png" alt="Destination window badges, linked">
 
 ### Toolbars
@@ -125,7 +129,7 @@ The App toolbar sits at the top and has global quick actions.
 11. **Add column to the right** - Not for all windows. Hold **Shift** to switch the same control to **Remove the last column**.
 12. **Add row below** - Same as the previous one, but for rows.
 13. **Clone focused window** - Clone the whole window, including its state.
-14. **Reference PNG** - add or remove a reference image on eligible **layout** windows. **`Alt + R`** toggles visibility.
+14. **Reference PNG** - add or remove a reference image on eligible **layout** windows (including **PPU Frame** and **Sketch canvas**). **`Alt + R`** toggles visibility.
 15. **Generate gallery ROM** - builds an interactive `.nes` gallery ROM from packed **Sketch canvas** windows (see [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom)).
 16. **Relocation pointer calculator** - helper for nametable **`relocateTo`** workflows (see [PPU frame & OAM](#ppu-frame--oam)).
 
@@ -308,6 +312,7 @@ Tile mode is for selection, drag/drop, and tile-level editing in general.
 - Arrow keys move tile selection "cursor" (doesn't work for multi-selections).
 - `Shift + Up/Down` switches layers in multi-layer windows (animations, PPU Frame, OAM Animation, etc).
 - `1` to `4` assign palette numbers to selected tiles or sprites where supported.
+- `A` toggles nametable **attribute view** on **PPU Frame** tile layers and **Sketch canvas** windows (palette quadrant colors).
 - `H` / `V` mirror selected sprites on a sprite layer.
 - On bank windows, `Left/Right` switch banks, `Ctrl + M` toggles 8x8 / 8x16 layout, `M` toggles Mirror X, and `D` toggles diff vs loaded CHR.
 

@@ -1448,7 +1448,7 @@ function M.handleTileDrop(env, x, y, wm)
   end
 
   if drag.tileGroup then
-    if not (layer and layer.kind == "tile") then
+    if not WindowCaps.isNametableTileEditableLayer(dst, layer) then
       env.clearDragState(false)
       return true
     end

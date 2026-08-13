@@ -157,6 +157,12 @@ function SketchCanvasWindow:get(col, row, layerIndex)
   return Window.get(self, col, row, layerIndex)
 end
 
+--- Resolve sketch Reflect handles to drawable scratch tiles (ghost overlay / previews).
+function SketchCanvasWindow:materializeTileHandle(handle, _layerIndex)
+  local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+  return SketchCanvasPackController.materializeSketchNtHandle(self, handle)
+end
+
 function SketchCanvasWindow:setNametableByteAt(col, row, byteVal, _tilesPool, _layerIndex)
   if type(self.nametableBytes) ~= "table" then
     return false

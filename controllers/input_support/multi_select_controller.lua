@@ -440,7 +440,8 @@ function M.getGridCoordsClamped(win, sx, sy)
 end
 
 function M.isTileCellSelected(win, layerIdx, col, row)
-  if not (win and layerIdx and col and row) then return false end
+  if not (win and layerIdx) then return false end
+  if type(col) ~= "number" or type(row) ~= "number" then return false end
   local layer = win.layers and win.layers[layerIdx]
   if not WindowCaps.isNametableTileEditableLayer(win, layer) then return false end
   local cols = win.cols or 0
@@ -524,7 +525,8 @@ end
 
 --- Toggle one tile cell in/out of multi-selection. Returns "added", "removed", or false.
 function M.toggleTileCellToSelection(win, layerIdx, col, row, includeCurrentSingle)
-  if not (win and layerIdx and col and row) then return false end
+  if not (win and layerIdx) then return false end
+  if type(col) ~= "number" or type(row) ~= "number" then return false end
   local layer = win.layers and win.layers[layerIdx]
   if not WindowCaps.isNametableTileEditableLayer(win, layer) then return false end
 
@@ -542,7 +544,8 @@ function M.toggleTileCellToSelection(win, layerIdx, col, row, includeCurrentSing
 end
 
 function M.addTileCellToSelection(win, layerIdx, col, row, includeCurrentSingle)
-  if not (win and layerIdx and col and row) then return false end
+  if not (win and layerIdx) then return false end
+  if type(col) ~= "number" or type(row) ~= "number" then return false end
   local layer = win.layers and win.layers[layerIdx]
   if not WindowCaps.isNametableTileEditableLayer(win, layer) then return false end
 
@@ -791,9 +794,11 @@ function M.deleteTileSelection(win, layerIdx, fallbackCol, fallbackRow, app, und
 end
 
 function M.buildTileDragGroup(win, layerIdx, anchorCol, anchorRow)
-  if not (win and layerIdx and anchorCol and anchorRow) then return nil end
+  if not (win and layerIdx) then return nil end
+  if type(anchorCol) ~= "number" or type(anchorRow) ~= "number" then return nil end
   local layer = win.layers and win.layers[layerIdx]
-  if not (layer and layer.kind == "tile") then return nil end
+  -- Real tile layers, or sketch canvas in Reflect (nametable) tile mode.
+  if not WindowCaps.isNametableTileEditableLayer(win, layer) then return nil end
 
   local NametableTilesController = require("controllers.ppu.nametable_tiles_controller")
   if WindowCaps.isPpuFrame(win)
@@ -989,7 +994,8 @@ function M.buildTileDragGroup(win, layerIdx, anchorCol, anchorRow)
 end
 
 function M.clampTileDropAnchor(win, group, targetCol, targetRow)
-  if not (win and targetCol and targetRow) then return nil, nil end
+  if not win then return nil, nil end
+  if type(targetCol) ~= "number" or type(targetRow) ~= "number" then return nil, nil end
 
   local cols = win.cols or 0
   local rows = win.rows or 0
@@ -1023,7 +1029,7 @@ function M.applyTileDragGroup(win, layerIdx, group, anchorCol, anchorRow, opts)
   opts = opts or {}
 
   local layer = win.layers and win.layers[layerIdx]
-  if not (layer and layer.kind == "tile") then return nil end
+  if not WindowCaps.isNametableTileEditableLayer(win, layer) then return nil end
 
   if WindowCaps.isPatternTable(win) then
     return nil
@@ -1057,10 +1063,11 @@ function M.applyTileDragGroup(win, layerIdx, group, anchorCol, anchorRow, opts)
     end
   end
 
-  -- PPU nametable layers should move bytes directly (any PPU -> PPU). Using win:set + materialize
-  -- on virtual handles maps everything to CHR tile 0 for multi-drag across windows or layers.
-  if WindowCaps.isPpuFrame(win)
-    and WindowCaps.isPpuFrame(srcWin)
+  -- Nametable byte grids (PPU frames and sketch Reflect) move bytes directly.
+  -- Using win:set + materialize on virtual handles maps everything to CHR tile 0.
+  local bothPpu = WindowCaps.isPpuFrame(win) and WindowCaps.isPpuFrame(srcWin)
+  local bothSketch = WindowCaps.isSketchReflectNametable(win) and WindowCaps.isSketchReflectNametable(srcWin)
+  if (bothPpu or bothSketch)
     and win.nametableBytes
     and srcWin.nametableBytes
     and win.setNametableByteAt

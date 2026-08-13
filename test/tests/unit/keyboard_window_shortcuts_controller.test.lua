@@ -194,6 +194,28 @@ describe("keyboard_window_shortcuts_controller.lua - reference background toggle
     expect(KeyboardWindowShortcutsController.handleReferenceBackgroundToggle(ctx, utils, "r", focus)).toBe(false)
     expect(focus.referenceDisplayReference).toBe(false)
   end)
+
+  it("toggles reference view on sketch canvas windows with Alt+R", function()
+    local focus = {
+      kind = "sketch_canvas",
+      referenceImageStoredPath = "ref.png",
+      referenceImageDrawable = { getWidth = function() return 1 end, getHeight = function() return 1 end },
+      referenceDisplayReference = false,
+      referenceImageMissing = false,
+    }
+    local utils = {
+      ctrlDown = function()
+        return false
+      end,
+      altDown = function()
+        return true
+      end,
+    }
+    local ReferenceBackgroundController = require("controllers.window.reference_background_controller")
+    expect(ReferenceBackgroundController.isEligibleWindow(focus)).toBe(true)
+    expect(KeyboardWindowShortcutsController.handleReferenceBackgroundToggle({}, utils, "r", focus)).toBe(true)
+    expect(focus.referenceDisplayReference).toBe(true)
+  end)
 end)
 
 describe("keyboard_window_shortcuts_controller.lua - grid toggle shortcut", function()
@@ -260,5 +282,68 @@ describe("keyboard_edit_toggle_controller.lua - shader toggle shortcut", functio
     expect(KeyboardEditToggleController.handleShaderToggle(ctx, utils, "r", focus)).toBe(true)
     expect(focus.layers[1].shaderEnabled).toBe(false)
     expect(status).toBe(nil)
+  end)
+end)
+
+describe("keyboard_edit_toggle_controller.lua - attribute mode toggle", function()
+  local KeyboardEditToggleController = require("controllers.input.keyboard_edit_toggle_controller")
+
+  it("toggles attrMode on PPU frame tile layers with A", function()
+    local focus = {
+      kind = "ppu_frame",
+      layers = { { kind = "tile", attrMode = false } },
+      getActiveLayerIndex = function()
+        return 1
+      end,
+    }
+    local ctx = {
+      getMode = function()
+        return "tile"
+      end,
+    }
+
+    expect(KeyboardEditToggleController.handleAttrModeToggle(ctx, "a", focus)).toBe(true)
+    expect(focus.layers[1].attrMode).toBe(true)
+    expect(KeyboardEditToggleController.handleAttrModeToggle(ctx, "a", focus)).toBe(true)
+    expect(focus.layers[1].attrMode).toBe(false)
+  end)
+
+  it("toggles attrMode on sketch canvas and ensures attribute bytes", function()
+    local focus = {
+      kind = "sketch_canvas",
+      layers = { { kind = "canvas", attrMode = false } },
+      getActiveLayerIndex = function()
+        return 1
+      end,
+    }
+    local ctx = {
+      getMode = function()
+        return "tile"
+      end,
+    }
+
+    expect(KeyboardEditToggleController.handleAttrModeToggle(ctx, "a", focus)).toBe(true)
+    expect(focus.layers[1].attrMode).toBe(true)
+    expect(type(focus.nametableAttrBytes)).toBe("table")
+    expect(#focus.nametableAttrBytes).toBe(64)
+    expect(KeyboardEditToggleController.handleAttrModeToggle(ctx, "a", focus)).toBe(true)
+    expect(focus.layers[1].attrMode).toBe(false)
+  end)
+
+  it("does not toggle attrMode in edit mode", function()
+    local focus = {
+      kind = "sketch_canvas",
+      layers = { { kind = "canvas" } },
+      getActiveLayerIndex = function()
+        return 1
+      end,
+    }
+    local ctx = {
+      getMode = function()
+        return "edit"
+      end,
+    }
+    expect(KeyboardEditToggleController.handleAttrModeToggle(ctx, "a", focus)).toBe(false)
+    expect(focus.layers[1].attrMode).toBeNil()
   end)
 end)

@@ -207,6 +207,139 @@ describe("multi_select_controller.lua - ppu tile group drag", function()
   end)
 end)
 
+describe("multi_select_controller.lua - sketch reflect tile group drag", function()
+  local function withSketchReflectCtx(win, pt, fn)
+    local prev = rawget(_G, "ctx")
+    rawset(_G, "ctx", {
+      getMode = function()
+        return "tile"
+      end,
+      wm = function()
+        return {
+          findWindowById = function(_, id)
+            if id == (win.linkedPatternTableWindowId or "pt-1") then
+              return pt
+            end
+          end,
+        }
+      end,
+    })
+    local ok, err = pcall(fn)
+    rawset(_G, "ctx", prev)
+    if not ok then
+      error(err)
+    end
+  end
+
+  local function makeSketchWin()
+    local cols, rows = 32, 30
+    local layer = { kind = "canvas", items = {} }
+    local win = {
+      kind = "sketch_canvas",
+      cols = cols,
+      rows = rows,
+      nametableBytes = {},
+      layers = { layer },
+      linkedPatternTableWindowId = "pt-1",
+      tilesPool = { { pixels = {} } },
+      setSelected = function(self, col, row, li)
+        self._selected = { col = col, row = row, li = li }
+      end,
+    }
+    local function idx(col, row)
+      return row * win.cols + col + 1
+    end
+    win._idx = idx
+    for i = 1, cols * rows do
+      win.nametableBytes[i] = 0x00
+    end
+    win.get = function(self, col, row, _)
+      local byte = self.nametableBytes[idx(col, row)]
+      if byte == nil then
+        return nil
+      end
+      return { kind = "sketch_nt", id = byte, poolIndex = byte }
+    end
+    win.setNametableByteAt = function(self, col, row, byteVal)
+      self.nametableBytes[idx(col, row)] = byteVal
+    end
+    return win, layer
+  end
+
+  it("builds a tile drag group from multi-selected sketch reflect cells", function()
+    local win, layer = makeSketchWin()
+    local pt = { id = "pt-1", kind = "pattern_table", _closed = false }
+    win.nametableBytes[win._idx(2, 1)] = 0x31
+    win.nametableBytes[win._idx(3, 1)] = 0x32
+    layer.multiTileSelection = {
+      [win._idx(2, 1)] = true,
+      [win._idx(3, 1)] = true,
+    }
+
+    withSketchReflectCtx(win, pt, function()
+      local group = MultiSelectController.buildTileDragGroup(win, 1, 2, 1)
+      expect(group).toBeTruthy()
+      expect(#group.entries).toBe(2)
+      expect(group.entries[1].srcCol).toBe(2)
+      expect(group.entries[2].srcCol).toBe(3)
+    end)
+  end)
+
+  it("moves sketch nametable bytes for tile groups like PPU frames", function()
+    local win = makeSketchWin()
+    local pt = { id = "pt-1", kind = "pattern_table", _closed = false }
+    win.nametableBytes[win._idx(2, 1)] = 0x31
+    win.nametableBytes[win._idx(3, 1)] = 0x32
+
+    local group = {
+      entries = {
+        { srcCol = 2, srcRow = 1, offsetCol = 0, offsetRow = 0, item = { kind = "sketch_nt", id = 0x31 } },
+        { srcCol = 3, srcRow = 1, offsetCol = 1, offsetRow = 0, item = { kind = "sketch_nt", id = 0x32 } },
+      },
+    }
+
+    withSketchReflectCtx(win, pt, function()
+      local result = MultiSelectController.applyTileDragGroup(win, 1, group, 5, 1, {
+        copyMode = false,
+        srcWin = win,
+        srcLayer = 1,
+      })
+
+      expect(result).toBeTruthy()
+      expect(result.count).toBe(2)
+      expect(win.nametableBytes[win._idx(2, 1)]).toBe(0x00)
+      expect(win.nametableBytes[win._idx(3, 1)]).toBe(0x00)
+      expect(win.nametableBytes[win._idx(5, 1)]).toBe(0x31)
+      expect(win.nametableBytes[win._idx(6, 1)]).toBe(0x32)
+    end)
+  end)
+
+  it("applies sketch group drag when anchor column is 0", function()
+    local win = makeSketchWin()
+    local pt = { id = "pt-1", kind = "pattern_table", _closed = false }
+    win.nametableBytes[win._idx(5, 1)] = 0x41
+
+    local group = {
+      entries = {
+        { srcCol = 5, srcRow = 1, offsetCol = 0, offsetRow = 0, item = {} },
+      },
+    }
+
+    withSketchReflectCtx(win, pt, function()
+      local result = MultiSelectController.applyTileDragGroup(win, 1, group, 0, 1, {
+        copyMode = false,
+        srcWin = win,
+        srcLayer = 1,
+      })
+
+      expect(result).toBeTruthy()
+      expect(result.count).toBe(1)
+      expect(win.nametableBytes[win._idx(5, 1)]).toBe(0x00)
+      expect(win.nametableBytes[win._idx(0, 1)]).toBe(0x41)
+    end)
+  end)
+end)
+
 describe("multi_select_controller.lua - oam animation sprite deletion", function()
   it("deletes selected sprites in oam_animation windows", function()
     local layer = {

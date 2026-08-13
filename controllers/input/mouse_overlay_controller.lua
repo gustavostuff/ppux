@@ -295,7 +295,16 @@ function M.drawOverlay(env)
     end
 
     item = resolvePreviewItem(drag.srcWin, item, drag.srcLayer)
-    if not (item and type(item.draw) == "function") then return end
+    if not (item and type(item.draw) == "function") then
+      -- Frozen pixel bags (sketch Reflect / sketch-owned PT) without a draw method.
+      if item and type(item.pixels) == "table" then
+        local SketchCanvasPackController = require("controllers.game_art.sketch_canvas_pack_controller")
+        item = SketchCanvasPackController.makeScratchTileFromPixels(item.pixels)
+      end
+      if not (item and type(item.draw) == "function") then
+        return
+      end
+    end
     local bottomItem = resolvePreviewItem(drag.srcWin, opts.bottomItem, drag.srcLayer)
     love.graphics.setColor(1, 1, 1, drag.ghostAlpha)
     love.graphics.push()

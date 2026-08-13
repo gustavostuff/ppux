@@ -674,6 +674,9 @@ function M.createSketchCanvasWindow(w, decodePatternCanvasSnapshot, onPatternCan
       if Lsrc.paletteData ~= nil then
         Ldst.paletteData = TableUtils.deepcopy(Lsrc.paletteData)
       end
+      if Lsrc.attrMode ~= nil then
+        Ldst.attrMode = Lsrc.attrMode
+      end
     end
   end
 
@@ -756,6 +759,9 @@ local function applyLayerMetadataFromLayout(win, layoutLayers)
       end
       if Lsrc.paletteData ~= nil then
         Ldst.paletteData = TableUtils.deepcopy(Lsrc.paletteData)
+      end
+      if Lsrc.attrMode ~= nil then
+        Ldst.attrMode = Lsrc.attrMode
       end
     end
   end

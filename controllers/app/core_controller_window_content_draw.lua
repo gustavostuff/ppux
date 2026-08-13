@@ -305,7 +305,7 @@ local function getPaletteFromAttrBytes(attrBytes, cols, tileCol, tileRow)
   return palIndex + 1
 end
 
--- Draw attribute mode visualization for PPU frame windows
+-- Draw attribute mode visualization for PPU frames and sketch canvases.
 -- Shows colored squares based on attribute bytes where each 2x2 quadrant shares a palette
 local function drawTileInAttrMode(app, w, layer, col, row, x, y, cw, ch, layerOpacity)
   if not (w.nametableAttrBytes and layer) then
@@ -351,6 +351,11 @@ local function drawTileInAttrMode(app, w, layer, col, row, x, y, cw, ch, layerOp
   end
 
   return false
+end
+
+local function windowUsesAttrMode(w, layer)
+  return layer and layer.attrMode == true
+    and (WindowCaps.isPpuFrame(w) or WindowCaps.isSketchCanvas(w))
 end
 
 -- Draw a single tile item with palette application
@@ -406,8 +411,7 @@ local function drawTileStackItem(app, w, layer, item, col, row, x, y, idx, li, i
 end
 
 local function drawTileLayerCell(app, w, layer, col, row, x, y, cw, ch, idx, li, isPalWindow, layerOpacity, item)
-  local isPPUFrame = WindowCaps.isPpuFrame(w)
-  local attrMode = isPPUFrame and layer and layer.attrMode == true
+  local attrMode = windowUsesAttrMode(w, layer)
 
   if attrMode then
     if drawTileInAttrMode(app, w, layer, col, row, x, y, cw, ch, layerOpacity) then
@@ -547,7 +551,7 @@ local function drawTileLayer(app, w, layerIndex, isFocused)
   local isPalWindow = WindowCaps.isGlobalPaletteWindow(w)
   local isPPUFrame = WindowCaps.isPpuFrame(w)
   local layer = w.layers and w.layers[layerIndex]
-  local attrMode = isPPUFrame and layer and layer.attrMode == true
+  local attrMode = windowUsesAttrMode(w, layer)
   if isPPUFrame and not attrMode then
     local PatternLayerGate = require("controllers.window.pattern_layer_gate")
     -- Prefer frequency shadow whenever CHR pattern mapping is unusable (unlinked,
@@ -602,6 +606,16 @@ local function drawCanvasLayer(app, w, layerIndex, isFocused)
   local canvas = layer and layer.canvas or nil
   if not canvas then
     return false
+  end
+
+  -- Sketch attribute view (A): same quadrant color map as PPU nametable attr mode.
+  if WindowCaps.isSketchCanvas(w) and windowUsesAttrMode(w, layer) then
+    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+    SketchPalette.ensureAttrBytes(w)
+    w:drawGrid(function(col, row, x, y, cw, ch, li, layerOpacity)
+      drawTileInAttrMode(app, w, layer, col, row, x, y, cw, ch, layerOpacity)
+    end, isFocused, layerIndex)
+    return true
   end
 
   local SketchCanvasPackController = nil

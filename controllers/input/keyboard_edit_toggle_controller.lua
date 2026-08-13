@@ -49,12 +49,19 @@ function M.handleAttrModeToggle(ctx, key, focus)
 
   local w = focus
   if not w then return false end
-  if not WindowCaps.isPpuFrame(w) then return false end
+  local isPpu = WindowCaps.isPpuFrame(w)
+  local isSketch = WindowCaps.isSketchCanvas(w)
+  if not (isPpu or isSketch) then return false end
   if not (w.layers and w.getActiveLayerIndex) then return false end
 
   local li = w:getActiveLayerIndex()
   local layer = w.layers[li]
   if not layer or layer.kind == "sprite" then return false end
+
+  if isSketch then
+    local SketchPalette = require("controllers.game_art.sketch_canvas_palette_controller")
+    SketchPalette.ensureAttrBytes(w)
+  end
 
   layer.attrMode = not layer.attrMode
   if w.invalidateNametableLayerCanvas then

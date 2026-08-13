@@ -1181,6 +1181,67 @@ function M.freezeSketchOwnedPatternTableDrag(ptWin, drag, wm)
   return drag.chrPixelPaint == true
 end
 
+--- Build a drawable scratch Tile from a sketch Reflect nametable handle (or raw pixels).
+function M.materializeSketchNtHandle(sketchWin, handle)
+  if type(handle) == "table" and type(handle.draw) == "function" then
+    return handle
+  end
+  if not WindowCaps.isSketchCanvas(sketchWin) then
+    return nil
+  end
+  if type(handle) ~= "table" then
+    return nil
+  end
+
+  local pixels = nil
+  if handle.kind == "sketch_nt" then
+    local poolIndex = math.floor(tonumber(handle.poolIndex or handle.id) or 0)
+    local entry = sketchWin.tilesPool and sketchWin.tilesPool[poolIndex + 1]
+    local layer = sketchWin.layers and sketchWin.layers[1]
+    local canvas = layer and layer.canvas
+    pixels = M.pixelsForPoolEntry(canvas, entry)
+    if not pixels then
+      pixels = {}
+      for i = 1, 64 do
+        pixels[i] = 0
+      end
+    end
+  elseif type(handle.pixels) == "table" then
+    pixels = handle.pixels
+  else
+    return nil
+  end
+
+  return M.makeScratchTileFromPixels(pixels)
+end
+
+--- Replace sketch Reflect drag handles with drawable scratch tiles for ghost overlay.
+function M.freezeSketchReflectDrag(sketchWin, drag)
+  if not (drag and WindowCaps.isSketchReflectNametable(sketchWin)) then
+    return false
+  end
+
+  local any = false
+  local groupEntries = drag.tileGroup and drag.tileGroup.entries
+  if groupEntries and #groupEntries > 0 then
+    for _, entry in ipairs(groupEntries) do
+      local tile = M.materializeSketchNtHandle(sketchWin, entry.item)
+      if tile then
+        entry.item = tile
+        any = true
+      end
+    end
+  end
+
+  local itemTile = M.materializeSketchNtHandle(sketchWin, drag.item)
+  if itemTile then
+    drag.item = itemTile
+    any = true
+  end
+
+  return any
+end
+
 --- Rebuild reverse marks on pattern tables from sketch window links.
 function M.resolveSketchOwnedPatternTables(wm)
   if not (wm and wm.getWindows) then

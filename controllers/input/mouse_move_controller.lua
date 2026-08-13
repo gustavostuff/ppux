@@ -303,8 +303,8 @@ local function activateTileDrag(env, x, y)
     end
     drag.active = true
 
-    -- Hide source during a true move. CHR / pattern tables / PPU frames are
-    -- reference (or nametable-byte) sources — never temporarily clear them.
+    -- Hide source during a true move. CHR / pattern tables / PPU frames / sketch
+    -- Reflect (nametable bytes) are reference or NT sources — never temp-clear them.
     if (not drag.copyMode)
       and (not drag.tileGroup)
       and drag.srcWin
@@ -312,6 +312,7 @@ local function activateTileDrag(env, x, y)
       and (not WindowCaps.isChrLike(drag.srcWin))
       and (not WindowCaps.isPatternTable(drag.srcWin))
       and (not WindowCaps.isPpuFrame(drag.srcWin))
+      and (not WindowCaps.isSketchReflectNametable(drag.srcWin))
     then
       local srcLayer = drag.srcLayer or (drag.srcWin.getActiveLayerIndex and drag.srcWin:getActiveLayerIndex()) or 1
       local layer = drag.srcWin.layers and drag.srcWin.layers[srcLayer]
