@@ -14,6 +14,7 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
 - [Basic Usage](#basic-usage)
   - [Getting started](#getting-started)
   - [Windows system](#windows-system)
+  - [Window links](#window-links)
   - [Toolbars](#toolbars)
   - [Palette windows](#palette-windows)
   - [Main controls](#main-controls)
@@ -61,6 +62,8 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 | PPU Frame              | <img src="img/readme_images/windows_system_table/icon_ppu_frame_window.png" alt="PPU Frame taskbar icon">                | ROM-backed nametable and sprite view. Without a pattern table link, the nametable still show a NT "shadow" (not interactive).
 | Pattern table          | <img src="img/readme_images/windows_system_table/icon_pattern_table_window.png" alt="Pattern table taskbar icon">        | Sub-set of CHR/ROM items, intended to mimic the actual pattern tables assembled in game run-time                                                 |
 | Sketch canvas          | <img src="img/readme_images/windows_system_table/sketch_canvas_window.png" alt="Sketch canvas taskbar icon">             | Free 256x240 background paint canvas. It packs into its own **Pattern table**. See [Sketch canvas & Gallery ROM](#sketch-canvas--gallery-rom)    |
+
+### Window links
 
 You'll also notice these little **badges** on windows. When a badge is colored, that slot is linked. Empty badges stay chrome until you start a drag (they then pulse their role color).
 
