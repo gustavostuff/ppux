@@ -64,6 +64,8 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 
 You'll also notice these little **badges** on windows. When a badge is colored, that slot is linked. Empty badges stay chrome until you start a drag (they then pulse their role color).
 
+<img src="img/readme_images/badges.png" alt="Source window badges (right edge)">
+
 - **Left-click** a colored badge to bring the linked window(s) forward and focus them.
 - **Right-click** a badge for the Link / Unlink / Jump menu for that slot.
 - **Left-drag** from a badge (empty or linked) onto a compatible badge on another window.
