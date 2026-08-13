@@ -14,6 +14,7 @@ SCRIPTS=(
   scripts/dev/capture_source_links_readme_images.sh
   scripts/dev/capture_palettes_readme_images.sh
   scripts/dev/capture_mode_indicator_readme_images.sh
+  scripts/dev/update_windows_system_table_icons.sh
 )
 
 for script in "${SCRIPTS[@]}"; do
