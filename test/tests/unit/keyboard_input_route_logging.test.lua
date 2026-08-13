@@ -64,6 +64,7 @@ describe("keyboard_input.lua - INPUT_ROUTE logging", function()
     }
     originalSelectionActions = {
       selectAll = KeyboardSelectionActionsController.handleSelectAll,
+      sketchPixelTransform = KeyboardSelectionActionsController.handleSketchPixelTransform,
       mirror = KeyboardSelectionActionsController.handleSpriteMirror,
       deleteKey = KeyboardSelectionActionsController.handleDeleteKey,
     }
@@ -104,6 +105,7 @@ describe("keyboard_input.lua - INPUT_ROUTE logging", function()
     KeyboardNavigationController.handleChrBankKeys = function() return false end
     KeyboardNavigationController.handleAnimationWindowKeys = function() return false end
     KeyboardSelectionActionsController.handleSelectAll = function() return false end
+    KeyboardSelectionActionsController.handleSketchPixelTransform = function() return false end
     KeyboardSelectionActionsController.handleSpriteMirror = function() return false end
     KeyboardSelectionActionsController.handleDeleteKey = function() return false end
 
@@ -142,6 +144,7 @@ describe("keyboard_input.lua - INPUT_ROUTE logging", function()
     KeyboardNavigationController.handleChrBankKeys = originalNavigation.chrBank
     KeyboardNavigationController.handleAnimationWindowKeys = originalNavigation.animKeys
     KeyboardSelectionActionsController.handleSelectAll = originalSelectionActions.selectAll
+    KeyboardSelectionActionsController.handleSketchPixelTransform = originalSelectionActions.sketchPixelTransform
     KeyboardSelectionActionsController.handleSpriteMirror = originalSelectionActions.mirror
     KeyboardSelectionActionsController.handleDeleteKey = originalSelectionActions.deleteKey
   end)

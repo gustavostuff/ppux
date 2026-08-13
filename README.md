@@ -330,6 +330,7 @@ Edit mode is for pixel-level editing.
 - On a **Sketch canvas**: hold `C` and **left**-click to mask all pixels of the clicked color.
 - On a **Sketch canvas**: hold `C` and **right**-click to clear the mask.
 - On a **Sketch canvas**: `S` toggles region select (rectangular selection). Use shift for free-form selection.
+- On a **Sketch canvas**: with a pixel selection, `H`/`V` flip horizontally/vertically. `R` rotates 90 degrees clockwise (`Shift + R` counter-clockwise).
 
 Note: clipboard (Ctrl + C/X/V) should work for both item selection (like tiles) and for pixel selections on Sketch Canvas windows.
 

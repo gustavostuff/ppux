@@ -2,11 +2,48 @@ local MultiSelectController = require("controllers.input_support.multi_select_co
 local WindowCaps = require("controllers.window.window_capabilities")
 local SpriteStateSnapshot = require("controllers.sprite.sprite_state_snapshot")
 local StatusHelpers = require("utils.status_helpers")
+local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
 
 local M = {}
 
 local captureSpriteState = SpriteStateSnapshot.captureSpriteState
 local statesEqual = SpriteStateSnapshot.statesEqual
+
+--- Sketch edit-mode pixel selection: H/V flip, R rotate 90 deg CW, Shift+R CCW.
+function M.handleSketchPixelTransform(ctx, utils, key, focus)
+  if ctx.getMode() ~= "edit" then return false end
+  if utils.ctrlDown and utils.ctrlDown() then return false end
+  if utils.altDown and utils.altDown() then return false end
+  if not WindowCaps.isSketchCanvas(focus) then return false end
+  if WindowCaps.isSketchReflectNametable(focus) then return false end
+  if not PixelSel.hasSelection(focus) then return false end
+
+  local op
+  if key == "h" then
+    op = "flip_x"
+  elseif key == "v" then
+    op = "flip_y"
+  elseif key == "r" then
+    op = (utils.shiftDown and utils.shiftDown()) and "rotate_ccw" or "rotate_cw"
+  else
+    return false
+  end
+
+  if not PixelSel.transformSelection(focus, op, ctx.app) then
+    return false
+  end
+
+  if op == "flip_x" then
+    StatusHelpers.setStatus(ctx, "Selection flipped horizontally")
+  elseif op == "flip_y" then
+    StatusHelpers.setStatus(ctx, "Selection flipped vertically")
+  elseif op == "rotate_ccw" then
+    StatusHelpers.setStatus(ctx, "Selection rotated 90 degrees counter-clockwise")
+  else
+    StatusHelpers.setStatus(ctx, "Selection rotated 90 degrees clockwise")
+  end
+  return true
+end
 
 function M.handleSpriteMirror(ctx, key, focus)
   if key ~= "h" and key ~= "v" then return false end

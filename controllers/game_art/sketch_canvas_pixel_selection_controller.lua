@@ -819,6 +819,79 @@ function M.ensureLifted(win, app)
   return true
 end
 
+local TRANSFORM_OPS = {
+  flip_x = {
+    size = function(w, h) return w, h end,
+    map = function(x, y, w, _h) return w - 1 - x, y end,
+  },
+  flip_y = {
+    size = function(w, h) return w, h end,
+    map = function(x, y, _w, h) return x, h - 1 - y end,
+  },
+  rotate_cw = {
+    size = function(w, h) return h, w end,
+    map = function(x, y, _w, h) return h - 1 - y, x end,
+  },
+  rotate_ccw = {
+    size = function(w, h) return h, w end,
+    map = function(x, y, w, _h) return y, w - 1 - x end,
+  },
+}
+
+--- Flip or rotate the current pixel selection (lifts first). Leaves it floating.
+--  op: "flip_x" | "flip_y" | "rotate_cw" | "rotate_ccw"
+function M.transformSelection(win, op, app)
+  local spec = TRANSFORM_OPS[op]
+  if not spec then
+    return false
+  end
+  if not M.hasSelection(win) then
+    return false
+  end
+  if not M.ensureLifted(win, app) then
+    return false
+  end
+  local sel = M.getSelection(win)
+  if not (sel and sel.floating) then
+    return false
+  end
+
+  local oldW = sel.w
+  local oldH = sel.h
+  local newW, newH = spec.size(oldW, oldH)
+  local fill = sel.floating.fillValue or 0
+  local nextFloat = PixelCanvas.new(newW, newH, fill)
+  local nextMask = nil
+  if sel.mask then
+    nextMask = {}
+  end
+
+  for y = 0, oldH - 1 do
+    for x = 0, oldW - 1 do
+      local nx, ny = spec.map(x, y, oldW, oldH)
+      nextFloat:edit(nx, ny, sel.floating:getPixel(x, y))
+      if nextMask and maskGet(sel, x, y) then
+        nextMask[maskIndex(newW, nx, ny)] = true
+      end
+    end
+  end
+
+  local ox = sel.floatingOffsetX or sel.x or 0
+  local oy = sel.floatingOffsetY or sel.y or 0
+  local newX = ox + math.floor((oldW - newW) / 2)
+  local newY = oy + math.floor((oldH - newH) / 2)
+
+  sel.floating = nextFloat
+  sel.mask = nextMask
+  sel.w = newW
+  sel.h = newH
+  sel.x = newX
+  sel.y = newY
+  sel.floatingOffsetX = newX
+  sel.floatingOffsetY = newY
+  return true
+end
+
 function M.beginMove(win, canvasX, canvasY, app)
   if not M.hitTest(win, canvasX, canvasY) then
     return false

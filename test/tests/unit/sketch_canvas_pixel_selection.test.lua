@@ -530,4 +530,159 @@ describe("sketch_canvas_pixel_selection_controller", function()
 
     _G.ctx = nil
   end)
+
+  it("flips and rotates a rectangular pixel selection around its center", function()
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow()
+    local canvas = win:getActiveCanvas()
+    _G.ctx = { getMode = function() return "edit" end }
+    local app = { undoRedo = UndoRedoController.new(20) }
+
+    canvas:edit(4, 4, 1)
+    canvas:edit(5, 4, 2)
+    canvas:edit(4, 5, 3)
+    canvas:edit(5, 5, 1)
+    canvas:edit(4, 6, 2)
+    canvas:edit(5, 6, 3)
+
+    PixelSel.begin(win, PixelSel.KIND_RECT, 4, 4)
+    PixelSel.updateDrag(win, 5, 6)
+    expect(PixelSel.commitDrag(win)).toBe(true)
+
+    expect(PixelSel.transformSelection(win, "flip_x", app)).toBe(true)
+    expect(PixelSel.stampDown(win, app)).toBe(true)
+    expect(canvas:getPixel(4, 4)).toBe(2)
+    expect(canvas:getPixel(5, 4)).toBe(1)
+    expect(canvas:getPixel(4, 5)).toBe(1)
+    expect(canvas:getPixel(5, 5)).toBe(3)
+    expect(canvas:getPixel(4, 6)).toBe(3)
+    expect(canvas:getPixel(5, 6)).toBe(2)
+
+    PixelSel.begin(win, PixelSel.KIND_RECT, 4, 4)
+    PixelSel.updateDrag(win, 5, 6)
+    PixelSel.commitDrag(win)
+    expect(PixelSel.transformSelection(win, "flip_y", app)).toBe(true)
+    expect(PixelSel.stampDown(win, app)).toBe(true)
+    expect(canvas:getPixel(4, 4)).toBe(3)
+    expect(canvas:getPixel(5, 4)).toBe(2)
+    expect(canvas:getPixel(4, 6)).toBe(2)
+    expect(canvas:getPixel(5, 6)).toBe(1)
+
+    -- Restore a 2x3 block and rotate 90° CW: 2x3 -> 3x2, origin shifts to keep center.
+    paintRect(canvas, 4, 4, 2, 3, 0)
+    canvas:edit(4, 4, 1)
+    canvas:edit(5, 4, 2)
+    canvas:edit(4, 5, 3)
+    canvas:edit(5, 5, 0)
+    canvas:edit(4, 6, 1)
+    canvas:edit(5, 6, 3)
+    PixelSel.begin(win, PixelSel.KIND_RECT, 4, 4)
+    PixelSel.updateDrag(win, 5, 6)
+    PixelSel.commitDrag(win)
+    expect(PixelSel.transformSelection(win, "rotate_cw", app)).toBe(true)
+    local sel = PixelSel.getSelection(win)
+    expect(sel.w).toBe(3)
+    expect(sel.h).toBe(2)
+    expect(sel.x).toBe(3)
+    expect(sel.y).toBe(4)
+    expect(PixelSel.stampDown(win, app)).toBe(true)
+    expect(canvas:getPixel(3, 4)).toBe(1)
+    expect(canvas:getPixel(4, 4)).toBe(3)
+    expect(canvas:getPixel(5, 4)).toBe(1)
+    expect(canvas:getPixel(3, 5)).toBe(3)
+    expect(canvas:getPixel(4, 5)).toBe(0)
+    expect(canvas:getPixel(5, 5)).toBe(2)
+    expect(canvas:getPixel(4, 6)).toBe(0)
+    expect(canvas:getPixel(5, 6)).toBe(0)
+
+    _G.ctx = nil
+  end)
+
+  it("rotates a freeform mask with the floating pixels", function()
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow()
+    local canvas = win:getActiveCanvas()
+    _G.ctx = { getMode = function() return "edit" end }
+    local app = { undoRedo = UndoRedoController.new(20) }
+
+    paintRect(canvas, 2, 2, 4, 4, 2)
+    PixelSel.begin(win, PixelSel.KIND_FREE, 2, 2)
+    PixelSel.updateDrag(win, 5, 2)
+    PixelSel.updateDrag(win, 5, 5)
+    PixelSel.updateDrag(win, 2, 5)
+    expect(PixelSel.commitDrag(win)).toBe(true)
+    local before = PixelSel.getSelection(win)
+    expect(before.mask).toBeTruthy()
+    local hitBefore = PixelSel.hitTest(win, 3, 3)
+
+    expect(PixelSel.transformSelection(win, "rotate_ccw", app)).toBe(true)
+    local after = PixelSel.getSelection(win)
+    expect(after.mask).toBeTruthy()
+    expect(after.w).toBe(before.h)
+    expect(after.h).toBe(before.w)
+    expect(PixelSel.hasFloatingSelection(win)).toBe(true)
+    expect(hitBefore).toBe(true)
+
+    _G.ctx = nil
+  end)
+
+  it("H / V / R keyboard shortcuts transform a sketch pixel selection", function()
+    local KeyboardSelectionActionsController = require("controllers.input.keyboard_selection_actions_controller")
+    local wm = WM.new()
+    local win = wm:createSketchCanvasWindow()
+    local canvas = win:getActiveCanvas()
+    local statuses = {}
+    local utils = {
+      ctrlDown = function() return false end,
+      altDown = function() return false end,
+      shiftDown = function() return false end,
+    }
+    local ctx = {
+      getMode = function() return "edit" end,
+      app = { undoRedo = UndoRedoController.new(20) },
+      setStatus = function(msg) statuses[#statuses + 1] = msg end,
+    }
+    _G.ctx = ctx
+
+    canvas:edit(4, 4, 1)
+    canvas:edit(5, 4, 2)
+    canvas:edit(4, 5, 3)
+    canvas:edit(5, 5, 1)
+    PixelSel.begin(win, PixelSel.KIND_RECT, 4, 4)
+    PixelSel.updateDrag(win, 5, 5)
+    PixelSel.commitDrag(win)
+
+    expect(KeyboardSelectionActionsController.handleSketchPixelTransform(ctx, utils, "h", win)).toBe(true)
+    expect(PixelSel.hasFloatingSelection(win)).toBe(true)
+    expect(PixelSel.stampDown(win, ctx.app)).toBe(true)
+    expect(canvas:getPixel(4, 4)).toBe(2)
+    expect(canvas:getPixel(5, 4)).toBe(1)
+
+    PixelSel.begin(win, PixelSel.KIND_RECT, 4, 4)
+    PixelSel.updateDrag(win, 5, 5)
+    PixelSel.commitDrag(win)
+    expect(KeyboardSelectionActionsController.handleSketchPixelTransform(ctx, utils, "v", win)).toBe(true)
+    expect(PixelSel.stampDown(win, ctx.app)).toBe(true)
+    expect(canvas:getPixel(4, 4)).toBe(1)
+    expect(canvas:getPixel(4, 5)).toBe(2)
+
+    PixelSel.begin(win, PixelSel.KIND_RECT, 4, 4)
+    PixelSel.updateDrag(win, 5, 5)
+    PixelSel.commitDrag(win)
+    expect(KeyboardSelectionActionsController.handleSketchPixelTransform(ctx, utils, "r", win)).toBe(true)
+    utils.shiftDown = function() return true end
+    expect(KeyboardSelectionActionsController.handleSketchPixelTransform(ctx, utils, "r", win)).toBe(true)
+    expect(PixelSel.stampDown(win, ctx.app)).toBe(true)
+    expect(canvas:getPixel(4, 4)).toBe(1)
+    expect(canvas:getPixel(5, 4)).toBe(3)
+    expect(#statuses).toBeGreaterThan(0)
+
+    ctx.getMode = function() return "tile" end
+    PixelSel.begin(win, PixelSel.KIND_RECT, 4, 4)
+    PixelSel.updateDrag(win, 5, 5)
+    PixelSel.commitDrag(win)
+    expect(KeyboardSelectionActionsController.handleSketchPixelTransform(ctx, utils, "h", win)).toBe(false)
+
+    _G.ctx = nil
+  end)
 end)

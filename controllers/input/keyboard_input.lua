@@ -40,6 +40,7 @@ local focusHandlers = {
   { name = "chr_bank_keys", fn = function(key, focus) return KeyboardNavigationController.handleChrBankKeys(ctx, utils, key, focus) end },
   { name = "animation_window_keys", fn = function(key, focus) return KeyboardNavigationController.handleAnimationWindowKeys(ctx, key, focus) end },
   { name = "edit_mode_keys", fn = function(key) return KeyboardEditToggleController.handleEditModeKeys(ctx, utils, key) end },
+  { name = "sketch_pixel_transform", fn = function(key, focus) return KeyboardSelectionActionsController.handleSketchPixelTransform(ctx, utils, key, focus) end },
   { name = "copy_selection", fn = function(key, focus) return KeyboardClipboardController.handleCopySelection(ctx, utils, key, focus) end },
   { name = "cut_selection", fn = function(key, focus) return KeyboardClipboardController.handleCutSelection(ctx, utils, key, focus) end },
   { name = "paste_selection", fn = function(key, focus) return KeyboardClipboardController.handlePasteSelection(ctx, utils, key, focus) end },
