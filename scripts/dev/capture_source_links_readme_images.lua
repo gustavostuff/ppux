@@ -174,25 +174,6 @@ local function prettyGirlPlacements()
   return BubbleExample.getPlacements()
 end
 
-local function prettyGirlTileSet()
-  local used = {}
-  for _, p in ipairs(prettyGirlPlacements()) do
-    used[p.tile] = true
-  end
-  return used
-end
-
--- Nametable filler that is not one of the pretty-girl CHR indices (tile 0 is used in the art).
-local function prettyGirlEmptyByte()
-  local used = prettyGirlTileSet()
-  for i = 1, 255 do
-    if not used[i] then
-      return i
-    end
-  end
-  return 1
-end
-
 local function ensurePpuNametable(app, ppu)
   local tilesPool = app.appEditState and app.appEditState.tilesPool
   local cols = ppu.cols or 32
@@ -202,9 +183,9 @@ local function ensurePpuNametable(app, ppu)
     return tilesPool
   end
   local bytes = {}
-  local empty = prettyGirlEmptyByte()
+  -- Tile 0 is the blank/black CHR cell; fill around the pretty-girl art with that.
   for i = 1, n do
-    bytes[i] = empty
+    bytes[i] = 0
   end
   ppu:setNametableBytes(bytes, 1, 1, tilesPool)
   return tilesPool
