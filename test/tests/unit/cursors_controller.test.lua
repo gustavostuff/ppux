@@ -139,6 +139,46 @@ describe("cursors_controller.lua", function()
     expect(setTo).toBe("arrow")
   end)
 
+  it("uses hand over an unselected palette swatch and arrow over the selected one", function()
+    local setTo = nil
+    love.mouse.setCursor = function(cursor) setTo = cursor end
+    ResolutionController.getScaledMouse = function()
+      return { x = 10, y = MY }
+    end
+
+    local hoverCol, hoverRow = 1, 0
+    local win = {
+      isPalette = true,
+      kind = "palette",
+      cols = 4,
+      rows = 1,
+      isInContentArea = function() return true end,
+      toGridCoords = function()
+        return true, hoverCol, hoverRow
+      end,
+      getSelected = function()
+        return 0, 0
+      end,
+    }
+    local app = {
+      hardwareCursors = { arrow = "arrow", hand = "hand", pencil = "pencil" },
+      wm = {
+        windowAt = function() return win end,
+      },
+    }
+
+    CursorsController.applyModeCursor(app, "tile")
+    expect(setTo).toBe("hand")
+    CursorsController.applyModeCursor(app, "edit")
+    expect(setTo).toBe("hand")
+
+    hoverCol, hoverRow = 0, 0
+    CursorsController.applyModeCursor(app, "tile")
+    expect(setTo).toBe("arrow")
+    CursorsController.applyModeCursor(app, "edit")
+    expect(setTo).toBe("arrow")
+  end)
+
   it("uses arrow in edit mode over window header", function()
     local setTo = nil
     love.mouse.setCursor = function(cursor) setTo = cursor end

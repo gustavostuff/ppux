@@ -574,6 +574,38 @@ local function pixelSelIsSelectTool(editTool)
   return editTool == "rect_select" or editTool == "free_select"
 end
 
+--- Palette swatches: hand to pick a different color, arrow on the already-selected cell.
+local function resolvePaletteItemCursor(win, mx, my)
+  if not WindowCaps.isAnyPaletteWindow(win) then
+    return nil
+  end
+  if type(mx) ~= "number" or type(my) ~= "number" then
+    return nil
+  end
+  if win.isInContentArea and not win:isInContentArea(mx, my) then
+    return nil
+  end
+  if not win.toGridCoords then
+    return nil
+  end
+  local ok, col, row = win:toGridCoords(mx, my)
+  if not ok or type(col) ~= "number" or type(row) ~= "number" then
+    return nil
+  end
+  local cols = win.cols or 0
+  local rows = win.rows or 0
+  if col < 0 or row < 0 or col >= cols or row >= rows then
+    return nil
+  end
+  if win.getSelected then
+    local sc, sr = win:getSelected()
+    if sc == col and sr == row then
+      return "arrow"
+    end
+  end
+  return "hand"
+end
+
 --- Sketch S-tool cursor: rect when armed / outside a selection; hand over it (including while dragging).
 local function resolveSketchSelectToolCursor(app, mx, my)
   local PixelSel = require("controllers.game_art.sketch_canvas_pixel_selection_controller")
@@ -691,6 +723,14 @@ local function resolveTargetCursorName(app, mode)
     end
     if isHoveringHandTargetAt(app, mx, my) then
       return "hand"
+    end
+    do
+      local wm = app and app.wm
+      local palWin = (wm and wm.windowAt) and wm:windowAt(mx, my) or nil
+      local palCursor = resolvePaletteItemCursor(palWin, mx, my)
+      if palCursor then
+        return palCursor
+      end
     end
   end
 
