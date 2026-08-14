@@ -46,7 +46,7 @@ For the second approach, use _Sketch Canvas_ windows. From these you can generat
 
 ### Windows system
 
-Windows are the main work areas in PPUX. Some are source windows, some are layout windows, some are ROM-backed helper windows, etc.
+Windows are the main work areas in PPUX. Some are sources, some are consumers, layouts, ROM-backed, and so on. A window can be more than one of those at once.
 
 | Window        | Taskbar icon                                                                                                        | Description                                                                                                                                                    |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -65,21 +65,21 @@ Windows are the main work areas in PPUX. Some are source windows, some are layou
 
 ### Window links
 
-You'll also notice these little **badges** on windows. When a badge is colored, it means that slot/window is linked to another one.
+You'll also notice these little **badges** on windows. When a badge is colored, it means that window is linked to another one.
 
 <img src="img/readme_images/badges.png" alt="Badges">
 
 - Left-click a colored badge to bring the linked window(s) forward.
-- Right-click a badge for the Link/Unlink/Jump menu for that slot.
+- Right-click a badge for the Link/Unlink/Jump menu for that link.
 - Left-drag from a badge (empty or linked) onto a compatible badge on another window.
 
 Links can be reattached to a different consumer and keep the same source, or the other way around. It's a one-to-many relationship (one source to N consumers).
 
-Source windows have only 1 connection point, but consumers vary:
+Source windows have only 1 badge, but consumers vary:
 
 * PPU Frame windows have 3: Background Pattern Table link, sprite Pattern Table link, and ROM palette link (top to bottom).
 * OAM animation windows are the same, except for the background PT link.
-* Other consumer windows only have the ROM palettes link/badge, because the don't need Pattern tables.
+* Other consumer windows only have the ROM palettes link/badge, because they don't need Pattern tables.
 
 **Source windows**:
 
@@ -104,10 +104,10 @@ Pattern table connected to 2 PPU Frame windows, as both BG and Sprite sources:
 **Examples**:
 
 PPU Frame window being a consumer of a Pattern table window:
-<img src="img/readme_images/source_links_example_3.png" alt="Destination window badges (left edge)">
+<img src="img/readme_images/source_links_example_3.png" alt="Consumer window badges (left edge)">
 
 An OAM animation window also consuming a Pattern table, for sprite data.
-<img src="img/readme_images/source_links_example_4.png" alt="Destination window badges, linked">
+<img src="img/readme_images/source_links_example_4.png" alt="Consumer window badges, linked">
 
 ### Toolbars
 
