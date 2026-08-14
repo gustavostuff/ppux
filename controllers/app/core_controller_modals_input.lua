@@ -203,7 +203,7 @@ function AppCoreController:showGalleryRomConfirmModal()
     if self.setStatus then
       self:setStatus("Gallery ROM failed: " .. msg)
     end
-    return self:showGalleryRomResultModal(false, msg)
+    return false
   end
 
   if not self.galleryRomConfirmModal then

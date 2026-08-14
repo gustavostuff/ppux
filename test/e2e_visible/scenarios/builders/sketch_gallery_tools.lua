@@ -90,15 +90,11 @@ local function buildSketchCanvasAndGalleryScenario(harness, app, runner)
     postPause = 0.35,
   })
 
-  steps[#steps + 1] = call("Assert gallery confirm or result modal", function(_, currentApp, currentRunner)
+  steps[#steps + 1] = call("Assert gallery confirm or missing-tools toast", function(_, currentApp, currentRunner)
     local confirm = currentApp.galleryRomConfirmModal
     local result = currentApp.galleryRomResultModal
     local confirmVisible = confirm and confirm:isVisible()
     local resultVisible = result and result:isVisible()
-    assert(
-      confirmVisible or resultVisible,
-      "expected gallery confirm modal (cc65 present) or result modal (missing tools / failure)"
-    )
     currentRunner.galleryOpenedConfirm = confirmVisible == true
     if confirmVisible then
       assert(
@@ -106,6 +102,11 @@ local function buildSketchCanvasAndGalleryScenario(harness, app, runner)
         "expected confirm summary about packed sketch canvases"
       )
       assert(confirm.thumbStrip and #(confirm.thumbStrip.entries or {}) >= 1, "expected thumb strip entries")
+    else
+      assert(
+        not resultVisible,
+        "missing cc65 tools should toast only (no gallery result modal)"
+      )
     end
   end)
   steps[#steps + 1] = pause("Observe gallery modal", 0.55)
