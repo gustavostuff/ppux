@@ -26,6 +26,8 @@ local DEFAULT_SETTINGS = {
   windowShadowBlur = 0.2,
   --- Opacity multiplier for drop shadows (0-100% of theme base).
   windowShadowStrength = 0.5,
+  --- Translucent dim behind centered modals (0 = none, 1 = fully opaque black).
+  modalOverlayOpacity = 0.7,
   groupedPaletteWindows = false,
   crtEnabled = false,
   crtFilterKind = "crt",
@@ -151,6 +153,14 @@ local function normalizeWindowShadowStrength(n)
   local v = tonumber(n)
   if v == nil then
     return 0.5
+  end
+  return math.max(0, math.min(1, v))
+end
+
+local function normalizeModalOverlayOpacity(n)
+  local v = tonumber(n)
+  if v == nil then
+    return 0.7
   end
   return math.max(0, math.min(1, v))
 end
@@ -345,6 +355,7 @@ local function withDefaults(data)
   out.windowShadowEnabled = not (data and data.windowShadowEnabled == false)
   out.windowShadowBlur = normalizeWindowShadowBlur(data and data.windowShadowBlur)
   out.windowShadowStrength = normalizeWindowShadowStrength(data and data.windowShadowStrength)
+  out.modalOverlayOpacity = normalizeModalOverlayOpacity(data and data.modalOverlayOpacity)
   out.groupedPaletteWindows = (data and data.groupedPaletteWindows == true)
   out.crtEnabled = (data and data.crtEnabled == true)
   out.crtFilterKind = normalizeCrtFilterKind(data and data.crtFilterKind)
@@ -421,6 +432,7 @@ function AppSettingsController.save(opts)
   if opts.windowShadowEnabled ~= nil then data.windowShadowEnabled = (opts.windowShadowEnabled == true) end
   if opts.windowShadowBlur ~= nil then data.windowShadowBlur = normalizeWindowShadowBlur(opts.windowShadowBlur) end
   if opts.windowShadowStrength ~= nil then data.windowShadowStrength = normalizeWindowShadowStrength(opts.windowShadowStrength) end
+  if opts.modalOverlayOpacity ~= nil then data.modalOverlayOpacity = normalizeModalOverlayOpacity(opts.modalOverlayOpacity) end
   if opts.groupedPaletteWindows ~= nil then data.groupedPaletteWindows = (opts.groupedPaletteWindows == true) end
   if opts.crtEnabled ~= nil then data.crtEnabled = (opts.crtEnabled == true) end
   if opts.crtFilterKind ~= nil then data.crtFilterKind = normalizeCrtFilterKind(opts.crtFilterKind) end
@@ -449,6 +461,10 @@ end
 
 function AppSettingsController.normalizeWindowShadowStrength(n)
   return normalizeWindowShadowStrength(n)
+end
+
+function AppSettingsController.normalizeModalOverlayOpacity(n)
+  return normalizeModalOverlayOpacity(n)
 end
 
 function AppSettingsController.normalizeWindowShadowBlur(n)

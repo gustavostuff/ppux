@@ -427,6 +427,7 @@ function Dialog.new()
     _settingsTabbedChrome = true,
     _windowShadowBlurSlider = nil,
     _windowShadowStrengthSlider = nil,
+    _modalOverlayOpacitySlider = nil,
     _canvasImageModeDropdown = nil,
     _canvasFilterDropdown = nil,
     _windowLinksDropdown = nil,
@@ -658,6 +659,7 @@ function Dialog:show(opts)
   self.onResetAll = opts.onResetAll
   self._windowShadowBlurSlider = opts.windowShadowBlurSlider
   self._windowShadowStrengthSlider = opts.windowShadowStrengthSlider
+  self._modalOverlayOpacitySlider = opts.modalOverlayOpacitySlider
   self._canvasImageModeDropdown = opts.canvasImageModeDropdown
   self._canvasFilterDropdown = opts.canvasFilterDropdown
   self._windowLinksDropdown = opts.windowLinksDropdown

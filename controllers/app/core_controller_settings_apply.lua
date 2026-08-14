@@ -552,6 +552,45 @@ function AppCoreController:_ensureSettingsWindowShadowStrengthSlider()
   })
 end
 
+function AppCoreController:_getModalOverlayOpacityForSettings()
+  if type(self.modalOverlayOpacity) == "number" then
+    return AppSettingsController.normalizeModalOverlayOpacity(self.modalOverlayOpacity)
+  end
+  local settings = AppSettingsController.load()
+  return AppSettingsController.normalizeModalOverlayOpacity(settings and settings.modalOverlayOpacity)
+end
+
+function AppCoreController:_applyModalOverlayOpacitySetting(value, saveSetting)
+  local n = AppSettingsController.normalizeModalOverlayOpacity(value)
+  self.modalOverlayOpacity = n
+  if saveSetting ~= false then
+    AppSettingsController.save({ modalOverlayOpacity = n })
+  end
+  return n
+end
+
+function AppCoreController:_ensureSettingsModalOverlayOpacitySlider()
+  if self._modalOverlayOpacitySlider then
+    return
+  end
+  local Slider = require("ui.slider")
+  local appRef = self
+  self._modalOverlayOpacitySlider = Slider.new({
+    min = 0,
+    max = 1,
+    value = 0.7,
+    tooltip = "Dim behind centered dialogs (0% = none, 100% = solid black)",
+    onChange = function(v)
+      appRef:_applyModalOverlayOpacitySetting(v, false)
+    end,
+    onCommit = function(v)
+      AppSettingsController.save({
+        modalOverlayOpacity = AppSettingsController.normalizeModalOverlayOpacity(v),
+      })
+    end,
+  })
+end
+
 function AppCoreController:_refreshSettingsModalIfOpen()
   if self.settingsModal and self.settingsModal.isVisible and self.settingsModal:isVisible() then
     self:_syncSettingsCanvasFilterDropdown()
@@ -985,6 +1024,7 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
   self:_applyWindowShadowSetting(D.windowShadowEnabled == true, false)
   self:_applyWindowShadowBlurSetting(D.windowShadowBlur, false)
   self:_applyWindowShadowStrengthSetting(D.windowShadowStrength, false)
+  self:_applyModalOverlayOpacitySetting(D.modalOverlayOpacity, false)
   self:_applyGroupedPaletteWindowsSetting(D.groupedPaletteWindows, false)
   self:_applyCrtFilterKindSetting(D.crtFilterKind, false)
   self:_applyCrtModeSetting(D.crtEnabled == true, false)
@@ -1002,6 +1042,7 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
     windowShadowEnabled = D.windowShadowEnabled,
     windowShadowBlur = D.windowShadowBlur,
     windowShadowStrength = D.windowShadowStrength,
+    modalOverlayOpacity = D.modalOverlayOpacity,
     groupedPaletteWindows = D.groupedPaletteWindows,
     crtEnabled = D.crtEnabled,
     crtFilterKind = D.crtFilterKind,
@@ -1017,6 +1058,9 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
   end
   if self._windowShadowStrengthSlider then
     self._windowShadowStrengthSlider:setValue(self:_getWindowShadowStrengthForSettings(), { silent = true })
+  end
+  if self._modalOverlayOpacitySlider then
+    self._modalOverlayOpacitySlider:setValue(self:_getModalOverlayOpacityForSettings(), { silent = true })
   end
   if self._refreshSettingsModalIfOpen then
     self:_refreshSettingsModalIfOpen()
@@ -1040,6 +1084,9 @@ function AppCoreController:showSettingsModal()
   self:_ensureSettingsWindowShadowStrengthSlider()
   self._windowShadowStrengthSlider:setValue(self:_getWindowShadowStrengthForSettings(), { silent = true })
   self._windowShadowStrengthSlider:setEnabled(self.windowShadowEnabled ~= false)
+
+  self:_ensureSettingsModalOverlayOpacitySlider()
+  self._modalOverlayOpacitySlider:setValue(self:_getModalOverlayOpacityForSettings(), { silent = true })
 
   self:_ensureSettingsCanvasFilterDropdown()
   self:_syncSettingsCanvasFilterDropdown()
@@ -1149,6 +1196,7 @@ function AppCoreController:showSettingsModal()
     end,
     windowShadowBlurSlider = appRef._windowShadowBlurSlider,
     windowShadowStrengthSlider = appRef._windowShadowStrengthSlider,
+    modalOverlayOpacitySlider = appRef._modalOverlayOpacitySlider,
     canvasImageModeDropdown = appRef._canvasImageModeDropdown,
     canvasFilterDropdown = appRef._canvasFilterDropdown,
     windowLinksDropdown = appRef._windowLinksDropdown,

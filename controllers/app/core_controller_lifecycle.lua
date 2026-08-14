@@ -394,6 +394,7 @@ function AppCoreController:load()
   self:_applyWindowShadowSetting((settings and settings.windowShadowEnabled) ~= false, false)
   self:_applyWindowShadowBlurSetting(settings and settings.windowShadowBlur, false)
   self:_applyWindowShadowStrengthSetting(settings and settings.windowShadowStrength, false)
+  self:_applyModalOverlayOpacitySetting(settings and settings.modalOverlayOpacity, false)
   self:_applyGroupedPaletteWindowsSetting(settings and settings.groupedPaletteWindows == true, false)
   if self._applyCrtDistortionSetting then
     self:_applyCrtDistortionSetting(settings and settings.crtDistortion, false)

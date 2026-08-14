@@ -15,6 +15,7 @@ describe("settings_controller.lua - defaults", function()
       windowShadowEnabled = true,
       windowShadowBlur = 0.2,
       windowShadowStrength = 0.5,
+      modalOverlayOpacity = 0.7,
       groupedPaletteWindows = false,
       crtEnabled = false,
       crtFilterKind = "crt",

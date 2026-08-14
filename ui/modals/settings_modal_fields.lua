@@ -121,6 +121,13 @@ function M.buildAppearanceTabRows(modal)
       component = modal._windowShadowStrengthSlider,
     }
   end
+  if modal._modalOverlayOpacitySlider then
+    rows[#rows + 1] = {
+      id = "modal_overlay_opacity",
+      label = "Modal overlay opacity",
+      component = modal._modalOverlayOpacitySlider,
+    }
+  end
 
   if modal._windowLinksDropdown then
     rows[#rows + 1] = {

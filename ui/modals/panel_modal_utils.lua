@@ -235,14 +235,29 @@ function M.modalPanelShadowRect(modal, canvas)
   return x, y, w, h
 end
 
-local backgroundOverlayOpacity = 0.7
+local backgroundOverlayOpacityDefault = 0.7
+
+local function resolveBackdropOpacity()
+  local ctx = rawget(_G, "ctx")
+  local app = ctx and ctx.app
+  if app and type(app.modalOverlayOpacity) == "number" then
+    local AppSettingsController = require("controllers.app.settings_controller")
+    return AppSettingsController.normalizeModalOverlayOpacity(app.modalOverlayOpacity)
+  end
+  return backgroundOverlayOpacityDefault
+end
+
 function M.drawBackdrop(canvas)
   if M.MODAL_BACKDROP_ENABLED ~= true then
     return
   end
   local cw = canvas:getWidth()
   local ch = canvas:getHeight()
-  love.graphics.setColor(colors.black[1], colors.black[2], colors.black[3], backgroundOverlayOpacity)
+  local opacity = resolveBackdropOpacity()
+  if opacity <= 0 then
+    return
+  end
+  love.graphics.setColor(colors.black[1], colors.black[2], colors.black[3], opacity)
   love.graphics.rectangle("fill", 0, 0, cw, ch)
   love.graphics.setColor(colors.white)
 end

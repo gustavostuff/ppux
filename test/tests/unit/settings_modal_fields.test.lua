@@ -18,11 +18,25 @@ describe("settings_modal_fields.lua", function()
     local modal = {
       getTheme = function() return "dark" end,
       _canvasImageModeDropdown = { id = "scale" },
+      _windowShadowStrengthSlider = { id = "strength" },
+      _modalOverlayOpacitySlider = { id = "overlay" },
       _windowLinksDropdown = { id = "links" },
     }
     local rows = SettingsFields.buildAppearanceTabRows(modal)
     expect(rows[1].id).toBe("theme")
     expect(rows[2].dropdown.id).toBe("scale")
+    local overlayRow = nil
+    local strengthRow = nil
+    for _, row in ipairs(rows) do
+      if row.id == "modal_overlay_opacity" then
+        overlayRow = row
+      elseif row.id == "window_shadow_strength" then
+        strengthRow = row
+      end
+    end
+    expect(strengthRow).toBeTruthy()
+    expect(overlayRow).toBeTruthy()
+    expect(overlayRow.component.id).toBe("overlay")
     expect(rows[#rows].dropdown.id).toBe("links")
   end)
 
