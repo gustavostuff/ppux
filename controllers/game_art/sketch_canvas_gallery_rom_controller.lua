@@ -62,8 +62,29 @@ local function shellQuote(path)
   return "'" .. path:gsub("'", "'\\''") .. "'"
 end
 
-local function runShell(cmd)
-  local result = os.execute(cmd)
+local function withWorkingDirCommand(dir, innerCmd)
+  if IS_WINDOWS then
+    return "cd /d " .. shellQuote(dir) .. " && " .. innerCmd
+  end
+  return "cd " .. shellQuote(dir) .. " && " .. innerCmd
+end
+
+local function runShell(cmd, cwd)
+  if IS_WINDOWS then
+    local okWin, WinFs = pcall(require, "utils.win_fs")
+    if okWin and WinFs and WinFs.runHidden then
+      local ok, exitCode = WinFs.runHidden(cmd, cwd)
+      if ok then
+        return true
+      end
+      return false, exitCode
+    end
+  end
+  local wrapped = cmd
+  if type(cwd) == "string" and cwd ~= "" then
+    wrapped = withWorkingDirCommand(cwd, cmd)
+  end
+  local result = os.execute(wrapped)
   if result == true or result == 0 then
     return true
   end
@@ -620,6 +641,36 @@ local function readCommandOutput(cmd)
   return nil
 end
 
+local function findToolOnWindowsPath(name)
+  local okWin, WinFs = pcall(require, "utils.win_fs")
+  if okWin and WinFs and WinFs.searchPath then
+    local found = WinFs.searchPath(name, ".exe")
+    if type(found) == "string" and found ~= "" then
+      return found
+    end
+    found = WinFs.searchPath(name .. ".exe")
+    if type(found) == "string" and found ~= "" then
+      return found
+    end
+  end
+
+  local pathEnv = os.getenv("PATH") or ""
+  for dir in pathEnv:gmatch("[^;]+") do
+    dir = dir:match("^%s*(.-)%s*$") or ""
+    if dir ~= "" then
+      local exe = joinPath(dir, name .. ".exe")
+      if fileExists(exe) then
+        return exe
+      end
+      local raw = joinPath(dir, name)
+      if raw ~= exe and fileExists(raw) then
+        return raw
+      end
+    end
+  end
+  return nil
+end
+
 local function findTool(name)
   local envHome = os.getenv("CC65_HOME")
   if type(envHome) == "string" and envHome ~= "" then
@@ -630,29 +681,19 @@ local function findTool(name)
     end
   end
 
-  local whichCmd
   if IS_WINDOWS then
-    whichCmd = "where " .. name .. " 2>NUL"
-  else
-    whichCmd = "command -v " .. name .. " 2>/dev/null"
+    -- Do not use `where` / io.popen: that flashes a console on Windows.
+    return findToolOnWindowsPath(name)
   end
-  local found = readCommandOutput(whichCmd)
+
+  local found = readCommandOutput("command -v " .. name .. " 2>/dev/null")
   if found and found ~= "" then
     return found
   end
   return nil
 end
 
-local function withWorkingDirCommand(dir, innerCmd)
-  if IS_WINDOWS then
-    return "cd /d " .. shellQuote(dir) .. " && " .. innerCmd
-  end
-  return "cd " .. shellQuote(dir) .. " && " .. innerCmd
-end
-
-local CC65_MISSING_MESSAGE = "Gallery ROM needs cc65 tools on PATH (ca65 and ld65). "
-  .. "Install from https://cc65.github.io/ and reopen PPUX. "
-  .. "Optional: set CC65_HOME to your cc65 install root."
+local CC65_MISSING_MESSAGE = "Gallery ROM needs cc65 tools on PATH (ca65 and ld65)."
 
 --- Returns true when ca65 and ld65 are available; otherwise false, user message.
 function M.checkCc65Tools()
@@ -699,11 +740,8 @@ function M.assembleGalleryRom(asmDir)
     if not fileExists(joinPath(asmDir, "s", name .. ".s")) then
       return false, "missing source " .. srcRel
     end
-    local cmd = withWorkingDirCommand(
-      asmDir,
-      shellQuote(ca65) .. " -o " .. shellQuote(objName) .. " " .. shellQuote(srcRel)
-    )
-    local ok, status = runShell(cmd)
+    local cmd = shellQuote(ca65) .. " -o " .. shellQuote(objName) .. " " .. shellQuote(srcRel)
+    local ok, status = runShell(cmd, asmDir)
     if not ok then
       return false, string.format("ca65 failed for %s (status %s)", name, tostring(status))
     end
@@ -720,8 +758,8 @@ function M.assembleGalleryRom(asmDir)
   for _, obj in ipairs(objRel) do
     ldParts[#ldParts + 1] = shellQuote(obj)
   end
-  local ldCmd = withWorkingDirCommand(asmDir, table.concat(ldParts, " "))
-  local okLd, ldStatus = runShell(ldCmd)
+  local ldCmd = table.concat(ldParts, " ")
+  local okLd, ldStatus = runShell(ldCmd, asmDir)
   if not okLd then
     return false, "ld65 failed (status " .. tostring(ldStatus) .. ")"
   end

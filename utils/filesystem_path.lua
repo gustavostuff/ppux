@@ -152,6 +152,10 @@ function M.ensureDir(path)
   end
 
   if IS_WINDOWS then
+    local okWin, WinFs = pcall(require, "utils.win_fs")
+    if okWin and WinFs and WinFs.ensureDirectory and WinFs.ensureDirectory(path) then
+      return true
+    end
     local okFfi, ffi = pcall(require, "ffi")
     if okFfi and ffi then
       pcall(ffi.cdef, [[
@@ -171,13 +175,10 @@ function M.ensureDir(path)
         end
       end
     end
-    -- cmd mkdir creates intermediate dirs; normalize separators.
-    local winPath = path:gsub("/", "\\")
-    os.execute('mkdir "' .. winPath .. '" >NUL 2>NUL')
-  else
-    os.execute('mkdir -p "' .. path .. '" >/dev/null 2>&1')
+    return M.pathExists(path)
   end
 
+  os.execute('mkdir -p "' .. path .. '" >/dev/null 2>&1')
   return M.pathExists(path)
 end
 

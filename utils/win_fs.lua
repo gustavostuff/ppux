@@ -61,6 +61,55 @@ local function ensureReady()
     BOOL FindClose(HANDLE hFindFile);
 
     DWORD GetCurrentDirectoryW(DWORD nBufferLength, WCHAR* lpBuffer);
+    DWORD GetFileAttributesW(const WCHAR* lpFileName);
+    BOOL CreateDirectoryW(const WCHAR* lpPathName, void* lpSecurityAttributes);
+    DWORD GetLastError(void);
+  ]])
+
+  pcall(ffi.cdef, [[
+    typedef unsigned long DWORD;
+    typedef int BOOL;
+    typedef void* HANDLE;
+    typedef unsigned short WCHAR;
+
+    DWORD SearchPathW(const WCHAR* lpPath, const WCHAR* lpFileName, const WCHAR* lpExtension,
+      DWORD nBufferLength, WCHAR* lpBuffer, WCHAR** lpFilePart);
+
+    typedef struct _STARTUPINFOW {
+      DWORD cb;
+      WCHAR* lpReserved;
+      WCHAR* lpDesktop;
+      WCHAR* lpTitle;
+      DWORD dwX;
+      DWORD dwY;
+      DWORD dwXSize;
+      DWORD dwYSize;
+      DWORD dwXCountChars;
+      DWORD dwYCountChars;
+      DWORD dwFillAttribute;
+      DWORD dwFlags;
+      unsigned short wShowWindow;
+      unsigned short cbReserved2;
+      unsigned char* lpReserved2;
+      HANDLE hStdInput;
+      HANDLE hStdOutput;
+      HANDLE hStdError;
+    } STARTUPINFOW;
+
+    typedef struct _PROCESS_INFORMATION {
+      HANDLE hProcess;
+      HANDLE hThread;
+      DWORD dwProcessId;
+      DWORD dwThreadId;
+    } PROCESS_INFORMATION;
+
+    BOOL CreateProcessW(const WCHAR* lpApplicationName, WCHAR* lpCommandLine,
+      void* lpProcessAttributes, void* lpThreadAttributes, BOOL bInheritHandles,
+      DWORD dwCreationFlags, void* lpEnvironment, const WCHAR* lpCurrentDirectory,
+      STARTUPINFOW* lpStartupInfo, PROCESS_INFORMATION* lpProcessInformation);
+    DWORD WaitForSingleObject(HANDLE hHandle, DWORD dwMilliseconds);
+    BOOL GetExitCodeProcess(HANDLE hProcess, DWORD* lpExitCode);
+    BOOL CloseHandle(HANDLE hObject);
   ]])
 
   local okKernel
@@ -167,6 +216,148 @@ function M.getCurrentDirectory()
     return nil
   end
   return wideToUtf8(buf)
+end
+
+local INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF
+local ERROR_ALREADY_EXISTS = 183
+
+--- Create a directory and its parents without spawning a console.
+--- @return boolean
+function M.ensureDirectory(path)
+  if type(path) ~= "string" or path == "" then
+    return false
+  end
+  path = path:gsub("[/\\]+$", "")
+  if path == "" then
+    return false
+  end
+  if path:match("^%a:$") then
+    return true
+  end
+  if not ensureReady() then
+    return false
+  end
+
+  local wpath = utf8ToWide(path)
+  if not wpath then
+    return false
+  end
+
+  local okAttrs, attrs = pcall(kernel32.GetFileAttributesW, wpath)
+  if okAttrs and attrs ~= nil and tonumber(attrs) ~= INVALID_FILE_ATTRIBUTES then
+    if isDirectoryAttr(attrs) then
+      return true
+    end
+    return false
+  end
+
+  local parent = path:match("^(.*)[/\\][^/\\]+$")
+  if parent and parent ~= "" and parent ~= path and not parent:match("^%a:$") then
+    if not M.ensureDirectory(parent) then
+      return false
+    end
+  end
+
+  local okCreate, created = pcall(kernel32.CreateDirectoryW, wpath, nil)
+  if okCreate and created ~= 0 then
+    return true
+  end
+  local okErr, err = pcall(kernel32.GetLastError)
+  err = (okErr and tonumber(err)) or 0
+  return err == ERROR_ALREADY_EXISTS
+end
+
+--- Locate an executable on PATH without spawning a console (`where` flashes cmd).
+--- @param fileName string e.g. "ca65" or "ca65.exe"
+--- @param extension string|nil e.g. ".exe" when fileName has no extension
+--- @return string|nil absolute path
+function M.searchPath(fileName, extension)
+  if type(fileName) ~= "string" or fileName == "" then
+    return nil
+  end
+  if not ensureReady() then
+    return nil
+  end
+  local wname = utf8ToWide(fileName)
+  if not wname then
+    return nil
+  end
+  local wext = nil
+  if type(extension) == "string" and extension ~= "" then
+    wext = utf8ToWide(extension)
+  end
+  local bufSize = 32768
+  local buf = ffi.new("WCHAR[?]", bufSize)
+  local okCall, n = pcall(kernel32.SearchPathW, nil, wname, wext, bufSize, buf, nil)
+  if not okCall or not n or n <= 0 or n >= bufSize then
+    return nil
+  end
+  return wideToUtf8(buf)
+end
+
+local CREATE_NO_WINDOW = 0x08000000
+local STARTF_USESHOWWINDOW = 0x00000001
+
+--- Run a process with no console window. `commandLine` is the full argv string.
+--- @return boolean ok, number|nil exitCode
+function M.runHidden(commandLine, currentDirectory)
+  if type(commandLine) ~= "string" or commandLine == "" then
+    return false, nil
+  end
+  if not ensureReady() then
+    return false, nil
+  end
+
+  local wcmd = utf8ToWide(commandLine)
+  if not wcmd then
+    return false, nil
+  end
+  -- CreateProcessW may write to the command-line buffer.
+  local cmdLen = 0
+  while wcmd[cmdLen] ~= 0 do
+    cmdLen = cmdLen + 1
+  end
+  local cmdBuf = ffi.new("WCHAR[?]", cmdLen + 1)
+  ffi.copy(cmdBuf, wcmd, (cmdLen + 1) * ffi.sizeof("WCHAR"))
+
+  local wdir = nil
+  if type(currentDirectory) == "string" and currentDirectory ~= "" then
+    wdir = utf8ToWide(currentDirectory)
+  end
+
+  local si = ffi.new("STARTUPINFOW")
+  ffi.fill(si, ffi.sizeof(si), 0)
+  si.cb = ffi.sizeof(si)
+  si.dwFlags = STARTF_USESHOWWINDOW
+  si.wShowWindow = 0
+
+  local pi = ffi.new("PROCESS_INFORMATION")
+  ffi.fill(pi, ffi.sizeof(pi), 0)
+
+  local okCall, ok = pcall(
+    kernel32.CreateProcessW,
+    nil,
+    cmdBuf,
+    nil,
+    nil,
+    0,
+    CREATE_NO_WINDOW,
+    nil,
+    wdir,
+    si,
+    pi
+  )
+  if not okCall or ok == 0 then
+    return false, nil
+  end
+
+  kernel32.WaitForSingleObject(pi.hProcess, 0xFFFFFFFF)
+  local codeBuf = ffi.new("DWORD[1]")
+  kernel32.GetExitCodeProcess(pi.hProcess, codeBuf)
+  kernel32.CloseHandle(pi.hProcess)
+  kernel32.CloseHandle(pi.hThread)
+  local exitCode = tonumber(codeBuf[0]) or -1
+  return exitCode == 0, exitCode
 end
 
 return M

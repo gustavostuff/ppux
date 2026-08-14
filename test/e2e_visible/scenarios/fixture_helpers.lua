@@ -5,19 +5,12 @@ local FilesystemPath = require("utils.filesystem_path")
 
 local M = {}
 
-local IS_WINDOWS = package.config:sub(1, 1) == "\\"
-
---- Create a directory (and its parents) using the native shell for the current OS.
+--- Create a directory (and its parents) without spawning a console on Windows.
 function M.makeDirectories(path)
   if type(path) ~= "string" or path == "" then
     return
   end
-  if IS_WINDOWS then
-    -- cmd's mkdir creates intermediate directories automatically.
-    os.execute('mkdir "' .. path:gsub("/", "\\") .. '" >NUL 2>NUL')
-  else
-    os.execute('mkdir -p "' .. path .. '"')
-  end
+  FilesystemPath.ensureDir(path)
 end
 
 function M.copyFile(srcPath, dstPath)

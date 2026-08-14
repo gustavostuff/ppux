@@ -110,24 +110,15 @@ function M.ensureConfigDir()
     return true
   end
 
+  local FilesystemPath = require("utils.filesystem_path")
+  if FilesystemPath.ensureDir then
+    return FilesystemPath.ensureDir(dir) == true
+  end
+
   if isWindows() then
-    local okFfi, ffi = pcall(require, "ffi")
-    if okFfi and ffi then
-      local okCdef = pcall(ffi.cdef, [[
-        int CreateDirectoryA(const char* lpPathName, void* lpSecurityAttributes);
-        unsigned long GetLastError(void);
-      ]])
-      local okKernel, kernel32 = pcall(ffi.load, "kernel32")
-      if okCdef and okKernel and kernel32 then
-        local created = kernel32.CreateDirectoryA(dir, nil)
-        if created ~= 0 then
-          return true
-        end
-        local err = tonumber(kernel32.GetLastError()) or 0
-        if err == 183 then
-          return true
-        end
-      end
+    local okWin, WinFs = pcall(require, "utils.win_fs")
+    if okWin and WinFs and WinFs.ensureDirectory then
+      return WinFs.ensureDirectory(dir) == true
     end
     os.execute('mkdir "' .. dir .. '" >NUL 2>NUL')
   else
