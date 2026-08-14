@@ -75,12 +75,18 @@ You'll also notice these little **badges** on windows. When a badge is colored, 
 
 Links can be reattached to a different consumer and keep the same source, or the other way around. It's a one-to-many relationship (one source to N consumers).
 
-**Source windows/badges** (right edge)
+Source windows have only 1 connection point, but consumers vary:
+
+* PPU Frame windows have 3: Background Pattern Table link, sprite Pattern Table link, and ROM palette link (top to bottom).
+* OAM animation windows are the same, except for the background PT link.
+* Other consumer windows only have the ROM palettes link/badge, because the don't need Pattern tables.
+
+**Source windows**:
 
 - **ROM palette**: Blue
 - **Pattern table**: Red for BG, green for sprites or **brown** if linked to both BG and sprites.
 
-**Examples**
+**Examples**:
 
 ROM palette connected to one of the 2 layers of a PPU Frame window:
 <img src="img/readme_images/source_links_example_1.png" alt="Source window badges (right edge)">
@@ -88,14 +94,14 @@ ROM palette connected to one of the 2 layers of a PPU Frame window:
 Pattern table connected to 2 PPU Frame windows, as both BG and Sprite sources:
 <img src="img/readme_images/source_links_example_2.png" alt="Source window badges, linked">
 
-**Consumer windows/badges** (left edge)
+**Consumer windows**:
 
 - **PPU Frame**: Background pattern (red), sprite pattern (green), ROM palette (blue).
 - **Sketch canvas**: Background pattern (red), sprite pattern (unused for now), sketch-mode ROM palette (blue).
 - **OAM Animation**: Sprite pattern (green), ROM palette (blue).
 - **Static Art/Animation** (tiles or sprites): ROM palette (blue).
 
-**Examples**
+**Examples**:
 
 PPU Frame window being a consumer of a Pattern table window:
 <img src="img/readme_images/source_links_example_3.png" alt="Destination window badges (left edge)">
