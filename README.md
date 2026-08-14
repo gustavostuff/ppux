@@ -46,7 +46,7 @@ For the second approach, use _Sketch Canvas_ windows. From these you can generat
 
 ### Windows system
 
-Windows are the main work areas in PPUX. Some are source windows, some are layout windows, and some are ROM-backed helper windows, etc.
+Windows are the main work areas in PPUX. Some are source windows, some are layout windows, some are ROM-backed helper windows, etc.
 
 | Window        | Taskbar icon                                                                                                        | Description                                                                                                                                                    |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------|
