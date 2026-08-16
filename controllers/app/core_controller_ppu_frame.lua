@@ -567,7 +567,7 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
       local seenStart = {}
       local occupiedList = {}
       for _, item in ipairs(spriteLayer.items or {}) do
-        if item and item.removed ~= true and type(item.startAddr) == "number" then
+        if item and item.removed ~= true and item._addModalPreview ~= true and type(item.startAddr) == "number" then
           occupiedList[#occupiedList + 1] = math.floor(item.startAddr)
         end
       end
@@ -611,7 +611,7 @@ function AppCoreController:showPpuFrameAddSpriteModal(win, modalOpts)
       spriteLayer.items = spriteLayer.items or {}
       local existingCount = 0
       for _, item in ipairs(spriteLayer.items) do
-        if item.removed ~= true then
+        if item.removed ~= true and item._addModalPreview ~= true then
           existingCount = existingCount + 1
         end
       end

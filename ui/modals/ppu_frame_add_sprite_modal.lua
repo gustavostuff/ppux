@@ -7,11 +7,14 @@ local RomHexGrid = require("ui.rom_hex_grid")
 local OamSpritePreview = require("ui.oam_sprite_preview")
 local Shared = require("controllers.app.core_controller_shared")
 local ResolutionController = require("controllers.app.resolution_controller")
+local SpriteController = require("controllers.sprite.sprite_controller")
 local colors = require("app_colors")
 
 -- Shared Add/Edit sprite modal for PPU Frame and OAM Animation windows.
 -- Hex grid + 2x preview sync with the OAM start field (first of 4 OAM bytes).
 -- CHR bank/tile come from ROM + the window's linked pattern table on hydrate.
+-- Add mode also mirrors the selection onto the target sprite layer as draft
+-- `_addModalPreview` items (removed on Cancel / before Confirm).
 
 local Dialog = {}
 Dialog.__index = Dialog
@@ -23,10 +26,14 @@ Dialog.MSG_MAX_PER_ADD = "8 items allowed per Add event"
 Dialog.MSG_NES_LIMIT = "64 sprites allowed (NES limit)"
 Dialog.MSG_ALREADY_IN_LAYER = "Sprite already in layer"
 
+local function isModalPreviewItem(item)
+  return type(item) == "table" and item._addModalPreview == true
+end
+
 local function countActiveSprites(layer)
   local n = 0
   for _, item in ipairs((layer and layer.items) or {}) do
-    if item.removed ~= true then
+    if item.removed ~= true and not isModalPreviewItem(item) then
       n = n + 1
     end
   end
@@ -40,7 +47,7 @@ local function collectOccupiedOamStarts(layer, opts)
   local list = {}
   local seen = {}
   for _, item in ipairs((layer and layer.items) or {}) do
-    if item and item.removed ~= true and type(item.startAddr) == "number" then
+    if item and item.removed ~= true and not isModalPreviewItem(item) and type(item.startAddr) == "number" then
       local addr = math.floor(item.startAddr)
       if addr >= 0 and not seen[addr] and addr ~= exclude then
         seen[addr] = true
@@ -81,6 +88,98 @@ end
 Dialog._collectOccupiedOamStarts = collectOccupiedOamStarts
 Dialog._defaultAddOamStart = defaultAddOamStart
 Dialog._occupiedMinimapMarkers = occupiedMinimapMarkers
+Dialog._isModalPreviewItem = isModalPreviewItem
+
+local function startOverlapsOccupiedList(addr, occupiedStarts)
+  addr = math.floor(tonumber(addr) or -1)
+  if addr < 0 then
+    return true
+  end
+  for _, occ in ipairs(occupiedStarts or {}) do
+    if addr < occ + 4 and occ < addr + 4 then
+      return true
+    end
+  end
+  return false
+end
+
+function Dialog:_clearLayerPreviews()
+  local layer = self.spriteLayer
+  if not (layer and layer.items) then
+    return false
+  end
+  local removed = false
+  for i = #layer.items, 1, -1 do
+    if isModalPreviewItem(layer.items[i]) then
+      table.remove(layer.items, i)
+      removed = true
+    end
+  end
+  return removed
+end
+
+--- Mirror the current Add-mode hex selection onto the sprite layer for live preview.
+function Dialog:_syncLayerPreview()
+  if self.isEdit == true or not self.visible then
+    return
+  end
+  local layer = self.spriteLayer
+  if not layer then
+    return
+  end
+
+  local starts = self.hexGrid and self.hexGrid:getSelectedStarts() or {}
+  local occupied = collectOccupiedOamStarts(layer)
+  local desired = {}
+  local desiredSet = {}
+  for _, addr in ipairs(starts) do
+    addr = math.floor(tonumber(addr) or -1)
+    if addr >= 0 and not desiredSet[addr] and not startOverlapsOccupiedList(addr, occupied) then
+      desiredSet[addr] = true
+      desired[#desired + 1] = addr
+    end
+  end
+
+  layer.items = layer.items or {}
+  local existingPreviewByAddr = {}
+  local changed = false
+  for i = #layer.items, 1, -1 do
+    local item = layer.items[i]
+    if isModalPreviewItem(item) then
+      local addr = type(item.startAddr) == "number" and math.floor(item.startAddr) or nil
+      if addr == nil or not desiredSet[addr] or existingPreviewByAddr[addr] then
+        table.remove(layer.items, i)
+        changed = true
+      else
+        existingPreviewByAddr[addr] = item
+      end
+    end
+  end
+
+  for _, addr in ipairs(desired) do
+    if not existingPreviewByAddr[addr] then
+      local item = {
+        startAddr = addr,
+        _addModalPreview = true,
+      }
+      layer.items[#layer.items + 1] = item
+      existingPreviewByAddr[addr] = item
+      changed = true
+    end
+  end
+
+  if changed or #desired > 0 then
+    local romRaw = self.romRaw
+    if type(romRaw) == "string" and romRaw ~= "" then
+      SpriteController.hydrateSpriteLayer(layer, {
+        romRaw = romRaw,
+        tilesPool = self.tilesPool,
+        appEditState = self.appEditState,
+        keepWorld = true,
+      })
+    end
+  end
+end
 
 --- How many panel rows are needed so spanned cell height >= `height`.
 local function rowspanForHeight(height, cellH, spacingY)
@@ -283,6 +382,7 @@ function Dialog:_syncPreviewFromGrid()
     rebuildPanel(self)
   end
   self:_refreshAddEnabled()
+  self:_syncLayerPreview()
 end
 
 function Dialog:_refreshAddEnabled()
@@ -353,6 +453,9 @@ function Dialog:show(opts)
   self.visible = true
   self._hitMax8 = false
   self._limitWarning = nil
+  self.romRaw = type(opts.romRaw) == "string" and opts.romRaw or ""
+  self.tilesPool = opts.tilesPool
+  self.appEditState = opts.appEditState
 
   self.addButton.text = opts.primaryButtonText or "Add"
 
@@ -416,6 +519,7 @@ function Dialog:show(opts)
 end
 
 function Dialog:hide()
+  self:_clearLayerPreviews()
   self.visible = false
   self.oamStartField:setFocused(false)
   self.addButton.pressed = false
@@ -426,6 +530,9 @@ function Dialog:hide()
   self.onCancel = nil
   self.targetWindow = nil
   self.spriteLayer = nil
+  self.romRaw = nil
+  self.tilesPool = nil
+  self.appEditState = nil
   self.isEdit = false
   self._hitMax8 = false
   self._limitWarning = nil
@@ -485,12 +592,16 @@ function Dialog:_confirm()
         return false
       end
     end
+    -- Drop draft layer previews before the confirm path inserts real items.
+    self:_clearLayerPreviews()
     local ok = callback(
       self.oamStartField:getText() or "",
       targetWindow,
       { starts = starts }
     )
     if ok == false then
+      -- Restore live previews if Add/Save was rejected.
+      self:_syncLayerPreview()
       return false
     end
   end

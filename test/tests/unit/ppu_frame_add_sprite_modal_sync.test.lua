@@ -110,4 +110,102 @@ describe("ppu_frame_add_sprite_modal grid/field sync", function()
     expect(modal.panel.cols).toBe(3)
     modal:hide()
   end)
+
+  it("mirrors Add-mode selection onto the sprite layer and clears drafts on Cancel", function()
+    local modal = Dialog.new()
+    local layer = makeLayer(0)
+    -- Seed one committed sprite so occupied filtering is covered.
+    layer.items[1] = { startAddr = 0x10 }
+
+    modal:show({
+      romRaw = string.rep("\0", 512),
+      spriteLayer = layer,
+      tilesPool = { [1] = {} },
+    })
+
+    modal.hexGrid:_setStarts({ 0x20, 0x24 }, 0x24, { emit = true })
+    local previewCount = 0
+    local previewAddrs = {}
+    for _, item in ipairs(layer.items) do
+      if Dialog._isModalPreviewItem(item) then
+        previewCount = previewCount + 1
+        previewAddrs[#previewAddrs + 1] = item.startAddr
+      end
+    end
+    expect(previewCount).toBe(2)
+    expect(previewAddrs[1]).toBe(0x20)
+    expect(previewAddrs[2]).toBe(0x24)
+    -- Drafts must not count as occupied / block re-selection.
+    local occupied = Dialog._collectOccupiedOamStarts(layer)
+    expect(#occupied).toBe(1)
+    expect(occupied[1]).toBe(0x10)
+
+    modal:_cancel()
+    expect(modal.visible).toBe(false)
+    expect(#layer.items).toBe(1)
+    expect(layer.items[1].startAddr).toBe(0x10)
+    expect(Dialog._isModalPreviewItem(layer.items[1])).toBe(false)
+  end)
+
+  it("clears layer drafts before Confirm and restores them if Add is rejected", function()
+    local modal = Dialog.new()
+    local layer = makeLayer(0)
+    local confirmedStarts = nil
+    modal:show({
+      romRaw = string.rep("\0", 512),
+      spriteLayer = layer,
+      tilesPool = { [1] = {} },
+      onConfirm = function(_, _, opts)
+        confirmedStarts = opts and opts.starts or nil
+        -- Simulate reject after drafts were cleared for insertion.
+        local draftCount = 0
+        for _, item in ipairs(layer.items) do
+          if Dialog._isModalPreviewItem(item) then
+            draftCount = draftCount + 1
+          end
+        end
+        expect(draftCount).toBe(0)
+        return false
+      end,
+    })
+
+    modal.hexGrid:_setStarts({ 0x40 }, 0x40, { emit = true })
+    expect(#layer.items).toBe(1)
+    expect(Dialog._isModalPreviewItem(layer.items[1])).toBe(true)
+
+    expect(modal:_confirm()).toBe(false)
+    expect(modal.visible).toBe(true)
+    expect(confirmedStarts[1]).toBe(0x40)
+    -- Rejected confirm restores the live layer preview.
+    expect(#layer.items).toBe(1)
+    expect(Dialog._isModalPreviewItem(layer.items[1])).toBe(true)
+    expect(layer.items[1].startAddr).toBe(0x40)
+
+    modal:hide()
+    expect(#layer.items).toBe(0)
+  end)
+
+  it("does not place layer drafts while editing an existing sprite", function()
+    local modal = Dialog.new()
+    local layer = makeLayer(0)
+    layer.items[1] = { startAddr = 0x08 }
+    modal:show({
+      romRaw = string.rep("\0", 512),
+      spriteLayer = layer,
+      tilesPool = { [1] = {} },
+      isEdit = true,
+      appearanceSprite = layer.items[1],
+      initialOamStart = "0x000008",
+    })
+    modal:_onGridSelect(0x0C)
+    local draftCount = 0
+    for _, item in ipairs(layer.items) do
+      if Dialog._isModalPreviewItem(item) then
+        draftCount = draftCount + 1
+      end
+    end
+    expect(draftCount).toBe(0)
+    expect(#layer.items).toBe(1)
+    modal:hide()
+  end)
 end)

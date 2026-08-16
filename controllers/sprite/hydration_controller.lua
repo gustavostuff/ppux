@@ -298,7 +298,7 @@ function M.snapshotSpriteLayer(layer)
   }
 
   for _, s in ipairs(layer.items or {}) do
-    if s.removed == true then
+    if s.removed == true or s._addModalPreview == true then
       goto continue
     end
 
