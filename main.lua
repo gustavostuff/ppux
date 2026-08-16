@@ -170,10 +170,6 @@ function love.load(arg)
   if love.keyboard and love.keyboard.setKeyRepeat then
     love.keyboard.setKeyRepeat(true)
   end
-
-  -- Re-assert startup mode in case initialization touched window flags and
-  -- silently restored vsync defaults.
-  applyHighSpeedPaintMode(highSpeedPaintMode)
 end
 
 local function ctrlDown()
@@ -197,29 +193,10 @@ local function digitEightDown()
 end
 
 function applyHighSpeedPaintMode(enabled)
+  -- Mouse-poll / sleep strategy only. Do not toggle vsync or call updateMode:
+  -- recreating the swapchain on focus is what G-Sync users see as a
+  -- minimize/restore flicker loop.
   highSpeedPaintMode = not not enabled
-
-  local targetVsync = highSpeedPaintMode and 0 or 1
-
-  if love.window and love.window.setVSync then
-    pcall(love.window.setVSync, targetVsync)
-  end
-
-  -- Some systems/drivers ignore setVSync changes until window mode flags are
-  -- re-applied. Keep all existing window flags and only force vsync.
-  if love.window and love.window.getMode and love.window.updateMode then
-    local w, h, flags = love.window.getMode()
-    if type(flags) == "table" and flags.vsync ~= targetVsync then
-      local nextFlags = {}
-      for k, v in pairs(flags) do
-        nextFlags[k] = v
-      end
-      nextFlags.vsync = targetVsync
-      nextFlags.x = nil
-      nextFlags.y = nil
-      pcall(love.window.updateMode, w, h, nextFlags)
-    end
-  end
 end
 
 local function shouldToggleHighSpeedMode(key, isrepeat)
@@ -392,12 +369,6 @@ function love.resize(w, h)
   app:resize(w, h)
 end
 
-function love.focus(focused)
-  if focused then
-    applyHighSpeedPaintMode(highSpeedPaintMode)
-  end
-end
-
 function love.quit()
   if e2eRunner and e2eRunner.destroy then
     e2eRunner:destroy()
@@ -415,7 +386,7 @@ end
 -- 3. we can toggle that behavior at runtime instead of committing globally
 --
 -- When high-speed paint mode is disabled, this loop still runs, but it falls
--- back to calmer pacing and vsync so the app behaves more like normal LOVE.
+-- back to calmer sleep pacing so the app behaves more like normal LOVE.
 love.run = LoveRunLoop.create({
   isHighSpeedMode = function()
     return highSpeedPaintMode

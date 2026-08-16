@@ -1,4 +1,3 @@
--- E2E coverage for 0.2.0 features: Sketch canvas + Gallery ROM, Swap 2 colors,
 -- relocation pointer calculator, and PPU attribute grid mode.
 
 local P = require("test.e2e_visible.scenarios.prelude")
