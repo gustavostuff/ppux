@@ -87,4 +87,61 @@ describe("palette_link_controller.lua", function()
 
     _G.ctx = prev
   end)
+
+  it("linking a ROM palette to a PPU frame keeps nametable attribute palettes", function()
+    local wm = WM.new()
+    local ppu = wm:createPPUFrameWindow({
+      title = "PPU",
+      x = 8,
+      y = 8,
+      romRaw = string.rep("\0", 256),
+    })
+    local romPalette = wm:createRomPaletteWindow({ title = "BG palettes", x = 220, y = 8 })
+    local layer = ppu.layers[1]
+    ppu.activeLayer = 1
+
+    -- Non-zero attrs: top-left quadrant uses palette index 2 (paletteNumbers = 3).
+    ppu.nametableAttrBytes = {}
+    for i = 1, 64 do
+      ppu.nametableAttrBytes[i] = 0x00
+    end
+    ppu.nametableAttrBytes[1] = 0x02
+    layer.paletteNumbers = { [0] = 3, [1] = 3, [32] = 3, [33] = 3 }
+
+    local prev = rawget(_G, "ctx")
+    local compositeEvents = nil
+    _G.ctx = {
+      app = {
+        wm = wm,
+        setStatus = function() end,
+        invalidatePpuFramePaletteLayer = function() end,
+        snapshotPpuFrameUndoState = function()
+          return { attrs = { ppu.nametableAttrBytes[1] } }
+        end,
+        undoRedo = {
+          addPaletteLinkEvent = function()
+            return true
+          end,
+          addCompositeEvent = function(_, ev)
+            compositeEvents = ev
+            return true
+          end,
+        },
+      },
+      wm = function()
+        return wm
+      end,
+    }
+
+    local ok, err = PaletteLinkController.linkLayerToPalette(ppu, 1, romPalette)
+    expect(ok).toBe(true)
+    expect(err).toBeNil()
+    expect(layer.paletteData and layer.paletteData.winId).toBe(romPalette._id)
+    -- Must not force every tile onto ROM palette row 0 / wipe attribute bytes.
+    expect(ppu.nametableAttrBytes[1]).toBe(0x02)
+    expect(layer.paletteNumbers[0]).toBe(3)
+    expect(compositeEvents).toBeNil()
+
+    _G.ctx = prev
+  end)
 end)

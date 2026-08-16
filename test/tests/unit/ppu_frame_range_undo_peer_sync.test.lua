@@ -129,6 +129,59 @@ describe("applyPpuFrameRangeState peer sync", function()
     expect(hydrateOpts.wm).toBe(fakeWm)
   end)
 
+  it("does not stamp padded zero attrs as userDefinedAttrs when ROM baseline is unknown", function()
+    local hydrateOpts = nil
+    local oldHydrate = NametableTilesController.hydrateWindowNametable
+    NametableTilesController.hydrateWindowNametable = function(win, layer, opts)
+      hydrateOpts = opts
+      -- Simulate a real ROM decode with non-zero attributes.
+      win.nametableAttrBytes = makeAttrBytes(0x55)
+      win._romDecodedNametableAttrBytes = makeAttrBytes(0x55)
+      layer.userDefinedAttrs = nil
+      return true
+    end
+
+    local layer = {
+      kind = "tile",
+      mode = "8x8",
+      codec = "konami",
+      nametableStartAddr = 0x2000,
+      nametableEndAddr = 0x23bf,
+      patternTable = {
+        ranges = { { bank = 1, from = 0, to = 255 } },
+      },
+      items = {},
+    }
+    local win = {
+      kind = "ppu_frame",
+      cols = 32,
+      rows = 30,
+      layers = { layer },
+      activeLayer = 1,
+      -- Pre-hydrate zeros with no ROM baseline used to become a sticky overlay
+      -- that forced every tile onto palette 0 after linking a pattern table.
+      nametableAttrBytes = makeAttrBytes(0),
+      invalidateNametableLayerCanvas = function() end,
+    }
+    local app = setmetatable({
+      appEditState = {
+        romRaw = string.rep("\0", 0x10000),
+        tilesPool = {},
+        chrBanksBytes = { [1] = true },
+      },
+      wm = { id = "wm" },
+    }, AppCoreController)
+
+    local ok = app:hydrateNametableLayerIfReady(win, layer, 1)
+    NametableTilesController.hydrateWindowNametable = oldHydrate
+
+    expect(ok).toBe(true)
+    expect(hydrateOpts).toBeTruthy()
+    expect(hydrateOpts.userDefinedAttrs).toBeNil()
+    expect(layer.userDefinedAttrs).toBeNil()
+    expect(win.nametableAttrBytes[1]).toBe(0x55)
+  end)
+
   it("propagates restored attribute bytes to peer windows sharing the nametable range", function()
     local layerA = makeLayer(0x1000, 0x1100)
     local layerB = makeLayer(0x1000, 0x1100)

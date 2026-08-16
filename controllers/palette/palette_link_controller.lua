@@ -623,6 +623,12 @@ local function buildItemPaletteAssignmentUndoEventsForLink(win, layerIndex)
     return out
   end
   if layer.kind == "tile" then
+    -- PPU nametable (and sketch Reflect) tiles already get per-cell palette from
+    -- NES attribute bytes. Forcing palette row 1 on link wiped attrs so every
+    -- tile rendered with the linked ROM palette's first row.
+    if WindowCaps.isPpuFrame(win) or WindowCaps.isSketchReflectNametable(win) then
+      return out
+    end
     local ev = buildTilePaletteAssignmentUndoEvent(win, layerIndex, PALETTE_ROW_DEFAULT)
     if ev then
       out[#out + 1] = ev

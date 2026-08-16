@@ -168,7 +168,10 @@ local function hydrateNametableLayerIfReady(app, win, layer, layerIndex)
       end
       romHex = table.concat(romParts, "")
     end
-    if not romHex or currentHex ~= romHex then
+    -- Only stamp an overlay when we know the ROM baseline and it differs.
+    -- `not romHex` used to treat padded/empty pre-hydrate zeros as a user overlay,
+    -- which then wiped real attribute bytes on the next hydrate (all palette 0).
+    if romHex and currentHex ~= romHex then
       layer.userDefinedAttrs = currentHex
     end
   end
@@ -1578,6 +1581,7 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
   win.nametableStart = rangeState.nametableStart
   win.nametableBytes = copyNumberArray(rangeState.nametableBytes)
   win.nametableAttrBytes = copyNumberArray(rangeState.nametableAttrBytes)
+  win._romDecodedNametableAttrBytes = copyNumberArray(rangeState.romDecodedNametableAttrBytes)
   win._originalNametableBytes = copyNumberArray(rangeState.originalNametableBytes)
   win._originalNametableAttrBytes = copyNumberArray(rangeState.originalNametableAttrBytes)
   win._originalCompressedBytes = copyNumberArray(rangeState.originalCompressedBytes)
@@ -1599,8 +1603,8 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
   layer.items = {}
 
   -- Attribute undo/redo snapshots restore nametableAttrBytes, but hydrate prefers
-  -- layer.userDefinedAttrs when present. Rebuild that hex from the restored bytes
-  -- so undo/redo cannot be overridden by a stale overlay string.
+  -- layer.userDefinedAttrs when present. Rebuild that hex only when the restored
+  -- bytes differ from the ROM baseline (or when legacy snapshots lack a baseline).
   do
     local attrs = win.nametableAttrBytes
     if type(attrs) == "table" and #attrs >= 64 then
@@ -1610,7 +1614,25 @@ function AppCoreController:applyPpuFrameRangeState(rangeState)
         if byteVal < 0 then byteVal = 0x00 elseif byteVal > 255 then byteVal = 255 end
         hexParts[i] = string.format("%02x", byteVal)
       end
-      layer.userDefinedAttrs = table.concat(hexParts, "")
+      local currentHex = table.concat(hexParts, "")
+      local romHex = nil
+      local romAttrs = win._romDecodedNametableAttrBytes
+      if type(romAttrs) == "table" and #romAttrs >= 64 then
+        local romParts = {}
+        for i = 1, 64 do
+          local byteVal = tonumber(romAttrs[i]) or 0x00
+          if byteVal < 0 then byteVal = 0x00 elseif byteVal > 255 then byteVal = 255 end
+          romParts[i] = string.format("%02x", byteVal)
+        end
+        romHex = table.concat(romParts, "")
+      end
+      if not romHex or currentHex ~= romHex then
+        layer.userDefinedAttrs = currentHex
+      else
+        layer.userDefinedAttrs = nil
+      end
+    else
+      layer.userDefinedAttrs = nil
     end
   end
 

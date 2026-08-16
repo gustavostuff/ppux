@@ -1242,11 +1242,13 @@ function M.snapshotNametableLayer(win, layer)
   end
 
   -- User-defined attribute bytes as hex string (64 bytes = 128 hex characters).
-  -- Only persist when attrs differ from the ROM decode (same idea as tileSwaps).
+  -- Only persist when attrs differ from a known ROM decode (same idea as tileSwaps).
+  -- Without a ROM baseline, saving current bytes (often padded zeros) made a sticky
+  -- all-zero overlay that forced every tile to palette 0 on reload.
   if win.nametableAttrBytes and #win.nametableAttrBytes >= 64 then
     local attrsHex = attrsToHexString(win.nametableAttrBytes)
     local romHex = attrsToHexString(win._romDecodedNametableAttrBytes)
-    if attrsHex and (not romHex or attrsHex ~= romHex) then
+    if attrsHex and romHex and attrsHex ~= romHex then
       out.userDefinedAttrs = attrsHex
       DebugController.log("info", "NTM", "snapshotNametableLayer: saving userDefinedAttrs (%d bytes as hex)", 64)
     end
@@ -1831,12 +1833,21 @@ function M.syncPeerPpuFrameNametableWindows(sourceWin, sourceLayer, opts)
 
           rebuildTileSwapsFromOriginals(peer)
 
-          local attrsHex = attrsToHexString(peer.nametableAttrBytes)
-          local romHex = attrsToHexString(peer._romDecodedNametableAttrBytes or sourceWin._romDecodedNametableAttrBytes)
-          if attrsHex and (not romHex or attrsHex ~= romHex) then
-            peerLayer.userDefinedAttrs = attrsHex
+          if type(sourceWin._romDecodedNametableAttrBytes) == "table" then
+            peer._romDecodedNametableAttrBytes = copyBytes(sourceWin._romDecodedNametableAttrBytes)
+          end
+          -- Prefer the source layer's explicit overlay string (undo/restore paths
+          -- set it before sync). Otherwise only stamp when we know ROM baseline.
+          if type(sourceLayer.userDefinedAttrs) == "string" and #sourceLayer.userDefinedAttrs >= 128 then
+            peerLayer.userDefinedAttrs = sourceLayer.userDefinedAttrs
           else
-            peerLayer.userDefinedAttrs = nil
+            local attrsHex = attrsToHexString(peer.nametableAttrBytes)
+            local romHex = attrsToHexString(peer._romDecodedNametableAttrBytes or sourceWin._romDecodedNametableAttrBytes)
+            if attrsHex and romHex and attrsHex ~= romHex then
+              peerLayer.userDefinedAttrs = attrsHex
+            else
+              peerLayer.userDefinedAttrs = nil
+            end
           end
 
           local peerLi = findLayerIndex(peer, peerLayer) or 1

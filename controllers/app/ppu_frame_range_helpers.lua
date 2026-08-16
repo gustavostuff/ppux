@@ -300,6 +300,7 @@ function M.snapshotPpuFrameRangeState(win, layerIndex)
     nametableStart = win.nametableStart,
     nametableBytes = copyNumberArray(win.nametableBytes),
     nametableAttrBytes = copyNumberArray(win.nametableAttrBytes),
+    romDecodedNametableAttrBytes = copyNumberArray(win._romDecodedNametableAttrBytes),
     originalNametableBytes = copyNumberArray(win._originalNametableBytes),
     originalNametableAttrBytes = copyNumberArray(win._originalNametableAttrBytes),
     originalCompressedBytes = copyNumberArray(win._originalCompressedBytes),

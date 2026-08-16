@@ -366,6 +366,11 @@ describe("nametable_tiles_controller.lua", function()
       for i = 1, 64 do
         mockWin.nametableAttrBytes[i] = 0x00
       end
+      -- Snapshot only persists attrs that differ from the known ROM decode.
+      mockWin._romDecodedNametableAttrBytes = {}
+      for i = 1, 64 do
+        mockWin._romDecodedNametableAttrBytes[i] = 0x00
+      end
       
       local mockLayer = {
         kind = "tile",
@@ -795,6 +800,31 @@ describe("nametable_tiles_controller.lua", function()
         end
       end
       expect(restoredNonZero).toBe(true)
+    end)
+
+    it("does not snapshot all-zero attrs as userDefinedAttrs without a ROM baseline", function()
+      local win = {
+        kind = "ppu_frame",
+        cols = 32,
+        rows = 30,
+        nametableBytes = {},
+        nametableAttrBytes = {},
+      }
+      for i = 1, 960 do
+        win.nametableBytes[i] = 0
+      end
+      for i = 1, 64 do
+        win.nametableAttrBytes[i] = 0
+      end
+      local layer = {
+        kind = "tile",
+        nametableStartAddr = 0x10,
+        nametableEndAddr = 0x20,
+        patternTable = { ranges = { { bank = 1, from = 0, to = 255 } } },
+      }
+
+      local snapshot = NametableTilesController.snapshotNametableLayer(win, layer)
+      expect(snapshot.userDefinedAttrs).toBeNil()
     end)
 
     it("bakes tileSwaps into romRaw on hydrate and keeps them in project snapshots", function()
@@ -1274,6 +1304,10 @@ describe("nametable_tiles_controller.lua", function()
       for i = 1, 64 do
         winA.nametableAttrBytes[i] = 0
         winB.nametableAttrBytes[i] = 0
+      end
+      winA._romDecodedNametableAttrBytes = {}
+      for i = 1, 64 do
+        winA._romDecodedNametableAttrBytes[i] = 0
       end
       for i = 1, 960 do
         winB._originalNametableBytes[i] = 0x00
