@@ -70,11 +70,11 @@ local function spriteScreenRect(self, sprite, ctx)
   local NES_H   = ctx.NES_H
 
   local spriteH = (mode == "8x16") and (2 * ch) or ch
-  local worldX = sprite.worldX or sprite.baseX or sprite.x or 0
-  local worldY = sprite.worldY or sprite.baseY or sprite.y or 0
+  local SpriteLayerDraw = require("ui.windows_system.sprite_layer_draw")
+  local worldX, worldY = SpriteLayerDraw.spriteWorldPixelsBeforeOrigin(sprite)
 
-  local drawX = (originX + worldX) % NES_W
-  local drawY = (originY + worldY) % NES_H
+  local drawX = SpriteLayerDraw.nesMod(originX + worldX, NES_W)
+  local drawY = SpriteLayerDraw.nesMod(originY + worldY, NES_H)
 
   local screenX = self.x + ((drawX - scol * cw) * z)
   local screenY = self.y + ((drawY - srow * ch) * z)
@@ -88,10 +88,10 @@ end
 
 local function spriteOverlayKey(sprite, overlayCtx)
   if not sprite then return nil end
-  local worldX = sprite.worldX or sprite.baseX or sprite.x or 0
-  local worldY = sprite.worldY or sprite.baseY or sprite.y or 0
-  local drawX = (overlayCtx.originX + worldX) % overlayCtx.NES_W
-  local drawY = (overlayCtx.originY + worldY) % overlayCtx.NES_H
+  local SpriteLayerDraw = require("ui.windows_system.sprite_layer_draw")
+  local worldX, worldY = SpriteLayerDraw.spriteWorldPixelsBeforeOrigin(sprite)
+  local drawX = SpriteLayerDraw.nesMod(overlayCtx.originX + worldX, overlayCtx.NES_W)
+  local drawY = SpriteLayerDraw.nesMod(overlayCtx.originY + worldY, overlayCtx.NES_H)
   return tostring(drawX) .. ":" .. tostring(drawY)
 end
 

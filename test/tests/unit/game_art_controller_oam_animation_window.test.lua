@@ -458,9 +458,10 @@ describe("game_art_controller.lua - oam_animation hydration", function()
     expect(out[3]).toBe(0x00) -- mirrorX cleared from attr bit 6
   end)
 
-  it("does not bake contested X/Y when shared startAddr windows disagree on displacement", function()
-    -- Cutscene-style: two PPU frames share OAM slots; one keeps ROM position,
-    -- the other has editor-only dx/dy. Save must not move the ROM sprite.
+  it("bakes agreed editor X/Y when a shared startAddr peer is still unmoved", function()
+    -- Cutscene-style: two PPU frames share OAM slots. User moved one frame's
+    -- sprite; the other still has dx=0. Save must bake the agreed move (unmoved
+    -- peers must not veto), otherwise displacements never reach `_edited.nes`.
     local startAddr = 80
     local romRaw = makeRom(128, {
       [startAddr + 0] = 40, -- Y
@@ -499,6 +500,65 @@ describe("game_art_controller.lua - oam_animation hydration", function()
     local winFrame2 = {
       kind = "ppu_frame",
       layers = { { kind = "sprite", items = { editorOnlyMove } } },
+      getSpriteLayers = function(self)
+        return { { index = 1, layer = self.layers[1] } }
+      end,
+    }
+
+    local updated, err = SpriteController.applyDisplacementsToROMForWindows(
+      { winFrame1, winFrame2 },
+      romRaw
+    )
+    expect(err).toBeNil()
+    expect(updated).toBeTruthy()
+
+    local out, readErr = chr.readBytesFromRange(updated, startAddr, startAddr + 3)
+    expect(readErr).toBeNil()
+    expect(out[1]).toBe(36)  -- 40 + (-4)
+    expect(out[2]).toBe(7)
+    expect(out[4]).toBe(108) -- 100 + 8
+  end)
+
+  it("does not bake contested X/Y when moved shared-startAddr peers disagree", function()
+    local startAddr = 80
+    local romRaw = makeRom(128, {
+      [startAddr + 0] = 40,
+      [startAddr + 1] = 7,
+      [startAddr + 2] = 0,
+      [startAddr + 3] = 100,
+    })
+
+    local moveA = {
+      startAddr = startAddr,
+      baseX = 100,
+      baseY = 40,
+      dx = 8,
+      dy = 0,
+      oamTile = 7,
+      attr = 0,
+      hasMoved = true,
+    }
+    local moveB = {
+      startAddr = startAddr,
+      baseX = 100,
+      baseY = 40,
+      dx = 16,
+      dy = 0,
+      oamTile = 7,
+      attr = 0,
+      hasMoved = true,
+    }
+
+    local winFrame1 = {
+      kind = "ppu_frame",
+      layers = { { kind = "sprite", items = { moveA } } },
+      getSpriteLayers = function(self)
+        return { { index = 1, layer = self.layers[1] } }
+      end,
+    }
+    local winFrame2 = {
+      kind = "ppu_frame",
+      layers = { { kind = "sprite", items = { moveB } } },
       getSpriteLayers = function(self)
         return { { index = 1, layer = self.layers[1] } }
       end,

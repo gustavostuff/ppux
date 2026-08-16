@@ -5,6 +5,7 @@ local chr = require("chr")
 local Tile = require("ui.windows_system.tile_item")
 local TableUtils = require("utils.table_utils")
 local PatternTableMapping = require("utils.pattern_table_mapping")
+local OamDisplacement = require("controllers.sprite.oam_displacement")
 
 local M = {}
 
@@ -201,8 +202,16 @@ function M.hydrateSpriteLayer(layer, opts)
           mirrorY = (s.mirrorY == true)
         end
 
-        s.baseX = baseX
-        s.baseY = baseY
+        -- Position baseline (baseX/Y) is sticky while keepWorld is set so Save ROM
+        -- (which bakes base+dx into romRaw) cannot collapse editor dx on the next hydrate.
+        -- Project load uses base ROM + project dx; clearing dx here loses moves on reload.
+        local stickyBase = keepWorld
+          and type(s.baseX) == "number"
+          and type(s.baseY) == "number"
+        if not stickyBase then
+          s.baseX = baseX
+          s.baseY = baseY
+        end
         s.oamTile = baseTile
         local layerPtOk = PatternTableMapping.validate(layer.patternTable)
         if layerPtOk then
@@ -236,24 +245,22 @@ function M.hydrateSpriteLayer(layer, opts)
         s.mirrorX = mirrorX
         s.mirrorY = mirrorY
 
+        local editBaseX = s.baseX
+        local editBaseY = s.baseY
         local dx = s.dx or 0
         local dy = s.dy or 0
         if keepWorld and s.worldX and s.worldY then
-          dx = s.worldX - baseX
-          dy = s.worldY - baseY
+          dx = s.worldX - editBaseX
+          dy = s.worldY - editBaseY
         end
 
         s.dx = dx
         s.dy = dy
-
-        local worldX = baseX + dx
-        local worldY = baseY + dy
-
-        s.worldX = worldX
-        s.worldY = worldY
-        s.x = worldX
-        s.y = worldY
-        s.hasMoved = (dx ~= 0 or dy ~= 0)
+        s.worldX = editBaseX + dx
+        s.worldY = editBaseY + dy
+        s.x = s.worldX
+        s.y = s.worldY
+        OamDisplacement.applyNormalizedDisplacement(s)
       end
     elseif (s.x ~= nil or s.y ~= nil) and not s.startAddr then
       local worldX = s.x or 0
@@ -310,10 +317,12 @@ function M.snapshotSpriteLayer(layer)
       if s._paletteNumberOverrideSet == true and s.paletteNumber ~= nil then
         entry.paletteNumber = s.paletteNumber
       end
-      local dx = s.dx or 0
-      local dy = s.dy or 0
-      if dx ~= 0 or dy ~= 0 then
+      local dx = OamDisplacement.normalizeAxisDelta(s.dx or 0)
+      local dy = OamDisplacement.normalizeAxisDelta(s.dy or 0)
+      if dx ~= 0 then
         entry.dx = dx
+      end
+      if dy ~= 0 then
         entry.dy = dy
       end
       if s._mirrorXOverrideSet == true then

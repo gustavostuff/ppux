@@ -108,9 +108,9 @@ describe("sprite hydration — pattern table + 8x16", function()
     expect(item.tileBelow).toBe(5)
   end)
 
-  it("keepWorld preserves editor positions when ROM base already includes prior displacements", function()
-    -- Simulates: move sprite (dx/dy), save so romRaw has base+dx, then rehydrate.
-    -- keepWorld=false would double-apply stale dx and scatter sprites (Add-sprite bug).
+  it("keepWorld keeps sticky base so baked romRaw cannot collapse editor dx", function()
+    -- After Save ROM, romRaw bytes already include base+dx. keepWorld must not
+    -- adopt those bytes as the new base (that zeroed dx and broke project reload).
     local addr = 0x0200
     local originalY, originalX = 20, 40
     local dx, dy = 24, -8
@@ -118,7 +118,8 @@ describe("sprite hydration — pattern table + 8x16", function()
     local writtenX = (originalX + dx) % 256
     local romPrefix = ("\0"):rep(addr)
     local oamFour = string.char(writtenY, 1, 0, writtenX)
-    local romRaw = romPrefix .. oamFour
+    local oamTwo = string.char(50, 2, 0, 80)
+    local romRaw = romPrefix .. oamFour .. oamTwo
 
     local layer = {
       kind = "sprite",
@@ -136,15 +137,10 @@ describe("sprite hydration — pattern table + 8x16", function()
           y = originalY + dy,
         },
         {
-          -- Newly added sprite: no world yet; should land on ROM base.
           startAddr = addr + 4,
         },
       },
     }
-
-    -- Second OAM slot at ROM base (no prior move).
-    local oamTwo = string.char(50, 2, 0, 80)
-    romRaw = romPrefix .. oamFour .. oamTwo
 
     Hydration.hydrateSpriteLayer(layer, {
       romRaw = romRaw,
@@ -154,12 +150,13 @@ describe("sprite hydration — pattern table + 8x16", function()
     })
 
     local moved = layer.items[1]
-    expect(moved.baseX).toBe(writtenX)
-    expect(moved.baseY).toBe(writtenY)
+    expect(moved.baseX).toBe(originalX)
+    expect(moved.baseY).toBe(originalY)
     expect(moved.worldX).toBe(originalX + dx)
     expect(moved.worldY).toBe(originalY + dy)
-    expect(moved.dx).toBe(0)
-    expect(moved.dy).toBe(0)
+    expect(moved.dx).toBe(dx)
+    expect(moved.dy).toBe(dy)
+    expect(moved.hasMoved).toBe(true)
 
     local added = layer.items[2]
     expect(added.worldX).toBe(80)

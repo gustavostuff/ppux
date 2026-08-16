@@ -1,5 +1,6 @@
 local SpriteTransformController = {}
 local WindowCaps = require("controllers.window.window_capabilities")
+local OamDisplacement = require("controllers.sprite.oam_displacement")
 
 local function clamp(v, lo, hi)
   if v < lo then return lo end
@@ -62,11 +63,17 @@ local function setSpriteWorldPosition(sprite, worldX, worldY)
   local baseY = sprite.baseY
   if baseY == nil then baseY = worldY end
 
-  local dx = worldX - baseX
-  local dy = worldY - baseY
-  sprite.dx = dx
-  sprite.dy = dy
-  sprite.hasMoved = (dx ~= 0 or dy ~= 0)
+  sprite.baseX = baseX
+  sprite.baseY = baseY
+  if type(sprite.startAddr) == "number" then
+    OamDisplacement.applyNormalizedDisplacement(sprite)
+  else
+    local dx = worldX - baseX
+    local dy = worldY - baseY
+    sprite.dx = dx
+    sprite.dy = dy
+    sprite.hasMoved = (dx ~= 0 or dy ~= 0)
+  end
 end
 
 local function normalizeOAMAttrFromSpriteState(sprite)
@@ -92,6 +99,14 @@ local function syncSharedOAMFieldsIntoTarget(target, source, opts)
     target.dx = dx
     target.dy = dy
 
+    -- Same startAddr ⇒ same ROM base. Keep peers from drifting to stale bases.
+    if type(source.baseX) == "number" then
+      target.baseX = math.floor(source.baseX + 0.5)
+    end
+    if type(source.baseY) == "number" then
+      target.baseY = math.floor(source.baseY + 0.5)
+    end
+
     local baseX = target.baseX
     if baseX == nil then
       baseX = source.baseX
@@ -114,13 +129,19 @@ local function syncSharedOAMFieldsIntoTarget(target, source, opts)
       end
     end
 
-    local worldX = math.floor((baseX + dx) + 0.5)
-    local worldY = math.floor((baseY + dy) + 0.5)
-    target.worldX = worldX
-    target.worldY = worldY
-    target.x = worldX
-    target.y = worldY
-    target.hasMoved = (dx ~= 0 or dy ~= 0)
+    target.baseX = baseX
+    target.baseY = baseY
+    -- Copy displacement as-is. Do not re-derive base from world (nil/stale base
+    -- would collapse dx to 0). Normalize only on drag finish / hydrate / snapshot.
+    local ndx = OamDisplacement.normalizeAxisDelta(dx)
+    local ndy = OamDisplacement.normalizeAxisDelta(dy)
+    target.dx = ndx
+    target.dy = ndy
+    target.worldX = math.floor((baseX + ndx) + 0.5)
+    target.worldY = math.floor((baseY + ndy) + 0.5)
+    target.x = target.worldX
+    target.y = target.worldY
+    target.hasMoved = (ndx ~= 0 or ndy ~= 0)
   end
 
   if syncVisual then

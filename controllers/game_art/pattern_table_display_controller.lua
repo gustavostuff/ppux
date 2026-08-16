@@ -442,10 +442,12 @@ function M.invalidateConsumersUsingPatternTable(app, patternTableRef)
 
   local function hydrateLinkedSprite(layer)
     if syncSpriteLayerPatternTableRef(layer) then
+      -- keepWorld: after ROM write-back, stale dx must not re-apply on top of new bases.
       SpriteController.hydrateSpriteLayer(layer, {
         romRaw = romRaw,
         tilesPool = tilesPool,
         appEditState = state,
+        keepWorld = true,
       })
     end
   end
@@ -679,6 +681,7 @@ local function refreshConsumerAfterPatternTableRelink(win, layerIndex, app)
       romRaw = state.romRaw or "",
       tilesPool = state.tilesPool,
       appEditState = state,
+      keepWorld = true,
     })
   end
   if win.specializedToolbar and win.specializedToolbar.updateIcons then

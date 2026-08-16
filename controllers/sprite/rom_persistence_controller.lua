@@ -3,6 +3,7 @@
 -- For ROM-backed sprites with no overlay `bank`, the persisted tile byte is the pattern-table logical
 -- index (matching the linked pattern_table window ordering), consistent with hydrate + resolveTile.
 local chr = require("chr")
+local OamDisplacement = require("controllers.sprite.oam_displacement")
 
 local M = {}
 
@@ -49,8 +50,8 @@ local function applyMirrorToAttr(attr, mirrorX, mirrorY)
 end
 
 local function buildSpriteBytes(s)
-  local dx = tonumber(s.dx) or 0
-  local dy = tonumber(s.dy) or 0
+  local dx = OamDisplacement.normalizeAxisDelta(s.dx)
+  local dy = OamDisplacement.normalizeAxisDelta(s.dy)
 
   local baseX = tonumber(s.baseX) or 0
   local baseY = tonumber(s.baseY) or 0
@@ -74,11 +75,23 @@ local function desiredWrappedPosition(s)
   return bytes[4], bytes[1]
 end
 
---- True when every candidate wants the same wrapped X/Y.
-local function candidatesAgreeOnPosition(candidates)
+local function spriteHasEditorDisplacement(s)
+  if not s then
+    return false
+  end
+  local dx = OamDisplacement.normalizeAxisDelta(s.dx)
+  local dy = OamDisplacement.normalizeAxisDelta(s.dy)
+  return s.hasMoved == true or dx ~= 0 or dy ~= 0
+end
+
+--- True when every *moved* candidate wants the same wrapped X/Y.
+--- Unmoved peers (dx/dy = 0) must not veto baking an agreed editor move:
+--- shared startAddr across PPU frames / OAM windows is common, and stale
+--- unmoved copies would otherwise leave displacements out of `_edited.nes`.
+local function movedCandidatesAgreeOnPosition(candidates)
   local firstX, firstY = nil, nil
   for _, s in ipairs(candidates or {}) do
-    if type(s.startAddr) == "number" then
+    if type(s.startAddr) == "number" and spriteHasEditorDisplacement(s) then
       local x, y = desiredWrappedPosition(s)
       if firstX == nil then
         firstX, firstY = x, y
@@ -137,8 +150,8 @@ local function scoreSpriteCandidate(s)
 
   if s.paletteNumber ~= nil then score = score + 4 end
 
-  local dx = tonumber(s.dx) or 0
-  local dy = tonumber(s.dy) or 0
+  local dx = OamDisplacement.normalizeAxisDelta(s.dx)
+  local dy = OamDisplacement.normalizeAxisDelta(s.dy)
   if s.hasMoved or dx ~= 0 or dy ~= 0 then
     score = score + 2
   end
@@ -177,7 +190,7 @@ function M.applyDisplacementsToROMForLayer(layer, romRaw)
   local newRom = romRaw
 
   for _, s in ipairs(layer.items or {}) do
-    if type(s.startAddr) == "number" then
+    if type(s.startAddr) == "number" and s._addModalPreview ~= true then
       local written, err = writeSpriteToROM(s, newRom)
       if not written then
         return nil, err
@@ -197,6 +210,9 @@ function M.applyDisplacementsToROMForWindows(windows, romRaw)
 
   local function addCandidate(sprite)
     if type(sprite.startAddr) ~= "number" then
+      return
+    end
+    if sprite._addModalPreview == true then
       return
     end
     local addr = sprite.startAddr
@@ -221,7 +237,8 @@ function M.applyDisplacementsToROMForWindows(windows, romRaw)
     local candidates = byAddr[addr]
     local sprite = chooseBestSpriteCandidate(candidates)
     if sprite then
-      local preservePosition = not candidatesAgreeOnPosition(candidates)
+      -- Only truly conflicting *moves* preserve ROM X/Y. Unmoved peers do not veto.
+      local preservePosition = not movedCandidatesAgreeOnPosition(candidates)
       local updated, err = writeSpriteToROM(sprite, newRom, {
         preservePosition = preservePosition,
       })

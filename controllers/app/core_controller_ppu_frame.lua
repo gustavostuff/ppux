@@ -8,6 +8,7 @@ local WindowCaps = require("controllers.window.window_capabilities")
 local PpuRange = require("controllers.app.ppu_frame_range_helpers")
 local PatternTableDisplayController = require("controllers.game_art.pattern_table_display_controller")
 local PatternTableMapping = require("utils.pattern_table_mapping")
+local OamDisplacement = require("controllers.sprite.oam_displacement")
 
 return function(AppCoreController)
 
@@ -24,21 +25,45 @@ local function isNametableLayerRangeReady(layer)
   return true, nil
 end
 
-local function spriteNeedsPositionReset(s)
-  if not s or s.removed == true then
+local function readRomOamXY(romRaw, startAddr)
+  if type(romRaw) ~= "string" or romRaw == "" or type(startAddr) ~= "number" then
+    return nil, nil
+  end
+  local chr = require("chr")
+  local bytes = chr.readBytesFromRange(romRaw, startAddr, startAddr + 3)
+  if not (bytes and #bytes >= 4) then
+    return nil, nil
+  end
+  return tonumber(bytes[4]) or 0, tonumber(bytes[1]) or 0
+end
+
+--- True when editor pose differs from the sprite's sticky ROM baseline (baseX/Y).
+--- Also true when that baseline itself drifted from live romRaw OAM bytes.
+local function spriteNeedsPositionReset(s, romRaw)
+  if not s or s.removed == true or s._addModalPreview == true then
     return false
   end
-  if s.hasMoved == true then
+  local dx = OamDisplacement.normalizeAxisDelta(s.dx)
+  local dy = OamDisplacement.normalizeAxisDelta(s.dy)
+  if s.hasMoved == true or dx ~= 0 or dy ~= 0 then
     return true
-  end
-  local bx = s.baseX
-  local by = s.baseY
-  if bx == nil or by == nil then
-    return false
   end
   local wx = math.floor((tonumber(s.worldX) or tonumber(s.x) or 0) + 0.5)
   local wy = math.floor((tonumber(s.worldY) or tonumber(s.y) or 0) + 0.5)
-  return wx ~= math.floor(tonumber(bx) + 0.5) or wy ~= math.floor(tonumber(by) + 0.5)
+  local bx = s.baseX
+  local by = s.baseY
+  if type(bx) == "number" and type(by) == "number" then
+    if wx ~= math.floor(bx + 0.5) or wy ~= math.floor(by + 0.5) then
+      return true
+    end
+  end
+  local romX, romY = readRomOamXY(romRaw, s.startAddr)
+  if romX ~= nil and romY ~= nil and type(bx) == "number" and type(by) == "number" then
+    if math.floor(bx + 0.5) ~= romX or math.floor(by + 0.5) ~= romY then
+      return true
+    end
+  end
+  return false
 end
 
 local function collectSelectedSpriteIndices(layer, opts)
@@ -51,6 +76,35 @@ local function collectSelectedSpriteIndices(layer, opts)
     end
   end
   return indices or {}
+end
+
+--- All non-removed, non-draft sprite item indices on a layer (empty-space "all").
+local function collectAllLayerSpriteIndices(layer)
+  local indices = {}
+  for i, s in ipairs((layer and layer.items) or {}) do
+    if s and s.removed ~= true and s._addModalPreview ~= true then
+      indices[#indices + 1] = i
+    end
+  end
+  return indices
+end
+
+local function layerHasOamSpriteNeedingPositionReset(layer, romRaw)
+  for _, s in ipairs((layer and layer.items) or {}) do
+    if spriteNeedsPositionReset(s, romRaw) then
+      return true
+    end
+  end
+  return false
+end
+
+local function layerHasRevertableOamSprite(layer)
+  for _, s in ipairs((layer and layer.items) or {}) do
+    if s and s.removed ~= true and s._addModalPreview ~= true and type(s.startAddr) == "number" then
+      return true
+    end
+  end
+  return false
 end
 
 local function clearOamSpriteEditorOverrides(s)
@@ -746,9 +800,10 @@ function AppCoreController:_oamSpriteSelectionNeedsPositionReset(win, layerIndex
   if not (layer and layer.kind == "sprite") then
     return false
   end
+  local romRaw = self.appEditState and self.appEditState.romRaw or nil
   for _, idx in ipairs(collectSelectedSpriteIndices(layer)) do
     local s = layer.items and layer.items[idx]
-    if s and spriteNeedsPositionReset(s) then
+    if s and spriteNeedsPositionReset(s, romRaw) then
       return true
     end
   end
@@ -794,11 +849,12 @@ function AppCoreController:_resetOamLinkedSpritePositions(win, layerIndex, opts)
   local statesEqual = SpriteStateSnapshot.statesEqual
 
   local indices = collectSelectedSpriteIndices(layer, opts)
+  local romRaw = self.appEditState and self.appEditState.romRaw or nil
 
   local tracked = {}
   for _, idx in ipairs(indices) do
     local s = layer.items and layer.items[idx]
-    if s and s.removed ~= true and spriteNeedsPositionReset(s) then
+    if s and s.removed ~= true and spriteNeedsPositionReset(s, romRaw) then
       tracked[#tracked + 1] = s
     end
   end
@@ -812,8 +868,16 @@ function AppCoreController:_resetOamLinkedSpritePositions(win, layerIndex, opts)
   end
 
   for _, s in ipairs(tracked) do
+    local romX, romY = readRomOamXY(romRaw, s.startAddr)
+    local ndx = OamDisplacement.normalizeAxisDelta(s.dx)
+    local ndy = OamDisplacement.normalizeAxisDelta(s.dy)
     local bx = s.baseX
     local by = s.baseY
+    -- Moved: snap to sticky editor baseline. Unmoved but desynced: adopt live ROM.
+    if not ((ndx ~= 0 or ndy ~= 0) and type(bx) == "number" and type(by) == "number") then
+      if romX ~= nil then bx = romX end
+      if romY ~= nil then by = romY end
+    end
     if bx == nil then
       bx = s.worldX or s.x or 0
     end
@@ -822,6 +886,8 @@ function AppCoreController:_resetOamLinkedSpritePositions(win, layerIndex, opts)
     end
     bx = math.floor(tonumber(bx) + 0.5)
     by = math.floor(tonumber(by) + 0.5)
+    s.baseX = bx
+    s.baseY = by
     s.worldX = bx
     s.worldY = by
     s.x = bx
@@ -897,7 +963,7 @@ function AppCoreController:_revertOamLinkedSprites(win, layerIndex, opts)
   local tracked = {}
   for _, idx in ipairs(indices) do
     local s = layer.items and layer.items[idx]
-    if s and s.removed ~= true and type(s.startAddr) == "number" then
+    if s and s.removed ~= true and s._addModalPreview ~= true and type(s.startAddr) == "number" then
       tracked[#tracked + 1] = { idx = idx, sprite = s }
     end
   end
@@ -915,11 +981,12 @@ function AppCoreController:_revertOamLinkedSprites(win, layerIndex, opts)
   end
 
   local state = self.appEditState or {}
+  -- keepWorld=false: clear already nil'd worldX/Y; force positions from current romRaw OAM.
   SpriteController.hydrateSpriteLayer(layer, {
     romRaw = state.romRaw or "",
     tilesPool = state.tilesPool,
     appEditState = state,
-    keepWorld = true,
+    keepWorld = false,
   })
 
   for _, entry in ipairs(tracked) do
@@ -1038,15 +1105,19 @@ function AppCoreController:_buildOamSpriteEmptySpaceContextMenuItems(context)
   local win = context and context.win
   local layer = context and context.layer
   local li = context and context.layerIndex
+  local romRaw = self.appEditState and self.appEditState.romRaw or nil
+  -- Empty-space Reset/Revert apply to the whole sprite layer (menu says "all").
   if win and layer and layer.kind == "sprite" and type(li) == "number"
       and (win.kind == "oam_animation" or win.kind == "ppu_frame")
-      and self:_oamSpriteSelectionNeedsPositionReset(win, li) then
+      and layerHasOamSpriteNeedingPositionReset(layer, romRaw) then
     items[#items + 1] = {
       text = "Reset position",
       menuGroup = "spr_sheet_reset",
       enabled = true,
       callback = function()
-        local n = self:_resetOamLinkedSpritePositions(win, li)
+        local n = self:_resetOamLinkedSpritePositions(win, li, {
+          indices = collectAllLayerSpriteIndices(layer),
+        })
         if n <= 0 then
           self:setStatus("Sprites already at ROM positions")
         else
@@ -1057,13 +1128,15 @@ function AppCoreController:_buildOamSpriteEmptySpaceContextMenuItems(context)
   end
   if win and layer and layer.kind == "sprite" and type(li) == "number"
       and (win.kind == "oam_animation" or win.kind == "ppu_frame")
-      and self:_oamSpriteSelectionCanRevertAll(win, li) then
+      and layerHasRevertableOamSprite(layer) then
     items[#items + 1] = {
       text = "Revert all",
       menuGroup = "spr_sheet_reset",
       enabled = true,
       callback = function()
-        local n = self:_revertOamLinkedSprites(win, li)
+        local n = self:_revertOamLinkedSprites(win, li, {
+          indices = collectAllLayerSpriteIndices(layer),
+        })
         if n <= 0 then
           self:setStatus("Sprites already match current ROM OAM")
         else

@@ -608,6 +608,7 @@ local function handleSpriteDragEnd()
     local app = ctx and ctx.app
     local undoRedo = app and app.undoRedo
     SpriteController.finishDrag(nil, undoRedo)
+    markUnsaved("sprite_move")
 
     if spriteClick and spriteClick.active and not spriteClick.moved then
       local win = spriteClick.win

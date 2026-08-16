@@ -361,6 +361,92 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(layer.items[1].removed).toBe(true)
   end)
 
+  it("empty-space Revert all resets every OAM sprite on the layer, not only the selection", function()
+    local status = nil
+    local rom = string.rep("\0", 0x210)
+    rom = rom:sub(1, 0x200) .. string.char(11, 7, 0x00, 22) .. rom:sub(0x205)
+    rom = rom:sub(1, 0x204) .. string.char(33, 8, 0x00, 44) .. rom:sub(0x209)
+
+    local app = setmetatable({
+      appEditState = {
+        romRaw = rom,
+        tilesPool = {
+          [1] = {
+            [7] = { _bankIndex = 1, index = 7, pixels = {} },
+            [8] = { _bankIndex = 1, index = 8, pixels = {} },
+          },
+        },
+      },
+      undoRedo = {
+        addDragEvent = function() end,
+      },
+      markUnsaved = function() end,
+      setStatus = function(_, msg)
+        status = msg
+      end,
+      showPpuFrameAddSpriteModal = function()
+        return true
+      end,
+    }, AppCoreController)
+
+    local layer = {
+      kind = "sprite",
+      -- Selection is the unmoved sprite; moved peer must still revert from empty-space.
+      selectedSpriteIndex = 1,
+      items = {
+        {
+          startAddr = 0x200,
+          baseX = 22,
+          baseY = 11,
+          worldX = 22,
+          worldY = 11,
+          x = 22,
+          y = 11,
+          dx = 0,
+          dy = 0,
+          hasMoved = false,
+          tile = 7,
+          bank = 1,
+        },
+        {
+          startAddr = 0x204,
+          baseX = 44,
+          baseY = 33,
+          worldX = 90,
+          worldY = 80,
+          x = 90,
+          y = 80,
+          dx = 46,
+          dy = 47,
+          hasMoved = true,
+          tile = 8,
+          bank = 1,
+        },
+      },
+    }
+    local context = app:_buildOamSpriteEmptySpaceContext({
+      kind = "oam_animation",
+      layers = { layer },
+    }, 1)
+
+    local items = app:_buildOamSpriteEmptySpaceContextMenuItems(context)
+    local revertItem
+    for _, it in ipairs(items) do
+      if it.text == "Revert all" then
+        revertItem = it
+        break
+      end
+    end
+    expect(revertItem ~= nil).toBe(true)
+    revertItem.callback()
+
+    expect(layer.items[2].dx).toBe(0)
+    expect(layer.items[2].dy).toBe(0)
+    expect(layer.items[2].worldX).toBe(44)
+    expect(layer.items[2].worldY).toBe(33)
+    expect(status == "Reverted sprite to ROM OAM" or status == "Reverted 2 sprites to ROM OAM").toBe(true)
+  end)
+
   it("puts Edit sprite first on OAM sprite select-in-CHR context menu", function()
     local editCalls = 0
     local app = setmetatable({
@@ -466,6 +552,76 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(layer.items[1].hasMoved).toBe(false)
     expect(undoAdded).toBe(true)
     expect(marked).toBe("sprite_move")
+  end)
+
+  it("enables Reset position when editor base matches world but both disagree with romRaw OAM", function()
+    local status = nil
+    local rom = string.rep("\0", 0x210)
+    -- ROM OAM at 0x200: Y=11, tile=7, attr=0, X=22
+    rom = rom:sub(1, 0x200) .. string.char(11, 7, 0x00, 22) .. rom:sub(0x205)
+
+    local app = setmetatable({
+      appEditState = { romRaw = rom, tilesPool = {} },
+      undoRedo = {
+        addDragEvent = function() end,
+      },
+      markUnsaved = function() end,
+      setStatus = function(_, msg)
+        status = msg
+      end,
+    }, AppCoreController)
+
+    local layer = {
+      kind = "sprite",
+      selectedSpriteIndex = 1,
+      items = {
+        {
+          startAddr = 0x200,
+          -- Stale session base/world (desynced from ROM) with dx=0 — old Reset hid itself.
+          baseX = 50,
+          baseY = 60,
+          worldX = 50,
+          worldY = 60,
+          x = 50,
+          y = 60,
+          dx = 0,
+          dy = 0,
+          hasMoved = false,
+          tile = 7,
+          bank = 1,
+        },
+      },
+    }
+    local win = { kind = "oam_animation", layers = { layer } }
+    local context = {
+      win = win,
+      layerIndex = 1,
+      layer = layer,
+      itemIndex = 1,
+      item = layer.items[1],
+      tileIndex = 7,
+    }
+
+    local items = app:_buildSelectInChrContextMenuItems(context)
+    local resetItem
+    for _, it in ipairs(items) do
+      if it.text == "Reset position" then
+        resetItem = it
+        break
+      end
+    end
+    expect(resetItem ~= nil).toBe(true)
+    expect(resetItem.enabled).toBe(true)
+    resetItem.callback()
+
+    local s = layer.items[1]
+    expect(s.baseX).toBe(22)
+    expect(s.baseY).toBe(11)
+    expect(s.worldX).toBe(22)
+    expect(s.worldY).toBe(11)
+    expect(s.dx).toBe(0)
+    expect(s.dy).toBe(0)
+    expect(status).toBe("Reset sprite position")
   end)
 
   it("Revert all clears OAM sprite editor overlays and rehydrates from romRaw", function()

@@ -166,6 +166,8 @@ local function writeFinalROM(app, romWithSprites)
   if okRom then
     app:setStatus("Saved ROM & edits: " .. tostring(pathOrErr))
     state.romRaw     = romWithSprites
+    -- Do not rehydrate OAM sprites here: keepWorld against baked romRaw collapses
+    -- editor dx (often to 0/±256). Project reload uses base ROM + project dx.
     return true
   else
     app:setStatus("Save failed: " .. tostring(pathOrErr or ""))

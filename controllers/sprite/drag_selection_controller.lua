@@ -1,5 +1,6 @@
 local SpriteDragSelectionController = {}
 local WindowCaps = require("controllers.window.window_capabilities")
+local OamDisplacement = require("controllers.sprite.oam_displacement")
 
 local function clamp(v, lo, hi)
   if v < lo then return lo end
@@ -463,6 +464,9 @@ function SpriteDragSelectionController.finishDrag(SpriteController, copyStillPre
         original.dx = worldX - baseX
         original.dy = worldY - baseY
         original.hasMoved = (original.dx ~= 0 or original.dy ~= 0)
+        if type(original.startAddr) == "number" then
+          OamDisplacement.applyNormalizedDisplacement(original)
+        end
         SpriteController.syncSharedOAMSpriteState(win, original, {
           syncPosition = true,
           syncVisual = false,
@@ -516,6 +520,14 @@ function SpriteDragSelectionController.finishDrag(SpriteController, copyStillPre
       for _, entry in ipairs(drag.items) do
         local sprite = entry.sprite
         if sprite then
+          if type(sprite.startAddr) == "number" then
+            OamDisplacement.applyNormalizedDisplacement(sprite)
+            SpriteController.syncSharedOAMSpriteState(win, sprite, {
+              syncPosition = true,
+              syncVisual = false,
+              syncAttr = false,
+            })
+          end
           local beforeState = {
             worldX = entry.startWorldX or 0,
             worldY = entry.startWorldY or 0,
@@ -543,6 +555,14 @@ function SpriteDragSelectionController.finishDrag(SpriteController, copyStillPre
       for _, entry in ipairs(drag.items) do
         local sprite = entry.sprite
         if sprite then
+          if type(sprite.startAddr) == "number" then
+            OamDisplacement.applyNormalizedDisplacement(sprite)
+            SpriteController.syncSharedOAMSpriteState(win, sprite, {
+              syncPosition = true,
+              syncVisual = false,
+              syncAttr = false,
+            })
+          end
           local beforeState = {
             worldX = entry.startWorldX or 0,
             worldY = entry.startWorldY or 0,
@@ -573,6 +593,19 @@ function SpriteDragSelectionController.finishDrag(SpriteController, copyStillPre
         mode = (shouldCopy and drag.copyMode) and "copy" or "move",
         actions = actions,
       })
+    end
+  elseif not (drag.copyMode and not shouldCopy) and drag.items then
+    -- No undo stack: still fold wrap-lane dx (±256) for OAM-backed sprites.
+    for _, entry in ipairs(drag.items) do
+      local sprite = entry.sprite
+      if sprite and type(sprite.startAddr) == "number" then
+        OamDisplacement.applyNormalizedDisplacement(sprite)
+        SpriteController.syncSharedOAMSpriteState(win, sprite, {
+          syncPosition = true,
+          syncVisual = false,
+          syncAttr = false,
+        })
+      end
     end
   end
 
