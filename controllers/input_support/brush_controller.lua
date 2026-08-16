@@ -315,19 +315,6 @@ local function paintAbsolutePixelExact(app, win, px, py, pickOnly)
   return ok
 end
 
-local function paintAbsolutePoints(app, win, points, pickOnly)
-  local painted = false
-  for _, pt in ipairs(points or {}) do
-    if paintAbsolutePixel(app, win, pt.x, pt.y, pickOnly) then
-      painted = true
-      if pickOnly then
-        break
-      end
-    end
-  end
-  return painted
-end
-
 ----------------------------------------------------------------
 -- Duplicate sync helpers
 ----------------------------------------------------------------
@@ -476,6 +463,9 @@ local function commitPixelWriteBatch(batch)
 end
 
 local function applyPixelToTargets(app, targets, tx, ty, color, beforeValue)
+  if (beforeValue or 0) == (color or 0) then
+    return false
+  end
   local batch = makePixelWriteBatch(app, color)
   if not stagePixelWriteToTargets(batch, targets, tx, ty, color, beforeValue) then
     return false
@@ -665,12 +655,15 @@ local function paintTileLayerCellPixel(app, win, layer, col, row, tx, ty, pickOn
   end
   
   -- Get before value for undo/redo tracking
+  local color = app.currentColor or 0
   local beforeValue = item:getPixel(tx, ty) or 0
+  if beforeValue == color then
+    return false
+  end
   if batch then
     return stageSourcePixelWrite(batch, bankIdx, tileIndex, tx, ty, beforeValue, win)
   end
 
-  local color = app.currentColor
   local targets = getSyncTargets(app, bankIdx, tileIndex, win)
   return applyPixelToTargets(app, targets, tx, ty, color, beforeValue)
 end
@@ -684,6 +677,82 @@ local function paintTileLayerPixel(app, win, layer, px, py, pickOnly)
   local tx = math.floor(px - (col * cw))
   local ty = math.floor(py - (row * ch))
   return paintTileLayerCellPixel(app, win, layer, col, row, tx, ty, pickOnly, nil)
+end
+
+local function resolveActiveLayer(win)
+  if not win then
+    return nil, nil
+  end
+  local layerIndex = win.getActiveLayerIndex and win:getActiveLayerIndex() or 1
+  local layer = win.layers and win.layers[layerIndex] or nil
+  return layer, layerIndex
+end
+
+--- Tile/nametable layers can share one CHR write batch across many absolute pixels.
+--- Canvas and sprite layers keep their existing per-pixel paths.
+local function isBatchableTilePaintLayer(layer)
+  if not layer then
+    return false
+  end
+  if layer.kind == "sprite" then
+    return false
+  end
+  if layer.kind == "canvas" and layer.canvas then
+    return false
+  end
+  return true
+end
+
+local function paintAbsolutePixelExactIntoBatch(app, win, layer, batch, px, py, pickOnly)
+  local cw = math.max(1, math.floor(win.cellW or 8))
+  local ch = math.max(1, math.floor(win.cellH or 8))
+  px = math.floor(px or 0)
+  py = math.floor(py or 0)
+  if px < 0 or py < 0 then
+    return false
+  end
+
+  local col = math.floor(px / cw)
+  local row = math.floor(py / ch)
+  local lx = px - col * cw
+  local ly = py - row * ch
+  local cols = tonumber(win.cols) or 0
+  local rows = tonumber(win.rows) or 0
+  if cols > 0 and rows > 0 and (col < 0 or row < 0 or col >= cols or row >= rows) then
+    return false
+  end
+
+  return paintTileLayerCellPixel(app, win, layer, col, row, lx, ly, pickOnly == true, batch)
+end
+
+--- Paint many absolute pixels with one CHR write batch when the active layer is tile-backed.
+local function paintAbsolutePointsBatched(app, win, points, pickOnly)
+  pickOnly = pickOnly == true
+  local layer = select(1, resolveActiveLayer(win))
+  local brushSize = (app and app.brushSize) or 1
+  -- Larger brushes already batch per stamp via paintBrushPatternOnTileLayer.
+  local batch = (not pickOnly and brushSize == 1 and isBatchableTilePaintLayer(layer))
+    and makePixelWriteBatch(app, app.currentColor)
+    or nil
+  local painted = false
+  for _, pt in ipairs(points or {}) do
+    local ok
+    if batch then
+      ok = paintAbsolutePixelExactIntoBatch(app, win, layer, batch, pt.x, pt.y, false)
+    else
+      ok = paintAbsolutePixel(app, win, pt.x, pt.y, pickOnly)
+    end
+    if ok then
+      painted = true
+      if pickOnly then
+        break
+      end
+    end
+  end
+  if batch and #batch.writeList > 0 then
+    return commitPixelWriteBatch(batch)
+  end
+  return painted
 end
 
 ----------------------------------------------------------------
@@ -1376,24 +1445,43 @@ function M.floodFillTile(app, win, col, row, lx, ly, targetColor, fillColor)
 end
 
 function M.drawLine(app, win, x0, y0, x1, y1, pickOnly)
-  return paintAbsolutePoints(app, win, bresenhamPoints(x0, y0, x1, y1), pickOnly == true)
+  return paintAbsolutePointsBatched(app, win, bresenhamPoints(x0, y0, x1, y1), pickOnly == true)
 end
 
 function M.fillRect(app, win, x0, y0, x1, y1, pickOnly)
+  pickOnly = pickOnly == true
   local minX = math.min(math.floor(x0 or 0), math.floor(x1 or 0))
   local maxX = math.max(math.floor(x0 or 0), math.floor(x1 or 0))
   local minY = math.min(math.floor(y0 or 0), math.floor(y1 or 0))
   local maxY = math.max(math.floor(y0 or 0), math.floor(y1 or 0))
+
+  -- Shift+drag rects can cover hundreds of cells that all point at one CHR tile.
+  -- Paint into one write batch so duplicate cells coalesce to unique (tile,x,y)
+  -- writes and we invalidate each touched CHR tile once (not once per absolute pixel).
+  local layer = select(1, resolveActiveLayer(win))
+  local batch = (not pickOnly and isBatchableTilePaintLayer(layer))
+    and makePixelWriteBatch(app, app.currentColor)
+    or nil
+
   local painted = false
   for y = minY, maxY do
     for x = minX, maxX do
-      if paintAbsolutePixelExact(app, win, x, y, pickOnly == true) then
+      local ok
+      if batch then
+        ok = paintAbsolutePixelExactIntoBatch(app, win, layer, batch, x, y, false)
+      else
+        ok = paintAbsolutePixelExact(app, win, x, y, pickOnly)
+      end
+      if ok then
         painted = true
         if pickOnly then
           return true
         end
       end
     end
+  end
+  if batch and #batch.writeList > 0 then
+    return commitPixelWriteBatch(batch)
   end
   return painted
 end

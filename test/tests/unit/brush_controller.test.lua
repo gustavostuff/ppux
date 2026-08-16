@@ -269,6 +269,81 @@ describe("brush_controller.lua - batched chr painting", function()
     expect(pixelCount).toBe(1)
   end)
 
+  it("batches rectangle fills over repeated tile refs to one invalidation", function()
+    local app, tile, bankBytes = makeApp(0)
+    -- Many cells all resolve to the same CHR tile ref (PPU nametable-style reuse).
+    local win = {
+      cols = 4,
+      rows = 4,
+      cellW = 8,
+      cellH = 8,
+      layers = { { kind = "tile" } },
+      getActiveLayerIndex = function() return 1 end,
+      get = function() return tile end,
+      getStack = function() return { tile } end,
+    }
+
+    local invalidations = 0
+    local syncCalls = 0
+    BankCanvasSupport.invalidateTile = function()
+      invalidations = invalidations + 1
+    end
+    ChrDuplicateSync.isEnabled = function()
+      return false
+    end
+    ChrDuplicateSync.getSyncGroup = function(_, bankIdx, tileIndex)
+      syncCalls = syncCalls + 1
+      return { { bank = bankIdx, tileIndex = tileIndex } }
+    end
+
+    app.undoRedo:startPaintEvent()
+    -- 4x4 tiles = 32x32 absolute pixels; without batching this would invalidate once per pixel.
+    local ok = BrushController.fillRect(app, win, 0, 0, 31, 31, false)
+
+    expect(ok).toBe(true)
+    expect(syncCalls).toBe(1)
+    expect(invalidations).toBe(1)
+
+    local paintedPixels = 0
+    for _, value in ipairs(chr.decodeTile(bankBytes, 0)) do
+      if value == app.currentColor then
+        paintedPixels = paintedPixels + 1
+      end
+    end
+    expect(paintedPixels).toBe(64)
+  end)
+
+  it("batches line paints over repeated tile refs to one invalidation", function()
+    local app, tile = makeApp(0)
+    local win = {
+      cols = 4,
+      rows = 1,
+      cellW = 8,
+      cellH = 8,
+      layers = { { kind = "tile" } },
+      getActiveLayerIndex = function() return 1 end,
+      get = function() return tile end,
+      getStack = function() return { tile } end,
+    }
+
+    local invalidations = 0
+    BankCanvasSupport.invalidateTile = function()
+      invalidations = invalidations + 1
+    end
+    ChrDuplicateSync.isEnabled = function()
+      return false
+    end
+    ChrDuplicateSync.getSyncGroup = function(_, bankIdx, tileIndex)
+      return { { bank = bankIdx, tileIndex = tileIndex } }
+    end
+
+    app.undoRedo:startPaintEvent()
+    local ok = BrushController.drawLine(app, win, 0, 0, 31, 0, false)
+
+    expect(ok).toBe(true)
+    expect(invalidations).toBe(1)
+  end)
+
   it("does not sync paint edits across duplicates from ROM bank windows", function()
     local bankBytes = {}
     for i = 1, 32 do
