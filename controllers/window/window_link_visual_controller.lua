@@ -266,12 +266,15 @@ local function resolveLinkedRomPaletteWindow(winId, wm, allowMinimized)
   return nil
 end
 
---- Every ROM palette linked from any consumer layer (not just the active one).
-function M.collectConsumerLinkedPaletteWindows(consumer, wm, allowMinimized)
+--- ROM palettes linked from a consumer window.
+-- By default only the active layer (drives hover/always link lines).
+-- Pass opts.allLayers = true for badge fill / “any layer linked” checks.
+function M.collectConsumerLinkedPaletteWindows(consumer, wm, allowMinimized, opts)
   local out = {}
   if not (consumer and consumer.layers and wm) then
     return out
   end
+  opts = type(opts) == "table" and opts or {}
   local seen = {}
   local function addFromLayer(layer)
     if not isPaletteLinkConsumerLayer(layer) then
@@ -286,16 +289,19 @@ function M.collectConsumerLinkedPaletteWindows(consumer, wm, allowMinimized)
 
   local activeIdx = (consumer.getActiveLayerIndex and consumer:getActiveLayerIndex()) or consumer.activeLayer or 1
   addFromLayer(consumer.layers[activeIdx])
-  for li, layer in ipairs(consumer.layers) do
-    if li ~= activeIdx then
-      addFromLayer(layer)
+  if opts.allLayers == true then
+    for li, layer in ipairs(consumer.layers) do
+      if li ~= activeIdx then
+        addFromLayer(layer)
+      end
     end
   end
   return out
 end
 
 local function getConsumerLinkedPaletteWindowRaw(consumer, wm, allowMinimized)
-  local linked = M.collectConsumerLinkedPaletteWindows(consumer, wm, allowMinimized)
+  -- Badge / “has a palette somewhere”: any layer. Link lines use collect(...).
+  local linked = M.collectConsumerLinkedPaletteWindows(consumer, wm, allowMinimized, { allLayers = true })
   return linked[1]
 end
 

@@ -81,7 +81,7 @@ describe("window_link_visual_controller.lua", function()
     expect(type(cy)).toBe("number")
   end)
 
-  it("shows palette badge and edges when a non-active layer is linked", function()
+  it("shows palette badge when a non-active layer is linked, but edges follow the active layer", function()
     local wm = WM.new()
     local art = wm:createTileWindow({
       animated = true,
@@ -102,9 +102,11 @@ describe("window_link_visual_controller.lua", function()
       canvas = { getWidth = function() return 640 end, getHeight = function() return 360 end },
     }
 
+    -- Badge still reflects any-layer link.
     expect(LinkVisual.getConsumerLinkedPaletteWindowIncludingMinimized(art, wm)).toBe(romA)
     expect(LinkVisual.innerColorForSlot(art, "layout_palette", wm)[1]).toBe(colors.blue[1])
 
+    -- Hover/always lines only for the active layer (none here).
     local edges = LinkVisual.collectWindowLinkEdges(app)
     local sawA = false
     for _, edge in ipairs(edges) do
@@ -112,20 +114,24 @@ describe("window_link_visual_controller.lua", function()
         sawA = true
       end
     end
-    expect(sawA).toBe(true)
+    expect(sawA).toBe(false)
 
     art.layers[1].paletteData = { winId = romB._id }
     local edges2 = LinkVisual.collectWindowLinkEdges(app)
-    local sawBoth = 0
+    local sawA2, sawB = false, false
     for _, edge in ipairs(edges2) do
-      if edge.fromWin == art and (edge.toWin == romA or edge.toWin == romB) then
-        sawBoth = sawBoth + 1
+      if edge.fromWin == art and edge.toWin == romA then
+        sawA2 = true
+      end
+      if edge.fromWin == art and edge.toWin == romB then
+        sawB = true
       end
     end
-    expect(sawBoth).toBe(2)
+    expect(sawA2).toBe(false)
+    expect(sawB).toBe(true)
   end)
 
-  it("shows PPU palette edges for nametable and sprites when the other layer is active", function()
+  it("PPU palette link lines follow the active layer only", function()
     local wm = WM.new()
     local ppu = wm:createPPUFrameWindow({ title = "PPU", x = 200, y = 10, romRaw = string.rep("\0", 256) })
     local romBg = wm:createRomPaletteWindow({ title = "BG", x = 20, y = 20 })
@@ -144,9 +150,11 @@ describe("window_link_visual_controller.lua", function()
       canvas = { getWidth = function() return 640 end, getHeight = function() return 360 end },
     }
 
+    -- Badge stays blue while any layer has a palette.
     expect(LinkVisual.innerColorForSlot(ppu, "ppu_palette", wm)[1]).toBe(colors.blue[1])
-    local linked = LinkVisual.collectConsumerLinkedPaletteWindows(ppu, wm, true)
-    expect(#linked).toBe(2)
+    expect(#LinkVisual.collectConsumerLinkedPaletteWindows(ppu, wm, true)).toBe(1)
+    expect(#LinkVisual.collectConsumerLinkedPaletteWindows(ppu, wm, true, { allLayers = true })).toBe(2)
+    expect(LinkVisual.collectConsumerLinkedPaletteWindows(ppu, wm, true)[1]).toBe(romSp)
 
     local edges = LinkVisual.collectWindowLinkEdges(app)
     local sawBg, sawSp = false, false
@@ -158,7 +166,7 @@ describe("window_link_visual_controller.lua", function()
         sawSp = true
       end
     end
-    expect(sawBg).toBe(true)
+    expect(sawBg).toBe(false)
     expect(sawSp).toBe(true)
   end)
 
