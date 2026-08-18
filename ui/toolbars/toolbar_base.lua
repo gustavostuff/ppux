@@ -12,6 +12,7 @@ local SpaceHighlightController = require("controllers.window.space_highlight_con
 local WindowCaps = require("controllers.window.window_capabilities")
 local Timer = require("utils.timer_utils")
 local AppTopToolbarController = require("controllers.app.app_top_toolbar_controller")
+local LoveCompat = require("utils.love_compat")
 
 local ToolbarBase = {}
 ToolbarBase.__index = ToolbarBase
@@ -932,6 +933,79 @@ end
 function ToolbarBase:triggerLayerLabelTextFlash(text)
   if type(text) ~= "string" or text == "" then return end
   self:triggerLayerLabelFlash({ text = text })
+end
+
+local function windowShowsAllContent(win)
+  if not win or win._collapsed == true then
+    return false
+  end
+  local cols = math.max(1, math.floor(tonumber(win.cols) or 1))
+  local rows = math.max(1, math.floor(tonumber(win.rows) or 1))
+  local visibleCols = tonumber(win.visibleCols) or cols
+  local visibleRows = tonumber(win.visibleRows) or rows
+  return visibleCols >= cols and visibleRows >= rows
+end
+
+local function headerExpandAllowed(win)
+  if not win or WindowCaps.isAnyPaletteWindow(win) then
+    return false
+  end
+  return not windowShowsAllContent(win)
+end
+
+function ToolbarBase:updateCollapseIcon()
+  if not self.collapseButton or not self.window then
+    return
+  end
+  local chrome = images.icons and images.icons.chrome
+  if not chrome then
+    return
+  end
+  local expandMode = LoveCompat.isShiftDown() and not WindowCaps.isAnyPaletteWindow(self.window)
+  if expandMode then
+    self.collapseButton.icon = chrome.icon_expand or self.collapseButton.icon
+    self.collapseButton.tooltip = "Expand window"
+    self.collapseButton.enabled = headerExpandAllowed(self.window)
+    return
+  end
+  self.collapseButton.enabled = true
+  if self.window._collapsed then
+    self.collapseButton.icon = chrome.icon_down or self.collapseButton.icon
+  else
+    self.collapseButton.icon = chrome.icon_up or self.collapseButton.icon
+  end
+  self.collapseButton.tooltip = "Collapse window"
+end
+
+function ToolbarBase:_onExpand()
+  local win = self.window
+  if not headerExpandAllowed(win) then
+    return
+  end
+  local wm = self.windowController
+  if wm and type(wm.expandWindow) == "function" then
+    wm:expandWindow(win)
+  else
+    if win._collapsed == true then
+      win._collapsed = false
+    end
+    if type(win.expandContent) == "function" then
+      win:expandContent()
+    end
+  end
+  self:updateCollapseIcon()
+end
+
+function ToolbarBase:_onCollapse()
+  if not self.window then
+    return
+  end
+  if LoveCompat.isShiftDown() and not WindowCaps.isAnyPaletteWindow(self.window) then
+    self:_onExpand()
+    return
+  end
+  self.window._collapsed = not self.window._collapsed
+  self:updateCollapseIcon()
 end
 
 -- Empty updateIcons method - can be overridden by subclasses to update button icons

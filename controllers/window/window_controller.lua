@@ -297,6 +297,20 @@ local function applyWindowChromeLayout(w, s)
   syncCollapseIcon(w)
 end
 
+local function chromeLayoutEqual(a, b)
+  if not a or not b then
+    return a == b
+  end
+  return a.x == b.x
+    and a.y == b.y
+    and a.collapsed == b.collapsed
+    and a.scrollCol == b.scrollCol
+    and a.scrollRow == b.scrollRow
+    and a.zoom == b.zoom
+    and a.visibleCols == b.visibleCols
+    and a.visibleRows == b.visibleRows
+end
+
 local function recordMinimizeAllUndo(self, minimizedWins, beforeFocusedWin)
   if type(minimizedWins) ~= "table" or #minimizedWins == 0 then
     return
@@ -350,6 +364,23 @@ local function recordExpandAllUndo(self, targets)
     type = "window_expand_all",
     wm = self,
     targets = targets,
+  })
+end
+
+local function recordWindowExpandUndo(self, win, beforeLayout, afterLayout)
+  if not win or chromeLayoutEqual(beforeLayout, afterLayout) then
+    return
+  end
+  local undoRedo = getUndoRedoFromCtx()
+  if not (undoRedo and undoRedo.addWindowExpandEvent) then
+    return
+  end
+  undoRedo:addWindowExpandEvent({
+    type = "window_expand",
+    win = win,
+    wm = self,
+    beforeLayout = beforeLayout,
+    afterLayout = afterLayout,
   })
 end
 
@@ -1292,6 +1323,33 @@ function WM:mosaicAll(opts)
   else
     self.focused = nil
   end
+end
+
+--- Show every cell in place (Shift+collapse). Does not move the window.
+function WM:expandWindow(win, opts)
+  opts = opts or {}
+  if not win or win._closed then
+    return false
+  end
+  if WindowCaps.isAnyPaletteWindow(win) then
+    return false
+  end
+  local beforeLayout = snapshotWindowChromeLayout(win)
+  if win._collapsed == true then
+    win._collapsed = false
+  end
+  if type(win.expandContent) == "function" then
+    win:expandContent()
+  end
+  syncCollapseIcon(win)
+  local afterLayout = snapshotWindowChromeLayout(win)
+  if chromeLayoutEqual(beforeLayout, afterLayout) then
+    return false
+  end
+  if opts.recordUndo ~= false then
+    recordWindowExpandUndo(self, win, beforeLayout, afterLayout)
+  end
+  return true
 end
 
 function WM:expandAll(opts)

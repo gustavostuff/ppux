@@ -300,31 +300,8 @@ function HeaderToolbar:mousereleased(x, y, button)
   return false
 end
 
--- Update collapse button icon based on window state
-function HeaderToolbar:updateCollapseIcon()
-  if not self.collapseButton or not self.window then return end
-  
-  -- Use "down" icon when collapsed, "up" icon when expanded
-  if self.window._collapsed then
-    self.collapseButton.icon = images.icons.chrome.icon_down
-  else
-    self.collapseButton.icon = images.icons.chrome.icon_up
-  end
-end
-
 -- Called during draw to ensure icons are up-to-date
 function HeaderToolbar:updateIcons()
-  self:updateCollapseIcon()
-end
-
--- Handle collapse action
-function HeaderToolbar:_onCollapse()
-  if not self.window then return end
-  
-  -- Toggle collapsed state
-  self.window._collapsed = not self.window._collapsed
-  
-  -- Update collapse icon to reflect new state
   self:updateCollapseIcon()
 end
 

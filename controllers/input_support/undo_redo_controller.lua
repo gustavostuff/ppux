@@ -372,6 +372,16 @@ function UndoRedoController:addWindowExpandAllEvent(event)
   return self:_pushEvent(event)
 end
 
+function UndoRedoController:addWindowExpandEvent(event)
+  if not event or event.type ~= "window_expand" or not event.win then
+    return false
+  end
+  if type(event.beforeLayout) ~= "table" or type(event.afterLayout) ~= "table" then
+    return false
+  end
+  return self:_pushEvent(event)
+end
+
 function UndoRedoController:addWindowCollapseAllEvent(event)
   if not event or event.type ~= "window_collapse_all" then
     return false

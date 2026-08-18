@@ -243,6 +243,21 @@ function Window:resizeToMinimum()
   end
 end
 
+--- Grow the viewport to every cell without moving the window.
+function Window:expandContent()
+  local cols = math.max(1, math.floor(tonumber(self.cols) or 1))
+  local rows = math.max(1, math.floor(tonumber(self.rows) or 1))
+  if type(self.visibleCols) == "number" then
+    self.visibleCols = cols
+  end
+  if type(self.visibleRows) == "number" then
+    self.visibleRows = rows
+  end
+  if self.setScroll then
+    self:setScroll(0, 0)
+  end
+end
+
 --- Horizontal mirror preview for this window (body flipped whenever `_mirrorXPreview` is on,
 --- including while unfocused — same as layer draw). Remap pointer X into unmirrored layer space.
 function Window:remapPreviewMirrorScreenXYIfNeeded(px, py)

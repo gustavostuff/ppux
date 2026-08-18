@@ -909,6 +909,57 @@ describe("UndoRedoController - window minimize", function()
     expect(w1._collapsed).toBe(false)
     expect(w2._collapsed).toBe(false)
   end)
+
+  it("expand window records undo; undo restores viewport and collapse", function()
+    local ur = UndoRedoController.new(10)
+    local wm = WM.new()
+    local w = {
+      _closed = false,
+      _collapsed = true,
+      x = 40,
+      y = 80,
+      cols = 8,
+      rows = 6,
+      visibleCols = 2,
+      visibleRows = 3,
+      scrollCol = 2,
+      scrollRow = 1,
+      zoom = 1,
+      expandContent = function(self)
+        self.visibleCols = self.cols
+        self.visibleRows = self.rows
+        self.scrollCol = 0
+        self.scrollRow = 0
+      end,
+    }
+    wm:add(w)
+
+    local prevCtx = rawget(_G, "ctx")
+    _G.ctx = { app = { undoRedo = ur, wm = wm } }
+    expect(wm:expandWindow(w)).toBe(true)
+    _G.ctx = prevCtx
+
+    expect(w._collapsed).toBe(false)
+    expect(w.visibleCols).toBe(8)
+    expect(w.visibleRows).toBe(6)
+    expect(w.x).toBe(40)
+    expect(w.y).toBe(80)
+    expect(#ur.stack).toBe(1)
+    expect(ur.stack[1].type).toBe("window_expand")
+
+    expect(ur:undo({ wm = wm })).toBe(true)
+    expect(w._collapsed).toBe(true)
+    expect(w.visibleCols).toBe(2)
+    expect(w.visibleRows).toBe(3)
+    expect(w.scrollCol).toBe(2)
+    expect(w.x).toBe(40)
+    expect(w.y).toBe(80)
+
+    expect(ur:redo({ wm = wm })).toBe(true)
+    expect(w._collapsed).toBe(false)
+    expect(w.visibleCols).toBe(8)
+    expect(w.scrollCol).toBe(0)
+  end)
 end)
 
 describe("UndoRedoController - ppu frame range", function()

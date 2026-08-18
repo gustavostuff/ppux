@@ -1024,6 +1024,23 @@ local function applyWindowExpandAllEvent(event, direction, app)
   return true
 end
 
+local function applyWindowExpandEvent(event, direction, app)
+  if not (event and event.type == "window_expand") then
+    return false
+  end
+  local wm = event.wm or (app and app.wm)
+  local win = event.win
+  if not (win and wm and wm._applyChromeLayoutSnapshot) then
+    return false
+  end
+  local snap = (direction == "undo") and event.beforeLayout or event.afterLayout
+  if type(snap) ~= "table" then
+    return false
+  end
+  wm:_applyChromeLayoutSnapshot(win, snap)
+  return true
+end
+
 local function applyWindowCollapseAllEvent(event, direction, app)
   if not (event and event.type == "window_collapse_all") then
     return false
@@ -1352,6 +1369,7 @@ M.COMMANDS = {
     apply = applyWindowLinkHandleActivateEvent,
   },
   window_expand_all = { describe = describeStatic("Expand all"), apply = applyWindowExpandAllEvent },
+  window_expand = { describe = describeStatic("Expand window"), apply = applyWindowExpandEvent },
   window_minimize = { describe = describeStatic("Minimize window"), apply = applyWindowMinimizeEvent },
   window_close = { describe = describeStatic("Close window"), apply = applyWindowCloseEvent },
 }
