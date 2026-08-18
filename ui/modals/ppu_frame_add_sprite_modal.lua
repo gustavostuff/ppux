@@ -269,15 +269,55 @@ local function rebuildPanel(self)
   self.panel:setCell(1, buttonRow, { component = self.cancelButton })
   self.panel:setCell(2, buttonRow, { component = self.addButton })
   self.panel:setCell(1, escRow, { text = "Esc) Close" })
+  -- One Esc-row label: limit warning or scan status. Update `.text` in place.
+  self.panel:setCell(2, escRow, {
+    component = self.footerLabel,
+    colspan = 2,
+  })
+end
 
-  local statusText = self._statusText or ""
-  if self:isScannedMode() and statusText ~= "" then
-    self.panel:setCell(2, escRow, {
-      text = statusText,
-      align = "right",
-      colspan = 2,
-    })
-  end
+local function newFooterLabel()
+  return {
+    text = "",
+    isWarning = false,
+    x = 0,
+    y = 0,
+    w = 0,
+    h = 0,
+    setPosition = function(self, x, y)
+      self.x = x or self.x
+      self.y = y or self.y
+    end,
+    setSize = function(self, w, h)
+      self.w = w or self.w
+      self.h = h or self.h
+    end,
+    draw = function(self)
+      local msg = self.text
+      if type(msg) ~= "string" or msg == "" then
+        return
+      end
+      local font = nil
+      if love and love.graphics and love.graphics.getFont then
+        local ok, f = pcall(love.graphics.getFont)
+        if ok then
+          font = f
+        end
+      end
+      local tw = Text.getFontWidth(msg, font)
+      local th = font and font.getHeight and font:getHeight() or 10
+      local marginX = math.floor((self.h or 0) / 2)
+      local x = math.floor((self.x + (self.w or 0)) - marginX - tw)
+      local y = self.y + math.floor(((self.h or th) - th) * 0.5)
+      local color = self.isWarning and colors:modalWarningColor()
+        or colors:chromeTextIconsColorNonFocused()
+      Text.print(msg, x, y, {
+        color = color,
+        font = font,
+        literalColor = true,
+      })
+    end,
+  }
 end
 
 function Dialog.new()
@@ -371,6 +411,7 @@ function Dialog.new()
       self:_cancel()
     end,
   })
+  self.footerLabel = newFooterLabel()
 
   ModalPanelUtils.applyPanelDefaults(self)
   self.buttonGap = self.colGap
@@ -425,9 +466,27 @@ end
 
 function Dialog:_setStatus(text)
   self._statusText = text
-  if self.panel then
-    rebuildPanel(self)
+  self:_refreshFooterLabel()
+end
+
+function Dialog:_refreshFooterLabel()
+  local label = self.footerLabel
+  if not label then
+    return
   end
+  local warning = self._limitWarning
+  if type(warning) == "string" and warning ~= "" then
+    label.text = warning
+    label.isWarning = true
+    return
+  end
+  if self:isScannedMode() and type(self._statusText) == "string" and self._statusText ~= "" then
+    label.text = self._statusText
+    label.isWarning = false
+    return
+  end
+  label.text = ""
+  label.isWarning = false
 end
 
 local function hitsToUnderlinedSelection(hits)
@@ -578,17 +637,19 @@ function Dialog:_onScanGridSelect(addr)
 
   local committed = self._committedStarts or {}
   local committedSet = startsSet(committed)
-  local allSelected = true
+  -- Cap clamp can keep only part of the last hit. Treat any overlap as
+  -- "this group is selected" so a second click deselects it.
+  local anySelected = false
   for _, startAddr in ipairs(hitStarts) do
-    if not committedSet[startAddr] then
-      allSelected = false
+    if committedSet[startAddr] then
+      anySelected = true
       break
     end
   end
 
   local nextStarts = {}
   local nextSet = {}
-  if allSelected then
+  if anySelected then
     local remove = startsSet(hitStarts)
     for _, startAddr in ipairs(committed) do
       if not remove[startAddr] and not nextSet[startAddr] then
@@ -746,6 +807,7 @@ function Dialog:_refreshLimitWarning()
     msg = Dialog.MSG_MAX_PER_ADD
   end
   self._limitWarning = msg
+  self:_refreshFooterLabel()
 end
 
 function Dialog:_onGridSelect(addr, opts)
@@ -813,6 +875,7 @@ function Dialog:show(opts)
   self._scanComputed = false
   self._statusText = nil
   self._committedStarts = {}
+  self:_refreshFooterLabel()
   if self.scannedModeCheckbox then
     self.scannedModeCheckbox:setChecked(false, { silent = true })
   end
@@ -913,6 +976,7 @@ function Dialog:hide()
   self._committedStarts = {}
   self._occupiedStarts = {}
   self._minimapOccupiedStarts = {}
+  self:_refreshFooterLabel()
   if self.hexGrid then
     self.hexGrid.replaceSelect = false
     self.hexGrid:setUserSelectedStarts({})
@@ -971,6 +1035,7 @@ function Dialog:_confirm()
       starts = filtered
       if #starts == 0 then
         self._limitWarning = Dialog.MSG_ALREADY_IN_LAYER
+        self:_refreshFooterLabel()
         return false
       end
     end
@@ -1119,32 +1184,6 @@ function Dialog:draw(canvas)
   self._boxX, self._boxY, self._boxW, self._boxH = ModalPanelUtils.centerPanel(self.panel, canvas, self)
   self:_syncPreviewHoverFromGrid()
   self.panel:draw()
-  self:_drawLimitWarning()
-end
-
-function Dialog:_drawLimitWarning()
-  local msg = self._limitWarning
-  if type(msg) ~= "string" or msg == "" then
-    return
-  end
-  if not (self._boxX and self._boxY and self._boxW and self._boxH) then
-    return
-  end
-  local font = nil
-  if love and love.graphics and love.graphics.getFont then
-    local ok, f = pcall(love.graphics.getFont)
-    if ok then font = f end
-  end
-  local tw = Text.getFontWidth(msg, font)
-  local th = font and font.getHeight and font:getHeight() or 10
-  local pad = math.max(2, math.floor(tonumber(self.padding) or 2))
-  local x = self._boxX + self._boxW - pad - tw
-  local y = self._boxY + self._boxH - pad - th
-  Text.print(msg, x, y, {
-    color = colors:modalWarningColor(),
-    font = font,
-    literalColor = true,
-  })
 end
 
 Dialog._hitsToUnderlinedSelection = hitsToUnderlinedSelection
