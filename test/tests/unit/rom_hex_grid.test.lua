@@ -553,4 +553,53 @@ describe("RomHexGrid", function()
     grid.uniformUnderlineColor = { 1, 1, 1, 1 }
     expect(grid:_underlineColorForStart(0x10)[1]).toBe(1)
   end)
+
+  it("overview track skips overlapping 1px markers (first marker wins)", function()
+    local trackH = RomHexGrid.ROWS * RomHexGrid.CELL_H
+    local romLen = 256 * 1024
+    local stacked = {}
+    for i = 1, 400 do
+      stacked[i] = { offset = 0x100, color = "red", groupCount = 1, groupSize = 8 }
+    end
+    expect(RomHexGrid.countOverviewTrackDrawRuns(stacked, romLen, trackH)).toBe(1)
+
+    local ends = {
+      { offset = 0, color = "red", groupCount = 1, groupSize = 8 },
+      { offset = romLen - 8, color = "green", groupCount = 1, groupSize = 8 },
+    }
+    expect(RomHexGrid.countOverviewTrackDrawRuns(ends, romLen, trackH)).toBe(2)
+
+    local manySamePixel = {}
+    for i = 1, 80 do
+      manySamePixel[i] = {
+        offset = 1000 + i * 8,
+        color = "blue",
+        groupCount = 1,
+        groupSize = 8,
+      }
+    end
+    local runs = RomHexGrid.countOverviewTrackDrawRuns(manySamePixel, romLen, trackH)
+    expect(runs <= trackH).toBe(true)
+    expect(runs < #manySamePixel).toBe(true)
+  end)
+
+  it("zoom track only counts markers that intersect the visible window", function()
+    local markers = {}
+    for i = 1, 200 do
+      markers[i] = {
+        offset = i * 64,
+        color = "red",
+        groupCount = 1,
+        groupSize = 8,
+      }
+    end
+    local romLen = 64 * 256
+    local rangeStart = 16 * 64
+    local rangeLen = 16 * 16
+    local visible = RomHexGrid.countZoomTrackVisibleMarkers(markers, romLen, rangeStart, rangeLen)
+    expect(visible > 0).toBe(true)
+    expect(visible < #markers).toBe(true)
+    expect(RomHexGrid.countZoomTrackVisibleMarkers(markers, romLen, 0, 80)).toBe(1)
+    expect(RomHexGrid.countZoomTrackVisibleMarkers(markers, romLen, romLen - 8, 8)).toBe(0)
+  end)
 end)

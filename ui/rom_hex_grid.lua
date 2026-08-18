@@ -1142,6 +1142,30 @@ local function startsCoveringAddr(starts, addr, span, spanByStart)
   return covering
 end
 
+--- Starts whose [start, start+span) overlaps [rangeStart, rangeEnd] (inclusive end).
+local function startsOverlappingByteRange(starts, spanByStart, defaultSpan, rangeStart, rangeEnd)
+  defaultSpan = math.max(1, math.floor(tonumber(defaultSpan) or 1))
+  rangeStart = math.floor(tonumber(rangeStart) or 0)
+  rangeEnd = math.floor(tonumber(rangeEnd) or rangeStart)
+  local out = {}
+  for _, start in ipairs(starts or {}) do
+    start = math.floor(tonumber(start) or -1)
+    if start >= 0 then
+      local s = defaultSpan
+      if type(spanByStart) == "table" then
+        local mapped = spanByStart[start]
+        if type(mapped) == "number" and mapped >= 1 then
+          s = math.floor(mapped)
+        end
+      end
+      if start <= rangeEnd and (start + s - 1) >= rangeStart then
+        out[#out + 1] = start
+      end
+    end
+  end
+  return out
+end
+
 --- Drop groups that overlap any blocker span so each cell paints one state.
 local function filterStartsOutsideBlockers(starts, spanByStart, defaultSpan, blockers, blockerSpanByStart, blockerDefaultSpan)
   if type(blockers) ~= "table" or #blockers == 0 then
@@ -1269,27 +1293,37 @@ function M:mousepressed(px, py, button, _opts)
     return true
   end
 
+  -- replaceSelect: always report the clicked cell. Caller owns the real selection.
+  -- Do not fall through to addStartGroup — with maxSelectedStarts > 1 an overlap
+  -- would return without emit and swallow toggle clicks (OAM Scan mode).
+  if self.replaceSelect == true then
+    self:_setStarts({ resolved }, resolved, {
+      scrollToReveal = false,
+      emit = true,
+      allowEmpty = true,
+      resetColors = false,
+    })
+    return true
+  end
+
   -- New group would overlap an existing selection (e.g. OAM start 1 byte earlier):
   -- treat as toggle of that selection instead of stacking fills.
-  -- replaceSelect (nametable range) always reports the clicked cell to onSelect instead.
-  if self.replaceSelect ~= true then
-    local conflict = self:findSelectedOverlap(resolved, span)
-    if conflict ~= nil then
-      local nextStarts = {}
-      for _, s in ipairs(self.selectedStarts or {}) do
-        if s ~= conflict then
-          nextStarts[#nextStarts + 1] = s
-        end
+  local conflict = self:findSelectedOverlap(resolved, span)
+  if conflict ~= nil then
+    local nextStarts = {}
+    for _, s in ipairs(self.selectedStarts or {}) do
+      if s ~= conflict then
+        nextStarts[#nextStarts + 1] = s
       end
-      local primary = nextStarts[#nextStarts] or conflict
-      self:_setStarts(nextStarts, primary, {
-        scrollToReveal = self.scrollOnSelect == true,
-        emit = true,
-        allowEmpty = true,
-        resetColors = false,
-      })
-      return true
     end
+    local primary = nextStarts[#nextStarts] or conflict
+    self:_setStarts(nextStarts, primary, {
+      scrollToReveal = self.scrollOnSelect == true,
+      emit = true,
+      allowEmpty = true,
+      resetColors = false,
+    })
+    return true
   end
 
   local nextStarts, primary
@@ -1307,7 +1341,7 @@ function M:mousepressed(px, py, button, _opts)
   end
 
   self:_setStarts(nextStarts, primary, {
-    scrollToReveal = self.scrollOnSelect == true and self.replaceSelect ~= true,
+    scrollToReveal = self.scrollOnSelect == true,
     emit = true,
     resetColors = self.maxSelectedStarts == 1,
   })
@@ -1432,6 +1466,80 @@ local function drawFillRect(x, y, w, h)
   )
 end
 
+--- Inclusive pixel rows [y0, y1] on the full-ROM overview track (0-based in trackH).
+local function overviewTrackPixelRange(offset, endOffset, romLen, trackH, rangeStart, rangeLen)
+  rangeStart = math.floor(tonumber(rangeStart) or 0)
+  rangeLen = math.max(1, math.floor(tonumber(rangeLen) or romLen or 1))
+  trackH = math.max(1, math.floor(tonumber(trackH) or 1))
+  local drawStart = math.max(offset, rangeStart)
+  local rangeEnd = rangeStart + rangeLen
+  local drawEnd = math.min(endOffset, rangeEnd)
+  if drawStart >= drawEnd then
+    return nil, nil
+  end
+  local y0 = math.floor((trackH - 1) * ((drawStart - rangeStart) / rangeLen))
+  local y1 = math.floor((trackH - 1) * ((math.min(drawEnd, rangeEnd) - 1 - rangeStart) / rangeLen))
+  if y1 < y0 then
+    y1 = y0
+  end
+  if y0 < 0 then y0 = 0 end
+  if y1 > trackH - 1 then y1 = trackH - 1 end
+  return y0, y1
+end
+
+--- First marker wins per overview pixel. `fn(relY, h, color)` for each free run.
+local function forEachOverviewTrackRun(markers, romLen, trackH, rangeStart, rangeLen, fn)
+  if romLen <= 0 or trackH <= 0 or rangeLen <= 0 then
+    return
+  end
+  local occupied = {}
+  local occupiedCount = 0
+  for _, marker in ipairs(markers or {}) do
+    if occupiedCount >= trackH then
+      return
+    end
+    local offset = marker.offset
+    if type(offset) == "number" and offset >= 0 and offset < romLen then
+      local byteLen = M.minimapMarkerByteLength(marker)
+      local y0, y1 = overviewTrackPixelRange(
+        offset,
+        math.min(romLen, offset + byteLen),
+        romLen,
+        trackH,
+        rangeStart,
+        rangeLen
+      )
+      if y0 ~= nil then
+        local y = y0
+        while y <= y1 do
+          if occupied[y] then
+            y = y + 1
+          else
+            local runY = y
+            while y <= y1 and not occupied[y] do
+              occupied[y] = true
+              occupiedCount = occupiedCount + 1
+              y = y + 1
+            end
+            fn(runY, y - runY, marker.color)
+          end
+        end
+      end
+    end
+  end
+end
+
+--- How many fill rects the full-ROM overview would issue (overlapping pixels skipped).
+function M.countOverviewTrackDrawRuns(markers, romLen, trackH)
+  romLen = math.max(0, math.floor(tonumber(romLen) or 0))
+  trackH = math.max(1, math.floor(tonumber(trackH) or (M.ROWS * M.CELL_H)))
+  local n = 0
+  forEachOverviewTrackRun(markers, romLen, trackH, 0, math.max(1, romLen), function()
+    n = n + 1
+  end)
+  return n
+end
+
 --- Row/column of selectedAddr on the current page, or nil if none / off-screen.
 function M:_selectionCrosshairCell()
   if #(self.selectedStarts or {}) == 0 then
@@ -1464,30 +1572,17 @@ local function drawMinimapMarkersOnTrack(markers, len, trackX, trackY, trackH, r
   trackX = math.floor(trackX)
   trackY = math.floor(trackY)
   trackH = math.floor(trackH)
-  local rangeEnd = rangeStart + rangeLen
-  for _, marker in ipairs(markers or {}) do
-    local offset = marker.offset
-    if type(offset) == "number" and offset >= 0 and offset < len then
-      local byteLen = M.minimapMarkerByteLength(marker)
-      local endOffset = math.min(len, offset + byteLen)
-      -- Clip to the visible byte window for this track.
-      local drawStart = math.max(offset, rangeStart)
-      local drawEnd = math.min(endOffset, rangeEnd)
-      if drawStart < drawEnd then
-        local y0 = math.floor(trackY + (trackH - 1) * ((drawStart - rangeStart) / rangeLen))
-        local y1 = math.floor(trackY + (trackH - 1) * ((math.min(drawEnd, rangeEnd) - 1 - rangeStart) / rangeLen))
-        if y1 < y0 then y1 = y0 end
-        local h = math.max(1, y1 - y0 + 1)
-        local c = colorFromKey(marker.color)
-        love.graphics.setColor(c[1], c[2], c[3], c[4] or 0.9)
-        drawFillRect(trackX, y0, SCROLLBAR_W, h)
-      end
-    end
-  end
+  forEachOverviewTrackRun(markers, len, trackH, rangeStart, rangeLen, function(relY, h, color)
+    local c = colorFromKey(color)
+    love.graphics.setColor(c[1], c[2], c[3], c[4] or 0.9)
+    drawFillRect(trackX, trackY + relY, SCROLLBAR_W, h)
+  end)
 end
 
 --- Zoom track: 1px × 1px per byte (width = cols). OAM groups are typically 4×1 strips;
 --- palette binds are single pixels. Spans that cross a row wrap to the next row.
+--- Markers outside [rangeStart, rangeStart+rangeLen) are skipped; visible bytes
+--- are drawn as horizontal runs (not one rect per byte).
 local function drawMinimapMarkersOnZoomTrack(markers, len, trackX, trackY, trackH, rangeStart, rangeLen, cols)
   if len <= 0 or rangeLen <= 0 or cols < 1 then
     return
@@ -1503,22 +1598,49 @@ local function drawMinimapMarkersOnZoomTrack(markers, len, trackX, trackY, track
     if type(offset) == "number" and offset >= 0 and offset < len then
       local byteLen = M.minimapMarkerByteLength(marker)
       local endOffset = math.min(len, offset + byteLen)
-      local drawStart = math.max(offset, rangeStart)
-      local drawEnd = math.min(endOffset, rangeEnd)
-      if drawStart < drawEnd then
+      if offset < rangeEnd and endOffset > rangeStart then
+        local drawStart = math.max(offset, rangeStart)
+        local drawEnd = math.min(endOffset, rangeEnd)
         local c = colorFromKey(marker.color)
         love.graphics.setColor(c[1], c[2], c[3], c[4] or 0.9)
-        for addr = drawStart, drawEnd - 1 do
+        local addr = drawStart
+        while addr < drawEnd do
           local rel = addr - rangeStart
           local row = math.floor(rel / cols)
-          local col = rel % cols
-          if row >= 0 and row < maxRows then
-            drawFillRect(trackX + col, trackY + row, 1, 1)
+          if row >= maxRows then
+            break
           end
+          local col = rel % cols
+          local run = math.min(drawEnd - addr, cols - col)
+          if run < 1 then
+            break
+          end
+          drawFillRect(trackX + col, trackY + row, run, 1)
+          addr = addr + run
         end
       end
     end
   end
+end
+
+--- Markers whose byte span intersects the zoom window (for tests / culling checks).
+function M.countZoomTrackVisibleMarkers(markers, romLen, rangeStart, rangeLen)
+  romLen = math.max(0, math.floor(tonumber(romLen) or 0))
+  rangeStart = math.floor(tonumber(rangeStart) or 0)
+  rangeLen = math.max(0, math.floor(tonumber(rangeLen) or 0))
+  local rangeEnd = rangeStart + rangeLen
+  local n = 0
+  for _, marker in ipairs(markers or {}) do
+    local offset = marker.offset
+    if type(offset) == "number" and offset >= 0 and offset < romLen then
+      local byteLen = M.minimapMarkerByteLength(marker)
+      local endOffset = math.min(romLen, offset + byteLen)
+      if offset < rangeEnd and endOffset > rangeStart then
+        n = n + 1
+      end
+    end
+  end
+  return n
 end
 
 local function drawScrollThumb(trackX, trackY, trackH, scrollOffset, rangeStart, rangeLen, page)
@@ -1630,9 +1752,14 @@ function M:_forEachGroupRun(gridX, gridY, starts, onRun, opts)
       runCol, runRow, runLen = nil, nil, 0
     end
 
-    for off = 0, span - 1 do
-      local a = start + off
-      if a >= pageStart and a <= pageEnd then
+    local spanEnd = start + span - 1
+    if spanEnd < pageStart or start > pageEnd then
+      -- Entire group is off the current hex page.
+    else
+      local firstOff = math.max(0, pageStart - start)
+      local lastOff = math.min(span - 1, pageEnd - start)
+      for off = firstOff, lastOff do
+        local a = start + off
         local rel = a - pageStart
         local row = math.floor(rel / cols)
         local col = rel % cols
@@ -1644,11 +1771,9 @@ function M:_forEachGroupRun(gridX, gridY, starts, onRun, opts)
           flush()
           runCol, runRow, runLen = col, row, 1
         end
-      else
-        flush()
       end
+      flush()
     end
-    flush()
   end
 end
 
@@ -1991,14 +2116,41 @@ function M:draw()
   love.graphics.line(gridX - 1, gridY, gridX - 1, gridY + M.ROWS * CELL_H)
 
   local len = romLen(self.romRaw)
-  local disabled = self.disabledStarts or {}
-  local underlined = self.underlinedStarts or {}
-  local semi = self.semiSelectedStarts or {}
-  local starts = self.selectedStarts or {}
   local span = self:getGroupSize()
+  local pageStart = self.scrollOffset or 0
+  local pageEnd = pageStart + self:bytesPerPage() - 1
   local underlinedSpanByStart = self._underlinedGroupSizeByStart
   local semiSpanByStart = self._semiGroupSizeByStart
   local selectedSpanByStart = self._selectedGroupSizeByStart
+  -- Covering tests / underlines only need groups that touch the visible page.
+  local disabled = startsOverlappingByteRange(
+    self.disabledStarts or {},
+    nil,
+    span,
+    pageStart,
+    pageEnd
+  )
+  local underlined = startsOverlappingByteRange(
+    self.underlinedStarts or {},
+    underlinedSpanByStart,
+    span,
+    pageStart,
+    pageEnd
+  )
+  local semi = startsOverlappingByteRange(
+    self.semiSelectedStarts or {},
+    semiSpanByStart,
+    span,
+    pageStart,
+    pageEnd
+  )
+  local starts = startsOverlappingByteRange(
+    self.selectedStarts or {},
+    selectedSpanByStart,
+    span,
+    pageStart,
+    pageEnd
+  )
 
   local hoverAddr = nil
   if self._hoverX ~= nil and self._hoverY ~= nil then
@@ -2008,6 +2160,9 @@ function M:draw()
   local boundStarts, boundSpans = nil, nil
   if self.boundAsSelected == true then
     boundStarts, boundSpans = self:_boundMarkerStartsAndSpans()
+    if boundStarts then
+      boundStarts = startsOverlappingByteRange(boundStarts, boundSpans, 1, pageStart, pageEnd)
+    end
   end
 
   -- One paint state per cell: disabled > selected > bound > underlined > semi > default.
