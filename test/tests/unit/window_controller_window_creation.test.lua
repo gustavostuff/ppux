@@ -471,6 +471,7 @@ describe("window_controller.lua - layoutCollapsedStacks", function()
 
     expect(wm:layoutCollapsedStacks({
       mode = "title",
+      collapse = true,
       areaX = 0,
       areaY = 30,
       areaH = 40,
@@ -586,6 +587,7 @@ describe("window_controller.lua - layoutCollapsedStacks", function()
 
     wm:layoutCollapsedStacks({
       mode = "kind",
+      collapse = true,
       areaX = 10,
       areaY = 20,
       areaH = 200,
@@ -639,6 +641,7 @@ describe("window_controller.lua - layoutCollapsedStacks", function()
 
     wm:layoutCollapsedStacks({
       mode = "title",
+      collapse = true,
       areaX = 0,
       areaY = 0,
       areaH = 120,
@@ -785,6 +788,7 @@ describe("window_controller.lua - layoutCollapsedStacks", function()
 
     wm:layoutCollapsedStacks({
       mode = "kind",
+      collapse = true,
       areaX = 0,
       areaY = 0,
       areaH = 200,
@@ -800,6 +804,67 @@ describe("window_controller.lua - layoutCollapsedStacks", function()
     expect(pal._collapsed).toBe(true)
     local frameW = frame.visibleCols * frame.cellW * frame.zoom
     expect(pal.x >= frame.x + frameW + 8).toBe(true)
+  end)
+
+  it("sorts and stacks without collapsing when collapse is false", function()
+    local wm = WM.new()
+    local wBeta = makeWindow({ title = "Beta" })
+    local wAlpha = makeWindow({ title = "Alpha" })
+    wm.windows = { wBeta, wAlpha }
+
+    expect(wm:layoutCollapsedStacks({
+      mode = "title",
+      collapse = false,
+      areaX = 0,
+      areaY = 30,
+      areaH = 200,
+      areaW = 200,
+      gapX = 8,
+      gapY = 7,
+      recordUndo = false,
+    })).toBe(true)
+
+    expect(wAlpha._collapsed).toBe(false)
+    expect(wBeta._collapsed).toBe(false)
+    expect(wAlpha.x).toBe(wBeta.x)
+    expect(wAlpha.x).toBe(0)
+    expect(wAlpha.y).toBe(45)
+    -- Same header-stack spacing as collapsed layout (bodies overlap).
+    expect(wBeta.y).toBe(67)
+    expect(wm.windows[1]).toBe(wAlpha)
+    expect(wm.windows[2]).toBe(wBeta)
+    expect(wAlpha._z).toBeLessThan(wBeta._z)
+  end)
+
+  it("raises z-index down each column so titles stay in front", function()
+    local wm = WM.new()
+    local wBeta = makeWindow({ title = "Beta" })
+    local wAlpha = makeWindow({ title = "Alpha" })
+    local wGamma = makeWindow({ title = "Gamma" })
+    wm.windows = { wGamma, wBeta, wAlpha }
+
+    wm:layoutCollapsedStacks({
+      mode = "title",
+      collapse = false,
+      areaX = 0,
+      areaY = 30,
+      areaH = 40,
+      areaW = 200,
+      gapX = 8,
+      gapY = 7,
+      recordUndo = false,
+    })
+
+    -- Col1 Alpha/Beta, col2 Gamma. Lower in a column is higher z.
+    expect(wAlpha.y).toBe(45)
+    expect(wBeta.y).toBe(67)
+    expect(wGamma.y).toBe(45)
+    expect(wGamma.x).toBeGreaterThan(wAlpha.x)
+    expect(wm.windows[1]).toBe(wAlpha)
+    expect(wm.windows[2]).toBe(wBeta)
+    expect(wm.windows[3]).toBe(wGamma)
+    expect(wAlpha._z).toBeLessThan(wBeta._z)
+    expect(wBeta._z).toBeLessThan(wGamma._z)
   end)
 end)
 

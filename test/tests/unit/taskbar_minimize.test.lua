@@ -647,7 +647,10 @@ describe("taskbar.lua - minimized windows strip", function()
     wm:add(wB)
     wm:add(wA)
 
+    local prevCollapse = WM.LAYOUT_STACKS_COLLAPSE_WINDOWS
+    WM.LAYOUT_STACKS_COLLAPSE_WINDOWS = true
     taskbar.sortAlphaButton.action()
+    WM.LAYOUT_STACKS_COLLAPSE_WINDOWS = prevCollapse
 
     expect(wA._collapsed).toBe(true)
     expect(wB._collapsed).toBe(true)

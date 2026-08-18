@@ -22,6 +22,9 @@ local PatternTableDisplayController = require("controllers.game_art.pattern_tabl
 local WM = {}
 WM.__index = WM
 
+--[[ Sort-by-title / sort-by-kind: set false to pack stacks without collapsing windows. ]]
+WM.LAYOUT_STACKS_COLLAPSE_WINDOWS = true
+
 local function bumpStructureGeneration(self)
   self._structureGeneration = (self._structureGeneration or 0) + 1
 end
@@ -1858,6 +1861,8 @@ end
 --- Title mode: top-to-bottom, then left-to-right columns.
 --- Kind mode: each stack is one window kind (PPU Frames, ROM palettes, ...).
 --- Extra columns shrink together if they cannot all fit in areaW.
+--- Set WM.LAYOUT_STACKS_COLLAPSE_WINDOWS = false (or opts.collapse = false)
+--- to keep windows expanded; positions still match the collapsed header stack.
 function WM:layoutCollapsedStacks(opts)
   opts = opts or {}
   local mode = opts.mode == "kind" and "kind" or "title"
@@ -1869,6 +1874,10 @@ function WM:layoutCollapsedStacks(opts)
   local areaW = opts.areaW
   local gapX = opts.gapX or 8
   local gapY = opts.gapY or 7
+  local collapseWindows = WM.LAYOUT_STACKS_COLLAPSE_WINDOWS
+  if opts.collapse ~= nil then
+    collapseWindows = opts.collapse == true
+  end
 
   local originalIndex = {}
   local visible, minimized, closed = {}, {}, {}
@@ -1932,7 +1941,9 @@ function WM:layoutCollapsedStacks(opts)
     end
   end
 
-  collapseWindowsForHeaderStack(visible, { keepCurrentZoom = true })
+  if collapseWindows then
+    collapseWindowsForHeaderStack(visible, { keepCurrentZoom = true })
+  end
 
   local columns
   if mode == "kind" then
@@ -1965,8 +1976,17 @@ function WM:layoutCollapsedStacks(opts)
     evenSpread = true,
   })
 
+  -- Ascending z per column (top-to-bottom, then left-to-right) so titles stay
+  -- visible when expanded bodies overlap the next header.
+  local stacked = {}
+  for _, col in ipairs(columns) do
+    for _, w in ipairs(col) do
+      stacked[#stacked + 1] = w
+    end
+  end
+
   self.windows = {}
-  for _, w in ipairs(visible) do
+  for _, w in ipairs(stacked) do
     self.windows[#self.windows + 1] = w
   end
   for _, w in ipairs(minimized) do
@@ -1977,10 +1997,7 @@ function WM:layoutCollapsedStacks(opts)
   end
   normalizeAlwaysOnTopOrdering(self)
 
-  self.focused = visible[#visible]
-  if self.focused then
-    self:bringToFront(self.focused)
-  end
+  self.focused = stacked[#stacked]
 
   if recordUndo then
     local afterLayout = {}
