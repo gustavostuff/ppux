@@ -614,6 +614,48 @@ describe("taskbar.lua - minimized windows strip", function()
     })
   end)
 
+  it("sort by title also collapses and stacks non-minimized windows", function()
+    local wm = WM.new()
+    local app = {
+      wm = wm,
+      canvas = {
+        getWidth = function() return 320 end,
+        getHeight = function() return 240 end,
+      },
+    }
+    local taskbar = Taskbar.new(app, { h = 15 })
+    wm.taskbar = taskbar
+    taskbar:updateLayout(320, 240)
+
+    local function makeWin(title)
+      return {
+        title = title,
+        kind = "ppu_frame",
+        headerH = 15,
+        x = 200,
+        y = 180,
+        _closed = false,
+        _minimized = false,
+        _collapsed = false,
+        getScreenRect = function(self)
+          return self.x, self.y, 20, 40
+        end,
+      }
+    end
+    local wB = makeWin("Beta")
+    local wA = makeWin("Alpha")
+    wm:add(wB)
+    wm:add(wA)
+
+    taskbar.sortAlphaButton.action()
+
+    expect(wA._collapsed).toBe(true)
+    expect(wB._collapsed).toBe(true)
+    expect(wA.x).toBe(wB.x)
+    expect(wA.x).toBe(30)
+    expect(wA.y).toBeLessThan(wB.y)
+  end)
+
   it("uses full-opacity button content by default; menus pass explicit normalContentAlpha", function()
     local wm = WM.new()
     local app = {

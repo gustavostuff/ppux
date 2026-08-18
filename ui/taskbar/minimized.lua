@@ -179,6 +179,41 @@ function M.install(Taskbar, Helpers)
     return true
   end
 
+  local function layoutOpenWindowStacks(self, mode, descending)
+    local wm = self.app and self.app.wm
+    if not (wm and wm.layoutCollapsedStacks) then
+      return false
+    end
+    local area
+    if self.app and self.app.getWindowStackArea then
+      area = self.app:getWindowStackArea()
+    end
+    if type(area) ~= "table" then
+      local canvas = self.app and self.app.canvas
+      local canvasW = (canvas and canvas.getWidth and canvas:getWidth()) or 640
+      local canvasH = (canvas and canvas.getHeight and canvas:getHeight()) or 360
+      local taskbarY = self.y or canvasH
+      area = {
+        areaX = 30,
+        areaY = 30,
+        areaW = math.max(1, canvasW - 38),
+        areaH = math.max(1, taskbarY - 38),
+        gapX = 8,
+        gapY = 7,
+      }
+    end
+    return wm:layoutCollapsedStacks({
+      mode = mode,
+      descending = descending == true,
+      areaX = area.areaX,
+      areaY = area.areaY,
+      areaW = area.areaW,
+      areaH = area.areaH,
+      gapX = area.gapX or 8,
+      gapY = area.gapY or 7,
+    }) == true
+  end
+
   function Taskbar:_initWindowControls()
     M.MINIMIZED_SCROLL_BUTTON_H = UiScale.buttonSize()
     self.minimizedWindowButtonIcon = images.icons.chrome.icon_circle
@@ -256,7 +291,8 @@ function M.install(Taskbar, Helpers)
           end
           return nil
         end)
-        if didSort then
+        local didLayout = layoutOpenWindowStacks(self, "title", descending)
+        if didSort or didLayout then
           self.sortAlphaAscending = not ascending
           self.sortAlphaButton.icon = self.sortAlphaAscending and sortAZIcon or sortZAIcon
           self.sortAlphaButton.tooltip = self.sortAlphaAscending and "Sort alphabetically (A-Z)" or "Sort alphabetically (Z-A)"
@@ -293,7 +329,8 @@ function M.install(Taskbar, Helpers)
           end
           return nil
         end)
-        if didSort then
+        local didLayout = layoutOpenWindowStacks(self, "kind", descending)
+        if didSort or didLayout then
           self.sortKindAscending = not ascending
           self.sortKindButton.icon = self.sortKindAscending and sortKindAscIcon or sortKindDescIcon
           self.sortKindButton.tooltip = self.sortKindAscending and "Sort by kind (asc)" or "Sort by kind (desc)"

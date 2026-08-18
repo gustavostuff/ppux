@@ -427,6 +427,382 @@ describe("window_controller.lua - sort helpers", function()
   end)
 end)
 
+describe("window_controller.lua - layoutCollapsedStacks", function()
+  local previousCtx
+
+  local function makeWindow(opts)
+    opts = opts or {}
+    return {
+      _closed = false,
+      _minimized = opts.minimized == true,
+      _collapsed = false,
+      title = opts.title or "Win",
+      kind = opts.kind or "ppu_frame",
+      headerH = opts.headerH or 15,
+      x = opts.x or 400,
+      y = opts.y or 400,
+      width = opts.width or 20,
+      setScroll = function(self, c, r)
+        self.scrollCol = c
+        self.scrollRow = r
+      end,
+      getScreenRect = function(self)
+        return self.x, self.y, self.width, 40
+      end,
+    }
+  end
+
+  beforeEach(function()
+    previousCtx = rawget(_G, "ctx")
+    _G.ctx = nil
+  end)
+
+  afterEach(function()
+    _G.ctx = previousCtx
+  end)
+
+  it("stacks non-minimized windows by title, top-to-bottom then left-to-right", function()
+    local wm = WM.new()
+    local wBeta = makeWindow({ title = "Beta" })
+    local wAlpha = makeWindow({ title = "alpha" })
+    local wGamma = makeWindow({ title = "Gamma" })
+    local wMini = makeWindow({ title = "Mini", minimized = true, x = 90, y = 90 })
+    wm.windows = { wBeta, wAlpha, wGamma, wMini }
+
+    expect(wm:layoutCollapsedStacks({
+      mode = "title",
+      areaX = 0,
+      areaY = 30,
+      areaH = 40,
+      areaW = 200,
+      gapX = 8,
+      gapY = 7,
+      recordUndo = false,
+    })).toBe(true)
+
+    expect(wAlpha._collapsed).toBe(true)
+    expect(wBeta._collapsed).toBe(true)
+    expect(wGamma._collapsed).toBe(true)
+    expect(wMini._collapsed).toBe(false)
+    expect(wMini.x).toBe(90)
+    expect(wMini.y).toBe(90)
+
+    -- areaH=40 fits two 15px headers with 7px badge gap; Gamma wraps to column 2.
+    -- Packed widths 20+8+20=48 fit in 200, so leftover is spread: last stack flush right.
+    expect(wAlpha.x).toBe(wBeta.x)
+    expect(wGamma.x).toBeGreaterThan(wAlpha.x)
+    expect(wAlpha.x).toBe(0)
+    expect(wGamma.x).toBe(180)
+    expect(wAlpha.y).toBe(45)
+    expect(wBeta.y).toBe(67)
+    expect(wGamma.y).toBe(45)
+  end)
+
+  it("moves later stacks right so headers do not overlap, even off the viewport", function()
+    local wm = WM.new()
+    local w1 = makeWindow({ title = "A", width = 40 })
+    local w2 = makeWindow({ title = "B", width = 40 })
+    local w3 = makeWindow({ title = "C", width = 40 })
+    wm.windows = { w1, w2, w3 }
+
+    wm:layoutCollapsedStacks({
+      mode = "title",
+      areaX = 0,
+      areaY = 0,
+      areaH = 15,
+      areaW = 50,
+      gapX = 8,
+      gapY = 2,
+      recordUndo = false,
+    })
+
+    -- 3x40 plus gaps cannot fit in 50px: stubs cannot resize, so hang off the right.
+    expect(w1.x).toBe(0)
+    expect(w2.x).toBe(48)
+    expect(w3.x).toBe(96)
+    expect(w1.x + 40 + 8).toBe(w2.x)
+    expect(w2.x + 40 + 8).toBe(w3.x)
+    expect(w3.x + 40).toBeGreaterThan(50)
+  end)
+
+  it("shrinks every column together so the last stack stays on-screen", function()
+    local wm = WM.new()
+    local function gridWin(title)
+      return {
+        _closed = false,
+        _minimized = false,
+        _collapsed = false,
+        title = title,
+        kind = "ppu_frame",
+        headerH = 15,
+        x = 0,
+        y = 0,
+        zoom = 1,
+        cellW = 8,
+        cellH = 8,
+        cols = 20,
+        rows = 8,
+        visibleCols = 5,
+        visibleRows = 8,
+        minWindowSize = 0,
+        getScreenRect = function(self)
+          return self.x, self.y, self.visibleCols * self.cellW * self.zoom, 40
+        end,
+      }
+    end
+    local w1 = gridWin("A")
+    local w2 = gridWin("B")
+    local w3 = gridWin("C")
+    wm.windows = { w1, w2, w3 }
+
+    wm:layoutCollapsedStacks({
+      mode = "title",
+      areaX = 0,
+      areaY = 0,
+      areaH = 15,
+      areaW = 50,
+      gapX = 8,
+      gapY = 7,
+      recordUndo = false,
+    })
+
+    local w1w = w1.visibleCols * 8
+    local w2w = w2.visibleCols * 8
+    local w3w = w3.visibleCols * 8
+    expect(w1.visibleCols).toBeLessThan(5)
+    expect(w2.visibleCols).toBeLessThan(5)
+    expect(w3.visibleCols).toBeLessThan(5)
+    expect(w2.x >= w1.x + w1w + 8).toBe(true)
+    expect(w3.x >= w2.x + w2w + 8).toBe(true)
+    expect(w3.x + w3w <= 50).toBe(true)
+  end)
+
+  it("puts each kind in its own header stack", function()
+    local wm = WM.new()
+    local ppuA = makeWindow({ title = "Frame B", kind = "ppu_frame" })
+    local ppuB = makeWindow({ title = "Frame A", kind = "ppu_frame" })
+    local pal = makeWindow({ title = "Colors", kind = "rom_palette" })
+    wm.windows = { pal, ppuA, ppuB }
+
+    wm:layoutCollapsedStacks({
+      mode = "kind",
+      areaX = 10,
+      areaY = 20,
+      areaH = 200,
+      areaW = 400,
+      gapX = 8,
+      gapY = 2,
+      recordUndo = false,
+    })
+
+    expect(ppuB.x).toBe(10)
+    expect(ppuA.x).toBe(10)
+    expect(ppuB.y).toBeLessThan(ppuA.y)
+    expect(pal.x).toBe(390)
+    expect(pal.y).toBe(35)
+    expect(ppuA._collapsed).toBe(true)
+    expect(pal._collapsed).toBe(true)
+  end)
+
+  it("skips layout when every open window is minimized", function()
+    local wm = WM.new()
+    local w = makeWindow({ title = "Only", minimized = true, x = 11, y = 22 })
+    wm.windows = { w }
+    expect(wm:layoutCollapsedStacks({
+      mode = "title",
+      recordUndo = false,
+    })).toBe(false)
+    expect(w.x).toBe(11)
+    expect(w.y).toBe(22)
+    expect(w._collapsed).toBe(false)
+  end)
+
+  it("does not shrink a window that already fits its column slot", function()
+    local wm = WM.new()
+    local w = makeWindow({ title = "Zoomed", width = 160 })
+    w.zoom = 4
+    w.cellW = 8
+    w.cellH = 8
+    w.cols = 5
+    w.rows = 16
+    w.visibleCols = 5
+    w.visibleRows = 16
+    w.minWindowSize = 64
+    w.getScreenRect = function(self)
+      return self.x, self.y, self.visibleCols * self.cellW * self.zoom, 40
+    end
+    w.resizeToMinimum = function(self)
+      self.visibleCols = 2
+      self.visibleRows = 2
+    end
+    wm.windows = { w }
+
+    wm:layoutCollapsedStacks({
+      mode = "title",
+      areaX = 0,
+      areaY = 0,
+      areaH = 120,
+      areaW = 200,
+      recordUndo = false,
+    })
+
+    -- 5*8*4=160 fits in a 200px single-column slot; do not min-resize.
+    expect(w.visibleCols).toBe(5)
+    expect(w.visibleRows).toBe(16)
+    expect(w.zoom).toBe(4)
+    expect(w.x).toBe(0)
+    expect(w._collapsed).toBe(true)
+  end)
+
+  it("shrinks via resize when a header would overlap the next column", function()
+    local wm = WM.new()
+    local function gridWin(title)
+      return {
+        _closed = false,
+        _minimized = false,
+        _collapsed = false,
+        title = title,
+        kind = "ppu_frame",
+        headerH = 15,
+        x = 0,
+        y = 0,
+        zoom = 1,
+        cellW = 8,
+        cellH = 8,
+        cols = 32,
+        rows = 30,
+        visibleCols = 32,
+        visibleRows = 30,
+        minWindowSize = 64,
+        getScreenRect = function(self)
+          return self.x, self.y, self.visibleCols * self.cellW * self.zoom, 40
+        end,
+      }
+    end
+    local left = gridWin("A")
+    local right = gridWin("B")
+    wm.windows = { left, right }
+
+    wm:layoutCollapsedStacks({
+      mode = "title",
+      areaX = 0,
+      areaY = 0,
+      areaH = 20,
+      areaW = 200,
+      gapX = 8,
+      recordUndo = false,
+    })
+
+    -- Two columns: 32*8=256 overlaps the equal slot, so shrink, then stacks
+    -- are shifted so the headers no longer overlap.
+    expect(left.x).toBe(0)
+    expect(left.visibleCols).toBeLessThan(32)
+    expect(right.visibleCols).toBeLessThan(32)
+    local leftW = left.visibleCols * 8
+    local rightW = right.visibleCols * 8
+    expect(right.x >= left.x + leftW + 8).toBe(true)
+    expect(right.x + rightW).toBe(200)
+  end)
+
+  it("zooms in when the next zoom still fits the column slot", function()
+    local wm = WM.new()
+    local steps = { 1, 2, 3, 4, 8 }
+    local w = makeWindow({ title = "Small", width = 16 })
+    w.zoom = 1
+    w.cellW = 8
+    w.cellH = 8
+    w.cols = 4
+    w.rows = 4
+    w.visibleCols = 2
+    w.visibleRows = 2
+    w.minWindowSize = 0
+    w.getZoomLevel = function(self)
+      return self.zoom
+    end
+    w.addZoomLevel = function(self, delta)
+      local idx = 1
+      for i, step in ipairs(steps) do
+        if step == self.zoom then
+          idx = i
+          break
+        end
+      end
+      idx = math.max(1, math.min(#steps, idx + (delta or 0)))
+      self.zoom = steps[idx]
+    end
+    w.getScreenRect = function(self)
+      return self.x, self.y, self.visibleCols * self.cellW * self.zoom, 40
+    end
+    wm.windows = { w }
+
+    wm:layoutCollapsedStacks({
+      mode = "title",
+      areaX = 0,
+      areaY = 0,
+      areaH = 120,
+      areaW = 80,
+      recordUndo = false,
+    })
+
+    -- 2*8*1=16; zoom 4 → 64 fits in 80; zoom 8 → 128 does not.
+    expect(w.zoom).toBe(4)
+    expect(w.x).toBe(0)
+  end)
+
+  it("does not resize palette windows even when they overlap a slot", function()
+    local wm = WM.new()
+    local pal = makeWindow({ title = "Colors", kind = "rom_palette", width = 300 })
+    pal.zoom = 2
+    pal.cellW = 24
+    pal.cellH = 16
+    pal.cols = 4
+    pal.rows = 4
+    pal.visibleCols = 4
+    pal.visibleRows = 4
+    pal.resizeToMinimum = function(self)
+      self.visibleCols = 1
+      self.visibleRows = 1
+    end
+    pal.addZoomLevel = function(self, delta)
+      self.zoom = (self.zoom or 1) + (delta or 0)
+    end
+    pal.getScreenRect = function(self)
+      return self.x, self.y, self.visibleCols * self.cellW * self.zoom, 40
+    end
+    local frame = makeWindow({ title = "Frame", kind = "ppu_frame", width = 32 })
+    frame.zoom = 1
+    frame.cellW = 8
+    frame.cellH = 8
+    frame.cols = 8
+    frame.rows = 8
+    frame.visibleCols = 4
+    frame.visibleRows = 4
+    frame.minWindowSize = 0
+    frame.getScreenRect = function(self)
+      return self.x, self.y, self.visibleCols * self.cellW * self.zoom, 40
+    end
+    wm.windows = { pal, frame }
+
+    wm:layoutCollapsedStacks({
+      mode = "kind",
+      areaX = 0,
+      areaY = 0,
+      areaH = 200,
+      areaW = 200,
+      gapX = 8,
+      recordUndo = false,
+    })
+
+    expect(pal.visibleCols).toBe(4)
+    expect(pal.visibleRows).toBe(4)
+    expect(pal.zoom).toBe(2)
+    expect(frame._collapsed).toBe(true)
+    expect(pal._collapsed).toBe(true)
+    local frameW = frame.visibleCols * frame.cellW * frame.zoom
+    expect(pal.x >= frame.x + frameW + 8).toBe(true)
+  end)
+end)
+
 describe("window_controller.lua - close and reopen", function()
   it("closes a focused window and can reopen it with focus restored", function()
     local wm = WM.new()

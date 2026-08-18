@@ -13,6 +13,7 @@ local SpriteController   = require("controllers.sprite.sprite_controller")
 local ToolbarController  = require("controllers.window.toolbar_controller")
 local WindowCaps = require("controllers.window.window_capabilities")
 local UiScale = require("ui.ui_scale")
+local TaskbarHelpers = require("ui.taskbar.helpers")
 local MouseWindowChrome = require("controllers.input.mouse_window_chrome_controller")
 local PaletteLinkController = require("controllers.palette.palette_link_controller")
 local PaletteLinkRenderController = require("controllers.palette.palette_link_render_controller")
@@ -362,6 +363,346 @@ local function zoomOutWindowToMinimum(win)
       break
     end
   end
+end
+
+local function windowHeaderH(win)
+  return (win and win.headerH) or UiScale.windowHeaderHeight()
+end
+
+local function windowScreenWidth(win)
+  if win and type(win.getScreenRect) == "function" then
+    local _, _, ww = win:getScreenRect()
+    return tonumber(ww) or 0
+  end
+  return 0
+end
+
+local function collapseWindowsForHeaderStack(windows, opts)
+  opts = opts or {}
+  local keepCurrentZoom = opts.keepCurrentZoom == true
+  for _, w in ipairs(windows or {}) do
+    if not keepCurrentZoom then
+      zoomOutWindowToMinimum(w)
+    end
+    if w.setScroll then
+      w:setScroll(0, 0)
+    else
+      w.scrollCol = 0
+      w.scrollRow = 0
+    end
+    w._collapsed = true
+    syncCollapseIcon(w)
+  end
+end
+
+local function windowMinPixelSize(win)
+  local value = tonumber(win and win.minWindowSize)
+  if value ~= nil then
+    return math.max(0, value)
+  end
+  return 64
+end
+
+local function zoomAnchoredLeft(win, delta)
+  if not win or type(win.addZoomLevel) ~= "function" then
+    return false
+  end
+  local before = (type(win.getZoomLevel) == "function" and win:getZoomLevel()) or win.zoom
+  win:addZoomLevel(delta, win.x, win.y)
+  local after = (type(win.getZoomLevel) == "function" and win:getZoomLevel()) or win.zoom
+  return after ~= before
+end
+
+--- Shrink (resize handle, then zoom out) only when the header would overlap the
+--- next column. Zoom in — and expand visible cols — while the header still fits.
+local function fitWindowToMaxWidth(win, maxW)
+  if not win or isPaletteWindow(win) then
+    return
+  end
+  maxW = math.max(1, math.floor(tonumber(maxW) or 1))
+
+  local function applyScroll()
+    if type(win.setScroll) == "function" then
+      win:setScroll(win.scrollCol or 0, win.scrollRow or 0)
+    end
+  end
+
+  local function currentW()
+    return windowScreenWidth(win)
+  end
+
+  local function cellZoom()
+    local z = (type(win.getZoomLevel) == "function" and win:getZoomLevel()) or win.zoom or 1
+    local cw = tonumber(win.cellW) or 8
+    local ch = tonumber(win.cellH) or 8
+    return z, math.max(1, cw), math.max(1, ch)
+  end
+
+  -- Overlap: shrink visible cols like dragging the resize handle inward.
+  if currentW() > maxW and type(win.visibleCols) == "number" then
+    local z, cw = cellZoom()
+    local minSize = windowMinPixelSize(win)
+    local minCols = math.max(1, math.ceil(minSize / math.max(1, cw * z)))
+    local colsCap = tonumber(win.cols) or win.visibleCols
+    minCols = math.max(1, math.min(colsCap, minCols))
+    local targetCols = math.floor(maxW / math.max(1, cw * z))
+    targetCols = math.max(minCols, math.min(win.visibleCols, targetCols))
+    if targetCols < win.visibleCols then
+      win.visibleCols = targetCols
+      applyScroll()
+    end
+  end
+
+  -- Still overlapping: zoom out, left edge stays put.
+  for _ = 1, 16 do
+    if currentW() <= maxW then
+      break
+    end
+    if not zoomAnchoredLeft(win, -1) then
+      break
+    end
+  end
+
+  -- Spare slot: zoom in while the next step still fits.
+  for _ = 1, 16 do
+    if not zoomAnchoredLeft(win, 1) then
+      break
+    end
+    if currentW() > maxW then
+      zoomAnchoredLeft(win, -1)
+      break
+    end
+  end
+
+  -- Spare slot: grow visible cols like dragging the resize handle outward.
+  if type(win.visibleCols) == "number" then
+    local z, cw = cellZoom()
+    local colsCap = tonumber(win.cols) or win.visibleCols
+    local maxCols = math.floor(maxW / math.max(1, cw * z))
+    maxCols = math.max(win.visibleCols, math.min(colsCap, maxCols))
+    if maxCols > win.visibleCols then
+      win.visibleCols = maxCols
+      applyScroll()
+    end
+  end
+end
+
+--- Left edges for header columns. With `evenSpread`, each column gets an equal
+--- slice of areaW so stacks use the left and right of the work area.
+local function headerColumnXs(columns, areaX, areaW, gapX, evenSpread)
+  local n = #(columns or {})
+  local xs = {}
+  if n == 0 then
+    return xs
+  end
+  gapX = tonumber(gapX) or 8
+
+  if evenSpread == true and areaW and areaW > 0 then
+    for i = 1, n do
+      xs[i] = math.floor(areaX + (i - 1) * (areaW / n) + 0.5)
+    end
+    return xs
+  end
+
+  local firstW = windowScreenWidth(columns[1][1])
+  local stride = firstW + gapX
+  for i = 1, n do
+    xs[i] = areaX + (i - 1) * stride
+  end
+  return xs
+end
+
+--- Greedy top-to-bottom columns of collapsed headers. First item always fits.
+local function packWindowsIntoHeaderColumns(windows, areaH, gapY)
+  local columns = {}
+  local col = {}
+  local usedH = 0
+  areaH = math.max(1, tonumber(areaH) or 1)
+  gapY = tonumber(gapY) or 0
+  for _, w in ipairs(windows or {}) do
+    local itemH = windowHeaderH(w)
+    if #col > 0 and (usedH + itemH) > areaH then
+      columns[#columns + 1] = col
+      col = {}
+      usedH = 0
+    end
+    col[#col + 1] = w
+    usedH = usedH + itemH + gapY
+  end
+  if #col > 0 then
+    columns[#columns + 1] = col
+  end
+  return columns
+end
+
+local function columnMaxWidth(col)
+  local maxW = 0
+  for _, w in ipairs(col or {}) do
+    local ww = windowScreenWidth(w)
+    if ww > maxW then
+      maxW = ww
+    end
+  end
+  return maxW
+end
+
+--- Pack columns left-to-right from measured widths so stacks never overlap.
+--- Leftover work-area width is spread between columns (first stays left, last
+--- flush right). Callers shrink columns first when the last stack would clip.
+local function packColumnXsNoOverlap(columns, areaX, areaW, gapX)
+  local n = #(columns or {})
+  local xs = {}
+  if n == 0 then
+    return xs
+  end
+  gapX = tonumber(gapX) or 8
+  local widths = {}
+  for i, col in ipairs(columns) do
+    widths[i] = columnMaxWidth(col)
+  end
+  xs[1] = areaX
+  for i = 2, n do
+    xs[i] = xs[i - 1] + widths[i - 1] + gapX
+  end
+  if n > 1 and areaW and areaW > 0 then
+    local extra = areaX + areaW - (xs[n] + widths[n])
+    if extra > 0 then
+      for i = 2, n do
+        xs[i] = math.floor(xs[i] + extra * (i - 1) / (n - 1) + 0.5)
+      end
+      for i = 2, n do
+        local minX = xs[i - 1] + widths[i - 1] + gapX
+        if xs[i] < minX then
+          xs[i] = minX
+        end
+      end
+    end
+  end
+  return xs
+end
+
+--- When packed stacks would clip the last column, scale every column width by
+--- the same factor so the group fits in areaW (gaps stay fixed). Palettes and
+--- min-size windows that cannot shrink may still overflow.
+local function shrinkColumnsToFitWorkArea(columns, areaW, gapX)
+  local n = #(columns or {})
+  if n == 0 or not (areaW and areaW > 0) then
+    return
+  end
+  gapX = tonumber(gapX) or 8
+  local available = areaW - math.max(0, n - 1) * gapX
+  if available < 1 then
+    return
+  end
+
+  for _ = 1, 12 do
+    local widths = {}
+    local sumW = 0
+    for i, col in ipairs(columns) do
+      widths[i] = columnMaxWidth(col)
+      sumW = sumW + widths[i]
+    end
+    if sumW <= available + 0.5 then
+      return
+    end
+    local scale = available / sumW
+    if scale >= 0.999 then
+      return
+    end
+    local anyShrunk = false
+    for i, col in ipairs(columns) do
+      local targetW = math.max(1, math.floor(widths[i] * scale + 0.5))
+      for _, w in ipairs(col) do
+        local before = windowScreenWidth(w)
+        if before > targetW then
+          fitWindowToMaxWidth(w, targetW)
+          if windowScreenWidth(w) < before then
+            anyShrunk = true
+          end
+        end
+      end
+    end
+    if not anyShrunk then
+      return
+    end
+  end
+end
+
+local function applyHeaderColumnXs(columns, xs, areaY, gapY)
+  for ci, col in ipairs(columns or {}) do
+    local colX = xs[ci]
+    local colY = areaY
+    for _, w in ipairs(col) do
+      local headerH = windowHeaderH(w)
+      w.x = colX
+      w.y = colY + headerH
+      colY = colY + headerH + gapY
+    end
+  end
+end
+
+--- Place packed header columns left-to-right. `evenSpread` first fits windows
+--- to equal slots, then moves whole stacks so headers do not overlap. If the
+--- last stack would clip, all columns shrink by the same factor; only then
+--- leftover width is spread, or stacks hang off the right if they cannot shrink.
+local function placeHeaderColumns(columns, opts)
+  opts = opts or {}
+  local areaX = opts.areaX or 0
+  local areaY = opts.areaY or 0
+  local areaW = tonumber(opts.areaW)
+  local gapX = opts.gapX or 8
+  local gapY = opts.gapY or 7
+  local evenSpread = opts.evenSpread == true
+  local nCols = #(columns or {})
+  if nCols == 0 then
+    return
+  end
+
+  local colXs = headerColumnXs(columns, areaX, areaW, gapX, evenSpread)
+  local areaRight = areaX + (areaW or 0)
+  for ci, col in ipairs(columns) do
+    local colX = colXs[ci] or areaX
+    local nextX = colXs[ci + 1]
+    local maxW
+    if evenSpread and areaW and areaW > 0 then
+      if nextX then
+        maxW = nextX - colX - gapX
+      else
+        maxW = areaRight - colX
+      end
+      maxW = math.max(1, maxW)
+    end
+    local colY = areaY
+    for _, w in ipairs(col) do
+      local headerH = windowHeaderH(w)
+      w.x = colX
+      w.y = colY + headerH
+      if maxW then
+        fitWindowToMaxWidth(w, maxW)
+      end
+      colY = colY + headerH + gapY
+    end
+  end
+
+  if evenSpread then
+    shrinkColumnsToFitWorkArea(columns, areaW, gapX)
+    applyHeaderColumnXs(
+      columns,
+      packColumnXsNoOverlap(columns, areaX, areaW, gapX),
+      areaY,
+      gapY
+    )
+  end
+end
+
+local function stableSortWindows(list, cmp, originalIndex)
+  table.sort(list, function(a, b)
+    local res = cmp(a, b)
+    if res == nil then
+      return (originalIndex[a] or 0) < (originalIndex[b] or 0)
+    end
+    return res
+  end)
 end
 
 --- Shrink zoom / viewport until window content fits maxWidth x maxHeight (pixels).
@@ -727,9 +1068,7 @@ function WM:collapseAll(opts)
     end
   end
 
-  for _, w in ipairs(open) do
-    zoomOutWindowToMinimum(w)
-  end
+  collapseWindowsForHeaderStack(open)
 
   table.sort(open, function(a, b)
     local at = string.lower(tostring(a.title or ""))
@@ -740,39 +1079,15 @@ function WM:collapseAll(opts)
     return at < bt
   end)
 
-  local colX = areaX
-  local colY = areaY
-  local maxY = areaY + areaH
-  local firstColumnStepW = nil
-
-  for _, w in ipairs(open) do
-    if w.setScroll then
-      w:setScroll(0, 0)
-    else
-      w.scrollCol = 0
-      w.scrollRow = 0
-    end
-
-    w._collapsed = true
-    syncCollapseIcon(w)
-
-    local _, _, ww = w:getScreenRect()
-    if not firstColumnStepW then
-      firstColumnStepW = ww
-    end
-    local headerH = w.headerH or UiScale.windowHeaderHeight()
-    local itemH = headerH
-
-    if colY > areaY and (colY + itemH) > maxY then
-      colX = colX + (firstColumnStepW or ww) + gapX
-      colY = areaY
-    end
-
-    w.x = colX
-    w.y = colY + headerH
-
-    colY = colY + itemH + gapY
-  end
+  local columns = packWindowsIntoHeaderColumns(open, areaH, gapY)
+  placeHeaderColumns(columns, {
+    areaX = areaX,
+    areaY = areaY,
+    areaW = opts.areaW,
+    gapX = gapX,
+    gapY = gapY,
+    evenSpread = false,
+  })
 
   self.focused = open[#open]
   if self.focused then
@@ -1537,6 +1852,153 @@ function WM:sortWindowsByKind(descending)
     end
     return nil
   end)
+end
+
+--- Collapse non-minimized windows into 1-N header stacks.
+--- Title mode: top-to-bottom, then left-to-right columns.
+--- Kind mode: each stack is one window kind (PPU Frames, ROM palettes, ...).
+--- Extra columns shrink together if they cannot all fit in areaW.
+function WM:layoutCollapsedStacks(opts)
+  opts = opts or {}
+  local mode = opts.mode == "kind" and "kind" or "title"
+  local descending = opts.descending == true
+  local recordUndo = (opts.recordUndo ~= false)
+  local areaX = opts.areaX or 0
+  local areaY = opts.areaY or 30
+  local areaH = opts.areaH or 300
+  local areaW = opts.areaW
+  local gapX = opts.gapX or 8
+  local gapY = opts.gapY or 7
+
+  local originalIndex = {}
+  local visible, minimized, closed = {}, {}, {}
+  for i, w in ipairs(self.windows) do
+    originalIndex[w] = i
+    if w._closed then
+      closed[#closed + 1] = w
+    elseif w._minimized then
+      minimized[#minimized + 1] = w
+    else
+      visible[#visible + 1] = w
+    end
+  end
+  if #visible == 0 then
+    return false
+  end
+
+  local function titleCmp(a, b)
+    local at = string.lower(tostring(a.title or ""))
+    local bt = string.lower(tostring(b.title or ""))
+    if at ~= bt then
+      if descending then
+        return at > bt
+      end
+      return at < bt
+    end
+    return nil
+  end
+
+  local function kindCmp(a, b)
+    local ar = TaskbarHelpers.getTaskbarSortRankForWindow(a)
+    local br = TaskbarHelpers.getTaskbarSortRankForWindow(b)
+    if ar ~= br then
+      if descending then
+        return ar > br
+      end
+      return ar < br
+    end
+    local ak = TaskbarHelpers.getTaskbarIconKeyForWindow(a)
+    local bk = TaskbarHelpers.getTaskbarIconKeyForWindow(b)
+    if ak ~= bk then
+      if descending then
+        return ak > bk
+      end
+      return ak < bk
+    end
+    return titleCmp(a, b)
+  end
+
+  local cmp = (mode == "kind") and kindCmp or titleCmp
+  stableSortWindows(visible, cmp, originalIndex)
+  stableSortWindows(minimized, cmp, originalIndex)
+
+  local beforeFocused, beforeOrder, beforeLayout
+  if recordUndo then
+    beforeFocused = self.focused
+    beforeOrder = shallowCopyWindowsArray(self.windows)
+    beforeLayout = {}
+    for _, w in ipairs(visible) do
+      beforeLayout[w] = snapshotWindowChromeLayout(w)
+    end
+  end
+
+  collapseWindowsForHeaderStack(visible, { keepCurrentZoom = true })
+
+  local columns
+  if mode == "kind" then
+    columns = {}
+    local groups, groupOrder = {}, {}
+    for _, w in ipairs(visible) do
+      local key = TaskbarHelpers.getTaskbarIconKeyForWindow(w)
+      if not groups[key] then
+        groups[key] = {}
+        groupOrder[#groupOrder + 1] = key
+      end
+      groups[key][#groups[key] + 1] = w
+    end
+    for _, key in ipairs(groupOrder) do
+      local packed = packWindowsIntoHeaderColumns(groups[key], areaH, gapY)
+      for _, col in ipairs(packed) do
+        columns[#columns + 1] = col
+      end
+    end
+  else
+    columns = packWindowsIntoHeaderColumns(visible, areaH, gapY)
+  end
+
+  placeHeaderColumns(columns, {
+    areaX = areaX,
+    areaY = areaY,
+    areaW = areaW,
+    gapX = gapX,
+    gapY = gapY,
+    evenSpread = true,
+  })
+
+  self.windows = {}
+  for _, w in ipairs(visible) do
+    self.windows[#self.windows + 1] = w
+  end
+  for _, w in ipairs(minimized) do
+    self.windows[#self.windows + 1] = w
+  end
+  for _, w in ipairs(closed) do
+    self.windows[#self.windows + 1] = w
+  end
+  normalizeAlwaysOnTopOrdering(self)
+
+  self.focused = visible[#visible]
+  if self.focused then
+    self:bringToFront(self.focused)
+  end
+
+  if recordUndo then
+    local afterLayout = {}
+    for _, w in ipairs(visible) do
+      afterLayout[w] = snapshotWindowChromeLayout(w)
+    end
+    recordCollapseAllUndo(self, {
+      type = "window_collapse_all",
+      wm = self,
+      beforeOrder = beforeOrder,
+      afterOrder = shallowCopyWindowsArray(self.windows),
+      beforeFocusedWin = beforeFocused,
+      afterFocusedWin = self.focused,
+      beforeLayout = beforeLayout,
+      afterLayout = afterLayout,
+    })
+  end
+  return true
 end
 
 --- Rebuild compositing stack from an explicit id sequence (project load uses `layout.windows` order). Honors

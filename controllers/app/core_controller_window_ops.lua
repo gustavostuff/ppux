@@ -463,6 +463,27 @@ function AppCoreController:cloneFocusedWindow()
   return true
 end
 
+function AppCoreController:getWindowStackArea()
+  local canvas = self.canvas
+  local canvasH = (canvas and canvas.getHeight and canvas:getHeight()) or 360
+  local canvasW = (canvas and canvas.getWidth and canvas:getWidth()) or 640
+  local taskbarTopY = (self.taskbar and self.taskbar.getTopY and self.taskbar:getTopY())
+    or (self.taskbar and self.taskbar.y)
+    or canvasH
+  local areaX = 30
+  local topPad = AppTopToolbarController.getContentOffsetY(self)
+  local areaY = math.max(30, topPad + 8)
+  return {
+    areaX = areaX,
+    areaY = areaY,
+    areaW = math.max(1, canvasW - areaX - 8),
+    areaH = math.max(1, taskbarTopY - areaY - 8),
+    gapX = 8,
+    -- Collapsed link badges hang ~6px below the header; 2+5 leaves 1px of air.
+    gapY = 7,
+  }
+end
+
 function AppCoreController:_collapseAllWindowsFromMenu()
   local wm = self.wm
   local canvas = self.canvas
