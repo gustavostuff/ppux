@@ -467,6 +467,9 @@ function Dialog.new()
     cols = 16,
     groupSize = 1,
     maxSelectedStarts = 1,
+    -- Search paints the current hit as a Selected group; clicks must still
+    -- report the cell under the cursor instead of toggling that group off.
+    replaceSelect = true,
     defaultCellStyle = "ninja",
     selectionAnts = false,
     boundAsSelected = true,
@@ -666,6 +669,11 @@ function Dialog:_isSearchFocused()
 end
 
 function Dialog:_selectedFillForAddr(addr)
+  addr = math.floor(tonumber(addr) or -1)
+  local pick = self:_currentPickAddr()
+  if pick ~= nil and addr == pick then
+    return self:_nesFillColorForAddr(addr, 1)
+  end
   local searchColor = self:_searchColorForAddr(addr)
   if searchColor then
     return searchColor
@@ -693,12 +701,18 @@ function Dialog:_syncSearchPaint()
   local sizes = {}
   local searchStart = self:_currentSearchStart()
   local searchSize = math.max(1, math.floor(tonumber(self._searchGroupSize) or 1))
-  if searchStart ~= nil then
+  local pick = self:_currentPickAddr()
+  local pickInsideSearch = pick ~= nil
+    and searchStart ~= nil
+    and pick >= searchStart
+    and pick < searchStart + searchSize
+  -- A clicked cell is Selected (1 byte). Keep the current search hit Selected
+  -- only when the pick is outside that occurrence.
+  if searchStart ~= nil and not pickInsideSearch then
     starts[#starts + 1] = searchStart
     sizes[searchStart] = searchSize
   end
-  local pick = self:_currentPickAddr()
-  if pick ~= nil and pick ~= searchStart then
+  if pick ~= nil then
     starts[#starts + 1] = pick
     sizes[pick] = 1
   end
@@ -889,24 +903,12 @@ end
 function Dialog:_onGridSelect(addr, opts)
   opts = opts or {}
   addr = math.floor(tonumber(addr) or 0)
-  local pick = nil
-  if opts.fromGrid == true then
-    local starts = self.hexGrid:getSelectedStarts()
-    if #starts > 0 then
-      pick = math.floor(starts[1])
-    end
-  else
-    pick = addr
-  end
+  -- The clicked cell is the pick. Do not use selectedStarts[1]: that may be the
+  -- current search group rather than the cell under the cursor.
   self._syncingFromGrid = true
-  if pick ~= nil then
-    self.textField:setText(self:_formatAddr(pick))
-    self:_refreshSelectedPreview(pick)
-    self:_setUserPick(pick)
-  else
-    self:_refreshSelectedPreview(nil)
-    self.hexGrid:setUserSelectedStarts({})
-  end
+  self.textField:setText(self:_formatAddr(addr))
+  self:_refreshSelectedPreview(addr)
+  self:_setUserPick(addr)
   self._syncingFromGrid = false
   self:_syncSearchPaint()
   self:_refreshMinimapMarkers()

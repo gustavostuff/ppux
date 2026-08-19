@@ -444,6 +444,57 @@ describe("rom_palette_address_modal.lua", function()
     modal:hide()
   end)
 
+  it("selects a clicked cell inside or outside the current search occurrence", function()
+    local modal = RomPaletteAddressModal.new()
+    -- Two 4-byte hits of valid NES colors so every cell in the occurrence is pickable.
+    local rom = string.char(0x11, 0x0F, 0x00, 0x10, 0x30, 0x07, 0x0F, 0x00, 0x10, 0x30)
+    modal:show({
+      romRaw = rom,
+      initialAddress = "",
+    })
+    expect(modal.hexGrid.replaceSelect).toBe(true)
+    modal.searchField:setText("0F 00 10 30")
+    modal:_applyByteSearch()
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({ 1 })
+    expect(modal.hexGrid:getSelectedGroupSize(1)).toBe(4)
+
+    modal.hexGrid:setPosition(0, 0)
+    local function clickAddr(addr)
+      local hx, hy = modal.hexGrid:pixelCenterForAddr(addr)
+      expect(hx).toBeTruthy()
+      expect(modal.hexGrid:mousepressed(hx, hy, 1)).toBe(true)
+    end
+
+    -- Inside the current occurrence, not the hit start.
+    clickAddr(2)
+    expect(modal.hexGrid:getUserSelectedStarts()).toEqual({ 2 })
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({ 2 })
+    expect(modal.hexGrid:getSelectedGroupSize(2)).toBe(1)
+    expect(modal.hexGrid:getUnderlinedStarts()).toEqual({ 1, 6 })
+    expect(modal.textField:getText()).toBe("0x000002")
+    expect(modal.selectedPreview.code).toBe("00")
+    expect(modal.setButton.enabled).toBe(true)
+
+    -- Hit start of the current occurrence.
+    clickAddr(1)
+    expect(modal.hexGrid:getUserSelectedStarts()).toEqual({ 1 })
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({ 1 })
+    expect(modal.hexGrid:getSelectedGroupSize(1)).toBe(1)
+    expect(modal.textField:getText()).toBe("0x000001")
+    expect(modal.selectedPreview.code).toBe("0F")
+
+    -- Outside the current occurrence: pick is Selected, current hit stays a Selected group.
+    clickAddr(0)
+    expect(modal.hexGrid:getUserSelectedStarts()).toEqual({ 0 })
+    expect(modal.hexGrid:getSelectedStarts()).toEqual({ 1, 0 })
+    expect(modal.hexGrid:getSelectedGroupSize(0)).toBe(1)
+    expect(modal.hexGrid:getSelectedGroupSize(1)).toBe(4)
+    expect(modal.textField:getText()).toBe("0x000000")
+    expect(modal.selectedPreview.code).toBe("11")
+    expect(modal.setButton.enabled).toBe(true)
+    modal:hide()
+  end)
+
   it("restores mapped ROM palette minimap markers after unfocusing Search bytes", function()
     local modal = RomPaletteAddressModal.new()
     local rom = string.rep(string.char(0x07), 256)

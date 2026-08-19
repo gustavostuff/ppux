@@ -203,7 +203,7 @@ function M.new(opts)
     -- Fired when scrollOffset changes (wheel, scrollbar drag, scrollToReveal).
     onScroll = opts.onScroll,
     -- When true, clicks always select the cell under the cursor (no toggle-off).
-    -- Used by nametable range two-click start/end picking.
+    -- Used by nametable range picking and the ROM palette address modal.
     replaceSelect = opts.replaceSelect == true,
     -- Unmarked cells: "normal" | "selectable" | "ninja" (see docs/hex_grid_refinement.txt).
     defaultCellStyle = opts.defaultCellStyle or "normal",
