@@ -10,7 +10,7 @@
 # Layout:
 #   PPUX-<ver>-linux-x86_64/
 #     PPUX                 # fused native LÖVE + game.love ELF (run this)
-#     lib/                 # LOVE .so files + libppux_sketch.so (RPATH = $ORIGIN/lib)
+#     lib/                 # LOVE .so files + libppux_sketch.so + libppux_clipboard.so (RPATH = $ORIGIN/lib)
 #     LICENSE
 #
 # Extra tools (e.g. a PNG processor) can sit next to PPUX in this folder.
@@ -95,6 +95,14 @@ if make -C "$ROOT_DIR/native/ppux_sketch" all; then
   fi
 else
   echo "warning: native/ppux_sketch build failed; portable package will use Lua PNG import" >&2
+fi
+
+if make -C "$ROOT_DIR/native/ppux_clipboard" all; then
+  if [[ -f "$ROOT_DIR/native/ppux_clipboard/libppux_clipboard.so" ]]; then
+    cp "$ROOT_DIR/native/ppux_clipboard/libppux_clipboard.so" "$PACKAGE_DIR/lib/libppux_clipboard.so"
+  fi
+else
+  echo "warning: native/ppux_clipboard build failed; OAM image paste will be unavailable" >&2
 fi
 
 rm -f "$OUT_ZIP"

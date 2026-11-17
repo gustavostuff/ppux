@@ -146,6 +146,10 @@ if exist "%ROOT_DIR%\native\ppux_sketch\ppux_sketch.dll" (
   copy "%ROOT_DIR%\native\ppux_sketch\ppux_sketch.dll" "%PACKAGE_STAGE_DIR%\" >nul
 )
 
+if exist "%ROOT_DIR%\native\ppux_clipboard\ppux_clipboard.dll" (
+  copy "%ROOT_DIR%\native\ppux_clipboard\ppux_clipboard.dll" "%PACKAGE_STAGE_DIR%\" >nul
+)
+
 if exist "%WIN_RUNTIME_DIR%\game.ico" (
   copy "%WIN_RUNTIME_DIR%\game.ico" "%PACKAGE_STAGE_DIR%\" >nul
 )

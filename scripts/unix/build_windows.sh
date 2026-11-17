@@ -90,6 +90,14 @@ if make -C "$ROOT_DIR/native/ppux_sketch" all >/dev/null 2>&1; then
   fi
 fi
 
+if make -C "$ROOT_DIR/native/ppux_clipboard" all >/dev/null 2>&1; then
+  if [[ -f "$ROOT_DIR/native/ppux_clipboard/ppux_clipboard.dll" ]]; then
+    cp "$ROOT_DIR/native/ppux_clipboard/ppux_clipboard.dll" "$PACKAGE_STAGE_DIR/"
+  elif [[ -f "$ROOT_DIR/native/ppux_clipboard/libppux_clipboard.so" ]]; then
+    echo "warning: built libppux_clipboard.so on this host; Windows zip needs ppux_clipboard.dll from a Windows/MinGW build" >&2
+  fi
+fi
+
 rm -f "$OUT_ZIP"
 (
   cd "$(dirname "$PACKAGE_STAGE_DIR")"

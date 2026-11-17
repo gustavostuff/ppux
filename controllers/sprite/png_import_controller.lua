@@ -337,7 +337,9 @@ end
 local function setErrorStatus(app, message)
   if not (app and message) then return end
   app:setStatus(message)
-  app:showToast("error", message)
+  if app.showToast then
+    app:showToast("error", message)
+  end
 end
 
 local function captureSpritePositionState(sprite)
@@ -354,11 +356,7 @@ local function captureSpritePositionState(sprite)
   }
 end
 
-function M.handleSpritePngDrop(SpriteController, app, file, win)
-  if not (SpriteController and app and file and win and win.layers and win.getActiveLayerIndex) then
-    DebugController.log("warning", "PNG_DROP", "handleSpritePngDrop: invalid args app=%s file=%s win=%s", tostring(app ~= nil), tostring(file ~= nil), tostring(win ~= nil))
-    return false
-  end
+local function resolveSpriteImportTargets(SpriteController, app, win, sourceName)
 
   local function fmtIndices(list, limit)
     limit = limit or 16
@@ -383,7 +381,7 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
     tostring(win.title),
     tostring(win.getActiveLayerIndex and win:getActiveLayerIndex() or "?"),
     tonumber(win.layers and #win.layers or 0) or 0,
-    tostring(file.getFilename and file:getFilename() or "<unknown>")
+    tostring(sourceName or "<unknown>")
   )
 
   local li = win:getActiveLayerIndex()
@@ -403,7 +401,7 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
 
     if #spriteLayers == 0 then
       DebugController.log("warning", "PNG_DROP", "No sprite layers found in win kind=%s title=%s", tostring(win.kind), tostring(win.title))
-      return false
+      return nil, false
     end
 
     DebugController.log("info", "PNG_DROP", "Found %d sprite layers in window", #spriteLayers)
@@ -482,24 +480,31 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
     else
       setErrorStatus(app, "No sprites in this layer to import into")
     end
-    return true
+    return nil, true
   end
 
-  local imgData, readErr = loadImageDataFromDroppedFile(file)
-  if not imgData then
-    DebugController.log("warning", "PNG_DROP", "Failed to load image data: %s", tostring(readErr))
-    setErrorStatus(app, "Failed to read PNG: " .. tostring(readErr))
-    return true
-  end
+  return {
+    li = li,
+    layer = layer,
+    sprites = sprites,
+    useSelectedSprites = useSelectedSprites,
+  }, true
+end
 
+
+local function applySpriteImageData(SpriteController, app, win, targets, imgData)
+  local li = targets.li
+  local layer = targets.layer
+  local sprites = targets.sprites
+  local useSelectedSprites = targets.useSelectedSprites
   local w, h = imgData:getWidth(), imgData:getHeight()
   DebugController.log("info", "PNG_DROP", "Loaded PNG size=%dx%d spriteTargets=%d useSelected=%s", w, h, #sprites, tostring(useSelectedSprites))
 
   local colorCount = countUniqueColors(imgData)
   if colorCount > 4 then
     DebugController.log("warning", "PNG_DROP", "Rejected PNG: too many colors=%d", colorCount)
-    setErrorStatus(app, string.format("PNG has too many colors (%d). Max 4 (one may be transparent).", colorCount))
-    return true
+    setErrorStatus(app, string.format("Image has too many colors (%d). Max 4 (one may be transparent).", colorCount))
+    return false
   end
 
   local hasTransparency = PngPaletteMappingController.imageHasTransparency(imgData)
@@ -512,15 +517,15 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
 
   if (w % spriteW) ~= 0 or (h % spriteH) ~= 0 then
     DebugController.log("warning", "PNG_DROP", "Rejected PNG: grid mismatch spriteSize=%dx%d image=%dx%d", spriteW, spriteH, w, h)
-    setErrorStatus(app, string.format("PNG must align to %dx%d sprites (got %dx%d)", spriteW, spriteH, w, h))
-    return true
+    setErrorStatus(app, string.format("Image must align to %dx%d sprites (got %dx%d)", spriteW, spriteH, w, h))
+    return false
   end
 
   local frames, frameCols, frameRows = buildFrameList(imgData, spriteW, spriteH)
   if #frames == 0 then
     DebugController.log("warning", "PNG_DROP", "Rejected PNG: no frames")
-    setErrorStatus(app, "PNG contains no frames")
-    return true
+    setErrorStatus(app, "Image contains no frames")
+    return false
   end
   DebugController.log("info", "PNG_DROP", "Frame grid cols=%d rows=%d total=%d spriteSize=%dx%d", frameCols, frameRows, #frames, spriteW, spriteH)
 
@@ -635,7 +640,7 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
       )
       finalizeUndo()
       setErrorStatus(app, "Sprite import failed: " .. tostring(why))
-      return true
+      return false
     end
     if loggedMappings < 24 then
       DebugController.log(
@@ -727,5 +732,47 @@ function M.handleSpritePngDrop(SpriteController, app, file, win)
   app:setStatus(msg)
   return true
 end
+
+function M.handleSpritePngDrop(SpriteController, app, file, win)
+  if not (SpriteController and app and file and win and win.layers and win.getActiveLayerIndex) then
+    DebugController.log("warning", "PNG_DROP", "handleSpritePngDrop: invalid args app=%s file=%s win=%s", tostring(app ~= nil), tostring(file ~= nil), tostring(win ~= nil))
+    return false
+  end
+
+  local sourceName = file.getFilename and file:getFilename() or "<unknown>"
+  local targets, handled = resolveSpriteImportTargets(SpriteController, app, win, sourceName)
+  if not targets then
+    return handled == true
+  end
+
+  local imgData, readErr = loadImageDataFromDroppedFile(file)
+  if not imgData then
+    DebugController.log("warning", "PNG_DROP", "Failed to load image data: %s", tostring(readErr))
+    setErrorStatus(app, "Failed to read image: " .. tostring(readErr))
+    return true
+  end
+
+  applySpriteImageData(SpriteController, app, win, targets, imgData)
+  return true
+end
+
+function M.importSpriteImageData(SpriteController, app, imgData, win)
+  if not (SpriteController and app and imgData and win and win.layers and win.getActiveLayerIndex) then
+    if app and not imgData then
+      setErrorStatus(app, "Failed to read image")
+    end
+    return false
+  end
+
+  local targets, handled = resolveSpriteImportTargets(SpriteController, app, win, "clipboard")
+  if not targets then
+    if handled ~= true then
+      setErrorStatus(app, "No sprites in this layer to import into")
+    end
+    return false
+  end
+  return applySpriteImageData(SpriteController, app, win, targets, imgData) == true
+end
+
 
 return M

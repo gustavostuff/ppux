@@ -691,4 +691,118 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
     expect(s2.topRef.pixels[3 * 8 + 3 + 1]).toBe(1)
     expect(beginDragCallCount).toBe(0)
   end)
+
+  it("importSpriteImageData fills selected sprites in selection order", function()
+    local tileRef1 = makeTileRef()
+    local tileRef2 = makeTileRef()
+    local tileRef3 = makeTileRef()
+    local layer = {
+      kind = "sprite",
+      mode = "8x8",
+      items = {
+        { removed = false, paletteNumber = 1, topRef = tileRef1, x = 0, y = 0, worldX = 0, worldY = 0, baseX = 0, baseY = 0 },
+        { removed = false, paletteNumber = 1, topRef = tileRef2, x = 0, y = 0, worldX = 0, worldY = 0, baseX = 0, baseY = 0 },
+        { removed = false, paletteNumber = 1, topRef = tileRef3, x = 0, y = 0, worldX = 0, worldY = 0, baseX = 0, baseY = 0 },
+      },
+      multiSpriteSelection = { [2] = true, [3] = true },
+      multiSpriteSelectionOrder = { 3, 2 },
+      selectedSpriteIndex = 3,
+    }
+    local win = makeWindow(layer)
+    local app = makeApp()
+
+    local ok = SpriteController.importSpriteImageData(app, makeTwoFrameImageData(), win)
+
+    expect(ok).toBe(true)
+    expect(tileRef1.pixels[2]).toBe(0)
+    expect(tileRef2.pixels[2]).toBe(2)
+    expect(tileRef3.pixels[2]).toBe(1)
+    expect(beginDragCallCount).toBe(0)
+  end)
+
+  it("importSpriteImageData fills sprites in list order when nothing is selected", function()
+    local tileRef1 = makeTileRef()
+    local tileRef2 = makeTileRef()
+    local tileRef3 = makeTileRef()
+    local layer = {
+      kind = "sprite",
+      mode = "8x8",
+      items = {
+        { removed = false, paletteNumber = 1, topRef = tileRef1, x = 0, y = 0, worldX = 0, worldY = 0, baseX = 0, baseY = 0 },
+        { removed = false, paletteNumber = 1, topRef = tileRef2, x = 0, y = 0, worldX = 0, worldY = 0, baseX = 0, baseY = 0 },
+        { removed = false, paletteNumber = 1, topRef = tileRef3, x = 0, y = 0, worldX = 0, worldY = 0, baseX = 0, baseY = 0 },
+      },
+    }
+    local win = makeWindow(layer)
+    local app = makeApp()
+
+    local ok = SpriteController.importSpriteImageData(app, makeTwoFrameImageData(), win)
+
+    expect(ok).toBe(true)
+    expect(tileRef1.pixels[2]).toBe(1)
+    expect(tileRef2.pixels[2]).toBe(2)
+    expect(tileRef3.pixels[2]).toBe(0)
+    expect(beginDragCallCount).toBe(2)
+  end)
+
+  it("importSpriteImageData rejects more than 4 colors", function()
+    local tileRef = makeTileRef()
+    local layer = {
+      kind = "sprite",
+      mode = "8x8",
+      items = {
+        { removed = false, paletteNumber = 1, topRef = tileRef, x = 0, y = 0, worldX = 0, worldY = 0, baseX = 0, baseY = 0 },
+      },
+      multiSpriteSelection = { [1] = true },
+      multiSpriteSelectionOrder = { 1 },
+      selectedSpriteIndex = 1,
+    }
+    local img = {
+      getWidth = function() return 8 end,
+      getHeight = function() return 8 end,
+      getPixel = function(_, x)
+        if x == 0 then return 1, 0, 0, 1 end
+        if x == 1 then return 0, 1, 0, 1 end
+        if x == 2 then return 0, 0, 1, 1 end
+        if x == 3 then return 1, 1, 0, 1 end
+        return 1, 0, 1, 1
+      end,
+    }
+    local app = makeApp()
+
+    local ok = SpriteController.importSpriteImageData(app, img, makeWindow(layer))
+
+    expect(ok).toBe(false)
+    expect(tostring(app.statusText):find("too many colors", 1, true)).toBeTruthy()
+    expect(tileRef.pixels[1]).toBe(0)
+  end)
+
+  it("importSpriteImageData rejects sizes that are not a multiple of the sprite grid", function()
+    local function reject(mode, w, h, needle)
+      local tileRef = makeTileRef()
+      local layer = {
+        kind = "sprite",
+        mode = mode,
+        items = {
+          { removed = false, paletteNumber = 1, topRef = tileRef, x = 0, y = 0, worldX = 0, worldY = 0, baseX = 0, baseY = 0 },
+        },
+        multiSpriteSelection = { [1] = true },
+        multiSpriteSelectionOrder = { 1 },
+        selectedSpriteIndex = 1,
+      }
+      local img = {
+        getWidth = function() return w end,
+        getHeight = function() return h end,
+        getPixel = function() return 0.2, 0.2, 0.2, 1 end,
+      }
+      local app = makeApp()
+      local ok = SpriteController.importSpriteImageData(app, img, makeWindow(layer))
+      expect(ok).toBe(false)
+      expect(tostring(app.statusText):find(needle, 1, true)).toBeTruthy()
+      expect(tileRef.pixels[1]).toBe(0)
+    end
+
+    reject("8x8", 7, 8, "8x8")
+    reject("8x16", 8, 8, "8x16")
+  end)
 end)

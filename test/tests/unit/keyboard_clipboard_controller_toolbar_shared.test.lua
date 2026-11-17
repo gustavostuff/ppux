@@ -6,10 +6,10 @@ describe("keyboard_clipboard_controller.lua - shared toolbar/keyboard actions", 
     KeyboardClipboardController.reset()
   end)
 
-  it("blocks sprite clipboard actions for PPU frame and OAM animation layers with warnings", function()
+  it("blocks sprite copy and cut on PPU frame and OAM animation layers with warnings", function()
     local cases = {
       { kind = "oam_animation", action = "copy", expected = "Cannot copy sprites in OAM animation windows" },
-      { kind = "oam_animation", action = "paste", expected = "Cannot add sprites to OAM animation windows" },
+      { kind = "oam_animation", action = "cut", expected = "Cannot cut sprites in OAM animation windows" },
       { kind = "ppu_frame", action = "cut", expected = "Cannot cut sprites in PPU frame windows" },
     }
 

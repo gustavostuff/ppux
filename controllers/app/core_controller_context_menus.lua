@@ -460,6 +460,7 @@ end
 function AppCoreController:_appendPasteContextMenuItem(items, context)
   -- Paste is intentionally scoped to art/tile context menus (PPU/select-in-CHR/CHR bank).
   -- Palette-link and OAM-empty-space menus keep their existing specialized options only.
+  -- OAM Ctrl+V / toolbar paste reads an OS image and is not this in-app clipboard row.
   if type(items) ~= "table" then
     return items
   end
@@ -483,6 +484,9 @@ function AppCoreController:_appendPasteContextMenuItem(items, context)
     "paste",
     { layerIndex = context.layerIndex }
   )
+  if availability and availability.oamOsImage then
+    return items
+  end
   if not (availability and availability.allowed and KeyboardClipboardController.hasClipboardData()) then
     return items
   end

@@ -717,14 +717,31 @@ describe("keyboard_input.lua - ctrl+c / ctrl+v", function()
     expect(unsavedEvents[2]).toBe("tile_move")
   end)
 
-  it("applies sprite paste rules by window kind (static/animation allow, oam blocks)", function()
+  it("applies sprite paste rules by window kind (static/animation allow, oam reads the OS image)", function()
+    local ClipboardNative = require("utils.ppux_clipboard_native")
+    local originalGetImageData = ClipboardNative.getImageData
+    local imageReads = 0
+    ClipboardNative.getImageData = function()
+      imageReads = imageReads + 1
+      return nil, "no_image"
+    end
+
     local cases = {
-      { kind = "static_art", expectPasted = true, expectedStatus = "Pasted 1 sprite" },
-      { kind = "animation", expectPasted = true, expectedStatus = "Pasted 1 sprite" },
-      { kind = "oam_animation", expectPasted = false, expectedStatus = "Cannot add sprites to OAM animation windows" },
+      { kind = "static_art", expectPasted = true, expectedStatus = "Pasted 1 sprite", expectImageRead = false },
+      { kind = "animation", expectPasted = true, expectedStatus = "Pasted 1 sprite", expectImageRead = false },
+      { kind = "oam_animation", expectPasted = false, expectedStatus = "No image on the clipboard", expectImageRead = true },
     }
 
+    local function finish(err)
+      ClipboardNative.getImageData = originalGetImageData
+      if err then
+        error(err)
+      end
+    end
+
+    local ok, err = pcall(function()
     for _, case in ipairs(cases) do
+      imageReads = 0
       local status = nil
       local unsavedEvents = {}
       local ctrl = true
@@ -774,6 +791,7 @@ describe("keyboard_input.lua - ctrl+c / ctrl+v", function()
       KeyboardInput.keypressed("v", ctx.app)
 
       expect(status).toBe(case.expectedStatus)
+      expect(imageReads).toBe(case.expectImageRead and 1 or 0)
       if case.expectPasted then
         expect(#layer.items).toBe(2)
         expect(#unsavedEvents).toBe(1)
@@ -783,6 +801,8 @@ describe("keyboard_input.lua - ctrl+c / ctrl+v", function()
         expect(#unsavedEvents).toBe(0)
       end
     end
+    end)
+    finish(not ok and err or nil)
   end)
 
   it("allows cross-window tile-to-sprite paste via keyboard shortcuts", function()

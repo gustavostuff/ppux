@@ -350,6 +350,7 @@ You can drag and drop a PNG onto the window under the mouse (or the focused wind
 * Dimensions must match the sprite mode: multiples of `8x8` or `8x16`.
 * Frames are read left to right, top to bottom. Fully transparent frames are skipped.
 * Selected sprites are filled in selection order. With no selection, sprites are filled from first to last.
+* **Ctrl+V** (or the toolbar Paste button) on an **OAM Animation** window pastes an image from the OS clipboard with those same rules. Copy and cut on that window stay disabled. This needs the `ppux_clipboard` helper below; without it, paste reports that the image clipboard is unavailable.
 
 **Sketch canvas** (edit or tile mode):
 
@@ -494,39 +495,43 @@ Patches live on the project as a `romPatches` array. Every entry needs a non-emp
 
 ## Development
 
-Local run (LÖVE 11.5): `love .` from the repo root. The optional `ppux_sketch` C helper accelerates sketch pack, reflect compose/bake, gallery thumbs, flood fill, color masks, PNG->indexed import, and CHR bank full repaints; missing the `.so`/`.dll` falls back to Lua.
+Local run (LÖVE 11.5): `love .` from the repo root. The optional `ppux_sketch` C helper accelerates sketch pack, reflect compose/bake, gallery thumbs, flood fill, color masks, PNG->indexed import, and CHR bank full repaints; missing the `.so`/`.dll` falls back to Lua. The optional `ppux_clipboard` helper reads an image from the OS clipboard for OAM Animation paste. Linux links system `libwayland-client` and `libX11`.
 
 ```bash
-make -C native/ppux_sketch   # Linux: libppux_sketch.so (also found under native/ppux_sketch/ by love .)
+make -C native/ppux_sketch      # Linux: libppux_sketch.so (also found under native/ppux_sketch/ by love .)
+make -C native/ppux_clipboard   # Linux: libppux_clipboard.so
+make -C native/ppux_clipboard test
 ```
 
 ```bat
 :: Windows (Visual Studio / MinGW make, with OS=Windows_NT):
 make -C native\ppux_sketch
 :: produces native\ppux_sketch\ppux_sketch.dll
+make -C native\ppux_clipboard
+:: produces native\ppux_clipboard\ppux_clipboard.dll
 ```
 
 Packaging scripts **copy** the helper into the release folder when the matching binary already exists; they do not cross-compile it for you.
 
 ```bat
 scripts\windows\build_windows.bat      :: win64 zip under build\<version>\
-                                       :: includes ppux_sketch.dll if you built it first
+                                       :: includes ppux_sketch.dll and ppux_clipboard.dll if you built them first
 scripts\windows\run_e2e_tests.bat      :: visible E2E scenarios
 ```
 
 ```bash
 ./scripts/unix/build_linux_portable.sh # folder + zip under build/<version>/
-                                       # builds/copies libppux_sketch.so when cc is available
+                                       # builds/copies libppux_sketch.so and libppux_clipboard.so when cc is available
 ./scripts/unix/build_linux_appimage.sh # optional AppImage under build/<version>/
 ./scripts/unix/build_windows.sh        # win64 zip from Linux (DLLs from love runtime;
-                                       # needs a prebuilt ppux_sketch.dll for the helper)
-./scripts/unix/build_macos_app.sh      # macOS .app zip; builds .dylib only on Darwin
+                                       # needs prebuilt ppux_sketch.dll and ppux_clipboard.dll)
+./scripts/unix/build_macos_app.sh      # macOS .app zip; builds .dylibs only on Darwin
 ./scripts/unix/build_all.sh            # windows + linux portable + macos
 ./scripts/unix/run_unit_tests.sh       # unit tests (Linux)
 ./scripts/unix/run_e2e_tests.sh        # visible E2E scenarios
 ```
 
-Linux portable output is `PPUX-<version>-linux-x86_64/` with fused `PPUX`, LOVE's `lib/` (including `libppux_sketch.so` when the helper build succeeds), and `LICENSE`. Run `./PPUX`. Requires `patchelf`. `build_all.sh` uses that portable package by default; set `BUILD_LINUX_APPIMAGE=1` to also build the AppImage.
+Linux portable output is `PPUX-<version>-linux-x86_64/` with fused `PPUX`, LOVE's `lib/` (including `libppux_sketch.so` and `libppux_clipboard.so` when those helper builds succeed), and `LICENSE`. Run `./PPUX`. Requires `patchelf`. `build_all.sh` uses that portable package by default; set `BUILD_LINUX_APPIMAGE=1` to also build the AppImage.
 
 On Windows, build `ppux_sketch.dll` on a Windows (or MinGW) host first, then run `build_windows.bat` / `build_windows.sh` so the zip can bundle it. Shipping without the DLL is fine; those paths then use Lua.
 

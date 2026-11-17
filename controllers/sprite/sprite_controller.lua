@@ -209,4 +209,8 @@ function SpriteController.handleSpritePngDrop(app, file, win)
   return SpritePngImportController.handleSpritePngDrop(SpriteController, app, file, win)
 end
 
+function SpriteController.importSpriteImageData(app, imgData, win)
+  return SpritePngImportController.importSpriteImageData(SpriteController, app, imgData, win)
+end
+
 return SpriteController

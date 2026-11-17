@@ -5,5 +5,9 @@ misc/
 native/ppux_sketch/libppux_sketch.so
 native/ppux_sketch/libppux_sketch.dylib
 native/ppux_sketch/ppux_sketch.dll
+native/ppux_clipboard/libppux_clipboard.so
+native/ppux_clipboard/libppux_clipboard.dylib
+native/ppux_clipboard/ppux_clipboard.dll
+native/ppux_clipboard/test_dib
 draft_OAM_heuristic_scanner.lua
 

@@ -1050,7 +1050,7 @@ local function restrictionMessage(action, focus, layer)
   end
   if WindowCaps.isOamAnimation(focus) then
     if action == "paste" then
-      return "Cannot add sprites to OAM animation windows"
+      return nil
     end
     if action == "copy" then
       return "Cannot copy sprites in OAM animation windows"
@@ -1123,6 +1123,9 @@ function M.getActionAvailability(ctx, focus, action, opts)
   end
 
   if action == "paste" then
+    if WindowCaps.isOamAnimation(focus) and layer.kind == "sprite" then
+      return { allowed = true, layerIndex = layerIndex, layer = layer, oamOsImage = true }
+    end
     if not clipboard or not clipboard.kind then
       return { allowed = false, reason = "Clipboard is empty", layerIndex = layerIndex, layer = layer }
     end
@@ -1264,6 +1267,27 @@ local function doCopy(ctx, focus)
   return true
 end
 
+local function pasteOamClipboardImage(ctx, focus)
+  local ClipboardNative = require("utils.ppux_clipboard_native")
+  local img, err = ClipboardNative.getImageData()
+  if not img then
+    local msg
+    if err == "no_image" then
+      msg = "No image on the clipboard"
+    elseif err == "unavailable" then
+      msg = "Image clipboard is unavailable"
+    else
+      msg = "Failed to read clipboard image: " .. tostring(err or "unknown error")
+    end
+    StatusHelpers.setStatus(ctx, msg)
+    return true
+  end
+
+  local SpriteController = require("controllers.sprite.sprite_controller")
+  SpriteController.importSpriteImageData(ctx and ctx.app, img, focus)
+  return true
+end
+
 local function doPaste(ctx, focus, opts)
   local avail = M.getActionAvailability(ctx, focus, "paste", opts)
   if not avail.allowed then
@@ -1273,6 +1297,10 @@ local function doPaste(ctx, focus, opts)
       StatusHelpers.setStatus(ctx, avail.reason)
     end
     return true
+  end
+
+  if avail.oamOsImage then
+    return pasteOamClipboardImage(ctx, focus)
   end
 
   local layerIndex = avail.layerIndex
@@ -1496,7 +1524,9 @@ function M.handlePasteSelection(ctx, utils, key, focus)
   if not (utils.ctrlDown and utils.ctrlDown()) then return false end
   if (utils.altDown and utils.altDown()) or (utils.shiftDown and utils.shiftDown()) then return false end
   if ctx.getMode() == "edit" then
-    if not (WindowCaps.isSketchCanvas(focus) and not WindowCaps.isSketchReflectNametable(focus)) then
+    local sketchPaste = WindowCaps.isSketchCanvas(focus) and not WindowCaps.isSketchReflectNametable(focus)
+    local oamPaste = WindowCaps.isOamAnimation(focus)
+    if not sketchPaste and not oamPaste then
       return false
     end
   end

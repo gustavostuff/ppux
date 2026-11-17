@@ -312,6 +312,27 @@ describe("core_controller.lua - contextual menu helpers", function()
       end,
     }, AppCoreController)
 
+    -- A previous copy must not add the in-app Paste row. OAM image paste is Ctrl+V / the toolbar.
+    KeyboardClipboardController.reset()
+    local tileLayer = {
+      kind = "tile",
+      items = { [1] = { id = 77 } },
+      multiTileSelection = { [1] = true },
+    }
+    KeyboardClipboardController.performClipboardAction({
+      app = {},
+      setStatus = function() end,
+    }, {
+      kind = "static_art",
+      cols = 1,
+      rows = 1,
+      layers = { tileLayer },
+      getActiveLayerIndex = function() return 1 end,
+      getSelected = function() return 0, 0, 1 end,
+      get = function() return { id = 77 } end,
+    }, "copy")
+    expect(KeyboardClipboardController.hasClipboardData()).toBe(true)
+
     local context = app:_buildOamSpriteEmptySpaceContext({
       kind = "oam_animation",
       layers = {
@@ -323,6 +344,7 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(#items).toBe(1)
     expect(items[1].text).toBe("Add new sprite")
     expect(items[1].enabled).toBe(true)
+    KeyboardClipboardController.reset()
 
     local ok = items[1].callback()
     expect(ok).toBe(true)

@@ -129,6 +129,13 @@ if [[ "$(uname -s 2>/dev/null || true)" == "Darwin" ]]; then
   else
     echo "warning: native/ppux_sketch build failed; macOS package will use Lua PNG import" >&2
   fi
+  if make -C "$ROOT_DIR/native/ppux_clipboard" all >/dev/null 2>&1; then
+    if [[ -f "$ROOT_DIR/native/ppux_clipboard/libppux_clipboard.dylib" ]]; then
+      cp "$ROOT_DIR/native/ppux_clipboard/libppux_clipboard.dylib" "$RESOURCES_DIR/"
+    fi
+  else
+    echo "warning: native/ppux_clipboard build failed; macOS package will not paste clipboard images" >&2
+  fi
 fi
 
 rm -f "$OUT_ZIP"
