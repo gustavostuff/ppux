@@ -805,4 +805,53 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
     reject("8x8", 7, 8, "8x8")
     reject("8x16", 8, 8, "8x16")
   end)
+
+  it("importSpriteImageData paints a selected sprite whose tile object is not the pool tile", function()
+    local function blankPixels()
+      local pixels = {}
+      for i = 1, 64 do pixels[i] = 0 end
+      return pixels
+    end
+    local spriteRef = {
+      _bankIndex = 1,
+      index = 4,
+      pixels = blankPixels(),
+      refreshImage = function() end,
+    }
+    local poolRef = {
+      _bankIndex = 1,
+      index = 4,
+      pixels = blankPixels(),
+      refreshImage = function() end,
+    }
+    local layer = {
+      kind = "sprite",
+      mode = "8x8",
+      items = {
+        {
+          removed = false,
+          paletteNumber = 1,
+          topRef = spriteRef,
+          x = 0, y = 0, worldX = 0, worldY = 0, baseX = 0, baseY = 0,
+        },
+      },
+      multiSpriteSelection = { [1] = true },
+      multiSpriteSelectionOrder = { 1 },
+      selectedSpriteIndex = 1,
+    }
+    local app = makeApp({
+      appEditState = {
+        romRaw = "",
+        tilesPool = { [1] = { [4] = poolRef } },
+      },
+    })
+
+    local ok = SpriteController.importSpriteImageData(app, makeTwoFrameImageData(), makeWindow(layer))
+
+    expect(ok).toBe(true)
+    -- Frame 1's first visible pixel is the mid gray at (1, 0) -> palette index 1.
+    expect(layer.items[1].topRef.pixels[2]).toBe(1)
+    expect(spriteRef.pixels[2]).toBe(1)
+    expect(poolRef.pixels[2]).toBe(1)
+  end)
 end)

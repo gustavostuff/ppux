@@ -184,10 +184,18 @@ local function mapPixelToPaletteIndex(r, g, b, a, brightnessMap, paletteRemap, h
   local key = PngPaletteMappingController.rgbKeyFromFloats(r, g, b)
   local defaultRank = hasTransparency and 1 or 0
   local rank = brightnessMap[key] or defaultRank
-  if paletteRemap and paletteRemap[rank] then
-    return paletteRemap[rank]
+  -- Palette slot 0 is a real value. A truthiness check would treat it as missing
+  -- and substitute another slot.
+  if paletteRemap then
+    local mapped = paletteRemap[rank]
+    if mapped == nil then
+      mapped = paletteRemap[defaultRank]
+    end
+    if mapped ~= nil then
+      return mapped
+    end
   end
-  return (paletteRemap and paletteRemap[defaultRank]) or defaultRank
+  return defaultRank
 end
 
 local function recordEdit(edits, bankIdx, tileIdx, x, y, color)
@@ -211,17 +219,28 @@ local function writeTilePixels(tileRef, imgData, srcX, srcY, brightnessMap, pale
   if #targets == 0 and type(bankIdx) == "number" and type(tileIndex) == "number" then
     targets = { { bank = bankIdx, tileIndex = tileIndex } }
   end
-  if #targets == 0 then
+  -- A sprite can still show a tile object that has pixels but no CHR binding.
+  -- Paint that object instead of failing the whole import.
+  local directOnly = #targets == 0
+  if directOnly and not tileRef.pixels then
     return false, "no_targets"
   end
 
   local touchedRefs = {}
   local touchedRefSet = {}
+  local function touchRef(ref)
+    if not (ref and ref.pixels) then return end
+    if touchedRefSet[ref] then return end
+    touchedRefSet[ref] = true
+    touchedRefs[#touchedRefs + 1] = ref
+  end
 
   for y = 0, 7 do
     for x = 0, 7 do
       local r, g, b, a = imgData:getPixel(srcX + x, srcY + y)
       local idx = mapPixelToPaletteIndex(r, g, b, a, brightnessMap, paletteRemap, hasTransparency)
+      local pixelIndex = y * 8 + x + 1
+      local wroteSpriteRef = false
       for _, target in ipairs(targets) do
         local tBank = target.bank
         local tIdx = target.tileIndex
@@ -241,7 +260,7 @@ local function writeTilePixels(tileRef, imgData, srcX, srcY, brightnessMap, pale
 
         local beforePixel = nil
         if tRef and tRef.pixels then
-          beforePixel = tRef.pixels[y * 8 + x + 1]
+          beforePixel = tRef.pixels[pixelIndex]
         end
 
         if tBankBytes and tIdx ~= nil then
@@ -261,13 +280,18 @@ local function writeTilePixels(tileRef, imgData, srcX, srcY, brightnessMap, pale
           undoRedo:recordPixelChange(tBank, tIdx, x, y, beforePixel or 0, idx)
         end
         if tRef and tRef.pixels then
-          tRef.pixels[y * 8 + x + 1] = idx
-          local refKey = tostring(tRef)
-          if not touchedRefSet[refKey] then
-            touchedRefSet[refKey] = true
-            touchedRefs[#touchedRefs + 1] = tRef
+          tRef.pixels[pixelIndex] = idx
+          touchRef(tRef)
+          if tRef == tileRef then
+            wroteSpriteRef = true
           end
         end
+      end
+      -- Sprites sometimes keep their own tile object after the pool was rebuilt.
+      -- Painting only the pool tile updates other sprites and leaves this one unchanged.
+      if tileRef.pixels and not wroteSpriteRef then
+        tileRef.pixels[pixelIndex] = idx
+        touchRef(tileRef)
       end
     end
   end
@@ -280,10 +304,65 @@ local function writeTilePixels(tileRef, imgData, srcX, srcY, brightnessMap, pale
   return true
 end
 
-local function applyFrameToSprite(sprite, imgData, frameX, frameY, spriteW, spriteH, brightnessMap, paletteRemap, hasTransparency, edits, undoRedo, app, syncChangedTargets)
+local function canonicalTileRef(ref, app)
+  if not (ref and type(ref._bankIndex) == "number" and type(ref.index) == "number") then
+    return ref
+  end
+  local pool = app and app.appEditState and app.appEditState.tilesPool
+  local bank = pool and pool[ref._bankIndex]
+  local canonical = bank and bank[ref.index]
+  if type(canonical) == "table" and canonical.pixels and canonical ~= ref then
+    return canonical
+  end
+  return ref
+end
+
+local function prepareSpriteTiles(sprite, layer, app)
+  if not (sprite and layer) then
+    return
+  end
+  local mode = layer.mode or "8x8"
+  local missingBottom = mode == "8x16" and sprite.topRef and not sprite.botRef
+  local missingTop = not sprite.topRef
+  if (missingTop or missingBottom) and app and app.appEditState and app.appEditState.tilesPool then
+    local previousTop = sprite.topRef
+    local Hydration = require("controllers.sprite.hydration_controller")
+    Hydration.ensureTileRefsForSpriteItem(sprite, mode, app.appEditState.tilesPool, app.appEditState, layer)
+    if previousTop and not sprite.topRef then
+      sprite.topRef = previousTop
+    end
+  end
+  local top = canonicalTileRef(sprite.topRef, app)
+  if top and top ~= sprite.topRef then
+    sprite.topRef = top
+  end
+  local bot = canonicalTileRef(sprite.botRef, app)
+  if bot and bot ~= sprite.botRef then
+    sprite.botRef = bot
+  end
+end
+
+local function mirrorTilePixels(fromRef, toRef)
+  if not (fromRef and toRef and fromRef ~= toRef and fromRef.pixels and toRef.pixels) then
+    return
+  end
+  for i = 1, 64 do
+    toRef.pixels[i] = fromRef.pixels[i] or 0
+  end
+  if toRef.refreshImage then
+    toRef:refreshImage()
+  else
+    toRef._imageDirty = true
+  end
+end
+
+local function applyFrameToSprite(sprite, imgData, frameX, frameY, spriteW, spriteH, brightnessMap, paletteRemap, hasTransparency, edits, undoRedo, app, syncChangedTargets, layer)
   if not sprite or sprite.removed == true then
     return false, "sprite missing"
   end
+  local previousTop = sprite.topRef
+  local previousBot = sprite.botRef
+  prepareSpriteTiles(sprite, layer, app)
   if not paletteRemap then
     return false, "missing palette remap"
   end
@@ -295,6 +374,7 @@ local function applyFrameToSprite(sprite, imgData, frameX, frameY, spriteW, spri
   if not okTop then
     return false, errTop
   end
+  mirrorTilePixels(sprite.topRef, previousTop)
 
   if spriteH == 16 then
     if not sprite.botRef then
@@ -304,6 +384,7 @@ local function applyFrameToSprite(sprite, imgData, frameX, frameY, spriteW, spri
     if not okBot then
       return false, errBot
     end
+    mirrorTilePixels(sprite.botRef, previousBot)
   end
 
   return true
@@ -626,7 +707,7 @@ local function applySpriteImageData(SpriteController, app, win, targets, imgData
     local spriteEntry = sprites[spriteIdx]
     local sprite = spriteEntry.sprite
     local paletteRemap = getPaletteRemapForSprite(sprite)
-    local ok, why = applyFrameToSprite(sprite, imgData, frame.x, frame.y, spriteW, spriteH, brightnessMap, paletteRemap, hasTransparency, app.edits, undoRedo, app, syncChangedTargets)
+    local ok, why = applyFrameToSprite(sprite, imgData, frame.x, frame.y, spriteW, spriteH, brightnessMap, paletteRemap, hasTransparency, app.edits, undoRedo, app, syncChangedTargets, layer)
     if not ok then
       DebugController.log(
         "warning",
