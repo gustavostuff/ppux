@@ -4,7 +4,7 @@ NES Graphics Studio. Mod classic games or build new Homebrew assets.
 
 <img src="img/readme_images/app_example.png" alt="">
 
-![Version](https://img.shields.io/badge/version-0.2.1_(beta)-6366F1?style=flat)
+![Version](https://img.shields.io/badge/version-0.2.2_(beta)-6366F1?style=flat)
 [![Donate](https://img.shields.io/badge/Donate-ff69b4?style=flat&logo=githubsponsors&logoColor=white)](https://ko-fi.com/tavuntu)
 
 Edit graphics in game-context (as the player sees them), no tile puzzle solving.
@@ -21,6 +21,7 @@ PPUX uses an in-app [database](#database) plus project files to understand banks
   - [Tile mode](#tile-mode)
   - [Edit mode](#edit-mode)
   - [PNG drops](#png-drops)
+  - [Image clipboard paste](#image-clipboard-paste)
 - [Advanced](#advanced)
   - [Database](#database)
   - [Lua project mapping](#lua-project-mapping)
@@ -350,13 +351,18 @@ You can drag and drop a PNG onto the window under the mouse (or the focused wind
 * Dimensions must match the sprite mode: multiples of `8x8` or `8x16`.
 * Frames are read left to right, top to bottom. Fully transparent frames are skipped.
 * Selected sprites are filled in selection order. With no selection, sprites are filled from first to last.
-* **Ctrl+V** (or the toolbar Paste button) on an **OAM Animation** window pastes an image from the OS clipboard with those same rules. Copy and cut on that window stay disabled. This needs the `ppux_clipboard` helper below; without it, paste reports that the image clipboard is unavailable.
 
 **Sketch canvas** (edit or tile mode):
 
 * Drop a **256x240** PNG to write the paint buffer and pack it into the **linked Pattern table** (256-slot catalog, same as Generate).
 * A linked Pattern table is required. If the pack or Pattern table is already filled, PPUX asks to confirm replace-all.
 * Packing uses tolerance 0 so tile mode matches the PNG. More than 256 unique patterns fails.
+
+### Image clipboard paste
+
+**Ctrl+V**, or the toolbar Paste button, pastes an image from the OS clipboard into an **OAM Animation** window. GIMP, MS Paint, and other programs that place a PNG or bitmap on the clipboard are the intended sources. Color limits, grid size, transparency, and sprite order follow the OAM sprite PNG drop rules above.
+
+For now this only works on **OAM Animation** windows and it has only been tested on Linux. The `ppux_clipboard` C library helper does the read. Without it, paste reports that the image clipboard is unavailable.
 
 ## Advanced
 
