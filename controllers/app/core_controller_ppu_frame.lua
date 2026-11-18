@@ -984,12 +984,14 @@ function AppCoreController:_revertOamLinkedSprites(win, layerIndex, opts)
   end
 
   local state = self.appEditState or {}
-  -- keepWorld=false: clear already nil'd worldX/Y; force positions from current romRaw OAM.
+  -- resetBase: drop the editor baseline and read the live OAM bytes. Without it a
+  -- sticky base would ignore romRaw. dx was already cleared above.
   SpriteController.hydrateSpriteLayer(layer, {
     romRaw = state.romRaw or "",
     tilesPool = state.tilesPool,
     appEditState = state,
     keepWorld = false,
+    resetBase = true,
   })
 
   for _, entry in ipairs(tracked) do

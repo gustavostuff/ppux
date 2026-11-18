@@ -25,7 +25,7 @@ local M = {}
 
 --- Layout disk format for ROM OAM slots (mirrors must match `hydration_controller.snapshotSpriteLayer`).
 local function spriteOamSlotItemFromLayout(it)
-  return {
+  local item = {
     startAddr = it.startAddr,
     paletteNumber = it.paletteNumber,
     dx = it.dx,
@@ -35,6 +35,13 @@ local function spriteOamSlotItemFromLayout(it)
     _mirrorXOverrideSet = (it.mirrorX ~= nil),
     _mirrorYOverrideSet = (it.mirrorY ~= nil),
   }
+  if type(it.baseX) == "number" then
+    item.baseX = it.baseX
+  end
+  if type(it.baseY) == "number" then
+    item.baseY = it.baseY
+  end
+  return item
 end
 
 local function logPerf(label, startedAt, extra)

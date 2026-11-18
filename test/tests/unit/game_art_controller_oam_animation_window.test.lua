@@ -615,4 +615,114 @@ describe("game_art_controller.lua - oam_animation hydration", function()
     expect(s.oamTile).toBe(42)
     expect(s.topRef).toBe(rightTile)
   end)
+
+  it("cloning after a baked ROM does not scatter sprites that already have editor bases", function()
+    local startAddr = 20
+    local baseX, baseY = 40, 10
+    local dx, dy = 24, -8
+    local romRaw = makeRom(128, {
+      [startAddr + 0] = baseY,
+      [startAddr + 1] = 1,
+      [startAddr + 2] = 0,
+      [startAddr + 3] = baseX,
+    })
+    local layout = {
+      currentBank = 1,
+      windows = {
+        {
+          id = "oam_anim_01",
+          title = "OAM Anim 01",
+          kind = "oam_animation",
+          x = 20, y = 20,
+          cellW = 8, cellH = 8,
+          cols = 32, rows = 30,
+          visibleCols = 16, visibleRows = 16,
+          zoom = 2,
+          activeLayer = 1,
+          layers = {
+            {
+              kind = "sprite",
+              name = "Frame 1",
+              mode = "8x8",
+              items = {
+                { startAddr = startAddr, dx = dx, dy = dy },
+              },
+            },
+          },
+        },
+      },
+    }
+    local wm = WM.new()
+    local tilesPool = {}
+    local function ensureTiles() end
+    local built = GameArtController.buildWindowsFromLayout(layout, {
+      wm = wm,
+      tilesPool = tilesPool,
+      ensureTiles = ensureTiles,
+      romRaw = romRaw,
+    })
+    expect(built).toBeTruthy()
+
+    local first = wm:getWindows()[1]
+    local s = first.layers[1].items[1]
+    expect(s.baseX).toBe(baseX)
+    expect(s.baseY).toBe(baseY)
+    expect(s.worldX).toBe(baseX + dx)
+    expect(s.worldY).toBe(baseY + dy)
+
+    local projectSnap = GameArtController.snapshotLayout(wm, nil, 1, nil, { onlyWindow = first })
+    expect(projectSnap.windows[1].layers[1].items[1].baseX).toBeNil()
+    expect(projectSnap.windows[1].layers[1].items[1].dx).toBe(dx)
+
+    local cloneSnap = GameArtController.snapshotLayout(wm, nil, 1, nil, {
+      onlyWindow = first,
+      includeEditorBases = true,
+    })
+    local cloneEntry = cloneSnap.windows[1]
+    expect(cloneEntry.layers[1].items[1].baseX).toBe(baseX)
+    expect(cloneEntry.layers[1].items[1].baseY).toBe(baseY)
+    cloneEntry.id = "oam_anim_clone"
+    cloneEntry.title = "OAM Anim clone"
+
+    local bakedY = (baseY + dy) % 256
+    local bakedX = (baseX + dx) % 256
+    local baked = makeRom(128, {
+      [startAddr + 0] = bakedY,
+      [startAddr + 1] = 1,
+      [startAddr + 2] = 0,
+      [startAddr + 3] = bakedX,
+    })
+    local cloned = GameArtController.buildWindowsFromLayout({
+      currentBank = 1,
+      windows = { cloneEntry },
+    }, {
+      wm = wm,
+      tilesPool = tilesPool,
+      ensureTiles = ensureTiles,
+      romRaw = baked,
+    })
+    expect(cloned).toBeTruthy()
+
+    expect(s.baseX).toBe(baseX)
+    expect(s.baseY).toBe(baseY)
+    expect(s.dx).toBe(dx)
+    expect(s.dy).toBe(dy)
+    expect(s.worldX).toBe(baseX + dx)
+    expect(s.worldY).toBe(baseY + dy)
+
+    local copy
+    for _, win in ipairs(wm:getWindows()) do
+      if win._id == "oam_anim_clone" then
+        copy = win
+      end
+    end
+    expect(copy).toBeTruthy()
+    local cs = copy.layers[1].items[1]
+    expect(cs.baseX).toBe(baseX)
+    expect(cs.baseY).toBe(baseY)
+    expect(cs.dx).toBe(dx)
+    expect(cs.dy).toBe(dy)
+    expect(cs.worldX).toBe(baseX + dx)
+    expect(cs.worldY).toBe(baseY + dy)
+  end)
 end)

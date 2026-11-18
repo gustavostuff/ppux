@@ -163,7 +163,10 @@ describe("sprite hydration — pattern table + 8x16", function()
     expect(added.worldY).toBe(50)
   end)
 
-  it("keepWorld=false double-applies displacements after ROM write-back (documents Add bug)", function()
+  it("keeps the editor base when romRaw already includes dx, even if keepWorld is false", function()
+    -- Clone and pattern-table rebuild hydrate every sprite layer without keepWorld.
+    -- After Save ROM the bytes are base+dx. Adopting them as a new base scatters
+    -- every moved sprite by its own dx, including copies in other windows.
     local addr = 0x0200
     local originalY, originalX = 20, 40
     local dx, dy = 24, -8
@@ -197,9 +200,49 @@ describe("sprite hydration — pattern table + 8x16", function()
     })
 
     local s = layer.items[1]
-    expect(s.baseX).toBe(writtenX)
+    expect(s.baseX).toBe(originalX)
+    expect(s.baseY).toBe(originalY)
     expect(s.dx).toBe(dx)
-    expect(s.worldX).toBe(writtenX + dx)
-    expect(s.worldX).toNotBe(originalX + dx)
+    expect(s.dy).toBe(dy)
+    expect(s.worldX).toBe(originalX + dx)
+    expect(s.worldY).toBe(originalY + dy)
+  end)
+
+  it("resetBase re-reads OAM bytes and drops the editor baseline", function()
+    local addr = 0x0200
+    local originalY, originalX = 20, 40
+    local dx, dy = 24, -8
+    local writtenY = (originalY + dy) % 256
+    local writtenX = (originalX + dx) % 256
+    local romRaw = ("\0"):rep(addr) .. string.char(writtenY, 1, 0, writtenX)
+
+    local layer = {
+      kind = "sprite",
+      patternTable = identityPatternTable(),
+      items = {
+        {
+          startAddr = addr,
+          baseX = originalX,
+          baseY = originalY,
+          dx = 0,
+          dy = 0,
+          worldX = nil,
+          worldY = nil,
+        },
+      },
+    }
+
+    Hydration.hydrateSpriteLayer(layer, {
+      romRaw = romRaw,
+      tilesPool = { [1] = {} },
+      appEditState = {},
+      resetBase = true,
+    })
+
+    local s = layer.items[1]
+    expect(s.baseX).toBe(writtenX)
+    expect(s.baseY).toBe(writtenY)
+    expect(s.worldX).toBe(writtenX)
+    expect(s.worldY).toBe(writtenY)
   end)
 end)

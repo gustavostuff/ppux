@@ -36,7 +36,8 @@ SpriteController.SPRITE_Y_RANGE = 256
 --  opts:
 --    romRaw     : full ROM string
 --    tilesPool  : tilesPool[bank][tileIndex] -> Tile ref
---    keepWorld  : if true, keeps existing item.worldX/Y when refreshing
+--    keepWorld  : if true, rebuild dx/dy from worldX/Y instead of the stored dx/dy
+--    resetBase  : if true, replace baseX/Y from romRaw even when a base already exists
 function SpriteController.hydrateSpriteLayer(layer, opts)
   return SpriteHydrationController.hydrateSpriteLayer(layer, opts)
 end
@@ -180,8 +181,8 @@ end
 
 --- Build a project-ready table for a sprite layer, storing only dx/dy
 --  for sprites that moved. This mirrors the layout.lua format.
-function SpriteController.snapshotSpriteLayer(layer)
-  return SpriteHydrationController.snapshotSpriteLayer(layer)
+function SpriteController.snapshotSpriteLayer(layer, opts)
+  return SpriteHydrationController.snapshotSpriteLayer(layer, opts)
 end
 
 --- Rehydrate a sprite layer from a project entry that uses dx/dy.

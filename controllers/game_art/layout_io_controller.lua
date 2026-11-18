@@ -862,7 +862,9 @@ function M.snapshotLayout(wm, bankWindow, currentBank, appOpt, opts)
 
           if kind == "sprite" then
             if SpriteController and SpriteController.snapshotSpriteLayer then
-              local snap = SpriteController.snapshotSpriteLayer(L)
+              local snap = SpriteController.snapshotSpriteLayer(L, {
+                includeEditorBases = opts.includeEditorBases == true,
+              })
               if snap then
                 snap.name = snap.name or L.name
                 snap.opacity = 1.0

@@ -202,10 +202,13 @@ function M.hydrateSpriteLayer(layer, opts)
           mirrorY = (s.mirrorY == true)
         end
 
-        -- Position baseline (baseX/Y) is sticky while keepWorld is set so Save ROM
-        -- (which bakes base+dx into romRaw) cannot collapse editor dx on the next hydrate.
-        -- Project load uses base ROM + project dx; clearing dx here loses moves on reload.
-        local stickyBase = keepWorld
+        -- baseX/Y are the original ROM bytes. Save bakes base+dx into romRaw, and the
+        -- project file stores only dx. Adopting the baked bytes as a new base and then
+        -- adding dx again throws every moved sprite (OAM windows and PPU frames) off
+        -- by its own displacement. Keep an existing base unless the caller is
+        -- explicitly re-reading OAM (Revert). Sprites with no base yet still take it
+        -- from ROM, which is the original file on project load.
+        local stickyBase = opts.resetBase ~= true
           and type(s.baseX) == "number"
           and type(s.baseY) == "number"
         if not stickyBase then
@@ -291,7 +294,7 @@ function M.hydrateWindowSpriteLayers(win, opts)
   end
 end
 
-function M.snapshotSpriteLayer(layer)
+function M.snapshotSpriteLayer(layer, opts)
   if not (layer and layer.kind == "sprite") then return nil end
 
   local out = {
@@ -314,6 +317,17 @@ function M.snapshotSpriteLayer(layer)
       -- ROM OAM slots: startAddr, optional editor displacement vs ROM bytes,
       -- and explicit palette/mirror overrides (ROM attr bits otherwise).
       entry = { startAddr = s.startAddr }
+      -- Clone needs the in-memory ROM baseline. Project save must not persist it:
+      -- reload applies dx to the original ROM, which is what puts sprites back
+      -- after a bad in-session bake.
+      if opts and opts.includeEditorBases == true then
+        if type(s.baseX) == "number" then
+          entry.baseX = s.baseX
+        end
+        if type(s.baseY) == "number" then
+          entry.baseY = s.baseY
+        end
+      end
       if s._paletteNumberOverrideSet == true and s.paletteNumber ~= nil then
         entry.paletteNumber = s.paletteNumber
       end

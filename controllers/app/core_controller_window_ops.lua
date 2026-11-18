@@ -411,7 +411,11 @@ function AppCoreController:cloneFocusedWindow()
     self.winBank,
     state and state.currentBank or 1,
     self,
-    { onlyWindow = src }
+    {
+      onlyWindow = src,
+      -- Carry baseX/Y so the copy is not re-based on a ROM that already includes dx.
+      includeEditorBases = true,
+    }
   )
   if not layout or type(layout.windows) ~= "table" or #layout.windows ~= 1 then
     self:setStatus("Could not clone this window.")
