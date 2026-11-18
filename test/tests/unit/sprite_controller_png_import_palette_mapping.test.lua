@@ -1,6 +1,7 @@
 local SpriteController = require("controllers.sprite.sprite_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 local UndoRedoController = require("controllers.input_support.undo_redo_controller")
+local Hydration = require("controllers.sprite.hydration_controller")
 local chr = require("chr")
 
 describe("sprite_controller.lua - PNG import palette mapping", function()
@@ -853,5 +854,283 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
     expect(layer.items[1].topRef.pixels[2]).toBe(1)
     expect(spriteRef.pixels[2]).toBe(1)
     expect(poolRef.pixels[2]).toBe(1)
+  end)
+
+  it("writes each selected sprite's frame into that sprite's CHR slot", function()
+    local function blankPixels()
+      local pixels = {}
+      for i = 1, 64 do pixels[i] = 0 end
+      return pixels
+    end
+    local function makeBoundTile(bankBytes, index)
+      return {
+        _bankIndex = 1,
+        _bankBytesRef = bankBytes,
+        index = index,
+        pixels = blankPixels(),
+        refreshImage = function() end,
+      }
+    end
+
+    local bankBytes = {}
+    for i = 1, 21 * 16 do bankBytes[i] = 0 end
+    local detached10 = makeBoundTile(bankBytes, 10)
+    local detached20 = makeBoundTile(bankBytes, 20)
+    local pool10 = makeBoundTile(bankBytes, 10)
+    local pool20 = makeBoundTile(bankBytes, 20)
+    -- Identical starting bytes would be one sync group if duplicate sync were on.
+    chr.setTilePixel(bankBytes, 10, 0, 0, 1)
+    chr.setTilePixel(bankBytes, 20, 0, 0, 1)
+    detached10.pixels[1] = 1
+    detached20.pixels[1] = 1
+    pool10.pixels[1] = 1
+    pool20.pixels[1] = 1
+
+    local layer = {
+      kind = "sprite",
+      mode = "8x8",
+      items = {
+        { removed = false, paletteNumber = 1, topRef = detached10, x = 0, y = 0, worldX = 0, worldY = 0, baseX = 0, baseY = 0 },
+        { removed = false, paletteNumber = 1, topRef = detached20, x = 8, y = 0, worldX = 8, worldY = 0, baseX = 8, baseY = 0 },
+      },
+      multiSpriteSelection = { [1] = true, [2] = true },
+      multiSpriteSelectionOrder = { 1, 2 },
+      selectedSpriteIndex = 1,
+    }
+    local app = makeApp({
+      appEditState = {
+        romRaw = "",
+        chrBanksBytes = { [1] = bankBytes },
+        tilesPool = { [1] = { [10] = pool10, [20] = pool20 } },
+      },
+      syncDuplicateTiles = false,
+    })
+
+    local ok = SpriteController.importSpriteImageData(app, makeTwoFrameImageData(), makeWindow(layer))
+
+    expect(ok).toBe(true)
+    expect(layer.items[1].topRef).toBe(pool10)
+    expect(layer.items[2].topRef).toBe(pool20)
+    expect(pool10.pixels[2]).toBe(1)
+    expect(pool20.pixels[2]).toBe(2)
+    local chr10 = chr.decodeTile(bankBytes, 10)
+    local chr20 = chr.decodeTile(bankBytes, 20)
+    expect(chr10[2]).toBe(1)
+    expect(chr20[2]).toBe(2)
+    expect(chr10[2]).toBe(pool10.pixels[2])
+    expect(chr20[2]).toBe(pool20.pixels[2])
+  end)
+
+  it("writes pattern-mapped sprites into the physical CHR tiles they display", function()
+    local function blankPixels()
+      local pixels = {}
+      for i = 1, 64 do pixels[i] = 0 end
+      return pixels
+    end
+    local bankBytes = {}
+    for i = 1, 32 * 16 do bankBytes[i] = 0 end
+    local function poolTile(index)
+      local tile = {
+        _bankIndex = 1,
+        _bankBytesRef = bankBytes,
+        index = index,
+        pixels = blankPixels(),
+        refreshImage = function() end,
+      }
+      return tile
+    end
+    local tilesPool = { [1] = {} }
+    for i = 0, 31 do
+      tilesPool[1][i] = poolTile(i)
+    end
+
+    local explicit = {}
+    for logical = 0, 255 do
+      local physical = logical
+      if logical == 0 then physical = 10
+      elseif logical == 1 then physical = 20
+      elseif logical == 10 then physical = 0
+      elseif logical == 20 then physical = 1
+      end
+      explicit[#explicit + 1] = { bank = 1, tileIndex = physical }
+    end
+
+    local addr = 0x0200
+    local romRaw = ("\0"):rep(addr) .. string.char(10, 0, 0, 40) .. string.char(10, 1, 0, 56)
+    local layer = {
+      kind = "sprite",
+      mode = "8x8",
+      patternTable = { ranges = { { bank = 1, tiles = explicit } } },
+      items = {
+        { startAddr = addr, dx = 0, dy = 0 },
+        { startAddr = addr + 4, dx = 0, dy = 0 },
+      },
+      multiSpriteSelection = { [1] = true, [2] = true },
+      multiSpriteSelectionOrder = { 1, 2 },
+      selectedSpriteIndex = 1,
+    }
+    Hydration.hydrateSpriteLayer(layer, {
+      romRaw = romRaw,
+      tilesPool = tilesPool,
+      appEditState = { chrBanksBytes = { [1] = bankBytes }, tilesPool = tilesPool },
+    })
+    expect(layer.items[1].topRef).toBe(tilesPool[1][10])
+    expect(layer.items[2].topRef).toBe(tilesPool[1][20])
+
+    local app = makeApp({
+      appEditState = {
+        romRaw = romRaw,
+        chrBanksBytes = { [1] = bankBytes },
+        tilesPool = tilesPool,
+      },
+    })
+
+    local ok = SpriteController.importSpriteImageData(app, makeTwoFrameImageData(), makeWindow(layer))
+
+    expect(ok).toBe(true)
+    expect(layer.items[1].topRef.pixels[2]).toBe(1)
+    expect(layer.items[2].topRef.pixels[2]).toBe(2)
+    expect(chr.decodeTile(bankBytes, 10)[2]).toBe(1)
+    expect(chr.decodeTile(bankBytes, 20)[2]).toBe(2)
+    expect(chr.decodeTile(bankBytes, 0)[2]).toBe(0)
+    expect(chr.decodeTile(bankBytes, 1)[2]).toBe(0)
+  end)
+
+  it("keeps 8x16 top and bottom halves in their own CHR tiles", function()
+    local function blankPixels()
+      local pixels = {}
+      for i = 1, 64 do pixels[i] = 0 end
+      return pixels
+    end
+    local bankBytes = {}
+    for i = 1, 8 * 16 do bankBytes[i] = 0 end
+    local function tile(index)
+      return {
+        _bankIndex = 1,
+        _bankBytesRef = bankBytes,
+        index = index,
+        pixels = blankPixels(),
+        refreshImage = function() end,
+      }
+    end
+    local top = tile(4)
+    local bot = tile(5)
+    local img = {
+      getWidth = function() return 8 end,
+      getHeight = function() return 16 end,
+      getPixel = function(_, x, y)
+        if y < 8 then
+          if x == 1 and y == 0 then return 0.50, 0.50, 0.50, 1 end
+          return 0, 0, 0, 1
+        end
+        if x == 2 and y == 8 then return 0.90, 0.90, 0.90, 1 end
+        return 0, 0, 0, 1
+      end,
+    }
+    local layer = {
+      kind = "sprite",
+      mode = "8x16",
+      items = {
+        {
+          removed = false,
+          paletteNumber = 1,
+          topRef = top,
+          botRef = bot,
+          x = 0, y = 0, worldX = 0, worldY = 0, baseX = 0, baseY = 0,
+        },
+      },
+      multiSpriteSelection = { [1] = true },
+      multiSpriteSelectionOrder = { 1 },
+      selectedSpriteIndex = 1,
+    }
+    local app = makeApp({
+      appEditState = {
+        romRaw = "",
+        chrBanksBytes = { [1] = bankBytes },
+        tilesPool = { [1] = { [4] = top, [5] = bot } },
+      },
+    })
+
+    local ok = SpriteController.importSpriteImageData(app, img, makeWindow(layer))
+
+    expect(ok).toBe(true)
+    expect(top.pixels[2]).toBe(1)
+    expect(bot.pixels[3]).toBe(2)
+    expect(chr.decodeTile(bankBytes, 4)[2]).toBe(1)
+    expect(chr.decodeTile(bankBytes, 4)[3]).toBe(0)
+    expect(chr.decodeTile(bankBytes, 5)[3]).toBe(2)
+    expect(chr.decodeTile(bankBytes, 5)[2]).toBe(0)
+  end)
+
+  it("invalidates cached canvases for each pasted CHR tile", function()
+    local function blankPixels()
+      local pixels = {}
+      for i = 1, 64 do pixels[i] = 0 end
+      return pixels
+    end
+    local bankBytes = {}
+    for i = 1, 21 * 16 do bankBytes[i] = 0 end
+    local function tile(index)
+      return {
+        _bankIndex = 1,
+        _bankBytesRef = bankBytes,
+        index = index,
+        pixels = blankPixels(),
+        refreshImage = function() end,
+      }
+    end
+    local tile10 = tile(10)
+    local tile20 = tile(20)
+    local calls = {}
+    local function record(kind)
+      return function(_, bank, tileIndex)
+        calls[#calls + 1] = { kind = kind, bank = bank, tile = tileIndex }
+      end
+    end
+    local function count(kind, tileIndex)
+      local n = 0
+      for _, call in ipairs(calls) do
+        if call.kind == kind and call.bank == 1 and call.tile == tileIndex then
+          n = n + 1
+        end
+      end
+      return n
+    end
+
+    local layer = {
+      kind = "sprite",
+      mode = "8x8",
+      items = {
+        { removed = false, paletteNumber = 1, topRef = tile10, x = 0, y = 0, worldX = 0, worldY = 0, baseX = 0, baseY = 0 },
+        { removed = false, paletteNumber = 1, topRef = tile20, x = 8, y = 0, worldX = 8, worldY = 0, baseX = 8, baseY = 0 },
+      },
+      multiSpriteSelection = { [1] = true, [2] = true },
+      multiSpriteSelectionOrder = { 1, 2 },
+      selectedSpriteIndex = 1,
+    }
+    local app = makeApp({
+      appEditState = {
+        romRaw = "",
+        chrBanksBytes = { [1] = bankBytes },
+        tilesPool = { [1] = { [10] = tile10, [20] = tile20 } },
+      },
+    })
+    app.invalidateChrBankTileCanvas = record("chr")
+    app.invalidatePpuFrameNametableTile = record("nametable")
+    app.invalidatePpuFrameSpriteTilesForChrTile = record("sprite")
+    app.invalidateStaticAnimationTileLayerCanvasForChrTile = record("tileLayer")
+
+    local ok = SpriteController.importSpriteImageData(app, makeTwoFrameImageData(), makeWindow(layer))
+
+    expect(ok).toBe(true)
+    expect(count("chr", 10)).toBe(1)
+    expect(count("chr", 20)).toBe(1)
+    expect(count("nametable", 10)).toBe(1)
+    expect(count("nametable", 20)).toBe(1)
+    expect(count("sprite", 10)).toBe(1)
+    expect(count("sprite", 20)).toBe(1)
+    expect(count("tileLayer", 10)).toBe(1)
+    expect(count("tileLayer", 20)).toBe(1)
+    expect(count("chr", 0)).toBe(0)
   end)
 end)

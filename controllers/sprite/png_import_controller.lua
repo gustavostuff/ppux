@@ -6,6 +6,7 @@ local DebugController = require("controllers.dev.debug_controller")
 local ShaderPaletteController = require("controllers.palette.shader_palette_controller")
 local ChrDuplicateSync = require("controllers.chr.duplicate_sync_controller")
 local PngPaletteMappingController = require("controllers.png.palette_mapping_controller")
+local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
 
 local M = {}
 
@@ -809,6 +810,15 @@ local function applySpriteImageData(SpriteController, app, win, targets, imgData
   end
   if app and app.appEditState and #syncChangedTargets.list > 0 then
     ChrDuplicateSync.updateTiles(app.appEditState, syncChangedTargets.list)
+  end
+  -- Brush paints invalidate the CHR bank, nametable, pattern-table, and other
+  -- sprite windows that cache this tile. Import writes the bytes directly, so
+  -- those canvases stay on the previous frame until something else dirties them.
+  for i = 1, #syncChangedTargets.list do
+    local target = syncChangedTargets.list[i]
+    if target and target.bank ~= nil and target.tileIndex ~= nil then
+      BankCanvasSupport.invalidateTile(app, target.bank, target.tileIndex)
+    end
   end
   app:setStatus(msg)
   return true
