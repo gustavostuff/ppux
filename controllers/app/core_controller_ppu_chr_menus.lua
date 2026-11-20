@@ -903,6 +903,9 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
       end,
     }
   end
+  if context and context.layer and context.layer.kind == "sprite" and context.win then
+    self:_appendGenerateSpriteSheetMenuItem(items, context.win)
+  end
   self:_appendPasteContextMenuItem(items, context)
   return items
 end

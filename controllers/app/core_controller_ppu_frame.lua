@@ -1074,6 +1074,34 @@ function AppCoreController:_buildOamSpriteEmptySpaceContext(win, layerIndex)
   }
 end
 
+function AppCoreController:_appendGenerateSpriteSheetMenuItem(items, win)
+  if type(items) ~= "table" or not win then
+    return items
+  end
+  items[#items + 1] = {
+    text = "Generate sprite sheet",
+    menuGroup = "spr_sheet_export",
+    enabled = true,
+    callback = function()
+      if self.hideAppContextMenus then
+        self:hideAppContextMenus()
+      end
+      local SpriteSheet = require("controllers.sprite.sprite_sheet_controller")
+      local ok, err = SpriteSheet.copyWindowSpriteSheet(win, self)
+      if not self.showToast then
+        return ok
+      end
+      if ok then
+        self:showToast("info", "Spritesheet copied to clipboard")
+      else
+        self:showToast("error", tostring(err or "Could not copy sprite sheet"))
+      end
+      return ok
+    end,
+  }
+  return items
+end
+
 function AppCoreController:_buildOamSpriteEmptySpaceContextMenuItems(context)
   local items = {}
   if context and context.isOam then
@@ -1164,6 +1192,10 @@ function AppCoreController:_buildOamSpriteEmptySpaceContextMenuItems(context)
         end
       end,
     }
+  end
+
+  if win and layer and layer.kind == "sprite" then
+    self:_appendGenerateSpriteSheetMenuItem(items, win)
   end
 
   if context and context.win and context.layerIndex then

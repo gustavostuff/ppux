@@ -1,5 +1,5 @@
 # native/ppux_clipboard/Makefile
-# Clipboard image reader for LuaJIT FFI.
+# Clipboard image reader/writer for LuaJIT FFI.
 
 CC ?= cc
 CFLAGS ?= -O2 -fPIC -Wall -Wextra -std=c11
@@ -21,8 +21,9 @@ else ifeq ($(UNAME_S),Darwin)
   LIBS += -framework AppKit -framework Foundation
 else
   TARGET := libppux_clipboard.so
-  SRCS := ppux_clipboard.c dib_to_rgba.c clipboard_linux.c
-  LDFLAGS_SHARED += -shared
+  SRCS := ppux_clipboard.c dib_to_rgba.c clipboard_linux.c clipboard_linux_set.c
+  CFLAGS += -pthread
+  LDFLAGS_SHARED += -shared -pthread
   PKG_CFLAGS := $(shell pkg-config --cflags wayland-client x11 2>/dev/null)
   PKG_LIBS := $(shell pkg-config --libs wayland-client x11 2>/dev/null)
   CFLAGS += $(PKG_CFLAGS)

@@ -106,3 +106,61 @@ int ppux_clipboard_platform_get_image(
   CloseClipboard();
   return rc;
 }
+
+static int put_png_format(UINT format, const uint8_t *bytes, size_t size) {
+  if (!format) {
+    return 0;
+  }
+  HGLOBAL mem = GlobalAlloc(GMEM_MOVEABLE, (SIZE_T)size);
+  if (!mem) {
+    return 0;
+  }
+  void *locked = GlobalLock(mem);
+  if (!locked) {
+    GlobalFree(mem);
+    return 0;
+  }
+  memcpy(locked, bytes, size);
+  GlobalUnlock(mem);
+  if (!SetClipboardData(format, mem)) {
+    GlobalFree(mem);
+    return 0;
+  }
+  return 1;
+}
+
+int ppux_clipboard_platform_set_png(const uint8_t *bytes, size_t size) {
+  if (!bytes || size == 0 || size > 32u * 1024u * 1024u) {
+    ppux_clipboard_set_error("empty png");
+    return PPUX_CLIP_ERR;
+  }
+
+  UINT png_fmt = RegisterClipboardFormatA("PNG");
+  UINT png_mime = RegisterClipboardFormatA("image/png");
+  int opened = 0;
+  for (int attempt = 0; attempt < 5; attempt++) {
+    if (OpenClipboard(NULL)) {
+      opened = 1;
+      break;
+    }
+    Sleep(10);
+  }
+  if (!opened) {
+    ppux_clipboard_set_error("OpenClipboard failed");
+    return PPUX_CLIP_ERR;
+  }
+  if (!EmptyClipboard()) {
+    CloseClipboard();
+    ppux_clipboard_set_error("EmptyClipboard failed");
+    return PPUX_CLIP_ERR;
+  }
+
+  int stored = put_png_format(png_fmt, bytes, size);
+  stored = put_png_format(png_mime, bytes, size) || stored;
+  CloseClipboard();
+  if (!stored) {
+    ppux_clipboard_set_error("Could not set clipboard image");
+    return PPUX_CLIP_ERR;
+  }
+  return PPUX_CLIP_OK;
+}

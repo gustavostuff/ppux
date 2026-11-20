@@ -35,6 +35,8 @@ int ppux_dib_to_rgba(
   int32_t *out_w,
   int32_t *out_h
 );
+
+int ppux_clipboard_set_png(const uint8_t *bytes, size_t size);
 ]]
 
 local function candidatePaths()
@@ -251,6 +253,33 @@ function M.dibToRgba(dib)
   local bytes = ffi.string(out[0], tw * th * 4)
   C.ppux_clipboard_free(out[0])
   return bytes, tw, th
+end
+
+--- Copy a PNG byte string to the OS clipboard.
+--- @return boolean ok, string|nil err  "unavailable" | "empty" | message
+function M.setPng(bytes)
+  if type(bytes) ~= "string" or #bytes < 1 then
+    return false, "empty"
+  end
+  if not tryLoad() then
+    return false, "unavailable"
+  end
+  local buf = ffi.new("uint8_t[?]", #bytes)
+  ffi.copy(buf, bytes, #bytes)
+  local okCall, rc = pcall(function()
+    return C.ppux_clipboard_set_png(buf, #bytes)
+  end)
+  if not okCall then
+    return false, "unavailable"
+  end
+  rc = tonumber(rc)
+  if rc == CLIP_OK then
+    return true
+  end
+  if rc == CLIP_UNAVAILABLE then
+    return false, "unavailable"
+  end
+  return false, lastError("clipboard_write_failed")
 end
 
 return M

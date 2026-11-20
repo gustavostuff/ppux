@@ -341,14 +341,80 @@ describe("core_controller.lua - contextual menu helpers", function()
     }, 1)
 
     local items = app:_buildOamSpriteEmptySpaceContextMenuItems(context)
-    expect(#items).toBe(1)
+    expect(#items).toBe(2)
     expect(items[1].text).toBe("Add new sprite")
     expect(items[1].enabled).toBe(true)
+    expect(items[2].text).toBe("Generate sprite sheet")
+    expect(items[2].enabled).toBe(true)
     KeyboardClipboardController.reset()
 
     local ok = items[1].callback()
     expect(ok).toBe(true)
     expect(addCalls).toBe(1)
+  end)
+
+  it("copies a sprite sheet from OAM and non-OAM sprite context menus", function()
+    local toasts = {}
+    local app = setmetatable({
+      hideAppContextMenus = function() end,
+      showToast = function(_, kind, text)
+        toasts[#toasts + 1] = kind .. ":" .. text
+      end,
+    }, AppCoreController)
+    local SpriteSheet = require("controllers.sprite.sprite_sheet_controller")
+    local original = SpriteSheet.copyWindowSpriteSheet
+    local copiedKind = nil
+    SpriteSheet.copyWindowSpriteSheet = function(win)
+      copiedKind = win.kind
+      return true
+    end
+
+    local function findItem(items, text)
+      for _, item in ipairs(items or {}) do
+        if item.text == text then
+          return item
+        end
+      end
+      return nil
+    end
+
+    local staticWin = {
+      kind = "static_art",
+      layers = {
+        { kind = "sprite", items = {} },
+      },
+    }
+    local staticItems = app:_buildOamSpriteEmptySpaceContextMenuItems(
+      app:_buildOamSpriteEmptySpaceContext(staticWin, 1)
+    )
+    local staticSheet = findItem(staticItems, "Generate sprite sheet")
+    expect(staticSheet).toBeTruthy()
+    staticSheet.callback()
+    expect(copiedKind).toBe("static_art")
+
+    local spriteHit = app:_buildSelectInChrContextMenuItems({
+      win = staticWin,
+      layerIndex = 1,
+      layer = staticWin.layers[1],
+      itemIndex = 1,
+      item = { tile = 1 },
+      tileIndex = 1,
+    })
+    expect(findItem(spriteHit, "Generate sprite sheet")).toBeTruthy()
+
+    local tileItems = app:_buildSelectInChrContextMenuItems({
+      win = { kind = "static_art", layers = {} },
+      layerIndex = 1,
+      layer = { kind = "tile" },
+      col = 0,
+      row = 0,
+      item = { index = 1 },
+      tileIndex = 1,
+    })
+    expect(findItem(tileItems, "Generate sprite sheet")).toBeNil()
+
+    SpriteSheet.copyWindowSpriteSheet = original
+    expect(toasts[1]).toBe("info:Spritesheet copied to clipboard")
   end)
 
   it("adds Remove selected sprites to OAM empty-space menu when sprites are selected", function()
