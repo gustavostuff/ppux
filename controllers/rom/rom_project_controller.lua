@@ -25,6 +25,15 @@ local FilesystemPath = require("utils.filesystem_path")
 -- Helpers: sha1 + path + edits merge
 ------------------------------------------------------------
 
+-- OAM revert must read the ROM from project load (base file plus patches), not the
+-- buffer save bakes sprite dx/dy into. Strings are immutable, so this keeps the
+-- load-time bytes after romRaw is replaced.
+local function captureRomOamBaseline(state)
+  if type(state) == "table" and type(state.romRaw) == "string" and state.romRaw ~= "" then
+    state.romOamBaseline = state.romRaw
+  end
+end
+
 local function sha1_hex(bytes)
   local digest = love.data.hash("sha1", bytes)
   return love.data.encode("string", "hex", digest)
@@ -1373,6 +1382,7 @@ function M.loadROM(app, fileOrPath)
   else
     state.romPatches = nil
   end
+  captureRomOamBaseline(state)
 
   -- Parse ROM after optional project patches have been applied.
   if not parseROM(app) then
@@ -1527,6 +1537,7 @@ function M.loadProjectFile(app, fileOrPath)
     state.originalChrBanksBytes = state.originalChrBanksBytes or {}
     state.tilesPool = state.tilesPool or {}
   end
+  captureRomOamBaseline(state)
 
   if not loadFromProject(app, project) then
     return finish(false)

@@ -155,6 +155,16 @@ function M.hydrateSpriteLayer(layer, opts)
 
   local items = layer.items or {}
   local mode = layer.mode or "8x8"
+  local onlySprites = opts.onlySprites
+  if onlySprites then
+    local filtered = {}
+    for _, s in ipairs(items) do
+      if onlySprites[s] then
+        filtered[#filtered + 1] = s
+      end
+    end
+    items = filtered
+  end
 
   for _, s in ipairs(items) do
     if type(s.startAddr) == "number" then

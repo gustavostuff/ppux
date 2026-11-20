@@ -943,8 +943,8 @@ function AppCoreController:_resetOamLinkedSpritePositions(win, layerIndex, opts)
   return #actions
 end
 
---- Clear editor overlays (position / flip / palette) and re-read OAM bytes from romRaw.
---- Does not restore original ROM file bytes — only drops PPUX sticky state.
+--- Clear editor overlays and re-read OAM bytes from the load-time ROM.
+--- That is the base file plus project patches, not romRaw after a save has baked dx/dy.
 function AppCoreController:_revertOamLinkedSprites(win, layerIndex, opts)
   opts = opts or {}
   if not (win and type(layerIndex) == "number") then
@@ -961,6 +961,8 @@ function AppCoreController:_revertOamLinkedSprites(win, layerIndex, opts)
 
   local capture = SpriteStateSnapshot.captureSpriteState
   local statesEqual = SpriteStateSnapshot.statesEqual
+  local captureBinding = SpriteStateSnapshot.captureSpriteBindingState
+  local bindingsEqual = SpriteStateSnapshot.bindingStatesEqual
   local indices = collectSelectedSpriteIndices(layer, opts)
 
   local tracked = {}
@@ -975,8 +977,10 @@ function AppCoreController:_revertOamLinkedSprites(win, layerIndex, opts)
   end
 
   local beforeBySprite = {}
+  local beforeBindingBySprite = {}
   for _, entry in ipairs(tracked) do
     beforeBySprite[entry.sprite] = capture(entry.sprite)
+    beforeBindingBySprite[entry.sprite] = captureBinding(entry.sprite)
   end
 
   for _, entry in ipairs(tracked) do
@@ -984,14 +988,23 @@ function AppCoreController:_revertOamLinkedSprites(win, layerIndex, opts)
   end
 
   local state = self.appEditState or {}
-  -- resetBase: drop the editor baseline and read the live OAM bytes. Without it a
-  -- sticky base would ignore romRaw. dx was already cleared above.
+  -- Prefer the ROM captured at project load. Live romRaw is replaced on save with
+  -- bytes that already include editor dx/dy, which makes revert look like a no-op.
+  local baseline = state.romOamBaseline
+  if type(baseline) ~= "string" or baseline == "" then
+    baseline = state.romRaw or ""
+  end
+  local onlySprites = {}
+  for _, entry in ipairs(tracked) do
+    onlySprites[entry.sprite] = true
+  end
   SpriteController.hydrateSpriteLayer(layer, {
-    romRaw = state.romRaw or "",
+    romRaw = baseline,
     tilesPool = state.tilesPool,
     appEditState = state,
     keepWorld = false,
     resetBase = true,
+    onlySprites = onlySprites,
   })
 
   for _, entry in ipairs(tracked) do
@@ -999,6 +1012,7 @@ function AppCoreController:_revertOamLinkedSprites(win, layerIndex, opts)
       syncPosition = true,
       syncVisual = true,
       syncAttr = true,
+      syncTile = true,
     })
   end
 
@@ -1007,7 +1021,8 @@ function AppCoreController:_revertOamLinkedSprites(win, layerIndex, opts)
     local s = entry.sprite
     local beforeState = beforeBySprite[s]
     local afterState = capture(s)
-    if beforeState and afterState and not statesEqual(beforeState, afterState) then
+    local bindingChanged = not bindingsEqual(beforeBindingBySprite[s], captureBinding(s))
+    if beforeState and afterState and (bindingChanged or not statesEqual(beforeState, afterState)) then
       actions[#actions + 1] = {
         win = win,
         layerIndex = layerIndex,
@@ -1143,7 +1158,7 @@ function AppCoreController:_buildOamSpriteEmptySpaceContextMenuItems(context)
           indices = collectAllLayerSpriteIndices(layer),
         })
         if n <= 0 then
-          self:setStatus("Sprites already match current ROM OAM")
+          self:setStatus("Sprites already match base ROM OAM")
         else
           self:setStatus((n == 1) and "Reverted sprite to ROM OAM" or string.format("Reverted %d sprites to ROM OAM", n))
         end

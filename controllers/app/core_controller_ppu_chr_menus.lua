@@ -840,7 +840,7 @@ function AppCoreController:_buildSelectInChrContextMenuItems(context)
         end
         local n = self:_revertOamLinkedSprites(context.win, context.layerIndex, { indices = indices })
         if n <= 0 then
-          self:setStatus("Sprites already match current ROM OAM")
+          self:setStatus("Sprites already match base ROM OAM")
         else
           self:setStatus((n == 1) and "Reverted sprite to ROM OAM" or string.format("Reverted %d sprites to ROM OAM", n))
         end

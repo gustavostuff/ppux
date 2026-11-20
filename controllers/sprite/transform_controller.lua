@@ -171,6 +171,13 @@ local function syncSharedOAMFieldsIntoTarget(target, source, opts)
     end
     normalizeOAMAttrFromSpriteState(target)
   end
+
+  if opts.syncTile then
+    target.oamTile = source.oamTile
+    target.tile = source.tile
+    target.bank = source.bank
+    target.tileBelow = source.tileBelow
+  end
 end
 
 local function collectCandidateStartAddrSpriteWindows(sourceWin, opts)

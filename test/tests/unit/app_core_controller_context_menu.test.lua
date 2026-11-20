@@ -744,6 +744,111 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(status).toBe("Reverted sprite to ROM OAM")
   end)
 
+  it("reverts an OAM animation sprite to the load-time ROM when romRaw is already baked", function()
+    local base = string.rep("\0", 0x210)
+    -- Base OAM at 0x200: Y=11, tile=7, attr=0, X=22
+    base = base:sub(1, 0x200) .. string.char(11, 7, 0x00, 22) .. base:sub(0x205)
+    -- Different bytes at the peer address, so a whole-layer rehydrate would move it.
+    base = base:sub(1, 0x204) .. string.char(9, 1, 0x00, 9) .. base:sub(0x209)
+    local baked = base:sub(1, 0x200) .. string.char(40, 9, 0x40, 30) .. base:sub(0x205)
+
+    local app = setmetatable({
+      appEditState = {
+        romRaw = baked,
+        romOamBaseline = base,
+        tilesPool = {
+          [1] = {
+            [7] = { _bankIndex = 1, index = 7, pixels = {} },
+          },
+        },
+      },
+      undoRedo = { addDragEvent = function() end },
+      markUnsaved = function() end,
+      setStatus = function() end,
+    }, AppCoreController)
+
+    local layer = {
+      kind = "sprite",
+      mode = "8x8",
+      items = {
+        {
+          startAddr = 0x200,
+          baseX = 22,
+          baseY = 11,
+          worldX = 30,
+          worldY = 40,
+          x = 30,
+          y = 40,
+          dx = 8,
+          dy = 29,
+          hasMoved = true,
+          tile = 9,
+          oamTile = 9,
+          attr = 0x40,
+          mirrorX = true,
+          _mirrorXOverrideSet = true,
+          bank = 1,
+        },
+        {
+          startAddr = 0x204,
+          baseX = 1,
+          baseY = 2,
+          worldX = 5,
+          worldY = 6,
+          x = 5,
+          y = 6,
+          dx = 4,
+          dy = 4,
+          hasMoved = true,
+          tile = 3,
+          bank = 1,
+        },
+      },
+    }
+    local win = { kind = "oam_animation", layers = { layer } }
+    local context = {
+      win = win,
+      layerIndex = 1,
+      layer = layer,
+      itemIndex = 1,
+      item = layer.items[1],
+      tileIndex = 9,
+    }
+
+    local items = app:_buildSelectInChrContextMenuItems(context)
+    local revertItem
+    for _, it in ipairs(items) do
+      if it.text == "Revert all" then
+        revertItem = it
+        break
+      end
+    end
+    expect(revertItem ~= nil).toBe(true)
+    revertItem.callback()
+
+    local s = layer.items[1]
+    expect(s.dx).toBe(0)
+    expect(s.dy).toBe(0)
+    expect(s.worldX).toBe(22)
+    expect(s.worldY).toBe(11)
+    expect(s.baseX).toBe(22)
+    expect(s.baseY).toBe(11)
+    expect(s.tile).toBe(7)
+    expect(s.oamTile).toBe(7)
+    expect(s.attr).toBe(0)
+    expect(s.mirrorX).toBe(false)
+    expect(s._mirrorXOverrideSet).toBe(false)
+
+    local peer = layer.items[2]
+    expect(peer.dx).toBe(4)
+    expect(peer.dy).toBe(4)
+    expect(peer.baseX).toBe(1)
+    expect(peer.baseY).toBe(2)
+    expect(peer.worldX).toBe(5)
+    expect(peer.worldY).toBe(6)
+    expect(peer.tile).toBe(3)
+  end)
+
   it("puts Edit sprite first on PPU frame sprite select-in-CHR context menu", function()
     local editCalls = 0
     local app = setmetatable({
