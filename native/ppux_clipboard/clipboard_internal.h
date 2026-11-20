@@ -13,4 +13,6 @@ int ppux_clipboard_platform_get_image(
   int32_t *out_height
 );
 
+int ppux_clipboard_platform_set_png(const uint8_t *bytes, size_t size);
+
 #endif

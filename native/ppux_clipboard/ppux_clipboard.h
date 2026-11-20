@@ -39,6 +39,12 @@ void ppux_clipboard_free(void *p);
 
 const char *ppux_clipboard_last_error(void);
 
+/* Copy PNG bytes onto the OS clipboard. Linux keeps serving the image
+ * until another copy replaces it or this process exits. Returns
+ * PPUX_CLIP_OK, UNAVAILABLE, or ERR.
+ */
+int ppux_clipboard_set_png(const uint8_t *bytes, size_t size);
+
 /* Decode a clipboard CF_DIB / CF_DIBV5 blob to top-down RGBA8.
  * Returns 0 on success. *out_rgba is malloc'd.
  */

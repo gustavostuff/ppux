@@ -55,3 +55,20 @@ int ppux_clipboard_platform_get_image(
     return PPUX_CLIP_OK;
   }
 }
+
+int ppux_clipboard_platform_set_png(const uint8_t *bytes, size_t size) {
+  @autoreleasepool {
+    if (!bytes || size == 0) {
+      ppux_clipboard_set_error("empty png");
+      return PPUX_CLIP_ERR;
+    }
+    NSPasteboard *board = [NSPasteboard generalPasteboard];
+    [board clearContents];
+    NSData *data = [NSData dataWithBytes:bytes length:(NSUInteger)size];
+    if (![board setData:data forType:NSPasteboardTypePNG]) {
+      ppux_clipboard_set_error("Could not set clipboard image");
+      return PPUX_CLIP_ERR;
+    }
+    return PPUX_CLIP_OK;
+  }
+}

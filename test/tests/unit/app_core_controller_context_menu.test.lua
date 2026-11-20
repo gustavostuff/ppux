@@ -341,14 +341,80 @@ describe("core_controller.lua - contextual menu helpers", function()
     }, 1)
 
     local items = app:_buildOamSpriteEmptySpaceContextMenuItems(context)
-    expect(#items).toBe(1)
+    expect(#items).toBe(2)
     expect(items[1].text).toBe("Add new sprite")
     expect(items[1].enabled).toBe(true)
+    expect(items[2].text).toBe("Generate sprite sheet")
+    expect(items[2].enabled).toBe(true)
     KeyboardClipboardController.reset()
 
     local ok = items[1].callback()
     expect(ok).toBe(true)
     expect(addCalls).toBe(1)
+  end)
+
+  it("copies a sprite sheet from OAM and non-OAM sprite context menus", function()
+    local toasts = {}
+    local app = setmetatable({
+      hideAppContextMenus = function() end,
+      showToast = function(_, kind, text)
+        toasts[#toasts + 1] = kind .. ":" .. text
+      end,
+    }, AppCoreController)
+    local SpriteSheet = require("controllers.sprite.sprite_sheet_controller")
+    local original = SpriteSheet.copyWindowSpriteSheet
+    local copiedKind = nil
+    SpriteSheet.copyWindowSpriteSheet = function(win)
+      copiedKind = win.kind
+      return true
+    end
+
+    local function findItem(items, text)
+      for _, item in ipairs(items or {}) do
+        if item.text == text then
+          return item
+        end
+      end
+      return nil
+    end
+
+    local staticWin = {
+      kind = "static_art",
+      layers = {
+        { kind = "sprite", items = {} },
+      },
+    }
+    local staticItems = app:_buildOamSpriteEmptySpaceContextMenuItems(
+      app:_buildOamSpriteEmptySpaceContext(staticWin, 1)
+    )
+    local staticSheet = findItem(staticItems, "Generate sprite sheet")
+    expect(staticSheet).toBeTruthy()
+    staticSheet.callback()
+    expect(copiedKind).toBe("static_art")
+
+    local spriteHit = app:_buildSelectInChrContextMenuItems({
+      win = staticWin,
+      layerIndex = 1,
+      layer = staticWin.layers[1],
+      itemIndex = 1,
+      item = { tile = 1 },
+      tileIndex = 1,
+    })
+    expect(findItem(spriteHit, "Generate sprite sheet")).toBeTruthy()
+
+    local tileItems = app:_buildSelectInChrContextMenuItems({
+      win = { kind = "static_art", layers = {} },
+      layerIndex = 1,
+      layer = { kind = "tile" },
+      col = 0,
+      row = 0,
+      item = { index = 1 },
+      tileIndex = 1,
+    })
+    expect(findItem(tileItems, "Generate sprite sheet")).toBeNil()
+
+    SpriteSheet.copyWindowSpriteSheet = original
+    expect(toasts[1]).toBe("info:Spritesheet copied to clipboard")
   end)
 
   it("adds Remove selected sprites to OAM empty-space menu when sprites are selected", function()
@@ -742,6 +808,111 @@ describe("core_controller.lua - contextual menu helpers", function()
     expect(undoEv).toBeTruthy()
     expect(undoEv.sync.syncVisual).toBe(true)
     expect(status).toBe("Reverted sprite to ROM OAM")
+  end)
+
+  it("reverts an OAM animation sprite to the load-time ROM when romRaw is already baked", function()
+    local base = string.rep("\0", 0x210)
+    -- Base OAM at 0x200: Y=11, tile=7, attr=0, X=22
+    base = base:sub(1, 0x200) .. string.char(11, 7, 0x00, 22) .. base:sub(0x205)
+    -- Different bytes at the peer address, so a whole-layer rehydrate would move it.
+    base = base:sub(1, 0x204) .. string.char(9, 1, 0x00, 9) .. base:sub(0x209)
+    local baked = base:sub(1, 0x200) .. string.char(40, 9, 0x40, 30) .. base:sub(0x205)
+
+    local app = setmetatable({
+      appEditState = {
+        romRaw = baked,
+        romOamBaseline = base,
+        tilesPool = {
+          [1] = {
+            [7] = { _bankIndex = 1, index = 7, pixels = {} },
+          },
+        },
+      },
+      undoRedo = { addDragEvent = function() end },
+      markUnsaved = function() end,
+      setStatus = function() end,
+    }, AppCoreController)
+
+    local layer = {
+      kind = "sprite",
+      mode = "8x8",
+      items = {
+        {
+          startAddr = 0x200,
+          baseX = 22,
+          baseY = 11,
+          worldX = 30,
+          worldY = 40,
+          x = 30,
+          y = 40,
+          dx = 8,
+          dy = 29,
+          hasMoved = true,
+          tile = 9,
+          oamTile = 9,
+          attr = 0x40,
+          mirrorX = true,
+          _mirrorXOverrideSet = true,
+          bank = 1,
+        },
+        {
+          startAddr = 0x204,
+          baseX = 1,
+          baseY = 2,
+          worldX = 5,
+          worldY = 6,
+          x = 5,
+          y = 6,
+          dx = 4,
+          dy = 4,
+          hasMoved = true,
+          tile = 3,
+          bank = 1,
+        },
+      },
+    }
+    local win = { kind = "oam_animation", layers = { layer } }
+    local context = {
+      win = win,
+      layerIndex = 1,
+      layer = layer,
+      itemIndex = 1,
+      item = layer.items[1],
+      tileIndex = 9,
+    }
+
+    local items = app:_buildSelectInChrContextMenuItems(context)
+    local revertItem
+    for _, it in ipairs(items) do
+      if it.text == "Revert all" then
+        revertItem = it
+        break
+      end
+    end
+    expect(revertItem ~= nil).toBe(true)
+    revertItem.callback()
+
+    local s = layer.items[1]
+    expect(s.dx).toBe(0)
+    expect(s.dy).toBe(0)
+    expect(s.worldX).toBe(22)
+    expect(s.worldY).toBe(11)
+    expect(s.baseX).toBe(22)
+    expect(s.baseY).toBe(11)
+    expect(s.tile).toBe(7)
+    expect(s.oamTile).toBe(7)
+    expect(s.attr).toBe(0)
+    expect(s.mirrorX).toBe(false)
+    expect(s._mirrorXOverrideSet).toBe(false)
+
+    local peer = layer.items[2]
+    expect(peer.dx).toBe(4)
+    expect(peer.dy).toBe(4)
+    expect(peer.baseX).toBe(1)
+    expect(peer.baseY).toBe(2)
+    expect(peer.worldX).toBe(5)
+    expect(peer.worldY).toBe(6)
+    expect(peer.tile).toBe(3)
   end)
 
   it("puts Edit sprite first on PPU frame sprite select-in-CHR context menu", function()

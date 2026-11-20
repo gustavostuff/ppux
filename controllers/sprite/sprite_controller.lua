@@ -38,6 +38,7 @@ SpriteController.SPRITE_Y_RANGE = 256
 --    tilesPool  : tilesPool[bank][tileIndex] -> Tile ref
 --    keepWorld  : if true, rebuild dx/dy from worldX/Y instead of the stored dx/dy
 --    resetBase  : if true, replace baseX/Y from romRaw even when a base already exists
+--    onlySprites: optional set (sprite table -> true); other items on the layer are left alone
 function SpriteController.hydrateSpriteLayer(layer, opts)
   return SpriteHydrationController.hydrateSpriteLayer(layer, opts)
 end

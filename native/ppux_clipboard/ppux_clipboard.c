@@ -42,3 +42,12 @@ int ppux_clipboard_get_image(
     out_bytes, out_size, out_format, out_width, out_height
   );
 }
+
+int ppux_clipboard_set_png(const uint8_t *bytes, size_t size) {
+  g_err[0] = '\0';
+  if (!bytes || size == 0) {
+    ppux_clipboard_set_error("empty png");
+    return PPUX_CLIP_ERR;
+  }
+  return ppux_clipboard_platform_set_png(bytes, size);
+}
