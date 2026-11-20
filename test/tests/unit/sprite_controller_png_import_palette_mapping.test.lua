@@ -721,6 +721,68 @@ describe("sprite_controller.lua - PNG import palette mapping", function()
     expect(beginDragCallCount).toBe(0)
   end)
 
+  it("flips imported pixels when the sprite is mirrored so the drawing matches the PNG", function()
+    local function markedImage(height)
+      return {
+        getWidth = function() return 8 end,
+        getHeight = function() return height end,
+        getPixel = function(_, x, y)
+          if x == 0 and y == 0 then
+            return 0.90, 0.90, 0.90, 1.0
+          end
+          if x == 7 and y == (height - 1) then
+            return 0.50, 0.50, 0.50, 1.0
+          end
+          return 0.10, 0.10, 0.10, 1.0
+        end,
+      }
+    end
+
+    local function importInto(sprite, mode, height)
+      local layer = {
+        kind = "sprite",
+        mode = mode,
+        items = { sprite },
+        multiSpriteSelection = { [1] = true },
+        multiSpriteSelectionOrder = { 1 },
+        selectedSpriteIndex = 1,
+      }
+      return SpriteController.importSpriteImageData(makeApp(), markedImage(height), makeWindow(layer))
+    end
+
+    local plainX = {
+      removed = false,
+      paletteNumber = 1,
+      topRef = makeTileRef(),
+      x = 0, y = 0, worldX = 0, worldY = 0, baseX = 0, baseY = 0,
+    }
+    local mirrorX = {
+      removed = false,
+      paletteNumber = 1,
+      mirrorX = true,
+      topRef = makeTileRef(),
+      x = 0, y = 0, worldX = 0, worldY = 0, baseX = 0, baseY = 0,
+    }
+    expect(importInto(plainX, "8x8", 8)).toBe(true)
+    expect(importInto(mirrorX, "8x8", 8)).toBe(true)
+    -- PNG x=0 is stored at x=7, which horizontal flip draws back on the left.
+    expect(plainX.topRef.pixels[1]).toBe(2)
+    expect(mirrorX.topRef.pixels[8]).toBe(2)
+    expect(mirrorX.topRef.pixels[1]).toBe(0)
+
+    local plainY = makeSprite8x16()
+    local mirrorY = makeSprite8x16()
+    mirrorY.mirrorY = true
+    expect(importInto(plainY, "8x16", 16)).toBe(true)
+    expect(importInto(mirrorY, "8x16", 16)).toBe(true)
+    -- PNG top-left moves to the bottom tile's top row, then vertical flip puts it on that tile's last row.
+    expect(plainY.topRef.pixels[1]).toBe(2)
+    expect(mirrorY.botRef.pixels[8 * 7 + 1]).toBe(2)
+    -- PNG bottom-right moves to the top tile and lands on its last column, first row.
+    expect(plainY.botRef.pixels[8 * 7 + 8]).toBe(1)
+    expect(mirrorY.topRef.pixels[8]).toBe(1)
+  end)
+
   it("importSpriteImageData fills sprites in list order when nothing is selected", function()
     local tileRef1 = makeTileRef()
     local tileRef2 = makeTileRef()

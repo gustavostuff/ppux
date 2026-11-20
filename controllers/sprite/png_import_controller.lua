@@ -206,7 +206,7 @@ local function recordEdit(edits, bankIdx, tileIdx, x, y, color)
   edits.banks[bankIdx][tileIdx][x .. "_" .. y] = color
 end
 
-local function writeTilePixels(tileRef, imgData, srcX, srcY, brightnessMap, paletteRemap, hasTransparency, edits, undoRedo, app, syncChangedTargets)
+local function writeTilePixels(tileRef, imgData, srcX, srcY, brightnessMap, paletteRemap, hasTransparency, edits, undoRedo, app, syncChangedTargets, flipX, flipY)
   if not tileRef then return false, "no_tile" end
   local bankBytes = tileRef._bankBytesRef
   local tileIndex = tileRef.index
@@ -238,7 +238,9 @@ local function writeTilePixels(tileRef, imgData, srcX, srcY, brightnessMap, pale
 
   for y = 0, 7 do
     for x = 0, 7 do
-      local r, g, b, a = imgData:getPixel(srcX + x, srcY + y)
+      local sx = flipX and (7 - x) or x
+      local sy = flipY and (7 - y) or y
+      local r, g, b, a = imgData:getPixel(srcX + sx, srcY + sy)
       local idx = mapPixelToPaletteIndex(r, g, b, a, brightnessMap, paletteRemap, hasTransparency)
       local pixelIndex = y * 8 + x + 1
       local wroteSpriteRef = false
@@ -371,7 +373,18 @@ local function applyFrameToSprite(sprite, imgData, frameX, frameY, spriteW, spri
     return false, "missing top tile"
   end
 
-  local okTop, errTop = writeTilePixels(sprite.topRef, imgData, frameX, frameY, brightnessMap, paletteRemap, hasTransparency, edits, undoRedo, app, syncChangedTargets)
+  -- OAM H/V flip is applied when the sprite is drawn. Store the opposite pixels
+  -- so the sprite on screen matches the PNG quad.
+  local flipX = sprite.mirrorX == true
+  local flipY = sprite.mirrorY == true
+  local topSrcY = frameY
+  local botSrcY = frameY + 8
+  if flipY and spriteH == 16 then
+    topSrcY = frameY + 8
+    botSrcY = frameY
+  end
+
+  local okTop, errTop = writeTilePixels(sprite.topRef, imgData, frameX, topSrcY, brightnessMap, paletteRemap, hasTransparency, edits, undoRedo, app, syncChangedTargets, flipX, flipY)
   if not okTop then
     return false, errTop
   end
@@ -381,7 +394,7 @@ local function applyFrameToSprite(sprite, imgData, frameX, frameY, spriteW, spri
     if not sprite.botRef then
       return false, "missing bottom tile"
     end
-    local okBot, errBot = writeTilePixels(sprite.botRef, imgData, frameX, frameY + 8, brightnessMap, paletteRemap, hasTransparency, edits, undoRedo, app, syncChangedTargets)
+    local okBot, errBot = writeTilePixels(sprite.botRef, imgData, frameX, botSrcY, brightnessMap, paletteRemap, hasTransparency, edits, undoRedo, app, syncChangedTargets, flipX, flipY)
     if not okBot then
       return false, errBot
     end
