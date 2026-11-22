@@ -16,26 +16,30 @@ local function applyNametableEditsToROM(app, baseRom)
 
   if NametableTilesController and NametableTilesController.writeBackToROM then
     for _, win in ipairs(ppuFrameWindows) do
-      local ntLayer
-      if win.layers then
-        for _, L in ipairs(win.layers) do
-          if L.kind == "tile" and L.nametableStartAddr then
-            ntLayer = L
-            break
+      -- Closed windows stay in the list for undo. They are not part of the
+      -- project snapshot, so a removed empty PPU frame must not block save/quit.
+      if win and win._closed ~= true then
+        local ntLayer
+        if win.layers then
+          for _, L in ipairs(win.layers) do
+            if L.kind == "tile" and L.nametableStartAddr then
+              ntLayer = L
+              break
+            end
           end
         end
-      end
 
-      if ntLayer then
-        local updated, err = NametableTilesController.writeBackToROM(win, ntLayer, romWithNametables)
-        if not updated then
-          local title = tostring((win and win.title) or "ppu_frame")
-          local msg = string.format("Nametable save error (%s): %s", title, tostring(err))
-          print("Nametable save error:" .. tostring(err))
-          app:setStatus(msg)
-          return nil, msg
+        if ntLayer then
+          local updated, err = NametableTilesController.writeBackToROM(win, ntLayer, romWithNametables)
+          if not updated then
+            local title = tostring((win and win.title) or "ppu_frame")
+            local msg = string.format("Nametable save error (%s): %s", title, tostring(err))
+            print("Nametable save error:" .. tostring(err))
+            app:setStatus(msg)
+            return nil, msg
+          end
+          romWithNametables = updated
         end
-        romWithNametables = updated
       end
     end
   end

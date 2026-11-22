@@ -211,6 +211,59 @@ describe("save_controller.lua", function()
     expect(state.romRaw).toBe(baseRom .. "+Frame A+Frame B")
   end)
 
+  it("skips closed ppu_frame windows during nametable write-back", function()
+    local state = makeChrRomState()
+    local order = {}
+
+    NametableTilesController.writeBackToROM = function(win, _, rom)
+      order[#order + 1] = win.title
+      return rom .. "+" .. win.title, nil
+    end
+    RomSave.saveEditedROM = function(_, romBytes)
+      expect(romBytes).toBe(state.romRaw .. "+Open")
+      return true, "/tmp/out.nes"
+    end
+
+    local closed = ppuFrameWithNametable("Closed")
+    closed._closed = true
+    local app = makeApp(state, {
+      ppuFrames = {
+        closed,
+        ppuFrameWithNametable("Open"),
+      },
+    })
+    local ok = SaveController.saveEdited(app)
+
+    expect(ok).toBeTruthy()
+    expect(order).toEqual({ "Open" })
+    expect(app.statusText).toBe("Saved ROM & edits: /tmp/out.nes")
+  end)
+
+  it("does not abort save when a closed ppu_frame would fail nametable write-back", function()
+    local state = makeChrRomState()
+    local writeCount = 0
+
+    NametableTilesController.writeBackToROM = function()
+      writeCount = writeCount + 1
+      return nil, "empty_nametableBytes"
+    end
+    RomSave.saveEditedROM = function(_, romBytes)
+      expect(romBytes).toBe(state.romRaw)
+      return true, "/tmp/out.nes"
+    end
+
+    local closed = ppuFrameWithNametable("PPU Frame")
+    closed._closed = true
+    local app = makeApp(state, {
+      ppuFrames = { closed },
+    })
+    local ok = SaveController.saveEdited(app)
+
+    expect(ok).toBeTruthy()
+    expect(writeCount).toBe(0)
+    expect(app.statusText).toBe("Saved ROM & edits: /tmp/out.nes")
+  end)
+
   it("skips ppu_frame windows without a nametable tile layer", function()
     local state = makeChrRomState()
     local writeCount = 0

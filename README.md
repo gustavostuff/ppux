@@ -343,7 +343,13 @@ Note: clipboard (Ctrl + C/X/V) should work for both item selection (like tiles) 
 
 ### PNG drops
 
-You can drag and drop a PNG onto the window under the mouse (or the focused window if the pointer is not over any window). Two import paths are supported:
+You can drag and drop a PNG onto the window under the mouse (or the focused window if the pointer is not over any window). Three import paths are supported:
+
+**CHR banks and ROM banks**:
+
+* At most 4 colors. Fully transparent pixels count as black.
+* Width and height must be multiples of 8. Tiles are written left to right, top to bottom, starting at the selected tile. With no selection, they start at the top-left tile.
+* An 8x16 pair layout writes tiles in that window's order.
 
 **OAM sprite layers** (**OAM Animation**, or a **PPU Frame** with the **sprite** layer active):
 

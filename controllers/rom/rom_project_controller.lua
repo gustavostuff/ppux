@@ -1734,6 +1734,57 @@ function M.handleFileDropped(app, file)
       return
     end
 
+    -- CHR banks and ROM banks share kind "chr". ROM banks set isRomWindow.
+    if WindowCaps.isChrLike(targetWin) then
+      local startCol, startRow = 0, 0
+      if targetWin.getSelected then
+        local col, row = targetWin:getSelected()
+        if type(col) == "number" and type(row) == "number" then
+          startCol, startRow = col, row
+        end
+      end
+      if not app.edits then
+        app.edits = GameArtController.newEdits()
+      end
+      local ImageImportController = require("controllers.rom.image_import_controller")
+      local ok, msg = ImageImportController.importImageToCHRWindow(
+        file,
+        targetWin,
+        startCol,
+        startRow,
+        app.appEditState,
+        app.edits,
+        targetWin.orderMode or "normal",
+        app.undoRedo,
+        app
+      )
+      msg = msg or (ok and "PNG imported" or "PNG import failed")
+      app:setStatus(msg)
+      if ok then
+        if app.markUnsaved then
+          app:markUnsaved("pixel_edit")
+        end
+        if app.showToast then
+          app:showToast("info", msg)
+        end
+      elseif app.showToast then
+        app:showToast("error", msg)
+      end
+      DebugController.log(
+        "info",
+        "PNG_DROP",
+        "CHR/ROM PNG import win=%s rom=%s start=(%d,%d) order=%s ok=%s msg=%s",
+        fmtWin(targetWin),
+        tostring(targetWin.isRomWindow == true),
+        startCol,
+        startRow,
+        tostring(targetWin.orderMode or "normal"),
+        tostring(ok),
+        tostring(msg)
+      )
+      return
+    end
+
     local function isOamOrPpuSpritePngTarget(win)
       if not (win and win.layers) then
         return false
@@ -1777,7 +1828,7 @@ function M.handleFileDropped(app, file)
     DebugController.log("info", "PNG_DROP", "SpriteController did not handle PNG for %s", fmtWin(spriteTargetWin))
 
     DebugController.log("warning", "PNG_DROP", "No compatible PNG drop target. targetWin=%s", fmtWin(targetWin))
-    app:setStatus("Drop a PNG on a Sketch canvas, OAM Animation, or PPU Frame sprite layer")
+    app:setStatus("Drop a PNG on a Sketch canvas, CHR bank, ROM bank, OAM Animation, or PPU Frame sprite layer")
     return
   end
   
