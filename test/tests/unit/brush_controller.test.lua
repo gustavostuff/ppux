@@ -426,3 +426,77 @@ describe("brush_controller.lua - fractional drag paint coordinates", function()
     end
   end)
 end)
+
+describe("brush_controller.lua - 8x16 sprite pixel target", function()
+  local function markedTile(index, marks)
+    local tile = makeTile(0)
+    tile.index = index
+    for _, mark in ipairs(marks) do
+      tile:edit(mark[1], mark[2], mark[3])
+    end
+    return tile
+  end
+
+  local function spriteWindow(sprite, mode)
+    return {
+      cellW = 8,
+      cellH = 8,
+      layers = {
+        {
+          kind = "sprite",
+          mode = mode,
+          originX = 0,
+          originY = 0,
+          items = {
+            {
+              worldX = 0,
+              worldY = 0,
+              x = 0,
+              y = 0,
+              bank = 1,
+              tile = 0,
+              tileBelow = 1,
+              topRef = sprite.topRef,
+              botRef = sprite.botRef,
+              mirrorX = sprite.mirrorX,
+              mirrorY = sprite.mirrorY,
+            },
+          },
+        },
+      },
+      getActiveLayerIndex = function() return 1 end,
+    }
+  end
+
+  local function pick(app, win, x, y)
+    local col = math.floor(x / 8)
+    local row = math.floor(y / 8)
+    BrushController.paintPixel(app, win, col, row, x - col * 8, y - row * 8, true)
+    return app.currentColor
+  end
+
+  it("paints the half that is on screen when an 8x16 sprite is flipped vertically", function()
+    local app = makeApp(0)
+    local top = markedTile(0, { { 0, 0, 1 }, { 0, 7, 2 }, { 7, 0, 5 } })
+    local bot = markedTile(1, { { 0, 0, 3 }, { 0, 7, 4 } })
+    local sprite = { topRef = top, botRef = bot }
+
+    local plain = spriteWindow(sprite, "8x16")
+    expect(pick(app, plain, 0, 0)).toBe(1)
+    expect(pick(app, plain, 0, 7)).toBe(2)
+    expect(pick(app, plain, 0, 8)).toBe(3)
+    expect(pick(app, plain, 0, 15)).toBe(4)
+
+    sprite.mirrorY = true
+    local flipped = spriteWindow(sprite, "8x16")
+    expect(pick(app, flipped, 0, 0)).toBe(4)
+    expect(pick(app, flipped, 0, 7)).toBe(3)
+    expect(pick(app, flipped, 0, 8)).toBe(2)
+    expect(pick(app, flipped, 0, 15)).toBe(1)
+
+    sprite.mirrorY = false
+    sprite.mirrorX = true
+    local mirrorX = spriteWindow(sprite, "8x16")
+    expect(pick(app, mirrorX, 0, 0)).toBe(5)
+  end)
+end)

@@ -477,6 +477,39 @@ end
 -- Single pixel brush - sprite layers
 ----------------------------------------------------------------
 
+--- Map a sprite-local pixel to the CHR tile the sprite actually draws there.
+--- 8x16 vertical flip draws the bottom tile in the top half and the top tile in the bottom half.
+local function mapSpritePixel(sprite, mode, localX, localY)
+  if sprite.mirrorX then
+    localX = 7 - localX
+  end
+
+  local tileRef
+  local tyOnTile
+  if mode == "8x16" then
+    if sprite.mirrorY then
+      if localY >= 8 then
+        tileRef = sprite.topRef
+        tyOnTile = 15 - localY
+      else
+        tileRef = sprite.botRef
+        tyOnTile = 7 - localY
+      end
+    elseif localY >= 8 then
+      tileRef = sprite.botRef
+      tyOnTile = localY - 8
+    else
+      tileRef = sprite.topRef
+      tyOnTile = localY
+    end
+  else
+    tileRef = sprite.topRef
+    tyOnTile = sprite.mirrorY and (7 - localY) or localY
+  end
+
+  return tileRef, math.floor(localX), math.floor(tyOnTile)
+end
+
 --- Pattern-table ROM OAM sprites clear `sprite.bank`; use resolved tile refs for CHR coords.
 local function chrBankIdxAndTileIdxForSpriteTileRef(s, tileRef)
   if not tileRef then
@@ -516,64 +549,10 @@ local function paintSpriteLayerPixel(app, win, layer, px, py, pickOnly)
 
       local localX = px - sx
       local localY = py - sy
-
-      -- Apply mirroring transformation to coordinates
-      local mirrorX = s.mirrorX or false
-      local mirrorY = s.mirrorY or false
-      
-      -- Remap coordinates based on mirror state
-      if mirrorX then
-        localX = wTile - 1 - localX  -- Mirror horizontally
-      end
-      
-      -- For vertical mirroring, handle 8x16 specially
-      local tileIndex
-      local tileRef
-      local tyOnTile
-      
-      if mode == "8x16" then
-        if mirrorY then
-          -- Vertical mirroring: swap top and bottom
-          if localY >= 8 then
-            -- Was bottom, now top
-            tileIndex = s.tileBelow or s.tile + 1
-            tileRef   = s.botRef
-            tyOnTile  = 15 - localY  -- Mirror Y within bottom tile
-          else
-            -- Was top, now bottom
-            tileIndex = s.tile
-            tileRef   = s.topRef
-            tyOnTile  = 7 - localY  -- Mirror Y within top tile
-          end
-        else
-          -- Normal 8x16
-          if localY >= 8 then
-            tileIndex = s.tileBelow or s.tile + 1
-            tileRef   = s.botRef
-            tyOnTile  = localY - 8
-          else
-            tileIndex = s.tile
-            tileRef   = s.topRef
-            tyOnTile  = localY
-          end
-        end
-      else
-        -- 8x8 sprite
-        tileIndex = s.tile
-        tileRef   = s.topRef
-        if mirrorY then
-          tyOnTile = 7 - localY  -- Mirror Y
-        else
-          tyOnTile = localY
-        end
-      end
-
+      local tileRef, tx, ty = mapSpritePixel(s, mode, localX, localY)
       if not tileRef then
         return false
       end
-
-      local tx = math.floor(localX)
-      local ty = math.floor(tyOnTile)
       if tx < 0 or ty < 0 or tx >= 8 or ty >= 8 then return false end
 
       if pickOnly then
@@ -1346,57 +1325,12 @@ function M.floodFillTile(app, win, col, row, lx, ly, targetColor, fillColor)
       if px >= sx and px < sx + 8 and py >= sy and py < sy + hSprite then
         local localX = px - sx
         local localY = py - sy
-        
-        -- Apply mirroring transformation to coordinates (same as paintSpriteLayerPixel)
-        local mirrorX = s.mirrorX or false
-        local mirrorY = s.mirrorY or false
-        local wTile = 8
-        
-        if mirrorX then
-          localX = wTile - 1 - localX  -- Mirror horizontally
-        end
-        
-        local tileRef
-        local tyOnTile
-        
-        -- Handle vertical mirroring with coordinate remapping
-        if mode == "8x16" then
-          if mirrorY then
-            -- Vertical mirroring: swap top and bottom
-            if localY >= 8 then
-              tileRef   = s.botRef
-              tyOnTile  = 15 - localY  -- Mirror Y within bottom tile
-            else
-              tileRef   = s.topRef
-              tyOnTile  = 7 - localY  -- Mirror Y within top tile
-            end
-          else
-            -- Normal 8x16
-            if localY >= 8 then
-              tileRef   = s.botRef
-              tyOnTile  = localY - 8
-            else
-              tileRef   = s.topRef
-              tyOnTile  = localY
-            end
-          end
-        else
-          -- 8x8 sprite
-          tileRef   = s.topRef
-          if mirrorY then
-            tyOnTile = 7 - localY  -- Mirror Y
-          else
-            tyOnTile = localY
-          end
-        end
-        
+        local tileRef, tx, ty = mapSpritePixel(s, mode, localX, localY)
         if not tileRef then return false end
 
         local bankIdx, chrTileIdx = chrBankIdxAndTileIdxForSpriteTileRef(s, tileRef)
         if not bankIdx or chrTileIdx == nil then return false end
 
-        local tx = math.floor(localX)
-        local ty = math.floor(tyOnTile)
         if tx < 0 or ty < 0 or tx >= 8 or ty >= 8 then goto continue end
 
         -- Validate bank exists before trying to flood fill
