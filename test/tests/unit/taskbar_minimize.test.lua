@@ -687,4 +687,72 @@ describe("taskbar.lua - minimized windows strip", function()
       end
     end
   end)
+
+  it("groups taskbar buttons by kind and lists those windows after a click", function()
+    local wm = WM.new()
+    local app = {
+      wm = wm,
+      canvas = {
+        getWidth = function() return 320 end,
+        getHeight = function() return 240 end,
+      },
+      groupTaskbarByKind = true,
+    }
+    local taskbar = Taskbar.new(app, { h = 15 })
+    wm.taskbar = taskbar
+    taskbar:updateLayout(320, 240)
+
+    local zulu = { title = "Zulu", kind = "palette", _closed = false, _minimized = false }
+    local banks = { title = "Banks", kind = "chr", _closed = false, _minimized = false }
+    local alpha = { title = "Alpha", kind = "palette", _closed = false, _minimized = false }
+    wm:add(zulu)
+    wm:add(banks)
+    wm:add(alpha)
+    wm:setFocus(banks)
+    taskbar:updateLayout(320, 240)
+
+    local groups = {}
+    for _, button in ipairs(taskbar.buttons) do
+      if button.isKindGroupButton == true then
+        groups[#groups + 1] = button
+      end
+    end
+    expect(#groups).toBe(2)
+    expect(groups[1].kindGroupKey).toBe("palette")
+    expect(groups[2].kindGroupKey).toBe("chr")
+    expect(groups[1].kindGroupHasFocus).toBeFalsy()
+    expect(groups[2].kindGroupHasFocus).toBeTruthy()
+
+    local px = groups[1].x + 1
+    local py = groups[1].y + 1
+    taskbar:mousemoved(px, py)
+    expect(taskbar.kindGroupMenu == nil or taskbar.kindGroupMenu:isVisible() ~= true).toBeTruthy()
+
+    expect(taskbar:mousepressed(px, py, 1)).toBeTruthy()
+    expect(taskbar:mousereleased(px, py, 1)).toBeTruthy()
+    local menu = taskbar.kindGroupMenu
+    expect(menu).toBeTruthy()
+    expect(menu:isVisible()).toBeTruthy()
+    expect(menuItemTexts(menu)).toEqual({ "Alpha", "Zulu" })
+    expect(menu.items[1].icon).toBe(groups[1].icon)
+    expect(menu.items[2].icon).toBe(groups[1].icon)
+
+    local panel = menu.panel
+    local textButton = nil
+    for row = 1, panel.rows do
+      for col = 1, panel.cols do
+        local cell = panel.cells[row][col]
+        if cell and cell.button and cell.button.text == "Alpha" then
+          textButton = cell.button
+        end
+      end
+    end
+    expect(textButton).toBeTruthy()
+    local clickX = textButton.x + 2
+    local clickY = textButton.y + 2
+    expect(taskbar:mousepressed(clickX, clickY, 1)).toBeTruthy()
+    expect(taskbar:mousereleased(clickX, clickY, 1)).toBeTruthy()
+    expect(wm:getFocus()).toBe(alpha)
+    expect(alpha._minimized).toBeFalsy()
+  end)
 end)

@@ -519,6 +519,10 @@ function M.pointerOverOpenContextMenu(app, x, y)
   if mc and mc.isVisible and mc:isVisible() and mc.contains and mc:contains(x, y) then
     return true
   end
+  local kindMenu = tb and tb.kindGroupMenu
+  if kindMenu and kindMenu.isVisible and kindMenu:isVisible() and kindMenu.contains and kindMenu:contains(x, y) then
+    return true
+  end
   return false
 end
 

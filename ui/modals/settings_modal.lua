@@ -399,6 +399,7 @@ function Dialog.new()
     onSetWindowLinks = nil,
     onSetSeparateToolbar = nil,
     onSetNeverShowResizeHandle = nil,
+    onSetGroupTaskbarByKind = nil,
     getScale = nil,
     getFullscreen = nil,
     getResizable = nil,
@@ -409,6 +410,7 @@ function Dialog.new()
     getWindowLinks = nil,
     getSeparateToolbar = nil,
     getNeverShowResizeHandle = nil,
+    getGroupTaskbarByKind = nil,
     extraRows = nil,
     _getExtraRows = nil,
     bgColor = nil,
@@ -642,6 +644,7 @@ function Dialog:show(opts)
   self.onSetWindowLinks = opts.onSetWindowLinks
   self.onSetSeparateToolbar = opts.onSetSeparateToolbar
   self.onSetNeverShowResizeHandle = opts.onSetNeverShowResizeHandle
+  self.onSetGroupTaskbarByKind = opts.onSetGroupTaskbarByKind
   self.getScale = opts.getScale
   self.getFullscreen = opts.getFullscreen
   self.getResizable = opts.getResizable
@@ -652,6 +655,7 @@ function Dialog:show(opts)
   self.getWindowLinks = opts.getWindowLinks
   self.getSeparateToolbar = opts.getSeparateToolbar
   self.getNeverShowResizeHandle = opts.getNeverShowResizeHandle
+  self.getGroupTaskbarByKind = opts.getGroupTaskbarByKind
   self.extraRows = opts.extraRows
   self._getExtraRows = opts.getExtraRows
   self.getAppearanceChromeRgb = opts.getAppearanceChromeRgb

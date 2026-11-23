@@ -12,6 +12,7 @@ describe("settings_controller.lua - defaults", function()
       windowLinks = "on_hover",
       separateToolbar = false,
       neverShowResizeHandle = false,
+      groupTaskbarByKind = false,
       windowShadowEnabled = true,
       windowShadowBlur = 0.2,
       windowShadowStrength = 0.5,
@@ -83,6 +84,7 @@ describe("settings_controller.lua - persistence", function()
       tooltipsEnabled = false,
       groupedPaletteWindows = true,
       neverShowResizeHandle = true,
+      groupTaskbarByKind = true,
       recentProjects = {
         "/tmp/foo.lua",
         "/tmp/foo_edited.nes",
@@ -102,6 +104,7 @@ describe("settings_controller.lua - persistence", function()
     expect(loaded.windowLinks).toBe("on_hover")
     expect(loaded.separateToolbar).toBe(false)
     expect(loaded.neverShowResizeHandle).toBe(true)
+    expect(loaded.groupTaskbarByKind).toBe(true)
     expect(loaded.groupedPaletteWindows).toBe(true)
     expect(loaded.crtEnabled).toBe(false)
     expect(loaded.crtDistortion).toBe(0.1)

@@ -48,6 +48,9 @@ function AppCoreController:_hideAllContextMenus()
   if self.taskbar and self.taskbar.menuController then
     self.taskbar.menuController:hide()
   end
+  if self.taskbar and self.taskbar._hideKindGroupMenu then
+    self.taskbar:_hideKindGroupMenu()
+  end
 end
 
 local _newWindowOptionIcons = {}

@@ -376,6 +376,31 @@ function AppCoreController:_applyNeverShowResizeHandleSetting(enabled, saveSetti
   return self.neverShowResizeHandle
 end
 
+function AppCoreController:_getGroupTaskbarByKindForSettings()
+  if self.groupTaskbarByKind ~= nil then
+    return self.groupTaskbarByKind == true
+  end
+  local settings = AppSettingsController.load()
+  return settings and settings.groupTaskbarByKind == true
+end
+
+function AppCoreController:_applyGroupTaskbarByKindSetting(enabled, saveSetting)
+  self.groupTaskbarByKind = (enabled == true)
+  if saveSetting ~= false then
+    AppSettingsController.save({ groupTaskbarByKind = self.groupTaskbarByKind })
+  end
+  local taskbar = self.taskbar
+  if taskbar then
+    if taskbar._hideKindGroupMenu then
+      taskbar:_hideKindGroupMenu()
+    end
+    if taskbar.updateLayout then
+      taskbar:updateLayout()
+    end
+  end
+  return self.groupTaskbarByKind
+end
+
 function AppCoreController:_getWindowShadowEnabledForSettings()
   if self.windowShadowEnabled ~= nil then
     return self.windowShadowEnabled == true
@@ -1021,6 +1046,7 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
   self:_applyWindowLinksSetting(D.windowLinks, false)
   self:_applySeparateToolbarSetting(D.separateToolbar, false)
   self:_applyNeverShowResizeHandleSetting(D.neverShowResizeHandle == true, false)
+  self:_applyGroupTaskbarByKindSetting(D.groupTaskbarByKind == true, false)
   self:_applyWindowShadowSetting(D.windowShadowEnabled == true, false)
   self:_applyWindowShadowBlurSetting(D.windowShadowBlur, false)
   self:_applyWindowShadowStrengthSetting(D.windowShadowStrength, false)
@@ -1039,6 +1065,7 @@ function AppCoreController:resetSettingsModalPreferencesToDefaults()
     windowLinks = D.windowLinks,
     separateToolbar = D.separateToolbar,
     neverShowResizeHandle = D.neverShowResizeHandle,
+    groupTaskbarByKind = D.groupTaskbarByKind,
     windowShadowEnabled = D.windowShadowEnabled,
     windowShadowBlur = D.windowShadowBlur,
     windowShadowStrength = D.windowShadowStrength,
@@ -1123,6 +1150,9 @@ function AppCoreController:showSettingsModal()
     getNeverShowResizeHandle = function()
       return appRef:_getNeverShowResizeHandleForSettings()
     end,
+    getGroupTaskbarByKind = function()
+      return appRef:_getGroupTaskbarByKindForSettings()
+    end,
     getFullscreen = function()
       return love.window.getFullscreen() == true
     end,
@@ -1175,6 +1205,9 @@ function AppCoreController:showSettingsModal()
     end,
     onSetNeverShowResizeHandle = function(enabled)
       appRef:_applyNeverShowResizeHandleSetting(enabled, true)
+    end,
+    onSetGroupTaskbarByKind = function(enabled)
+      appRef:_applyGroupTaskbarByKindSetting(enabled, true)
     end,
     onToggleFullscreen = function()
       KeyboardWindowShortcutsController.toggleFullscreen(appRef)

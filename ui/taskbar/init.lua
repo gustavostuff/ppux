@@ -24,10 +24,16 @@ local function windowIconBackdropLuminance()
 end
 
 local function drawWindowIconBlinkBackdrop(button, luminance, focusedWin)
-  if button.isMinimizedWindowButton ~= true then
+  if button.isMinimizedWindowButton ~= true or focusedWin == nil then
     return
   end
-  if focusedWin == nil or button.minimizedWindow ~= focusedWin then
+  local showsFocus = false
+  if button.isKindGroupButton == true then
+    showsFocus = button.kindGroupHasFocus == true
+  else
+    showsFocus = button.minimizedWindow == focusedWin
+  end
+  if not showsFocus then
     return
   end
   local x, y, w, h = button.x, button.y, button.w, button.h
@@ -199,6 +205,26 @@ function Taskbar:updateLayout(canvasW, canvasH)
     local panelX, panelY = self:_getMenuAnchor()
     self.menuController:setPosition(panelX, panelY)
   end
+
+  if self._isTaskbarGroupedByKind and not self:_isTaskbarGroupedByKind() then
+    if self._hideKindGroupMenu then
+      self:_hideKindGroupMenu()
+    end
+  elseif self.kindGroupMenu and self.kindGroupMenu:isVisible() and self.kindGroupMenuButton then
+    local anchor = self.kindGroupMenuButton
+    local stillVisible = false
+    for _, button in ipairs(self.buttons) do
+      if button == anchor then
+        stillVisible = true
+        break
+      end
+    end
+    if stillVisible and self._showKindGroupMenu then
+      self:_showKindGroupMenu(anchor)
+    elseif self._hideKindGroupMenu then
+      self:_hideKindGroupMenu()
+    end
+  end
 end
 
 --- Icon button width/height using the same rules as `updateLayout`.
@@ -265,6 +291,29 @@ function Taskbar:_assignMinimizedLinkAnchorsOffStrip(buttonSize, stripY)
 
   local spacing = tonumber(self.spacing) or 0
   local x = self:_minimizedStripOriginX(buttonSize)
+  if self._isTaskbarGroupedByKind and self:_isTaskbarGroupedByKind() then
+    for _, group in ipairs(self._kindGroups or {}) do
+      local btn = self.kindGroupButtonsByKey and self.kindGroupButtonsByKey[group.key] or nil
+      if btn then
+        local bw, bh = self:_toolbarButtonDimensions(btn, buttonSize)
+        if type(btn._linkAnchorX) == "number" and type(btn._linkAnchorY) == "number" then
+          x = btn._linkAnchorX + bw * 0.5 + spacing
+        else
+          btn._linkAnchorX = x + bw * 0.5
+          btn._linkAnchorY = stripY + bh
+          x = x + bw + spacing
+        end
+        for _, win in ipairs(group.windows or {}) do
+          local windowButton = self.minimizedButtonsByWindow and self.minimizedButtonsByWindow[win]
+          if windowButton then
+            windowButton._linkAnchorX = btn._linkAnchorX
+            windowButton._linkAnchorY = btn._linkAnchorY
+          end
+        end
+      end
+    end
+    return
+  end
   for idx = 1, #list do
     local win = list[idx]
     local btn = win and self.minimizedButtonsByWindow and self.minimizedButtonsByWindow[win]
@@ -299,10 +348,86 @@ function Taskbar:getTopY()
   return self.y
 end
 
+function Taskbar:_ensureKindGroupMenu()
+  if self.kindGroupMenu then
+    return self.kindGroupMenu
+  end
+  local ContextualMenuController = require("controllers.ui.contextual_menu_controller")
+  local menuCell = UiScale.menuCellSize()
+  self.kindGroupMenu = ContextualMenuController.new({
+    getBounds = function()
+      return {
+        w = self.x + self.w,
+        h = self.y + self.h,
+      }
+    end,
+    cols = 8,
+    cellW = menuCell,
+    cellH = menuCell,
+    padding = 0,
+    colGap = 0,
+    splitIconCell = true,
+  })
+  return self.kindGroupMenu
+end
+
+function Taskbar:_hideKindGroupMenu()
+  if self.kindGroupMenu and self.kindGroupMenu:isVisible() then
+    self.kindGroupMenu:hide()
+  end
+  self.kindGroupMenuButton = nil
+  self.kindGroupMenuSignature = nil
+  self.kindGroupMenuAnchorX = nil
+  self.kindGroupMenuAnchorY = nil
+end
+
+function Taskbar:_showKindGroupMenu(btn)
+  if not (btn and btn.isKindGroupButton == true and self._kindGroupMenuItems) then
+    self:_hideKindGroupMenu()
+    return
+  end
+  local items, signature = self:_kindGroupMenuItems(btn)
+  if #items == 0 then
+    self:_hideKindGroupMenu()
+    return
+  end
+  local menu = self:_ensureKindGroupMenu()
+  local anchor = { x = btn.x, y = btn.y, w = btn.w, h = btn.h }
+  local same = menu:isVisible()
+    and self.kindGroupMenuButton == btn
+    and self.kindGroupMenuSignature == signature
+  self.kindGroupMenuButton = btn
+  self.kindGroupMenuSignature = signature
+  if same and self.kindGroupMenuAnchorX == btn.x and self.kindGroupMenuAnchorY == btn.y then
+    return
+  end
+  self.kindGroupMenuAnchorX = btn.x
+  self.kindGroupMenuAnchorY = btn.y
+  if same then
+    menu:showAt(btn.x, btn.y, nil, { anchorRect = anchor })
+  else
+    menu:showAt(btn.x, btn.y, items, { anchorRect = anchor })
+  end
+end
+
+function Taskbar:_toggleKindGroupMenu(btn)
+  if self.kindGroupMenu and self.kindGroupMenu:isVisible() and self.kindGroupMenuButton == btn then
+    self:_hideKindGroupMenu()
+    return
+  end
+  if self.menuController and self.menuController:isVisible() then
+    self.menuController:hide()
+  end
+  self:_showKindGroupMenu(btn)
+end
+
 function Taskbar:contains(px, py)
   local inBar = px >= self.x and px <= self.x + self.w and
     py >= self.y and py <= self.y + self.h
   if inBar then return true end
+  if self.kindGroupMenu and self.kindGroupMenu:isVisible() and self.kindGroupMenu:contains(px, py) then
+    return true
+  end
   if self.menuController and self.menuController:isVisible() and self.menuController:contains(px, py) then
     return true
   end
@@ -323,6 +448,9 @@ function Taskbar:getButtonAt(px, py)
 end
 
 function Taskbar:getTooltipAt(px, py)
+  if self.kindGroupMenu and self.kindGroupMenu:isVisible() and self.kindGroupMenu:contains(px, py) then
+    return nil
+  end
   if self.menuController and self.menuController:isVisible() and self.menuController:contains(px, py) then
     local panelBtn = self.menuController:getButtonAt(px, py)
     if panelBtn and panelBtn.tooltip and panelBtn.tooltip ~= "" then
@@ -335,7 +463,7 @@ function Taskbar:getTooltipAt(px, py)
   end
 
   local btn = self:getButtonAt(px, py)
-  if not btn or not btn.tooltip or btn.tooltip == "" then
+  if not btn or btn.isKindGroupButton == true or not btn.tooltip or btn.tooltip == "" then
     return nil
   end
 
@@ -357,6 +485,9 @@ function Taskbar:getTooltipAt(px, py)
 end
 
 function Taskbar:isInteractiveAt(px, py)
+  if self.kindGroupMenu and self.kindGroupMenu:isVisible() and self.kindGroupMenu:contains(px, py) then
+    return self.kindGroupMenu:getButtonAt(px, py) ~= nil
+  end
   if self.menuController and self.menuController:isVisible() and self.menuController:contains(px, py) then
     return self.menuController:getButtonAt(px, py) ~= nil
   end
@@ -369,13 +500,21 @@ function Taskbar:isInteractiveAt(px, py)
 end
 
 function Taskbar:mousepressed(x, y, button)
+  if self.kindGroupMenu and self.kindGroupMenu:isVisible() and self.kindGroupMenu:contains(x, y) then
+    return self.kindGroupMenu:mousepressed(x, y, button)
+  end
   if self.menuController and self.menuController:isVisible() and self.menuController:contains(x, y) then
     return self.menuController:mousepressed(x, y, button)
   end
 
   if (not self:contains(x, y)) then
-    if self.menuController and self.menuController:isVisible() and button == 1 then
-      self.menuController:hide()
+    if button == 1 then
+      if self.kindGroupMenu and self.kindGroupMenu:isVisible() then
+        self:_hideKindGroupMenu()
+      end
+      if self.menuController and self.menuController:isVisible() then
+        self.menuController:hide()
+      end
     end
     return false
   end
@@ -394,6 +533,9 @@ function Taskbar:mousepressed(x, y, button)
 
   if button == 1 then
     local btn = self:getButtonAt(x, y)
+    if btn and btn.isKindGroupButton ~= true and self.kindGroupMenu and self.kindGroupMenu:isVisible() then
+      self:_hideKindGroupMenu()
+    end
     if btn then
       self.modeIndicatorPressed = false
       btn.pressed = true
@@ -425,6 +567,10 @@ function Taskbar:mousepressed(x, y, button)
 end
 
 function Taskbar:mousereleased(x, y, button)
+  if self.kindGroupMenu and self.kindGroupMenu:isVisible()
+    and (self.kindGroupMenu:contains(x, y) or self.kindGroupMenu:hasPressedButton()) then
+    return self.kindGroupMenu:mousereleased(x, y, button)
+  end
   if self.menuController and self.menuController:isVisible()
     and (self.menuController:contains(x, y) or self.menuController:hasPressedButton()) then
     return self.menuController:mousereleased(x, y, button)
@@ -471,6 +617,10 @@ function Taskbar:mousemoved(x, y)
   local hovered = inBar and self:getButtonAt(x, y) or nil
   for _, b in ipairs(self.buttons) do
     b.hovered = (b == hovered)
+      or (self.kindGroupMenu and self.kindGroupMenu:isVisible() and b == self.kindGroupMenuButton)
+  end
+  if self.kindGroupMenu then
+    self.kindGroupMenu:mousemoved(x, y)
   end
   if self.menuController then
     self.menuController:mousemoved(x, y)
@@ -519,6 +669,12 @@ function Taskbar:draw(eventText)
       self.menuController:update()
     end
     self.menuController:draw()
+  end
+  if self.kindGroupMenu then
+    if self.kindGroupMenu.update then
+      self.kindGroupMenu:update()
+    end
+    self.kindGroupMenu:draw()
   end
 
   self:_drawStatusWithBrushIndicator(eventText, { drawStatusText = false, drawBrush = false })

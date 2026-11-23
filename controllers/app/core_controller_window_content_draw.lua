@@ -1024,6 +1024,9 @@ local function drawHardShadowMasksForOpenContextMenus(app, ox, oy)
   if app.taskbar and app.taskbar.menuController then
     addFrom(app.taskbar.menuController)
   end
+  if app.taskbar and app.taskbar.kindGroupMenu then
+    addFrom(app.taskbar.kindGroupMenu)
+  end
   for _, r in ipairs(rects) do
     drawHardShadowRoundedFill(r[1] + ox, r[2] + oy, r[3], r[4])
   end

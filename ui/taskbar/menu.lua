@@ -352,6 +352,9 @@ function M.install(Taskbar, Helpers)
     if not self.menuController then
       return false
     end
+    if self._hideKindGroupMenu then
+      self:_hideKindGroupMenu()
+    end
     self:_refreshMenuItems()
     local panelX, panelY = self:_getMenuAnchor()
     return self.menuController:toggleAt(panelX, panelY, self:_buildMainMenuItems())

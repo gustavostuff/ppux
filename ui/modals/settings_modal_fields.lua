@@ -69,6 +69,23 @@ function M.buildGeneralTabRows(modal)
       end,
     },
   }
+  rows[#rows + 1] = {
+    id = "group_taskbar_by_kind",
+    label = "Group per kind",
+    buttonSpec = {
+      id = "group_taskbar_by_kind_toggle",
+      getText = function()
+        return (modal.getGroupTaskbarByKind and modal.getGroupTaskbarByKind() == true) and "On" or "Off"
+      end,
+      action = function()
+        if modal.onSetGroupTaskbarByKind then
+          modal.onSetGroupTaskbarByKind(
+            not (modal.getGroupTaskbarByKind and modal.getGroupTaskbarByKind() == true)
+          )
+        end
+      end,
+    },
+  }
   return rows
 end
 

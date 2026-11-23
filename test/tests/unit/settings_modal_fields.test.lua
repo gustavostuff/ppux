@@ -1,4 +1,5 @@
 local SettingsFields = require("ui.modals.settings_modal_fields")
+local SettingsModal = require("ui.modals.settings_modal")
 
 describe("settings_modal_fields.lua", function()
   it("builds general tab rows with core toggles", function()
@@ -8,10 +9,56 @@ describe("settings_modal_fields.lua", function()
       getSeparateToolbar = function() return false end,
       getNeverShowResizeHandle = function() return false end,
     }
+    local enabled = false
+    modal.getGroupTaskbarByKind = function()
+      return enabled
+    end
+    modal.onSetGroupTaskbarByKind = function(value)
+      enabled = value == true
+    end
     local rows = SettingsFields.buildGeneralTabRows(modal)
-    expect(#rows).toBe(4)
+    expect(#rows).toBe(5)
     expect(rows[1].id).toBe("fullscreen")
-    expect(rows[#rows].id).toBe("never_show_resize_handle")
+    expect(rows[4].id).toBe("never_show_resize_handle")
+    expect(rows[5].id).toBe("group_taskbar_by_kind")
+    expect(rows[5].label).toBe("Group per kind")
+    expect(rows[5].buttonSpec.getText()).toBe("Off")
+    rows[5].buttonSpec.action()
+    expect(enabled).toBe(true)
+    expect(rows[5].buttonSpec.getText()).toBe("On")
+  end)
+
+  it("toggles Group per kind from the settings dialog", function()
+    local enabled = false
+    local dialog = SettingsModal.new()
+    dialog:show({
+      getFullscreen = function() return false end,
+      getTooltipsEnabled = function() return true end,
+      getSeparateToolbar = function() return false end,
+      getNeverShowResizeHandle = function() return false end,
+      getGroupTaskbarByKind = function() return enabled end,
+      onSetGroupTaskbarByKind = function(value)
+        enabled = value == true
+      end,
+      getExtraRows = function() return {} end,
+    })
+
+    local function groupButton()
+      for _, entry in ipairs(dialog.buttons) do
+        if entry.id == "group_taskbar_by_kind_toggle" then
+          return entry
+        end
+      end
+      return nil
+    end
+
+    local entry = groupButton()
+    expect(entry).toBeTruthy()
+    expect(entry.button.text).toBe("Off")
+    dialog:_activateButton(entry)
+    expect(enabled).toBe(true)
+    entry = groupButton()
+    expect(entry.button.text).toBe("On")
   end)
 
   it("includes appearance dropdowns when widgets are present", function()

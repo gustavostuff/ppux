@@ -28,8 +28,15 @@ function M.install(Taskbar, Helpers)
     end
   end
 
+  local function stripEntryCount(self)
+    if self._isTaskbarGroupedByKind and self:_isTaskbarGroupedByKind() then
+      return #(self._kindGroups or {})
+    end
+    return #(self.minimizedWindows or {})
+  end
+
   local function clampMinimizedScroll(self)
-    local maxOffset = math.max(0, #self.minimizedWindows - M.MINIMIZED_VISIBLE_MAX)
+    local maxOffset = math.max(0, stripEntryCount(self) - M.MINIMIZED_VISIBLE_MAX)
     self.minimizedScrollOffset = math.max(0, math.min(maxOffset, self.minimizedScrollOffset or 0))
   end
 
@@ -38,7 +45,7 @@ function M.install(Taskbar, Helpers)
   end
 
   local function canScrollMinimizedRight(self)
-    local maxOffset = math.max(0, #self.minimizedWindows - M.MINIMIZED_VISIBLE_MAX)
+    local maxOffset = math.max(0, stripEntryCount(self) - M.MINIMIZED_VISIBLE_MAX)
     return (self.minimizedScrollOffset or 0) < maxOffset
   end
 
@@ -55,6 +62,136 @@ function M.install(Taskbar, Helpers)
     return changed
   end
 
+  function Taskbar:_isTaskbarGroupedByKind()
+    return self.app and self.app.groupTaskbarByKind == true
+  end
+
+  function Taskbar:_activateTaskbarWindow(win)
+    local wm = self.app and self.app.wm
+    if not wm or not win or win._closed then
+      return
+    end
+    if win._minimized then
+      if wm.restoreMinimizedWindow then
+        wm:restoreMinimizedWindow(win)
+      end
+      return
+    end
+    if wm.getFocus and wm:getFocus() == win then
+      if wm.minimizeWindow then
+        wm:minimizeWindow(win)
+      end
+      return
+    end
+    if wm.setFocus then
+      wm:setFocus(win)
+    end
+  end
+
+  function Taskbar:_kindGroupMenuItems(button)
+    local ordered = {}
+    for i, win in ipairs((button and button.kindGroupWindows) or {}) do
+      if win and not win._closed and win._groupHidden ~= true then
+        ordered[#ordered + 1] = { win = win, index = i }
+      end
+    end
+    table.sort(ordered, function(a, b)
+      local at = string.lower(tostring(a.win and a.win.title or ""))
+      local bt = string.lower(tostring(b.win and b.win.title or ""))
+      if at ~= bt then
+        return at < bt
+      end
+      return a.index < b.index
+    end)
+
+    local items = {}
+    local signature = {}
+    for _, entry in ipairs(ordered) do
+      local win = entry.win
+      local title = tostring(win.title or "")
+      if title == "" then
+        title = "window"
+      end
+      signature[#signature + 1] = title
+      items[#items + 1] = {
+        icon = self:getTaskbarIconForWindow(win),
+        text = title,
+        callback = function()
+          self:_activateTaskbarWindow(win)
+        end,
+      }
+    end
+    return items, table.concat(signature, "\n")
+  end
+
+  local function collectKindGroups(self)
+    local groupsByKey = {}
+    local order = {}
+    for _, win in ipairs(self.minimizedWindows or {}) do
+      if win and not win._closed and win._groupHidden ~= true then
+        local key = Helpers.getTaskbarIconKeyForWindow(win) or "generic"
+        local group = groupsByKey[key]
+        if not group then
+          group = { key = key, windows = {} }
+          groupsByKey[key] = group
+          order[#order + 1] = group
+        end
+        group.windows[#group.windows + 1] = win
+      end
+    end
+    return order
+  end
+
+  local function applyStripButtonChrome(button, focused)
+    button.focused = focused == true
+    button.underlayOnHoverOnly = true
+    button.bgColor = nil
+    local hot = button.enabled ~= false and (button.hovered or button.pressed)
+    local ink = hot and colors:chromeTextIconsColorFocused() or colors:chromeTextIconsColorNonFocused()
+    button.contentColor = ink
+    button.literalContentColor = true
+    button.iconRespectTheme = false
+  end
+
+  local function ensureKindGroupButton(self, group)
+    self.kindGroupButtonsByKey = self.kindGroupButtonsByKey or {}
+    local key = group.key
+    local button = self.kindGroupButtonsByKey[key]
+    local icon = self:getTaskbarIconForWindow(group.windows[1])
+    if not button then
+      button = Helpers.newTaskbarButton({
+        icon = icon,
+        text = nil,
+        action = function()
+          self:_toggleKindGroupMenu(button)
+        end,
+      })
+      button.isMinimizedWindowButton = true
+      button.isKindGroupButton = true
+      button.kindGroupKey = key
+      self.kindGroupButtonsByKey[key] = button
+    end
+    button.icon = icon
+    button.text = nil
+    button.tooltip = nil
+    button.minimizedWindow = nil
+    button.kindGroupWindows = group.windows
+    local wm = self.app and self.app.wm
+    local focused = wm and wm.getFocus and wm:getFocus() or nil
+    local hasFocus = false
+    if focused then
+      for _, win in ipairs(group.windows) do
+        if win == focused then
+          hasFocus = true
+          break
+        end
+      end
+    end
+    button.kindGroupHasFocus = hasFocus
+    applyStripButtonChrome(button, hasFocus)
+    return button
+  end
+
   local function ensureTaskbarButtonForWindow(self, win)
     if not win or win._closed then return nil end
     local button = self.minimizedButtonsByWindow[win]
@@ -64,19 +201,7 @@ function M.install(Taskbar, Helpers)
         text = nil,
         tooltip = string.format("Window %s", tostring(win.title or "window")),
         action = function()
-          local wm = self.app and self.app.wm
-          if not wm or win._closed then return end
-          if win._minimized then
-            if wm.restoreMinimizedWindow then wm:restoreMinimizedWindow(win) end
-            return
-          end
-          if wm.getFocus and wm:getFocus() == win then
-            if wm.minimizeWindow then wm:minimizeWindow(win) end
-            return
-          end
-          if wm.setFocus then
-            wm:setFocus(win)
-          end
+          self:_activateTaskbarWindow(win)
         end,
       })
       button.isMinimizedWindowButton = true
@@ -90,14 +215,7 @@ function M.install(Taskbar, Helpers)
 
     local wm = self.app and self.app.wm
     local focused = wm and wm.getFocus and wm:getFocus() or nil
-    button.focused = (focused == win)
-    button.underlayOnHoverOnly = true
-    button.bgColor = nil
-    local hot = button.enabled ~= false and (button.hovered or button.pressed)
-    local ink = hot and colors:chromeTextIconsColorFocused() or colors:chromeTextIconsColorNonFocused()
-    button.contentColor = ink
-    button.literalContentColor = true
-    button.iconRespectTheme = false
+    applyStripButtonChrome(button, focused == win)
     if win._minimized then
       button.tooltip = string.format("Restore %s", tostring(win.title or "window"))
     elseif focused == win then
@@ -356,10 +474,15 @@ function M.install(Taskbar, Helpers)
     end
 
     syncTaskbarWindowsFromWM(self)
+    if self:_isTaskbarGroupedByKind() then
+      self._kindGroups = collectKindGroups(self)
+    else
+      self._kindGroups = nil
+    end
     clampMinimizedScroll(self)
-    local minimizedCount = #(self.minimizedWindows or {})
-    local showMinimizedStripControls = minimizedCount > 0
-    local overflow = minimizedCount > M.MINIMIZED_VISIBLE_MAX
+    local stripCount = stripEntryCount(self)
+    local showMinimizedStripControls = stripCount > 0
+    local overflow = stripCount > M.MINIMIZED_VISIBLE_MAX
     local leftEnabled = overflow and canScrollMinimizedLeft(self)
     local rightEnabled = overflow and canScrollMinimizedRight(self)
 
@@ -370,13 +493,22 @@ function M.install(Taskbar, Helpers)
     end
 
     local startIndex = 1 + (self.minimizedScrollOffset or 0)
-    local endIndex = math.min(#self.minimizedWindows, startIndex + M.MINIMIZED_VISIBLE_MAX - 1)
-    for i = startIndex, endIndex do
-      local win = self.minimizedWindows[i]
-      local btn = win and self.minimizedButtonsByWindow[win] or nil
-      if btn then
-        ensureTaskbarButtonForWindow(self, win)
-        buttons[#buttons + 1] = btn
+    local endIndex = math.min(stripCount, startIndex + M.MINIMIZED_VISIBLE_MAX - 1)
+    if self:_isTaskbarGroupedByKind() then
+      for i = startIndex, endIndex do
+        local group = self._kindGroups and self._kindGroups[i] or nil
+        if group and group.windows and group.windows[1] then
+          buttons[#buttons + 1] = ensureKindGroupButton(self, group)
+        end
+      end
+    else
+      for i = startIndex, endIndex do
+        local win = self.minimizedWindows[i]
+        local btn = win and self.minimizedButtonsByWindow[win] or nil
+        if btn then
+          ensureTaskbarButtonForWindow(self, win)
+          buttons[#buttons + 1] = btn
+        end
       end
     end
 
@@ -387,6 +519,23 @@ function M.install(Taskbar, Helpers)
     end
 
     self.buttons = buttons
+    if self.kindGroupMenu and self.kindGroupMenu:isVisible() and self._showKindGroupMenu then
+      local anchor = self.kindGroupMenuButton
+      local stillVisible = false
+      if anchor then
+        for _, button in ipairs(buttons) do
+          if button == anchor then
+            stillVisible = true
+            break
+          end
+        end
+      end
+      if stillVisible then
+        self:_showKindGroupMenu(anchor)
+      elseif self._hideKindGroupMenu then
+        self:_hideKindGroupMenu()
+      end
+    end
   end
 
   function Taskbar:_triggerMinimizedScrollbarFade()
@@ -394,7 +543,13 @@ function M.install(Taskbar, Helpers)
   end
 
   function Taskbar:_hasMinimizedOverflow()
-    return (#(self.minimizedWindows or {})) > M.MINIMIZED_VISIBLE_MAX
+    local count
+    if self:_isTaskbarGroupedByKind() then
+      count = #(self._kindGroups or {})
+    else
+      count = #(self.minimizedWindows or {})
+    end
+    return count > M.MINIMIZED_VISIBLE_MAX
   end
 
   function Taskbar:_createTaskbarAnimatedIcon(sheet)
@@ -567,7 +722,10 @@ function M.install(Taskbar, Helpers)
     end
 
     pruneMinimizedWindows(self)
-    if #self.minimizedWindows <= M.MINIMIZED_VISIBLE_MAX then
+    if self:_isTaskbarGroupedByKind() then
+      self._kindGroups = collectKindGroups(self)
+    end
+    if stripEntryCount(self) <= M.MINIMIZED_VISIBLE_MAX then
       return true
     end
 
