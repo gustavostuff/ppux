@@ -68,10 +68,53 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc)
 }
 ]]
 
+-- Nametable cache stores the CHR index in R and the attribute palette slot in G.
+-- Color is applied once, at blit time, so PgUp/PgDown can swap all 4 colors.
+local NAMETABLE_INDEX_ENCODE_SRC = [[
+extern number palSlot;
+
+vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc)
+{
+    vec4 px = Texel(tex, tc);
+    if (px.a < 0.5) {
+        return vec4(0.0);
+    }
+    return vec4(px.r, palSlot, 0.0, 1.0);
+}
+]]
+
+local NAMETABLE_LAYER_SHADER_SRC = [[
+extern vec4 pal[16];
+
+vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc)
+{
+    vec4 px = Texel(tex, tc);
+    if (px.a < 0.5) {
+        return vec4(0.0);
+    }
+    float ci = clamp(floor(px.r * 3.0 + 0.5), 0.0, 3.0);
+    float pi = clamp(floor(px.g * 3.0 + 0.5), 0.0, 3.0);
+    int idx = int(pi) * 4 + int(ci);
+    return pal[idx] * color;
+}
+]]
+
 local function ensureShader()
   if M.shader then return M.shader end
   M.shader = love.graphics.newShader(PALETTE_SHADER_SRC)
   return M.shader
+end
+
+local function ensureNametableIndexEncodeShader()
+  if M.nametableIndexEncodeShader then return M.nametableIndexEncodeShader end
+  M.nametableIndexEncodeShader = love.graphics.newShader(NAMETABLE_INDEX_ENCODE_SRC)
+  return M.nametableIndexEncodeShader
+end
+
+local function ensureNametableLayerShader()
+  if M.nametableLayerShader then return M.nametableLayerShader end
+  M.nametableLayerShader = love.graphics.newShader(NAMETABLE_LAYER_SHADER_SRC)
+  return M.nametableLayerShader
 end
 
 -- codes: array of 4 NES hex strings "HH" (optional; defaults to M.codes)
@@ -159,12 +202,77 @@ function M.applyShader(drawingActiveLayer, layer, codes, layerOpacityOverride, o
   
   ensureShader()
   updateShaderUniforms(drawingActiveLayer, codes, layerOpacityOverride, opts)
-  -- This is the ONLY place setShader should be called
   love.graphics.setShader(M.shader)
 end
 
 function M.releaseShader()
   love.graphics.setShader()
+end
+
+--- True when this nametable layer should follow the active generic palette.
+--- A ROM palette link, or an inline palette row, keeps its own colors.
+local function nametableUsesActiveGenericPalette(layer)
+  local pd = layer and layer.paletteData
+  if type(pd) ~= "table" then
+    return true
+  end
+  if type(pd.items) == "table" then
+    return false
+  end
+  if type(pd.winId) ~= "string" or pd.winId == "" then
+    return true
+  end
+  local ctx = rawget(_G, "ctx")
+  local wm = ctx and ctx.wm and ctx.wm()
+  local win = wm and wm.findWindowById and wm:findWindowById(pd.winId)
+  return WindowCaps.isRomPaletteWindow(win) ~= true
+end
+
+--- Four NES codes for one nametable attribute slot (1..4).
+--- ROM and inline palettes keep that row. Everything else uses the active generic palette,
+--- including a link to one generic palette window, so PgUp/PgDown recolors every index.
+function M.nametableSubpaletteCodes(layer, paletteNumber, romRaw)
+  local resolved = nil
+  if not nametableUsesActiveGenericPalette(layer) then
+    resolved = M.resolveLayerPaletteCodes(layer, paletteNumber, romRaw)
+  end
+  local out = {}
+  for i = 1, 4 do
+    local code = resolved and resolved[i]
+    if type(code) ~= "string" then
+      code = M.codes[i] or "0F"
+    end
+    out[i] = code
+  end
+  return out
+end
+
+--- Store CHR index (R) and attribute slot (G) into the nametable cache.
+function M.applyNametableIndexEncode(paletteNumber)
+  local shader = ensureNametableIndexEncodeShader()
+  local slot = math.floor(tonumber(paletteNumber) or 1) - 1
+  if slot < 0 then slot = 0 end
+  if slot > 3 then slot = 3 end
+  love.graphics.setShader(shader)
+  shader:send("palSlot", slot / 3)
+end
+
+--- Color a nametable index cache. Slot 0 of each subpalette stays transparent.
+function M.applyNametableLayerShader(layer, romRaw, layerOpacity)
+  local shader = ensureNametableLayerShader()
+  local opacity = tonumber(layerOpacity)
+  if opacity == nil then opacity = 1 end
+  local vecs = {}
+  for pal = 1, 4 do
+    local codes = M.nametableSubpaletteCodes(layer, pal, romRaw)
+    for i = 1, 4 do
+      local rgb = hex2rgb(M.paletteName, codes[i] or "0F")
+      local alpha = (i == 1) and 0 or opacity
+      vecs[#vecs + 1] = { rgb[1] or 0, rgb[2] or 0, rgb[3] or 0, alpha }
+    end
+  end
+  love.graphics.setShader(shader)
+  shader:send("pal", unpack(vecs))
 end
 
 function M.getShader()

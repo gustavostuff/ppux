@@ -1238,14 +1238,23 @@ function PPUFrameWindow:renderCell(col, row, x, y, w, h, layerIndex, layerAlpha)
   end
   local paletteLayer = getPaletteLayerForRender(self, layer)
 
-  ShaderPaletteController.applyLayerItemPalette(
-    paletteLayer,
-    item,
-    drawingActiveLayer,
-    getCurrentRomRaw(self),
-    paletteNum,
-    layerAlpha
-  )
+  if layer and layer.kind == "tile" then
+    local codes = ShaderPaletteController.nametableSubpaletteCodes(
+      paletteLayer,
+      paletteNum,
+      getCurrentRomRaw(self)
+    )
+    ShaderPaletteController.applyShader(drawingActiveLayer, layer, codes, layerAlpha)
+  else
+    ShaderPaletteController.applyLayerItemPalette(
+      paletteLayer,
+      item,
+      drawingActiveLayer,
+      getCurrentRomRaw(self),
+      paletteNum,
+      layerAlpha
+    )
+  end
 
   love.graphics.setColor(colors.white)
   item:draw(x, y, 1)

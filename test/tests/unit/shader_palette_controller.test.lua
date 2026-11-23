@@ -82,6 +82,103 @@ describe("shader_palette_controller.lua", function()
       expect(codes).toEqual({"0F", "30", "28", "16"})
     end)
   end)
+
+  describe("nametableSubpaletteCodes", function()
+    local function restoreCodes(previous)
+      ShaderPaletteController.setCodes(previous)
+    end
+
+    local function copyCodes()
+      local current = ShaderPaletteController.getCodes()
+      return { current[1], current[2], current[3], current[4] }
+    end
+
+    it("uses the active generic palette for every slot when the layer is unlinked", function()
+      local previous = copyCodes()
+      ShaderPaletteController.setCodes({ "11", "22", "33", "44" })
+
+      local codes = ShaderPaletteController.nametableSubpaletteCodes({}, 4, nil)
+      restoreCodes(previous)
+
+      expect(codes).toEqual({ "11", "22", "33", "44" })
+    end)
+
+    it("follows the active generic palette when the link is a generic palette window", function()
+      local previousCtx = rawget(_G, "ctx")
+      local previous = copyCodes()
+      _G.ctx = {
+        wm = function()
+          return {
+            findWindowById = function(_, id)
+              if id == "palette_1" then
+                return {
+                  kind = "palette",
+                  codes2D = {
+                    [0] = { [0] = "0F", [1] = "30", [2] = "28", [3] = "16" },
+                  },
+                }
+              end
+              return nil
+            end,
+          }
+        end,
+      }
+      ShaderPaletteController.setCodes({ "01", "02", "03", "04" })
+
+      local codes = ShaderPaletteController.nametableSubpaletteCodes({
+        paletteData = { winId = "palette_1" },
+      }, 2, nil)
+
+      _G.ctx = previousCtx
+      restoreCodes(previous)
+
+      expect(codes).toEqual({ "01", "02", "03", "04" })
+    end)
+
+    it("keeps the linked ROM palette row for that attribute slot", function()
+      local previousCtx = rawget(_G, "ctx")
+      _G.ctx = {
+        wm = function()
+          return {
+            findWindowById = function(_, id)
+              if id == "rom_palette_1" then
+                return {
+                  kind = "rom_palette",
+                  codes2D = {
+                    [0] = { [0] = "0F", [1] = "30", [2] = "28", [3] = "16" },
+                    [1] = { [0] = "0F", [1] = "11", [2] = "22", [3] = "33" },
+                    [2] = { [0] = "0F", [1] = "21", [2] = "22", [3] = "23" },
+                    [3] = { [0] = "0F", [1] = "31", [2] = "32", [3] = "33" },
+                  },
+                }
+              end
+              return nil
+            end,
+          }
+        end,
+      }
+
+      local codes = ShaderPaletteController.nametableSubpaletteCodes({
+        paletteData = { winId = "rom_palette_1" },
+      }, 3, nil)
+      _G.ctx = previousCtx
+
+      expect(codes).toEqual({ "0F", "21", "22", "23" })
+    end)
+
+    it("compiles the nametable index shaders", function()
+      ShaderPaletteController.applyNametableIndexEncode(3)
+      ShaderPaletteController.applyNametableLayerShader({
+        paletteData = {
+          items = {
+            { "0F", "30", "28", "16" },
+          },
+        },
+      }, nil, 0.5)
+      ShaderPaletteController.releaseShader()
+      expect(true).toBe(true)
+    end)
+  end)
   
   describe("getPaletteColors", function()
     it("returns all 4 colors from palette", function()

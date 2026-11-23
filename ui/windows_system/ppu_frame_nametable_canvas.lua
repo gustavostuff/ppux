@@ -89,22 +89,15 @@ return function(PPUFrameWindow)
     if paletteNum == nil then
       paletteNum = decodePaletteNumberFromAttributes(self, col, row)
     end
-    local paletteLayer = getPaletteLayerForRender(self, layer)
 
     love.graphics.setBlendMode("replace", "premultiplied")
     love.graphics.setColor(0, 0, 0, 0)
     love.graphics.rectangle("fill", x, y, w, h)
-    love.graphics.setBlendMode("alpha", "alphamultiply")
 
+    -- Cache the CHR index plus the attribute slot. Palette colors are applied
+    -- when the cache is drawn, so every index follows the current palette.
     if item and item.draw then
-      ShaderPaletteController.applyLayerItemPalette(
-        paletteLayer,
-        item,
-        true,
-        getCurrentRomRaw(self),
-        paletteNum,
-        1.0
-      )
+      ShaderPaletteController.applyNametableIndexEncode(paletteNum or 1)
       love.graphics.setColor(colors.white)
       item:draw(x, y, 1)
       ShaderPaletteController.releaseShader()
@@ -182,8 +175,14 @@ return function(PPUFrameWindow)
     love.graphics.scale(z, z)
     CanvasSpace.setScissorFromContentRect(sx, sy, sw, sh)
     love.graphics.translate(-(self.scrollCol or 0) * cw, -(self.scrollRow or 0) * ch)
-    love.graphics.setColor(1, 1, 1, layerOpacity)
+    -- The cache is indexes, not RGB. Bind the current subpalettes once so
+    -- PgUp/PgDown recolors every pixel, instead of reshading baked colors.
+    ShaderPaletteController.releaseShader()
+    local paletteLayer = getPaletteLayerForRender(self, layer) or layer
+    ShaderPaletteController.applyNametableLayerShader(paletteLayer, getCurrentRomRaw(self), layerOpacity)
+    love.graphics.setColor(colors.white)
     love.graphics.draw(state.canvas, 0, 0)
+    ShaderPaletteController.releaseShader()
     local rangeHighlight = self.getHoveredPatternRangeHighlight
       and self:getHoveredPatternRangeHighlight(layer)
     if rangeHighlight and self.drawPatternRangeHoverOverlay then
