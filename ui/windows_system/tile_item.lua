@@ -44,9 +44,8 @@ local function writePixelsToCHR(tile)
   for y = 0, 7 do
     for x = 0, 7 do
       local pixelValue = tile:getPixel(x, y)
-      if pixelValue then
-        chr.setTilePixel(tile._bankBytesRef, tile.index, x, y, pixelValue)
-      end
+      if pixelValue == nil then pixelValue = 0 end
+      chr.setTilePixel(tile._bankBytesRef, tile.index, x, y, pixelValue)
     end
   end
   BankCanvasSupport.invalidateTile(nil, tile._bankIndex, tile.index)

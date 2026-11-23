@@ -1,4 +1,5 @@
 local chr = require("chr")
+local BankCanvasSupport = require("controllers.chr.bank_canvas_support")
 local ChrDuplicateSync = require("controllers.chr.duplicate_sync_controller")
 local GameArtController = require("controllers.game_art.game_art_controller")
 local MultiSelectController = require("controllers.input_support.multi_select_controller")
@@ -117,9 +118,8 @@ local function offsetTileRefPixels(tileRef, dx, dy, opts)
       for x = 0, 7 do
         local idx = y * 8 + x + 1
         local pixelValue = tileRef.pixels[idx]
-        if pixelValue then
-          chr.setTilePixel(tileRef._bankBytesRef, tileRef.index, x, y, pixelValue)
-        end
+        if pixelValue == nil then pixelValue = 0 end
+        chr.setTilePixel(tileRef._bankBytesRef, tileRef.index, x, y, pixelValue)
       end
     end
   end
@@ -135,11 +135,12 @@ local function writeTileRefPixelsToCHR(tileRef)
     for x = 0, 7 do
       local idx = y * 8 + x + 1
       local pixelValue = tileRef.pixels and tileRef.pixels[idx]
-      if pixelValue then
-        chr.setTilePixel(tileRef._bankBytesRef, tileRef.index, x, y, pixelValue)
-      end
+      if pixelValue == nil then pixelValue = 0 end
+      chr.setTilePixel(tileRef._bankBytesRef, tileRef.index, x, y, pixelValue)
     end
   end
+  -- CHR and ROM bank windows paint from bank bytes, not the tile image.
+  BankCanvasSupport.invalidateTile(nil, tileRef._bankIndex, tileRef.index)
 end
 
 local function resetTileRefOffsetState(tileRef)
@@ -171,9 +172,46 @@ local function setPairOffsetPixel(storage, x, y, value, fillValue)
   end
 end
 
-local function ensureSpritePairOffsetState(sprite, topRef, botRef, fillValue)
-  local state = sprite and sprite._pixelOffset16State
-  if state and state.topRef == topRef and state.botRef == botRef then
+local function pairStateMatches(state, topRef, botRef)
+  return state and state.topRef == topRef and state.botRef == botRef
+end
+
+--- Fold an 8x8 tile's offscreen offset plane into the 8x16 pair plane.
+--- yBias is 0 for the top tile and 8 for the bottom tile.
+local function importTileOffsetPlane(pairPixels, tileRef, yBias, fillValue)
+  if not (tileRef and tileRef._offsetStorage) then return end
+  local ox = tileRef._offsetViewportX or 0
+  local oy = tileRef._offsetViewportY or 0
+  for key, value in pairs(tileRef._offsetStorage) do
+    local sx, sy = tostring(key):match("^(-?%d+),(-?%d+)$")
+    sx, sy = tonumber(sx), tonumber(sy)
+    if sx and sy then
+      setPairOffsetPixel(pairPixels, sx + ox, sy + oy + yBias, value, fillValue)
+    end
+  end
+end
+
+local function seedPairOffsetViewport(state, topRef, botRef, fillValue)
+  for y = 0, 7 do
+    for x = 0, 7 do
+      local topIdx = y * 8 + x + 1
+      local botIdx = y * 8 + x + 1
+      setPairOffsetPixel(state.pixels, x, y, (topRef.pixels and topRef.pixels[topIdx]) or fillValue, fillValue)
+      setPairOffsetPixel(state.pixels, x, y + 8, (botRef.pixels and botRef.pixels[botIdx]) or fillValue, fillValue)
+    end
+  end
+end
+
+--- One offscreen plane for an 8x16 pair. Lives on the sprite when there is one,
+--- and always on the top tile so CHR/ROM banks keep pixels that leave the viewport.
+local function ensurePairOffsetState(owner, topRef, botRef, fillValue)
+  local state = owner and owner._pixelOffset16State
+  if not pairStateMatches(state, topRef, botRef) then
+    state = topRef and topRef._pixelOffset16State
+  end
+  if pairStateMatches(state, topRef, botRef) then
+    if owner then owner._pixelOffset16State = state end
+    if topRef then topRef._pixelOffset16State = state end
     return state
   end
 
@@ -184,19 +222,12 @@ local function ensureSpritePairOffsetState(sprite, topRef, botRef, fillValue)
     oy = 0,
     pixels = {},
   }
+  importTileOffsetPlane(state.pixels, topRef, 0, fillValue)
+  importTileOffsetPlane(state.pixels, botRef, 8, fillValue)
+  seedPairOffsetViewport(state, topRef, botRef, fillValue)
 
-  for y = 0, 7 do
-    for x = 0, 7 do
-      local topIdx = y * 8 + x + 1
-      local botIdx = y * 8 + x + 1
-      setPairOffsetPixel(state.pixels, x, y, (topRef.pixels and topRef.pixels[topIdx]) or fillValue, fillValue)
-      setPairOffsetPixel(state.pixels, x, y + 8, (botRef.pixels and botRef.pixels[botIdx]) or fillValue, fillValue)
-    end
-  end
-
-  if sprite then
-    sprite._pixelOffset16State = state
-  end
+  if owner then owner._pixelOffset16State = state end
+  if topRef then topRef._pixelOffset16State = state end
   return state
 end
 
@@ -235,35 +266,74 @@ local function renderSpritePairStateToTileRefs(state, topRef, botRef, fillValue)
   end
 end
 
-local function offsetSprite8x16Pixels(sprite, dx, dy, opts)
-  local topRef = sprite and sprite.topRef
-  local botRef = sprite and sprite.botRef
+local function offsetPairSurface(owner, topRef, botRef, dx, dy, opts)
   if not (topRef and botRef and topRef.pixels and botRef.pixels) then
     return false
   end
 
   opts = opts or {}
+  local wrap = opts.wrap == true
   local fillValue = math.floor(tonumber(opts.fillValue) or 0)
   if fillValue < 0 then fillValue = 0 end
   if fillValue > 3 then fillValue = 3 end
 
-  local state = ensureSpritePairOffsetState(sprite, topRef, botRef, fillValue)
-  syncVisibleWindowToSpritePairState(state, topRef, botRef, fillValue)
+  dx = math.floor(tonumber(dx) or 0)
+  dy = math.floor(tonumber(dy) or 0)
+  if dx == 0 and dy == 0 then
+    return true
+  end
 
-  state.ox = (state.ox or 0) + dx
-  state.oy = (state.oy or 0) + dy
+  if wrap then
+    local source = {}
+    for y = 0, 15 do
+      for x = 0, 7 do
+        local value = fillValue
+        if y < 8 then
+          value = topRef.pixels[y * 8 + x + 1] or fillValue
+        else
+          value = botRef.pixels[(y - 8) * 8 + x + 1] or fillValue
+        end
+        source[y * 8 + x + 1] = value
+      end
+    end
 
-  renderSpritePairStateToTileRefs(state, topRef, botRef, fillValue)
+    local pairW, pairH = 8, 16
+    for y = 0, pairH - 1 do
+      for x = 0, pairW - 1 do
+        local sx = ((x - dx) % pairW + pairW) % pairW
+        local sy = ((y - dy) % pairH + pairH) % pairH
+        local value = source[sy * pairW + sx + 1] or fillValue
+        if y < 8 then
+          topRef.pixels[y * 8 + x + 1] = value
+        else
+          botRef.pixels[(y - 8) * 8 + x + 1] = value
+        end
+      end
+    end
+    if owner then owner._pixelOffset16State = nil end
+    if topRef then topRef._pixelOffset16State = nil end
+  else
+    -- Same rule as 8x8: pixels that leave the viewport stay in storage.
+    local state = ensurePairOffsetState(owner, topRef, botRef, fillValue)
+    syncVisibleWindowToSpritePairState(state, topRef, botRef, fillValue)
+    state.ox = (state.ox or 0) + dx
+    state.oy = (state.oy or 0) + dy
+    renderSpritePairStateToTileRefs(state, topRef, botRef, fillValue)
+  end
 
   resetTileRefOffsetState(topRef)
   resetTileRefOffsetState(botRef)
-
   if topRef.refreshImage then topRef:refreshImage() end
   if botRef.refreshImage then botRef:refreshImage() end
   writeTileRefPixelsToCHR(topRef)
   writeTileRefPixelsToCHR(botRef)
-
   return true
+end
+
+local function offsetSprite8x16Pixels(sprite, dx, dy, opts)
+  local topRef = sprite and sprite.topRef
+  local botRef = sprite and sprite.botRef
+  return offsetPairSurface(sprite, topRef, botRef, dx, dy, opts)
 end
 
 local function copyTileRefPixels(sourceRef, targetRef)
@@ -283,72 +353,7 @@ local function copyTileRefPixels(sourceRef, targetRef)
 end
 
 local function offsetTileRefPairPixels(topRef, botRef, dx, dy, opts)
-  if not (topRef and botRef and topRef.pixels and botRef.pixels) then
-    return false
-  end
-
-  opts = opts or {}
-  local wrap = opts.wrap == true
-  local fillValue = math.floor(tonumber(opts.fillValue) or 0)
-  if fillValue < 0 then fillValue = 0 end
-  if fillValue > 3 then fillValue = 3 end
-
-  dx = math.floor(tonumber(dx) or 0)
-  dy = math.floor(tonumber(dy) or 0)
-
-  if dx == 0 and dy == 0 then
-    return true
-  end
-
-  local source = {}
-  for y = 0, 15 do
-    for x = 0, 7 do
-      local value = fillValue
-      if y < 8 then
-        value = (topRef.pixels and topRef.pixels[y * 8 + x + 1]) or fillValue
-      else
-        value = (botRef.pixels and botRef.pixels[(y - 8) * 8 + x + 1]) or fillValue
-      end
-      source[y * 8 + x + 1] = value
-    end
-  end
-
-  local shifted = {}
-  local pairW, pairH = 8, 16
-  for y = 0, pairH - 1 do
-    for x = 0, pairW - 1 do
-      local sx = x - dx
-      local sy = y - dy
-      local value = fillValue
-
-      if wrap then
-        sx = ((sx % pairW) + pairW) % pairW
-        sy = ((sy % pairH) + pairH) % pairH
-        value = source[sy * pairW + sx + 1] or fillValue
-      elseif sx >= 0 and sx < pairW and sy >= 0 and sy < pairH then
-        value = source[sy * pairW + sx + 1] or fillValue
-      end
-
-      shifted[y * pairW + x + 1] = value
-    end
-  end
-
-  for y = 0, 15 do
-    for x = 0, 7 do
-      local value = shifted[y * 8 + x + 1]
-      if y < 8 then
-        topRef.pixels[y * 8 + x + 1] = value
-      else
-        botRef.pixels[(y - 8) * 8 + x + 1] = value
-      end
-    end
-  end
-
-  if topRef.refreshImage then topRef:refreshImage() end
-  if botRef.refreshImage then botRef:refreshImage() end
-  writeTileRefPixelsToCHR(topRef)
-  writeTileRefPixelsToCHR(botRef)
-  return true
+  return offsetPairSurface(topRef, topRef, botRef, dx, dy, opts)
 end
 
 local function isChr8x16Mode(win)
